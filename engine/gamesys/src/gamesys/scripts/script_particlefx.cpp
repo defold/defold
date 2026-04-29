@@ -32,11 +32,7 @@
 
 #include "script_particlefx.h"
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameSystem
 {
@@ -154,7 +150,7 @@ namespace dmGameSystem
             return;
         }
 
-        lua_State* L = dmScript::GetCallbackLuaContext(data.m_CallbackInfo);
+        dlua_State* L = dmScript::GetCallbackLuaContext(data.m_CallbackInfo);
 
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -168,7 +164,7 @@ namespace dmGameSystem
 
         dmScript::PushHash(L, data.m_ComponentId);
         dmScript::PushHash(L, emitter_id);
-        lua_pushnumber(L, emitter_state);
+        dlua_pushnumber(L, emitter_state);
         dmScript::PCall(L, 4, 0);
 
         dmScript::TeardownCallback(data.m_CallbackInfo);
@@ -227,15 +223,15 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int ParticleFX_Play(lua_State* L)
+    int ParticleFX_Play(dlua_State* L)
     {
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         if (top < 1)
         {
-            return luaL_error(L, "particlefx.play expects atleast URL as parameter");
+            return dluaL_error(L, "particlefx.play expects atleast URL as parameter");
         }
 
         DM_LUA_STACK_CHECK(L, 0);
@@ -248,7 +244,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        if (top > 1 && !lua_isnil(L, 2))
+        if (top > 1 && !dlua_isnil(L, 2))
         {
             data.m_CallbackInfo = dmScript::CreateCallback(dmScript::GetMainThread(L), -1);
             if (data.m_CallbackInfo == 0x0)
@@ -310,7 +306,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int ParticleFX_Stop(lua_State* L)
+    int ParticleFX_Stop(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -324,23 +320,23 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         int clear_particles = 0;
-        if (!lua_isnone(L, 2)) {
-            luaL_checktype(L, 2, LUA_TTABLE);
-            lua_pushvalue(L, 2);
-            lua_pushnil(L);
-            while (lua_next(L, -2)) {
-                const char* option = lua_tostring(L, -2);
+        if (!dlua_isnone(L, 2)) {
+            dluaL_checktype(L, 2, DLUA_TTABLE);
+            dlua_pushvalue(L, 2);
+            dlua_pushnil(L);
+            while (dlua_next(L, -2)) {
+                const char* option = dlua_tostring(L, -2);
                 if (strcmp(option, "clear") == 0)
                 {
-                    clear_particles = lua_toboolean(L, -1);
+                    clear_particles = dlua_toboolean(L, -1);
                 }
                 else
                 {
                     dmLogWarning("Unknown option to particlefx.stop() %s", option);
                 }
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         msg.m_ClearParticles = clear_particles;
@@ -375,9 +371,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int ParticleFX_SetConstant(lua_State* L)
+    int ParticleFX_SetConstant(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
@@ -407,7 +403,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -435,9 +431,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int ParticleFX_ResetConstant(lua_State* L)
+    int ParticleFX_ResetConstant(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
@@ -452,11 +448,11 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
-    static const luaL_reg PARTICLEFX_FUNCTIONS[] =
+    static const dluaL_reg PARTICLEFX_FUNCTIONS[] =
     {
         {"play",            ParticleFX_Play},
         {"stop",            ParticleFX_Stop},
@@ -467,13 +463,13 @@ namespace dmGameSystem
 
     void ScriptParticleFXRegister(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
-        int top = lua_gettop(L);
-        luaL_register(L, "particlefx", PARTICLEFX_FUNCTIONS);
+        dlua_State* L = context.m_LuaState;
+        int top = dlua_gettop(L);
+        dluaL_register(L, "particlefx", PARTICLEFX_FUNCTIONS);
 
         #define SETCONSTANT(name, val) \
-            lua_pushnumber(L, (lua_Number) val); \
-            lua_setfield(L, -2, #name);\
+            dlua_pushnumber(L, (dlua_Number) val); \
+            dlua_setfield(L, -2, #name);\
 
         SETCONSTANT(EMITTER_STATE_SLEEPING, dmParticle::EMITTER_STATE_SLEEPING);
         SETCONSTANT(EMITTER_STATE_PRESPAWN, dmParticle::EMITTER_STATE_PRESPAWN);
@@ -483,7 +479,7 @@ namespace dmGameSystem
         #undef SETCONSTANT
 
         // pop table "particle_fx"
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+        dlua_pop(L, 1);
+        assert(top == dlua_gettop(L));
     }
 }

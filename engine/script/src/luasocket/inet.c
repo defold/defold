@@ -6,8 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "lua.h"
-#include "lauxlib.h"
+#include <dmsdk/dlua/dlua.h>
 
 #include "inet.h"
 
@@ -18,15 +17,15 @@ extern const char* gai_strerror(int errcode);
 /*=========================================================================*\
 * Internal function prototypes.
 \*=========================================================================*/
-static int inet_global_toip(lua_State *L);
-static int inet_global_getaddrinfo(lua_State *L);
-static int inet_global_tohostname(lua_State *L);
-static int inet_global_getnameinfo(lua_State *L);
-static void inet_pushresolved(lua_State *L, struct hostent *hp);
-static int inet_global_gethostname(lua_State *L);
+static int inet_global_toip(dlua_State *L);
+static int inet_global_getaddrinfo(dlua_State *L);
+static int inet_global_tohostname(dlua_State *L);
+static int inet_global_getnameinfo(dlua_State *L);
+static void inet_pushresolved(dlua_State *L, struct hostent *hp);
+static int inet_global_gethostname(dlua_State *L);
 
 /* DNS functions */
-static luaL_Reg func[] = {
+static dluaL_Reg func[] = {
     { "toip", inet_global_toip},
     { "getaddrinfo", inet_global_getaddrinfo},
     { "tohostname", inet_global_tohostname},
@@ -41,16 +40,16 @@ static luaL_Reg func[] = {
 /*-------------------------------------------------------------------------*\
 * Initializes module
 \*-------------------------------------------------------------------------*/
-int inet_open(lua_State *L)
+int inet_open(dlua_State *L)
 {
-    lua_pushliteral(L, "dns");
-    lua_newtable(L);
-#if LUA_VERSION_NUM > 501 && !defined(LUA_COMPAT_MODULE)
-    luaL_setfuncs(L, func, 0);
+    dlua_pushliteral(L, "dns");
+    dlua_newtable(L);
+#if 0
+    dluaL_setfuncs(L, func, 0);
 #else
-    luaL_openlib(L, NULL, func, 0);
+    dluaL_openlib(L, NULL, func, 0);
 #endif
-    lua_settable(L, -3);
+    dlua_settable(L, -3);
     return 0;
 }
 
@@ -73,31 +72,31 @@ static int inet_gethost(const char *address, struct hostent **hp) {
 * Returns all information provided by the resolver given a host name
 * or ip address
 \*-------------------------------------------------------------------------*/
-static int inet_global_tohostname(lua_State *L) {
-    const char *address = luaL_checkstring(L, 1);
+static int inet_global_tohostname(dlua_State *L) {
+    const char *address = dluaL_checkstring(L, 1);
     struct hostent *hp = NULL;
     int err = inet_gethost(address, &hp);
     if (err != IO_DONE) {
-        lua_pushnil(L);
-        lua_pushstring(L, socket_hoststrerror(err));
+        dlua_pushnil(L);
+        dlua_pushstring(L, socket_hoststrerror(err));
         return 2;
     }
-    lua_pushstring(L, hp->h_name);
+    dlua_pushstring(L, hp->h_name);
     inet_pushresolved(L, hp);
     return 2;
 }
 
-static int inet_global_getnameinfo(lua_State *L) {
+static int inet_global_getnameinfo(dlua_State *L) {
     char hbuf[NI_MAXHOST];
     char sbuf[NI_MAXSERV];
     int i, ret;
     struct addrinfo hints;
     struct addrinfo *resolved, *iter;
-    const char *host = luaL_optstring(L, 1, NULL);
-    const char *serv = luaL_optstring(L, 2, NULL);
+    const char *host = dluaL_optstring(L, 1, NULL);
+    const char *serv = dluaL_optstring(L, 2, NULL);
 
     if (!(host || serv))
-        luaL_error(L, "host and serv cannot be both nil");
+        dluaL_error(L, "host and serv cannot be both nil");
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
@@ -105,26 +104,26 @@ static int inet_global_getnameinfo(lua_State *L) {
 
     ret = getaddrinfo(host, serv, &hints, &resolved);
     if (ret != 0) {
-        lua_pushnil(L);
-        lua_pushstring(L, socket_gaistrerror(ret));
+        dlua_pushnil(L);
+        dlua_pushstring(L, socket_gaistrerror(ret));
         return 2;
     }
 
-    lua_newtable(L);
+    dlua_newtable(L);
     for (i = 1, iter = resolved; iter; i++, iter = iter->ai_next) {
         getnameinfo(iter->ai_addr, (socklen_t) iter->ai_addrlen,
             hbuf, host? (socklen_t) sizeof(hbuf): 0,
             sbuf, serv? (socklen_t) sizeof(sbuf): 0, 0);
         if (host) {
-            lua_pushnumber(L, i);
-            lua_pushstring(L, hbuf);
-            lua_settable(L, -3);
+            dlua_pushnumber(L, i);
+            dlua_pushstring(L, hbuf);
+            dlua_settable(L, -3);
         }
     }
     freeaddrinfo(resolved);
 
     if (serv) {
-        lua_pushstring(L, sbuf);
+        dlua_pushstring(L, sbuf);
         return 2;
     } else {
         return 1;
@@ -135,40 +134,40 @@ static int inet_global_getnameinfo(lua_State *L) {
 * Returns all information provided by the resolver given a host name
 * or ip address
 \*-------------------------------------------------------------------------*/
-static int inet_global_toip(lua_State *L)
+static int inet_global_toip(dlua_State *L)
 {
-    const char *address = luaL_checkstring(L, 1);
+    const char *address = dluaL_checkstring(L, 1);
     struct hostent *hp = NULL;
     int err = inet_gethost(address, &hp);
     if (err != IO_DONE) {
-        lua_pushnil(L);
-        lua_pushstring(L, socket_hoststrerror(err));
+        dlua_pushnil(L);
+        dlua_pushstring(L, socket_hoststrerror(err));
         return 2;
     }
-    lua_pushstring(L, inet_ntoa(*((struct in_addr *) hp->h_addr)));
+    dlua_pushstring(L, inet_ntoa(*((struct in_addr *) hp->h_addr)));
     inet_pushresolved(L, hp);
     return 2;
 }
 
-int inet_optfamily(lua_State* L, int narg, const char* def)
+int inet_optfamily(dlua_State* L, int narg, const char* def)
 {
     static const char* optname[] = { "unspec", "inet", "inet6", NULL };
     static int optvalue[] = { PF_UNSPEC, PF_INET, PF_INET6, 0 };
 
-    return optvalue[luaL_checkoption(L, narg, def, optname)];
+    return optvalue[dluaL_checkoption(L, narg, def, optname)];
 }
 
-int inet_optsocktype(lua_State* L, int narg, const char* def)
+int inet_optsocktype(dlua_State* L, int narg, const char* def)
 {
     static const char* optname[] = { "stream", "dgram", NULL };
     static int optvalue[] = { SOCK_STREAM, SOCK_DGRAM, 0 };
 
-    return optvalue[luaL_checkoption(L, narg, def, optname)];
+    return optvalue[dluaL_checkoption(L, narg, def, optname)];
 }
 
-static int inet_global_getaddrinfo(lua_State *L)
+static int inet_global_getaddrinfo(dlua_State *L)
 {
-    const char *hostname = luaL_checkstring(L, 1);
+    const char *hostname = dluaL_checkstring(L, 1);
     struct addrinfo *iterator = NULL, *resolved = NULL;
     struct addrinfo hints;
     int i = 1, ret = 0;
@@ -177,38 +176,38 @@ static int inet_global_getaddrinfo(lua_State *L)
     hints.ai_family = PF_UNSPEC;
     ret = getaddrinfo(hostname, NULL, &hints, &resolved);
     if (ret != 0) {
-        lua_pushnil(L);
-        lua_pushstring(L, socket_gaistrerror(ret));
+        dlua_pushnil(L);
+        dlua_pushstring(L, socket_gaistrerror(ret));
         return 2;
     }
-    lua_newtable(L);
+    dlua_newtable(L);
     for (iterator = resolved; iterator; iterator = iterator->ai_next) {
         char hbuf[NI_MAXHOST];
         ret = getnameinfo(iterator->ai_addr, (socklen_t) iterator->ai_addrlen,
             hbuf, (socklen_t) sizeof(hbuf), NULL, 0, NI_NUMERICHOST);
         if (ret){
-          lua_pushnil(L);
-          lua_pushstring(L, socket_gaistrerror(ret));
+          dlua_pushnil(L);
+          dlua_pushstring(L, socket_gaistrerror(ret));
           return 2;
         }
-        lua_pushnumber(L, i);
-        lua_newtable(L);
+        dlua_pushnumber(L, i);
+        dlua_newtable(L);
         switch (iterator->ai_family) {
             case AF_INET:
-                lua_pushliteral(L, "family");
-                lua_pushliteral(L, "inet");
-                lua_settable(L, -3);
+                dlua_pushliteral(L, "family");
+                dlua_pushliteral(L, "inet");
+                dlua_settable(L, -3);
                 break;
             case AF_INET6:
-                lua_pushliteral(L, "family");
-                lua_pushliteral(L, "inet6");
-                lua_settable(L, -3);
+                dlua_pushliteral(L, "family");
+                dlua_pushliteral(L, "inet6");
+                dlua_settable(L, -3);
                 break;
         }
-        lua_pushliteral(L, "addr");
-        lua_pushstring(L, hbuf);
-        lua_settable(L, -3);
-        lua_settable(L, -3);
+        dlua_pushliteral(L, "addr");
+        dlua_pushstring(L, hbuf);
+        dlua_settable(L, -3);
+        dlua_settable(L, -3);
         i++;
     }
     freeaddrinfo(resolved);
@@ -219,11 +218,11 @@ static int inet_global_getaddrinfo(lua_State *L)
 * Gets the host name
 \*-------------------------------------------------------------------------*/
 
-static int inet_global_gethostname(lua_State *L)
+static int inet_global_gethostname(dlua_State *L)
 {
 #if defined(__NX__)
-    lua_pushnil(L);
-    lua_pushliteral(L, "gethostname is unsupported on this platform");
+    dlua_pushnil(L);
+    dlua_pushliteral(L, "gethostname is unsupported on this platform");
     return 2;
 #else
     char name[257];
@@ -231,14 +230,14 @@ static int inet_global_gethostname(lua_State *L)
 /// DEFOLD BEGIN
 #if !defined(__EMSCRIPTEN__)
     if (gethostname(name, 256) < 0) {
-        lua_pushnil(L);
-        lua_pushstring(L, socket_strerror(errno));
+        dlua_pushnil(L);
+        dlua_pushstring(L, socket_strerror(errno));
         return 2;
     } else
 #endif
 /// DEFOLD END
     {
-        lua_pushstring(L, name);
+        dlua_pushstring(L, name);
         return 1;
     }
 #endif
@@ -250,7 +249,7 @@ static int inet_global_gethostname(lua_State *L)
 /*-------------------------------------------------------------------------*\
 * Retrieves socket peer name
 \*-------------------------------------------------------------------------*/
-int inet_meth_getpeername(lua_State *L, p_socket ps, int family)
+int inet_meth_getpeername(dlua_State *L, p_socket ps, int family)
 {
     int err;
     struct sockaddr_storage peer;
@@ -258,26 +257,26 @@ int inet_meth_getpeername(lua_State *L, p_socket ps, int family)
     char name[INET6_ADDRSTRLEN];
     char port[6]; /* 65535 = 5 bytes + 0 to terminate it */
     if (getpeername(*ps, (SA *) &peer, &peer_len) < 0) {
-        lua_pushnil(L);
-        lua_pushstring(L, socket_strerror(errno));
+        dlua_pushnil(L);
+        dlua_pushstring(L, socket_strerror(errno));
         return 2;
     }
     err = getnameinfo((struct sockaddr *) &peer, peer_len,
         name, INET6_ADDRSTRLEN,
         port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
     if (err) {
-        lua_pushnil(L);
-        lua_pushstring(L, gai_strerror(err));
+        dlua_pushnil(L);
+        dlua_pushstring(L, gai_strerror(err));
         return 2;
     }
-    lua_pushstring(L, name);
-    lua_pushinteger(L, (int) strtol(port, (char **) NULL, 10));
+    dlua_pushstring(L, name);
+    dlua_pushinteger(L, (int) strtol(port, (char **) NULL, 10));
     if (family == PF_INET) {
-        lua_pushliteral(L, "inet");
+        dlua_pushliteral(L, "inet");
     } else if (family == PF_INET6) {
-        lua_pushliteral(L, "inet6");
+        dlua_pushliteral(L, "inet6");
     } else {
-        lua_pushliteral(L, "uknown family");
+        dlua_pushliteral(L, "uknown family");
     }
     return 3;
 }
@@ -285,7 +284,7 @@ int inet_meth_getpeername(lua_State *L, p_socket ps, int family)
 /*-------------------------------------------------------------------------*\
 * Retrieves socket local name
 \*-------------------------------------------------------------------------*/
-int inet_meth_getsockname(lua_State *L, p_socket ps, int family)
+int inet_meth_getsockname(dlua_State *L, p_socket ps, int family)
 {
     int err;
     struct sockaddr_storage peer;
@@ -293,25 +292,25 @@ int inet_meth_getsockname(lua_State *L, p_socket ps, int family)
     char name[INET6_ADDRSTRLEN];
     char port[6]; /* 65535 = 5 bytes + 0 to terminate it */
     if (getsockname(*ps, (SA *) &peer, &peer_len) < 0) {
-        lua_pushnil(L);
-        lua_pushstring(L, socket_strerror(errno));
+        dlua_pushnil(L);
+        dlua_pushstring(L, socket_strerror(errno));
         return 2;
     }
     err=getnameinfo((struct sockaddr *)&peer, peer_len,
         name, INET6_ADDRSTRLEN, port, 6, NI_NUMERICHOST | NI_NUMERICSERV);
     if (err) {
-        lua_pushnil(L);
-        lua_pushstring(L, gai_strerror(err));
+        dlua_pushnil(L);
+        dlua_pushstring(L, gai_strerror(err));
         return 2;
     }
-    lua_pushstring(L, name);
-    lua_pushstring(L, port);
+    dlua_pushstring(L, name);
+    dlua_pushstring(L, port);
     if (family == PF_INET) {
-        lua_pushliteral(L, "inet");
+        dlua_pushliteral(L, "inet");
     } else if (family == PF_INET6) {
-        lua_pushliteral(L, "inet6");
+        dlua_pushliteral(L, "inet6");
     } else {
-        lua_pushliteral(L, "uknown family");
+        dlua_pushliteral(L, "uknown family");
     }
     return 3;
 }
@@ -322,41 +321,41 @@ int inet_meth_getsockname(lua_State *L, p_socket ps, int family)
 /*-------------------------------------------------------------------------*\
 * Passes all resolver information to Lua as a table
 \*-------------------------------------------------------------------------*/
-static void inet_pushresolved(lua_State *L, struct hostent *hp)
+static void inet_pushresolved(dlua_State *L, struct hostent *hp)
 {
     char **alias;
     struct in_addr **addr;
     int i, resolved;
-    lua_newtable(L); resolved = lua_gettop(L);
-    lua_pushliteral(L, "name");
-    lua_pushstring(L, hp->h_name);
-    lua_settable(L, resolved);
-    lua_pushliteral(L, "ip");
-    lua_pushliteral(L, "alias");
+    dlua_newtable(L); resolved = dlua_gettop(L);
+    dlua_pushliteral(L, "name");
+    dlua_pushstring(L, hp->h_name);
+    dlua_settable(L, resolved);
+    dlua_pushliteral(L, "ip");
+    dlua_pushliteral(L, "alias");
     i = 1;
     alias = hp->h_aliases;
-    lua_newtable(L);
+    dlua_newtable(L);
     if (alias) {
         while (*alias) {
-            lua_pushnumber(L, i);
-            lua_pushstring(L, *alias);
-            lua_settable(L, -3);
+            dlua_pushnumber(L, i);
+            dlua_pushstring(L, *alias);
+            dlua_settable(L, -3);
             i++; alias++;
         }
     }
-    lua_settable(L, resolved);
+    dlua_settable(L, resolved);
     i = 1;
-    lua_newtable(L);
+    dlua_newtable(L);
     addr = (struct in_addr **) hp->h_addr_list;
     if (addr) {
         while (*addr) {
-            lua_pushnumber(L, i);
-            lua_pushstring(L, inet_ntoa(**addr));
-            lua_settable(L, -3);
+            dlua_pushnumber(L, i);
+            dlua_pushstring(L, inet_ntoa(**addr));
+            dlua_settable(L, -3);
             i++; addr++;
         }
     }
-    lua_settable(L, resolved);
+    dlua_settable(L, resolved);
 }
 
 /*-------------------------------------------------------------------------*\

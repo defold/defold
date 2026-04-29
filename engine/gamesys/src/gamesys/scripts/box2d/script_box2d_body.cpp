@@ -26,11 +26,7 @@
 
 #include "script_box2d.h"
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 //////////////////////////////////////////////////////////////////////////////
 // b2Body
@@ -48,19 +44,19 @@ namespace dmGameSystem
         dmhash_t                  m_InstanceId;
     };
 
-    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    void PushBody(dlua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
     {
-        B2DLuaBody* luabody   = (B2DLuaBody*) lua_newuserdata(L, sizeof(B2DLuaBody));
+        B2DLuaBody* luabody   = (B2DLuaBody*) dlua_newuserdata(L, sizeof(B2DLuaBody));
         luabody->m_Body       = (b2BodyId*) body;
         luabody->m_Collection = collection;
         luabody->m_InstanceId = instance_id;
-        luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
-        lua_setmetatable(L, -2);
+        dluaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
+        dlua_setmetatable(L, -2);
     }
 
     //////////////////////////////////////////////////////////////////////////////
     // b2Vec2
-    static b2Vec2 CheckVec2(lua_State* L, int index, float scale)
+    static b2Vec2 CheckVec2(dlua_State* L, int index, float scale)
     {
         dmVMath::Vector3* v = dmScript::CheckVector3(L, index);
         b2Vec2 b2v = { v->getX() * scale, v->getY() * scale };
@@ -72,37 +68,37 @@ namespace dmGameSystem
         return dmVMath::Vector3(p.x * inv_scale, p.y * inv_scale, 0);
     }
 
-    static B2DLuaBody* CheckBodyInternal(lua_State* L, int index)
+    static B2DLuaBody* CheckBodyInternal(dlua_State* L, int index)
     {
         return (B2DLuaBody*)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
     }
 
-    static int VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody)
+    static int VerifyBodyInternal(dlua_State* L, B2DLuaBody* luabody)
     {
         if (luabody->m_InstanceId) // check if the instance is alive
         {
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
             if (!instance)
             {
-                return luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(luabody->m_InstanceId));
+                return dluaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(luabody->m_InstanceId));
             }
         }
         return 0;
     }
 
-    b2BodyId* CheckBody(lua_State* L, int index)
+    b2BodyId* CheckBody(dlua_State* L, int index)
     {
         B2DLuaBody* luabody = CheckBodyInternal(L, index);
         VerifyBodyInternal(L, luabody);
         return luabody->m_Body;
     }
 
-    static b2BodyId* ToBody(lua_State* L, int index)
+    static b2BodyId* ToBody(dlua_State* L, int index)
     {
         return (b2BodyId*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
     }
 
-    static int Body_GetPosition(lua_State* L)
+    static int Body_GetPosition(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -110,18 +106,18 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_SetTransform(lua_State* L)
+    static int Body_SetTransform(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
         b2Vec2 position = CheckVec2(L, 2, GetPhysicsScale());
-        float angle = luaL_checknumber(L, 3);
+        float angle = dluaL_checknumber(L, 3);
         b2Rot rot = b2MakeRot(angle);
         b2Body_SetTransform(*body, position, rot);
         return 0;
     }
 
-    static int Body_ApplyForce(lua_State* L)
+    static int Body_ApplyForce(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
@@ -131,7 +127,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Body_ApplyForceToCenter(lua_State* L)
+    static int Body_ApplyForceToCenter(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
@@ -140,15 +136,15 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Body_ApplyTorque(lua_State* L)
+    static int Body_ApplyTorque(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        b2Body_ApplyTorque(*body, luaL_checknumber(L, 2), true);
+        b2Body_ApplyTorque(*body, dluaL_checknumber(L, 2), true);
         return 0;
     }
 
-    static int Body_ApplyLinearImpulse(lua_State* L)
+    static int Body_ApplyLinearImpulse(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
@@ -158,43 +154,43 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Body_ApplyAngularImpulse(lua_State* L)
+    static int Body_ApplyAngularImpulse(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        b2Body_ApplyAngularImpulse(*body, luaL_checknumber(L, 2), true);
+        b2Body_ApplyAngularImpulse(*body, dluaL_checknumber(L, 2), true);
         return 0;
     }
 
-    static int Body_GetMass(lua_State* L)
+    static int Body_GetMass(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushnumber(L, b2Body_GetMass(*body));
+        dlua_pushnumber(L, b2Body_GetMass(*body));
         return 1;
     }
 
     // Old name: use Body_GetInertia
-    static int Body_GetRotationalInertia(lua_State* L)
+    static int Body_GetRotationalInertia(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushnumber(L, b2Body_GetRotationalInertia(*body));
+        dlua_pushnumber(L, b2Body_GetRotationalInertia(*body));
         return 1;
     }
 
-    static int Body_GetAngle(lua_State* L)
+    static int Body_GetAngle(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
         b2Rot rot = b2Body_GetRotation(*body);
         float angle = b2Rot_GetAngle(rot);
-        lua_pushnumber(L, angle);
+        dlua_pushnumber(L, angle);
         return 1;
     }
 
     // Old name: Body_GetWorldCenter
-    static int Body_GetWorldCenterOfMass(lua_State* L)
+    static int Body_GetWorldCenterOfMass(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -203,7 +199,7 @@ namespace dmGameSystem
     }
 
     // Old name: Body_GetLocalCenter
-    static int Body_GetLocalCenterOfMass(lua_State* L)
+    static int Body_GetLocalCenterOfMass(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -211,7 +207,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_GetLinearVelocity(lua_State* L)
+    static int Body_GetLinearVelocity(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -219,7 +215,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_SetLinearVelocity(lua_State* L)
+    static int Body_SetLinearVelocity(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
@@ -228,169 +224,169 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Body_GetAngularVelocity(lua_State* L)
+    static int Body_GetAngularVelocity(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushnumber(L, b2Body_GetAngularVelocity(*body));
+        dlua_pushnumber(L, b2Body_GetAngularVelocity(*body));
         return 1;
     }
 
-    static int Body_SetAngularVelocity(lua_State* L)
+    static int Body_SetAngularVelocity(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        b2Body_SetAngularVelocity(*body, luaL_checknumber(L, 2));
+        b2Body_SetAngularVelocity(*body, dluaL_checknumber(L, 2));
         return 0;
     }
 
-    static int Body_GetLinearDamping(lua_State* L)
+    static int Body_GetLinearDamping(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushnumber(L, b2Body_GetLinearDamping(*body));
+        dlua_pushnumber(L, b2Body_GetLinearDamping(*body));
         return 1;
     }
 
-    static int Body_SetLinearDamping(lua_State* L)
+    static int Body_SetLinearDamping(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        b2Body_SetLinearDamping(*body, luaL_checknumber(L, 2));
+        b2Body_SetLinearDamping(*body, dluaL_checknumber(L, 2));
         return 0;
     }
 
-    static int Body_GetAngularDamping(lua_State* L)
+    static int Body_GetAngularDamping(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushnumber(L, b2Body_GetAngularDamping(*body));
+        dlua_pushnumber(L, b2Body_GetAngularDamping(*body));
         return 1;
     }
 
-    static int Body_SetAngularDamping(lua_State* L)
+    static int Body_SetAngularDamping(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        b2Body_SetAngularDamping(*body, luaL_checknumber(L, 2));
+        b2Body_SetAngularDamping(*body, dluaL_checknumber(L, 2));
         return 0;
     }
 
-    static int Body_GetGravityScale(lua_State* L)
+    static int Body_GetGravityScale(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushnumber(L, b2Body_GetGravityScale(*body));
+        dlua_pushnumber(L, b2Body_GetGravityScale(*body));
         return 1;
     }
 
-    static int Body_SetGravityScale(lua_State* L)
+    static int Body_SetGravityScale(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        b2Body_SetGravityScale(*body, luaL_checknumber(L, 2));
+        b2Body_SetGravityScale(*body, dluaL_checknumber(L, 2));
         return 0;
     }
 
-    static int Body_GetType(lua_State* L)
+    static int Body_GetType(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushnumber(L, b2Body_GetType(*body));
+        dlua_pushnumber(L, b2Body_GetType(*body));
         return 1;
     }
 
-    static int Body_SetType(lua_State* L)
+    static int Body_SetType(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        b2Body_SetType(*body, (b2BodyType)luaL_checknumber(L, 2));
+        b2Body_SetType(*body, (b2BodyType)dluaL_checknumber(L, 2));
         return 0;
     }
 
-    static int Body_IsBullet(lua_State* L)
+    static int Body_IsBullet(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushboolean(L, b2Body_IsBullet(*body));
+        dlua_pushboolean(L, b2Body_IsBullet(*body));
         return 1;
     }
 
-    static int Body_SetBullet(lua_State* L)
+    static int Body_SetBullet(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        bool enable = lua_toboolean(L, 2);
+        bool enable = dlua_toboolean(L, 2);
         b2Body_SetBullet(*body, enable);
         return 0;
     }
 
-    static int Body_IsAwake(lua_State* L)
+    static int Body_IsAwake(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushboolean(L, b2Body_IsAwake(*body));
+        dlua_pushboolean(L, b2Body_IsAwake(*body));
         return 1;
     }
 
-    static int Body_SetAwake(lua_State* L)
+    static int Body_SetAwake(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        bool enable = lua_toboolean(L, 2);
+        bool enable = dlua_toboolean(L, 2);
         b2Body_SetAwake(*body, enable);
         return 0;
     }
 
-    static int Body_IsFixedRotation(lua_State* L)
+    static int Body_IsFixedRotation(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushboolean(L, b2Body_IsFixedRotation(*body));
+        dlua_pushboolean(L, b2Body_IsFixedRotation(*body));
         return 1;
     }
 
-    static int Body_SetFixedRotation(lua_State* L)
+    static int Body_SetFixedRotation(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        bool enable = lua_toboolean(L, 2);
+        bool enable = dlua_toboolean(L, 2);
         b2Body_SetFixedRotation(*body, enable);
         return 0;
     }
 
     // Old name: Body_IsSleepingAllowed
-    static int Body_IsSleepingEnabled(lua_State* L)
+    static int Body_IsSleepingEnabled(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushboolean(L, b2Body_IsSleepEnabled(*body));
+        dlua_pushboolean(L, b2Body_IsSleepEnabled(*body));
         return 1;
     }
 
     // Old name: Body_SetSleepingAllowed
-    static int Body_EnableSleep(lua_State* L)
+    static int Body_EnableSleep(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        bool enable = lua_toboolean(L, 2);
+        bool enable = dlua_toboolean(L, 2);
         b2Body_EnableSleep(*body, enable);
         return 0;
     }
 
-    static int Body_IsActive(lua_State* L)
+    static int Body_IsActive(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushboolean(L, b2Body_IsEnabled(*body));
+        dlua_pushboolean(L, b2Body_IsEnabled(*body));
         return 1;
     }
 
-    static int Body_SetActive(lua_State* L)
+    static int Body_SetActive(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        bool enable = lua_toboolean(L, 2);
+        bool enable = dlua_toboolean(L, 2);
         if (enable)
         {
             b2Body_Enable(*body);
@@ -402,7 +398,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Body_GetWorldPoint(lua_State* L)
+    static int Body_GetWorldPoint(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -411,7 +407,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_GetWorldVector(lua_State* L)
+    static int Body_GetWorldVector(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -420,7 +416,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_GetLocalPoint(lua_State* L)
+    static int Body_GetLocalPoint(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -429,7 +425,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_GetLocalVector(lua_State* L)
+    static int Body_GetLocalVector(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -438,7 +434,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_GetLinearVelocityFromWorldPoint(lua_State* L)
+    static int Body_GetLinearVelocityFromWorldPoint(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -447,7 +443,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_GetLinearVelocityFromLocalPoint(lua_State* L)
+    static int Body_GetLinearVelocityFromLocalPoint(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
@@ -456,43 +452,43 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_GetWorld(lua_State *L)
+    static int Body_GetWorld(dlua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2WorldId* world_id_ptr = (b2WorldId*) lua_newuserdata(L, sizeof(b2WorldId));
+        b2WorldId* world_id_ptr = (b2WorldId*) dlua_newuserdata(L, sizeof(b2WorldId));
         *world_id_ptr = b2Body_GetWorld(*body);
         return 1;
     }
 
-    static int Body_tostring(lua_State *L)
+    static int Body_tostring(dlua_State *L)
     {
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushfstring(L, "Box2D.%s = %p", BOX2D_TYPE_NAME_BODY, body);
+        dlua_pushfstring(L, "Box2D.%s = %p", BOX2D_TYPE_NAME_BODY, body);
         return 1;
     }
 
-    static int Body_eq(lua_State *L)
+    static int Body_eq(dlua_State *L)
     {
         b2BodyId* a = ToBody(L, 1);
         b2BodyId* b = ToBody(L, 2);
-        lua_pushboolean(L, a && b && memcmp(a, b, sizeof(b2BodyId)) == 0);
+        dlua_pushboolean(L, a && b && memcmp(a, b, sizeof(b2BodyId)) == 0);
         return 1;
     }
 
-    static const luaL_reg Body_methods[] =
+    static const dluaL_reg Body_methods[] =
     {
         {0,0}
     };
 
-    static const luaL_reg Body_meta[] =
+    static const dluaL_reg Body_meta[] =
     {
         {"__tostring", Body_tostring},
         {"__eq", Body_eq},
         {0,0}
     };
 
-    static const luaL_reg Body_functions[] =
+    static const dluaL_reg Body_functions[] =
     {
         {"get_position", Body_GetPosition},
         {"set_transform", Body_SetTransform},
@@ -571,16 +567,16 @@ namespace dmGameSystem
         {0,0}
     };
 
-    void ScriptBox2DInitializeBody(struct lua_State* L)
+    void ScriptBox2DInitializeBody(dlua_State* L)
     {
         TYPE_HASH_BODY = dmScript::RegisterUserType(L, BOX2D_TYPE_NAME_BODY, Body_methods, Body_meta);
 
-        lua_newtable(L);
-        luaL_register(L, 0, Body_functions);
+        dlua_newtable(L);
+        dluaL_register(L, 0, Body_functions);
 
 #define SET_CONSTANT(NAME, CUSTOM_NAME) \
-        lua_pushnumber(L, (lua_Number) NAME); \
-        lua_setfield(L, -2, CUSTOM_NAME);
+        dlua_pushnumber(L, (dlua_Number) NAME); \
+        dlua_setfield(L, -2, CUSTOM_NAME);
 
         SET_CONSTANT(b2_staticBody, "B2_STATIC_BODY");
         SET_CONSTANT(b2_kinematicBody, "B2_KINEMATIC_BODY");
@@ -588,7 +584,7 @@ namespace dmGameSystem
 
 #undef SET_CONSTANT
 
-        lua_setfield(L, -2, "body");
+        dlua_setfield(L, -2, "body");
     }
 }
 
@@ -1015,5 +1011,4 @@ namespace dmGameSystem
  * @param body [type: b2Body] body
  * @return force [type: vector3]
  */
-
 

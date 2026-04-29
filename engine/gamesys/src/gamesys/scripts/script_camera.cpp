@@ -21,11 +21,7 @@
 #include "../gamesys_private.h"
 #include <gamesys/camera_ddf.h>
 
-extern "C"
-{
-    #include <lua/lua.h>
-    #include <lua/lauxlib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameSystem
 {
@@ -50,7 +46,7 @@ namespace dmGameSystem
     * camera.acquire_focus("/observer#main_camera")
     * ```
     */
-    static int Camera_AcquireFocus(lua_State* L)
+    static int Camera_AcquireFocus(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
@@ -73,7 +69,7 @@ namespace dmGameSystem
     * camera.release_focus("/observer#main_camera")
     * ```
     */
-    static int Camera_ReleaseFocus(lua_State* L)
+    static int Camera_ReleaseFocus(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
@@ -87,7 +83,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static const luaL_reg ScriptCamera_methods[] =
+    static const dluaL_reg ScriptCamera_methods[] =
     {
         {"acquire_focus", Camera_AcquireFocus},
         {"release_focus", Camera_ReleaseFocus},
@@ -96,12 +92,12 @@ namespace dmGameSystem
 
     void ScriptCameraRegister(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
-        int top = lua_gettop(L);
+        dlua_State* L = context.m_LuaState;
+        int top = dlua_gettop(L);
 
-        luaL_register(L, LIB_NAME, ScriptCamera_methods);
-        lua_pop(L, 1);
+        dluaL_register(L, LIB_NAME, ScriptCamera_methods);
+        dlua_pop(L, 1);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 }

@@ -15,17 +15,12 @@
 #ifndef DM_SCRIPT_LIVEUPDATE_H
 #define DM_SCRIPT_LIVEUPDATE_H
 
-extern "C"
-{
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-}
-
+#include <dmsdk/dlua/dlua.h>
 #include <resource/resource.h>
 
 namespace dmLiveUpdate
 {
-    void ScriptInit(lua_State* L, dmResource::HFactory factory);
+    void ScriptInit(dlua_State* L, dmResource::HFactory factory);
 }
 
 /*# LiveUpdate API documentation

@@ -28,11 +28,7 @@
 
 #include "script_box2d.h"
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameSystem
 {
@@ -41,9 +37,9 @@ namespace dmGameSystem
     static float g_PhysicsScale = 1.0f;
     static float g_InvPhysicsScale = 1.0f / g_PhysicsScale;
 
-    void PushWorld(struct lua_State* L, void* world)
+    void PushWorld(dlua_State* L, void* world)
     {
-        lua_pushlightuserdata(L, world);
+        dlua_pushlightuserdata(L, world);
     }
 
     void SetPhysicsScale(float scale)
@@ -64,12 +60,12 @@ namespace dmGameSystem
 
     //////////////////////////////////////////////////////////////////////////////
 
-    static void GetCollisionObject(lua_State* L, int index, dmGameObject::HCollection collection, dmMessage::URL* url, dmGameObject::HComponent* comp, void** comp_world)
+    static void GetCollisionObject(dlua_State* L, int index, dmGameObject::HCollection collection, dmMessage::URL* url, dmGameObject::HComponent* comp, void** comp_world)
     {
         dmGameObject::GetComponentFromLua(L, index, collection, COLLISION_OBJECT_EXT, comp, url, comp_world);
     }
 
-    static int B2D_GetWorld(lua_State* L)
+    static int B2D_GetWorld(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -81,11 +77,11 @@ namespace dmGameSystem
         if (world)
             PushWorld(L, world);
         else
-            lua_pushnil(L);
+            dlua_pushnil(L);
         return 1;
     }
 
-    static int B2D_GetBody(lua_State* L)
+    static int B2D_GetBody(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -101,11 +97,11 @@ namespace dmGameSystem
             PushBody(L, body, collection, url.m_Path);
         }
         else
-            lua_pushnil(L);
+            dlua_pushnil(L);
         return 1;
     }
 
-    static const luaL_reg BOX2D_FUNCTIONS[] =
+    static const dluaL_reg BOX2D_FUNCTIONS[] =
     {
         {"get_world", B2D_GetWorld},
         {"get_body", B2D_GetBody},
@@ -119,12 +115,12 @@ namespace dmGameSystem
         float physics_scale = params->m_ConfigFile ? dmConfigFile::GetFloat(params->m_ConfigFile, "physics.scale", physics_scale_default) : physics_scale_default;
         dmGameSystem::SetPhysicsScale(physics_scale);
 
-        lua_State* L = params->m_L;
-        luaL_register(L, "b2d", dmGameSystem::BOX2D_FUNCTIONS);
+        dlua_State* L = params->m_L;
+        dluaL_register(L, "b2d", dmGameSystem::BOX2D_FUNCTIONS);
 
         dmGameSystem::ScriptBox2DInitializeBody(L);
 
-        lua_pop(L, 1); // pop the lua module
+        dlua_pop(L, 1); // pop the lua module
         return dmExtension::RESULT_OK;
     }
 
@@ -172,4 +168,3 @@ namespace dmGameSystem
  * @param url [type: string|hash|url] the url to the game object collision component
  * @return body [type: b2Body] the body if successful. Otherwise `nil`.
  */
-

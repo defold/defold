@@ -54,7 +54,7 @@ namespace dmGameObject
         dmLuaDDF::LuaModule* lua_module = (dmLuaDDF::LuaModule*) params->m_PreloadData;
 
         dmScript::HContext script_context = (dmScript::HContext) params->m_Context;
-        lua_State* L = dmScript::GetLuaState(script_context);
+        dlua_State* L = dmScript::GetLuaState(script_context);
 
         if (!RegisterSubModules(params->m_Factory, script_context, lua_module))
         {

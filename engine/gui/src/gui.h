@@ -1225,7 +1225,7 @@ namespace dmGui
     /** Gets the lua state used for gui scripts.
      * @return lua state
      */
-    lua_State* GetLuaState(HContext context);
+    dlua_State* GetLuaState(HContext context);
 
     /** Gets reference to the lua reference table used for gui scripts.
      * @return lua reference table reference
@@ -1237,7 +1237,7 @@ namespace dmGui
      * @param L lua state
      * @return current scene, or 0
      */
-    HScene GetSceneFromLua(lua_State* L);
+    HScene GetSceneFromLua(dlua_State* L);
 }
 
 #endif

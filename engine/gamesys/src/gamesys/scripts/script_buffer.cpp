@@ -28,11 +28,7 @@
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmScript
 {
@@ -104,8 +100,8 @@ namespace dmGameSystem
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
 #define SCRIPT_TYPE_NAME_BUFFERSTREAM "bufferstream"
 
-    typedef void (*FStreamSetter)(void* data, int index, lua_Number v);
-    typedef lua_Number (*FStreamGetter)(void* data, int index);
+    typedef void (*FStreamSetter)(void* data, int index, dlua_Number v);
+    typedef dlua_Number (*FStreamGetter)(void* data, int index);
 
     // The stream concept as a struct, only exists here in the Lua world
     struct BufferStream
@@ -144,19 +140,19 @@ namespace dmGameSystem
         return true;
     }
 
-    static bool IsStream(lua_State *L, int index)
+    static bool IsStream(dlua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == dmScript::SCRIPT_BUFFERSTREAM_TYPE_HASH;
     }
 
     template<typename T>
-    lua_Number GetStreamValue(void* data, int index)
+    dlua_Number GetStreamValue(void* data, int index)
     {
         return *((T*)data + index);
     }
 
     template<typename T>
-    void SetStreamValue(void* data, int index, lua_Number v)
+    void SetStreamValue(void* data, int index, dlua_Number v)
     {
         *((T*)data + index) = (T)v;
     }
@@ -199,7 +195,7 @@ namespace dmGameSystem
         }
     }
 
-    static int PushStream(lua_State* L, int bufferindex, dmBuffer::HBuffer buffer, dmhash_t stream_name)
+    static int PushStream(dlua_State* L, int bufferindex, dmBuffer::HBuffer buffer, dmhash_t stream_name)
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmBuffer::ValueType type;
@@ -226,7 +222,7 @@ namespace dmGameSystem
             return DM_LUA_ERROR("Failed to get stream getter and setter!");
         }
 
-        BufferStream* p = (BufferStream*)lua_newuserdata(L, sizeof(BufferStream));
+        BufferStream* p = (BufferStream*)dlua_newuserdata(L, sizeof(BufferStream));
         p->m_Buffer = buffer;
         p->m_Name = stream_name;
         p->m_Data = data;
@@ -238,17 +234,17 @@ namespace dmGameSystem
         p->m_Get = getter;
 
         // Push the Lua object and increase its ref count
-        lua_pushvalue(L, bufferindex);
-        p->m_BufferRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        dlua_pushvalue(L, bufferindex);
+        p->m_BufferRef = dmScript::Ref(L, DLUA_REGISTRYINDEX);
 
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFERSTREAM);
-        lua_setmetatable(L, -2);
+        dluaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        dlua_setmetatable(L, -2);
         return 1;
     }
 
-    static BufferStream* CheckStreamNoError(lua_State* L, int index)
+    static BufferStream* CheckStreamNoError(dlua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TUSERDATA)
+        if (dlua_type(L, index) == DLUA_TUSERDATA)
         {
             BufferStream* stream = (BufferStream*)dmScript::ToUserType(L, index, dmScript::SCRIPT_BUFFERSTREAM_TYPE_HASH);
             if (stream && dmBuffer::IsBufferValid(stream->m_Buffer))
@@ -259,45 +255,45 @@ namespace dmGameSystem
         return 0x0;
     }
 
-    static BufferStream* CheckStream(lua_State* L, int index)
+    static BufferStream* CheckStream(dlua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TUSERDATA)
+        if (dlua_type(L, index) == DLUA_TUSERDATA)
         {
             BufferStream* stream = (BufferStream*)dmScript::CheckUserType(L, index, dmScript::SCRIPT_BUFFERSTREAM_TYPE_HASH, 0);
             if (stream && dmBuffer::IsBufferValid(stream->m_Buffer))
             {
                 return stream;
             }
-            luaL_error(L, "The buffer handle is invalid");
+            dluaL_error(L, "The buffer handle is invalid");
         }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        dluaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
         return 0x0;
     }
 
     ////////////////////////////////////////////////////////
     // Buffer Module
 
-    static int ParseStreamDeclaration(lua_State* L, int index, dmBuffer::StreamDeclaration* decl, int current_decl)
+    static int ParseStreamDeclaration(dlua_State* L, int index, dmBuffer::StreamDeclaration* decl, int current_decl)
     {
         DM_LUA_STACK_CHECK(L, 0)
-        if( !lua_istable(L, index) )
+        if( !dlua_istable(L, index) )
         {
-            return DM_LUA_ERROR("buffer.create: Expected table, got %s", lua_typename(L, lua_type(L, index)));
+            return DM_LUA_ERROR("buffer.create: Expected table, got %s", dlua_typename(L, dlua_type(L, index)));
         }
 
-        lua_pushvalue(L, index);
+        dlua_pushvalue(L, index);
 
         dmBuffer::ValueType value_type = dmBuffer::MAX_VALUE_TYPE_COUNT;
-        lua_pushnil(L);
-        while (lua_next(L, -2) != 0)
+        dlua_pushnil(L);
+        while (dlua_next(L, -2) != 0)
         {
-            if( lua_type(L, -2) != LUA_TSTRING )
+            if( dlua_type(L, -2) != DLUA_TSTRING )
             {
-        		lua_pop(L, 3);
-                return DM_LUA_ERROR("buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));
+                dlua_pop(L, 3);
+                return DM_LUA_ERROR("buffer.create: Unknown index type: %s - %s", dlua_typename(L, dlua_type(L, -2)), dlua_tostring(L, -2));
             }
 
-            const char* key = lua_tostring(L, -2);
+            const char* key = dlua_tostring(L, -2);
 
             if( strcmp(key, "name") == 0)
             {
@@ -305,21 +301,21 @@ namespace dmGameSystem
             }
             else if( strcmp(key, "type") == 0)
             {
-                value_type = (dmBuffer::ValueType) luaL_checkint(L, -1);
+                value_type = (dmBuffer::ValueType) dluaL_checkint(L, -1);
             }
             else if( strcmp(key, "count") == 0)
             {
-                decl[current_decl].m_Count = (uint32_t) luaL_checkint(L, -1);
+                decl[current_decl].m_Count = (uint32_t) dluaL_checkint(L, -1);
             }
             else
             {
-        		lua_pop(L, 3);
+                dlua_pop(L, 3);
                 return DM_LUA_ERROR("buffer.create: Unknown index name: %s", key);
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
         if (value_type < 0 || value_type >= dmBuffer::MAX_VALUE_TYPE_COUNT)
         {
@@ -366,58 +362,58 @@ namespace dmGameSystem
      *   end
      * ```
      */
-    static int Create(lua_State* L)
+    static int Create(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
-        int num_elements = luaL_checkint(L, 1);
+        int num_elements = dluaL_checkint(L, 1);
         if( num_elements < 1 )
         {
-            return luaL_error(L, "buffer.create: Number of elements must be positive: %d", num_elements);
+            return dluaL_error(L, "buffer.create: Number of elements must be positive: %d", num_elements);
         }
-        if( !lua_istable(L, 2) )
+        if( !dlua_istable(L, 2) )
         {
-            return luaL_error(L, "buffer.create: Second argument must be a table");
+            return dluaL_error(L, "buffer.create: Second argument must be a table");
         }
 
-        int num_decl = lua_objlen(L, 2);
+        int num_decl = dlua_objlen(L, 2);
         if( num_decl < 1 )
         {
-            return luaL_error(L, "buffer.create: You must specify at least one stream declaration");
+            return dluaL_error(L, "buffer.create: You must specify at least one stream declaration");
         }
 
         dmBuffer::StreamDeclaration* decl = (dmBuffer::StreamDeclaration*)alloca(num_decl * sizeof(dmBuffer::StreamDeclaration));
         if( !decl )
         {
-            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);
+            return dluaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);
         }
 
         uint32_t count = 0;
-        lua_pushvalue(L, 2);
+        dlua_pushvalue(L, 2);
 
-        lua_pushnil(L);
-        while (lua_next(L, -2) != 0)
+        dlua_pushnil(L);
+        while (dlua_next(L, -2) != 0)
         {
             ParseStreamDeclaration(L, -1, decl, count);
             count++;
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
         dmBuffer::HBuffer buffer = 0;
         dmBuffer::Result r = dmBuffer::Create((uint32_t)num_elements, decl, num_decl, &buffer);
 
         if( r != dmBuffer::RESULT_OK )
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
+            assert(top == dlua_gettop(L));
+            return dluaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
         }
 
         dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
         PushBuffer(L, luabuf);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -430,7 +426,7 @@ namespace dmGameSystem
      * @param stream_name [type:hash|string] the stream name
      * @return stream [type:bufferstream] the data stream
     */
-    static int GetStream(lua_State* L)
+    static int GetStream(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
@@ -518,11 +514,11 @@ namespace dmGameSystem
      * buffer.copy_stream(dststream, 0, srcstream, 0, #srcstream)
      * ```
     */
-    static int CopyStream(lua_State* L)
+    static int CopyStream(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         BufferStream* dststream = CheckStream(L, 1);
-        int dstoffset = luaL_checkint(L, 2);
+        int dstoffset = dluaL_checkint(L, 2);
 
         BufferStream* srcstream = 0;
         if( IsStream(L, 3) )
@@ -531,11 +527,11 @@ namespace dmGameSystem
         }
         else
         {
-            return luaL_typerror(L, 3, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+            return dluaL_typerror(L, 3, SCRIPT_TYPE_NAME_BUFFERSTREAM);
         }
 
-        int srcoffset = luaL_checkint(L, 4);
-        int count = luaL_checkint(L, 5);
+        int srcoffset = dluaL_checkint(L, 4);
+        int count = dluaL_checkint(L, 5);
 
         if(srcstream)
         {
@@ -593,7 +589,7 @@ namespace dmGameSystem
      * buffer.copy_buffer(dstbuffer, 0, srcbuffer, #srcbuffer - 10, 10)
      * ```
     */
-    static int CopyBuffer(lua_State* L)
+    static int CopyBuffer(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -601,9 +597,9 @@ namespace dmGameSystem
         dmBuffer::HBuffer src_hbuffer = dmScript::CheckBufferUnpack(L, 3);
         dmBuffer::HBuffer dstbuffer = dst_hbuffer;
         dmBuffer::HBuffer srcbuffer = src_hbuffer;
-        int dstoffset = luaL_checkint(L, 2);
-        int srcoffset = luaL_checkint(L, 4);
-        int count = luaL_checkint(L, 5);
+        int dstoffset = dluaL_checkint(L, 2);
+        int srcoffset = dluaL_checkint(L, 4);
+        int count = dluaL_checkint(L, 5);
 
         // Validate first
         if( count <= 0 )
@@ -690,7 +686,7 @@ namespace dmGameSystem
      * @param stream_name [type:hash] the name of the stream
      * @return data [type:string] the buffer data as a Lua string
     */
-    static int GetBytes(lua_State* L)
+    static int GetBytes(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
@@ -703,14 +699,14 @@ namespace dmGameSystem
             return DM_LUA_ERROR("buffer.create: Failed getting buffer: %s", dmBuffer::GetResultString(r));
         }
 
-        lua_pushlstring(L, (const char*)data, datasize);
+        dlua_pushlstring(L, (const char*)data, datasize);
         return 1;
     }
 
     //////////////////////////////////////////////////////////////////
     // BUFFER
 
-    static int Buffer_gc(lua_State *L)
+    static int Buffer_gc(dlua_State *L)
     {
         dmScript::LuaHBuffer* buffer = dmScript::CheckBufferNoError(L, 1);
 
@@ -735,7 +731,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Buffer_tostring(lua_State *L)
+    static int Buffer_tostring(dlua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -747,7 +743,7 @@ namespace dmGameSystem
         dmBuffer::Result r = dmBuffer::GetCount(hbuffer, &out_element_count);
         if( r != dmBuffer::RESULT_OK )
         {
-            lua_pushfstring(L, "buffer.%s(invalid)", SCRIPT_TYPE_NAME_BUFFER);
+            dlua_pushfstring(L, "buffer.%s(invalid)", SCRIPT_TYPE_NAME_BUFFER);
             return 1;
         }
 
@@ -781,11 +777,11 @@ namespace dmGameSystem
         }
         dmStrlCat(s, ")", maxlen);
 
-        lua_pushstring(L, s);
+        dlua_pushstring(L, s);
         return 1;
     }
 
-    static int Buffer_len(lua_State *L)
+    static int Buffer_len(dlua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
@@ -795,15 +791,15 @@ namespace dmGameSystem
             return DM_LUA_ERROR("%s.%s could not get buffer length", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFER);
         }
 
-        lua_pushnumber(L, count);
+        dlua_pushnumber(L, count);
         return 1;
     }
 
-    static const luaL_reg Buffer_methods[] =
+    static const dluaL_reg Buffer_methods[] =
     {
         {0,0}
     };
-    static const luaL_reg Buffer_meta[] =
+    static const dluaL_reg Buffer_meta[] =
     {
         {"__gc",        Buffer_gc},
         {"__tostring",  Buffer_tostring},
@@ -815,19 +811,19 @@ namespace dmGameSystem
     //////////////////////////////////////////////////////////////////
     // STREAM
 
-    static int Stream_gc(lua_State* L)
+    static int Stream_gc(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         BufferStream* stream = CheckStreamNoError(L, 1);
         if( stream )
         {
 	        // decrease ref to buffer
-	        dmScript::Unref(L, LUA_REGISTRYINDEX, stream->m_BufferRef);
+	        dmScript::Unref(L, DLUA_REGISTRYINDEX, stream->m_BufferRef);
 	    }
         return 0;
     }
 
-    static int Stream_tostring(lua_State* L)
+    static int Stream_tostring(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         BufferStream* stream = CheckStream(L, 1);
@@ -835,25 +831,25 @@ namespace dmGameSystem
         uint32_t type_count;
         dmBuffer::Result r = GetStreamType(stream->m_Buffer, stream->m_Name, &type, &type_count);
         if( r == dmBuffer::RESULT_OK )
-            lua_pushfstring(L, "%s.%s({ hash(\"%s\"), buffer.%s, %d })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, dmHashReverseSafe64(stream->m_Name), dmBuffer::GetValueTypeString(type), type_count );
+            dlua_pushfstring(L, "%s.%s({ hash(\"%s\"), buffer.%s, %d })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, dmHashReverseSafe64(stream->m_Name), dmBuffer::GetValueTypeString(type), type_count );
         else
-            lua_pushfstring(L, "%s.%s({ hash(\"%s\"), unknown, unknown })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, dmHashReverseSafe64(stream->m_Name));
+            dlua_pushfstring(L, "%s.%s({ hash(\"%s\"), unknown, unknown })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, dmHashReverseSafe64(stream->m_Name));
         return 1;
     }
 
-    static int Stream_len(lua_State* L)
+    static int Stream_len(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         BufferStream* stream = CheckStream(L, 1);
-        lua_pushnumber(L, stream->m_Count * stream->m_TypeCount);
+        dlua_pushnumber(L, stream->m_Count * stream->m_TypeCount);
         return 1;
     }
 
-    static int Stream_index(lua_State* L)
+    static int Stream_index(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         BufferStream* stream = CheckStream(L, 1);
-        int index = luaL_checkinteger(L, 2) - 1;
+        int index = dluaL_checkinteger(L, 2) - 1;
         if (index < 0 || index >= (int)(stream->m_Count * stream->m_TypeCount))
         {
             if (stream->m_Count > 0)
@@ -866,15 +862,15 @@ namespace dmGameSystem
         // convert contiguous index to stream space
         uint32_t count = index / stream->m_TypeCount;
         uint32_t component = index % stream->m_TypeCount;
-        lua_pushnumber(L, stream->m_Get(stream->m_Data, count * stream->m_Stride + component));
+        dlua_pushnumber(L, stream->m_Get(stream->m_Data, count * stream->m_Stride + component));
         return 1;
     }
 
-    static int Stream_newindex(lua_State* L)
+    static int Stream_newindex(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         BufferStream* stream = CheckStream(L, 1);
-        int index = luaL_checkinteger(L, 2) - 1;
+        int index = dluaL_checkinteger(L, 2) - 1;
         if (index < 0 || index >= (int)(stream->m_Count * stream->m_TypeCount))
         {
             if (stream->m_Count > 0)
@@ -886,7 +882,7 @@ namespace dmGameSystem
 
         uint32_t count = index / stream->m_TypeCount;
         uint32_t component = index % stream->m_TypeCount;
-        stream->m_Set(stream->m_Data, count * stream->m_Stride + component, luaL_checknumber(L, 3));
+        stream->m_Set(stream->m_Data, count * stream->m_Stride + component, dluaL_checknumber(L, 3));
         dmBuffer::UpdateContentVersion(stream->m_Buffer);
         return 0;
     }
@@ -894,28 +890,28 @@ namespace dmGameSystem
 
     // Allocates and fills up an array of ints/floats from a table at the top of the stack. It pops the table before returning.
     template <typename T>
-    static T* LuaTableToArray(lua_State* L, uint32_t count, dmBuffer::ValueType valueType)
+    static T* LuaTableToArray(dlua_State* L, uint32_t count, dmBuffer::ValueType valueType)
     {
 
         T* buffer = (T*) malloc(count*dmBuffer::GetSizeForValueType(valueType));
 
         uint32_t i = 0;
-        lua_pushnil(L);
-        while (lua_next(L, -2) != 0) {
+        dlua_pushnil(L);
+        while (dlua_next(L, -2) != 0) {
             if (valueType == dmBuffer::VALUE_TYPE_FLOAT32)
             {
-                buffer[i] = (T)luaL_checknumber(L, -1);
+                buffer[i] = (T)dluaL_checknumber(L, -1);
             } else
             {
-                buffer[i] = (T)luaL_checkinteger(L, -1);
+                buffer[i] = (T)dluaL_checkinteger(L, -1);
             }
-            luaL_checkint(L, -2); // index of the value. Make sure it's an int
+            dluaL_checkint(L, -2); // index of the value. Make sure it's an int
 
             i++;
-            lua_pop(L, 1); // pop value, keep index for next iteration
+            dlua_pop(L, 1); // pop value, keep index for next iteration
         }
 
-        lua_pop(L, 1); // pop the table itself
+        dlua_pop(L, 1); // pop the table itself
 
         return buffer;
     }
@@ -943,7 +939,7 @@ namespace dmGameSystem
      * buffer.set_metadata(buf, hash("somefloats"), {-2.5, 10.0, 32.2}, buffer.VALUE_TYPE_FLOAT32)
      * ```
     */
-    static int SetMetadata(lua_State* L)
+    static int SetMetadata(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -954,11 +950,11 @@ namespace dmGameSystem
         dmhash_t entry_name = dmScript::CheckHashOrString(L, 2);
 
         // get number type
-        dmBuffer::ValueType valueType = (dmBuffer::ValueType) luaL_checkinteger(L, 4);
+        dmBuffer::ValueType valueType = (dmBuffer::ValueType) dluaL_checkinteger(L, 4);
 
         // get array of values
-        luaL_checktype(L, 3, LUA_TTABLE);
-        uint32_t count = lua_objlen(L, 3);
+        dluaL_checktype(L, 3, DLUA_TTABLE);
+        uint32_t count = dlua_objlen(L, 3);
         if (count > 0)
         {
             // validate valuetype early
@@ -972,7 +968,7 @@ namespace dmGameSystem
             }
 
             void* values = 0;
-            lua_pushvalue(L, 3);
+            dlua_pushvalue(L, 3);
 
             #define DM_LUA_TABLE_TO_ARRAY(_T_) values = (void*) LuaTableToArray<_T_>(L, count, valueType)
             switch(valueType)
@@ -1019,21 +1015,21 @@ namespace dmGameSystem
 
     // copies values from array to (empty) lua table on top of the stack
     template <typename T>
-    static void ArrayToLuaTable(lua_State* L, const T* values, uint32_t count, dmBuffer::ValueType valueType) {
+    static void ArrayToLuaTable(dlua_State* L, const T* values, uint32_t count, dmBuffer::ValueType valueType) {
         if (valueType == dmBuffer::VALUE_TYPE_FLOAT32) {
             for (uint32_t i=0; i<count; i++)
             {
                 T value = values[i];
-                lua_pushnumber(L, value);
-                lua_rawseti(L, -2, i+1); // lua indices start from 1
+                dlua_pushnumber(L, value);
+                dlua_rawseti(L, -2, i+1); // lua indices start from 1
             }
         } else
         {
             for (uint32_t i=0; i<count; i++)
             {
                 T value = values[i];
-                lua_pushinteger(L, value);
-                lua_rawseti(L, -2, i+1); // lua indices start from 1
+                dlua_pushinteger(L, value);
+                dlua_rawseti(L, -2, i+1); // lua indices start from 1
             }
         }
     }
@@ -1057,7 +1053,7 @@ namespace dmGameSystem
      * if metadata then print(#metadata.." values in 'somefloats'") end
      * ```
     */
-    static int GetMetadata(lua_State* L)
+    static int GetMetadata(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 2);
 
@@ -1073,8 +1069,8 @@ namespace dmGameSystem
         dmBuffer::Result r = dmBuffer::GetMetaData(hbuffer, entry_name, &values, &count, &valueType);
         if ( r == dmBuffer::RESULT_METADATA_MISSING)
         {
-            lua_pushnil(L);  // nil for metadata entry
-            lua_pushnil(L); // nil for numbertype
+            dlua_pushnil(L);  // nil for metadata entry
+            dlua_pushnil(L); // nil for numbertype
             return 2;
         }
         if ( r != dmBuffer::RESULT_OK )
@@ -1082,7 +1078,7 @@ namespace dmGameSystem
             return DM_LUA_ERROR("error getting metadata for buffer: %s", dmBuffer::GetResultString(r));
         }
 
-        lua_newtable(L);
+        dlua_newtable(L);
         #define DM_ARRAY_TO_LUA_TABLE(_T_) ArrayToLuaTable<_T_>(L, (_T_*) values, count, valueType)
         switch (valueType)
         {
@@ -1116,17 +1112,17 @@ namespace dmGameSystem
                 return DM_LUA_ERROR("invalid value type supplied: %d", valueType);
         }
         #undef DM_ARRAY_TO_LUA_TABLE
-        lua_pushinteger(L, (uint32_t) valueType);
+        dlua_pushinteger(L, (uint32_t) valueType);
 
         return 2; // table with values and valueType in the stack
     }
 
 
-    static const luaL_reg Stream_methods[] =
+    static const dluaL_reg Stream_methods[] =
     {
         {0,0}
     };
-    static const luaL_reg Stream_meta[] =
+    static const dluaL_reg Stream_meta[] =
     {
         {"__gc",        Stream_gc},
         {"__tostring",  Stream_tostring},
@@ -1138,7 +1134,7 @@ namespace dmGameSystem
 
     /////////////////////////////////////////////////////////////////////////////
 
-    static const luaL_reg Module_methods[] =
+    static const dluaL_reg Module_methods[] =
     {
         {"create", Create},
         {"get_stream", GetStream},
@@ -1152,16 +1148,16 @@ namespace dmGameSystem
 
     struct BufferTypeStruct {
         const char* m_Name;
-        const luaL_reg* m_Methods;
-        const luaL_reg* m_Metatable;
+        const dluaL_reg* m_Methods;
+        const dluaL_reg* m_Metatable;
         uint32_t* m_TypeHash;
     };
 
     void ScriptBufferRegister(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
+        dlua_State* L = context.m_LuaState;
         g_Factory = context.m_Factory;
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         const uint32_t type_count = 2;
         BufferTypeStruct types[type_count] =
@@ -1174,11 +1170,11 @@ namespace dmGameSystem
         {
             *types[i].m_TypeHash = dmScript::RegisterUserType(L, types[i].m_Name, types[i].m_Methods, types[i].m_Metatable);
         }
-        luaL_register(L, SCRIPT_LIB_NAME, Module_methods);
+        dluaL_register(L, SCRIPT_LIB_NAME, Module_methods);
 
 #define SETCONSTANT(name) \
-        lua_pushnumber(L, (lua_Number) dmBuffer::name); \
-        lua_setfield(L, -2, #name);\
+        dlua_pushnumber(L, (dlua_Number) dmBuffer::name); \
+        dlua_setfield(L, -2, #name);\
 
         SETCONSTANT(VALUE_TYPE_UINT8);
         SETCONSTANT(VALUE_TYPE_UINT16);
@@ -1192,8 +1188,8 @@ namespace dmGameSystem
 
 #undef SETCONSTANT
 
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+        dlua_pop(L, 1);
+        assert(top == dlua_gettop(L));
     }
 
 }
@@ -1238,15 +1234,15 @@ namespace dmScript
         return ownership == dmScript::OWNER_C || ownership == dmScript::OWNER_LUA || ownership == dmScript::OWNER_RES;
     }
 
-    bool IsBuffer(lua_State *L, int index)
+    bool IsBuffer(dlua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == SCRIPT_BUFFER_TYPE_HASH;
     }
 
-    void PushBuffer(lua_State* L, const dmScript::LuaHBuffer& v)
+    void PushBuffer(dlua_State* L, const dmScript::LuaHBuffer& v)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* luabuf = (dmScript::LuaHBuffer*)lua_newuserdata(L, sizeof(dmScript::LuaHBuffer));
+        dmScript::LuaHBuffer* luabuf = (dmScript::LuaHBuffer*)dlua_newuserdata(L, sizeof(dmScript::LuaHBuffer));
         luabuf->m_Owner = v.m_Owner;
 
         if (v.m_Owner == dmScript::OWNER_RES)
@@ -1261,17 +1257,17 @@ namespace dmScript
         }
 
         assert(IsValidOwner(luabuf->m_Owner));
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
-        lua_setmetatable(L, -2);
+        dluaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
+        dlua_setmetatable(L, -2);
     }
 
     // Note: the throw_error only controls this particular function, not the CheckUserType
-    static dmBuffer::HBuffer CheckBufferUnpackInternal(lua_State* L, int index, bool throw_error, dmScript::LuaHBuffer** out_luabuffer)
+    static dmBuffer::HBuffer CheckBufferUnpackInternal(dlua_State* L, int index, bool throw_error, dmScript::LuaHBuffer** out_luabuffer)
     {
-        if (!(lua_type(L, index) == LUA_TUSERDATA))
+        if (!(dlua_type(L, index) == DLUA_TUSERDATA))
         {
             if (throw_error)
-                luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
+                dluaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
             return 0;
         }
 
@@ -1290,7 +1286,7 @@ namespace dmScript
         if (!dmGameSystem::CanUnpackLuaBuffer(buffer))
         {
             if (throw_error)
-                luaL_error(L, "The buffer handle was stale");
+                dluaL_error(L, "The buffer handle was stale");
             return 0;
         }
 
@@ -1303,36 +1299,36 @@ namespace dmScript
         }
 
         if (throw_error)
-            luaL_error(L, "The buffer handle is invalid");
+            dluaL_error(L, "The buffer handle is invalid");
 
         return 0;
     }
 
-    dmBuffer::HBuffer CheckBufferUnpack(lua_State* L, int index)
+    dmBuffer::HBuffer CheckBufferUnpack(dlua_State* L, int index)
     {
         return CheckBufferUnpackInternal(L, index, true, 0);
     }
 
-    dmBuffer::HBuffer CheckBufferUnpackNoError(lua_State* L, int index)
+    dmBuffer::HBuffer CheckBufferUnpackNoError(dlua_State* L, int index)
     {
         return CheckBufferUnpackInternal(L, index, false, 0);
     }
 
-    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
+    dmScript::LuaHBuffer* CheckBuffer(dlua_State* L, int index)
     {
         dmScript::LuaHBuffer* buffer = 0;
         dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, true, &buffer);
-        return hbuffer != 0 ? buffer : 0; // SHouldn't get here due to the lua_error
+        return hbuffer != 0 ? buffer : 0; // SHouldn't get here due to the dlua_error
     }
 
-    dmScript::LuaHBuffer* ToBuffer(lua_State* L, int index)
+    dmScript::LuaHBuffer* ToBuffer(dlua_State* L, int index)
     {
         dmScript::LuaHBuffer* buffer = 0;
         dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, false, &buffer);
         return hbuffer != 0 ? buffer : 0;
     }
 
-    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index) // Deprecated
+    dmScript::LuaHBuffer* CheckBufferNoError(dlua_State* L, int index) // Deprecated
     {
         return ToBuffer(L, index);
     }

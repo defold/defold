@@ -18,8 +18,7 @@
 
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 #include "script_private.h"
@@ -57,7 +56,7 @@ namespace dmScript
         // Save a reference to the callback in case the callback removes the listener
         dmScript::LuaCallbackInfo* callback = g_InteractionCallback;
 
-        lua_State* L = dmScript::GetCallbackLuaContext(callback);
+        dlua_State* L = dmScript::GetCallbackLuaContext(callback);
         DM_LUA_STACK_CHECK(L, 0);
 
         if (!dmScript::SetupCallback(callback))
@@ -88,9 +87,9 @@ namespace dmScript
      * print(res_num - 20) -- prints 10
      * ```
      */
-    int Html5_Run(lua_State* L)
+    int Html5_Run(dlua_State* L)
     {
-        const char* code = luaL_checkstring(L, 1);
+        const char* code = dluaL_checkstring(L, 1);
 
         char* result = (char*)EM_ASM_INT({
             var jsResult;
@@ -111,11 +110,11 @@ namespace dmScript
         }, code);
         if (!isOperationSuccessful)
         {
-            luaL_error(L, "%s", result);
+            dluaL_error(L, "%s", result);
             free(result);
             return 0;
         }
-        lua_pushstring(L, result);
+        dlua_pushstring(L, result);
         free(result);
         return 1;
     }
@@ -146,11 +145,11 @@ namespace dmScript
      * end
      * ```
      */
-    static int Html5_SetInteractionListener(lua_State* L)
+    static int Html5_SetInteractionListener(dlua_State* L)
     {
-        luaL_checkany(L, 1);
+        dluaL_checkany(L, 1);
 
-        if (lua_isnil(L, 1))
+        if (dlua_isnil(L, 1))
         {
             bool remove_js_callbacks = g_InteractionCallback != 0;
             if (g_InteractionCallback)
@@ -176,7 +175,7 @@ namespace dmScript
         g_InteractionCallback = dmScript::CreateCallback(L, 1);
         if (!dmScript::IsCallbackValid(g_InteractionCallback))
         {
-            return luaL_error(L, "Failed to create callback");
+            return dluaL_error(L, "Failed to create callback");
         }
 
         EM_ASM({
@@ -191,21 +190,21 @@ namespace dmScript
         return 0;
     }
 
-    static const luaL_reg ScriptHtml5_methods[] =
+    static const dluaL_reg ScriptHtml5_methods[] =
     {
         {"run",                      Html5_Run},
         {"set_interaction_listener", Html5_SetInteractionListener},
         {0, 0}
     };
 
-    void InitializeHtml5(lua_State* L)
+    void InitializeHtml5(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
-        lua_pushvalue(L, LUA_GLOBALSINDEX);
-        luaL_register(L, LIB_NAME, ScriptHtml5_methods);
-        lua_pop(L, 2);
+        dlua_pushvalue(L, DLUA_GLOBALSINDEX);
+        dluaL_register(L, LIB_NAME, ScriptHtml5_methods);
+        dlua_pop(L, 2);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 }

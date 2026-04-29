@@ -31,8 +31,7 @@
 
 extern "C"
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript
@@ -55,59 +54,59 @@ namespace dmScript
         *size = source->m_Script.m_Count;
     }
 
-    int LuaLoad(lua_State *L, dmLuaDDF::LuaSource *source)
+    int LuaLoad(dlua_State *L, dmLuaDDF::LuaSource *source)
     {
         const char *buf;
         uint32_t size;
         GetLuaSource(source, &buf, &size);
-        return luaL_loadbuffer(L, buf, size, source->m_Filename);
+        return dluaL_loadbuffer(L, buf, size, source->m_Filename);
     }
 
-    static bool LuaLoadModule(lua_State *L, const char *buf, uint32_t size, const char *filename)
+    static bool LuaLoadModule(dlua_State *L, const char *buf, uint32_t size, const char *filename)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void) top;
 
-        int ret = luaL_loadbuffer(L, buf, size, filename);
+        int ret = dluaL_loadbuffer(L, buf, size, filename);
         if (ret == 0)
         {
-            assert(top + 1 == lua_gettop(L));
+            assert(top + 1 == dlua_gettop(L));
             return true;
         }
         else
         {
-            dmLogError("Error running script: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
-            assert(top == lua_gettop(L));
+            dmLogError("Error running script: %s", dlua_tostring(L,-1));
+            dlua_pop(L, 1);
+            assert(top == dlua_gettop(L));
             return false;
         }
 
         return true;
     }
 
-    static int LoadModule(lua_State *L) {
-        int top = lua_gettop(L);
+    static int LoadModule(dlua_State *L) {
+        int top = dlua_gettop(L);
         (void) top;
 
         HContext context = dmScript::GetScriptContext(L);
 
-        const char *name = luaL_checkstring(L, 1);
+        const char *name = dluaL_checkstring(L, 1);
         dmhash_t name_hash = dmHashString64(name);
         Module* module = context->m_Modules.Get(name_hash);
 
         if (module == NULL)
         {
-            lua_pushfstring(L, "\n\tno file '%s'", name);
-            assert(top + 1  == lua_gettop(L));
+            dlua_pushfstring(L, "\n\tno file '%s'", name);
+            assert(top + 1  == dlua_gettop(L));
             return 1;
         }
 
         if (!LuaLoadModule(L, module->m_Script, module->m_ScriptSize, module->m_Filename))
         {
-            luaL_error(L, "error loading module '%s'from file '%s':\n\t%s",
-                          lua_tostring(L, 1), name, lua_tostring(L, -1));
+            dluaL_error(L, "error loading module '%s'from file '%s':\n\t%s",
+                          dlua_tostring(L, 1), name, dlua_tostring(L, -1));
         }
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -145,8 +144,8 @@ namespace dmScript
 
     Result ReloadModule(HContext context, dmLuaDDF::LuaSource *source, dmhash_t path_hash)
     {
-        lua_State* L = GetLuaState(context);
-        int top = lua_gettop(L);
+        dlua_State* L = GetLuaState(context);
+        int top = dlua_gettop(L);
         (void) top;
 
         Module** module_handle = context->m_PathToModule.Get(path_hash);
@@ -166,22 +165,22 @@ namespace dmScript
 
         if (LuaLoadModule(L, buf, size, module->m_Name))
         {
-            lua_pushstring(L, module->m_Name);
-            int ret = dmScript::PCall(L, 1, LUA_MULTRET);
+            dlua_pushstring(L, module->m_Name);
+            int ret = dmScript::PCall(L, 1, DLUA_MULTRET);
             if (ret != 0)
             {
-                assert(top == lua_gettop(L));
+                assert(top == dlua_gettop(L));
                 return RESULT_LUA_ERROR;
             }
             // As we only run the module for the sake of reloading (updating data), it is safe to remove any module return values here
-            lua_pop(L, lua_gettop(L) - top);
+            dlua_pop(L, dlua_gettop(L) - top);
         }
         else
         {
-            assert(top == lua_gettop(L));
+            assert(top == dlua_gettop(L));
             return RESULT_LUA_ERROR;
         }
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return RESULT_OK;
     }
 
@@ -212,29 +211,29 @@ namespace dmScript
         return context->m_PathToModule.Get(path_hash) != 0;
     }
 
-    void InitializeModule(lua_State* L)
+    void InitializeModule(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void) top;
-        lua_getfield(L, LUA_GLOBALSINDEX, "package");
-        if (lua_istable(L, -1))
+        dlua_getfield(L, DLUA_GLOBALSINDEX, "package");
+        if (dlua_istable(L, -1))
         {
-            assert(lua_istable(L, -1));
+            assert(dlua_istable(L, -1));
 
             // NOTE: We replace package.loaders table
             // only our custom loader
-            lua_newtable(L);
-            lua_pushcfunction(L, LoadModule);
-            lua_rawseti(L, -2, 1);
-            lua_setfield(L, -2, "loaders");
-            lua_pop(L, 1);
+            dlua_newtable(L);
+            dlua_pushcfunction(L, LoadModule);
+            dlua_rawseti(L, -2, 1);
+            dlua_setfield(L, -2, "loaders");
+            dlua_pop(L, 1);
         }
         else
         {
             // Bare-bone lua, no libs opened. We don't created the package table.
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 
 }

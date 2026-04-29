@@ -15,11 +15,11 @@
 #ifndef DM_SCRIPT_BITOP_H
 #define DM_SCRIPT_BITOP_H
 
-struct lua_State;
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmScript
 {
-    void InitializeBitop(lua_State* L);
+    void InitializeBitop(dlua_State* L);
 }
 
 #endif // DM_SCRIPT_BITOP_H

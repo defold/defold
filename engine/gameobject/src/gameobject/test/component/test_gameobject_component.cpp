@@ -484,9 +484,9 @@ TEST_F(ComponentTest, TestManyComponents)
     dmGameObject::Delete(m_Collection, go, false);
 }
 
-static int LuaTestCompType(lua_State* L)
+static int LuaTestCompType(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     dmGameObject::HComponent component = 0;
@@ -494,16 +494,16 @@ static int LuaTestCompType(lua_State* L)
     dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &component, &receiver, 0);
     assert(*(uintptr_t*)component == 1);
 
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
 
     return 0;
 }
 
 TEST_F(ComponentTest, TestComponentType)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    lua_pushcfunction(L, LuaTestCompType);
-    lua_setglobal(L, "test_comp_type");
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_pushcfunction(L, LuaTestCompType);
+    dlua_setglobal(L, "test_comp_type");
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_comp_type.goc");
     dmGameObject::SetIdentifier(m_Collection, go, "test_instance");
@@ -516,18 +516,18 @@ TEST_F(ComponentTest, TestComponentType)
     dmGameObject::Delete(m_Collection, go, false);
 }
 
-static int LuaTestGetComponentFromLua(lua_State* L)
+static int LuaTestGetComponentFromLua(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
-    const char* component_ext = luaL_checkstring(L, 2);
-    int expect_fail = luaL_checkinteger(L, 3);
+    const char* component_ext = dluaL_checkstring(L, 2);
+    int expect_fail = dluaL_checkinteger(L, 3);
 
-    lua_pushnumber(L, 1);
-    lua_setglobal(L, "test_error");
+    dlua_pushnumber(L, 1);
+    dlua_setglobal(L, "test_error");
 
-    lua_pushnumber(L, expect_fail);
-    lua_setglobal(L, "expected_error");
+    dlua_pushnumber(L, expect_fail);
+    dlua_setglobal(L, "expected_error");
 
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     void* component = 0;
@@ -538,28 +538,28 @@ static int LuaTestGetComponentFromLua(lua_State* L)
 
     bool call_failed = component == 0;
 
-    lua_pushnumber(L, call_failed?1:0);
-    lua_setglobal(L, "test_error");
+    dlua_pushnumber(L, call_failed?1:0);
+    dlua_setglobal(L, "test_error");
 
     if (expect_fail && !call_failed)
     {
-        return luaL_error(L, "GetComponentFromLua succeeded unexpectedly");
+        return dluaL_error(L, "GetComponentFromLua succeeded unexpectedly");
     }
     else if(!expect_fail && call_failed)
     {
-        return luaL_error(L, "GetComponentFromLua failed unexpectedly");
+        return dluaL_error(L, "GetComponentFromLua failed unexpectedly");
     }
 
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
     return 0;
 }
 
 
 TEST_F(ComponentTest, TestGetComponentFromLua)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    lua_pushcfunction(L, LuaTestGetComponentFromLua);
-    lua_setglobal(L, "test_comp_type_from_lua");
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_pushcfunction(L, LuaTestGetComponentFromLua);
+    dlua_setglobal(L, "test_comp_type_from_lua");
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_comp_type_from_lua.goc");
     dmGameObject::SetIdentifier(m_Collection, go, "test_instance");
@@ -569,13 +569,13 @@ TEST_F(ComponentTest, TestGetComponentFromLua)
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_FALSE(ret);
 
-    lua_getglobal(L, "expected_error");
-    int expected_error = lua_tointeger(L, -1);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "expected_error");
+    int expected_error = dlua_tointeger(L, -1);
+    dlua_pop(L, 1);
 
-    lua_getglobal(L, "test_error");
-    int test_error = lua_tointeger(L, -1);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "test_error");
+    int test_error = dlua_tointeger(L, -1);
+    dlua_pop(L, 1);
 
     ASSERT_EQ(expected_error, test_error);
 

@@ -24,16 +24,16 @@ class ScriptSysTest : public dmScriptTest::ScriptTest
 
 TEST_F(ScriptSysTest, TestSys)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     ASSERT_TRUE(RunFile(L, "test_sys.luac"));
 
-    lua_getglobal(L, "functions");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "test_sys");
-    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    if (result == LUA_ERRRUN)
+    dlua_getglobal(L, "functions");
+    ASSERT_EQ(DLUA_TTABLE, dlua_type(L, -1));
+    dlua_getfield(L, -1, "test_sys");
+    ASSERT_EQ(DLUA_TFUNCTION, dlua_type(L, -1));
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    if (result == DLUA_ERRRUN)
     {
         ASSERT_TRUE(false);
     }
@@ -41,9 +41,9 @@ TEST_F(ScriptSysTest, TestSys)
     {
         ASSERT_EQ(0, result);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 extern "C" void dmExportedSymbols();

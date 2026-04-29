@@ -28,8 +28,7 @@
 
 extern "C"
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 DM_PROPERTY_EXTERN(rmtp_GameObject);
@@ -101,34 +100,34 @@ namespace dmGameObject
         const UpdateContext* m_UpdateContext;
     };
 
-    ScriptResult RunScript(lua_State* L, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
+    ScriptResult RunScript(dlua_State* L, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
     {
         DM_PROFILE("RunScript");
 
         ScriptResult result = SCRIPT_RESULT_OK;
 
-        if (script->m_FunctionReferences[script_function] != LUA_NOREF)
+        if (script->m_FunctionReferences[script_function] != DLUA_NOREF)
         {
-            int top = lua_gettop(L);
+            int top = dlua_gettop(L);
             (void) top;
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
             int arg_count = 1;
 
             if (script_function == SCRIPT_FUNCTION_INIT)
             {
                 // Backwards compatibility
-                lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+                dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
                 ++arg_count;
             }
             if (script_function == SCRIPT_FUNCTION_UPDATE || script_function == SCRIPT_FUNCTION_FIXED_UPDATE || script_function == SCRIPT_FUNCTION_LATE_UPDATE)
             {
-                lua_pushnumber(L, params.m_UpdateContext->m_DT);
+                dlua_pushnumber(L, params.m_UpdateContext->m_DT);
                 ++arg_count;
             }
 
@@ -143,10 +142,10 @@ namespace dmGameObject
                 }
             }
 
-            lua_pushnil(L);
+            dlua_pushnil(L);
             dmScript::SetInstance(L);
 
-            assert(top == lua_gettop(L));
+            assert(top == dlua_gettop(L));
         }
 
         return result;
@@ -168,11 +167,11 @@ namespace dmGameObject
         return CREATE_RESULT_OK;
     }
 
-    static lua_State* GetLuaState(void* context) {
+    static dlua_State* GetLuaState(void* context) {
         return dmScript::GetLuaState((dmScript::HContext)context);
     }
 
-    static lua_State* GetLuaState(HScriptInstance instance) {
+    static dlua_State* GetLuaState(HScriptInstance instance) {
         return instance->m_Script->m_LuaState;
     }
 
@@ -194,11 +193,11 @@ namespace dmGameObject
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
-        lua_State* L = GetLuaState(params.m_Context);
-        int top = lua_gettop(L);
+        dlua_State* L = GetLuaState(params.m_Context);
+        int top = dlua_gettop(L);
         (void)top;
         ScriptResult ret = RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_FINAL, script_instance, RunScriptParams());
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         if (ret == SCRIPT_RESULT_FAILED)
         {
             return CREATE_RESULT_UNKNOWN_ERROR;
@@ -215,9 +214,9 @@ namespace dmGameObject
         if (script_instance->m_Initialized)
         {
             HScript script = script_instance->m_Script;
-            script_instance->m_Update = script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF 
-                || script->m_FunctionReferences[SCRIPT_FUNCTION_FIXED_UPDATE] != LUA_NOREF
-                || script->m_FunctionReferences[SCRIPT_FUNCTION_LATE_UPDATE] != LUA_NOREF;
+            script_instance->m_Update = script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != DLUA_NOREF
+                || script->m_FunctionReferences[SCRIPT_FUNCTION_FIXED_UPDATE] != DLUA_NOREF
+                || script->m_FunctionReferences[SCRIPT_FUNCTION_LATE_UPDATE] != DLUA_NOREF;
             return CREATE_RESULT_OK;
         }
         return CREATE_RESULT_UNKNOWN_ERROR;
@@ -226,8 +225,8 @@ namespace dmGameObject
 
     static UpdateResult CompScriptUpdateInternal(const ComponentsUpdateParams& params, ScriptFunction function, ComponentsUpdateResult& update_result)
     {
-        lua_State* L = GetLuaState(params.m_Context);
-        int top = lua_gettop(L);
+        dlua_State* L = GetLuaState(params.m_Context);
+        int top = dlua_gettop(L);
         (void)top;
         UpdateResult result = UPDATE_RESULT_OK;
         RunScriptParams run_params;
@@ -250,7 +249,7 @@ namespace dmGameObject
         // TODO: Find out if the scripts actually sent any transform events
         update_result.m_TransformsUpdated = true;
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return result;
     }
 
@@ -276,18 +275,18 @@ namespace dmGameObject
 
     static UpdateResult HandleUnrefMessage(void* context, ScriptInstance* script_instance, int reference)
     {
-        lua_State* L = GetLuaState(context);
+        dlua_State* L = GetLuaState(context);
         DM_LUA_STACK_CHECK(L, 0);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
 
         dmScript::ResolveInInstance(L, reference);
         dmScript::UnrefInInstance(L, reference);
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
-        lua_pushnil(L);
+        dlua_pushnil(L);
         dmScript::SetInstance(L);
 
         return UPDATE_RESULT_OK;
@@ -297,21 +296,21 @@ namespace dmGameObject
     {
         UpdateResult result = UPDATE_RESULT_OK;
 
-        lua_State* L = GetLuaState(context);
-        int top = lua_gettop(L);
+        dlua_State* L = GetLuaState(context);
+        int top = dlua_gettop(L);
         (void) top;
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
 
         if (is_callback)
         {
             dmScript::ResolveInInstance(L, function_ref);
-            if (!lua_isfunction(L, -1))
+            if (!dlua_isfunction(L, -1))
             {
                 // If the script instance is dead we just ignore the callback
-                lua_pop(L, 1);
-                lua_pushnil(L);
+                dlua_pop(L, 1);
+                dlua_pushnil(L);
                 dmScript::SetInstance(L);
                 dmLogWarning("Failed to call message response callback function, has it been deleted?");
                 return result;
@@ -326,12 +325,12 @@ namespace dmGameObject
         }
         else
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, function_ref);
         }
 
-        assert(lua_isfunction(L, -1));
+        assert(dlua_isfunction(L, -1));
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
         dmScript::PushHash(L, message->m_Id);
 
@@ -339,7 +338,7 @@ namespace dmGameObject
         if (message->m_Descriptor != 0)
         {
             // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
-            // lua_cpcall?
+            // dlua_cpcall?
             message_name = ((const dmDDF::Descriptor*)message->m_Descriptor)->m_Name;
             dmScript::PushDDF(L, (const dmDDF::Descriptor*)message->m_Descriptor, (const char*) message->m_Data, true);
         }
@@ -353,7 +352,7 @@ namespace dmGameObject
             if (message->m_DataSize > 0)
                 dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
             else
-                lua_newtable(L);
+                dlua_newtable(L);
         }
 
         dmScript::PushURL(L, message->m_Sender);
@@ -370,10 +369,10 @@ namespace dmGameObject
             }
         }
 
-        lua_pushnil(L);
+        dlua_pushnil(L);
         dmScript::SetInstance(L);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return result;
     }
 
@@ -431,7 +430,7 @@ namespace dmGameObject
                 if (script_message->m_Function)
                 {
                     is_callback = true;
-                    function_ref = script_message->m_Function + LUA_NOREF;
+                    function_ref = script_message->m_Function + DLUA_NOREF;
                     deref_function_ref = script_message->m_UnrefFunction; // Should the function be Unref'ed?
                 }
                 else
@@ -444,7 +443,7 @@ namespace dmGameObject
             else if (params.m_Message->m_Id == dmGameObjectDDF::ScriptUnrefMessage::m_DDFDescriptor->m_NameHash)
             {
                 dmGameObjectDDF::ScriptUnrefMessage* unref_message = (dmGameObjectDDF::ScriptUnrefMessage*) params.m_Message->m_Data;
-                return HandleUnrefMessage(params.m_Context, script_instance, unref_message->m_Reference + LUA_NOREF);
+                return HandleUnrefMessage(params.m_Context, script_instance, unref_message->m_Reference + DLUA_NOREF);
             }
         }
 
@@ -457,14 +456,14 @@ namespace dmGameObject
             // We should move towards the dmGameObjectDDF::ScriptMessage as it's type safe
             if (params.m_Message->m_UserData2) // Deprecated. Use dmGameObject::PostDDF() instead
             {
-                function_ref = params.m_Message->m_UserData2 + LUA_NOREF;
+                function_ref = params.m_Message->m_UserData2 + DLUA_NOREF;
                 is_callback = true;
             } else {
                 function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
             }
         }
 
-        if (function_ref != LUA_NOREF)
+        if (function_ref != DLUA_NOREF)
         {
             result = HandleMessage(params.m_Context, script_instance, message, function_ref, is_callback, deref_function_ref);
         }
@@ -486,17 +485,17 @@ namespace dmGameObject
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
 
         int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONINPUT];
-        if (function_ref != LUA_NOREF)
+        if (function_ref != DLUA_NOREF)
         {
-            lua_State* L = GetLuaState(params.m_Context);
-            int top = lua_gettop(L);
+            dlua_State* L = GetLuaState(params.m_Context);
+            int top = dlua_gettop(L);
             (void)top;
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, function_ref);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
             // 0 is reserved for pure mouse movement
             if (params.m_InputAction->m_ActionId != 0)
@@ -505,228 +504,228 @@ namespace dmGameObject
             }
             else
             {
-                lua_pushnil(L);
+                dlua_pushnil(L);
             }
 
-            lua_createtable(L, 0, 16);
+            dlua_createtable(L, 0, 16);
 
-            int action_table = lua_gettop(L);
+            int action_table = dlua_gettop(L);
 
             if (params.m_InputAction->m_IsGamepad)
             {
-                lua_pushnumber(L, params.m_InputAction->m_GamepadIndex);
-                lua_setfield(L, action_table, "gamepad");
+                dlua_pushnumber(L, params.m_InputAction->m_GamepadIndex);
+                dlua_setfield(L, action_table, "gamepad");
 
-                lua_pushinteger(L, params.m_InputAction->m_UserID);
-                lua_setfield(L, action_table, "userid");
+                dlua_pushinteger(L, params.m_InputAction->m_UserID);
+                dlua_setfield(L, action_table, "userid");
 
-                lua_pushboolean(L, params.m_InputAction->m_GamepadUnknown);
-                lua_setfield(L, action_table, "gamepad_unknown");
+                dlua_pushboolean(L, params.m_InputAction->m_GamepadUnknown);
+                dlua_setfield(L, action_table, "gamepad_unknown");
             }
 
             if (params.m_InputAction->m_GamepadConnected)
             {
-                lua_pushlstring(L, params.m_InputAction->m_Text, params.m_InputAction->m_TextCount);
-                lua_setfield(L, action_table, "gamepad_name");
+                dlua_pushlstring(L, params.m_InputAction->m_Text, params.m_InputAction->m_TextCount);
+                dlua_setfield(L, action_table, "gamepad_name");
             }
 
             if (params.m_InputAction->m_HasGamepadPacket)
             {
                 dmHID::GamepadPacket gamepadPacket = params.m_InputAction->m_GamepadPacket;
-                lua_pushliteral(L, "gamepad_axis");
-                lua_createtable(L, dmHID::MAX_GAMEPAD_AXIS_COUNT, 0);
+                dlua_pushliteral(L, "gamepad_axis");
+                dlua_createtable(L, dmHID::MAX_GAMEPAD_AXIS_COUNT, 0);
                 for (int i = 0; i < dmHID::MAX_GAMEPAD_AXIS_COUNT; ++i)
                 {
-                    lua_pushinteger(L, (lua_Integer) (i+1));
-                    lua_pushnumber(L, gamepadPacket.m_Axis[i]);
-                    lua_settable(L, -3);
+                    dlua_pushinteger(L, (dlua_Integer) (i+1));
+                    dlua_pushnumber(L, gamepadPacket.m_Axis[i]);
+                    dlua_settable(L, -3);
                 }
-                lua_settable(L, -3);
+                dlua_settable(L, -3);
 
-                lua_pushliteral(L, "gamepad_buttons");
-                lua_createtable(L, dmHID::MAX_GAMEPAD_BUTTON_COUNT, 0);
+                dlua_pushliteral(L, "gamepad_buttons");
+                dlua_createtable(L, dmHID::MAX_GAMEPAD_BUTTON_COUNT, 0);
                 for (int i = 0; i < dmHID::MAX_GAMEPAD_BUTTON_COUNT; ++i)
                 {
-                    lua_pushinteger(L, (lua_Integer) (i+1));
-                    lua_pushnumber(L, dmHID::GetGamepadButton(&gamepadPacket, i));
-                    lua_settable(L, -3);
+                    dlua_pushinteger(L, (dlua_Integer) (i+1));
+                    dlua_pushnumber(L, dmHID::GetGamepadButton(&gamepadPacket, i));
+                    dlua_settable(L, -3);
                 }
-                lua_settable(L, -3);
+                dlua_settable(L, -3);
 
-                lua_pushliteral(L, "gamepad_hats");
-                lua_createtable(L, dmHID::MAX_GAMEPAD_HAT_COUNT, 0);
+                dlua_pushliteral(L, "gamepad_hats");
+                dlua_createtable(L, dmHID::MAX_GAMEPAD_HAT_COUNT, 0);
                 for (int i = 0; i < dmHID::MAX_GAMEPAD_HAT_COUNT; ++i)
                 {
-                    lua_pushinteger(L, (lua_Integer) (i+1));
+                    dlua_pushinteger(L, (dlua_Integer) (i+1));
                     uint8_t hat_value;
                     if (dmHID::GetGamepadHat(&gamepadPacket, i, &hat_value))
                     {
-                        lua_pushnumber(L, hat_value);
+                        dlua_pushnumber(L, hat_value);
                     }
                     else
                     {
-                        lua_pushnumber(L, 0);
+                        dlua_pushnumber(L, 0);
                     }
-                    lua_settable(L, -3);
+                    dlua_settable(L, -3);
                 }
-                lua_settable(L, -3);
+                dlua_settable(L, -3);
             }
 
             if (params.m_InputAction->m_ActionId != 0 && !params.m_InputAction->m_HasText)
             {
-                lua_pushliteral(L, "value");
-                lua_pushnumber(L, params.m_InputAction->m_Value);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "value");
+                dlua_pushnumber(L, params.m_InputAction->m_Value);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "pressed");
-                lua_pushboolean(L, params.m_InputAction->m_Pressed);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "pressed");
+                dlua_pushboolean(L, params.m_InputAction->m_Pressed);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "released");
-                lua_pushboolean(L, params.m_InputAction->m_Released);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "released");
+                dlua_pushboolean(L, params.m_InputAction->m_Released);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "repeated");
-                lua_pushboolean(L, params.m_InputAction->m_Repeated);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "repeated");
+                dlua_pushboolean(L, params.m_InputAction->m_Repeated);
+                dlua_settable(L, action_table);
             }
 
             if (params.m_InputAction->m_PositionSet)
             {
-                lua_pushliteral(L, "x");
-                lua_pushnumber(L, params.m_InputAction->m_X);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "x");
+                dlua_pushnumber(L, params.m_InputAction->m_X);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "y");
-                lua_pushnumber(L, params.m_InputAction->m_Y);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "y");
+                dlua_pushnumber(L, params.m_InputAction->m_Y);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "dx");
-                lua_pushnumber(L, params.m_InputAction->m_DX);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "dx");
+                dlua_pushnumber(L, params.m_InputAction->m_DX);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "dy");
-                lua_pushnumber(L, params.m_InputAction->m_DY);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "dy");
+                dlua_pushnumber(L, params.m_InputAction->m_DY);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "screen_x");
-                lua_pushnumber(L, params.m_InputAction->m_ScreenX);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "screen_x");
+                dlua_pushnumber(L, params.m_InputAction->m_ScreenX);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "screen_y");
-                lua_pushnumber(L, params.m_InputAction->m_ScreenY);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "screen_y");
+                dlua_pushnumber(L, params.m_InputAction->m_ScreenY);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "screen_dx");
-                lua_pushnumber(L, params.m_InputAction->m_ScreenDX);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "screen_dx");
+                dlua_pushnumber(L, params.m_InputAction->m_ScreenDX);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "screen_dy");
-                lua_pushnumber(L, params.m_InputAction->m_ScreenDY);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "screen_dy");
+                dlua_pushnumber(L, params.m_InputAction->m_ScreenDY);
+                dlua_settable(L, action_table);
             }
 
             if (params.m_InputAction->m_AccelerationSet)
             {
-                lua_pushliteral(L, "acc_x");
-                lua_pushnumber(L, params.m_InputAction->m_AccX);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "acc_x");
+                dlua_pushnumber(L, params.m_InputAction->m_AccX);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "acc_y");
-                lua_pushnumber(L, params.m_InputAction->m_AccY);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "acc_y");
+                dlua_pushnumber(L, params.m_InputAction->m_AccY);
+                dlua_settable(L, action_table);
 
-                lua_pushliteral(L, "acc_z");
-                lua_pushnumber(L, params.m_InputAction->m_AccZ);
-                lua_settable(L, action_table);
+                dlua_pushliteral(L, "acc_z");
+                dlua_pushnumber(L, params.m_InputAction->m_AccZ);
+                dlua_settable(L, action_table);
             }
 
             if (params.m_InputAction->m_TouchCount > 0)
             {
                 int tc = params.m_InputAction->m_TouchCount;
-                lua_pushliteral(L, "touch");
-                lua_createtable(L, tc, 0);
+                dlua_pushliteral(L, "touch");
+                dlua_createtable(L, tc, 0);
                 for (int i = 0; i < tc; ++i)
                 {
                     const dmHID::Touch& t = params.m_InputAction->m_Touch[i];
 
-                    lua_pushinteger(L, (lua_Integer) (i+1));
-                    lua_createtable(L, 0, 6);
+                    dlua_pushinteger(L, (dlua_Integer) (i+1));
+                    dlua_createtable(L, 0, 6);
 
-                    lua_pushliteral(L, "id");
-                    lua_pushinteger(L, (lua_Integer) t.m_Id);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "id");
+                    dlua_pushinteger(L, (dlua_Integer) t.m_Id);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "tap_count");
-                    lua_pushinteger(L, (lua_Integer) t.m_TapCount);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "tap_count");
+                    dlua_pushinteger(L, (dlua_Integer) t.m_TapCount);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "pressed");
-                    lua_pushboolean(L, t.m_Phase == dmHID::PHASE_BEGAN);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "pressed");
+                    dlua_pushboolean(L, t.m_Phase == dmHID::PHASE_BEGAN);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "released");
-                    lua_pushboolean(L, t.m_Phase == dmHID::PHASE_ENDED || t.m_Phase == dmHID::PHASE_CANCELLED);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "released");
+                    dlua_pushboolean(L, t.m_Phase == dmHID::PHASE_ENDED || t.m_Phase == dmHID::PHASE_CANCELLED);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "x");
-                    lua_pushinteger(L, (lua_Integer) t.m_X);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "x");
+                    dlua_pushinteger(L, (dlua_Integer) t.m_X);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "y");
-                    lua_pushinteger(L, (lua_Integer) t.m_Y);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "y");
+                    dlua_pushinteger(L, (dlua_Integer) t.m_Y);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "screen_x");
-                    lua_pushnumber(L, (lua_Integer) t.m_ScreenX);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "screen_x");
+                    dlua_pushnumber(L, (dlua_Integer) t.m_ScreenX);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "screen_y");
-                    lua_pushnumber(L, (lua_Integer) t.m_ScreenY);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "screen_y");
+                    dlua_pushnumber(L, (dlua_Integer) t.m_ScreenY);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "dx");
-                    lua_pushinteger(L, (lua_Integer) t.m_DX);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "dx");
+                    dlua_pushinteger(L, (dlua_Integer) t.m_DX);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "dy");
-                    lua_pushinteger(L, (lua_Integer) t.m_DY);
-                    lua_settable(L, -3);
+                    dlua_pushliteral(L, "dy");
+                    dlua_pushinteger(L, (dlua_Integer) t.m_DY);
+                    dlua_settable(L, -3);
 
-                    lua_pushliteral(L, "screen_dx");
-                    lua_pushnumber(L, (lua_Integer) t.m_ScreenDX);
-                    lua_rawset(L, -3);
+                    dlua_pushliteral(L, "screen_dx");
+                    dlua_pushnumber(L, (dlua_Integer) t.m_ScreenDX);
+                    dlua_rawset(L, -3);
 
-                    lua_pushliteral(L, "screen_dy");
-                    lua_pushnumber(L, (lua_Integer) t.m_ScreenDY);
-                    lua_rawset(L, -3);
+                    dlua_pushliteral(L, "screen_dy");
+                    dlua_pushnumber(L, (dlua_Integer) t.m_ScreenDY);
+                    dlua_rawset(L, -3);
 
-                    lua_settable(L, -3);
+                    dlua_settable(L, -3);
                 }
-                lua_settable(L, -3);
+                dlua_settable(L, -3);
             }
 
             if (params.m_InputAction->m_HasText)
             {
                 int tc = params.m_InputAction->m_TextCount;
-                lua_pushliteral(L, "text");
+                dlua_pushliteral(L, "text");
                 if (tc == 0) {
-                    lua_pushliteral(L, "");
+                    dlua_pushliteral(L, "");
                 } else {
-                    lua_pushlstring(L, params.m_InputAction->m_Text, tc);
+                    dlua_pushlstring(L, params.m_InputAction->m_Text, tc);
                 }
-                lua_settable(L, -3);
+                dlua_settable(L, -3);
             }
 
             int arg_count = 3;
-            int input_ret = lua_gettop(L) - arg_count;
+            int input_ret = dlua_gettop(L) - arg_count;
             int ret;
             {
                 char buffer[128];
                 const char* profiler_string = dmScript::GetProfilerString(L, 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], 0, buffer, sizeof(buffer));
                 DM_PROFILE_DYN(profiler_string, 0);
 
-                ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
+                ret = dmScript::PCall(L, arg_count, DLUA_MULTRET);
             }
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];
             if (ret != 0)
@@ -734,11 +733,11 @@ namespace dmGameObject
                 result = INPUT_RESULT_UNKNOWN_ERROR;
             }
             else {
-                int nretval = lua_gettop(L) - input_ret + 1;
+                int nretval = dlua_gettop(L) - input_ret + 1;
                 if (nretval > 0) {
-                    if (nretval == 1 && lua_isboolean(L, -1))
+                    if (nretval == 1 && dlua_isboolean(L, -1))
                     {
-                        if (lua_toboolean(L, -1))
+                        if (dlua_toboolean(L, -1))
                             result = INPUT_RESULT_CONSUMED;
                     }
                     else
@@ -747,14 +746,14 @@ namespace dmGameObject
                         result = INPUT_RESULT_UNKNOWN_ERROR;
                     }
 
-                    lua_pop(L, nretval);
+                    dlua_pop(L, nretval);
                 }
             }
 
-            lua_pushnil(L);
+            dlua_pushnil(L);
             dmScript::SetInstance(L);
 
-            assert(top == lua_gettop(L));
+            assert(top == dlua_gettop(L));
         }
         return result;
     }
@@ -763,26 +762,26 @@ namespace dmGameObject
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
-        lua_State* L = GetLuaState(params.m_Context);
+        dlua_State* L = GetLuaState(params.m_Context);
 
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)top;
 
         // Clean stale properties and add new
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
         PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
-        lua_pushnil(L);
+        dlua_pushnil(L);
         dmScript::SetInstance(L);
 
         RunScriptParams run_params;
         RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_ONRELOAD, script_instance, run_params);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 
     PropertyResult CompScriptSetProperties(const ComponentSetPropertiesParams& params)
@@ -790,30 +789,30 @@ namespace dmGameObject
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
         SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_INSTANCE, params.m_PropertySet);
 
-        lua_State* L = GetLuaState(script_instance);
+        dlua_State* L = GetLuaState(script_instance);
 
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)top;
 
         dmScript::GetInstance(L);
-        void* user_data = lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        void* user_data = dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
         PropertyResult result = PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
         if (user_data != 0x0) {
-            lua_pushlightuserdata(L, user_data);
+            dlua_pushlightuserdata(L, user_data);
         } else {
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
         dmScript::SetInstance(L);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return result;
     }
 
@@ -938,27 +937,27 @@ namespace dmGameObject
             out_value.m_ElementIds[3] = element_ids[3];
         }
 
-        lua_State* L = GetLuaState(script_instance);
+        dlua_State* L = GetLuaState(script_instance);
 
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)top;
 
         // Only push the script instance if it's not present already
         dmScript::GetInstance(L);
-        bool push_instance = lua_isnil(L, -1);
-        lua_pop(L, 1);
+        bool push_instance = dlua_isnil(L, -1);
+        dlua_pop(L, 1);
         if (push_instance)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
             dmScript::SetInstance(L);
         }
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
         PropertyResult result = PROPERTY_RESULT_NOT_FOUND;
-        lua_pushstring(L, property_name);
-        lua_rawget(L, -2);
-        if (!lua_isnil(L, -1))
+        dlua_pushstring(L, property_name);
+        dlua_rawget(L, -2);
+        if (!dlua_isnil(L, -1))
         {
             result = LuaToVar(L, -1, out_value.m_Variant);
             if (result == PROPERTY_RESULT_OK)
@@ -970,15 +969,15 @@ namespace dmGameObject
             }
         }
 
-        lua_pop(L, 2);
+        dlua_pop(L, 2);
 
         if (push_instance)
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
             dmScript::SetInstance(L);
         }
 
-        assert(lua_gettop(L) == top);
+        assert(dlua_gettop(L) == top);
 
         return result;
     }
@@ -1013,31 +1012,31 @@ namespace dmGameObject
         if (!FindPropertyName(declarations, params.m_PropertyId, &property_name, &type, &element_ids, &is_element, &element_index))
             return PROPERTY_RESULT_NOT_FOUND;
 
-        lua_State* L = GetLuaState(script_instance);
+        dlua_State* L = GetLuaState(script_instance);
 
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)top;
 
         // Only push the script instance if it's not present already
         bool pushed_instance = false;
         dmScript::GetInstance(L);
-        pushed_instance = lua_isnil(L, -1);
-        lua_pop(L, 1);
+        pushed_instance = dlua_isnil(L, -1);
+        dlua_pop(L, 1);
         if (pushed_instance)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
             dmScript::SetInstance(L);
         }
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
         PropertyVar var = params.m_Value;
         if (is_element)
         {
             PropertyResult result = PROPERTY_RESULT_NOT_FOUND;
-            lua_pushstring(L, property_name);
-            lua_rawget(L, -2);
-            if (!lua_isnil(L, -1))
+            dlua_pushstring(L, property_name);
+            dlua_rawget(L, -2);
+            if (!dlua_isnil(L, -1))
             {
                 result = LuaToVar(L, -1, var);
                 if (result == PROPERTY_RESULT_OK)
@@ -1046,21 +1045,21 @@ namespace dmGameObject
                 }
             }
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
-        lua_pushstring(L, property_name);
+        dlua_pushstring(L, property_name);
         LuaPushVar(L, var);
-        lua_rawset(L, -3);
+        dlua_rawset(L, -3);
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
         if (pushed_instance)
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
             dmScript::SetInstance(L);
         }
 
-        assert(lua_gettop(L) == top);
+        assert(dlua_gettop(L) == top);
 
         return PROPERTY_RESULT_OK;
     }

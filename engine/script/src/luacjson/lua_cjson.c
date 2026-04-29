@@ -42,8 +42,7 @@
 #include <math.h>
 #include <limits.h>
 
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>
 
 #include "strbuf.h"
 #include "fpconv.h"
@@ -104,8 +103,8 @@
 #define json_lightudata_mask(ludata)    (ludata)
 #endif
 
-#if LUA_VERSION_NUM > 501
-#define lua_objlen(L,i)		lua_rawlen(L, (i))
+#if 0
+#define dlua_objlen(L,i)		dlua_rawlen(L, (i))
 #endif
 
 static const char * const *json_empty_array;
@@ -169,7 +168,7 @@ typedef struct {
     int decode_array_with_array_mt;
     int decode_null_as_userdata;
     // DEFOLD
-    lua_State* l;
+    dlua_State* l;
     int protected_mode;
     char* error_message;
     size_t error_message_length;
@@ -242,13 +241,13 @@ static const char *char2escape[256] = {
 /* ===== CONFIGURATION ===== */
 
 #if 0 // DEFOLD
-static json_config_t *json_fetch_config(lua_State *l)
+static json_config_t *json_fetch_config(dlua_State *l)
 {
     json_config_t *cfg;
 
-    cfg = lua_touserdata(l, lua_upvalueindex(1));
+    cfg = dlua_touserdata(l, dlua_upvalueindex(1));
     if (!cfg)
-        luaL_error(l, "BUG: Unable to fetch CJSON configuration");
+        dluaL_error(l, "BUG: Unable to fetch CJSON configuration");
 
     return cfg;
 }
@@ -256,38 +255,38 @@ static json_config_t *json_fetch_config(lua_State *l)
 /* Ensure the correct number of arguments have been provided.
  * Pad with nil to allow other functions to simply check arg[i]
  * to find whether an argument was provided */
-static json_config_t *json_arg_init(lua_State *l, int args)
+static json_config_t *json_arg_init(dlua_State *l, int args)
 {
-    luaL_argcheck(l, lua_gettop(l) <= args, args + 1,
+    dluaL_argcheck(l, dlua_gettop(l) <= args, args + 1,
                   "found too many arguments");
 
-    while (lua_gettop(l) < args)
-        lua_pushnil(l);
+    while (dlua_gettop(l) < args)
+        dlua_pushnil(l);
 
     return json_fetch_config(l);
 }
 
 /* Process integer options for configuration functions */
-static int json_integer_option(lua_State *l, int optindex, int *setting,
+static int json_integer_option(dlua_State *l, int optindex, int *setting,
                                int min, int max)
 {
     char errmsg[64];
     int value;
 
-    if (!lua_isnil(l, optindex)) {
-        value = luaL_checkinteger(l, optindex);
+    if (!dlua_isnil(l, optindex)) {
+        value = dluaL_checkinteger(l, optindex);
         snprintf(errmsg, sizeof(errmsg), "expected integer between %d and %d", min, max);
-        luaL_argcheck(l, min <= value && value <= max, 1, errmsg);
+        dluaL_argcheck(l, min <= value && value <= max, 1, errmsg);
         *setting = value;
     }
 
-    lua_pushinteger(l, *setting);
+    dlua_pushinteger(l, *setting);
 
     return 1;
 }
 
 /* Process enumerated arguments for a configuration function */
-static int json_enum_option(lua_State *l, int optindex, int *setting,
+static int json_enum_option(dlua_State *l, int optindex, int *setting,
                             const char **options, int bool_true)
 {
     static const char *bool_options[] = { "off", "on", NULL };
@@ -297,17 +296,17 @@ static int json_enum_option(lua_State *l, int optindex, int *setting,
         bool_true = 1;
     }
 
-    if (!lua_isnil(l, optindex)) {
-        if (bool_true && lua_isboolean(l, optindex))
-            *setting = lua_toboolean(l, optindex) * bool_true;
+    if (!dlua_isnil(l, optindex)) {
+        if (bool_true && dlua_isboolean(l, optindex))
+            *setting = dlua_toboolean(l, optindex) * bool_true;
         else
-            *setting = luaL_checkoption(l, optindex, NULL, options);
+            *setting = dluaL_checkoption(l, optindex, NULL, options);
     }
 
     if (bool_true && (*setting == 0 || *setting == bool_true))
-        lua_pushboolean(l, *setting);
+        dlua_pushboolean(l, *setting);
     else
-        lua_pushstring(l, options[*setting]);
+        dlua_pushstring(l, options[*setting]);
 
     return 1;
 }
@@ -316,7 +315,7 @@ static int json_enum_option(lua_State *l, int optindex, int *setting,
  * convert: Convert extremely sparse arrays into objects? Otherwise error.
  * ratio: 0: always allow sparse; 1: never allow sparse; >1: use ratio
  * safe: Always use an array when the max index <= safe */
-static int json_cfg_encode_sparse_array(lua_State *l)
+static int json_cfg_encode_sparse_array(dlua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 3);
 
@@ -329,7 +328,7 @@ static int json_cfg_encode_sparse_array(lua_State *l)
 
 /* Configures the maximum number of nested arrays/objects allowed when
  * encoding */
-static int json_cfg_encode_max_depth(lua_State *l)
+static int json_cfg_encode_max_depth(dlua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
 
@@ -338,7 +337,7 @@ static int json_cfg_encode_max_depth(lua_State *l)
 
 /* Configures the maximum number of nested arrays/objects allowed when
  * encoding */
-static int json_cfg_decode_max_depth(lua_State *l)
+static int json_cfg_decode_max_depth(dlua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
 
@@ -346,7 +345,7 @@ static int json_cfg_decode_max_depth(lua_State *l)
 }
 
 /* Configures number precision when converting doubles to text */
-static int json_cfg_encode_number_precision(lua_State *l)
+static int json_cfg_encode_number_precision(dlua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
 
@@ -354,7 +353,7 @@ static int json_cfg_encode_number_precision(lua_State *l)
 }
 
 /* Configures how to treat empty table when encode lua table */
-static int json_cfg_encode_empty_table_as_object(lua_State *l)
+static int json_cfg_encode_empty_table_as_object(dlua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
 
@@ -362,7 +361,7 @@ static int json_cfg_encode_empty_table_as_object(lua_State *l)
 }
 
 /* Configures how to decode arrays */
-static int json_cfg_decode_array_with_array_mt(lua_State *l)
+static int json_cfg_decode_array_with_array_mt(dlua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
 
@@ -372,7 +371,7 @@ static int json_cfg_decode_array_with_array_mt(lua_State *l)
 }
 
 /* Configures JSON encoding buffer persistence */
-static int json_cfg_encode_keep_buffer(lua_State *l)
+static int json_cfg_encode_keep_buffer(dlua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
     int old_value;
@@ -393,18 +392,18 @@ static int json_cfg_encode_keep_buffer(lua_State *l)
 }
 
 #if defined(DISABLE_INVALID_NUMBERS) && !defined(USE_INTERNAL_FPCONV)
-void json_verify_invalid_number_setting(lua_State *l, int *setting)
+void json_verify_invalid_number_setting(dlua_State *l, int *setting)
 {
     if (*setting == 1) {
         *setting = 0;
-        luaL_error(l, "Infinity, NaN, and/or hexadecimal numbers are not supported.");
+        dluaL_error(l, "Infinity, NaN, and/or hexadecimal numbers are not supported.");
     }
 }
 #else
 #define json_verify_invalid_number_setting(l, s)    do { } while(0)
 #endif
 
-static int json_cfg_encode_invalid_numbers(lua_State *l)
+static int json_cfg_encode_invalid_numbers(dlua_State *l)
 {
     static const char *options[] = { "off", "on", "null", NULL };
     json_config_t *cfg = json_arg_init(l, 1);
@@ -416,7 +415,7 @@ static int json_cfg_encode_invalid_numbers(lua_State *l)
     return 1;
 }
 
-static int json_cfg_decode_invalid_numbers(lua_State *l)
+static int json_cfg_decode_invalid_numbers(dlua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
 
@@ -427,7 +426,7 @@ static int json_cfg_decode_invalid_numbers(lua_State *l)
     return 1;
 }
 
-static int json_cfg_encode_escape_forward_slash(lua_State *l)
+static int json_cfg_encode_escape_forward_slash(dlua_State *l)
 {
     int            ret;
     json_config_t *cfg = json_arg_init(l, 1);
@@ -441,11 +440,11 @@ static int json_cfg_encode_escape_forward_slash(lua_State *l)
     return ret;
 }
 
-static int json_destroy_config(lua_State *l)
+static int json_destroy_config(dlua_State *l)
 {
     json_config_t *cfg;
 
-    cfg = lua_touserdata(l, 1);
+    cfg = dlua_touserdata(l, 1);
     if (cfg)
         strbuf_free(&cfg->encode_buf);
     cfg = NULL;
@@ -453,17 +452,17 @@ static int json_destroy_config(lua_State *l)
     return 0;
 }
 
-static void json_create_config(lua_State *l)
+static void json_create_config(dlua_State *l)
 {
     json_config_t *cfg;
 
-    cfg = lua_newuserdata(l, sizeof(*cfg));
+    cfg = dlua_newuserdata(l, sizeof(*cfg));
 
     /* Create GC method to clean up strbuf */
-    lua_newtable(l);
-    lua_pushcfunction(l, json_destroy_config);
-    lua_setfield(l, -2, "__gc");
-    lua_setmetatable(l, -2);
+    dlua_newtable(l);
+    dlua_pushcfunction(l, json_destroy_config);
+    dlua_setfield(l, -2, "__gc");
+    dlua_setmetatable(l, -2);
 
     json_initialize_config(cfg); // DEFOLD
 }
@@ -471,7 +470,7 @@ static void json_create_config(lua_State *l)
 #endif // DEFOLD
 
 // DEFOLD
-static void json_initialize_config(lua_State *l, json_config_t* cfg, int encode_keep_buffer, int protected_mode, char* errbuf, size_t errbuf_len)
+static void json_initialize_config(dlua_State *l, json_config_t* cfg, int encode_keep_buffer, int protected_mode, char* errbuf, size_t errbuf_len)
 {
     int i;
 
@@ -545,55 +544,55 @@ static void json_initialize_config(lua_State *l, json_config_t* cfg, int encode_
     cfg->escape2char['u'] = 'u';          /* Unicode parsing required */
 
     // read additional config values from options table
-    if (lua_istable(l, 2))
+    if (dlua_istable(l, 2))
     {
-        lua_pushvalue(l, 2); // push config table to top of stack
+        dlua_pushvalue(l, 2); // push config table to top of stack
 
-        lua_getfield(l, -1, "decode_null_as_userdata");
-        if (!lua_isnil(l, -1))
+        dlua_getfield(l, -1, "decode_null_as_userdata");
+        if (!dlua_isnil(l, -1))
         {
-            cfg->decode_null_as_userdata = lua_toboolean(l, -1);
+            cfg->decode_null_as_userdata = dlua_toboolean(l, -1);
         }
-        lua_pop(l, 1);
+        dlua_pop(l, 1);
 
-        lua_getfield(l, -1, "encode_empty_table_as_object");
-        if (!lua_isnil(l, -1))
+        dlua_getfield(l, -1, "encode_empty_table_as_object");
+        if (!dlua_isnil(l, -1))
         {
-            cfg->encode_empty_table_as_object = lua_toboolean(l, -1);
+            cfg->encode_empty_table_as_object = dlua_toboolean(l, -1);
         }
-        lua_pop(l, 1);
+        dlua_pop(l, 1);
 
-        lua_pop(l, 1); // remove config table from top of stack
+        dlua_pop(l, 1); // remove config table from top of stack
     }
 }
 // END DEFOLD
 
 /* ===== ENCODING ===== */
 
-static void json_encode_exception(lua_State *l, json_config_t *cfg, strbuf_t *json, int lindex,
+static void json_encode_exception(dlua_State *l, json_config_t *cfg, strbuf_t *json, int lindex,
                                   const char *reason)
 {
     // We don't need the buffer if error happened.
     strbuf_free(json);
 
     DefoldError(cfg, "Cannot serialise %s: %s",
-                  lua_typename(l, lua_type(l, lindex)), reason);
+                  dlua_typename(l, dlua_type(l, lindex)), reason);
 }
 
 /* json_append_string args:
- * - lua_State
+ * - dlua_State
  * - JSON strbuf
  * - String (Lua stack index)
  *
  * Returns nothing. Doesn't remove string from Lua stack */
-static void json_append_string(lua_State *l, strbuf_t *json, int lindex)
+static void json_append_string(dlua_State *l, strbuf_t *json, int lindex)
 {
     const char *escstr;
     unsigned i;
     const char *str;
     size_t len;
 
-    str = lua_tolstring(l, lindex, &len);
+    str = dlua_tolstring(l, lindex, &len);
 
     /* Worst case is len * 6 (all unicode escapes).
      * This buffer is reused constantly for small strings
@@ -613,32 +612,32 @@ static void json_append_string(lua_State *l, strbuf_t *json, int lindex)
 }
 
 // DEFOLD
-static void json_append_metadata_string(lua_State *l, strbuf_t *json, int lindex)
+static void json_append_metadata_string(dlua_State *l, strbuf_t *json, int lindex)
 {
     const char *escstr;
     unsigned i;
     const char *str;
     size_t len;
 
-    int top = lua_gettop(l);
+    int top = dlua_gettop(l);
 
-    lua_pushvalue(l, lindex);
+    dlua_pushvalue(l, lindex);
     // -1: userdata
 
-    lua_getglobal(l, "tostring");
+    dlua_getglobal(l, "tostring");
     // -2: userdata
     // -1: tostring
 
-    lua_pushvalue(l, -2);
+    dlua_pushvalue(l, -2);
     // -3: userdata
     // -2: tostring
     // -1: userdata
 
-    lua_pcall(l, 1, 1, 0);
+    dlua_pcall(l, 1, 1, 0);
     // -2: userdata
     // -1: string
 
-    str = lua_tolstring(l, -1, &len);
+    str = dlua_tolstring(l, -1, &len);
 
     /* Worst case is len * 6 (all unicode escapes).
      * This buffer is reused constantly for small strings
@@ -656,9 +655,9 @@ static void json_append_metadata_string(lua_State *l, strbuf_t *json, int lindex
     }
     strbuf_append_char_unsafe(json, '\"');
 
-    lua_pop(l, 2); // pop the string+userdata
+    dlua_pop(l, 2); // pop the string+userdata
 
-    assert(top == lua_gettop(l));
+    assert(top == dlua_gettop(l));
 }
 // DEFOLD END
 
@@ -667,7 +666,7 @@ static void json_append_metadata_string(lua_State *l, strbuf_t *json, int lindex
  * -1   object (not a pure array)
  * >=0  elements in array
  */
-static int lua_array_length(lua_State *l, json_config_t *cfg, strbuf_t *json)
+static int lua_array_length(dlua_State *l, json_config_t *cfg, strbuf_t *json)
 {
     double k;
     int max;
@@ -676,24 +675,24 @@ static int lua_array_length(lua_State *l, json_config_t *cfg, strbuf_t *json)
     max = 0;
     items = 0;
 
-    lua_pushnil(l);
+    dlua_pushnil(l);
     /* table, startkey */
-    while (lua_next(l, -2) != 0) {
+    while (dlua_next(l, -2) != 0) {
         /* table, key, value */
-        if (lua_type(l, -2) == LUA_TNUMBER &&
-            (k = lua_tonumber(l, -2))) {
+        if (dlua_type(l, -2) == DLUA_TNUMBER &&
+            (k = dlua_tonumber(l, -2))) {
             /* Integer >= 1 ? */
             if (floor(k) == k && k >= 1) {
                 if (k > max)
                     max = k;
                 items++;
-                lua_pop(l, 1);
+                dlua_pop(l, 1);
                 continue;
             }
         }
 
         /* Must not be an array (non integer key) */
-        lua_pop(l, 2);
+        dlua_pop(l, 2);
         return -1;
     }
 
@@ -710,20 +709,20 @@ static int lua_array_length(lua_State *l, json_config_t *cfg, strbuf_t *json)
     return max;
 }
 
-static void json_check_encode_depth(lua_State *l, json_config_t *cfg,
+static void json_check_encode_depth(dlua_State *l, json_config_t *cfg,
                                     int current_depth, strbuf_t *json)
 {
     /* Ensure there are enough slots free to traverse a table (key,
      * value) and push a string for a potential error message.
      *
      * Unlike "decode", the key and value are still on the stack when
-     * lua_checkstack() is called.  Hence an extra slot for luaL_error()
-     * below is required just in case the next check to lua_checkstack()
+     * dlua_checkstack() is called.  Hence an extra slot for dluaL_error()
+     * below is required just in case the next check to dlua_checkstack()
      * fails.
      *
      * While this won't cause a crash due to the EXTRA_STACK reserve
      * slots, it would still be an improper use of the API. */
-    if (current_depth <= cfg->encode_max_depth && lua_checkstack(l, 3))
+    if (current_depth <= cfg->encode_max_depth && dlua_checkstack(l, 3))
         return;
 
     // We don't need the buffer if error happened.
@@ -733,14 +732,14 @@ static void json_check_encode_depth(lua_State *l, json_config_t *cfg,
                current_depth);
 }
 
-static void json_append_data(lua_State *l, json_config_t *cfg,
+static void json_append_data(dlua_State *l, json_config_t *cfg,
                              int current_depth, strbuf_t *json);
 
 /* json_append_array args:
- * - lua_State
+ * - dlua_State
  * - JSON strbuf
  * - Size of passwd Lua array (top of stack) */
-static void json_append_array(lua_State *l, json_config_t *cfg, int current_depth,
+static void json_append_array(dlua_State *l, json_config_t *cfg, int current_depth,
                               strbuf_t *json, int array_length)
 {
     int comma, i;
@@ -754,18 +753,18 @@ static void json_append_array(lua_State *l, json_config_t *cfg, int current_dept
         else
             comma = 1;
 
-        lua_rawgeti(l, -1, i);
+        dlua_rawgeti(l, -1, i);
         json_append_data(l, cfg, current_depth, json);
-        lua_pop(l, 1);
+        dlua_pop(l, 1);
     }
 
     strbuf_append_char(json, ']');
 }
 
-static void json_append_number(lua_State *l, json_config_t *cfg,
+static void json_append_number(dlua_State *l, json_config_t *cfg,
                                strbuf_t *json, int lindex)
 {
-    double num = lua_tonumber(l, lindex);
+    double num = dlua_tonumber(l, lindex);
     int len;
 
     if (cfg->encode_invalid_numbers == 0) {
@@ -800,30 +799,31 @@ static void json_append_number(lua_State *l, json_config_t *cfg,
     strbuf_extend_length(json, len);
 }
 
-static void json_append_object(lua_State *l, json_config_t *cfg,
+static void json_append_object(dlua_State *l, json_config_t *cfg,
                                int current_depth, strbuf_t *json)
 {
-    int comma, keytype;
+    int comma;
+    dlua_Type keytype;
 
     /* Object */
     strbuf_append_char(json, '{');
 
-    lua_pushnil(l);
+    dlua_pushnil(l);
     /* table, startkey */
     comma = 0;
-    while (lua_next(l, -2) != 0) {
+    while (dlua_next(l, -2) != 0) {
         if (comma)
             strbuf_append_char(json, ',');
         else
             comma = 1;
 
         /* table, key, value */
-        keytype = lua_type(l, -2);
-        if (keytype == LUA_TNUMBER) {
+        keytype = dlua_type(l, -2);
+        if (keytype == DLUA_TNUMBER) {
             strbuf_append_char(json, '"');
             json_append_number(l, cfg, json, -2);
             strbuf_append_mem(json, "\":", 2);
-        } else if (keytype == LUA_TSTRING) {
+        } else if (keytype == DLUA_TSTRING) {
             json_append_string(l, json, -2);
             strbuf_append_char(json, ':');
         } else {
@@ -834,7 +834,7 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
 
         /* table, key, value */
         json_append_data(l, cfg, current_depth, json);
-        lua_pop(l, 1);
+        dlua_pop(l, 1);
         /* table, key */
     }
 
@@ -842,41 +842,41 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
 }
 
 /* Serialise Lua data into JSON string. */
-static void json_append_data(lua_State *l, json_config_t *cfg,
+static void json_append_data(dlua_State *l, json_config_t *cfg,
                              int current_depth, strbuf_t *json)
 {
     int len;
     int as_array = 0;
     int has_metatable;
 
-    switch (lua_type(l, -1)) {
-    case LUA_TSTRING:
+    switch (dlua_type(l, -1)) {
+    case DLUA_TSTRING:
         json_append_string(l, json, -1);
         break;
-    case LUA_TNUMBER:
+    case DLUA_TNUMBER:
         json_append_number(l, cfg, json, -1);
         break;
-    case LUA_TBOOLEAN:
-        if (lua_toboolean(l, -1))
+    case DLUA_TBOOLEAN:
+        if (dlua_toboolean(l, -1))
             strbuf_append_mem(json, "true", 4);
         else
             strbuf_append_mem(json, "false", 5);
         break;
-    case LUA_TTABLE:
+    case DLUA_TTABLE:
         current_depth++;
         json_check_encode_depth(l, cfg, current_depth, json);
 
-        has_metatable = lua_getmetatable(l, -1);
+        has_metatable = dlua_getmetatable(l, -1);
 
         if (has_metatable) {
-            lua_pushlightuserdata(l, json_lightudata_mask(&json_array));
-            lua_rawget(l, LUA_REGISTRYINDEX);
-            as_array = lua_rawequal(l, -1, -2);
-            lua_pop(l, 2);
+            dlua_pushlightuserdata(l, json_lightudata_mask(&json_array));
+            dlua_rawget(l, DLUA_REGISTRYINDEX);
+            as_array = dlua_rawequal(l, -1, -2);
+            dlua_pop(l, 2);
         }
 
         if (as_array) {
-            len = lua_objlen(l, -1);
+            len = dlua_objlen(l, -1);
             json_append_array(l, cfg, current_depth, json, len);
         } else {
             len = lua_array_length(l, cfg, json);
@@ -885,12 +885,12 @@ static void json_append_data(lua_State *l, json_config_t *cfg,
                 json_append_array(l, cfg, current_depth, json, len);
             } else {
                 if (has_metatable) {
-                    lua_getmetatable(l, -1);
-                    lua_pushlightuserdata(l, json_lightudata_mask(
+                    dlua_getmetatable(l, -1);
+                    dlua_pushlightuserdata(l, json_lightudata_mask(
                                           &json_empty_array));
-                    lua_rawget(l, LUA_REGISTRYINDEX);
-                    as_array = lua_rawequal(l, -1, -2);
-                    lua_pop(l, 2); /* pop pointer + metatable */
+                    dlua_rawget(l, DLUA_REGISTRYINDEX);
+                    as_array = dlua_rawequal(l, -1, -2);
+                    dlua_pop(l, 2); /* pop pointer + metatable */
                     if (as_array) {
                         json_append_array(l, cfg, current_depth, json, 0);
                         break;
@@ -900,35 +900,35 @@ static void json_append_data(lua_State *l, json_config_t *cfg,
             }
         }
         break;
-    case LUA_TNIL:
+    case DLUA_TNIL:
         strbuf_append_mem(json, "null", 4);
         break;
-    case LUA_TLIGHTUSERDATA:
-        if (lua_touserdata(l, -1) == NULL) {
+    case DLUA_TLIGHTUSERDATA:
+        if (dlua_touserdata(l, -1) == NULL) {
             strbuf_append_mem(json, "null", 4);
-        } else if (lua_touserdata(l, -1) == json_lightudata_mask(&json_array)) {
+        } else if (dlua_touserdata(l, -1) == json_lightudata_mask(&json_array)) {
             json_append_array(l, cfg, current_depth, json, 0);
         }
         break;
     // DEFOLD: We use the tostring() from the meta table
-    case LUA_TUSERDATA:
-    case LUA_TFUNCTION:
-    case LUA_TTHREAD:
+    case DLUA_TUSERDATA:
+    case DLUA_TFUNCTION:
+    case DLUA_TTHREAD:
         {
             json_append_metadata_string(l, json, -1);
             break;
         }
     // DEFOLD END
     default:
-        /* Remaining types (LUA_TFUNCTION, LUA_TUSERDATA, LUA_TTHREAD,
-         * and LUA_TLIGHTUSERDATA) cannot be serialised */
+        /* Remaining types (DLUA_TFUNCTION, DLUA_TUSERDATA, DLUA_TTHREAD,
+         * and DLUA_TLIGHTUSERDATA) cannot be serialised */
         json_encode_exception(l, cfg, json, -1, "type not supported");
         /* never returns */
     }
 }
 
 #if 0 // DEFOLD
-static int json_encode(lua_State *l)
+static int json_encode(dlua_State *l)
 {
     json_config_t *cfg = json_fetch_config(l);
     strbuf_t local_encode_buf;
@@ -936,7 +936,7 @@ static int json_encode(lua_State *l)
     char *json;
     int len;
 
-    luaL_argcheck(l, lua_gettop(l) == 1, 1, "expected 1 argument");
+    dluaL_argcheck(l, dlua_gettop(l) == 1, 1, "expected 1 argument");
 
     if (!cfg->encode_keep_buffer) {
         /* Use private buffer */
@@ -951,7 +951,7 @@ static int json_encode(lua_State *l)
     json_append_data(l, cfg, 0, encode_buf);
     json = strbuf_string(encode_buf, &len);
 
-    lua_pushlstring(l, json, len);
+    dlua_pushlstring(l, json, len);
 
     if (!cfg->encode_keep_buffer)
         strbuf_free(encode_buf);
@@ -970,7 +970,7 @@ static int json_encode(lua_State *l)
 // a default config here to avoid passing the config as
 // a user data object.
 // Also, we return the generated string, and let the caller delete it
-int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
+int lua_cjson_encode(dlua_State *l, char** json_str, size_t* json_length)
 {
     json_config_t cfg;
     strbuf_t local_encode_buf;
@@ -987,9 +987,9 @@ int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
         strbuf_reset(encode_buf);
     }
 
-    lua_pushvalue(l, 1); // make sure the table to encode is on the top of the stack
+    dlua_pushvalue(l, 1); // make sure the table to encode is on the top of the stack
     json_append_data(l, &cfg, 0, encode_buf);
-    lua_pop(l, 1); // pop it again
+    dlua_pop(l, 1); // pop it again
 
     // DEFOLD: We store away the values
     int len;
@@ -1011,7 +1011,7 @@ int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
 
 /* ===== DECODING ===== */
 
-static int json_process_value(lua_State *l, json_parse_t *json,
+static int json_process_value(dlua_State *l, json_parse_t *json,
                                json_token_t *token);
 
 static int hexdigit2int(char hex)
@@ -1380,8 +1380,8 @@ static void json_next_token(json_parse_t *json, json_token_t *token)
  * The only supported exception is the temporary parser string
  * json->tmp struct.
  * json and token should exist on the stack somewhere.
- * luaL_error() will long_jmp and release the stack */
-static int json_throw_parse_error(lua_State *l, json_parse_t *json,
+ * dluaL_error() will long_jmp and release the stack */
+static int json_throw_parse_error(dlua_State *l, json_parse_t *json,
                                    const char *exp, json_token_t *token)
 {
     const char *found;
@@ -1403,12 +1403,12 @@ static inline void json_decode_ascend(json_parse_t *json)
     json->current_depth--;
 }
 
-static void json_decode_descend(lua_State *l, json_parse_t *json, int slots)
+static void json_decode_descend(dlua_State *l, json_parse_t *json, int slots)
 {
     json->current_depth++;
 
     if (json->current_depth <= json->cfg->decode_max_depth &&
-        lua_checkstack(l, slots)) {
+        dlua_checkstack(l, slots)) {
         return;
     }
 
@@ -1417,7 +1417,7 @@ static void json_decode_descend(lua_State *l, json_parse_t *json, int slots)
         json->current_depth, (int)(uintptr_t)(json->ptr - json->data));
 }
 
-static int json_parse_object_context(lua_State *l, json_parse_t *json)
+static int json_parse_object_context(dlua_State *l, json_parse_t *json)
 {
     json_token_t token;
 
@@ -1425,7 +1425,7 @@ static int json_parse_object_context(lua_State *l, json_parse_t *json)
      * .., table, key, value */
     json_decode_descend(l, json, 3);
 
-    lua_newtable(l);
+    dlua_newtable(l);
 
     json_next_token(json, &token);
 
@@ -1440,7 +1440,7 @@ static int json_parse_object_context(lua_State *l, json_parse_t *json)
             return json_throw_parse_error(l, json, "object key string", &token);
 
         /* Push key */
-        lua_pushlstring(l, token.value.string, token.string_len);
+        dlua_pushlstring(l, token.value.string, token.string_len);
 
         json_next_token(json, &token);
         if (token.type != T_COLON)
@@ -1452,7 +1452,7 @@ static int json_parse_object_context(lua_State *l, json_parse_t *json)
             return 0;
 
         /* Set key = value */
-        lua_rawset(l, -3);
+        dlua_rawset(l, -3);
 
         json_next_token(json, &token);
 
@@ -1470,7 +1470,7 @@ static int json_parse_object_context(lua_State *l, json_parse_t *json)
 }
 
 /* Handle the array context */
-static int json_parse_array_context(lua_State *l, json_parse_t *json)
+static int json_parse_array_context(dlua_State *l, json_parse_t *json)
 {
     json_token_t token;
     int i;
@@ -1479,13 +1479,13 @@ static int json_parse_array_context(lua_State *l, json_parse_t *json)
      * .., table, value */
     json_decode_descend(l, json, 2);
 
-    lua_newtable(l);
+    dlua_newtable(l);
 
     /* set array_mt on the table at the top of the stack */
     if (json->cfg->decode_array_with_array_mt) {
-        lua_pushlightuserdata(l, json_lightudata_mask(&json_array));
-        lua_rawget(l, LUA_REGISTRYINDEX);
-        lua_setmetatable(l, -2);
+        dlua_pushlightuserdata(l, json_lightudata_mask(&json_array));
+        dlua_rawget(l, DLUA_REGISTRYINDEX);
+        dlua_setmetatable(l, -2);
     }
 
     json_next_token(json, &token);
@@ -1499,7 +1499,7 @@ static int json_parse_array_context(lua_State *l, json_parse_t *json)
     for (i = 1; ; i++) {
         if (!json_process_value(l, json, &token))
             return 0;
-        lua_rawseti(l, -2, i);            /* arr[i] = value */
+        dlua_rawseti(l, -2, i);            /* arr[i] = value */
 
         json_next_token(json, &token);
 
@@ -1517,18 +1517,18 @@ static int json_parse_array_context(lua_State *l, json_parse_t *json)
 }
 
 /* Handle the "value" context */
-static int json_process_value(lua_State *l, json_parse_t *json,
+static int json_process_value(dlua_State *l, json_parse_t *json,
                                json_token_t *token)
 {
     switch (token->type) {
     case T_STRING:
-        lua_pushlstring(l, token->value.string, token->string_len);
+        dlua_pushlstring(l, token->value.string, token->string_len);
         break;;
     case T_NUMBER:
-        lua_pushnumber(l, token->value.number);
+        dlua_pushnumber(l, token->value.number);
         break;;
     case T_BOOLEAN:
-        lua_pushboolean(l, token->value.boolean);
+        dlua_pushboolean(l, token->value.boolean);
         break;;
     case T_OBJ_BEGIN:
         if (!json_parse_object_context(l, json))
@@ -1543,11 +1543,11 @@ static int json_process_value(lua_State *l, json_parse_t *json,
         // DEFOLD:
         if (json->cfg->decode_null_as_userdata)
         {
-            lua_pushlightuserdata(l, NULL);
+            dlua_pushlightuserdata(l, NULL);
         }
         else
         {
-            lua_pushnil(l);
+            dlua_pushnil(l);
         }
         break;;
     default:
@@ -1557,16 +1557,16 @@ static int json_process_value(lua_State *l, json_parse_t *json,
 }
 
 #if 0 // DEFOLD
-static int json_decode(lua_State *l)
+static int json_decode(dlua_State *l)
 {
     json_parse_t json;
     json_token_t token;
     size_t json_len;
 
-    luaL_argcheck(l, lua_gettop(l) == 1, 1, "expected 1 argument");
+    dluaL_argcheck(l, dlua_gettop(l) == 1, 1, "expected 1 argument");
 
     json.cfg = json_fetch_config(l);
-    json.data = luaL_checklstring(l, 1, &json_len);
+    json.data = dluaL_checklstring(l, 1, &json_len);
     json.current_depth = 0;
     json.ptr = json.data;
 
@@ -1576,7 +1576,7 @@ static int json_decode(lua_State *l)
      * character is guaranteed to be ASCII (at worst: '"'). This is
      * still enough to detect whether the wrong encoding is in use. */
     if (json_len >= 2 && (!json.data[0] || !json.data[1]))
-        luaL_error(l, "JSON parser does not support UTF-16 or UTF-32");
+        dluaL_error(l, "JSON parser does not support UTF-16 or UTF-32");
 
     /* Ensure the temporary buffer can hold the entire string.
      * This means we no longer need to do length checks since the decoded
@@ -1615,7 +1615,7 @@ static int DefoldError(json_config_t* cfg, const char* format, ...)
 
     if (cfg->protected_mode)
     {
-        return luaL_error(cfg->l, "%s", buffer);
+        return dluaL_error(cfg->l, "%s", buffer);
     }
     va_end(argp);
     return 0;
@@ -1627,7 +1627,7 @@ static int DefoldError(json_config_t* cfg, const char* format, ...)
 // a default config here to avoid passing the config as
 // a user data object.
 // Note: We also have a boolean which decides upon the error handling
-int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len, int protected_mode, char* errbuf, size_t errbuf_len)
+int lua_cjson_decode(dlua_State *l, const char* json_string, size_t json_len, int protected_mode, char* errbuf, size_t errbuf_len)
 {
     json_config_t cfg;
     json_parse_t json;
@@ -1673,62 +1673,62 @@ int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len, int
 #if 0 // Defold: unused
 /* ===== INITIALISATION ===== */
 
-#if !defined(LUA_VERSION_NUM) || LUA_VERSION_NUM < 502
+#if !defined(DLUA_VERSION_NUM) || DLUA_VERSION_NUM < 502
 /* Compatibility for Lua 5.1 and older LuaJIT.
  *
  * compat_luaL_setfuncs() is used to create a module table where the functions
  * have json_config_t as their first upvalue. Code borrowed from Lua 5.2
- * source's luaL_setfuncs().
+ * source's dluaL_setfuncs().
  */
-static void compat_luaL_setfuncs(lua_State *l, const luaL_Reg *reg, int nup)
+static void compat_luaL_setfuncs(dlua_State *l, const dluaL_Reg *reg, int nup)
 {
     int i;
 
-    luaL_checkstack(l, nup, "too many upvalues");
+    dluaL_checkstack(l, nup, "too many upvalues");
     for (; reg->name != NULL; reg++) {  /* fill the table with given functions */
         for (i = 0; i < nup; i++)  /* copy upvalues to the top */
-            lua_pushvalue(l, -nup);
-        lua_pushcclosure(l, reg->func, nup);  /* closure with those upvalues */
-        lua_setfield(l, -(nup + 2), reg->name);
+            dlua_pushvalue(l, -nup);
+        dlua_pushcclosure(l, reg->func, nup);  /* closure with those upvalues */
+        dlua_setfield(l, -(nup + 2), reg->name);
     }
-    lua_pop(l, nup);  /* remove upvalues */
+    dlua_pop(l, nup);  /* remove upvalues */
 }
 #else
-#define compat_luaL_setfuncs(L, reg, nup) luaL_setfuncs(L, reg, nup)
+#define compat_luaL_setfuncs(L, reg, nup) dluaL_setfuncs(L, reg, nup)
 #endif
 
 /* Call target function in protected mode with all supplied args.
  * Assumes target function only returns a single non-nil value.
  * Convert and return thrown errors as: nil, "error message" */
-static int json_protect_conversion(lua_State *l)
+static int json_protect_conversion(dlua_State *l)
 {
     int err;
 
     /* Deliberately throw an error for invalid arguments */
-    luaL_argcheck(l, lua_gettop(l) == 1, 1, "expected 1 argument");
+    dluaL_argcheck(l, dlua_gettop(l) == 1, 1, "expected 1 argument");
 
     /* pcall() the function stored as upvalue(1) */
-    lua_pushvalue(l, lua_upvalueindex(1));
-    lua_insert(l, 1);
-    err = lua_pcall(l, 1, 1, 0);
+    dlua_pushvalue(l, dlua_upvalueindex(1));
+    dlua_insert(l, 1);
+    err = dlua_pcall(l, 1, 1, 0);
     if (!err)
         return 1;
 
-    if (err == LUA_ERRRUN) {
-        lua_pushnil(l);
-        lua_insert(l, -2);
+    if (err == DLUA_ERRRUN) {
+        dlua_pushnil(l);
+        dlua_insert(l, -2);
         return 2;
     }
 
     /* Since we are not using a custom error handler, the only remaining
      * errors are memory related */
-    return luaL_error(l, "Memory allocation error in CJSON protected call");
+    return dluaL_error(l, "Memory allocation error in CJSON protected call");
 }
 
 /* Return cjson module table */
-static int lua_cjson_new(lua_State *l)
+static int lua_cjson_new(dlua_State *l)
 {
-    luaL_Reg reg[] = {
+    dluaL_Reg reg[] = {
         { "encode", json_encode },
         { "decode", json_decode },
         { "encode_empty_table_as_object", json_cfg_encode_empty_table_as_object },
@@ -1749,64 +1749,64 @@ static int lua_cjson_new(lua_State *l)
     fpconv_init();
 
     /* Test if array metatables are in registry */
-    lua_pushlightuserdata(l, json_lightudata_mask(&json_empty_array));
-    lua_rawget(l, LUA_REGISTRYINDEX);
-    if (lua_isnil(l, -1)) {
+    dlua_pushlightuserdata(l, json_lightudata_mask(&json_empty_array));
+    dlua_rawget(l, DLUA_REGISTRYINDEX);
+    if (dlua_isnil(l, -1)) {
         /* Create array metatables.
          *
          * If multiple calls to lua_cjson_new() are made,
          * this prevents overriding the tables at the given
          * registry's index with a new one.
          */
-        lua_pop(l, 1);
+        dlua_pop(l, 1);
 
         /* empty_array_mt */
-        lua_pushlightuserdata(l, json_lightudata_mask(&json_empty_array));
-        lua_newtable(l);
-        lua_rawset(l, LUA_REGISTRYINDEX);
+        dlua_pushlightuserdata(l, json_lightudata_mask(&json_empty_array));
+        dlua_newtable(l);
+        dlua_rawset(l, DLUA_REGISTRYINDEX);
 
         /* array_mt */
-        lua_pushlightuserdata(l, json_lightudata_mask(&json_array));
-        lua_newtable(l);
-        lua_rawset(l, LUA_REGISTRYINDEX);
+        dlua_pushlightuserdata(l, json_lightudata_mask(&json_array));
+        dlua_newtable(l);
+        dlua_rawset(l, DLUA_REGISTRYINDEX);
     }
 
     /* cjson module table */
-    lua_newtable(l);
+    dlua_newtable(l);
 
     /* Register functions with config data as upvalue */
     json_create_config(l);
     compat_luaL_setfuncs(l, reg, 1);
 
     /* Set cjson.null */
-    lua_pushlightuserdata(l, NULL);
-    lua_setfield(l, -2, "null");
+    dlua_pushlightuserdata(l, NULL);
+    dlua_setfield(l, -2, "null");
 
     /* Set cjson.empty_array_mt */
-    lua_pushlightuserdata(l, json_lightudata_mask(&json_empty_array));
-    lua_rawget(l, LUA_REGISTRYINDEX);
-    lua_setfield(l, -2, "empty_array_mt");
+    dlua_pushlightuserdata(l, json_lightudata_mask(&json_empty_array));
+    dlua_rawget(l, DLUA_REGISTRYINDEX);
+    dlua_setfield(l, -2, "empty_array_mt");
 
     /* Set cjson.array_mt */
-    lua_pushlightuserdata(l, json_lightudata_mask(&json_array));
-    lua_rawget(l, LUA_REGISTRYINDEX);
-    lua_setfield(l, -2, "array_mt");
+    dlua_pushlightuserdata(l, json_lightudata_mask(&json_array));
+    dlua_rawget(l, DLUA_REGISTRYINDEX);
+    dlua_setfield(l, -2, "array_mt");
 
     /* Set cjson.empty_array */
-    lua_pushlightuserdata(l, json_lightudata_mask(&json_array));
-    lua_setfield(l, -2, "empty_array");
+    dlua_pushlightuserdata(l, json_lightudata_mask(&json_array));
+    dlua_setfield(l, -2, "empty_array");
 
     /* Set module name / version fields */
-    lua_pushliteral(l, CJSON_MODNAME);
-    lua_setfield(l, -2, "_NAME");
-    lua_pushliteral(l, CJSON_VERSION);
-    lua_setfield(l, -2, "_VERSION");
+    dlua_pushliteral(l, CJSON_MODNAME);
+    dlua_setfield(l, -2, "_NAME");
+    dlua_pushliteral(l, CJSON_VERSION);
+    dlua_setfield(l, -2, "_VERSION");
 
     return 1;
 }
 
 /* Return cjson.safe module table */
-static int lua_cjson_safe_new(lua_State *l)
+static int lua_cjson_safe_new(dlua_State *l)
 {
     const char *func[] = { "decode", "encode", NULL };
     int i;
@@ -1814,33 +1814,33 @@ static int lua_cjson_safe_new(lua_State *l)
     lua_cjson_new(l);
 
     /* Fix new() method */
-    lua_pushcfunction(l, lua_cjson_safe_new);
-    lua_setfield(l, -2, "new");
+    dlua_pushcfunction(l, lua_cjson_safe_new);
+    dlua_setfield(l, -2, "new");
 
     for (i = 0; func[i]; i++) {
-        lua_getfield(l, -1, func[i]);
-        lua_pushcclosure(l, json_protect_conversion, 1);
-        lua_setfield(l, -2, func[i]);
+        dlua_getfield(l, -1, func[i]);
+        dlua_pushcclosure(l, json_protect_conversion, 1);
+        dlua_setfield(l, -2, func[i]);
     }
 
     return 1;
 }
 
-int luaopen_cjson(lua_State *l)
+int luaopen_cjson(dlua_State *l)
 {
     lua_cjson_new(l);
 
 #ifdef ENABLE_CJSON_GLOBAL
     /* Register a global "cjson" table. */
-    lua_pushvalue(l, -1);
-    lua_setglobal(l, CJSON_MODNAME);
+    dlua_pushvalue(l, -1);
+    dlua_setglobal(l, CJSON_MODNAME);
 #endif
 
     /* Return cjson table */
     return 1;
 }
 
-int luaopen_cjson_safe(lua_State *l)
+int luaopen_cjson_safe(dlua_State *l)
 {
     lua_cjson_safe_new(l);
 

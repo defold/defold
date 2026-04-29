@@ -26,10 +26,7 @@
 #include "gameobject_props.h"
 #include "component.h"
 
-extern "C"
-{
-#include <lua/lua.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameObject
 {

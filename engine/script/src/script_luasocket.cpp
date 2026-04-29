@@ -22,14 +22,14 @@ extern "C"
 
 namespace dmScript
 {
-    void InitializeLuasocket(lua_State* L)
+    void InitializeLuasocket(dlua_State* L)
     {
 #if !defined(DM_LUASOCKET_UNSUPPORTED)
         luaopen_socket_core(L);
 
         // above call leaves a table on the stack, which will not be
         // needed for anything, so clean up.
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 #endif
     }
 }

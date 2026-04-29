@@ -1,2 +1,2 @@
 // Redirecting header to make luascript sources compile as-is.
-#include <lua/lua.h>
+#include <dmsdk/dlua/dlua.h>

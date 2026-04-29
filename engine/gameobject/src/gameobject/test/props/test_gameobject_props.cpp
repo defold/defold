@@ -227,36 +227,36 @@ TEST_F(PropsTest, PropsMultiScript)
 
 TEST_F(PropsTest, PropsSpawn)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    int top = lua_gettop(L);
-    lua_newtable(L);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    int top = dlua_gettop(L);
+    dlua_newtable(L);
 
-    lua_pushnumber(L, 200);
-    lua_setfield(L, -2, "number");
+    dlua_pushnumber(L, 200);
+    dlua_setfield(L, -2, "number");
 
     dmScript::PushHash(L, dmHashString64("hash"));
-    lua_setfield(L, -2, "hash");
+    dlua_setfield(L, -2, "hash");
 
     dmMessage::URL url;
     dmMessage::ResetURL(&url);
     url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     url.m_Path = dmHashString64("/path");
     dmScript::PushURL(L, url);
-    lua_setfield(L, -2, "url");
+    dlua_setfield(L, -2, "url");
 
     dmScript::PushVector3(L, Vector3(1, 2, 3));
-    lua_setfield(L, -2, "vector3");
+    dlua_setfield(L, -2, "vector3");
 
     dmScript::PushVector4(L, Vector4(1, 2, 3, 4));
-    lua_setfield(L, -2, "vector4");
+    dlua_setfield(L, -2, "vector4");
 
     dmScript::PushQuat(L, Quat(1, 2, 3, 4));
-    lua_setfield(L, -2, "quat");
+    dlua_setfield(L, -2, "quat");
 
     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
     ASSERT_NE((dmGameObject::HPropertyContainer)0, properties);
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_spawn.goc", dmHashString64("test_id"), properties, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties

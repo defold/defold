@@ -14,7 +14,7 @@
 * tcp objects either connected to some address or returned by the accept
 * method of a server object.
 \*=========================================================================*/
-#include "lua.h"
+#include <dmsdk/dlua/dlua.h>
 
 #include "buffer.h"
 #include "timeout.h"
@@ -30,6 +30,6 @@ typedef struct t_tcp_ {
 
 typedef t_tcp *p_tcp;
 
-int tcp_open(lua_State *L);
+int tcp_open(dlua_State *L);
 
 #endif /* TCP_H */

@@ -27,8 +27,7 @@ extern "C" {
 
 // TODO: Try to forward declare
 // TODO: Try to design away the contents of the context
-#include <dmsdk/lua/lua.h>
-#include <dmsdk/lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>
 
 /*# Extension API documentation
  *
@@ -135,14 +134,14 @@ typedef struct ExtensionAppParams
  * @name ExtensionParams
  * @member m_ConfigFile [type:HConfigFile] The game project settings (including overrides and plugins)
  * @member m_ResourceFactory [type:HResourceFactory] The game resource factory / repository
- * @member m_L [type:lua_State*] The Lua state.
+ * @member m_L [type:dlua_State*] The Lua state.
  */
 typedef struct ExtensionParams
 {
     // NOTE: we'd like to hide these implementation details, in favor of getting the contexts
     HConfigFile         m_ConfigFile;       //!< Deprecated. Use m_Contexts instead
     HResourceFactory    m_ResourceFactory;  //!< Deprecated. Use m_Contexts instead
-    lua_State*          m_L;                //!< Deprecated. Use m_Contexts instead
+    dlua_State*         m_L;                //!< Deprecated. Use m_Contexts instead
 
     struct ExtensionParamsImpl* m_Impl;
 } ExtensionParams;

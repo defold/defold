@@ -8,7 +8,7 @@
 * and formatting conforming to RFC 2045. It is used by mime.lua, which
 * provide a higher level interface to this functionality. 
 \*=========================================================================*/
-#include "lua.h"
+#include <dmsdk/dlua/dlua.h>
 
 /*-------------------------------------------------------------------------*\
 * Current MIME library version
@@ -24,6 +24,6 @@
 #define MIME_API extern
 #endif
 
-MIME_API int luaopen_mime_core(lua_State *L);
+MIME_API int luaopen_mime_core(dlua_State *L);
 
 #endif /* MIME_H */

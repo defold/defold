@@ -15,8 +15,7 @@
 /*=========================================================================*\
 * Standard include files
 \*=========================================================================*/
-#include "lua.h"
-#include "lauxlib.h"
+#include <dmsdk/dlua/dlua.h>
 
 
 /*=========================================================================*\
@@ -35,14 +34,14 @@
 /*-------------------------------------------------------------------------*\
 * Internal function prototypes
 \*-------------------------------------------------------------------------*/
-static int global_skip(lua_State *L);
-static int global_unload(lua_State *L);
-static int base_open(lua_State *L);
+static int global_skip(dlua_State *L);
+static int global_unload(dlua_State *L);
+static int base_open(dlua_State *L);
 
 /*-------------------------------------------------------------------------*\
 * Modules and functions
 \*-------------------------------------------------------------------------*/
-static const luaL_Reg mod[] = {
+static const dluaL_Reg mod[] = {
     {"auxiliar", auxiliar_open},
     {"except", except_open},
     {"timeout", timeout_open},
@@ -54,7 +53,7 @@ static const luaL_Reg mod[] = {
     {NULL, NULL}
 };
 
-static luaL_Reg func[] = {
+static dluaL_Reg func[] = {
     {"skip",      global_skip},
     {"__unload",  global_unload},
     {NULL,        NULL}
@@ -63,54 +62,54 @@ static luaL_Reg func[] = {
 /*-------------------------------------------------------------------------*\
 * Skip a few arguments
 \*-------------------------------------------------------------------------*/
-static int global_skip(lua_State *L) {
-    int amount = luaL_checkint(L, 1);
-    int ret = lua_gettop(L) - amount - 1;
+static int global_skip(dlua_State *L) {
+    int amount = dluaL_checkint(L, 1);
+    int ret = dlua_gettop(L) - amount - 1;
     return ret >= 0 ? ret : 0;
 }
 
 /*-------------------------------------------------------------------------*\
 * Unloads the library
 \*-------------------------------------------------------------------------*/
-static int global_unload(lua_State *L) {
+static int global_unload(dlua_State *L) {
     (void) L;
     socket_close();
     return 0;
 }
 
-#if LUA_VERSION_NUM > 501
-int luaL_typerror (lua_State *L, int narg, const char *tname) {
-  const char *msg = lua_pushfstring(L, "%s expected, got %s",
-                                    tname, luaL_typename(L, narg));
-  return luaL_argerror(L, narg, msg);
+#if 0
+int dluaL_typerror (dlua_State *L, int narg, const char *tname) {
+  const char *msg = dlua_pushfstring(L, "%s expected, got %s",
+                                    tname, dluaL_typename(L, narg));
+  return dluaL_argerror(L, narg, msg);
 }
 #endif
 
 /*-------------------------------------------------------------------------*\
 * Setup basic stuff.
 \*-------------------------------------------------------------------------*/
-static int base_open(lua_State *L) {
+static int base_open(dlua_State *L) {
     if (socket_open()) {
         /* export functions (and leave namespace table on top of stack) */
-#if LUA_VERSION_NUM > 501 && !defined(LUA_COMPAT_MODULE)
-        lua_newtable(L);
-        luaL_setfuncs(L, func, 0);
+#if 0
+        dlua_newtable(L);
+        dluaL_setfuncs(L, func, 0);
 #else
-        luaL_openlib(L, "socket", func, 0);
+        dluaL_openlib(L, "socket", func, 0);
 #endif
 #ifdef LUASOCKET_DEBUG
-        lua_pushliteral(L, "_DEBUG");
-        lua_pushboolean(L, 1);
-        lua_rawset(L, -3);
+        dlua_pushliteral(L, "_DEBUG");
+        dlua_pushboolean(L, 1);
+        dlua_rawset(L, -3);
 #endif
         /* make version string available to scripts */
-        lua_pushliteral(L, "_VERSION");
-        lua_pushstring(L, LUASOCKET_VERSION);
-        lua_rawset(L, -3);
+        dlua_pushliteral(L, "_VERSION");
+        dlua_pushstring(L, LUASOCKET_VERSION);
+        dlua_rawset(L, -3);
         return 1;
     } else {
-        lua_pushliteral(L, "unable to initialize library");
-        lua_error(L);
+        dlua_pushliteral(L, "unable to initialize library");
+        dlua_error(L);
         return 0;
     }
 }
@@ -118,7 +117,7 @@ static int base_open(lua_State *L) {
 /*-------------------------------------------------------------------------*\
 * Initializes all library modules.
 \*-------------------------------------------------------------------------*/
-LUASOCKET_API int luaopen_socket_core(lua_State *L) {
+LUASOCKET_API int luaopen_socket_core(dlua_State *L) {
     int i;
     base_open(L);
     for (i = 0; mod[i].name; i++) mod[i].func(L);

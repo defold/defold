@@ -28,11 +28,7 @@
 
 #include "script_sound.h"
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameSystem
 {
@@ -159,13 +155,13 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Sound_IsMusicPlaying(lua_State* L)
+    static int Sound_IsMusicPlaying(dlua_State* L)
     {
-        lua_pushboolean(L, (int) dmSound::IsMusicPlaying());
+        dlua_pushboolean(L, (int) dmSound::IsMusicPlaying());
         return 1;
     }
 
-    static dmhash_t CheckGroupName(lua_State* L, int index) {
+    static dmhash_t CheckGroupName(dlua_State* L, int index) {
         return dmScript::CheckHashOrString(L, index);
     }
 
@@ -194,22 +190,22 @@ namespace dmGameSystem
      * print(rms) --> 0.56555819511414
      * ```
      */
-    static int Sound_GetRMS(lua_State* L)
+    static int Sound_GetRMS(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmhash_t group_hash = CheckGroupName(L, 1);
-        float window = luaL_checknumber(L, 2);
+        float window = dluaL_checknumber(L, 2);
         float left = 0, right = 0;
         dmSound::Result r = dmSound::GetGroupRMS(group_hash, window, &left, &right);
         if (r != dmSound::RESULT_OK) {
             dmLogWarning("Failed to get RMS (%d)", r);
         }
 
-        lua_pushnumber(L, left);
-        lua_pushnumber(L, right);
+        dlua_pushnumber(L, left);
+        dlua_pushnumber(L, right);
 
-        assert(top + 2 == lua_gettop(L));
+        assert(top + 2 == dlua_gettop(L));
         return 2;
     }
 
@@ -238,22 +234,22 @@ namespace dmGameSystem
      * right_p_db = 20 * log(right_p)
      * ```
      */
-    static int Sound_GetPeak(lua_State* L)
+    static int Sound_GetPeak(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmhash_t group_hash = CheckGroupName(L, 1);
-        float window = luaL_checknumber(L, 2);
+        float window = dluaL_checknumber(L, 2);
         float left = 0, right = 0;
         dmSound::Result r = dmSound::GetGroupPeak(group_hash, window, &left, &right);
         if (r != dmSound::RESULT_OK) {
             dmLogWarning("Failed to get peak (%d)", r);
         }
 
-        lua_pushnumber(L, left);
-        lua_pushnumber(L, right);
+        dlua_pushnumber(L, left);
+        dlua_pushnumber(L, right);
 
-        assert(top + 2 == lua_gettop(L));
+        assert(top + 2 == dlua_gettop(L));
         return 2;
     }
 
@@ -271,18 +267,18 @@ namespace dmGameSystem
      * sound.set_group_gain("soundfx", 0.5)
      * ```
      */
-    static int Sound_SetGroupGain(lua_State* L)
+    static int Sound_SetGroupGain(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         dmhash_t group_hash = CheckGroupName(L, 1);
-        float gain = luaL_checknumber(L, 2);
+        float gain = dluaL_checknumber(L, 2);
 
         dmSound::Result r = dmSound::SetGroupGain(group_hash, gain);
         if (r != dmSound::RESULT_OK) {
             dmLogWarning("Failed to set group gain (%d)", r);
         }
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -301,9 +297,9 @@ namespace dmGameSystem
      * local gain_db = 60 * gain
      * ```
      */
-    static int Sound_GetGroupGain(lua_State* L)
+    static int Sound_GetGroupGain(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         dmhash_t group_hash = CheckGroupName(L, 1);
         float gain = 0;
 
@@ -311,8 +307,8 @@ namespace dmGameSystem
         if (r != dmSound::RESULT_OK) {
             dmLogWarning("Failed to get group gain (%d)", r);
         }
-        lua_pushnumber(L, gain);
-        assert(top + 1 == lua_gettop(L));
+        dlua_pushnumber(L, gain);
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -337,7 +333,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Sound_GetGroups(lua_State* L)
+    static int Sound_GetGroups(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -345,10 +341,10 @@ namespace dmGameSystem
         uint32_t count = dmSound::MAX_GROUPS;
         dmSound::GetGroupHashes(&count, groups);
 
-        lua_createtable(L, count, 0);
+        dlua_createtable(L, count, 0);
         for (uint32_t i = 0; i < count; i++) {
             dmScript::PushHash(L, groups[i]);
-            lua_rawseti(L, -2, i + 1);
+            dlua_rawseti(L, -2, i + 1);
         }
         return 1;
     }
@@ -375,19 +371,19 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Sound_GetGroupName(lua_State* L)
+    static int Sound_GetGroupName(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmhash_t group_hash = dmScript::CheckHash(L, 1);
         const char* name = (const char*) dmHashReverse64(group_hash, 0);
         if (name) {
-            lua_pushstring(L, name);
+            dlua_pushstring(L, name);
         } else {
-            lua_pushfstring(L, "unknown_%llu", (unsigned long long)group_hash);
+            dlua_pushfstring(L, "unknown_%llu", (unsigned long long)group_hash);
         }
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -410,11 +406,11 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Sound_IsPhoneCallActive(lua_State* L)
+    static int Sound_IsPhoneCallActive(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        lua_pushboolean(L, (int) dmSound::IsAudioInterrupted());
-        assert(top + 1 == lua_gettop(L));
+        int top = dlua_gettop(L);
+        dlua_pushboolean(L, (int) dmSound::IsAudioInterrupted());
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -488,10 +484,10 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Sound_Play(lua_State* L)
+    static int Sound_Play(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
@@ -502,45 +498,45 @@ namespace dmGameSystem
         float start_time = 0.0f;
         uint32_t start_frame = 0u;
 
-        if (top > 1 && !lua_isnil(L,2)) // table with args
+        if (top > 1 && !dlua_isnil(L,2)) // table with args
         {
-            luaL_checktype(L, 2, LUA_TTABLE);
-            lua_pushvalue(L, 2);
+            dluaL_checktype(L, 2, DLUA_TTABLE);
+            dlua_pushvalue(L, 2);
 
-            lua_getfield(L, -1, "delay");
-            delay = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "delay");
+            delay = dlua_isnil(L, -1) ? 0.0 : dluaL_checknumber(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "gain");
-            gain = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "gain");
+            gain = dlua_isnil(L, -1) ? 1.0 : dluaL_checknumber(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "pan");
-            pan = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "pan");
+            pan = dlua_isnil(L, -1) ? 0.0 : dluaL_checknumber(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "speed");
-            speed = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "speed");
+            speed = dlua_isnil(L, -1) ? 1.0 : dluaL_checknumber(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "start_time");
-            if (!lua_isnil(L, -1))
+            dlua_getfield(L, -1, "start_time");
+            if (!dlua_isnil(L, -1))
             {
-                start_time = (float)luaL_checknumber(L, -1);
+                start_time = (float)dluaL_checknumber(L, -1);
                 if (start_time < 0.0f) start_time = 0.0f;
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "start_frame");
-            if (!lua_isnil(L, -1))
+            dlua_getfield(L, -1, "start_frame");
+            if (!dlua_isnil(L, -1))
             {
-                double v = luaL_checknumber(L, -1);
+                double v = dluaL_checknumber(L, -1);
                 if (v < 0.0) v = 0.0;
                 start_frame = (uint32_t)v;
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         uint32_t play_id = dmSound::GetAndIncreasePlayCounter();
@@ -550,11 +546,11 @@ namespace dmGameSystem
         uintptr_t functionref = UINTPTR_MAX;
         if (top > 2) // completed cb
         {
-            if (lua_isfunction(L, 3))
+            if (dlua_isfunction(L, 3))
             {
-                lua_pushvalue(L, 3);
-                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
-                functionref = (uintptr_t)(dmScript::RefInInstance(L) - LUA_NOREF);
+                dlua_pushvalue(L, 3);
+                // NOTE: By convention m_FunctionRef is offset by DLUA_NOREF, in order to have 0 for "no function"
+                functionref = (uintptr_t)(dmScript::RefInInstance(L) - DLUA_NOREF);
             }
         }
 
@@ -570,7 +566,7 @@ namespace dmGameSystem
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, 0, functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
-        lua_pushnumber(L, (double) msg.m_PlayId);
+        dlua_pushnumber(L, (double) msg.m_PlayId);
 
         return 1;
     }
@@ -594,10 +590,10 @@ namespace dmGameSystem
      * sound.stop("#sound", {play_id = id})
      * ```
      */
-    static int Sound_Stop(lua_State* L)
+    static int Sound_Stop(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
@@ -606,19 +602,19 @@ namespace dmGameSystem
 
         uint32_t play_id = dmSound::INVALID_PLAY_ID;
 
-        if (top > 1 && !lua_isnil(L,2)) // table with args
+        if (top > 1 && !dlua_isnil(L,2)) // table with args
         {
-            luaL_checktype(L, 2, LUA_TTABLE);
-            lua_pushvalue(L, 2);
+            dluaL_checktype(L, 2, DLUA_TTABLE);
+            dlua_pushvalue(L, 2);
 
-            lua_getfield(L, -1, "play_id");
-            if (!lua_isnil(L, -1))
+            dlua_getfield(L, -1, "play_id");
+            if (!dlua_isnil(L, -1))
             {
-                play_id = luaL_checknumber(L, -1);
+                play_id = dluaL_checknumber(L, -1);
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         dmGameSystemDDF::StopSound msg;
@@ -643,7 +639,7 @@ namespace dmGameSystem
      * sound.pause("#sound", true)
      * ```
      */
-    static int Sound_Pause(lua_State* L)
+    static int Sound_Pause(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
@@ -673,7 +669,7 @@ namespace dmGameSystem
      * sound.set_gain("#sound", 0.9)
      * ```
      */
-    static int Sound_SetGain(lua_State* L)
+    static int Sound_SetGain(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -683,7 +679,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        float gain = luaL_checknumber(L, 2);
+        float gain = dluaL_checknumber(L, 2);
 
         dmGameSystemDDF::SetGain msg;
         msg.m_Gain = gain;
@@ -711,7 +707,7 @@ namespace dmGameSystem
      * sound.set_pan("#sound", 0.5) -- pan to the right
      * ```
      */
-    static int Sound_SetPan(lua_State* L)
+    static int Sound_SetPan(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -721,7 +717,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        float pan = luaL_checknumber(L, 2);
+        float pan = dluaL_checknumber(L, 2);
 
         dmGameSystemDDF::SetPan msg;
         msg.m_Pan = pan;
@@ -730,7 +726,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static const luaL_reg SOUND_FUNCTIONS[] =
+    static const dluaL_reg SOUND_FUNCTIONS[] =
     {
         {"is_music_playing", Sound_IsMusicPlaying},
         {"get_rms", Sound_GetRMS},
@@ -750,12 +746,12 @@ namespace dmGameSystem
 
     void ScriptSoundRegister(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
-        int top = lua_gettop(L);
+        dlua_State* L = context.m_LuaState;
+        int top = dlua_gettop(L);
         (void)top;
-        luaL_register(L, "sound", SOUND_FUNCTIONS);
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+        dluaL_register(L, "sound", SOUND_FUNCTIONS);
+        dlua_pop(L, 1);
+        assert(top == dlua_gettop(L));
     }
 
     void ScriptSoundOnWindowFocus(bool focus)

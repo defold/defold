@@ -29,17 +29,17 @@ namespace dmGui
     {
     }
 
-    HScene GetSceneFromLua(lua_State* L)
+    HScene GetSceneFromLua(dlua_State* L)
     {
         return 0;
     }
 
-    lua_State* InitializeScript(dmScript::HContext script_context)
+    dlua_State* InitializeScript(dmScript::HContext script_context)
     {
         return 0;
     }
 
-    void FinalizeScript(lua_State* L, dmScript::HContext script_context)
+    void FinalizeScript(dlua_State* L, dmScript::HContext script_context)
     {
     }
 
@@ -940,7 +940,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    lua_State* GetLuaState(HContext context)
+    dlua_State* GetLuaState(HContext context)
     {
         return 0;
     }

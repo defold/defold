@@ -549,13 +549,13 @@ void GamesysTest<T>::SetUp()
     m_ScriptContext = dmScript::NewContext(script_context_params);
     dmScript::Initialize(m_ScriptContext);
 
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
     #ifdef DM_PHYSICS_BOX2D_V3
-        lua_pushstring(L, "box2dv3");
+        dlua_pushstring(L, "box2dv3");
     #else
-        lua_pushstring(L, "box2dv2");
+        dlua_pushstring(L, "box2dv2");
     #endif
-    lua_setglobal(L, "PHYSICS");
+    dlua_setglobal(L, "PHYSICS");
 
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
@@ -778,7 +778,7 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
     if (result)
         *result = false;
 
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
     bool tests_done = false;
     int count = update_count;
     while (!tests_done && --count > 0)
@@ -796,9 +796,9 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
         }
 
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
     if (count >= 0)
     {
@@ -838,7 +838,7 @@ protected:
         GamesysTest::TearDown();
     }
 
-    lua_State* L;
+    dlua_State* L;
     dmGameSystem::ScriptLibContext m_ScriptLibContext;
 };
 
@@ -885,7 +885,7 @@ protected:
 
     dmGameSystem::ScriptLibContext m_ScriptLibContext;
     dmScript::HContext m_Context;
-    lua_State* L;
+    dlua_State* L;
     dmBuffer::HBuffer m_Buffer;
     uint32_t m_Count;
 };
@@ -941,7 +941,7 @@ protected:
 
     dmGameSystem::ScriptLibContext m_ScriptLibContext;
     dmScript::HContext m_Context;
-    lua_State* L;
+    dlua_State* L;
     dmBuffer::HBuffer m_Buffer;
 };
 

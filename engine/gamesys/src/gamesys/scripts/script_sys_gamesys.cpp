@@ -22,11 +22,7 @@
 #include "script_buffer.h"
 #include "script_sys_gamesys.h"
 
-extern "C"
-{
-    #include <lua/lua.h>
-    #include <lua/lauxlib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameSystem
 {
@@ -80,7 +76,7 @@ namespace dmGameSystem
         bool result = true;
         if (dmScript::IsCallbackValid(request->m_CallbackInfo))
         {
-            lua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
+            dlua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
             DM_LUA_STACK_CHECK(L, 0);
 
             // callback has the format:
@@ -90,17 +86,17 @@ namespace dmGameSystem
             //      - buffer: if successfull, this contains the payload
             if (dmScript::SetupCallback(request->m_CallbackInfo))
             {
-                lua_pushnumber(L, request->m_Handle);
+                dlua_pushnumber(L, request->m_Handle);
 
-                lua_newtable(L);
-                lua_pushnumber(L, request->m_Status);
-                lua_setfield(L, -2, "status");
+                dlua_newtable(L);
+                dlua_pushnumber(L, request->m_Status);
+                dlua_setfield(L, -2, "status");
 
                 if (request->m_Status == REQUEST_STATUS_FINISHED)
                 {
                     dmScript::LuaHBuffer luabuf(request->m_Payload, dmScript::OWNER_LUA);
                     dmScript::PushBuffer(L, luabuf);
-                    lua_setfield(L, -2, "buffer");
+                    dlua_setfield(L, -2, "buffer");
                 }
 
                 result = dmScript::PCall(L, 3, 0) == 0;
@@ -236,10 +232,10 @@ namespace dmGameSystem
      * local asset_2 = sys.load_buffer("/my/absolute/path")
      * ```
      */
-    static int Sys_LoadBuffer(lua_State* L)
+    static int Sys_LoadBuffer(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        const char* filename = luaL_checkstring(L, 1);
+        int top = dlua_gettop(L);
+        const char* filename = dluaL_checkstring(L, 1);
 
         LuaRequest request;
         dmResource::LoadBufferType load_buffer_data;
@@ -247,7 +243,7 @@ namespace dmGameSystem
 
         if (res != dmResource::RESULT_OK)
         {
-            return luaL_error(L, "sys.load_buffer failed to load the resource (code=%d)", (int) res);
+            return dluaL_error(L, "sys.load_buffer failed to load the resource (code=%d)", (int) res);
         }
 
         dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
@@ -263,7 +259,7 @@ namespace dmGameSystem
         dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
         dmScript::PushBuffer(L, luabuf);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -335,15 +331,15 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Sys_LoadBufferAsync(lua_State* L)
+    static int Sys_LoadBufferAsync(dlua_State* L)
     {
-        int top          = lua_gettop(L);
-        const char* path = luaL_checkstring(L, 1);
+        int top          = dlua_gettop(L);
+        const char* path = dluaL_checkstring(L, 1);
         dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 2);
 
         if (callback_info == 0x0)
         {
-            return luaL_error(L, "sys.load_buffer_async failed to create callback");
+            return dluaL_error(L, "sys.load_buffer_async failed to create callback");
         }
 
         dmhash_t path_hash = dmHashString64(path);
@@ -375,14 +371,14 @@ namespace dmGameSystem
             request->m_Handle       = g_SysModule.m_LoadRequests.Put(request);
             request->m_Payload      = 0;
             DispatchRequest(request);
-            lua_pushnumber(L, request->m_Handle);
+            dlua_pushnumber(L, request->m_Handle);
         }
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
-    static const luaL_reg ScriptImage_methods[] =
+    static const dluaL_reg ScriptImage_methods[] =
     {
         {"load_buffer",       Sys_LoadBuffer},
         {"load_buffer_async", Sys_LoadBufferAsync},
@@ -406,23 +402,23 @@ namespace dmGameSystem
 
     void ScriptSysGameSysRegister(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
-        int top = lua_gettop(L);
+        dlua_State* L = context.m_LuaState;
+        int top = dlua_gettop(L);
         (void)top;
 
-        luaL_register(L, "sys", ScriptImage_methods);
+        dluaL_register(L, "sys", ScriptImage_methods);
 
     #define SETCONSTANT(name, val) \
-        lua_pushnumber(L, (lua_Number) val); \
-        lua_setfield(L, -2, #name);\
+        dlua_pushnumber(L, (dlua_Number) val); \
+        dlua_setfield(L, -2, #name);\
 
         SETCONSTANT(REQUEST_STATUS_FINISHED,        REQUEST_STATUS_FINISHED);
         SETCONSTANT(REQUEST_STATUS_ERROR_IO_ERROR,  REQUEST_STATUS_ERROR_IO_ERROR);
         SETCONSTANT(REQUEST_STATUS_ERROR_NOT_FOUND, REQUEST_STATUS_ERROR_NOT_FOUND);
     #undef SETCONSTANT
 
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+        dlua_pop(L, 1);
+        assert(top == dlua_gettop(L));
 
         g_SysModule.m_Factory           = context.m_Factory;
         g_SysModule.m_JobContext        = context.m_JobContext;

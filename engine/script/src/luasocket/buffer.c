@@ -2,17 +2,16 @@
 * Input/Output interface for Lua programs
 * LuaSocket toolkit
 \*=========================================================================*/
-#include "lua.h"
-#include "lauxlib.h"
+#include <dmsdk/dlua/dlua.h>
 
 #include "buffer.h"
 
 /*=========================================================================*\
 * Internal function prototypes
 \*=========================================================================*/
-static int recvraw(p_buffer buf, size_t wanted, luaL_Buffer *b);
-static int recvline(p_buffer buf, luaL_Buffer *b);
-static int recvall(p_buffer buf, luaL_Buffer *b);
+static int recvraw(p_buffer buf, size_t wanted, dluaL_Buffer *b);
+static int recvline(p_buffer buf, dluaL_Buffer *b);
+static int recvall(p_buffer buf, dluaL_Buffer *b);
 static int buffer_get(p_buffer buf, const char **data, size_t *count);
 static void buffer_skip(p_buffer buf, size_t count);
 static int sendraw(p_buffer buf, const char *data, size_t count, size_t *sent);
@@ -31,13 +30,13 @@ static int sendraw(p_buffer buf, const char *data, size_t count, size_t *sent);
 /*-------------------------------------------------------------------------*\
 * Initializes module
 \*-------------------------------------------------------------------------*/
-int buffer_open(lua_State *L) {
+int buffer_open(dlua_State *L) {
     (void) L;
     return 0;
 }
 
 /*-------------------------------------------------------------------------*\
-* Initializes C structure 
+* Initializes C structure
 \*-------------------------------------------------------------------------*/
 void buffer_init(p_buffer buf, p_io io, p_timeout tm) {
     buf->first = buf->last = 0;
@@ -50,34 +49,34 @@ void buffer_init(p_buffer buf, p_io io, p_timeout tm) {
 /*-------------------------------------------------------------------------*\
 * object:getstats() interface
 \*-------------------------------------------------------------------------*/
-int buffer_meth_getstats(lua_State *L, p_buffer buf) {
-    lua_pushnumber(L, (lua_Number) buf->received);
-    lua_pushnumber(L, (lua_Number) buf->sent);
-    lua_pushnumber(L, timeout_gettime() - buf->birthday);
+int buffer_meth_getstats(dlua_State *L, p_buffer buf) {
+    dlua_pushnumber(L, (dlua_Number) buf->received);
+    dlua_pushnumber(L, (dlua_Number) buf->sent);
+    dlua_pushnumber(L, timeout_gettime() - buf->birthday);
     return 3;
 }
 
 /*-------------------------------------------------------------------------*\
 * object:setstats() interface
 \*-------------------------------------------------------------------------*/
-int buffer_meth_setstats(lua_State *L, p_buffer buf) {
-    buf->received = (long) luaL_optnumber(L, 2, (lua_Number) buf->received); 
-    buf->sent = (long) luaL_optnumber(L, 3, (lua_Number) buf->sent); 
-    if (lua_isnumber(L, 4)) buf->birthday = timeout_gettime() - lua_tonumber(L, 4);
-    lua_pushnumber(L, 1);
+int buffer_meth_setstats(dlua_State *L, p_buffer buf) {
+    buf->received = (long) dluaL_optnumber(L, 2, (dlua_Number) buf->received);
+    buf->sent = (long) dluaL_optnumber(L, 3, (dlua_Number) buf->sent);
+    if (dlua_isnumber(L, 4)) buf->birthday = timeout_gettime() - dlua_tonumber(L, 4);
+    dlua_pushnumber(L, 1);
     return 1;
 }
 
 /*-------------------------------------------------------------------------*\
 * object:send() interface
 \*-------------------------------------------------------------------------*/
-int buffer_meth_send(lua_State *L, p_buffer buf) {
-    int top = lua_gettop(L);
+int buffer_meth_send(dlua_State *L, p_buffer buf) {
+    int top = dlua_gettop(L);
     int err = IO_DONE;
     size_t size = 0, sent = 0;
-    const char *data = luaL_checklstring(L, 2, &size);
-    long start = (long) luaL_optnumber(L, 3, 1);
-    long end = (long) luaL_optnumber(L, 4, -1);
+    const char *data = dluaL_checklstring(L, 2, &size);
+    long start = (long) dluaL_optnumber(L, 3, 1);
+    long end = (long) dluaL_optnumber(L, 4, -1);
     timeout_markstart(buf->tm);
     if (start < 0) start = (long) (size+start+1);
     if (end < 0) end = (long) (size+end+1);
@@ -86,46 +85,46 @@ int buffer_meth_send(lua_State *L, p_buffer buf) {
     if (start <= end) err = sendraw(buf, data+start-1, end-start+1, &sent);
     /* check if there was an error */
     if (err != IO_DONE) {
-        lua_pushnil(L);
-        lua_pushstring(L, buf->io->error(buf->io->ctx, err)); 
-        lua_pushnumber(L, (lua_Number) (sent+start-1));
+        dlua_pushnil(L);
+        dlua_pushstring(L, buf->io->error(buf->io->ctx, err));
+        dlua_pushnumber(L, (dlua_Number) (sent+start-1));
     } else {
-        lua_pushnumber(L, (lua_Number) (sent+start-1));
-        lua_pushnil(L);
-        lua_pushnil(L);
+        dlua_pushnumber(L, (dlua_Number) (sent+start-1));
+        dlua_pushnil(L);
+        dlua_pushnil(L);
     }
 #ifdef LUASOCKET_DEBUG
     /* push time elapsed during operation as the last return value */
-    lua_pushnumber(L, timeout_gettime() - timeout_getstart(buf->tm));
+    dlua_pushnumber(L, timeout_gettime() - timeout_getstart(buf->tm));
 #endif
-    return lua_gettop(L) - top;
+    return dlua_gettop(L) - top;
 }
 
 /*-------------------------------------------------------------------------*\
 * object:receive() interface
 \*-------------------------------------------------------------------------*/
-int buffer_meth_receive(lua_State *L, p_buffer buf) {
-    int err = IO_DONE, top = lua_gettop(L);
-    luaL_Buffer b;
+int buffer_meth_receive(dlua_State *L, p_buffer buf) {
+    int err = IO_DONE, top = dlua_gettop(L);
+    dluaL_Buffer b;
     size_t size;
-    const char *part = luaL_optlstring(L, 3, "", &size);
+    const char *part = dluaL_optlstring(L, 3, "", &size);
     timeout_markstart(buf->tm);
-    /* initialize buffer with optional extra prefix 
+    /* initialize buffer with optional extra prefix
      * (useful for concatenating previous partial results) */
-    luaL_buffinit(L, &b);
-    luaL_addlstring(&b, part, size);
+    dluaL_buffinit(L, &b);
+    dluaL_addlstring(&b, part, size);
     /* receive new patterns */
-    if (!lua_isnumber(L, 2)) {
-        const char *p= luaL_optstring(L, 2, "*l");
+    if (!dlua_isnumber(L, 2)) {
+        const char *p= dluaL_optstring(L, 2, "*l");
         if (p[0] == '*' && p[1] == 'l') err = recvline(buf, &b);
-        else if (p[0] == '*' && p[1] == 'a') err = recvall(buf, &b); 
-        else luaL_argcheck(L, 0, 2, "invalid receive pattern");
-    /* get a fixed number of bytes (minus what was already partially 
+        else if (p[0] == '*' && p[1] == 'a') err = recvall(buf, &b);
+        else dluaL_argcheck(L, 0, 2, "invalid receive pattern");
+    /* get a fixed number of bytes (minus what was already partially
      * received) */
     } else {
-        double n = lua_tonumber(L, 2); 
+        double n = dlua_tonumber(L, 2);
         size_t wanted = (size_t) n;
-        luaL_argcheck(L, n >= 0, 2, "invalid receive pattern");
+        dluaL_argcheck(L, n >= 0, 2, "invalid receive pattern");
         if (size == 0 || wanted > size)
             err = recvraw(buf, wanted-size, &b);
     }
@@ -133,21 +132,21 @@ int buffer_meth_receive(lua_State *L, p_buffer buf) {
     if (err != IO_DONE) {
         /* we can't push anyting in the stack before pushing the
          * contents of the buffer. this is the reason for the complication */
-        luaL_pushresult(&b);
-        lua_pushstring(L, buf->io->error(buf->io->ctx, err)); 
-        lua_pushvalue(L, -2); 
-        lua_pushnil(L);
-        lua_replace(L, -4);
+        dluaL_pushresult(&b);
+        dlua_pushstring(L, buf->io->error(buf->io->ctx, err));
+        dlua_pushvalue(L, -2);
+        dlua_pushnil(L);
+        dlua_replace(L, -4);
     } else {
-        luaL_pushresult(&b);
-        lua_pushnil(L);
-        lua_pushnil(L);
+        dluaL_pushresult(&b);
+        dlua_pushnil(L);
+        dlua_pushnil(L);
     }
 #ifdef LUASOCKET_DEBUG
     /* push time elapsed during operation as the last return value */
-    lua_pushnumber(L, timeout_gettime() - timeout_getstart(buf->tm));
+    dlua_pushnumber(L, timeout_gettime() - timeout_getstart(buf->tm));
 #endif
-    return lua_gettop(L) - top;
+    return dlua_gettop(L) - top;
 }
 
 /*-------------------------------------------------------------------------*\
@@ -183,14 +182,14 @@ static int sendraw(p_buffer buf, const char *data, size_t count, size_t *sent) {
 /*-------------------------------------------------------------------------*\
 * Reads a fixed number of bytes (buffered)
 \*-------------------------------------------------------------------------*/
-static int recvraw(p_buffer buf, size_t wanted, luaL_Buffer *b) {
+static int recvraw(p_buffer buf, size_t wanted, dluaL_Buffer *b) {
     int err = IO_DONE;
     size_t total = 0;
     while (err == IO_DONE) {
         size_t count; const char *data;
         err = buffer_get(buf, &data, &count);
         count = MIN(count, wanted - total);
-        luaL_addlstring(b, data, count);
+        dluaL_addlstring(b, data, count);
         buffer_skip(buf, count);
         total += count;
         if (total >= wanted) break;
@@ -201,14 +200,14 @@ static int recvraw(p_buffer buf, size_t wanted, luaL_Buffer *b) {
 /*-------------------------------------------------------------------------*\
 * Reads everything until the connection is closed (buffered)
 \*-------------------------------------------------------------------------*/
-static int recvall(p_buffer buf, luaL_Buffer *b) {
+static int recvall(p_buffer buf, dluaL_Buffer *b) {
     int err = IO_DONE;
     size_t total = 0;
     while (err == IO_DONE) {
         const char *data; size_t count;
         err = buffer_get(buf, &data, &count);
         total += count;
-        luaL_addlstring(b, data, count);
+        dluaL_addlstring(b, data, count);
         buffer_skip(buf, count);
     }
     if (err == IO_CLOSED) {
@@ -218,10 +217,10 @@ static int recvall(p_buffer buf, luaL_Buffer *b) {
 }
 
 /*-------------------------------------------------------------------------*\
-* Reads a line terminated by a CR LF pair or just by a LF. The CR and LF 
+* Reads a line terminated by a CR LF pair or just by a LF. The CR and LF
 * are not returned by the function and are discarded from the buffer
 \*-------------------------------------------------------------------------*/
-static int recvline(p_buffer buf, luaL_Buffer *b) {
+static int recvline(p_buffer buf, dluaL_Buffer *b) {
     int err = IO_DONE;
     while (err == IO_DONE) {
         size_t count, pos; const char *data;
@@ -229,7 +228,7 @@ static int recvline(p_buffer buf, luaL_Buffer *b) {
         pos = 0;
         while (pos < count && data[pos] != '\n') {
             /* we ignore all \r's */
-            if (data[pos] != '\r') luaL_addchar(b, data[pos]);
+            if (data[pos] != '\r') dluaL_addchar(b, data[pos]);
             pos++;
         }
         if (pos < count) { /* found '\n' */
@@ -248,7 +247,7 @@ static int recvline(p_buffer buf, luaL_Buffer *b) {
 static void buffer_skip(p_buffer buf, size_t count) {
     buf->received += count;
     buf->first += count;
-    if (buffer_isempty(buf)) 
+    if (buffer_isempty(buf))
         buf->first = buf->last = 0;
 }
 

@@ -19,11 +19,7 @@
 #include "test_extension.h"
 #include <dlib/hashtable.h>
 
-extern "C"
-{
-#include "lua/lua.h"
-#include "lua/lauxlib.h"
-}
+#include <dmsdk/dlua/dlua.h>
 
 // Extension in a separate library. See comment in test_extension_lib.cpp
 

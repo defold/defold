@@ -6,7 +6,7 @@
 * Diego Nehab
 * 9/11/1999
 \*=========================================================================*/
-#include "lua.h"
+#include <dmsdk/dlua/dlua.h>
 
 /*-------------------------------------------------------------------------*\
 * Current socket library version
@@ -24,6 +24,6 @@
 /*-------------------------------------------------------------------------*\
 * Initializes the library.
 \*-------------------------------------------------------------------------*/
-LUASOCKET_API int luaopen_socket_core(lua_State *L);
+LUASOCKET_API int luaopen_socket_core(dlua_State *L);
 
 #endif /* LUASOCKET_H */

@@ -37,7 +37,7 @@ namespace dmGameSystem
      * @language Lua
      */
 
-    static dmhash_t GetCollectionUrlHashFromCollectionProxy(lua_State* L, int index, dmResource::HFactory* factory)
+    static dmhash_t GetCollectionUrlHashFromCollectionProxy(dlua_State* L, int index, dmResource::HFactory* factory)
     {
         dmMessage::URL sender;
         dmMessage::URL receiver;
@@ -67,24 +67,24 @@ namespace dmGameSystem
 
     struct GetResourceHashContext
     {
-        lua_State* m_L;
+        dlua_State* m_L;
         int        m_Index;
     };
 
     static void GetResourceHashCallback(void* context, const dmResource::SGetDependenciesResult* result)
     {
         GetResourceHashContext* ctx = (GetResourceHashContext*)context;
-        lua_State* L = ctx->m_L;
+        dlua_State* L = ctx->m_L;
 
         char hash_buffer[64*2+1];
         dmResource::BytesToHexString(result->m_HashDigest, result->m_HashDigestLength, hash_buffer, sizeof(hash_buffer));
 
-        lua_pushnumber(L, ctx->m_Index++);
-        lua_pushlstring(L, hash_buffer, result->m_HashDigestLength*2);
-        lua_settable(L, -3);
+        dlua_pushnumber(L, ctx->m_Index++);
+        dlua_pushlstring(L, hash_buffer, result->m_HashDigestLength*2);
+        dlua_settable(L, -3);
     }
 
-    static int CollectionProxy_GetResourcesInternal(lua_State* L, bool only_missing)
+    static int CollectionProxy_GetResourcesInternal(dlua_State* L, bool only_missing)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -96,7 +96,7 @@ namespace dmGameSystem
             return DM_LUA_ERROR("Unable to find collection proxy component.");
         }
 
-        lua_newtable(L);
+        dlua_newtable(L);
 
         GetResourceHashContext ctx;
         ctx.m_L = L;
@@ -113,14 +113,14 @@ namespace dmGameSystem
     }
 
     // See doc in comp_collection_proxy.cpp
-    static int CollectionProxy_MissingResources(lua_State* L)
+    static int CollectionProxy_MissingResources(dlua_State* L)
     {
         dmLogOnceWarning("Function 'collectionproxy.missing_resources' is deprecated. It is tied to the legacy single-resource liveupdate flow.");
         return CollectionProxy_GetResourcesInternal(L, true);
     }
 
     // See doc in comp_collection_proxy.cpp
-    static int CollectionProxy_GetResources(lua_State* L)
+    static int CollectionProxy_GetResources(dlua_State* L)
     {
         return CollectionProxy_GetResourcesInternal(L, false);
     }
@@ -155,7 +155,7 @@ namespace dmGameSystem
      *  msg.post("/go#collectionproxy", "enable")
      * ```
      */
-    static int CollectionProxy_SetCollection(lua_State* L)
+    static int CollectionProxy_SetCollection(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 2)
         CollectionProxyWorld* world;
@@ -165,15 +165,15 @@ namespace dmGameSystem
 
 
         const char* path = 0;
-        if (!lua_isnil(L, 2))
+        if (!dlua_isnil(L, 2))
         {
-            path = luaL_checkstring(L, 2);
+            path = dluaL_checkstring(L, 2);
 
             // check that the path is a .collectionc
             const char* ext = dmResource::GetExtFromPath(path);
             if (!ext || strcmp(ext, "collectionc") != 0)
             {
-                return luaL_error(L, "Trying to set '%s' as collection to '%s:%s#%s'. Only .collectionc resources are allowed",
+                return dluaL_error(L, "Trying to set '%s' as collection to '%s:%s#%s'. Only .collectionc resources are allowed",
                                         path,
                                         dmMessage::GetSocketName(url.m_Socket),
                                         dmHashReverseSafe64(url.m_Path),
@@ -186,12 +186,12 @@ namespace dmGameSystem
         switch (result)
         {
             case SET_COLLECTION_PATH_RESULT_OK:
-                lua_pushboolean(L, 1);
-                lua_pushnil(L);
+                dlua_pushboolean(L, 1);
+                dlua_pushnil(L);
                 break;
             case SET_COLLECTION_PATH_RESULT_COLLECTION_LOADING:
-                lua_pushboolean(L, 0);
-                lua_pushnumber(L, SET_COLLECTION_PATH_RESULT_COLLECTION_LOADING);
+                dlua_pushboolean(L, 0);
+                dlua_pushnumber(L, SET_COLLECTION_PATH_RESULT_COLLECTION_LOADING);
                 dmLogError("Cannot set collection `%s` for a collectionproxy '%s:%s#%s' while it's loading",
                                         path,
                                         dmMessage::GetSocketName(url.m_Socket),
@@ -199,8 +199,8 @@ namespace dmGameSystem
                                         dmHashReverseSafe64(url.m_Fragment));
                 break;
             case SET_COLLECTION_PATH_RESULT_COLLECTION_ALREADY_LOADED:
-                lua_pushboolean(L, 0);
-                lua_pushnumber(L, SET_COLLECTION_PATH_RESULT_COLLECTION_ALREADY_LOADED);
+                dlua_pushboolean(L, 0);
+                dlua_pushnumber(L, SET_COLLECTION_PATH_RESULT_COLLECTION_ALREADY_LOADED);
                 dmLogError("Cannot set collection `%s` for the already loaded collectionproxy '%s:%s#%s'",
                                         path,
                                         dmMessage::GetSocketName(url.m_Socket),
@@ -208,8 +208,8 @@ namespace dmGameSystem
                                         dmHashReverseSafe64(url.m_Fragment));
                 break;
             case SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED:
-                lua_pushboolean(L, 0);
-                lua_pushnumber(L, SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED);
+                dlua_pushboolean(L, 0);
+                dlua_pushnumber(L, SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED);
                 dmLogError("Cannot set collection `%s` for a collectionproxy '%s:%s#%s' which isn't excluded",
                                         path,
                                         dmMessage::GetSocketName(url.m_Socket),
@@ -221,7 +221,7 @@ namespace dmGameSystem
         return 2;
     }
 
-    static const luaL_reg Module_methods[] =
+    static const dluaL_reg Module_methods[] =
     {
         {"missing_resources", CollectionProxy_MissingResources},
         {"get_resources", CollectionProxy_GetResources},
@@ -247,24 +247,24 @@ namespace dmGameSystem
      * @constant
      */
 
-    static void LuaInit(lua_State* L)
+    static void LuaInit(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        luaL_register(L, "collectionproxy", Module_methods);
+        int top = dlua_gettop(L);
+        dluaL_register(L, "collectionproxy", Module_methods);
 
-        lua_pushnumber(L, (lua_Number) SET_COLLECTION_PATH_RESULT_COLLECTION_LOADING);
-        lua_setfield(L, -2, "RESULT_LOADING");
-
-
-        lua_pushnumber(L, (lua_Number) SET_COLLECTION_PATH_RESULT_COLLECTION_ALREADY_LOADED);
-        lua_setfield(L, -2, "RESULT_ALREADY_LOADED");
+        dlua_pushnumber(L, (dlua_Number) SET_COLLECTION_PATH_RESULT_COLLECTION_LOADING);
+        dlua_setfield(L, -2, "RESULT_LOADING");
 
 
-        lua_pushnumber(L, (lua_Number) SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED);
-        lua_setfield(L, -2, "RESULT_NOT_EXCLUDED");
+        dlua_pushnumber(L, (dlua_Number) SET_COLLECTION_PATH_RESULT_COLLECTION_ALREADY_LOADED);
+        dlua_setfield(L, -2, "RESULT_ALREADY_LOADED");
 
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+
+        dlua_pushnumber(L, (dlua_Number) SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED);
+        dlua_setfield(L, -2, "RESULT_NOT_EXCLUDED");
+
+        dlua_pop(L, 1);
+        assert(top == dlua_gettop(L));
     }
 
     void ScriptCollectionProxyFinalize(const ScriptLibContext& context)

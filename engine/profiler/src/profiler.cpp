@@ -70,7 +70,7 @@ struct LuaProfilerScope
 
 struct LuaProfilerScopeState
 {
-    lua_State*                   m_L;
+    dlua_State*                   m_L;
     bool                         m_IsMainThread;
     dmArray<LuaProfilerScope>    m_Scopes;
     dmArray<char>                m_Names;
@@ -92,7 +92,7 @@ static void DeleteProfilerUI()
     }
 }
 
-static LuaProfilerScopeState* FindLuaProfilerScopeState(lua_State* L)
+static LuaProfilerScopeState* FindLuaProfilerScopeState(dlua_State* L)
 {
     for (LuaProfilerScopeState* state = g_LuaProfilerScopeStates; state != 0; state = state->m_Next)
     {
@@ -104,7 +104,7 @@ static LuaProfilerScopeState* FindLuaProfilerScopeState(lua_State* L)
     return 0;
 }
 
-static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(lua_State* L)
+static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(dlua_State* L)
 {
     LuaProfilerScopeState* state = FindLuaProfilerScopeState(L);
     if (state != 0)
@@ -192,7 +192,7 @@ static const char* GetLuaProfilerScopeName(LuaProfilerScopeState* state, const L
     return state->m_Names.Begin() + scope->m_NameOffset;
 }
 
-static void PushLuaProfilerScope(lua_State* L, const char* name, uint32_t name_length)
+static void PushLuaProfilerScope(dlua_State* L, const char* name, uint32_t name_length)
 {
     LuaProfilerScopeState* state = GetOrCreateLuaProfilerScopeState(L);
     EnsureLuaProfilerCapacity(&state->m_Scopes, 1, 4);
@@ -217,7 +217,7 @@ static void PushLuaProfilerScope(lua_State* L, const char* name, uint32_t name_l
     state->m_Scopes.Push(scope);
 }
 
-static LuaProfilerScopeState* PopLuaProfilerScope(lua_State* L, LuaProfilerScope* out_scope)
+static LuaProfilerScopeState* PopLuaProfilerScope(dlua_State* L, LuaProfilerScope* out_scope)
 {
     LuaProfilerScopeState* state = FindLuaProfilerScopeState(L);
     if (state == 0 || state->m_Scopes.Empty())
@@ -382,10 +382,10 @@ void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmR
  * print(profiler.get_memory_usage()) -- will report a higher number than the initial call
  * ```
  */
-static int MemoryUsage(lua_State* L)
+static int MemoryUsage(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
-    lua_pushnumber(L, dmProfilerExt::GetMemoryUsage());
+    dlua_pushnumber(L, dmProfilerExt::GetMemoryUsage());
     return 1;
 }
 
@@ -402,18 +402,18 @@ static int MemoryUsage(lua_State* L)
  * @name profiler.get_cpu_usage
  * @return percent [type:number] of CPU used by the application
  */
-static int CPUUsage(lua_State* L)
+static int CPUUsage(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
-    lua_pushnumber(L, dmProfilerExt::GetCpuUsage());
+    dlua_pushnumber(L, dmProfilerExt::GetCpuUsage());
     return 1;
 }
 
 
-static int GetLuaRefCount(lua_State* L)
+static int GetLuaRefCount(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
-    lua_pushnumber(L, dmScript::GetLuaRefCount());
+    dlua_pushnumber(L, dmScript::GetLuaRefCount());
     return 1;
 }
 
@@ -432,16 +432,16 @@ static int GetLuaRefCount(lua_State* L)
  * profiler.enable(true)
  * ```
  */
-static int EnableProfiler(lua_State* L)
+static int EnableProfiler(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!lua_isboolean(L, 1))
+    if (!dlua_isboolean(L, 1))
     {
-        return DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", lua_typename(L, lua_type(L, 1)))
+        return DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", dlua_typename(L, dlua_type(L, 1)))
     }
 
-    dmProfiler::SetEnabled(lua_toboolean(L, 1));
+    dmProfiler::SetEnabled(dlua_toboolean(L, 1));
     return 0;
 }
 
@@ -461,16 +461,16 @@ static int EnableProfiler(lua_State* L)
  * profiler.enable_ui(true)
  * ```
  */
-static int EnableProfilerUI(lua_State* L)
+static int EnableProfilerUI(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!lua_isboolean(L, 1))
+    if (!dlua_isboolean(L, 1))
     {
-        return DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", lua_typename(L, lua_type(L, 1)))
+        return DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", dlua_typename(L, dlua_type(L, 1)))
     }
 
-    bool enabled = lua_toboolean(L, 1);
+    bool enabled = dlua_toboolean(L, 1);
 
     if (enabled && !gRenderProfile)
     {
@@ -511,7 +511,7 @@ static int EnableProfilerUI(lua_State* L)
  * end
  * ```
  */
-static int SetProfileUIMode(lua_State* L)
+static int SetProfileUIMode(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -520,7 +520,7 @@ static int SetProfileUIMode(lua_State* L)
         return 0;
     }
 
-    uint32_t mode = luaL_checknumber(L, 1);
+    uint32_t mode = dluaL_checknumber(L, 1);
 
     dmProfileRender::SetMode(gRenderProfile, (dmProfileRender::ProfilerMode)mode);
 
@@ -543,7 +543,7 @@ static int SetProfileUIMode(lua_State* L)
  * profiler.set_ui_view_mode(profiler.VIEW_MODE_MINIMIZED)
  * ```
  */
-static int SetProfilerUIViewMode(lua_State* L)
+static int SetProfilerUIViewMode(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -552,7 +552,7 @@ static int SetProfilerUIViewMode(lua_State* L)
         return 0;
     }
 
-    uint32_t mode = luaL_checknumber(L, 1);
+    uint32_t mode = dluaL_checknumber(L, 1);
 
     dmProfileRender::SetViewMode(gRenderProfile, (dmProfileRender::ProfilerViewMode)mode);
 
@@ -584,7 +584,7 @@ static int SetProfilerUIViewMode(lua_State* L)
  * profiler.set_ui_vsync_wait_visible(false)
  * ```
  */
-static int SetProfileUIVSyncWaitVisible(lua_State* L)
+static int SetProfileUIVSyncWaitVisible(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -593,12 +593,12 @@ static int SetProfileUIVSyncWaitVisible(lua_State* L)
         return 0;
     }
 
-    if (!lua_isboolean(L, 1))
+    if (!dlua_isboolean(L, 1))
     {
-        return DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", lua_typename(L, lua_type(L, 1)))
+        return DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", dlua_typename(L, dlua_type(L, 1)))
     }
 
-    bool visible = lua_toboolean(L, 1);
+    bool visible = dlua_toboolean(L, 1);
 
     dmProfileRender::SetWaitTime(gRenderProfile, visible);
 
@@ -618,18 +618,18 @@ static int SetProfileUIVSyncWaitVisible(lua_State* L)
  * profiler.view_recorded_frame(recorded_frame_count)
  * ```
  */
-static int ProfilerUIRecordedFrameCount(lua_State* L)
+static int ProfilerUIRecordedFrameCount(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
     if (!gRenderProfile)
     {
-        lua_pushnumber(L, 0);
+        dlua_pushnumber(L, 0);
     }
     else
     {
         int frame_count = dmProfileRender::GetRecordedFrameCount(gRenderProfile);
-        lua_pushnumber(L, frame_count);
+        dlua_pushnumber(L, frame_count);
     }
 
     return 1;
@@ -652,7 +652,7 @@ static int ProfilerUIRecordedFrameCount(lua_State* L)
  * profiler.view_recorded_frame({distance = -1})
  * ```
  */
-static int ProfilerUIViewRecordedFrame(lua_State* L)
+static int ProfilerUIViewRecordedFrame(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -661,15 +661,15 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
         return 0;
     }
 
-    luaL_checktype(L, 1, LUA_TTABLE);
+    dluaL_checktype(L, 1, DLUA_TTABLE);
 
-    lua_getfield(L, -1, "distance");
-    int distance = lua_isnil(L, -1) ? 0 : luaL_checkinteger(L, -1);
-    lua_pop(L, 1);
+    dlua_getfield(L, -1, "distance");
+    int distance = dlua_isnil(L, -1) ? 0 : dluaL_checkinteger(L, -1);
+    dlua_pop(L, 1);
 
-    lua_getfield(L, -1, "frame");
-    int frame = lua_isnil(L, -1) ? -1 : luaL_checkinteger(L, -1);
-    lua_pop(L, 1);
+    dlua_getfield(L, -1, "frame");
+    int frame = dlua_isnil(L, -1) ? -1 : dluaL_checkinteger(L, -1);
+    dlua_pop(L, 1);
 
     if (distance != 0)
     {
@@ -706,11 +706,11 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
  * profiler.log_text("Event: " .. name)
  * ```
  */
-static int ProfilerLogText(lua_State* L)
+static int ProfilerLogText(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    const char* text = luaL_checkstring(L, 1);
+    const char* text = dluaL_checkstring(L, 1);
     if (!text)
     {
         return DM_LUA_ERROR("Expected string as second argument");
@@ -730,7 +730,7 @@ static int ProfilerLogText(lua_State* L)
  * profiler.dump_frame()
  * ```
  */
-static int ProfilerDumpFrame(lua_State* L)
+static int ProfilerDumpFrame(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
     // Schedule the next frame for output to console log
@@ -756,12 +756,12 @@ static int ProfilerDumpFrame(lua_State* L)
  * profiler.scope_end()
  * ```
  */
-static int ProfilerScopeBegin(lua_State* L)
+static int ProfilerScopeBegin(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
     size_t len;
-    const char* name = luaL_checklstring(L, 1, &len);
+    const char* name = dluaL_checklstring(L, 1, &len);
     if (!name)
     {
         return DM_LUA_ERROR("Expected string as second argument");
@@ -782,7 +782,7 @@ static int ProfilerScopeBegin(lua_State* L)
  * @name profiler.scope_end
  *
  */
-static int ProfilerScopeEnd(lua_State* L)
+static int ProfilerScopeEnd(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
     LuaProfilerScope scope = {0};
@@ -983,7 +983,7 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
         dmProfiler::g_TrackCpuUsage = true;
     }
 
-    static const luaL_reg Module_methods[] =
+    static const dluaL_reg Module_methods[] =
     {
         {"get_memory_usage",            MemoryUsage},
         {"get_cpu_usage",               CPUUsage},
@@ -1004,23 +1004,23 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
         {0, 0}
     };
 
-    luaL_register(params->m_L, "profiler", Module_methods);
+    dluaL_register(params->m_L, "profiler", Module_methods);
 
-    lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_MODE_RUN);
-    lua_setfield(params->m_L, -2, "MODE_RUN");
-    lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_MODE_PAUSE);
-    lua_setfield(params->m_L, -2, "MODE_PAUSE");
-    lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_MODE_SHOW_PEAK_FRAME);
-    lua_setfield(params->m_L, -2, "MODE_SHOW_PEAK_FRAME");
-    lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_MODE_RECORD);
-    lua_setfield(params->m_L, -2, "MODE_RECORD");
+    dlua_pushnumber(params->m_L, (dlua_Number) dmProfileRender::PROFILER_MODE_RUN);
+    dlua_setfield(params->m_L, -2, "MODE_RUN");
+    dlua_pushnumber(params->m_L, (dlua_Number) dmProfileRender::PROFILER_MODE_PAUSE);
+    dlua_setfield(params->m_L, -2, "MODE_PAUSE");
+    dlua_pushnumber(params->m_L, (dlua_Number) dmProfileRender::PROFILER_MODE_SHOW_PEAK_FRAME);
+    dlua_setfield(params->m_L, -2, "MODE_SHOW_PEAK_FRAME");
+    dlua_pushnumber(params->m_L, (dlua_Number) dmProfileRender::PROFILER_MODE_RECORD);
+    dlua_setfield(params->m_L, -2, "MODE_RECORD");
 
-    lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_VIEW_MODE_FULL);
-    lua_setfield(params->m_L, -2, "VIEW_MODE_FULL");
-    lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_VIEW_MODE_MINIMIZED);
-    lua_setfield(params->m_L, -2, "VIEW_MODE_MINIMIZED");
+    dlua_pushnumber(params->m_L, (dlua_Number) dmProfileRender::PROFILER_VIEW_MODE_FULL);
+    dlua_setfield(params->m_L, -2, "VIEW_MODE_FULL");
+    dlua_pushnumber(params->m_L, (dlua_Number) dmProfileRender::PROFILER_VIEW_MODE_MINIMIZED);
+    dlua_setfield(params->m_L, -2, "VIEW_MODE_MINIMIZED");
 
-    lua_pop(params->m_L, 1);
+    dlua_pop(params->m_L, 1);
 
     return dmExtension::RESULT_OK;
 }

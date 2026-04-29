@@ -23,15 +23,14 @@
 
 extern "C"
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 // custom type when writing negative numbers or hashes as keys
-// the rest of the types used when serializing a table come from lua.h
-// make sure these types have a value quite a bit higher than the types in lua.h
-#define LUA_TNEGATIVENUMBER 64
-#define LUA_THASH 65
+// the rest of the types used when serializing a table come from dlua.h
+// make sure these types have a value quite a bit higher than the types in dlua.h
+#define DLUA_TNEGATIVENUMBER 64
+#define DLUA_THASH 65
 
 namespace dmScript
 {
@@ -46,21 +45,21 @@ namespace dmScript
      *
      *      uint16_t   count
      *
-     *      char   key_type (LUA_TSTRING or LUA_TNUMBER)
-     *      char   value_type (LUA_TXXX)
+     *      char   key_type (DLUA_TSTRING or DLUA_TNUMBER)
+     *      char   value_type (DLUA_TXXX)
      *      T      key (null terminated string or uint16_t)
      *      T      value
      *
-     *      char   key_type (LUA_TSTRING or LUA_TNUMBER)
-     *      char   value_type (LUA_TXXX)
+     *      char   key_type (DLUA_TSTRING or DLUA_TNUMBER)
+     *      char   value_type (DLUA_TXXX)
      *      T      key (null terminated string or uint16_t)
      *      T      value
      *      ...
-     *      if value is of type Vector3, Vector4, Quat, Matrix4 or Hash i.e. LUA_TUSERDATA, the first byte in value is the SubType
+     *      if value is of type Vector3, Vector4, Quat, Matrix4 or Hash i.e. DLUA_TUSERDATA, the first byte in value is the SubType
      *
      * Version 1:
      *    Adds a header block to the table at the head of the input, containing a magic identifier
-     *    and version information. Keys of type LUA_TNUMBER use a variable length encoding, with continuation
+     *    and version information. Keys of type DLUA_TNUMBER use a variable length encoding, with continuation
      *    between bytes signaled by the MSB.
      *
      *    The values of the magic word is chosen so that it will not match values that could be created using
@@ -70,7 +69,7 @@ namespace dmScript
      *    For the sake of brevity, the header block is not repeated for tables that are nested within this serialized data:
      *    i.e. we assume that the version is uniform throughout any one data set.
      *
-     *    LUA_TNUMBER keys are restricted to 32 bits in length, an increase of 16 bits from the original version.
+     *    DLUA_TNUMBER keys are restricted to 32 bits in length, an increase of 16 bits from the original version.
      *
      *    In all other respects, data is serialized in the same way. In particular, note that although users may
      *    create sparse arrays using 32 bit numbers as keys, we remain limited to 65536 (0xffff) rows per table.
@@ -84,13 +83,13 @@ namespace dmScript
      *    Adds support for binary strings.
      *
      * Version 3:
-     *    Adds support for negative numeric keys (type LUA_TNEGATIVENUMBER). Always writes four bytes.
+     *    Adds support for negative numeric keys (type DLUA_TNEGATIVENUMBER). Always writes four bytes.
      *
      * Version 4:
      *    Adds support for more than 65535 keys in a table.
      * 
      * Version 5:
-     *    Adds support for hash userdata (type LUA_THASH) as keys.
+     *    Adds support for hash userdata (type DLUA_THASH) as keys.
      */
 
     static bool EncodeMSB(uint32_t value, char*& buffer, const char* buffer_end)
@@ -187,19 +186,19 @@ namespace dmScript
         return supported;
     }
 
-    static char* WriteEncodedIndex(lua_State* L, lua_Number index, const TableHeader& header, char* buffer, const char* buffer_end, dmArray<const void*>& table_stack)
+    static char* WriteEncodedIndex(dlua_State* L, dlua_Number index, const TableHeader& header, char* buffer, const char* buffer_end, dmArray<const void*>& table_stack)
     {
         if (header.m_Version == 0)
         {
             if (buffer_end - buffer < 2)
             {
                 table_stack.SetCapacity(0);
-                luaL_error(L, "table too large");
+                dluaL_error(L, "table too large");
             }
             if (index > 0xffff)
             {
                 table_stack.SetCapacity(0);
-                luaL_error(L, "index out of bounds, max is %d", 0xffff);
+                dluaL_error(L, "index out of bounds, max is %d", 0xffff);
             }
             uint16_t key = (uint16_t)index;
             memcpy(buffer, &key, sizeof(uint16_t));
@@ -210,14 +209,14 @@ namespace dmScript
             if (index > 0xffffffff)
             {
                 table_stack.SetCapacity(0);
-                luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
+                dluaL_error(L, "index out of bounds, max is %d", 0xffffffff);
             }
             uint32_t key = (uint32_t)index;
             bool encoded = EncodeMSB(key, buffer, buffer_end);
             if (!encoded)
             {
                 table_stack.SetCapacity(0);
-                luaL_error(L, "table too large");
+                dluaL_error(L, "table too large");
             }
         }
         else if (header.m_Version <= 5)
@@ -225,14 +224,14 @@ namespace dmScript
             if (buffer_end - buffer < 4)
             {
                 table_stack.SetCapacity(0);
-                luaL_error(L, "table too large");
+                dluaL_error(L, "table too large");
             }
             if (index < 0)
                 index = -index;
             if (index > 0xffffffff)
             {
                 table_stack.SetCapacity(0);
-                luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
+                dluaL_error(L, "index out of bounds, max is %d", 0xffffffff);
             }
             uint32_t key = (uint32_t)index;
             *buffer++ = (uint8_t)(key & 0xFF);
@@ -248,15 +247,15 @@ namespace dmScript
     }
 
     // When storing/packing lua data to a byte array, we now use the binary lua string interface
-    static uint32_t SaveTSTRING(lua_State* L, int index, char* buffer, uint32_t buffer_size, const char* buffer_end, uint32_t count, dmArray<const void*>& table_stack)
+    static uint32_t SaveTSTRING(dlua_State* L, int index, char* buffer, uint32_t buffer_size, const char* buffer_end, uint32_t count, dmArray<const void*>& table_stack)
     {
         size_t value_len = 0;
-        const char* value = lua_tolstring(L, index, &value_len);
+        const char* value = dlua_tolstring(L, index, &value_len);
         uint32_t total_size = value_len + sizeof(uint32_t);
         if (buffer_end - buffer < (intptr_t)total_size)
         {
             table_stack.SetCapacity(0);
-            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at '%s' for element #%d", buffer_size, value, count);
+            dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at '%s' for element #%d", buffer_size, value, count);
         }
 
         uint32_t len = (uint32_t)value_len;
@@ -267,22 +266,22 @@ namespace dmScript
     }
 
     // When loading older save games, we will use the old unpack method (with truncated c strings)
-    static uint32_t LoadOldTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count, PushTableLogger& logger)
+    static uint32_t LoadOldTSTRING(dlua_State* L, const char* buffer, const char* buffer_end, uint32_t count, PushTableLogger& logger)
     {
         uint32_t total_size = strlen(buffer) + 1;
         if (buffer_end - buffer < (intptr_t)total_size)
         {
             char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
-            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, total_size, (int)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
+            dluaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, total_size, (int)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
         }
 
-        lua_pushstring(L, buffer);
+        dlua_pushstring(L, buffer);
         return total_size;
     }
 
     // When loading/unpacking messages/save games, we use pascal strings, and the Lua binary string api
-    static uint32_t LoadTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count, PushTableLogger& logger)
+    static uint32_t LoadTSTRING(dlua_State* L, const char* buffer, const char* buffer_end, uint32_t count, PushTableLogger& logger)
     {
         uint32_t len;
         memcpy(&len, buffer, sizeof(uint32_t));
@@ -294,10 +293,10 @@ namespace dmScript
             PushTableLogPrint(logger, log_str);
             char str[512];
             dmSnPrintf(str, sizeof(str), "Reading outside of buffer at element #%d (string) [value_len=%lu]: wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, value_len, total_size, (uint32_t)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
-            luaL_error(L, "%s", str);
+            dluaL_error(L, "%s", str);
         }
 
-        lua_pushlstring(L, buffer + sizeof(uint32_t), value_len);
+        dlua_pushlstring(L, buffer + sizeof(uint32_t), value_len);
         return total_size;
     }
 
@@ -326,83 +325,79 @@ namespace dmScript
         return false;
     }
 
-    uint32_t DoCheckTableSize(lua_State* L, int index, int parent_offset, dmArray<const void*>& table_stack)
+    uint32_t DoCheckTableSize(dlua_State* L, int index, int parent_offset, dmArray<const void*>& table_stack)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)top;
 
-        luaL_checktype(L, index, LUA_TTABLE);
+        dluaL_checktype(L, index, DLUA_TTABLE);
 
-        const void* table_data = (const void*)lua_topointer(L, index);
+        const void* table_data = (const void*)dlua_topointer(L, index);
         if (StackContains(table_stack, table_data))
         {
             table_stack.SetCapacity(0);
-            return luaL_error(L, "Save table is recursive!");
+            return dluaL_error(L, "Save table is recursive!");
         }
         StackPush(table_stack, table_data);
 
-        lua_pushvalue(L, index);
-        lua_pushnil(L);
+        dlua_pushvalue(L, index);
+        dlua_pushnil(L);
 
         uint32_t size = 0;
 
         // count
         size += 4;
-        while (lua_next(L, -2) != 0)
+        while (dlua_next(L, -2) != 0)
         {
-            int key_type = lua_type(L, -2);
-            int value_type = lua_type(L, -1);
+            dlua_Type key_type = dlua_type(L, -2);
+            dlua_Type value_type = dlua_type(L, -1);
+            bool key_is_hash = IsHash(L, -2);
 
-            if (IsHash(L, -2))
+            if (key_type != DLUA_TSTRING && key_type != DLUA_TNUMBER && !key_is_hash)
             {
-                key_type = LUA_THASH;
-            }
-
-            if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER && key_type != LUA_THASH)
-            {
-                luaL_error(L, "keys in table must be of type number, string or hash (found %s)", lua_typename(L, key_type));
+                dluaL_error(L, "keys in table must be of type number, string or hash (found %s)", dlua_typename(L, key_type));
             }
 
             // key + value type
             size += 2;
-            if (key_type == LUA_TSTRING)
+            if (key_type == DLUA_TSTRING)
             {
-                size += sizeof(uint32_t) + lua_objlen(L, -2);
+                size += sizeof(uint32_t) + dlua_objlen(L, -2);
             }
-            else if (key_type == LUA_TNUMBER)
+            else if (key_type == DLUA_TNUMBER)
             {
                 size += 4;
             }
-            else if (key_type == LUA_THASH)
+            else if (key_is_hash)
             {
                 size += sizeof(dmhash_t);
             }
 
             switch (value_type)
             {
-                case LUA_TBOOLEAN:
+                case DLUA_TBOOLEAN:
                 {
                     size += 1;
                 }
                 break;
 
-                case LUA_TNUMBER:
+                case DLUA_TNUMBER:
                 {
                     int offset = parent_offset + size;
                     int aligned_offset = (offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     int align_size = aligned_offset - offset;
                     size += align_size;
-                    size += sizeof(lua_Number);
+                    size += sizeof(dlua_Number);
                 }
                 break;
 
-                case LUA_TSTRING:
+                case DLUA_TSTRING:
                 {
-                    size += sizeof(uint32_t) + lua_objlen(L, -1);
+                    size += sizeof(uint32_t) + dlua_objlen(L, -1);
                 }
                 break;
 
-                case LUA_TUSERDATA:
+                case DLUA_TUSERDATA:
                 {
                     // subtype
                     size += 1;
@@ -439,111 +434,111 @@ namespace dmScript
                     }
                     else
                     {
-                        luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
+                        dluaL_error(L, "unsupported value type in table: %s", dlua_typename(L, value_type));
                     }
                 }
                 break;
 
-                case LUA_TTABLE:
+                case DLUA_TTABLE:
                 {
                     size += DoCheckTableSize(L, -1, parent_offset + size, table_stack);
                 }
                 break;
 
                 default:
-                    luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
+                    dluaL_error(L, "unsupported value type in table: %s", dlua_typename(L, value_type));
                     break;
             }
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
         const void* p = StackPop(table_stack);
         assert(p == table_data);
         return size;
     }
 
-    uint32_t CheckTableSize(lua_State* L, int index)
+    uint32_t CheckTableSize(dlua_State* L, int index)
     {
         dmArray<const void*> table_stack;
         uint32_t size = sizeof(TableHeader) + DoCheckTableSize(L, index, 0, table_stack);
         return size;
     }
 
-    static uint32_t DoCheckTable(lua_State* L, TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index, dmArray<const void*>& table_stack)
+    static uint32_t DoCheckTable(dlua_State* L, TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index, dmArray<const void*>& table_stack)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)top;
 
         char* buffer_start = buffer;
         char* buffer_end = buffer + buffer_size;
-        luaL_checktype(L, index, LUA_TTABLE);
+        dluaL_checktype(L, index, DLUA_TTABLE);
 
-        const void* table_data = (const void*)lua_topointer(L, index);
+        const void* table_data = (const void*)dlua_topointer(L, index);
         if (StackContains(table_stack, table_data))
         {
             table_stack.SetCapacity(0);
-            return luaL_error(L, "Save table is recursive!");
+            return dluaL_error(L, "Save table is recursive!");
         }
         StackPush(table_stack, table_data);
 
-        lua_pushvalue(L, index);
-        lua_pushnil(L);
+        dlua_pushvalue(L, index);
+        dlua_pushnil(L);
 
         if (buffer_size < 4)
         {
             table_stack.SetCapacity(0);
-            luaL_error(L, "table too large");
+            dluaL_error(L, "table too large");
         }
         // Make room for count (4 bytes)
         buffer += 4;
 
         uint32_t count = 0;
-        while (lua_next(L, -2) != 0)
+        while (dlua_next(L, -2) != 0)
         {
             // Check overflow
             if (count == (uint32_t)0xffffffff)
             {
                 table_stack.SetCapacity(0);
-                luaL_error(L, "too many values in table, %d is max", 0xffffffff);
+                dluaL_error(L, "too many values in table, %d is max", 0xffffffff);
             }
 
             count++;
 
-            int key_type = lua_type(L, -2);
+            dlua_Type key_type = dlua_type(L, -2);
             dmhash_t* key_hash = ToHash(L, -2);
-            int value_type = lua_type(L, -1);
+            dlua_Type value_type = dlua_type(L, -1);
 
-            if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER && !key_hash)
+            if (key_type != DLUA_TSTRING && key_type != DLUA_TNUMBER && !key_hash)
             {
                 table_stack.SetCapacity(0);
-                luaL_error(L, "keys in table must be of type number, string or hash (found %s)", lua_typename(L, key_type));
+                dluaL_error(L, "keys in table must be of type number, string or hash (found %s)", dlua_typename(L, key_type));
             }
 
             if (buffer_end - buffer < 2)
             {
                 table_stack.SetCapacity(0);
-                luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
+                dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
             }
 
-            if (key_type == LUA_TSTRING)
+            if (key_type == DLUA_TSTRING)
             {
-                (*buffer++) = (char) LUA_TSTRING;
+                (*buffer++) = (char) DLUA_TSTRING;
                 (*buffer++) = (char) value_type;
                 buffer += SaveTSTRING(L, -2, buffer, buffer_size, buffer_end, count, table_stack);
             }
-            else if (key_type == LUA_TNUMBER)
+            else if (key_type == DLUA_TNUMBER)
             {
-                lua_Number key = lua_tonumber(L, -2);
-                (*buffer++) = (char) (key >= 0 ? LUA_TNUMBER : LUA_TNEGATIVENUMBER);
+                dlua_Number key = dlua_tonumber(L, -2);
+                (*buffer++) = (char) (key >= 0 ? DLUA_TNUMBER : DLUA_TNEGATIVENUMBER);
                 (*buffer++) = (char) value_type;
                 buffer = WriteEncodedIndex(L, key, header, buffer, buffer_end, table_stack);
             }
             else if (key_hash)
             {
                 header.m_Version = TABLE_VERSION_HASH_KEYS_ADDED;
-                (*buffer++) = (char) LUA_THASH;
+                (*buffer++) = (char) DLUA_THASH;
                 (*buffer++) = (char) value_type;
             
                 const uint32_t hash_size = sizeof(dmhash_t);
@@ -551,7 +546,7 @@ namespace dmScript
                 if (buffer_end - buffer < int32_t(hash_size))
                 {
                     table_stack.SetCapacity(0);
-                    luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key (hash) for element #%d", buffer_size, count);
+                    dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at key (hash) for element #%d", buffer_size, count);
                 }
 
                 memcpy(buffer, (const void*)key_hash, hash_size);
@@ -560,20 +555,20 @@ namespace dmScript
 
             switch (value_type)
             {
-                case LUA_TBOOLEAN:
+                case DLUA_TBOOLEAN:
                 {
                     if (buffer_end - buffer < 1)
                     {
                         table_stack.SetCapacity(0);
-                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                     }
-                    (*buffer++) = (char) lua_toboolean(L, -1);
+                    (*buffer++) = (char) dlua_toboolean(L, -1);
                 }
                 break;
 
-                case LUA_TNUMBER:
+                case DLUA_TNUMBER:
                 {
-                    // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
+                    // NOTE: We align dlua_Number to sizeof(float) even if dlua_Number probably is of double type
                     intptr_t offset = buffer - original_buffer;
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
@@ -581,7 +576,7 @@ namespace dmScript
                     if (buffer_end - buffer < align_size)
                     {
                         table_stack.SetCapacity(0);
-                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                     }
 
 #ifndef NDEBUG
@@ -589,41 +584,41 @@ namespace dmScript
 #endif
                     buffer += align_size;
 
-                    if (buffer_end - buffer < int32_t(sizeof(lua_Number)) || buffer_end - buffer < align_size)
+                    if (buffer_end - buffer < int32_t(sizeof(dlua_Number)) || buffer_end - buffer < align_size)
                     {
                         table_stack.SetCapacity(0);
-                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                     }
 
                     union
                     {
-                        lua_Number x;
-                        char buf[sizeof(lua_Number)];
+                        dlua_Number x;
+                        char buf[sizeof(dlua_Number)];
                     };
 
-                    x = lua_tonumber(L, -1);
-                    memcpy(buffer, buf, sizeof(lua_Number));
-                    buffer += sizeof(lua_Number);
+                    x = dlua_tonumber(L, -1);
+                    memcpy(buffer, buf, sizeof(dlua_Number));
+                    buffer += sizeof(dlua_Number);
                 }
                 break;
 
-                case LUA_TSTRING:
+                case DLUA_TSTRING:
                 {
                     buffer += SaveTSTRING(L, -1, buffer, buffer_size, buffer_end, count, table_stack);
                 }
                 break;
 
-                case LUA_TUSERDATA:
+                case DLUA_TUSERDATA:
                 {
                     if (buffer_end - buffer < 1)
                     {
                         table_stack.SetCapacity(0);
-                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                     }
 
                     char* sub_type = buffer++;
 
-                    // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
+                    // NOTE: We align dlua_Number to sizeof(float) even if dlua_Number probably is of double type
                     intptr_t offset = buffer - original_buffer;
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
@@ -631,7 +626,7 @@ namespace dmScript
                     if (buffer_end - buffer < align_size)
                     {
                         table_stack.SetCapacity(0);
-                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                     }
 
 #ifndef NDEBUG
@@ -649,7 +644,7 @@ namespace dmScript
                         if (buffer_end - buffer < int32_t(sizeof(float) * 3))
                         {
                             table_stack.SetCapacity(0);
-                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_VECTOR3;
@@ -664,7 +659,7 @@ namespace dmScript
                         if (buffer_end - buffer < int32_t(sizeof(float) * 4))
                         {
                             table_stack.SetCapacity(0);
-                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_VECTOR4;
@@ -680,7 +675,7 @@ namespace dmScript
                         if (buffer_end - buffer < int32_t(sizeof(float) * 4))
                         {
                             table_stack.SetCapacity(0);
-                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_QUAT;
@@ -696,7 +691,7 @@ namespace dmScript
                         if (buffer_end - buffer < int32_t(sizeof(float) * 16))
                         {
                             table_stack.SetCapacity(0);
-                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_MATRIX4;
@@ -708,13 +703,13 @@ namespace dmScript
                     }
                     else if (IsHash(L, -1))
                     {
-                        dmhash_t hash = *(dmhash_t*)lua_touserdata(L, -1);
+                        dmhash_t hash = *(dmhash_t*)dlua_touserdata(L, -1);
                         const uint32_t hash_size = sizeof(dmhash_t);
 
                         if (buffer_end - buffer < int32_t(hash_size))
                         {
                             table_stack.SetCapacity(0);
-                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_HASH;
@@ -724,13 +719,13 @@ namespace dmScript
                     }
                     else if (IsURL(L, -1))
                     {
-                        dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, -1);
+                        dmMessage::URL* url = (dmMessage::URL*)dlua_touserdata(L, -1);
                         const uint32_t url_size = sizeof(dmMessage::URL);
 
                         if (buffer_end - buffer < int32_t(url_size))
                         {
                             table_stack.SetCapacity(0);
-                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                            dluaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, dlua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_URL;
@@ -741,12 +736,12 @@ namespace dmScript
                     else
                     {
                         table_stack.SetCapacity(0);
-                        luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
+                        dluaL_error(L, "unsupported value type in table: %s", dlua_typename(L, value_type));
                     }
                 }
                 break;
 
-                case LUA_TTABLE:
+                case DLUA_TTABLE:
                 {
                     uint32_t n_used = DoCheckTable(L, header, original_buffer, buffer, buffer_end - buffer, -1, table_stack);
                     buffer += n_used;
@@ -755,24 +750,24 @@ namespace dmScript
 
                 default:
                     table_stack.SetCapacity(0);
-                    luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
+                    dluaL_error(L, "unsupported value type in table: %s", dlua_typename(L, value_type));
                     break;
             }
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
         const void* p = StackPop(table_stack);
         assert(p == table_data);
 
         memcpy(buffer_start, &count, sizeof(uint32_t));
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return buffer - buffer_start;
     }
 
-    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
+    uint32_t CheckTable(dlua_State* L, char* buffer, uint32_t buffer_size, int index)
     {
         assert((intptr_t)buffer % 16 == 0);
         if (buffer_size > sizeof(TableHeader)) {
@@ -787,7 +782,7 @@ namespace dmScript
             dmArray<const void*> table_stack;
             return sizeof(TableHeader) + DoCheckTable(L, *header, original_buffer, buffer, buffer_size, index, table_stack);
         } else {
-            luaL_error(L, "buffer (%d bytes) too small for header (%zu bytes)", buffer_size, sizeof(TableHeader));
+            dluaL_error(L, "buffer (%d bytes) too small for header (%zu bytes)", buffer_size, sizeof(TableHeader));
             return 0;
         }
     }
@@ -802,52 +797,52 @@ namespace dmScript
         return buffer;
     }
 
-    static const char* ReadEncodedIndex(lua_State* L, char key_type, const TableHeader& header, const char* buffer)
+    static const char* ReadEncodedIndex(dlua_State* L, char key_type, const TableHeader& header, const char* buffer)
     {
         if (header.m_Version == 0)
         {
-            if (key_type != LUA_TNUMBER)
+            if (key_type != DLUA_TNUMBER)
             {
-                luaL_error(L, "Unknown key type %d", key_type);
+                dluaL_error(L, "Unknown key type %d", key_type);
             }
             uint16_t value;
             memcpy(&value, buffer, sizeof(uint16_t));
-            lua_pushnumber(L, value);
+            dlua_pushnumber(L, value);
             buffer += sizeof(uint16_t);
         }
         else if (header.m_Version <= 2)
         {
-            if (key_type != LUA_TNUMBER)
+            if (key_type != DLUA_TNUMBER)
             {
-                luaL_error(L, "Unknown key type %d", key_type);
+                dluaL_error(L, "Unknown key type %d", key_type);
             }
             uint32_t index;
             if(DecodeMSB(index, buffer))
             {
-                lua_pushnumber(L, index);
+                dlua_pushnumber(L, index);
             }
             else
             {
-                luaL_error(L, "Invalid number encoding");
+                dluaL_error(L, "Invalid number encoding");
             }
         }
         else if (header.m_Version <= 5)
         {
-            if (key_type != LUA_TNUMBER && key_type != LUA_TNEGATIVENUMBER)
+            if (key_type != DLUA_TNUMBER && key_type != DLUA_TNEGATIVENUMBER)
             {
-                luaL_error(L, "Unknown key type %d", key_type);
+                dluaL_error(L, "Unknown key type %d", key_type);
             }
             uint8_t b1 = (uint8_t)*buffer++;
             uint8_t b2 = (uint8_t)*buffer++;
             uint8_t b3 = (uint8_t)*buffer++;
             uint8_t b4 = (uint8_t)*buffer++;
             uint32_t index = b4 << 24 | b3 << 16 | b2 << 8 | b1;
-            lua_Number number = index;
-            if (key_type == LUA_TNEGATIVENUMBER)
+            dlua_Number number = index;
+            if (key_type == DLUA_TNEGATIVENUMBER)
             {
                 number = -number;
             }
-            lua_pushnumber(L, number);
+            dlua_pushnumber(L, number);
         }
         else
         {
@@ -910,12 +905,12 @@ namespace dmScript
         PushTableLogPrint(LOGGER, log_str); \
         char str[512]; \
         dmSnPrintf(str, sizeof(str), "Reading outside of buffer after %s element #%d (depth: #%d) [BufStart: %p, Cursor: %p, End: %p, BufSize: %u, Bytes OOB: %d].\n'%s'", ELEMTYPE, COUNT, DEPTH, LOGGER.m_BufferStart, BUFFER, BUFFER_END, (uint32_t)LOGGER.m_BufferSize, (int)(BUFFER_END - BUFFER), log_str); \
-        return luaL_error(L, "%s", str); \
+        return dluaL_error(L, "%s", str); \
     }
 
-    int DoPushTable(lua_State*L, PushTableLogger& logger, const TableHeader& header, const char* original_buffer, const char* buffer, uint32_t buffer_size, uint32_t depth)
+    int DoPushTable(dlua_State*L, PushTableLogger& logger, const TableHeader& header, const char* original_buffer, const char* buffer, uint32_t buffer_size, uint32_t depth)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)top;
 
         const char* buffer_start = buffer;
@@ -941,10 +936,10 @@ namespace dmScript
             PushTableLogPrint(logger, log_str);
             char str[512]; \
             dmSnPrintf(str, sizeof(str), "Reading outside of buffer at before element [BufStart: %p, Cursor: %p, End: %p, BufSize: %lu, Bytes OOB: %d].\n'%s'", logger.m_BufferStart, buffer, buffer_end, logger.m_BufferSize, (int)(buffer_end - buffer), log_str); \
-            return luaL_error(L, "%s", str);
+            return dluaL_error(L, "%s", str);
         }
 
-        lua_newtable(L);
+        dlua_newtable(L);
 
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -953,7 +948,7 @@ namespace dmScript
             char key_type = (*buffer++);
             char value_type = (*buffer++);
 
-            if (key_type == LUA_TSTRING)
+            if (key_type == DLUA_TSTRING)
             {
                 PushTableLogString(logger, "KS");
 
@@ -964,14 +959,14 @@ namespace dmScript
 
                 CHECK_PUSHTABLE_OOB("key string", logger, buffer, buffer_end, count, depth);
             }
-            else if (key_type == LUA_TNUMBER || key_type == LUA_TNEGATIVENUMBER)
+            else if (key_type == DLUA_TNUMBER || key_type == DLUA_TNEGATIVENUMBER)
             {
                 PushTableLogString(logger, "KN");
 
                 buffer = ReadEncodedIndex(L, key_type, header, buffer);
                 CHECK_PUSHTABLE_OOB("key number", logger, buffer, buffer_end, count, depth);
             }
-            else if (key_type == LUA_THASH)
+            else if (key_type == DLUA_THASH)
             {
                 PushTableLogString(logger, "KH");
 
@@ -985,20 +980,20 @@ namespace dmScript
 
             switch (value_type)
             {
-                case LUA_TBOOLEAN:
+                case DLUA_TBOOLEAN:
                 {
                     PushTableLogString(logger, "VB");
 
-                    lua_pushboolean(L, *buffer++);
+                    dlua_pushboolean(L, *buffer++);
                     CHECK_PUSHTABLE_OOB("value bool", logger, buffer, buffer_end, count, depth);
                 }
                 break;
 
-                case LUA_TNUMBER:
+                case DLUA_TNUMBER:
                 {
                     PushTableLogString(logger, "VN");
 
-                    // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
+                    // NOTE: We align dlua_Number to sizeof(float) even if dlua_Number probably is of double type
                     intptr_t offset = buffer - original_buffer;
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
@@ -1006,18 +1001,18 @@ namespace dmScript
 
                     union
                     {
-                        lua_Number x;
-                        char x_buf[sizeof(lua_Number)];
+                        dlua_Number x;
+                        char x_buf[sizeof(dlua_Number)];
                     };
-                    memcpy(x_buf, buffer, sizeof(lua_Number));
-                    lua_pushnumber(L, x);
-                    buffer += sizeof(lua_Number);
+                    memcpy(x_buf, buffer, sizeof(dlua_Number));
+                    dlua_pushnumber(L, x);
+                    buffer += sizeof(dlua_Number);
 
                     CHECK_PUSHTABLE_OOB("value number", logger, buffer, buffer_end, count, depth);
                 }
                 break;
 
-                case LUA_TSTRING:
+                case DLUA_TSTRING:
                 {
                     PushTableLogString(logger, "VS");
 
@@ -1030,13 +1025,13 @@ namespace dmScript
                 }
                 break;
 
-                case LUA_TUSERDATA:
+                case DLUA_TUSERDATA:
                 {
                     PushTableLogString(logger, "VU");
 
                     char sub_type = *buffer++;
 
-                    // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
+                    // NOTE: We align dlua_Number to sizeof(float) even if dlua_Number probably is of double type
                     intptr_t offset = buffer - original_buffer;
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
@@ -1110,11 +1105,11 @@ namespace dmScript
                     }
                     else
                     {
-                        return luaL_error(L, "Table contains invalid UserData subtype (%d) at element #%d: %s", sub_type, i, buffer);
+                        return dluaL_error(L, "Table contains invalid UserData subtype (%d) at element #%d: %s", sub_type, i, buffer);
                     }
                 }
                 break;
-                case LUA_TTABLE:
+                case DLUA_TTABLE:
                 {
                     int n_consumed = DoPushTable(L, logger, header, original_buffer, buffer, buffer_size, depth+1);
                     buffer += n_consumed;
@@ -1123,15 +1118,15 @@ namespace dmScript
                 break;
 
                 default:
-                    return luaL_error(L, "Table contains invalid value type (%s) at element #%d: %s", lua_typename(L, value_type), i, buffer);
+                    return dluaL_error(L, "Table contains invalid value type (%s) at element #%d: %s", dlua_typename(L, value_type), i, buffer);
                     break;
             }
-            lua_settable(L, -3);
+            dlua_settable(L, -3);
 
             CHECK_PUSHTABLE_OOB("loop end", logger, buffer, buffer_end, count, depth);
         }
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
 
         PushTableLogString(logger, "}");
         return buffer - buffer_start;
@@ -1139,7 +1134,7 @@ namespace dmScript
 
 #undef CHECK_PUSHTABLE_OOB
 
-    void PushTable(lua_State*L, const char* buffer, uint32_t buffer_size)
+    void PushTable(dlua_State*L, const char* buffer, uint32_t buffer_size)
     {
         TableHeader header;
         const char* original_buffer = buffer;
@@ -1148,7 +1143,7 @@ namespace dmScript
         if (buffer_size < sizeof(TableHeader)) {
             char str[256];
             dmSnPrintf(str, sizeof(str), "Not enough data to read table header (buffer size: %u, header size: %u)", buffer_size, (uint32_t)sizeof(TableHeader));
-            luaL_error(L, "%s", str);
+            dluaL_error(L, "%s", str);
         }
 
         buffer = ReadHeader(buffer, header);
@@ -1164,7 +1159,7 @@ namespace dmScript
         {
             char str[256];
             dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", header.m_Version, TABLE_VERSION_CURRENT);
-            luaL_error(L, "%s", str);
+            dluaL_error(L, "%s", str);
         }
     }
 

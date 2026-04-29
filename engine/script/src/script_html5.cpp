@@ -14,13 +14,12 @@
 
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript
 {
-    void InitializeHtml5(lua_State* L)
+    void InitializeHtml5(dlua_State* L)
     {
     }
 }

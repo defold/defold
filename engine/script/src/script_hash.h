@@ -17,12 +17,12 @@
 
 extern "C"
 {
-#include <lua/lua.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript
 {
-    void InitializeHash(lua_State* L);
+    void InitializeHash(dlua_State* L);
 }
 
 #endif // DM_SCRIPT_HASH_H

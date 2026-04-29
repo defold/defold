@@ -13,7 +13,7 @@
 * is very simple.
 \*=========================================================================*/
 #include <stdio.h>
-#include "lua.h"
+#include <dmsdk/dlua/dlua.h>
 
 #include "timeout.h"
 

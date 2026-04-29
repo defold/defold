@@ -17,17 +17,13 @@
 
 #include <dmsdk/gameobject/gameobject.h>
 
-extern "C"
-{
-#include <dmsdk/lua/lua.h>
-#include <dmsdk/lua/lauxlib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameObject
 {
     /*#
      * Get component user data from lua-argument. This function is typically used from lua-bindings
-     * and can only be used from protected lua-calls as luaL_error might be invoked
+     * and can only be used from protected lua-calls as dluaL_error might be invoked
      * @name GetComponentFromLua
      * @param L lua-state
      * @param index index to argument
@@ -37,7 +33,7 @@ namespace dmGameObject
      * @param url will be overwritten with a URL to the component when specified
      * @param world world associated when specified
      */
-    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_user_data, dmMessage::URL* out_url, dmGameObject::HComponentWorld* world);
+    void GetComponentFromLua(dlua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_user_data, dmMessage::URL* out_url, dmGameObject::HComponentWorld* world);
 
     /**
      * Get current game object instance from the lua state, if any.
@@ -45,7 +41,7 @@ namespace dmGameObject
      * @param L lua-state
      * @return current game object instance
      */
-    HInstance GetInstanceFromLua(lua_State* L);
+    HInstance GetInstanceFromLua(dlua_State* L);
 
 }
 

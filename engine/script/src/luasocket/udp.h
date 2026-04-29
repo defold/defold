@@ -12,7 +12,7 @@
 * with a call to the setpeername function. The same function can be used to
 * break the connection.
 \*=========================================================================*/
-#include "lua.h"
+#include <dmsdk/dlua/dlua.h>
 
 #include "timeout.h"
 #include "socket.h"
@@ -27,6 +27,6 @@ typedef struct t_udp_ {
 } t_udp;
 typedef t_udp *p_udp;
 
-int udp_open(lua_State *L);
+int udp_open(dlua_State *L);
 
 #endif /* UDP_H */

@@ -28,11 +28,7 @@
 #include "../components/comp_tilegrid.h"
 #include "script_tilemap.h"
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameSystem
 {
@@ -108,9 +104,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int TileMap_SetConstant(lua_State* L)
+    static int TileMap_SetConstant(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
@@ -126,7 +122,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -152,9 +148,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int TileMap_ResetConstant(lua_State* L)
+    static int TileMap_ResetConstant(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
@@ -167,7 +163,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -217,9 +213,9 @@ namespace dmGameSystem
      * tilemap.set_tile("#tilemap", "layer1", x, y, 0, tilemap.ROTATE_180)
      * ```
      */
-    static int TileMap_SetTile(lua_State* L)
+    static int TileMap_SetTile(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -234,15 +230,15 @@ namespace dmGameSystem
         if (layer_index == ~0u)
         {
             dmLogError("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
-            lua_pushboolean(L, 0);
-            assert(top + 1 == lua_gettop(L));
+            dlua_pushboolean(L, 0);
+            assert(top + 1 == dlua_gettop(L));
             return 1;
         }
 
-        int x = luaL_checkinteger(L, 3) - 1;
-        int y = luaL_checkinteger(L, 4) - 1;
+        int x = dluaL_checkinteger(L, 3) - 1;
+        int y = dluaL_checkinteger(L, 4) - 1;
 
-        int lua_tile  = luaL_checkinteger(L, 5);
+        int lua_tile  = dluaL_checkinteger(L, 5);
 
         /* Range check: tile indices that fall outside of the valid limits will crash the engine.
          *
@@ -251,7 +247,7 @@ namespace dmGameSystem
          */
         if (lua_tile < 0 || lua_tile > (int)GetTileCount(component))
         {
-            return luaL_error(L, "tilemap.set_tile called with out-of-range tile index (%d)", lua_tile);
+            return dluaL_error(L, "tilemap.set_tile called with out-of-range tile index (%d)", lua_tile);
         }
 
         /*
@@ -270,25 +266,25 @@ namespace dmGameSystem
         if (cell_x < 0 || cell_x >= grid_w || cell_y < 0 || cell_y >= grid_h)
         {
             dmLogError("Could not set the tile since the supplied tile was out of range.");
-            lua_pushboolean(L, 0);
-            assert(top + 1 == lua_gettop(L));
+            dlua_pushboolean(L, 0);
+            assert(top + 1 == dlua_gettop(L));
             return 1;
         }
         uint8_t bitmask = 0;
-        if (lua_isnumber(L, 6) && top == 6)
+        if (dlua_isnumber(L, 6) && top == 6)
         {
             // Read more info about bitmask and constants values in SETCONSTANT macros
-            bitmask = dmMath::Abs(luaL_checkinteger(L, 6));
+            bitmask = dmMath::Abs(dluaL_checkinteger(L, 6));
             if (bitmask > MAX_TRANSFORM_FLAG)
             {
-                return luaL_error(L, "tilemap.set_tile called with wrong tranformation bitmask (tile: %d)", lua_tile);
+                return dluaL_error(L, "tilemap.set_tile called with wrong tranformation bitmask (tile: %d)", lua_tile);
             }
         }
         else
         {
             // deprecated API flow with boolean flags
-            bool flip_h = lua_toboolean(L, 6);
-            bool flip_v = lua_toboolean(L, 7);
+            bool flip_h = dlua_toboolean(L, 6);
+            bool flip_v = dlua_toboolean(L, 7);
             if (flip_h)
             {
                 bitmask = FLIP_HORIZONTAL;
@@ -326,17 +322,17 @@ namespace dmGameSystem
         }
         else
         {
-            return luaL_error(L, "tilemap.set_tile is not available from this script-type.");
+            return dluaL_error(L, "tilemap.set_tile is not available from this script-type.");
         }
 
-        lua_pushboolean(L, 1);
-        assert(top + 1 == lua_gettop(L));
+        dlua_pushboolean(L, 1);
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
-    static int TileMap_Get(lua_State* L, bool is_full_info)
+    static int TileMap_Get(dlua_State* L, bool is_full_info)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -349,13 +345,13 @@ namespace dmGameSystem
         if (layer_index == ~0u)
         {
             dmLogError("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
-            lua_pushnil(L);
-            assert(top + 1 == lua_gettop(L));
+            dlua_pushnil(L);
+            assert(top + 1 == dlua_gettop(L));
             return 1;
         }
 
-        int x = luaL_checkinteger(L, 3) - 1;
-        int y = luaL_checkinteger(L, 4) - 1;
+        int x = dluaL_checkinteger(L, 3) - 1;
+        int y = dluaL_checkinteger(L, 4) - 1;
 
         int min_x, min_y, grid_w, grid_h;
         GetTileGridBounds(component, &min_x, &min_y, &grid_w, &grid_h);
@@ -366,8 +362,8 @@ namespace dmGameSystem
         if (cell_x < 0 || cell_x >= grid_w || cell_y < 0 || cell_y >= grid_h)
         {
             dmLogError("Could not get the tile since the supplied tile was out of range.");
-            lua_pushnil(L);
-            assert(top + 1 == lua_gettop(L));
+            dlua_pushnil(L);
+            assert(top + 1 == dlua_gettop(L));
             return 1;
         }
 
@@ -375,32 +371,32 @@ namespace dmGameSystem
 
         if (is_full_info)
         {
-            lua_newtable(L);
+            dlua_newtable(L);
 
-            lua_pushliteral(L, "index");
-            lua_pushinteger(L, cell);
-            lua_rawset(L, -3);
+            dlua_pushliteral(L, "index");
+            dlua_pushinteger(L, cell);
+            dlua_rawset(L, -3);
 
             uint8_t transform_flags = GetTileTransformMask(component, layer_index, cell_x, cell_y);
 
-            lua_pushliteral(L, "h_flip");
-            lua_pushboolean(L, transform_flags & FLIP_HORIZONTAL);
-            lua_rawset(L, -3);
+            dlua_pushliteral(L, "h_flip");
+            dlua_pushboolean(L, transform_flags & FLIP_HORIZONTAL);
+            dlua_rawset(L, -3);
 
-            lua_pushliteral(L, "v_flip");
-            lua_pushboolean(L, transform_flags & FLIP_VERTICAL);
-            lua_rawset(L, -3);
+            dlua_pushliteral(L, "v_flip");
+            dlua_pushboolean(L, transform_flags & FLIP_VERTICAL);
+            dlua_rawset(L, -3);
 
-            lua_pushliteral(L, "rotate_90");
-            lua_pushboolean(L, transform_flags & ROTATE_90);
-            lua_rawset(L, -3);
+            dlua_pushliteral(L, "rotate_90");
+            dlua_pushboolean(L, transform_flags & ROTATE_90);
+            dlua_rawset(L, -3);
         }
         else
         {
-            lua_pushinteger(L,  cell);
+            dlua_pushinteger(L,  cell);
         }
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -424,7 +420,7 @@ namespace dmGameSystem
      * local tileno = tilemap.get_tile("/level#tilemap", "foreground", self.player_x, self.player_y)
      * ```
      */
-    static int TileMap_GetTile(lua_State* L)
+    static int TileMap_GetTile(dlua_State* L)
     {
         return TileMap_Get(L, false);
     }
@@ -456,7 +452,7 @@ namespace dmGameSystem
      * -- }
      * ```
      */
-    static int TileMap_GetTileInfo(lua_State* L)
+    static int TileMap_GetTileInfo(dlua_State* L)
     {
         return TileMap_Get(L, true);
     }
@@ -485,9 +481,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int TileMap_GetTiles(lua_State* L)
+    static int TileMap_GetTiles(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -500,8 +496,8 @@ namespace dmGameSystem
         if (layer_index == ~0u)
         {
             dmLogError("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
-            lua_pushnil(L);
-            assert(top + 1 == lua_gettop(L));
+            dlua_pushnil(L);
+            assert(top + 1 == dlua_gettop(L));
             return 1;
         }
 
@@ -511,22 +507,22 @@ namespace dmGameSystem
         int32_t cell_x, cell_y;
         GetTileGridCellCoord(component, min_x, min_y, cell_x, cell_y);
 
-        lua_newtable(L);
+        dlua_newtable(L);
         for (int iy = 0; iy < grid_h; iy++)
         {
-            lua_pushinteger(L, min_y + iy + 1);
-            lua_newtable(L);
+            dlua_pushinteger(L, min_y + iy + 1);
+            dlua_newtable(L);
             for (int ix = 0; ix < grid_w; ix++)
             {
                 uint16_t cell = GetTileGridTile(component, layer_index, cell_x + ix, cell_y + iy);
-                lua_pushinteger(L, min_x + ix + 1);
-                lua_pushinteger(L, cell);
-                lua_settable(L, -3);
+                dlua_pushinteger(L, min_x + ix + 1);
+                dlua_pushinteger(L, cell);
+                dlua_settable(L, -3);
             }
 
-            lua_settable(L, -3);
+            dlua_settable(L, -3);
         }
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -551,9 +547,9 @@ namespace dmGameSystem
      * local x, y, w, h = tilemap.get_bounds("/level#tilemap")
      * ```
      */
-    static int TileMap_GetBounds(lua_State* L)
+    static int TileMap_GetBounds(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -564,12 +560,12 @@ namespace dmGameSystem
         int x, y, w, h;
         GetTileGridBounds(component, &x, &y, &w, &h);
 
-        lua_pushinteger(L, x + 1);
-        lua_pushinteger(L, y + 1);
-        lua_pushinteger(L, w);
-        lua_pushinteger(L, h);
+        dlua_pushinteger(L, x + 1);
+        dlua_pushinteger(L, y + 1);
+        dlua_pushinteger(L, w);
+        dlua_pushinteger(L, h);
 
-        assert(top + 4 == lua_gettop(L));
+        assert(top + 4 == dlua_gettop(L));
         return 4;
     }
 
@@ -587,7 +583,7 @@ namespace dmGameSystem
      * tilemap.set_visible("/level#tilemap", "foreground", false)
      * ```
      */
-    static int TileMap_SetVisible(lua_State* L)
+    static int TileMap_SetVisible(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -605,7 +601,7 @@ namespace dmGameSystem
             return DM_LUA_ERROR("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
         }
 
-        bool visible = lua_toboolean(L, 3);
+        bool visible = dlua_toboolean(L, 3);
         SetLayerVisible(component, layer_index, visible);
 
         dmMessage::URL sender;
@@ -628,13 +624,13 @@ namespace dmGameSystem
         }
         else
         {
-            return luaL_error(L, "tilemap.set_tile is not available from this script-type.");
+            return dluaL_error(L, "tilemap.set_tile is not available from this script-type.");
         }
 
         return 0;
     }
 
-    static const luaL_reg TILEMAP_FUNCTIONS[] =
+    static const dluaL_reg TILEMAP_FUNCTIONS[] =
     {
         {"set_constant",    TileMap_SetConstant},
         {"reset_constant",  TileMap_ResetConstant},
@@ -675,13 +671,13 @@ namespace dmGameSystem
 
     void ScriptTileMapRegister(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
+        dlua_State* L = context.m_LuaState;
         DM_LUA_STACK_CHECK(L, 0);
-        luaL_register(L, "tilemap", TILEMAP_FUNCTIONS);
+        dluaL_register(L, "tilemap", TILEMAP_FUNCTIONS);
 
         #define SETCONSTANT(name, val) \
-            lua_pushnumber(L, (lua_Number) val); \
-            lua_setfield(L, -2, #name);\
+            dlua_pushnumber(L, (dlua_Number) val); \
+            dlua_setfield(L, -2, #name);\
 
         SETCONSTANT(H_FLIP, FLIP_HORIZONTAL);
         SETCONSTANT(V_FLIP, FLIP_VERTICAL);
@@ -717,6 +713,6 @@ namespace dmGameSystem
 
         #undef SETCONSTANT
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
     }
 }

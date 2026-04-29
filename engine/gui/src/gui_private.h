@@ -21,13 +21,9 @@
 #include <dlib/easing.h>
 #include <dlib/image.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlua/dlua.h>
 
 #include "gui.h"
-
-extern "C"
-{
-#include "lua/lua.h"
-}
 
 namespace dmGui
 {
@@ -80,7 +76,7 @@ namespace dmGui
 
     struct Context
     {
-        lua_State*                      m_LuaState;
+        dlua_State*                      m_LuaState;
         GetURLCallback                  m_GetURLCallback;
         GetUserDataCallback             m_GetUserDataCallback;
         ResolvePathCallback             m_ResolvePathCallback;

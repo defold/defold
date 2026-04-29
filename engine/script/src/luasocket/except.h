@@ -26,8 +26,8 @@
 * exceptions on error, but that don't interrupt the user script. 
 \*=========================================================================*/
 
-#include "lua.h"
+#include <dmsdk/dlua/dlua.h>
 
-int except_open(lua_State *L);
+int except_open(dlua_State *L);
 
 #endif

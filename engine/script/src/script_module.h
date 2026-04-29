@@ -17,12 +17,12 @@
 
 extern "C"
 {
-#include <lua/lua.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript
 {
-    void InitializeModule(lua_State* L);
+    void InitializeModule(dlua_State* L);
 }
 
 #endif // DM_SCRIPT_MODULE

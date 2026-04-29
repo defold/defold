@@ -48,7 +48,7 @@ namespace
             ASSERT_NE((dmScript::HContext) 0, m_Context);
             dmScript::Initialize(m_Context);
             m_L = dmScript::GetLuaState(m_Context);
-            ASSERT_NE((lua_State*) 0, m_L);
+            ASSERT_NE((dlua_State*) 0, m_L);
 
             ExtensionAppParamsInitialize(&m_AppParams);
             m_AppParams.m_ConfigFile = m_ConfigFile;
@@ -92,10 +92,10 @@ namespace
 
         bool RunString(const char* script)
         {
-            if (luaL_dostring(m_L, script) != 0)
+            if (dluaL_dostring(m_L, script) != 0)
             {
-                dmLogError("%s", lua_tostring(m_L, -1));
-                lua_pop(m_L, 1);
+                dmLogError("%s", dlua_tostring(m_L, -1));
+                dlua_pop(m_L, 1);
                 return false;
             }
             return true;
@@ -141,7 +141,7 @@ namespace
 
         dmScript::HContext  m_Context;
         dmConfigFile::HConfig m_ConfigFile;
-        lua_State*          m_L;
+        dlua_State*          m_L;
         ExtensionAppParams  m_AppParams;
         ExtensionParams     m_Params;
         dmArray<char>       m_Log;
@@ -191,12 +191,12 @@ TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnPreRender)
         "end)\n"
         "assert(coroutine.resume(co))\n"));
 
-    lua_getglobal(m_L, "co");
-    lua_State* coroutine_state = lua_tothread(m_L, -1);
-    ASSERT_NE((lua_State*) 0, coroutine_state);
+    dlua_getglobal(m_L, "co");
+    dlua_State* coroutine_state = dlua_tothread(m_L, -1);
+    ASSERT_NE((dlua_State*) 0, coroutine_state);
     ASSERT_NE(m_L, coroutine_state);
     ASSERT_EQ(m_L, dmScript::GetMainThread(coroutine_state));
-    lua_pop(m_L, 1);
+    dlua_pop(m_L, 1);
 
     dmExtension::PreRender(&m_Params);
 
@@ -266,7 +266,7 @@ TEST_F(ProfilerExtLuaTest, GarbageCollectedCoroutineScopeStateIsReleasedOnPreRen
         "    scratch[i] = string.rep(tostring(i), 32)\n"
         "end\n"));
 
-    // The profiler tracks coroutine scope state via a raw lua_State*.
+    // The profiler tracks coroutine scope state via a raw dlua_State*.
     // The coroutine can already be GC'd here, but PreRender() must still
     // be able to auto-close and remove the stale non-main-thread state.
     dmExtension::PreRender(&m_Params);

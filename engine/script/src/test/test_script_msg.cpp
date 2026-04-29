@@ -26,24 +26,24 @@
 
 #define DEFAULT_URL "__default_url"
 
-static int ResolvePathCallback(lua_State* L)
+static int ResolvePathCallback(dlua_State* L)
 {
-    uint32_t* user_data = (uint32_t*)lua_touserdata(L, 1);
+    uint32_t* user_data = (uint32_t*)dlua_touserdata(L, 1);
     assert(*user_data == 1);
-    const char* path = luaL_checkstring(L, 2);
+    const char* path = dluaL_checkstring(L, 2);
     dmScript::PushHash(L, dmHashString64(path));
     return 1;
 }
 
-static int GetURLCallback(lua_State* L)
+static int GetURLCallback(dlua_State* L)
 {
-    uint32_t* user_data = (uint32_t*)lua_touserdata(L, 1);
+    uint32_t* user_data = (uint32_t*)dlua_touserdata(L, 1);
     assert(*user_data == 1);
-    lua_getglobal(L, DEFAULT_URL);
+    dlua_getglobal(L, DEFAULT_URL);
     return 1;
 }
 
-static const luaL_reg META_TABLE[] =
+static const dluaL_reg META_TABLE[] =
 {
     {dmScript::META_TABLE_RESOLVE_PATH, ResolvePathCallback},
     {dmScript::META_TABLE_GET_URL,      GetURLCallback},
@@ -64,22 +64,22 @@ protected:
         m_DefaultURL.m_Path = dmHashString64("default_path");
         m_DefaultURL.m_Fragment = dmHashString64("default_fragment");
         dmScript::PushURL(L, m_DefaultURL);
-        lua_setglobal(L, DEFAULT_URL);
+        dlua_setglobal(L, DEFAULT_URL);
 
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)top;
-        uint32_t* user_data = (uint32_t*)lua_newuserdata(L, 4);
+        uint32_t* user_data = (uint32_t*)dlua_newuserdata(L, 4);
         *user_data = 1;
-        luaL_newmetatable(L, "ScriptMsgTest");
-        luaL_register(L, 0, META_TABLE);
-        lua_setmetatable(L, -2);
+        dluaL_newmetatable(L, "ScriptMsgTest");
+        dluaL_register(L, 0, META_TABLE);
+        dlua_setmetatable(L, -2);
         dmScript::SetInstance(L);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 
     void TearDown() override
     {
-        lua_pushnil(L);
+        dlua_pushnil(L);
         dmScript::SetInstance(L);
         dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
         dmScript::Finalize(m_ScriptContext);
@@ -87,13 +87,13 @@ protected:
     }
 
     dmScript::HContext m_ScriptContext;
-    lua_State* L;
+    dlua_State* L;
     dmMessage::URL m_DefaultURL;
 };
 
 TEST_F(ScriptMsgTest, TestURLNewAndIndex)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     // empty
     ASSERT_TRUE(dmScriptTest::RunString(L,
@@ -215,7 +215,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 static void ExtractURL(const dmMessage::StringURL& url, char* socket, char* path, char* fragment)
@@ -230,7 +230,7 @@ static void ExtractURL(const dmMessage::StringURL& url, char* socket, char* path
 
 TEST_F(ScriptMsgTest, ResolveURL)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmHashEnableReverseHash(true);
 
@@ -281,77 +281,77 @@ TEST_F(ScriptMsgTest, ResolveURL)
     dmMessage::URL receiver;
 
     // nil
-    lua_pushnil(L);
+    dlua_pushnil(L);
     memset(&receiver, 0, sizeof(receiver));
     dmScript::ResolveURL(L, 1, &receiver, 0x0);
     ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
     ASSERT_EQ(dmHashString64("default_fragment"), receiver.m_Fragment);
     ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     //
-    lua_pushstring(L, "");
+    dlua_pushstring(L, "");
     memset(&receiver, 0, sizeof(receiver));
     dmScript::ResolveURL(L, 1, &receiver, 0x0);
     ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
     ASSERT_EQ(dmHashString64("default_fragment"), receiver.m_Fragment);
     ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     //
-    lua_pushstring(L, "foo#bar");
+    dlua_pushstring(L, "foo#bar");
     memset(&receiver, 0, sizeof(receiver));
     dmScript::ResolveURL(L, 1, &receiver, 0x0);
     ASSERT_EQ(dmHashString64("foo"), receiver.m_Path);
     ASSERT_EQ(dmHashString64("bar"), receiver.m_Fragment);
     ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     //
-    lua_pushstring(L, "#");
+    dlua_pushstring(L, "#");
     memset(&receiver, 0, sizeof(receiver));
     dmScript::ResolveURL(L, 1, &receiver, 0x0);
     ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
     ASSERT_EQ(dmHashString64("default_fragment"), receiver.m_Fragment);
     ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     //
-    lua_pushstring(L, "#fragment");
+    dlua_pushstring(L, "#fragment");
     memset(&receiver, 0, sizeof(receiver));
     dmScript::ResolveURL(L, 1, &receiver, 0x0);
     ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
     ASSERT_EQ(dmHashString64("fragment"), receiver.m_Fragment);
     ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     //
-    lua_pushstring(L, ".");
+    dlua_pushstring(L, ".");
     memset(&receiver, 0, sizeof(receiver));
     dmScript::ResolveURL(L, 1, &receiver, 0x0);
     ASSERT_EQ(dmHashString64("default_path"), receiver.m_Path);
     ASSERT_EQ(0, receiver.m_Fragment);
     ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     //
-    lua_pushstring(L, "foo");
+    dlua_pushstring(L, "foo");
     memset(&receiver, 0, sizeof(receiver));
     dmScript::ResolveURL(L, 1, &receiver, 0x0);
     ASSERT_EQ(dmHashString64("foo"), receiver.m_Path);
     ASSERT_EQ(0, receiver.m_Fragment);
     ASSERT_EQ(m_DefaultURL.m_Socket, receiver.m_Socket);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     dmHashEnableReverseHash(false);
 }
 
 TEST_F(ScriptMsgTest, TestFailURLNewAndIndex)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     // invalid arg
     ASSERT_FALSE(dmScriptTest::RunString(L,
@@ -374,13 +374,13 @@ TEST_F(ScriptMsgTest, TestFailURLNewAndIndex)
         "msg.url(nil, nil, {})\n"
         ));
 
-    ASSERT_EQ(top+5, lua_gettop(L));
-    lua_pop(L, lua_gettop(L)-top);
+    ASSERT_EQ(top+5, dlua_gettop(L));
+    dlua_pop(L, dlua_gettop(L)-top);
 }
 
 TEST_F(ScriptMsgTest, TestURLToString)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmHashEnableReverseHash(true);
 
@@ -432,12 +432,12 @@ TEST_F(ScriptMsgTest, TestURLToString)
         "assert(url.socket == hash('socket_not_exist'))\n"
         ));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptMsgTest, TestURLConcat)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmMessage::HSocket socket;
     dmMessage::HSocket overflow_socket;
@@ -455,12 +455,12 @@ TEST_F(ScriptMsgTest, TestURLConcat)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(overflow_socket));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptMsgTest, TestURLNewIndex)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
@@ -497,12 +497,12 @@ TEST_F(ScriptMsgTest, TestURLNewIndex)
         "msg.url(\"test\", nil, nil)\n"
         ));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptMsgTest, TestFailURLNewIndex)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     ASSERT_FALSE(dmScriptTest::RunString(L,
         "local url = msg.url()\n"
@@ -517,13 +517,13 @@ TEST_F(ScriptMsgTest, TestFailURLNewIndex)
         "url.fragment = {}\n"
         ));
 
-    ASSERT_EQ(top+3, lua_gettop(L));
-    lua_pop(L, lua_gettop(L)-top);
+    ASSERT_EQ(top+3, dlua_gettop(L));
+    dlua_pop(L, dlua_gettop(L)-top);
 }
 
 TEST_F(ScriptMsgTest, TestURLEq)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
@@ -551,13 +551,13 @@ TEST_F(ScriptMsgTest, TestURLEq)
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptMsgTest, TestURLGlobal)
 {
-    lua_pushnil(L);
-    lua_setglobal(L, DEFAULT_URL);
+    dlua_pushnil(L);
+    dlua_setglobal(L, DEFAULT_URL);
 
     ASSERT_TRUE(dmScriptTest::RunString(L,
             "local url1 = msg.url(\"default_socket:/path#fragment\")\n"
@@ -588,7 +588,7 @@ struct TableUserData
 {
     TableUserData() { dmMessage::ResetURL(&m_URL); }
 
-    lua_State* L;
+    dlua_State* L;
     uint32_t m_TestValue;
     dmMessage::URL m_URL;
 };
@@ -598,9 +598,9 @@ void DispatchCallbackTable(dmMessage::Message *message, void* user_ptr)
     assert(message->m_Id == dmHashString64("table"));
     TableUserData* user_data = (TableUserData*)user_ptr;
     dmScript::PushTable(user_data->L, (const char*)message->m_Data, message->m_DataSize);
-    lua_getfield(user_data->L, -1, "uint_value");
-    user_data->m_TestValue = (uint32_t) lua_tonumber(user_data->L, -1);
-    lua_pop(user_data->L, 2);
+    dlua_getfield(user_data->L, -1, "uint_value");
+    user_data->m_TestValue = (uint32_t) dlua_tonumber(user_data->L, -1);
+    dlua_pop(user_data->L, 2);
     assert(user_data->m_URL.m_Socket == message->m_Receiver.m_Socket);
     assert(user_data->m_URL.m_Path == message->m_Receiver.m_Path);
     assert(user_data->m_URL.m_Fragment == message->m_Receiver.m_Fragment);
@@ -608,7 +608,7 @@ void DispatchCallbackTable(dmMessage::Message *message, void* user_ptr)
 
 TEST_F(ScriptMsgTest, TestPost)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     // DDF to default socket
     ASSERT_TRUE(dmScriptTest::RunString(L,
@@ -678,12 +678,12 @@ TEST_F(ScriptMsgTest, TestPost)
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptMsgTest, TestFailPost)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
@@ -706,14 +706,14 @@ TEST_F(ScriptMsgTest, TestFailPost)
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
-    ASSERT_EQ(top+4, lua_gettop(L));
-    lua_pop(L, lua_gettop(L)-top);
+    ASSERT_EQ(top+4, dlua_gettop(L));
+    dlua_pop(L, dlua_gettop(L)-top);
 }
 
 
 TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmHashEnableReverseHash(true);
 
@@ -743,8 +743,8 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
         "msg.post(url, \"table\", {uint_value = 1})\n"
         ));
 
-    ASSERT_EQ(top+2, lua_gettop(L));
-    lua_pop(L, lua_gettop(L)-top);
+    ASSERT_EQ(top+2, dlua_gettop(L));
+    dlua_pop(L, dlua_gettop(L)-top);
 }
 
 

@@ -48,7 +48,7 @@ namespace dmGameSystem
         return true;
     }
 
-    dmScript::Result HttpResponseDecoder(lua_State* L, const dmDDF::Descriptor* desc, const char* data)
+    dmScript::Result HttpResponseDecoder(dlua_State* L, const dmDDF::Descriptor* desc, const char* data)
     {
         assert(desc == dmHttpDDF::HttpResponse::m_DDFDescriptor);
         dmHttpDDF::HttpResponse* resp = (dmHttpDDF::HttpResponse*) data;
@@ -56,43 +56,43 @@ namespace dmGameSystem
         char* headers = (char*) resp->m_Headers;
         char* response = (char*) resp->m_Response;
 
-        lua_newtable(L);
+        dlua_newtable(L);
 
-        lua_pushinteger(L, resp->m_Status);
-        lua_setfield(L, -2, "status");
+        dlua_pushinteger(L, resp->m_Status);
+        dlua_setfield(L, -2, "status");
 
         if (resp->m_Path)
         {
             if (resp->m_Status == 200) {
                 if (!WriteResponseToFile(resp->m_Path, response, resp->m_ResponseLength))
                 {
-                    lua_pushliteral(L, "Failed to write to temp file");
-                    lua_setfield(L, -2, "error");
+                    dlua_pushliteral(L, "Failed to write to temp file");
+                    dlua_setfield(L, -2, "error");
                 }
             }
 
-            lua_pushstring(L, resp->m_Path);
-            lua_setfield(L, -2, "path");
+            dlua_pushstring(L, resp->m_Path);
+            dlua_setfield(L, -2, "path");
         } else {
-            lua_pushlstring(L, response, resp->m_ResponseLength);
-            lua_setfield(L, -2, "response");
+            dlua_pushlstring(L, response, resp->m_ResponseLength);
+            dlua_setfield(L, -2, "response");
         }
 
         if (resp->m_Url)
         {
-            lua_pushstring(L, resp->m_Url);
-            lua_setfield(L, -2, "url");
+            dlua_pushstring(L, resp->m_Url);
+            dlua_setfield(L, -2, "url");
         }
 
-        lua_pushinteger(L, resp->m_RangeStart);
-        lua_setfield(L, -2, "range_start");
-        lua_pushinteger(L, resp->m_RangeEnd);
-        lua_setfield(L, -2, "range_end");
-        lua_pushinteger(L, resp->m_DocumentSize);
-        lua_setfield(L, -2, "document_size");
+        dlua_pushinteger(L, resp->m_RangeStart);
+        dlua_setfield(L, -2, "range_start");
+        dlua_pushinteger(L, resp->m_RangeEnd);
+        dlua_setfield(L, -2, "range_end");
+        dlua_pushinteger(L, resp->m_DocumentSize);
+        dlua_setfield(L, -2, "document_size");
 
-        lua_pushliteral(L, "headers");
-        lua_newtable(L);
+        dlua_pushliteral(L, "headers");
+        dlua_newtable(L);
         if (resp->m_HeadersLength > 0) {
             headers[resp->m_HeadersLength-1] = '\0';
 
@@ -110,24 +110,24 @@ namespace dmGameSystem
                     tmp++;
                 }
 
-                lua_pushstring(L, s);
+                dlua_pushstring(L, s);
                 *colon = ':';
                 char* value = colon + 1;
                 while (*value == ' ') {
                     ++value;
                 }
 
-                lua_pushstring(L, value);
-                lua_rawset(L, -3);
+                dlua_pushstring(L, value);
+                dlua_rawset(L, -3);
                 s = dmStrTok(0, "\n", &last);
             }
         }
-        lua_rawset(L, -3);
+        dlua_rawset(L, -3);
 
         return dmScript::RESULT_OK;
     }
 
-    dmScript::Result HttpRequestProgressDecoder(lua_State* L, const dmDDF::Descriptor* desc, const char* data)
+    dmScript::Result HttpRequestProgressDecoder(dlua_State* L, const dmDDF::Descriptor* desc, const char* data)
     {
         dmScript::PushDDFNoDecoder(L, desc, (const char*)data, false);
         return dmScript::RESULT_OK;

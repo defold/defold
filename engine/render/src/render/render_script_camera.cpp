@@ -60,18 +60,18 @@ namespace dmRender
 
     static RenderScriptCameraModule g_RenderScriptCameraModule = { 0 };
 
-    RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context)
+    RenderCamera* CheckRenderCamera(dlua_State* L, int index, HRenderContext render_context)
     {
         RenderCamera* camera = 0x0;
 
-        if(lua_isnumber(L, index))
+        if(dlua_isnumber(L, index))
         {
-            HRenderCamera h_camera = (HRenderCamera) lua_tonumber(L, index);
+            HRenderCamera h_camera = (HRenderCamera) dlua_tonumber(L, index);
             camera = render_context->m_RenderCameras.Get(h_camera);
 
             if (!camera)
             {
-                return (RenderCamera*) (uintptr_t) luaL_error(L, "Invalid handle.");
+                return (RenderCamera*) (uintptr_t) dluaL_error(L, "Invalid handle.");
             }
         }
         else
@@ -79,7 +79,7 @@ namespace dmRender
             dmMessage::URL url;
             if (dmScript::ResolveURL(L, index, &url, 0) != dmMessage::RESULT_OK)
             {
-                return (RenderCamera*) (uintptr_t) luaL_error(L, "Could not resolve URL.");
+                return (RenderCamera*) (uintptr_t) dluaL_error(L, "Could not resolve URL.");
             }
 
             camera = GetRenderCameraByUrl(g_RenderScriptCameraModule.m_RenderContext, url);
@@ -87,7 +87,7 @@ namespace dmRender
             {
                 char buffer[256];
                 dmScript::UrlToString(&url, buffer, sizeof(buffer));
-                return (RenderCamera*) (uintptr_t) luaL_error(L, "Camera '%s' not found.", buffer);
+                return (RenderCamera*) (uintptr_t) dluaL_error(L, "Camera '%s' not found.", buffer);
             }
         }
         return camera;
@@ -95,11 +95,11 @@ namespace dmRender
 
     // Resolve a camera from an optional argument. If no argument is given (or nil),
     // prefer the last enabled camera (matching default render script behavior).
-    static RenderCamera* CheckRenderCameraOrDefault(lua_State* L, int index, HRenderContext render_context)
+    static RenderCamera* CheckRenderCameraOrDefault(dlua_State* L, int index, HRenderContext render_context)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
-        if (index <= top && !lua_isnil(L, index))
+        if (index <= top && !dlua_isnil(L, index))
         {
             return CheckRenderCamera(L, index, render_context);
         }
@@ -114,7 +114,7 @@ namespace dmRender
             }
         }
 
-        return (RenderCamera*) (uintptr_t) luaL_error(L, "No camera found.");
+        return (RenderCamera*) (uintptr_t) dluaL_error(L, "No camera found.");
     }
 
     /*# Convert screen XY to world point at near plane
@@ -142,12 +142,12 @@ namespace dmRender
      * ```
      *
      */
-    static int RenderScriptCamera_ScreenXYToWorld(lua_State* L)
+    static int RenderScriptCamera_ScreenXYToWorld(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        float sx = (float) luaL_checknumber(L, 1);
-        float sy = (float) luaL_checknumber(L, 2);
+        float sx = (float) dluaL_checknumber(L, 1);
+        float sy = (float) dluaL_checknumber(L, 2);
 
         HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
         RenderCamera* camera = CheckRenderCameraOrDefault(L, 3, render_context);
@@ -191,7 +191,7 @@ namespace dmRender
      * ```
      *
      */
-    static int RenderScriptCamera_ScreenToWorld(lua_State* L)
+    static int RenderScriptCamera_ScreenToWorld(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -230,7 +230,7 @@ namespace dmRender
      * ```
      *
      */
-    static int RenderScriptCamera_WorldToScreen(lua_State* L)
+    static int RenderScriptCamera_WorldToScreen(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -264,13 +264,13 @@ namespace dmRender
     * end
     * ```
     */
-    static int RenderScriptCamera_GetCameras(lua_State* L)
+    static int RenderScriptCamera_GetCameras(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
         int camera_index = 1;
 
-        lua_newtable(L);
+        dlua_newtable(L);
 
         for (int i = 0; i < g_RenderScriptCameraModule.m_RenderContext->m_RenderCameras.Capacity(); ++i)
         {
@@ -278,9 +278,9 @@ namespace dmRender
 
             if (camera)
             {
-                lua_pushinteger(L, camera_index);
+                dlua_pushinteger(L, camera_index);
                 dmScript::PushURL(L, camera->m_URL);
-                lua_settable(L, -3);
+                dlua_settable(L, -3);
                 camera_index++;
             }
         }
@@ -294,11 +294,11 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @return flag [type:boolean] true if the camera is enabled
     */
-    static int RenderScriptCamera_GetEnabled(lua_State* L)
+    static int RenderScriptCamera_GetEnabled(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
-        lua_pushboolean(L, camera->m_Enabled);
+        dlua_pushboolean(L, camera->m_Enabled);
         return 1;
     }
 
@@ -308,7 +308,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @return projection [type:matrix4] the projection matrix.
     */
-    static int RenderScriptCamera_GetProjection(lua_State* L)
+    static int RenderScriptCamera_GetProjection(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
@@ -322,7 +322,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @return view [type:matrix4] the view matrix.
     */
-    static int RenderScriptCamera_GetView(lua_State* L)
+    static int RenderScriptCamera_GetView(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
@@ -330,21 +330,21 @@ namespace dmRender
         return 1;
     }
 
-#define GET_CAMERA_DATA_PROPERTY_FN(param, lua_fn) \
-    static int RenderScriptCamera_Get##param(lua_State* L) \
+#define GET_CAMERA_DATA_PROPERTY_FN(param, dlua_fn) \
+    static int RenderScriptCamera_Get##param(dlua_State* L) \
     { \
         DM_LUA_STACK_CHECK(L, 1); \
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext); \
-        lua_fn(L, camera->m_Data.m_##param); \
+        dlua_fn(L, camera->m_Data.m_##param); \
         return 1; \
     }
 
-#define SET_CAMERA_DATA_PROPERTY_FN(param, lua_fn) \
-    static int RenderScriptCamera_Set##param(lua_State* L) \
+#define SET_CAMERA_DATA_PROPERTY_FN(param, dlua_fn) \
+    static int RenderScriptCamera_Set##param(dlua_State* L) \
     { \
         DM_LUA_STACK_CHECK(L, 0); \
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext); \
-        camera->m_Data.m_##param = lua_fn(L, 2); \
+        camera->m_Data.m_##param = dlua_fn(L, 2); \
         camera->m_Dirty = 1; \
         return 0; \
     }
@@ -358,12 +358,12 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @return aspect_ratio [type:number] the effective aspect ratio.
     */
-    static int RenderScriptCamera_GetAspectRatio(lua_State* L)
+    static int RenderScriptCamera_GetAspectRatio(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
         float effective_aspect_ratio = GetRenderCameraEffectiveAspectRatio(g_RenderScriptCameraModule.m_RenderContext, camera->m_Handle);
-        lua_pushnumber(L, effective_aspect_ratio);
+        dlua_pushnumber(L, effective_aspect_ratio);
         return 1;
     }
 
@@ -373,7 +373,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @return far_z [type:number] the far z.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(FarZ, lua_pushnumber);
+    GET_CAMERA_DATA_PROPERTY_FN(FarZ, dlua_pushnumber);
 
     /*# get field of view
     *
@@ -381,7 +381,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @return fov [type:number] the field of view.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(Fov, lua_pushnumber);
+    GET_CAMERA_DATA_PROPERTY_FN(Fov, dlua_pushnumber);
 
     /*# get near z
     *
@@ -389,7 +389,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @return near_z [type:number] the near z.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_pushnumber);
+    GET_CAMERA_DATA_PROPERTY_FN(NearZ, dlua_pushnumber);
 
     /*# get orthographic zoom
     *
@@ -397,7 +397,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @return orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_pushnumber);
+    GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, dlua_pushnumber);
 
     /*# set aspect ratio
     * Sets the manual aspect ratio for the camera. This value is only used when
@@ -408,7 +408,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @param aspect_ratio [type:number] the manual aspect ratio value.
     */
-    SET_CAMERA_DATA_PROPERTY_FN(AspectRatio, lua_tonumber);
+    SET_CAMERA_DATA_PROPERTY_FN(AspectRatio, dlua_tonumber);
 
     /*# set far z
     *
@@ -416,7 +416,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @param far_z [type:number] the far z.
     */
-    SET_CAMERA_DATA_PROPERTY_FN(FarZ, lua_tonumber);
+    SET_CAMERA_DATA_PROPERTY_FN(FarZ, dlua_tonumber);
 
     /*# set field of view
     *
@@ -424,7 +424,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @param fov [type:number] the field of view.
     */
-    SET_CAMERA_DATA_PROPERTY_FN(Fov, lua_tonumber);
+    SET_CAMERA_DATA_PROPERTY_FN(Fov, dlua_tonumber);
 
     /*# set near z
     *
@@ -432,7 +432,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @param near_z [type:number] the near z.
     */
-    SET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_tonumber);
+    SET_CAMERA_DATA_PROPERTY_FN(NearZ, dlua_tonumber);
 
     /*# set orthographic zoom
     *
@@ -440,7 +440,7 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @param orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
     */
-    SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_tonumber);
+    SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, dlua_tonumber);
 
     /*# get orthographic zoom mode
     *
@@ -449,13 +449,13 @@ namespace dmRender
     * @return mode [type:number] one of camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or
     * camera.ORTHO_MODE_AUTO_COVER
     */
-    GET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, lua_pushnumber);
+    GET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, dlua_pushnumber);
 
     // Helper for enum parameter validation used by macro setter
-    static uint8_t LuaCheckOrthoZoomMode(lua_State* L, int index)
+    static uint8_t LuaCheckOrthoZoomMode(dlua_State* L, int index)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int mode = luaL_checkinteger(L, index);
+        int mode = dluaL_checkinteger(L, index);
         if (mode != ORTHO_MODE_FIXED &&
             mode != ORTHO_MODE_AUTO_FIT &&
             mode != ORTHO_MODE_AUTO_COVER)
@@ -482,11 +482,11 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @return auto_aspect_ratio [type:boolean] true if auto aspect ratio is enabled
     */
-    static int RenderScriptCamera_GetAutoAspectRatio(lua_State* L)
+    static int RenderScriptCamera_GetAutoAspectRatio(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
-        lua_pushboolean(L, camera->m_Data.m_AutoAspectRatio);
+        dlua_pushboolean(L, camera->m_Data.m_AutoAspectRatio);
         return 1;
     }
 
@@ -499,11 +499,11 @@ namespace dmRender
     * @param camera [type:url|number|nil] camera id
     * @param auto_aspect_ratio [type:boolean] true to enable auto aspect ratio
     */
-    static int RenderScriptCamera_SetAutoAspectRatio(lua_State* L)
+    static int RenderScriptCamera_SetAutoAspectRatio(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
-        camera->m_Data.m_AutoAspectRatio = lua_toboolean(L, 2) ? 1 : 0;
+        camera->m_Data.m_AutoAspectRatio = dlua_toboolean(L, 2) ? 1 : 0;
         camera->m_Dirty = 1;
         return 0;
     }
@@ -511,7 +511,7 @@ namespace dmRender
 #undef GET_CAMERA_DATA_PROPERTY_FN
 #undef SET_CAMERA_DATA_PROPERTY_FN
 
-    static const luaL_reg RenderScriptCamera_Methods[] =
+    static const dluaL_reg RenderScriptCamera_Methods[] =
     {
         {"get_cameras",             RenderScriptCamera_GetCameras},
 
@@ -545,15 +545,15 @@ namespace dmRender
 
     void InitializeRenderScriptCameraContext(HRenderContext render_context, dmScript::HContext script_context)
     {
-        lua_State* L = dmScript::GetLuaState(script_context);
+        dlua_State* L = dmScript::GetLuaState(script_context);
         DM_LUA_STACK_CHECK(L, 0);
 
-        luaL_register(L, RENDER_SCRIPT_CAMERA_LIB_NAME, RenderScriptCamera_Methods);
+        dluaL_register(L, RENDER_SCRIPT_CAMERA_LIB_NAME, RenderScriptCamera_Methods);
 
         // Add constants: camera.ORTHO_MODE_FIXED/AUTO_FIT/AUTO_COVER
         #define SETCONSTANT(name, val) \
-            lua_pushnumber(L, (lua_Number) (val)); \
-            lua_setfield(L, -2, #name);
+            dlua_pushnumber(L, (dlua_Number) (val)); \
+            dlua_setfield(L, -2, #name);
 
         SETCONSTANT(ORTHO_MODE_FIXED,      dmRender::ORTHO_MODE_FIXED);
         SETCONSTANT(ORTHO_MODE_AUTO_FIT,   dmRender::ORTHO_MODE_AUTO_FIT);
@@ -561,7 +561,7 @@ namespace dmRender
 
         #undef SETCONSTANT
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
         assert(g_RenderScriptCameraModule.m_RenderContext == 0x0);
         g_RenderScriptCameraModule.m_RenderContext = render_context;

@@ -72,7 +72,7 @@ struct CallbackContext
  * font.add_font(font_hash, ttf_hash)
  * ```
  */
-static int AddFont(lua_State* L)
+static int AddFont(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -80,9 +80,9 @@ static int AddFont(lua_State* L)
     // TODO: If it's a string, pass a string to the function to allow for explicit loading of the resource
     const char* ttf_path = 0;
     dmhash_t ttf_path_hash = 0;
-    if (lua_isstring(L, 2))
+    if (dlua_isstring(L, 2))
     {
-        ttf_path = luaL_checkstring(L, 2);
+        ttf_path = dluaL_checkstring(L, 2);
     }
     else
     {
@@ -126,7 +126,7 @@ static int AddFont(lua_State* L)
  * font.remove_font(font_hash, ttf_hash)
  * ```
  */
-static int RemoveFont(lua_State* L)
+static int RemoveFont(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -156,18 +156,18 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;
 
-    lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+    dlua_State* L = dmScript::GetCallbackLuaContext(cbk);
     DM_LUA_STACK_CHECK(L, 0);
 
     if (dmScript::SetupCallback(cbk))
     {
         int nargs = 3;
-        lua_pushinteger(L, (int)ctx->m_Request);
-        lua_pushboolean(L, result != 0);
+        dlua_pushinteger(L, (int)ctx->m_Request);
+        dlua_pushboolean(L, result != 0);
         if (0 != errmsg)
-            lua_pushstring(L, errmsg);
+            dlua_pushstring(L, errmsg);
         else
-            lua_pushnil(L);
+            dlua_pushnil(L);
 
         dmScript::PCall(L, 1 + nargs, 0); // self + # user arguments
 
@@ -209,16 +209,16 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
  *     end)
  * ```
  */
-static int PrewarmText(lua_State* L)
+static int PrewarmText(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
-    const char* text = luaL_checkstring(L, 2);
+    const char* text = dluaL_checkstring(L, 2);
 
     dmScript::LuaCallbackInfo* luacbk = 0;
-    if (top > 2 && lua_isfunction(L, 3))
+    if (top > 2 && dlua_isfunction(L, 3))
     {
         luacbk = dmScript::CreateCallback(L, 3);
     }
@@ -251,7 +251,7 @@ static int PrewarmText(lua_State* L)
     }
 
     dmResource::Release(g_ResourceFactory, resource);
-    lua_pushinteger(L, request_id);
+    dlua_pushinteger(L, request_id);
     return 1;
 }
 
@@ -275,7 +275,7 @@ static int PrewarmText(lua_State* L)
  *      : [type:hash] The path of the font file
  *
  */
-static int GetFontInfo(lua_State* L)
+static int GetFontInfo(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
@@ -288,16 +288,16 @@ static int GetFontInfo(lua_State* L)
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
-    lua_createtable(L,0,0);
+    dlua_createtable(L,0,0);
 
     {
         dmScript::PushHash(L, fontc_path_hash);
-        lua_setfield(L, -2, "path");
+        dlua_setfield(L, -2, "path");
 
         HFontCollection fontcollection = ResFontGetFontCollection(resource);
         uint32_t num_fonts = FontCollectionGetFontCount(fontcollection);
 
-        lua_newtable(L);
+        dlua_newtable(L);
 
         {
             for (uint32_t i = 0; i < num_fonts; ++i)
@@ -305,19 +305,19 @@ static int GetFontInfo(lua_State* L)
                 HFont font = FontCollectionGetFont(fontcollection, i);
                 dmhash_t font_path_hash = ResFontGetPathHashFromFont(resource, font);
 
-                lua_newtable(L);
+                dlua_newtable(L);
 
-                lua_pushstring(L, FontGetPath(font));
-                lua_setfield(L, -2, "path");
+                dlua_pushstring(L, FontGetPath(font));
+                dlua_setfield(L, -2, "path");
 
                 dmScript::PushHash(L, font_path_hash);
-                lua_setfield(L, -2, "path_hash");
+                dlua_setfield(L, -2, "path_hash");
 
-                lua_rawseti(L, -2, i + 1);
+                dlua_rawseti(L, -2, i + 1);
             }
         }
 
-        lua_setfield(L, -2, "fonts");
+        dlua_setfield(L, -2, "fonts");
     }
 
     dmResource::Release(g_ResourceFactory, resource);
@@ -329,7 +329,7 @@ static int GetFontInfo(lua_State* L)
 
 
 // Functions exposed to Lua
-static const luaL_reg Module_methods[] =
+static const dluaL_reg Module_methods[] =
 {
     {"add_font", AddFont},
     {"remove_font", RemoveFont},
@@ -342,9 +342,9 @@ static dmExtension::Result ScriptFontInitialize(dmExtension::Params* params)
 {
     g_ResourceFactory = params->m_ResourceFactory;
 
-    lua_State* L = params->m_L;
-    luaL_register(L, "font", Module_methods);
-    lua_pop(L, 1); // pop the lua module
+    dlua_State* L = params->m_L;
+    dluaL_register(L, "font", Module_methods);
+    dlua_pop(L, 1); // pop the lua module
 
     return dmGameSystem::FontGenInitialize(params);
 }

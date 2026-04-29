@@ -21,7 +21,7 @@
 
 extern "C"
 {
-#include <lua/lua.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript

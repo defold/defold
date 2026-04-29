@@ -32,11 +32,7 @@
 #include "script_physics.h"
 #include <physics/physics.h>
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 static const char PHYSICS_CONTEXT_NAME[] = "__PhysicsContext";
 static uint32_t PHYSICS_CONTEXT_HASH = 0;
@@ -309,19 +305,19 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int Physics_RayCastAsync(lua_State* L)
+    int Physics_RayCastAsync(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.raycast_async");
+            return dluaL_error(L, "could not find a requesting instance for physics.raycast_async");
         }
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -335,21 +331,21 @@ namespace dmGameSystem
         dmVMath::Point3 to( *dmScript::CheckVector3(L, 2) );
 
         uint32_t mask = 0;
-        luaL_checktype(L, 3, LUA_TTABLE);
-        lua_pushnil(L);
-        while (lua_next(L, 3) != 0)
+        dluaL_checktype(L, 3, DLUA_TTABLE);
+        dlua_pushnil(L);
+        while (dlua_next(L, 3) != 0)
         {
             mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         int request_id = 0;
         if (top > 3)
         {
-            request_id = luaL_checkinteger(L, 4);
+            request_id = dluaL_checkinteger(L, 4);
             if (request_id < 0 || request_id > 255)
             {
-                return luaL_error(L, "request_id must be between 0-255");
+                return dluaL_error(L, "request_id must be between 0-255");
             }
         }
 
@@ -366,22 +362,22 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void PushRayCastResponse(lua_State* L, CollisionWorld* world, const dmPhysics::RayCastResponse& response)
+    static void PushRayCastResponse(dlua_State* L, CollisionWorld* world, const dmPhysics::RayCastResponse& response)
     {
-        lua_pushnumber(L, response.m_Fraction);
-        lua_setfield(L, -2, "fraction");
+        dlua_pushnumber(L, response.m_Fraction);
+        dlua_setfield(L, -2, "fraction");
         dmScript::PushVector3(L, dmVMath::Vector3(response.m_Position));
-        lua_setfield(L, -2, "position");
+        dlua_setfield(L, -2, "position");
         dmScript::PushVector3(L, response.m_Normal);
-        lua_setfield(L, -2, "normal");
+        dlua_setfield(L, -2, "normal");
 
         dmhash_t group = dmGameSystem::GetLSBGroupHash(world, response.m_CollisionObjectGroup);
         dmScript::PushHash(L, group);
-        lua_setfield(L, -2, "group");
+        dlua_setfield(L, -2, "group");
 
         dmhash_t id = dmGameSystem::CompCollisionObjectGetIdentifier((CollisionComponent*) response.m_CollisionObjectUserData);
         dmScript::PushHash(L, id);
-        lua_setfield(L, -2, "id");
+        dlua_setfield(L, -2, "id");
     }
 
     /*# requests a ray cast to be performed
@@ -425,18 +421,18 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int Physics_RayCast(lua_State* L)
+    int Physics_RayCast(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.raycast");
+            return dluaL_error(L, "could not find a requesting instance for physics.raycast");
         }
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -450,25 +446,25 @@ namespace dmGameSystem
         dmVMath::Point3 to( *dmScript::CheckVector3(L, 2) );
 
         uint32_t mask = 0;
-        luaL_checktype(L, 3, LUA_TTABLE);
-        lua_pushnil(L);
-        while (lua_next(L, 3) != 0)
+        dluaL_checktype(L, 3, DLUA_TTABLE);
+        dlua_pushnil(L);
+        while (dlua_next(L, 3) != 0)
         {
             mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         bool list_format = false;
         bool return_all_results = false;
-        if (lua_istable(L, 4))
+        if (dlua_istable(L, 4))
         {
-            lua_pushvalue(L, 4);
+            dlua_pushvalue(L, 4);
 
-            lua_getfield(L, -1, "all");
-            return_all_results = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "all");
+            return_all_results = dlua_isnil(L, -1) ? false : dlua_toboolean(L, -1);
+            dlua_pop(L, 1);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
             list_format = true;
         }
@@ -486,7 +482,7 @@ namespace dmGameSystem
 
         if (hits.Empty())
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
             return 1;
         }
 
@@ -495,20 +491,20 @@ namespace dmGameSystem
         if (!return_all_results)
             count = 1;
 
-        lua_newtable(L);
+        dlua_newtable(L);
 
         for (uint32_t i = 0; i < count; ++i)
         {
             if(list_format)
             {
-                lua_newtable(L);
+                dlua_newtable(L);
             }
 
             PushRayCastResponse(L, world, hits[i]);
 
             if (list_format)
             {
-                lua_rawseti(L, -2, i+1);
+                dlua_rawseti(L, -2, i+1);
             }
         }
 
@@ -527,76 +523,76 @@ namespace dmGameSystem
     };
 
     // Helper to get collisionobject component and world.
-    static void GetCollisionObject(lua_State* L, int indx, dmGameObject::HCollection collection, CollisionComponent** comp, CollisionWorld** comp_world)
+    static void GetCollisionObject(dlua_State* L, int indx, dmGameObject::HCollection collection, CollisionComponent** comp, CollisionWorld** comp_world)
     {
         dmMessage::URL receiver;
         dmGameObject::GetComponentFromLua(L, indx, collection, COLLISION_OBJECT_EXT, (void**) comp, &receiver, (void**) comp_world);
     }
 
-    static int GetTableField(lua_State* L, int table_index, const char* table_field, int expected_type)
+    static int GetTableField(dlua_State* L, int table_index, const char* table_field, int expected_type)
     {
-        lua_getfield(L, table_index, table_field);
-        int type = lua_type(L, -1);
+        dlua_getfield(L, table_index, table_field);
+        dlua_Type type = dlua_type(L, -1);
 
         // return if the field was not found
-        if (type == LUA_TNIL || type == LUA_TNONE) {
-            lua_pop(L, 1);
+        if (type == DLUA_TNIL || type == DLUA_TNONE) {
+            dlua_pop(L, 1);
             return 0;
         } else if (type != expected_type) {
-            return luaL_error(L, "joint property table field %s must be of %s type.", table_field, lua_typename(L, expected_type));
+            return dluaL_error(L, "joint property table field %s must be of %s type.", table_field, dlua_typename(L, expected_type));
         }
 
         return 1;
     }
 
-    static void UnpackFloatParam(lua_State* L, int table_index, const char* table_field, float& float_out)
+    static void UnpackFloatParam(dlua_State* L, int table_index, const char* table_field, float& float_out)
     {
-        if (GetTableField(L, table_index, table_field, LUA_TNUMBER))
+        if (GetTableField(L, table_index, table_field, DLUA_TNUMBER))
         {
-            float_out = lua_tonumber(L, -1);
-            lua_pop(L, 1);
+            float_out = dlua_tonumber(L, -1);
+            dlua_pop(L, 1);
         }
     }
 
-    static void UnpackVec3Param(lua_State* L, int table_index, const char* table_field, float float_out[3])
+    static void UnpackVec3Param(dlua_State* L, int table_index, const char* table_field, float float_out[3])
     {
-        if (GetTableField(L, table_index, table_field, LUA_TUSERDATA))
+        if (GetTableField(L, table_index, table_field, DLUA_TUSERDATA))
         {
             dmVMath::Vector3* v3 = dmScript::ToVector3(L, -1);
             if (!v3) {
-                lua_pop(L, 1);
-                luaL_error(L, "joint property table field %s must be of vmath.vector3 type.", table_field);
+                dlua_pop(L, 1);
+                dluaL_error(L, "joint property table field %s must be of vmath.vector3 type.", table_field);
                 return;
             }
 
             float_out[0] = v3->getX();
             float_out[1] = v3->getY();
             float_out[2] = v3->getZ();
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
     }
 
-    static void UnpackBoolParam(lua_State* L, int table_index, const char* table_field, bool& bool_out)
+    static void UnpackBoolParam(dlua_State* L, int table_index, const char* table_field, bool& bool_out)
     {
-        if (GetTableField(L, table_index, table_field, LUA_TBOOLEAN))
+        if (GetTableField(L, table_index, table_field, DLUA_TBOOLEAN))
         {
-            bool_out = lua_toboolean(L, -1);
-            lua_pop(L, 1);
+            bool_out = dlua_toboolean(L, -1);
+            dlua_pop(L, 1);
         }
     }
 
-    static void UnpackConnectJointParams(lua_State* L, dmPhysics::JointType type, int table_index, dmPhysics::ConnectJointParams& params)
+    static void UnpackConnectJointParams(dlua_State* L, dmPhysics::JointType type, int table_index, dmPhysics::ConnectJointParams& params)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         // Fill with default values
         params = dmPhysics::ConnectJointParams(type);
 
-        int table_index_type = lua_type(L, table_index);
-        if (table_index_type == LUA_TNIL || table_index_type == LUA_TNONE) {
+        dlua_Type table_index_type = dlua_type(L, table_index);
+        if (table_index_type == DLUA_TNIL || table_index_type == DLUA_TNONE) {
             // Early exit if table was nil (just returns default values from above).
             return;
-        } else if (table_index_type != LUA_TTABLE) {
+        } else if (table_index_type != DLUA_TTABLE) {
             DM_LUA_ERROR("argument %d to physics.connect_joint must be either nil or table.", table_index)
             return;
         }
@@ -629,7 +625,7 @@ namespace dmGameSystem
                 // The default values are both zero so they will not cause this error.
                 // (Same check below in JOINT_TYPE_SLIDER.)
                 if (params.m_HingeJointParams.m_LowerAngle > params.m_HingeJointParams.m_UpperAngle) {
-                    luaL_error(L, "property field 'lower_angle' must be lower or equal to 'upper_angle'");
+                    dluaL_error(L, "property field 'lower_angle' must be lower or equal to 'upper_angle'");
                     return;
                 }
                 break;
@@ -645,7 +641,7 @@ namespace dmGameSystem
                 UnpackFloatParam(L, table_index, "motor_speed", params.m_SliderJointParams.m_MotorSpeed);
 
                 if (params.m_SliderJointParams.m_LowerTranslation > params.m_SliderJointParams.m_UpperTranslation) {
-                    luaL_error(L, "property field 'lower_translation' must be lower or equal to 'upper_translation'");
+                    dluaL_error(L, "property field 'lower_translation' must be lower or equal to 'upper_translation'");
                     return;
                 }
                 break;
@@ -692,11 +688,11 @@ namespace dmGameSystem
      * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
      *
      */
-    static int Physics_CreateJoint(lua_State* L)
+    static int Physics_CreateJoint(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmPhysics::JointType type = (dmPhysics::JointType)luaL_checkinteger(L, 1);
+        dmPhysics::JointType type = (dmPhysics::JointType)dluaL_checkinteger(L, 1);
         if (type >= dmPhysics::JOINT_TYPE_COUNT)
         {
             return DM_LUA_ERROR("unknown joint type: %d", type);
@@ -742,7 +738,7 @@ namespace dmGameSystem
      * @param joint_id [type:string|hash] id of the joint
      *
      */
-    static int Physics_DestroyJoint(lua_State* L)
+    static int Physics_DestroyJoint(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -777,7 +773,7 @@ namespace dmGameSystem
      * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
      *
      */
-    static int Physics_GetJointProperties(lua_State* L)
+    static int Physics_GetJointProperties(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -796,35 +792,35 @@ namespace dmGameSystem
             return DM_LUA_ERROR("unable to get joint properties for %s: %s (%d)", dmHashReverseSafe64(joint_id), PhysicsResultString[r], r);
         }
 
-        lua_newtable(L);
-        lua_pushboolean(L, joint_params.m_CollideConnected); lua_setfield(L, -2, "collide_connected");
+        dlua_newtable(L);
+        dlua_pushboolean(L, joint_params.m_CollideConnected); dlua_setfield(L, -2, "collide_connected");
 
         switch (joint_type)
         {
             case dmPhysics::JOINT_TYPE_SPRING:
                 {
-                    lua_pushnumber(L, joint_params.m_SpringJointParams.m_Length); lua_setfield(L, -2, "length");
-                    lua_pushnumber(L, joint_params.m_SpringJointParams.m_FrequencyHz); lua_setfield(L, -2, "frequency");
-                    lua_pushnumber(L, joint_params.m_SpringJointParams.m_DampingRatio); lua_setfield(L, -2, "damping");
+                    dlua_pushnumber(L, joint_params.m_SpringJointParams.m_Length); dlua_setfield(L, -2, "length");
+                    dlua_pushnumber(L, joint_params.m_SpringJointParams.m_FrequencyHz); dlua_setfield(L, -2, "frequency");
+                    dlua_pushnumber(L, joint_params.m_SpringJointParams.m_DampingRatio); dlua_setfield(L, -2, "damping");
                 }
                 break;
             case dmPhysics::JOINT_TYPE_FIXED:
                 {
-                    lua_pushnumber(L, joint_params.m_FixedJointParams.m_MaxLength); lua_setfield(L, -2, "max_length");
+                    dlua_pushnumber(L, joint_params.m_FixedJointParams.m_MaxLength); dlua_setfield(L, -2, "max_length");
                 }
                 break;
             case dmPhysics::JOINT_TYPE_HINGE:
                 {
-                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_ReferenceAngle); lua_setfield(L, -2, "reference_angle");
-                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_LowerAngle); lua_setfield(L, -2, "lower_angle");
-                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_UpperAngle); lua_setfield(L, -2, "upper_angle");
-                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_MaxMotorTorque); lua_setfield(L, -2, "max_motor_torque");
-                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_MotorSpeed); lua_setfield(L, -2, "motor_speed");
-                    lua_pushboolean(L, joint_params.m_HingeJointParams.m_EnableLimit); lua_setfield(L, -2, "enable_limit");
-                    lua_pushboolean(L, joint_params.m_HingeJointParams.m_EnableMotor); lua_setfield(L, -2, "enable_motor");
+                    dlua_pushnumber(L, joint_params.m_HingeJointParams.m_ReferenceAngle); dlua_setfield(L, -2, "reference_angle");
+                    dlua_pushnumber(L, joint_params.m_HingeJointParams.m_LowerAngle); dlua_setfield(L, -2, "lower_angle");
+                    dlua_pushnumber(L, joint_params.m_HingeJointParams.m_UpperAngle); dlua_setfield(L, -2, "upper_angle");
+                    dlua_pushnumber(L, joint_params.m_HingeJointParams.m_MaxMotorTorque); dlua_setfield(L, -2, "max_motor_torque");
+                    dlua_pushnumber(L, joint_params.m_HingeJointParams.m_MotorSpeed); dlua_setfield(L, -2, "motor_speed");
+                    dlua_pushboolean(L, joint_params.m_HingeJointParams.m_EnableLimit); dlua_setfield(L, -2, "enable_limit");
+                    dlua_pushboolean(L, joint_params.m_HingeJointParams.m_EnableMotor); dlua_setfield(L, -2, "enable_motor");
 
-                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_JointAngle); lua_setfield(L, -2, "joint_angle");
-                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_JointSpeed); lua_setfield(L, -2, "joint_speed");
+                    dlua_pushnumber(L, joint_params.m_HingeJointParams.m_JointAngle); dlua_setfield(L, -2, "joint_angle");
+                    dlua_pushnumber(L, joint_params.m_HingeJointParams.m_JointSpeed); dlua_setfield(L, -2, "joint_speed");
 
                 }
                 break;
@@ -832,39 +828,39 @@ namespace dmGameSystem
                 {
                     dmVMath::Vector3 v(joint_params.m_SliderJointParams.m_LocalAxisA[0], joint_params.m_SliderJointParams.m_LocalAxisA[1], joint_params.m_SliderJointParams.m_LocalAxisA[2]);
                     dmScript::PushVector3(L, v);
-                    lua_setfield(L, -2, "local_axis_a");
-                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_ReferenceAngle); lua_setfield(L, -2, "reference_angle");
-                    lua_pushboolean(L, joint_params.m_SliderJointParams.m_EnableLimit); lua_setfield(L, -2, "enable_limit");
-                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_LowerTranslation); lua_setfield(L, -2, "lower_translation");
-                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_UpperTranslation); lua_setfield(L, -2, "upper_translation");
-                    lua_pushboolean(L, joint_params.m_SliderJointParams.m_EnableMotor); lua_setfield(L, -2, "enable_motor");
-                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_MaxMotorForce); lua_setfield(L, -2, "max_motor_force");
-                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_MotorSpeed); lua_setfield(L, -2, "motor_speed");
+                    dlua_setfield(L, -2, "local_axis_a");
+                    dlua_pushnumber(L, joint_params.m_SliderJointParams.m_ReferenceAngle); dlua_setfield(L, -2, "reference_angle");
+                    dlua_pushboolean(L, joint_params.m_SliderJointParams.m_EnableLimit); dlua_setfield(L, -2, "enable_limit");
+                    dlua_pushnumber(L, joint_params.m_SliderJointParams.m_LowerTranslation); dlua_setfield(L, -2, "lower_translation");
+                    dlua_pushnumber(L, joint_params.m_SliderJointParams.m_UpperTranslation); dlua_setfield(L, -2, "upper_translation");
+                    dlua_pushboolean(L, joint_params.m_SliderJointParams.m_EnableMotor); dlua_setfield(L, -2, "enable_motor");
+                    dlua_pushnumber(L, joint_params.m_SliderJointParams.m_MaxMotorForce); dlua_setfield(L, -2, "max_motor_force");
+                    dlua_pushnumber(L, joint_params.m_SliderJointParams.m_MotorSpeed); dlua_setfield(L, -2, "motor_speed");
 
-                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_JointTranslation); lua_setfield(L, -2, "joint_translation");
-                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_JointSpeed); lua_setfield(L, -2, "joint_speed");
+                    dlua_pushnumber(L, joint_params.m_SliderJointParams.m_JointTranslation); dlua_setfield(L, -2, "joint_translation");
+                    dlua_pushnumber(L, joint_params.m_SliderJointParams.m_JointSpeed); dlua_setfield(L, -2, "joint_speed");
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WELD:
                 {
-                    lua_pushnumber(L, joint_params.m_WeldJointParams.m_ReferenceAngle); lua_setfield(L, -2, "reference_angle");
-                    lua_pushnumber(L, joint_params.m_WeldJointParams.m_FrequencyHz); lua_setfield(L, -2, "frequency");
-                    lua_pushnumber(L, joint_params.m_WeldJointParams.m_DampingRatio); lua_setfield(L, -2, "damping");
+                    dlua_pushnumber(L, joint_params.m_WeldJointParams.m_ReferenceAngle); dlua_setfield(L, -2, "reference_angle");
+                    dlua_pushnumber(L, joint_params.m_WeldJointParams.m_FrequencyHz); dlua_setfield(L, -2, "frequency");
+                    dlua_pushnumber(L, joint_params.m_WeldJointParams.m_DampingRatio); dlua_setfield(L, -2, "damping");
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WHEEL:
                 {
                     dmVMath::Vector3 v(joint_params.m_WheelJointParams.m_LocalAxisA[0], joint_params.m_WheelJointParams.m_LocalAxisA[1], joint_params.m_WheelJointParams.m_LocalAxisA[2]);
                     dmScript::PushVector3(L, v);
-                    lua_setfield(L, -2, "local_axis_a");
-                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_MaxMotorTorque); lua_setfield(L, -2, "max_motor_torque");
-                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_MotorSpeed); lua_setfield(L, -2, "motor_speed");
-                    lua_pushboolean(L, joint_params.m_WheelJointParams.m_EnableMotor); lua_setfield(L, -2, "enable_motor");
-                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_FrequencyHz); lua_setfield(L, -2, "frequency");
-                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_DampingRatio); lua_setfield(L, -2, "damping");
+                    dlua_setfield(L, -2, "local_axis_a");
+                    dlua_pushnumber(L, joint_params.m_WheelJointParams.m_MaxMotorTorque); dlua_setfield(L, -2, "max_motor_torque");
+                    dlua_pushnumber(L, joint_params.m_WheelJointParams.m_MotorSpeed); dlua_setfield(L, -2, "motor_speed");
+                    dlua_pushboolean(L, joint_params.m_WheelJointParams.m_EnableMotor); dlua_setfield(L, -2, "enable_motor");
+                    dlua_pushnumber(L, joint_params.m_WheelJointParams.m_FrequencyHz); dlua_setfield(L, -2, "frequency");
+                    dlua_pushnumber(L, joint_params.m_WheelJointParams.m_DampingRatio); dlua_setfield(L, -2, "damping");
 
-                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_JointTranslation); lua_setfield(L, -2, "joint_translation");
-                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_JointSpeed); lua_setfield(L, -2, "joint_speed");
+                    dlua_pushnumber(L, joint_params.m_WheelJointParams.m_JointTranslation); dlua_setfield(L, -2, "joint_translation");
+                    dlua_pushnumber(L, joint_params.m_WheelJointParams.m_JointSpeed); dlua_setfield(L, -2, "joint_speed");
                 }
                 break;
             default:
@@ -889,7 +885,7 @@ namespace dmGameSystem
      * Note: The `collide_connected` field cannot be updated/changed after a connection has been made.
      *
      */
-    static int Physics_SetJointProperties(lua_State* L)
+    static int Physics_SetJointProperties(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -931,7 +927,7 @@ namespace dmGameSystem
      * @return force [type:vector3] reaction force for the joint
      *
      */
-    static int Physics_GetJointReactionForce(lua_State* L)
+    static int Physics_GetJointReactionForce(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -967,7 +963,7 @@ namespace dmGameSystem
      * @return torque [type:number] the reaction torque on bodyB in N*m.
      *
      */
-    static int Physics_GetJointReactionTorque(lua_State* L)
+    static int Physics_GetJointReactionTorque(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -985,7 +981,7 @@ namespace dmGameSystem
             return DM_LUA_ERROR("unable to get joint reaction torque for %s: %s (%d)", dmHashReverseSafe64(joint_id), PhysicsResultString[r], r);
         }
 
-        lua_pushnumber(L, reaction_torque);
+        dlua_pushnumber(L, reaction_torque);
 
         return 1;
     }
@@ -1008,7 +1004,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetGravity(lua_State* L)
+    static int Physics_SetGravity(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1018,8 +1014,8 @@ namespace dmGameSystem
         }
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -1055,7 +1051,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_GetGravity(lua_State* L)
+    static int Physics_GetGravity(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -1065,8 +1061,8 @@ namespace dmGameSystem
         }
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -1082,7 +1078,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Physics_SetFlipInternal(lua_State* L, bool horizontal)
+    static int Physics_SetFlipInternal(dlua_State* L, bool horizontal)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1102,7 +1098,7 @@ namespace dmGameSystem
             return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
         }
 
-        bool flip = lua_toboolean(L, 2);
+        bool flip = dlua_toboolean(L, 2);
 
         // TODO:
         // I think these functions should return a "result" instead
@@ -1130,7 +1126,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetFlipH(lua_State* L)
+    static int Physics_SetFlipH(dlua_State* L)
     {
         return Physics_SetFlipInternal(L, true);
     }
@@ -1151,7 +1147,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetFlipV(lua_State* L)
+    static int Physics_SetFlipV(dlua_State* L)
     {
         return Physics_SetFlipInternal(L, false);
     }
@@ -1172,7 +1168,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_Wakeup(lua_State* L)
+    static int Physics_Wakeup(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1201,7 +1197,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetGroup(lua_State* L)
+    static int Physics_SetGroup(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1212,7 +1208,7 @@ namespace dmGameSystem
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
 
         if (! dmGameSystem::SetCollisionGroup(comp_world, comp, group_id)) {
-            return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
+            return dluaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
         }
 
         return 0;
@@ -1232,7 +1228,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_GetGroup(lua_State* L)
+    static int Physics_GetGroup(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -1262,7 +1258,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetMaskBit(lua_State* L)
+    static int Physics_SetMaskBit(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1275,7 +1271,7 @@ namespace dmGameSystem
         bool boolvalue = dmScript::CheckBoolean(L, 3);
 
         if (! dmGameSystem::SetCollisionMaskBit(comp_world, comp, group_id, boolvalue)) {
-            return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
+            return dluaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
         }
 
         return 0;
@@ -1298,7 +1294,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_GetMaskBit(lua_State* L)
+    static int Physics_GetMaskBit(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -1310,9 +1306,9 @@ namespace dmGameSystem
 
         bool boolvalue;
         if (! dmGameSystem::GetCollisionMaskBit(comp_world, comp, group_id, &boolvalue)) {
-            return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
+            return dluaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
         }
-        lua_pushboolean(L, (int) boolvalue);
+        dlua_pushboolean(L, (int) boolvalue);
         return 1;
     }
 
@@ -1380,7 +1376,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_GetShape(lua_State* L)
+    static int Physics_GetShape(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -1403,26 +1399,26 @@ namespace dmGameSystem
             return DM_LUA_ERROR("Unable to get shape data at index %d.", shape_ix);
         }
 
-        lua_newtable(L);
+        dlua_newtable(L);
 
-        lua_pushinteger(L, (int) shape_info.m_Type);
-        lua_setfield(L, -2, "type");
+        dlua_pushinteger(L, (int) shape_info.m_Type);
+        dlua_setfield(L, -2, "type");
 
         switch(shape_info.m_Type)
         {
             case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-                lua_pushnumber(L, shape_info.m_SphereDiameter);
-                lua_setfield(L, -2, "diameter");
+                dlua_pushnumber(L, shape_info.m_SphereDiameter);
+                dlua_setfield(L, -2, "diameter");
                 break;
             case dmPhysicsDDF::CollisionShape::TYPE_BOX:
                 dmScript::PushVector3(L, dmVMath::Vector3(shape_info.m_BoxDimensions[0], shape_info.m_BoxDimensions[1], shape_info.m_BoxDimensions[2]));
-                lua_setfield(L, -2, "dimensions");
+                dlua_setfield(L, -2, "dimensions");
                 break;
             case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
-                lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[0]);
-                lua_setfield(L, -2, "diameter");
-                lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[1]);
-                lua_setfield(L, -2, "height");
+                dlua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[0]);
+                dlua_setfield(L, -2, "diameter");
+                dlua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[1]);
+                dlua_setfield(L, -2, "height");
                 break;
             case dmPhysicsDDF::CollisionShape::TYPE_HULL:
                 break;
@@ -1467,7 +1463,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetShape(lua_State* L)
+    static int Physics_SetShape(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1486,43 +1482,43 @@ namespace dmGameSystem
             return DM_LUA_ERROR("No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
         }
 
-        luaL_checktype(L, 3, LUA_TTABLE);
-        lua_pushvalue(L, 3);
+        dluaL_checktype(L, 3, DLUA_TTABLE);
+        dlua_pushvalue(L, 3);
 
         {
 #define check_val(type_str, v) \
     if (v < 0.00005f) \
-        luaL_error(L, "Shape '%s' has invalid size '%f' for '%s' ", dmHashReverseSafe64(shape_name_hash), v, type_str);
+        dluaL_error(L, "Shape '%s' has invalid size '%f' for '%s' ", dmHashReverseSafe64(shape_name_hash), v, type_str);
 
-            lua_getfield(L, -1, "type");
-            shape_info.m_Type = (dmPhysicsDDF::CollisionShape::Type) luaL_checkinteger(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "type");
+            shape_info.m_Type = (dmPhysicsDDF::CollisionShape::Type) dluaL_checkinteger(L, -1);
+            dlua_pop(L, 1);
 
             if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_SPHERE)
             {
-                lua_getfield(L, -1, "diameter");
-                shape_info.m_SphereDiameter = luaL_checknumber(L, -1);
-                lua_pop(L, 1);
+                dlua_getfield(L, -1, "diameter");
+                shape_info.m_SphereDiameter = dluaL_checknumber(L, -1);
+                dlua_pop(L, 1);
                 check_val("diameter", shape_info.m_SphereDiameter);
             }
             else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_BOX)
             {
-                lua_getfield(L, -1, "dimensions");
+                dlua_getfield(L, -1, "dimensions");
                 dmVMath::Vector3* box_dimensions = dmScript::CheckVector3(L, -1);
                 memcpy(shape_info.m_BoxDimensions, &box_dimensions[0], sizeof(shape_info.m_BoxDimensions));
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
                 check_val("dimensions.x", box_dimensions->getX());
                 check_val("dimensions.y", box_dimensions->getY());
             }
             else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_CAPSULE)
             {
-                lua_getfield(L, -1, "diameter");
-                shape_info.m_CapsuleDiameterHeight[0] = luaL_checknumber(L, -1);
-                lua_pop(L, 1);
+                dlua_getfield(L, -1, "diameter");
+                shape_info.m_CapsuleDiameterHeight[0] = dluaL_checknumber(L, -1);
+                dlua_pop(L, 1);
 
-                lua_getfield(L, -1, "height");
-                shape_info.m_CapsuleDiameterHeight[1] = luaL_checknumber(L, -1);
-                lua_pop(L, 1);
+                dlua_getfield(L, -1, "height");
+                shape_info.m_CapsuleDiameterHeight[1] = dluaL_checknumber(L, -1);
+                dlua_pop(L, 1);
                 check_val("diameter", shape_info.m_CapsuleDiameterHeight[0]);
                 check_val("height", shape_info.m_CapsuleDiameterHeight[1]);
             }
@@ -1538,7 +1534,7 @@ namespace dmGameSystem
 #undef check_val
         }
 
-        lua_pop(L, 1); // args table
+        dlua_pop(L, 1); // args table
 
         return 0;
     }
@@ -1644,13 +1640,13 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetListener(lua_State* L)
+    static int Physics_SetListener(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -1663,8 +1659,8 @@ namespace dmGameSystem
 
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)GetCollisionWorldCallback(world);
 
-        int type = lua_type(L, 1);
-        if (type == LUA_TNONE || type == LUA_TNIL || type == LUA_TFUNCTION)
+        dlua_Type type = dlua_type(L, 1);
+        if (type == DLUA_TNONE || type == DLUA_TNIL || type == DLUA_TFUNCTION)
         {
             if (cbk != 0x0)
             {
@@ -1677,7 +1673,7 @@ namespace dmGameSystem
             return DM_LUA_ERROR("argument 1 to physics.set_listener() must be either nil or function");
         }
 
-        if (type == LUA_TFUNCTION)
+        if (type == DLUA_TFUNCTION)
         {
             cbk = dmScript::CreateCallback(L, 1);
             SetCollisionWorldCallback(world, cbk, false);
@@ -1789,13 +1785,13 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetEventListener(lua_State* L)
+    static int Physics_SetEventListener(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -1808,8 +1804,8 @@ namespace dmGameSystem
 
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)GetCollisionWorldCallback(world);
 
-        int type = lua_type(L, 1);
-        if (type == LUA_TNONE || type == LUA_TNIL || type == LUA_TFUNCTION)
+        dlua_Type type = dlua_type(L, 1);
+        if (type == DLUA_TNONE || type == DLUA_TNIL || type == DLUA_TFUNCTION)
         {
             if (cbk != 0x0)
             {
@@ -1822,7 +1818,7 @@ namespace dmGameSystem
             return DM_LUA_ERROR("argument 1 to physics.set_listener() must be either nil or function");
         }
 
-        if (type == LUA_TFUNCTION)
+        if (type == DLUA_TFUNCTION)
         {
             cbk = dmScript::CreateCallback(L, 1);
             SetCollisionWorldCallback(world, cbk, true);
@@ -1848,13 +1844,13 @@ namespace dmGameSystem
      *  physics.update_mass("#collisionobject", 14)
      * ```
      */
-    static int Physics_UpdateMass(lua_State* L)
+    static int Physics_UpdateMass(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -1868,7 +1864,7 @@ namespace dmGameSystem
         CollisionComponent* comp = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &world);
 
-        float mass = luaL_checknumber(L, 2);
+        float mass = dluaL_checknumber(L, 2);
         dmGameSystem::UpdateMass(world, comp, mass);
 
         return 0;
@@ -1881,7 +1877,7 @@ namespace dmGameSystem
             dmLogError("Physics world listener is invalid.");
             return;
         }
-        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        dlua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0);
 
         if (!dmScript::SetupCallback(cbk))
@@ -1896,127 +1892,127 @@ namespace dmGameSystem
         dmScript::TeardownCallback(cbk);
     }
 
-    static void PushCollision(lua_State* L, dmPhysicsDDF::Collision* collision)
+    static void PushCollision(dlua_State* L, dmPhysicsDDF::Collision* collision)
     {
-        lua_createtable(L, 0, 3);
+        dlua_createtable(L, 0, 3);
 
         dmScript::PushVector3(L, *((dmVMath::Vector3*) &collision->m_Position));
-        lua_setfield(L, -2, "position");
+        dlua_setfield(L, -2, "position");
         dmScript::PushHash(L, collision->m_Id);
-        lua_setfield(L, -2, "id");
+        dlua_setfield(L, -2, "id");
         dmScript::PushHash(L, collision->m_Group);
-        lua_setfield(L, -2, "group");
+        dlua_setfield(L, -2, "group");
     }
 
-    static void PushCollisionEvent(lua_State* L, dmPhysicsDDF::CollisionEvent* event)
+    static void PushCollisionEvent(dlua_State* L, dmPhysicsDDF::CollisionEvent* event)
     {
         DM_PROFILE("PushCollisionEvent");
 
-        lua_createtable(L, 0, 2);
+        dlua_createtable(L, 0, 2);
 
         PushCollision(L, &event->m_A);
-        lua_setfield(L, -2, "a");
+        dlua_setfield(L, -2, "a");
 
         PushCollision(L, &event->m_B);
-        lua_setfield(L, -2, "b");
+        dlua_setfield(L, -2, "b");
     }
 
-    static void PushContactPoint(lua_State* L, dmPhysicsDDF::ContactPoint* point)
+    static void PushContactPoint(dlua_State* L, dmPhysicsDDF::ContactPoint* point)
     {
-        lua_createtable(L, 0, 7);
+        dlua_createtable(L, 0, 7);
 
         dmScript::PushVector3(L, *((dmVMath::Vector3*) &point->m_Position));
-        lua_setfield(L, -2, "position");
+        dlua_setfield(L, -2, "position");
 
         dmScript::PushVector3(L, *((dmVMath::Vector3*) &point->m_InstancePosition));
-        lua_setfield(L, -2, "instance_position");
+        dlua_setfield(L, -2, "instance_position");
 
         dmScript::PushVector3(L, point->m_Normal);
-        lua_setfield(L, -2, "normal");
+        dlua_setfield(L, -2, "normal");
 
         dmScript::PushVector3(L, point->m_RelativeVelocity);
-        lua_setfield(L, -2, "relative_velocity");
+        dlua_setfield(L, -2, "relative_velocity");
 
-        lua_pushnumber(L, point->m_Mass);
-        lua_setfield(L, -2, "mass");
+        dlua_pushnumber(L, point->m_Mass);
+        dlua_setfield(L, -2, "mass");
 
         dmScript::PushHash(L, point->m_Id);
-        lua_setfield(L, -2, "id");
+        dlua_setfield(L, -2, "id");
         dmScript::PushHash(L, point->m_Group);
-        lua_setfield(L, -2, "group");
+        dlua_setfield(L, -2, "group");
     }
 
-    static void PushContactPointEvent(lua_State* L, dmPhysicsDDF::ContactPointEvent* event)
+    static void PushContactPointEvent(dlua_State* L, dmPhysicsDDF::ContactPointEvent* event)
     {
         DM_PROFILE("PushContactPointEvent");
 
-        lua_createtable(L, 0, 4);
+        dlua_createtable(L, 0, 4);
 
         PushContactPoint(L, &event->m_A);
-        lua_setfield(L, -2, "a");
+        dlua_setfield(L, -2, "a");
 
         PushContactPoint(L, &event->m_B);
-        lua_setfield(L, -2, "b");
+        dlua_setfield(L, -2, "b");
 
-        lua_pushnumber(L, event->m_Distance);
-        lua_setfield(L, -2, "distance");
+        dlua_pushnumber(L, event->m_Distance);
+        dlua_setfield(L, -2, "distance");
 
-        lua_pushnumber(L, event->m_AppliedImpulse);
-        lua_setfield(L, -2, "applied_impulse");
+        dlua_pushnumber(L, event->m_AppliedImpulse);
+        dlua_setfield(L, -2, "applied_impulse");
     }
 
-    static void PushTrigger(lua_State* L, dmPhysicsDDF::Trigger* trigger)
+    static void PushTrigger(dlua_State* L, dmPhysicsDDF::Trigger* trigger)
     {
-        lua_createtable(L, 0, 2);
+        dlua_createtable(L, 0, 2);
 
         dmScript::PushHash(L, trigger->m_Id);
-        lua_setfield(L, -2, "id");
+        dlua_setfield(L, -2, "id");
         dmScript::PushHash(L, trigger->m_Group);
-        lua_setfield(L, -2, "group");
+        dlua_setfield(L, -2, "group");
     }
 
-    static void PushTriggerEvent(lua_State* L, dmPhysicsDDF::TriggerEvent* event)
+    static void PushTriggerEvent(dlua_State* L, dmPhysicsDDF::TriggerEvent* event)
     {
         DM_PROFILE("PushTriggerEvent");
 
-        lua_createtable(L, 0, 3);
+        dlua_createtable(L, 0, 3);
 
-        lua_pushboolean(L, event->m_Enter);
-        lua_setfield(L, -2, "enter");
+        dlua_pushboolean(L, event->m_Enter);
+        dlua_setfield(L, -2, "enter");
 
         PushTrigger(L, &event->m_A);
-        lua_setfield(L, -2, "a");
+        dlua_setfield(L, -2, "a");
 
         PushTrigger(L, &event->m_B);
-        lua_setfield(L, -2, "b");
+        dlua_setfield(L, -2, "b");
     }
 
-    static void PushRayCastResponse(lua_State* L, dmPhysicsDDF::RayCastResponse* event)
+    static void PushRayCastResponse(dlua_State* L, dmPhysicsDDF::RayCastResponse* event)
     {
         DM_PROFILE("PushRayCastResponse");
 
-        lua_createtable(L, 0, 6);
+        dlua_createtable(L, 0, 6);
 
         dmScript::PushVector3(L, *((dmVMath::Vector3*) &event->m_Position));
-        lua_setfield(L, -2, "position");
+        dlua_setfield(L, -2, "position");
         dmScript::PushVector3(L, event->m_Normal);
-        lua_setfield(L, -2, "normal");
-        lua_pushnumber(L, event->m_Fraction);
-        lua_setfield(L, -2, "fraction");
+        dlua_setfield(L, -2, "normal");
+        dlua_pushnumber(L, event->m_Fraction);
+        dlua_setfield(L, -2, "fraction");
         dmScript::PushHash(L, event->m_Id);
-        lua_setfield(L, -2, "id");
+        dlua_setfield(L, -2, "id");
         dmScript::PushHash(L, event->m_Group);
-        lua_setfield(L, -2, "group");
-        lua_pushinteger(L, event->m_RequestId);
-        lua_setfield(L, -2, "request_id");
+        dlua_setfield(L, -2, "group");
+        dlua_pushinteger(L, event->m_RequestId);
+        dlua_setfield(L, -2, "request_id");
     }
 
-    static void PushRayCastMissed(lua_State* L, dmPhysicsDDF::RayCastMissed* event)
+    static void PushRayCastMissed(dlua_State* L, dmPhysicsDDF::RayCastMissed* event)
     {
         DM_PROFILE("PushRayCastMissed");
-        lua_createtable(L, 0, 1);
-        lua_pushinteger(L, event->m_RequestId);
-        lua_setfield(L, -2, "request_id");
+        dlua_createtable(L, 0, 1);
+        dlua_pushinteger(L, event->m_RequestId);
+        dlua_setfield(L, -2, "request_id");
     }
 
     void RunBatchedEventCallback(dmScript::LuaCallbackInfo* cbk, uint32_t count, PhysicsMessage* infos, const uint8_t* payload)
@@ -2029,7 +2025,7 @@ namespace dmGameSystem
             return;
         }
 
-        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        dlua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0);
 
         if (!dmScript::SetupCallback(cbk))
@@ -2038,7 +2034,7 @@ namespace dmGameSystem
             return;
         }
 
-        lua_createtable(L, count, 0);
+        dlua_createtable(L, count, 0);
         // -1: events table
 
         for (uint32_t i = 0; i < count; ++i)
@@ -2070,12 +2066,12 @@ namespace dmGameSystem
             // -1: event
 
             dmScript::PushHash(L, msg.m_Descriptor->m_NameHash);
-            lua_setfield(L, -2, "type");
+            dlua_setfield(L, -2, "type");
             // -2: events table
             // -1: event
 
             // add the index+event to the table
-            lua_rawseti(L, -2, i+1);
+            dlua_rawseti(L, -2, i+1);
             // -1: events table
         }
         // -1: events table
@@ -2088,7 +2084,7 @@ namespace dmGameSystem
         dmScript::TeardownCallback(cbk);
     }
 
-    static const luaL_reg PHYSICS_FUNCTIONS[] =
+    static const dluaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
         {"raycast_async",   Physics_RayCastAsync},
@@ -2124,12 +2120,12 @@ namespace dmGameSystem
 
     void ScriptPhysicsRegister(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
-        luaL_register(L, "physics", PHYSICS_FUNCTIONS);
+        dlua_State* L = context.m_LuaState;
+        dluaL_register(L, "physics", PHYSICS_FUNCTIONS);
 
 #define SETCONSTANT(name) \
-    lua_pushnumber(L, (lua_Number) dmPhysics::name); \
-    lua_setfield(L, -2, #name);\
+    dlua_pushnumber(L, (dlua_Number) dmPhysics::name); \
+    dlua_setfield(L, -2, #name);\
 
         SETCONSTANT(JOINT_TYPE_SPRING)
         SETCONSTANT(JOINT_TYPE_FIXED)
@@ -2141,8 +2137,8 @@ namespace dmGameSystem
  #undef SETCONSTANT
 
 #define SET_COLLISION_SHAPE_CONSTANT(name, enum_name) \
-    lua_pushnumber(L, (lua_Number) dmPhysicsDDF::CollisionShape::enum_name); \
-    lua_setfield(L, -2, #name);\
+    dlua_pushnumber(L, (dlua_Number) dmPhysicsDDF::CollisionShape::enum_name); \
+    dlua_setfield(L, -2, #name);\
 
         SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_SPHERE,  TYPE_SPHERE)
         SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_BOX,     TYPE_BOX)
@@ -2151,7 +2147,7 @@ namespace dmGameSystem
 
 #undef SET_COLLISION_SHAPE_CONSTANT
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
         bool result = true;
 
@@ -2182,7 +2178,7 @@ namespace dmGameSystem
         }
         if (result)
         {
-            lua_pushlightuserdata(L, physics_context);
+            dlua_pushlightuserdata(L, physics_context);
             PHYSICS_CONTEXT_HASH = dmScript::SetGlobal(L, PHYSICS_CONTEXT_NAME);
         }
         else
@@ -2193,21 +2189,21 @@ namespace dmGameSystem
 
     void ScriptPhysicsFinalize(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
+        dlua_State* L = context.m_LuaState;
         if (L != 0x0)
         {
-            int top = lua_gettop(L);
+            int top = dlua_gettop(L);
             (void)top;
 
             dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-            PhysicsScriptContext* physics_context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-            lua_pop(L, 1);
+            PhysicsScriptContext* physics_context = (PhysicsScriptContext*)dlua_touserdata(L, -1);
+            dlua_pop(L, 1);
             if (physics_context != 0x0)
             {
                 delete physics_context;
             }
 
-            assert(top == lua_gettop(L));
+            assert(top == dlua_gettop(L));
         }
     }
 

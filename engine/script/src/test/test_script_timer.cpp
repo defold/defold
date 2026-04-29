@@ -710,30 +710,30 @@ static dmScript::HTimer cb_callback_handle = dmScript::INVALID_TIMER_HANDLE;
 static uint32_t cb_callback_counter = 0u;
 static float cb_elapsed_time = 0.0f;
 
-static int CallbackCounter(lua_State* L)
+static int CallbackCounter(dlua_State* L)
 {
-    int top = lua_gettop(L);
-    const int handle = luaL_checkint(L, 1);
-    const double dt = luaL_checknumber(L, 2);
+    int top = dlua_gettop(L);
+    const int handle = dluaL_checkint(L, 1);
+    const double dt = dluaL_checknumber(L, 2);
     cb_callback_handle = (dmScript::HTimer)handle;
     cb_elapsed_time += dt;
     ++cb_callback_counter;
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
     return 0;
 }
 
-static const luaL_reg Module_methods[] = {
+static const dluaL_reg Module_methods[] = {
     { "callback_counter", CallbackCounter},
     { 0, 0 }
 };
 
-static void LuaInit(lua_State* L) {
-    int top = lua_gettop(L);
+static void LuaInit(dlua_State* L) {
+    int top = dlua_gettop(L);
 
-    luaL_register(L, "test", Module_methods);
+    dluaL_register(L, "test", Module_methods);
 
-    lua_pop(L, 1);
-    assert(top == lua_gettop(L));
+    dlua_pop(L, 1);
+    assert(top == dlua_gettop(L));
 }
 
 struct ScriptInstance
@@ -743,44 +743,44 @@ struct ScriptInstance
     int m_UniqueScriptId;
 };
 
-static int ScriptGetInstanceContextTableRef(lua_State* L)
+static int ScriptGetInstanceContextTableRef(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
     const int self_index = 1;
 
-    ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
-    if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
+    ScriptInstance* i = (ScriptInstance*)dlua_touserdata(L, self_index);
+    if (i != 0x0 && i->m_ContextTableReference != DLUA_NOREF)
     {
-        lua_pushnumber(L, i->m_ContextTableReference);
+        dlua_pushnumber(L, i->m_ContextTableReference);
     }
     else
     {
-        lua_pushnil(L);
+        dlua_pushnil(L);
     }
 
     return 1;
 }
 
-static int ScriptInstanceIsValid(lua_State* L)
+static int ScriptInstanceIsValid(dlua_State* L)
 {
-    ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
-    lua_pushboolean(L, i != 0x0 && i->m_ContextTableReference != LUA_NOREF);
+    ScriptInstance* i = (ScriptInstance*)dlua_touserdata(L, 1);
+    dlua_pushboolean(L, i != 0x0 && i->m_ContextTableReference != DLUA_NOREF);
     return 1;
 }
 
-static int ScriptScriptGetUniqueScriptId(lua_State* L)
+static int ScriptScriptGetUniqueScriptId(dlua_State* L)
 {
-    ScriptInstance* inst = (ScriptInstance*)lua_touserdata(L, 1);
-    lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+    ScriptInstance* inst = (ScriptInstance*)dlua_touserdata(L, 1);
+    dlua_pushinteger(L, (dlua_Integer)inst->m_UniqueScriptId);
     return 1;
 }
 
-static const luaL_reg ScriptInstance_methods[] =
+static const dluaL_reg ScriptInstance_methods[] =
 {
     {0,0}
 };
 
-static const luaL_reg ScriptInstance_meta[] =
+static const dluaL_reg ScriptInstance_meta[] =
 {
     {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
     {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
@@ -788,30 +788,30 @@ static const luaL_reg ScriptInstance_meta[] =
     {0, 0}
 };
 
-static void CreateScriptInstance(lua_State* L, const char* type)
+static void CreateScriptInstance(dlua_State* L, const char* type)
 {
-    ScriptInstance* i = (ScriptInstance *)lua_newuserdata(L, sizeof(ScriptInstance));
-    i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+    ScriptInstance* i = (ScriptInstance *)dlua_newuserdata(L, sizeof(ScriptInstance));
+    i->m_InstanceReference = dmScript::Ref( L, DLUA_REGISTRYINDEX );
 
-    lua_newtable(L);
-    i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+    dlua_newtable(L);
+    i->m_ContextTableReference = dmScript::Ref( L, DLUA_REGISTRYINDEX );
     i->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_InstanceReference);
-    luaL_getmetatable(L, type);
-    lua_setmetatable(L, -2);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, i->m_InstanceReference);
+    dluaL_getmetatable(L, type);
+    dlua_setmetatable(L, -2);
 }
 
-static void DeleteScriptInstance(lua_State* L)
+static void DeleteScriptInstance(dlua_State* L)
 {
-    ScriptInstance* i = (ScriptInstance *)lua_touserdata(L, -1);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, i->m_InstanceReference);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
+    ScriptInstance* i = (ScriptInstance *)dlua_touserdata(L, -1);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, i->m_InstanceReference);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, i->m_ContextTableReference);
 }
 
 TEST_F(ScriptTimerTest, TestLuaOneshot)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     LuaInit(L);
 
     dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
@@ -844,7 +844,7 @@ TEST_F(ScriptTimerTest, TestLuaOneshot)
     dmScript::InitializeInstance(script_world);
 
     ASSERT_TRUE(RunString(L, pre_script));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     dmScript::UpdateScriptWorld(script_world, 1.0f);
 
@@ -857,14 +857,14 @@ TEST_F(ScriptTimerTest, TestLuaOneshot)
     ASSERT_EQ(1.0f, cb_elapsed_time);
 
     ASSERT_TRUE(RunString(L, post_script));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     FinalizeInstance(script_world);
 
     dmScript::GetInstance(L);
     DeleteScriptInstance(L);
 
-    lua_pushnil(L);
+    dlua_pushnil(L);
     dmScript::SetInstance(L);
 
     dmScript::DeleteScriptWorld(script_world);
@@ -872,7 +872,7 @@ TEST_F(ScriptTimerTest, TestLuaOneshot)
 
 TEST_F(ScriptTimerTest, TestLuaRepeating)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     LuaInit(L);
 
     dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
@@ -905,7 +905,7 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
     dmScript::InitializeInstance(script_world);
 
     ASSERT_TRUE(RunString(L, pre_script));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     dmScript::UpdateScriptWorld(script_world, 1.0f);
 
@@ -918,14 +918,14 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
     ASSERT_EQ(1.5f, cb_elapsed_time);
 
     ASSERT_TRUE(RunString(L, post_script));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     FinalizeInstance(script_world);
 
     dmScript::GetInstance(L);
     DeleteScriptInstance(L);
 
-    lua_pushnil(L);
+    dlua_pushnil(L);
     dmScript::SetInstance(L);
 
     dmScript::DeleteScriptWorld(script_world);
@@ -933,7 +933,7 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
 
 TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     LuaInit(L);
 
     dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
@@ -990,22 +990,22 @@ TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
     dmScript::InitializeInstance(script_world);
 
     ASSERT_TRUE(RunString(L, pre_script));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     ASSERT_TRUE(RunString(L, check_1));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     dmScript::UpdateScriptWorld(script_world, 0.5f);
     ASSERT_TRUE(RunString(L, check_2));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     dmScript::UpdateScriptWorld(script_world, 0.5f);
     ASSERT_TRUE(RunString(L, check_3));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     dmScript::UpdateScriptWorld(script_world, 1.0f);
     ASSERT_TRUE(RunString(L, check_4));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     // Test getting info on a cancelled timer
     const char check_get_info_cancelled[] =
@@ -1018,14 +1018,14 @@ TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
         "assert(data2 == nil)\n";
 
     ASSERT_TRUE(RunString(L, check_get_info_cancelled));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     FinalizeInstance(script_world);
 
     dmScript::GetInstance(L);
     DeleteScriptInstance(L);
 
-    lua_pushnil(L);
+    dlua_pushnil(L);
     dmScript::SetInstance(L);
 
     dmScript::DeleteScriptWorld(script_world);
@@ -1034,7 +1034,7 @@ TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
 
 TEST_F(ScriptTimerTest, TestLuaStress)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     LuaInit(L);
 
     dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
@@ -1073,7 +1073,7 @@ TEST_F(ScriptTimerTest, TestLuaStress)
     dmScript::InitializeInstance(script_world);
 
     ASSERT_TRUE(RunString(L, pre_script));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     dmScript::UpdateScriptWorld(script_world, 1.0f);
     ASSERT_EQ(1u, cb_callback_counter);
@@ -1092,14 +1092,14 @@ TEST_F(ScriptTimerTest, TestLuaStress)
     ASSERT_EQ(585.0f, cb_elapsed_time);
 
     ASSERT_TRUE(RunString(L, post_script));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     FinalizeInstance(script_world);
 
     dmScript::GetInstance(L);
     DeleteScriptInstance(L);
 
-    lua_pushnil(L);
+    dlua_pushnil(L);
     dmScript::SetInstance(L);
 
     dmScript::DeleteScriptWorld(script_world);

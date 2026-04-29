@@ -79,8 +79,8 @@ static void PostSetParent(dmGameObject::HCollection collection, dmGameObject::HI
         (uintptr_t) child, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 }
 
-static int Lua_Spawn(lua_State* L) {
-    const char* prototype = luaL_checkstring(L, 1);
+static int Lua_Spawn(dlua_State* L) {
+    const char* prototype = dluaL_checkstring(L, 1);
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
     uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
@@ -88,7 +88,7 @@ static int Lua_Spawn(lua_State* L) {
     dmResource::HFactory factory = dmGameObject::GetFactory(collection);
     dmGameObject::HInstance spawned = Spawn(factory, collection, prototype, id, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     if (spawned == 0x0) {
-        luaL_error(L, "failed to spawn");
+        dluaL_error(L, "failed to spawn");
         return 1;
     }
     dmScript::PushHash(L, id);
@@ -132,9 +132,9 @@ protected:
         dmMessage::Result result = dmMessage::NewSocket("@system", &m_Socket);
         assert(result == dmMessage::RESULT_OK);
 
-        lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-        lua_pushcfunction(L, Lua_Spawn);
-        lua_setglobal(L, "spawn");
+        dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
+        dlua_pushcfunction(L, Lua_Spawn);
+        dlua_setglobal(L, "spawn");
 
         // Register dummy physical resource type
         dmResource::Result e;

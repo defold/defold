@@ -56,7 +56,7 @@ TEST_F(ScriptVmathTest, TestVectorFail)
 
 TEST_F(ScriptVmathTest, TestVector3)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     Vector3 v(1.0f, 2.0f, 3.0f);
     dmScript::PushVector3(L, v);
     Vector3* vp = dmScript::CheckVector3(L, -1);
@@ -64,8 +64,8 @@ TEST_F(ScriptVmathTest, TestVector3)
     ASSERT_EQ(v.getX(), vp->getX());
     ASSERT_EQ(v.getY(), vp->getY());
     ASSERT_EQ(v.getZ(), vp->getZ());
-    lua_pop(L, 1);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pop(L, 1);
+    ASSERT_EQ(top, dlua_gettop(L));
 
     ASSERT_TRUE(RunFile(L, "test_vector3.luac"));
 }
@@ -110,7 +110,7 @@ TEST_F(ScriptVmathTest, TestVector3Fail)
 
 TEST_F(ScriptVmathTest, TestVector4)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     Vector4 v(1.0f, 2.0f, 3.0f, 4.0f);
     dmScript::PushVector4(L, v);
     Vector4* vp = dmScript::CheckVector4(L, -1);
@@ -119,8 +119,8 @@ TEST_F(ScriptVmathTest, TestVector4)
     ASSERT_EQ(v.getY(), vp->getY());
     ASSERT_EQ(v.getZ(), vp->getZ());
     ASSERT_EQ(v.getW(), vp->getW());
-    lua_pop(L, 1);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pop(L, 1);
+    ASSERT_EQ(top, dlua_gettop(L));
 
     ASSERT_TRUE(RunFile(L, "test_vector4.luac"));
 }
@@ -160,7 +160,7 @@ TEST_F(ScriptVmathTest, TestVector4Fail)
 #if !defined(__SCE__)
 TEST_F(ScriptVmathTest, TestQuat)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     Quat q(1.0f, 2.0f, 3.0f, 4.0f);
     dmScript::PushQuat(L, q);
     Quat* qp = dmScript::CheckQuat(L, -1);
@@ -169,8 +169,8 @@ TEST_F(ScriptVmathTest, TestQuat)
     ASSERT_EQ(q.getY(), qp->getY());
     ASSERT_EQ(q.getZ(), qp->getZ());
     ASSERT_EQ(q.getW(), qp->getW());
-    lua_pop(L, 1);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pop(L, 1);
+    ASSERT_EQ(top, dlua_gettop(L));
 
     ASSERT_TRUE(RunFile(L, "test_quat.luac"));
 }
@@ -212,44 +212,44 @@ TEST_F(ScriptVmathTest, TestQuatFail)
 
 TEST_F(ScriptVmathTest, TestTransform)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     Vector3 pos(1.0f, 2.0f, 3.0f);
     Quat rot(4.0f, 5.0f, 6.0f, 7.0f);
-    lua_newtable(L);
+    dlua_newtable(L);
     dmScript::PushVector3(L, pos);
-    lua_setfield(L, -2, "Position");
+    dlua_setfield(L, -2, "Position");
     dmScript::PushQuat(L, rot);
-    lua_setfield(L, -2, "Rotation");
+    dlua_setfield(L, -2, "Rotation");
 
-    ASSERT_EQ(top + 1, lua_gettop(L));
+    ASSERT_EQ(top + 1, dlua_gettop(L));
 
-    lua_pushstring(L, "Position");
-    lua_rawget(L, -2);
+    dlua_pushstring(L, "Position");
+    dlua_rawget(L, -2);
     Vector3* vp = dmScript::CheckVector3(L, -1);
     ASSERT_NE((void*)0x0, (void*)vp);
     ASSERT_EQ(pos.getX(), vp->getX());
     ASSERT_EQ(pos.getY(), vp->getY());
     ASSERT_EQ(pos.getZ(), vp->getZ());
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pushstring(L, "Rotation");
-    lua_rawget(L, -2);
+    dlua_pushstring(L, "Rotation");
+    dlua_rawget(L, -2);
     Quat* qp = dmScript::CheckQuat(L, -1);
     ASSERT_NE((void*)0x0, (void*)qp);
     ASSERT_EQ(rot.getX(), qp->getX());
     ASSERT_EQ(rot.getY(), qp->getY());
     ASSERT_EQ(rot.getZ(), qp->getZ());
     ASSERT_EQ(rot.getW(), qp->getW());
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptVmathTest, TestMatrix4)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     Matrix4 m;
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
@@ -276,8 +276,8 @@ TEST_F(ScriptVmathTest, TestMatrix4)
         }
     }
 
-    lua_pop(L, 1);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pop(L, 1);
+    ASSERT_EQ(top, dlua_gettop(L));
 
     ASSERT_TRUE(RunFile(L, "test_matrix4.luac"));
 }
@@ -303,7 +303,7 @@ TEST_F(ScriptVmathTest, TestMatrix4Fail)
 
 TEST_F(ScriptVmathTest, TestToValueFn)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     Vector3 v3(1.0f, 2.0f, 3.0f);
     dmScript::PushVector3(L, v3);
     Vector3* pv3 = dmScript::ToVector3(L, -1);
@@ -314,7 +314,7 @@ TEST_F(ScriptVmathTest, TestToValueFn)
     ASSERT_EQ(0, dmScript::ToVector4(L, -1));
     ASSERT_EQ(0, dmScript::ToQuat(L, -1));
     ASSERT_EQ(0, dmScript::ToMatrix4(L, -1));
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     Vector4 v4(1.0f, 2.0f, 3.0f, 4.0f);
     dmScript::PushVector4(L, v4);
@@ -327,7 +327,7 @@ TEST_F(ScriptVmathTest, TestToValueFn)
     ASSERT_EQ(0, dmScript::ToVector3(L, -1));
     ASSERT_EQ(0, dmScript::ToQuat(L, -1));
     ASSERT_EQ(0, dmScript::ToMatrix4(L, -1));
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     Quat q(1.0f, 2.0f, 3.0f, 4.0f);
     dmScript::PushQuat(L, q);
@@ -340,7 +340,7 @@ TEST_F(ScriptVmathTest, TestToValueFn)
     ASSERT_EQ(0, dmScript::ToVector3(L, -1));
     ASSERT_EQ(0, dmScript::ToVector4(L, -1));
     ASSERT_EQ(0, dmScript::ToMatrix4(L, -1));
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
 
     Matrix4 m;
@@ -363,9 +363,9 @@ TEST_F(ScriptVmathTest, TestToValueFn)
         }
     }
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptVmathTest, TestVMathClamp)

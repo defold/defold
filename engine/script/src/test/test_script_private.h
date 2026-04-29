@@ -19,18 +19,17 @@
 
 extern "C"
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScriptTest
 {
     struct LuaPanicScope
     {
-        lua_State* m_L;
-        lua_CFunction m_OldFn;
+        dlua_State* m_L;
+        dlua_CFunction m_OldFn;
         jmp_buf m_JmpBuf;
-        LuaPanicScope(lua_State* L, lua_CFunction fn);
+        LuaPanicScope(dlua_State* L, dlua_CFunction fn);
         ~LuaPanicScope();
         jmp_buf* GetJmpBuf();
     };

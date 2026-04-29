@@ -36,11 +36,7 @@
 
 #include "script_http.h"
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 #include "script_http_util.h"
 
@@ -129,48 +125,48 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Http_Request(lua_State* L)
+    static int Http_Request(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender)) {
 
-            const char* url = luaL_checkstring(L, 1);
+            const char* url = dluaL_checkstring(L, 1);
             const uint32_t max_url_len = dmURI::MAX_URI_LEN;
             const uint32_t url_len = (uint32_t)strlen(url);
             if (url_len > max_url_len)
             {
-                assert(top == lua_gettop(L));
-                return luaL_error(L, "http.request does not support URIs longer than %d characters.", max_url_len);
+                assert(top == dlua_gettop(L));
+                return dluaL_error(L, "http.request does not support URIs longer than %d characters.", max_url_len);
             }
 
-            const char* method = luaL_checkstring(L, 2);
+            const char* method = dluaL_checkstring(L, 2);
             const uint32_t max_method_len = 16;
             const uint32_t method_len = (uint32_t)strlen(method);
             if (method_len > max_method_len) {
-                assert(top == lua_gettop(L));
-                return luaL_error(L, "http.request does not support request methods longer than %d characters.", max_method_len);
+                assert(top == dlua_gettop(L));
+                return dluaL_error(L, "http.request does not support request methods longer than %d characters.", max_method_len);
             }
 
             // The callback is called from CompScriptOnMessage in comp_script.cpp
-            luaL_checktype(L, 3, LUA_TFUNCTION);
-            lua_pushvalue(L, 3);
-            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
-            int callback = dmScript::RefInInstance(L) - LUA_NOREF;
+            dluaL_checktype(L, 3, DLUA_TFUNCTION);
+            dlua_pushvalue(L, 3);
+            // NOTE: By convention m_FunctionRef is offset by DLUA_NOREF, in order to have 0 for "no function"
+            int callback = dmScript::RefInInstance(L) - DLUA_NOREF;
 
             char* headers = 0;
             int headers_length = 0;
-            if (top > 3 && !lua_isnil(L, 4)) {
+            if (top > 3 && !dlua_isnil(L, 4)) {
                 dmArray<char> h;
                 h.SetCapacity(4 * 1024);
 
-                luaL_checktype(L, 4, LUA_TTABLE);
-                lua_pushvalue(L, 4);
-                lua_pushnil(L);
-                while (lua_next(L, -2)) {
-                    const char* attr = lua_tostring(L, -2);
-                    const char* val = lua_tostring(L, -1);
+                dluaL_checktype(L, 4, DLUA_TTABLE);
+                dlua_pushvalue(L, 4);
+                dlua_pushnil(L);
+                while (dlua_next(L, -2)) {
+                    const char* attr = dlua_tostring(L, -2);
+                    const char* val = dlua_tostring(L, -1);
                     if (attr && val) {
                         uint32_t left = h.Capacity() - h.Size();
                         uint32_t required = strlen(attr) + strlen(val) + 2;
@@ -182,12 +178,12 @@ namespace dmGameSystem
                         h.PushArray(val, strlen(val));
                         h.Push('\n');
                     } else {
-                        // luaL_error would be nice but that would evade call to 'h' destructor
+                        // dluaL_error would be nice but that would evade call to 'h' destructor
                         dmLogWarning("Ignoring non-string data passed as http request header data");
                     }
-                    lua_pop(L, 1);
+                    dlua_pop(L, 1);
                 }
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
 
                 headers = (char*) malloc(h.Size());
                 memcpy(headers, h.Begin(), h.Size());
@@ -196,10 +192,10 @@ namespace dmGameSystem
 
             char* request_data = 0;
             int request_data_length = 0;
-            if (top > 4 && !lua_isnil(L, 5)) {
+            if (top > 4 && !dlua_isnil(L, 5)) {
                 size_t len;
-                luaL_checktype(L, 5, LUA_TSTRING);
-                const char* r = luaL_checklstring(L, 5, &len);
+                dluaL_checktype(L, 5, DLUA_TSTRING);
+                const char* r = dluaL_checklstring(L, 5, &len);
                 request_data = (char*) malloc(len);
                 memcpy(request_data, r, len);
                 request_data_length = len;
@@ -211,40 +207,40 @@ namespace dmGameSystem
             bool ignore_cache = false;
             bool chunked_transfer = true;
             bool report_progress = false;
-            if (top > 5 && !lua_isnil(L, 6)) {
-                luaL_checktype(L, 6, LUA_TTABLE);
-                lua_pushvalue(L, 6);
-                lua_pushnil(L);
-                while (lua_next(L, -2)) {
-                    const char* attr = lua_tostring(L, -2);
+            if (top > 5 && !dlua_isnil(L, 6)) {
+                dluaL_checktype(L, 6, DLUA_TTABLE);
+                dlua_pushvalue(L, 6);
+                dlua_pushnil(L);
+                while (dlua_next(L, -2)) {
+                    const char* attr = dlua_tostring(L, -2);
                     if (strcmp(attr, "timeout") == 0)
                     {
-                        timeout = luaL_checknumber(L, -1) * 1000000.0f;
+                        timeout = dluaL_checknumber(L, -1) * 1000000.0f;
                     }
                     else if (strcmp(attr, "path") == 0)
                     {
-                        path = luaL_checkstring(L, -1);
+                        path = dluaL_checkstring(L, -1);
                     }
                     else if (strcmp(attr, "ignore_cache") == 0)
                     {
-                        ignore_cache = lua_toboolean(L, -1);
+                        ignore_cache = dlua_toboolean(L, -1);
                     }
                     else if (strcmp(attr, "chunked_transfer") == 0)
                     {
-                        chunked_transfer = lua_toboolean(L, -1);
+                        chunked_transfer = dlua_toboolean(L, -1);
                     }
                     else if (strcmp(attr, "report_progress") == 0)
                     {
-                        report_progress = lua_toboolean(L, -1);
+                        report_progress = dlua_toboolean(L, -1);
                     }
                     else if (strcmp(attr, "proxy") == 0)
                     {
-                        proxy = luaL_checkstring(L, -1);
+                        proxy = dluaL_checkstring(L, -1);
                     }
 
-                    lua_pop(L, 1);
+                    dlua_pop(L, 1);
                 }
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
             }
 
             // ddf + max method and url string lengths incl. null character
@@ -276,16 +272,16 @@ namespace dmGameSystem
             if (r != dmMessage::RESULT_OK) {
                 dmLogError("Failed to create HTTP request");
             }
-            assert(top == lua_gettop(L));
+            assert(top == dlua_gettop(L));
             return 0;
         } else {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "http.request is not available from this script-type.");
+            assert(top == dlua_gettop(L));
+            return dluaL_error(L, "http.request is not available from this script-type.");
         }
         return 0;
     }
 
-    static const luaL_reg HTTP_COMP_FUNCTIONS[] =
+    static const dluaL_reg HTTP_COMP_FUNCTIONS[] =
     {
         {"request", Http_Request},
         {0, 0}
@@ -299,13 +295,13 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptHttpInitialize(dmExtension::Params* params)
     {
-        lua_State* L = dmExtension::GetContextAsType<lua_State*>(params, "lua");
+        dlua_State* L = dmExtension::GetContextAsType<dlua_State*>(params, "lua");
         assert(L != 0);
 
         dmConfigFile::HConfig config_file = dmExtension::GetContextAsType<dmConfigFile::HConfig>(params, "config");
         assert(config_file != 0);
 
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         if (g_Service == 0)
         {
@@ -330,10 +326,10 @@ namespace dmGameSystem
             g_Timeout = (uint64_t) (timeout * 1000000.0f);
         }
 
-        luaL_register(L, "http", HTTP_COMP_FUNCTIONS);
-        lua_pop(L, 1);
+        dluaL_register(L, "http", HTTP_COMP_FUNCTIONS);
+        dlua_pop(L, 1);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
 
         return dmExtension::RESULT_OK;
     }

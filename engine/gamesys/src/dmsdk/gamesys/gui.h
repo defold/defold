@@ -15,6 +15,7 @@
 #ifndef DMSDK_GAMESYSTEM_GUI_H
 #define DMSDK_GAMESYSTEM_GUI_H
 
+#include <dmsdk/dlua/dlua.h>
 #include <dmsdk/dlib/configfile_gen.hpp>
 #include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gameobject/gameobject.h>
@@ -79,7 +80,7 @@ namespace dmGameSystem
     };
 
     void*                   GetContext(const struct CompGuiNodeTypeCtx* ctx, dmhash_t name);
-    lua_State*              GetLuaState(const struct CompGuiNodeTypeCtx* ctx);
+    dlua_State*             GetLuaState(const struct CompGuiNodeTypeCtx* ctx);
     dmScript::HContext      GetScript(const struct CompGuiNodeTypeCtx* ctx);
     dmConfigFile::HConfig   GetConfigFile(const struct CompGuiNodeTypeCtx* ctx);
     dmResource::HFactory    GetFactory(const struct CompGuiNodeTypeCtx* ctx);

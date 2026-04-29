@@ -176,35 +176,35 @@ TEST_F(FactoryTest, FactoryScale)
 
 TEST_F(FactoryTest, FactoryProperties)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    lua_newtable(L);
-    lua_pushnumber(L, 3);
-    lua_setfield(L, -2, "number");
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_newtable(L);
+    dlua_pushnumber(L, 3);
+    dlua_setfield(L, -2, "number");
 
     dmScript::PushHash(L, dmHashString64("hash3"));
-    lua_setfield(L, -2, "hash");
+    dlua_setfield(L, -2, "hash");
 
     dmMessage::URL url;
     url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     url.m_Path = dmHashString64("/url3");
     url.m_Fragment = 0;
     dmScript::PushURL(L, url);
-    lua_setfield(L, -2, "url");
+    dlua_setfield(L, -2, "url");
 
     dmScript::PushVector3(L, Vector3(11, 12, 13));
-    lua_setfield(L, -2, "vec3");
+    dlua_setfield(L, -2, "vec3");
 
     dmScript::PushVector4(L, Vector4(14, 15, 16, 17));
-    lua_setfield(L, -2, "vec4");
+    dlua_setfield(L, -2, "vec4");
 
     dmScript::PushQuat(L, Quat(18, 19, 20, 21));
-    lua_setfield(L, -2, "quat");
+    dlua_setfield(L, -2, "quat");
 
-    lua_pushboolean(L, 1);
-    lua_setfield(L, -2, "bool");
+    dlua_pushboolean(L, 1);
+    dlua_setfield(L, -2, "bool");
 
     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmGameObject::PropertyContainerPrint(properties);
 
@@ -223,14 +223,14 @@ TEST_F(FactoryTest, FactoryProperties)
 
 TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    lua_newtable(L);
-    lua_pushliteral(L, "number");
-    lua_pushliteral(L, "fail");
-    lua_rawset(L, -3);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_newtable(L);
+    dlua_pushliteral(L, "number");
+    dlua_pushliteral(L, "fail");
+    dlua_rawset(L, -3);
 
     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
@@ -242,14 +242,14 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
 
 TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    lua_newtable(L);
-    lua_pushliteral(L, "number");
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_newtable(L);
+    dlua_pushliteral(L, "number");
     dmScript::PushHash(L, (dmhash_t)0);
-    lua_rawset(L, -3);
+    dlua_rawset(L, -3);
 
     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();

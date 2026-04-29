@@ -1,2 +1,2 @@
 // include redirect so luasocket compiles.
-#include <lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>

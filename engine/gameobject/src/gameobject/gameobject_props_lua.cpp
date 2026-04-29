@@ -22,16 +22,16 @@
 
 namespace dmGameObject
 {
-    static PropertyType GetPropertyType(lua_State* L, int index, void** userdata)
+    static PropertyType GetPropertyType(dlua_State* L, int index, void** userdata)
     {
-        int type = lua_type(L, index);
+        dlua_Type type = dlua_type(L, index);
         switch (type)
         {
-            case LUA_TNUMBER:
+            case DLUA_TNUMBER:
                 return PROPERTY_TYPE_NUMBER;
-            case LUA_TBOOLEAN:
+            case DLUA_TBOOLEAN:
                 return PROPERTY_TYPE_BOOLEAN;
-            case LUA_TUSERDATA:
+            case DLUA_TUSERDATA:
                 if (dmScript::IsHash(L, index))
                 {
                     return PROPERTY_TYPE_HASH;
@@ -63,19 +63,19 @@ namespace dmGameObject
                 }
                 break;
             default:
-                dmLogError("Properties can not be of type '%s'.", lua_typename(L, type));
+                dmLogError("Properties can not be of type '%s'.", dlua_typename(L, type));
                 return PROPERTY_TYPE_COUNT;
         }
     }
 
-    PropertyResult LuaToVar(lua_State* L, int index, PropertyVar& out_var)
+    PropertyResult LuaToVar(dlua_State* L, int index, PropertyVar& out_var)
     {
         void* userdata = 0;
         out_var.m_Type = GetPropertyType(L, index, &userdata);
         switch(out_var.m_Type)
         {
             case PROPERTY_TYPE_NUMBER:
-                out_var.m_Number = lua_tonumber(L, index);
+                out_var.m_Number = dlua_tonumber(L, index);
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_HASH:
                 out_var.m_Hash = dmScript::CheckHash(L, index);
@@ -113,7 +113,7 @@ namespace dmGameObject
                 }
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_BOOLEAN:
-                out_var.m_Bool = (bool) lua_toboolean(L, index);
+                out_var.m_Bool = (bool) dlua_toboolean(L, index);
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_MATRIX4:
                 {
@@ -128,12 +128,12 @@ namespace dmGameObject
         }
     }
 
-    void LuaPushVar(lua_State* L, const PropertyVar& var)
+    void LuaPushVar(dlua_State* L, const PropertyVar& var)
     {
         switch (var.m_Type)
         {
         case PROPERTY_TYPE_NUMBER:
-            lua_pushnumber(L, var.m_Number);
+            dlua_pushnumber(L, var.m_Number);
             break;
         case PROPERTY_TYPE_HASH:
             dmScript::PushHash(L, var.m_Hash);
@@ -154,7 +154,7 @@ namespace dmGameObject
             dmScript::PushQuat(L, dmVMath::Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
             break;
         case PROPERTY_TYPE_BOOLEAN:
-            lua_pushboolean(L, var.m_Bool);
+            dlua_pushboolean(L, var.m_Bool);
             break;
         case PROPERTY_TYPE_MATRIX4:
             dmScript::PushMatrix4(L, dmVMath::Matrix4(
@@ -168,19 +168,19 @@ namespace dmGameObject
         }
     }
 
-    HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index)
+    HPropertyContainer PropertyContainerCreateFromLua(dlua_State* L, int index)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         PropertyContainerBuilderParams params;
 
-        luaL_checktype(L, index, LUA_TTABLE);
-        lua_pushvalue(L, index);
+        dluaL_checktype(L, index, DLUA_TTABLE);
+        dlua_pushvalue(L, index);
 
-        lua_pushnil(L);
-        while (lua_next(L, -2) != 0)
+        dlua_pushnil(L);
+        while (dlua_next(L, -2) != 0)
         {
-            if (lua_isstring(L, -2))
+            if (dlua_isstring(L, -2))
             {
                 void* userdata = 0;
                 switch(GetPropertyType(L, -1, &userdata))
@@ -209,25 +209,25 @@ namespace dmGameObject
                     case PROPERTY_TYPE_MATRIX4:
                         // Not supported
                     case PROPERTY_TYPE_COUNT:
-                        lua_pop(L, 3);
+                        dlua_pop(L, 3);
                         return 0x0;
                 }
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         HPropertyContainerBuilder builder = PropertyContainerCreateBuilder(params);
-        lua_pushnil(L);
-        while (lua_next(L, -2) != 0)
+        dlua_pushnil(L);
+        while (dlua_next(L, -2) != 0)
         {
-            if (lua_isstring(L, -2))
+            if (dlua_isstring(L, -2))
             {
                 void* userdata = 0;
-                dmhash_t id = dmHashString64(lua_tostring(L, -2));
+                dmhash_t id = dmHashString64(dlua_tostring(L, -2));
                 switch(GetPropertyType(L, -1, &userdata))
                 {
                     case PROPERTY_TYPE_NUMBER:
-                        PropertyContainerPushFloat(builder, id, lua_tonumber(L, -1));
+                        PropertyContainerPushFloat(builder, id, dlua_tonumber(L, -1));
                         break;
                     case PROPERTY_TYPE_HASH:
                         PropertyContainerPushHash(builder, id, dmScript::CheckHash(L, -1));
@@ -245,7 +245,7 @@ namespace dmGameObject
                         PropertyContainerPushQuat(builder, id, (const float*)dmScript::CheckQuat(L, -1));
                         break;
                     case PROPERTY_TYPE_BOOLEAN:
-                        PropertyContainerPushBool(builder, id, lua_toboolean(L, -1) != 0);
+                        PropertyContainerPushBool(builder, id, dlua_toboolean(L, -1) != 0);
                         break;
                     case PROPERTY_TYPE_MATRIX4:
                         // Not supported
@@ -254,17 +254,17 @@ namespace dmGameObject
                         break;
                 }
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
         return PropertyContainerCreate(builder);
     }
 }
 
 namespace dmScript
 {
-    dmGameObject::HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index)
+    dmGameObject::HPropertyContainer PropertyContainerCreateFromLua(dlua_State* L, int index)
     {
         return dmGameObject::PropertyContainerCreateFromLua(L, index);
     }

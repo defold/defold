@@ -34,11 +34,7 @@
 
 #include "script_factory.h"
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameSystem
 {
@@ -84,7 +80,7 @@ namespace dmGameSystem
      * @name factory.STATUS_LOADED
      * @constant
      */
-    static int FactoryComp_GetStatus(lua_State* L)
+    static int FactoryComp_GetStatus(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         HFactoryWorld world;
@@ -92,7 +88,7 @@ namespace dmGameSystem
         dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
 
         dmGameSystem::CompFactoryStatus status = dmGameSystem::CompFactoryGetStatus(world, component);
-        lua_pushinteger(L, (int)status);
+        dlua_pushinteger(L, (int)status);
         return 1;
     }
 
@@ -113,7 +109,7 @@ namespace dmGameSystem
      * factory.unload("#factory")
      * ```
      */
-    static int FactoryComp_Unload(lua_State* L)
+    static int FactoryComp_Unload(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -157,13 +153,13 @@ namespace dmGameSystem
      * factory.load("#factory", function(self, url, result) end)
      * ```
      */
-    static int FactoryComp_Load(lua_State* L)
+    static int FactoryComp_Load(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
-        if (top < 2 || !lua_isfunction(L, 2))
+        if (top < 2 || !dlua_isfunction(L, 2))
         {
-            return luaL_error(L, "Argument #2 is expected to be completion function.");
+            return dluaL_error(L, "Argument #2 is expected to be completion function.");
         }
 
         dmMessage::URL receiver;
@@ -173,26 +169,26 @@ namespace dmGameSystem
 
         if (dmGameSystem::CompFactoryIsLoading(world, component)) {
             dmLogError("Trying to load factory prototype resource when already loading.");
-            return luaL_error(L, "Error loading factory resources");
+            return dluaL_error(L, "Error loading factory resources");
         }
 
-        lua_pushvalue(L, 2);
-        int callback_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        dlua_pushvalue(L, 2);
+        int callback_ref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
         dmScript::GetInstance(L);
-        int self_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        int self_ref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
         dmScript::PushURL(L, receiver);
-        int url_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        int url_ref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
 
         bool success = dmGameSystem::CompFactoryLoad(world, component, callback_ref, self_ref, url_ref);
         if (!success)
         {
-            dmScript::Unref(L, LUA_REGISTRYINDEX, callback_ref);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, self_ref);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, url_ref);
-            return luaL_error(L, "Error loading factory resources");
+            dmScript::Unref(L, DLUA_REGISTRYINDEX, callback_ref);
+            dmScript::Unref(L, DLUA_REGISTRYINDEX, self_ref);
+            dmScript::Unref(L, DLUA_REGISTRYINDEX, url_ref);
+            return dluaL_error(L, "Error loading factory resources");
         }
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -238,7 +234,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int FactoryComp_CreateWithMessage(lua_State* L, dmGameObject::HCollection collection, dmMessage::URL* receiver,
+    static int FactoryComp_CreateWithMessage(dlua_State* L, dmGameObject::HCollection collection, dmMessage::URL* receiver,
                                             dmhash_t id, dmGameObject::HPropertyContainer properties,
                                             const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
     {
@@ -257,14 +253,14 @@ namespace dmGameSystem
         {
             properties_size = dmGameObject::PropertyContainerGetMemorySize(properties);
             if (properties_size > prop_buffer_size)
-                return luaL_error(L, "Properties of size %u bytes won't fit in the buffer of size %u", properties_size, prop_buffer_size);
+                return dluaL_error(L, "Properties of size %u bytes won't fit in the buffer of size %u", properties_size, prop_buffer_size);
 
             dmGameObject::PropertyContainerSerialize(properties, prop_buffer, prop_buffer_size);
         }
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "factory.create can not be called from this script type");
+            return dluaL_error(L, "factory.create can not be called from this script type");
         }
 
         dmMessage::Post(&sender, receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, 0,
@@ -273,9 +269,9 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int FactoryComp_Create(lua_State* L)
+    static int FactoryComp_Create(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -286,7 +282,7 @@ namespace dmGameSystem
         dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &receiver);
 
         dmVMath::Point3 position;
-        if (top >= 2 && !lua_isnil(L, 2))
+        if (top >= 2 && !dlua_isnil(L, 2))
         {
             position = dmVMath::Point3(*dmScript::CheckVector3(L, 2));
         }
@@ -295,7 +291,7 @@ namespace dmGameSystem
             position = dmGameObject::GetWorldPosition(sender_instance);
         }
         dmVMath::Quat rotation;
-        if (top >= 3 && !lua_isnil(L, 3))
+        if (top >= 3 && !dlua_isnil(L, 3))
         {
             rotation = *dmScript::CheckQuat(L, 3);
         }
@@ -305,13 +301,13 @@ namespace dmGameSystem
         }
 
         dmGameObject::HPropertyContainer properties = 0;
-        if (top >= 4 && lua_istable(L, 4))
+        if (top >= 4 && dlua_istable(L, 4))
         {
             properties = dmGameObject::PropertyContainerCreateFromLua(L, 4);
         }
 
         dmVMath::Vector3 scale;
-        if (top >= 5 && !lua_isnil(L, 5))
+        if (top >= 5 && !dlua_isnil(L, 5))
         {
             // We check for zero in the ToTransform/ResetScale in transform.h
             dmVMath::Vector3* v = dmScript::ToVector3(L, 5);
@@ -321,7 +317,7 @@ namespace dmGameSystem
             }
             else
             {
-                float val = luaL_checknumber(L, 5);
+                float val = dluaL_checknumber(L, 5);
                 scale = dmVMath::Vector3(val, val, val);
             }
         }
@@ -345,15 +341,15 @@ namespace dmGameSystem
             // Since the spawning will invoke any scripts on that new instance,
             // we need a way to restore the state
             dmScript::GetInstance(L);
-            int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+            int ref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
 
             dmGameObject::HInstance instance;
             dmGameObject::Result result = CompFactorySpawn(world, component, collection,
                                                             id, position, rotation, scale, properties, &instance);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+            dlua_rawgeti(L, DLUA_REGISTRYINDEX, ref);
             dmScript::SetInstance(L);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
+            dmScript::Unref(L, DLUA_REGISTRYINDEX, ref);
 
             if (result == dmGameObject::RESULT_OK)
             {
@@ -361,13 +357,13 @@ namespace dmGameSystem
             }
             else
             {
-                lua_pushnil(L);
+                dlua_pushnil(L);
             }
         }
 
         dmGameObject::PropertyContainerDestroy(properties);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -394,9 +390,9 @@ namespace dmGameSystem
      * local id = factory.create("#factory", go.get_world_position(), vmath.quat())
      * ```
      */
-    static int FactoryComp_SetPrototype(lua_State* L)
+    static int FactoryComp_SetPrototype(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmMessage::URL url;
         HFactoryWorld world;
@@ -405,7 +401,7 @@ namespace dmGameSystem
 
         if(!CompFactoryIsDynamicPrototype(world, component))
         {
-            return luaL_error(L, "Cannot set prototype to a factory that doesn't have dynamic prototype set: '%s:%s#%s'",
+            return dluaL_error(L, "Cannot set prototype to a factory that doesn't have dynamic prototype set: '%s:%s#%s'",
                                         dmMessage::GetSocketName(url.m_Socket),
                                         dmHashReverseSafe64(url.m_Path),
                                         dmHashReverseSafe64(url.m_Fragment));
@@ -413,19 +409,19 @@ namespace dmGameSystem
 
         if (dmGameSystem::CompFactoryIsLoading(world, component))
         {
-            return luaL_error(L, "Cannot set prototype while factory is loading");
+            return dluaL_error(L, "Cannot set prototype while factory is loading");
         }
 
         const char* path = 0;
-        if (!lua_isnil(L, 2))
+        if (!dlua_isnil(L, 2))
         {
-            path = luaL_checkstring(L, 2);
+            path = dluaL_checkstring(L, 2);
 
             // check that the path is a .goc
             const char* ext = dmResource::GetExtFromPath(path);
             if (!ext || strcmp(ext, "goc") != 0)
             {
-                return luaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .goc resources are allowed",
+                return dluaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .goc resources are allowed",
                                         path,
                                         dmMessage::GetSocketName(url.m_Socket),
                                         dmHashReverseSafe64(url.m_Path),
@@ -454,7 +450,7 @@ namespace dmGameSystem
             dmResource::Result r = dmGameSystem::ResFactoryLoadResource(factory, path, true, true, &new_resource);
             if (dmResource::RESULT_OK != r)
             {
-                return luaL_error(L, "Failed to load collection factory prototype %s", path);
+                return dluaL_error(L, "Failed to load collection factory prototype %s", path);
             }
         }
 
@@ -465,11 +461,11 @@ namespace dmGameSystem
             dmGameSystem::ResFactoryDestroyResource(factory, old_resource);
         }
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
-    static const luaL_reg FACTORY_COMP_FUNCTIONS[] =
+    static const dluaL_reg FACTORY_COMP_FUNCTIONS[] =
     {
         {"create",            FactoryComp_Create},
         {"load",              FactoryComp_Load},
@@ -482,17 +478,17 @@ namespace dmGameSystem
 
     void ScriptFactoryRegister(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
-        luaL_register(L, "factory", FACTORY_COMP_FUNCTIONS);
+        dlua_State* L = context.m_LuaState;
+        dluaL_register(L, "factory", FACTORY_COMP_FUNCTIONS);
 
         #define SETCONSTANT(value, name) \
-                lua_pushnumber(L, (lua_Number) value); \
-                lua_setfield(L, -2, #name);
+                dlua_pushnumber(L, (dlua_Number) value); \
+                dlua_setfield(L, -2, #name);
         SETCONSTANT(COMP_FACTORY_STATUS_UNLOADED, STATUS_UNLOADED)
         SETCONSTANT(COMP_FACTORY_STATUS_LOADING, STATUS_LOADING)
         SETCONSTANT(COMP_FACTORY_STATUS_LOADED, STATUS_LOADED)
         #undef SETCONSTANT
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
     }
 }

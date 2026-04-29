@@ -27,11 +27,7 @@
 
 #include "script_sprite.h"
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 
 namespace dmGameSystem
@@ -273,21 +269,21 @@ namespace dmGameSystem
      *
      * It is assumed that the sprite component has id "sprite" and that the original animations faces right.
      */
-    int SpriteComp_SetHFlip(lua_State* L)
+    int SpriteComp_SetHFlip(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmGameSystemDDF::SetFlipHorizontal msg;
-        msg.m_Flip = (uint32_t)lua_toboolean(L, 2);
+        msg.m_Flip = (uint32_t)dlua_toboolean(L, 2);
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -312,21 +308,21 @@ namespace dmGameSystem
      *
      * It is assumed that the sprite component has id "sprite" and that the original animations are up-right.
      */
-    int SpriteComp_SetVFlip(lua_State* L)
+    int SpriteComp_SetVFlip(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmGameSystemDDF::SetFlipVertical msg;
-        msg.m_Flip = (uint32_t)lua_toboolean(L, 2);
+        msg.m_Flip = (uint32_t)dlua_toboolean(L, 2);
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -354,9 +350,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int SpriteComp_SetConstant(lua_State* L)
+    int SpriteComp_SetConstant(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
@@ -372,7 +368,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -398,9 +394,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int SpriteComp_ResetConstant(lua_State* L)
+    int SpriteComp_ResetConstant(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
@@ -413,14 +409,14 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
     // Docs intentionally left out until we decide to go public with this function
-    int SpriteComp_SetScale(lua_State* L)
+    int SpriteComp_SetScale(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
@@ -434,7 +430,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetScale::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -497,10 +493,10 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int SpriteComp_PlayFlipBook(lua_State* L)
+    int SpriteComp_PlayFlipBook(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t id_hash = dmScript::CheckHashOrString(L, 2);
@@ -509,32 +505,32 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        lua_Number offset = 0.0, playback_rate = 1.0;
+        dlua_Number offset = 0.0, playback_rate = 1.0;
 
         if (top > 3) // table with args
         {
-            luaL_checktype(L, 4, LUA_TTABLE);
-            lua_pushvalue(L, 4);
+            dluaL_checktype(L, 4, DLUA_TTABLE);
+            dlua_pushvalue(L, 4);
 
-            lua_getfield(L, -1, "offset");
-            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "offset");
+            offset = dlua_isnil(L, -1) ? 0.0 : dluaL_checknumber(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "playback_rate");
-            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "playback_rate");
+            playback_rate = dlua_isnil(L, -1) ? 1.0 : dluaL_checknumber(L, -1);
+            dlua_pop(L, 1);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         int functionref = 0;
         if (top > 2)
         {
-            if (lua_isfunction(L, 3))
+            if (dlua_isfunction(L, 3))
             {
-                lua_pushvalue(L, 3);
-                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
-                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+                dlua_pushvalue(L, 3);
+                // NOTE: By convention m_FunctionRef is offset by DLUA_NOREF, in order to have 0 for "no function"
+                functionref = dmScript::RefInInstance(L) - DLUA_NOREF;
             }
         }
 
@@ -548,7 +544,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static const luaL_reg SPRITE_COMP_FUNCTIONS[] =
+    static const dluaL_reg SPRITE_COMP_FUNCTIONS[] =
     {
             {"set_hflip",       SpriteComp_SetHFlip},
             {"set_vflip",       SpriteComp_SetVFlip},
@@ -561,8 +557,8 @@ namespace dmGameSystem
 
     void ScriptSpriteRegister(const ScriptLibContext& context)
     {
-        lua_State* L = context.m_LuaState;
-        luaL_register(L, "sprite", SPRITE_COMP_FUNCTIONS);
-        lua_pop(L, 1);
+        dlua_State* L = context.m_LuaState;
+        dluaL_register(L, "sprite", SPRITE_COMP_FUNCTIONS);
+        dlua_pop(L, 1);
     }
 }

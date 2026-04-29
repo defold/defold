@@ -176,11 +176,11 @@ static void ComputeTextureTransformFromTextureSet(dmResource::HFactory factory,
     dmResource::Release(factory, ts_res);
 }
 
-static bool RunString(lua_State* L, const char* script)
+static bool RunString(dlua_State* L, const char* script)
 {
-    if (luaL_dostring(L, script) != 0)
+    if (dluaL_dostring(L, script) != 0)
     {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
+        dmLogError("%s", dlua_tolstring(L, -1, 0));
         return false;
     }
     return true;
@@ -647,9 +647,9 @@ static bool UpdateAndWaitUntilDone(
         }
 
         // check if tests are done
-        lua_getglobal(scriptlibcontext.m_LuaState, tests_done_key);
-        tests_done = lua_toboolean(scriptlibcontext.m_LuaState, -1);
-        lua_pop(scriptlibcontext.m_LuaState, 1);
+        dlua_getglobal(scriptlibcontext.m_LuaState, tests_done_key);
+        tests_done = dlua_toboolean(scriptlibcontext.m_LuaState, -1);
+        dlua_pop(scriptlibcontext.m_LuaState, 1);
 
         dmTime::Sleep(30*1000);
     }
@@ -802,13 +802,13 @@ TEST_F(ResourceTest, TestCreateSoundDataFromScript)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
-    lua_pushlstring(L, (const char*)LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE);
-    lua_setglobal(L, "sound_ogg");
+    dlua_pushlstring(L, (const char*)LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE);
+    dlua_setglobal(L, "sound_ogg");
 
-    lua_pushlstring(L, (const char*)BOOSTER_ON_SFX_WAV, BOOSTER_ON_SFX_WAV_SIZE);
-    lua_setglobal(L, "sound_wav");
+    dlua_pushlstring(L, (const char*)BOOSTER_ON_SFX_WAV, BOOSTER_ON_SFX_WAV_SIZE);
+    dlua_setglobal(L, "sound_wav");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_sound_data.goc", dmHashString64("/create_sound_data"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -819,9 +819,9 @@ TEST_F(ResourceTest, TestCreateSoundDataFromScript)
     {
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L,1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L,1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -1135,13 +1135,13 @@ TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
     ** ---- [script] input_consume.script
     */
 
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     #define ASSERT_INPUT_OBJECT_EQUALS(hash) \
     { \
-        lua_getglobal(L, "last_input_object"); \
+        dlua_getglobal(L, "last_input_object"); \
         dmhash_t go_hash = dmScript::CheckHash(L, -1); \
-        lua_pop(L,1); \
+        dlua_pop(L,1); \
         ASSERT_EQ(hash,go_hash); \
     }
 
@@ -1225,7 +1225,7 @@ TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
 
 TEST_F(ComponentTest, CollectionProxySetCollectionLoadInitialize)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
     const char* go_path = "/collection_proxy/set_collection_single_root.goc";
     dmhash_t go_hash = dmHashString64("/go");
 
@@ -1234,9 +1234,9 @@ TEST_F(ComponentTest, CollectionProxySetCollectionLoadInitialize)
 
     for (;;)
     {
-        lua_getglobal(L, "cp_single_target_initialized");
-        bool ready = lua_toboolean(L, -1) != 0;
-        lua_pop(L, 1);
+        dlua_getglobal(L, "cp_single_target_initialized");
+        bool ready = dlua_toboolean(L, -1) != 0;
+        dlua_pop(L, 1);
         if (ready)
             break;
 
@@ -1249,30 +1249,30 @@ TEST_F(ComponentTest, CollectionProxySetCollectionLoadInitialize)
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     dmGameObject::PostUpdate(m_Register);
 
-    lua_getglobal(L, "cp_single_root_set_ok");
-    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "cp_single_root_set_ok");
+    ASSERT_TRUE(dlua_toboolean(L, -1) != 0);
+    dlua_pop(L, 1);
 
-    lua_getglobal(L, "cp_single_root_proxy_loaded");
-    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "cp_single_root_proxy_loaded");
+    ASSERT_TRUE(dlua_toboolean(L, -1) != 0);
+    dlua_pop(L, 1);
 
-    lua_getglobal(L, "cp_single_target_update_count");
-    ASSERT_GE((int)lua_tointeger(L, -1), 1);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "cp_single_target_update_count");
+    ASSERT_GE((int)dlua_tointeger(L, -1), 1);
+    dlua_pop(L, 1);
 
     dmGameObject::Delete(m_Collection, go, true);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     dmGameObject::PostUpdate(m_Register);
 
-    lua_getglobal(L, "cp_single_root_finalized");
-    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "cp_single_root_finalized");
+    ASSERT_TRUE(dlua_toboolean(L, -1) != 0);
+    dlua_pop(L, 1);
 
-    lua_getglobal(L, "cp_single_target_finalized");
-    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "cp_single_target_finalized");
+    ASSERT_TRUE(dlua_toboolean(L, -1) != 0);
+    dlua_pop(L, 1);
 }
 
 TEST_F(ComponentTest, CollectionProxySetCollectionRecursiveLoadInitialize)
@@ -1650,18 +1650,18 @@ struct ScriptComponentTestData
     const char*               m_ComponentType;
 };
 
-static int ScriptComponentTestCallback(lua_State* L)
+static int ScriptComponentTestCallback(dlua_State* L)
 {
-    lua_getglobal(L, "test_data");
-    ScriptComponentTestData* data = (ScriptComponentTestData*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "test_data");
+    ScriptComponentTestData* data = (ScriptComponentTestData*)dlua_touserdata(L, -1);
+    dlua_pop(L, 1);
 
     dmGameObject::HComponent out_component = 0;
     dmGameObject::GetComponentFromLua(L, 1, data->m_Collection, data->m_ComponentType, &out_component, 0, 0);
 
     // We should have an actual pointer at this stage, and it is not likely it is less than a certain low number
-    lua_pushboolean(L, (uintptr_t)out_component > 100000);
-    lua_setglobal(L, "test_done");
+    dlua_pushboolean(L, (uintptr_t)out_component > 100000);
+    dlua_setglobal(L, "test_done");
     return 0;
 }
 
@@ -1681,16 +1681,16 @@ TEST_P(ScriptComponentTest, GetComponentFromLua)
     const ScriptComponentTestParams& p = GetParam();
     printf("Testing '%s' with component type '%s', and component '%s'\n", p.m_GOPath, p.m_ComponentType, p.m_ComponentName);
 
-    lua_State* L = scriptlibcontext.m_LuaState;
+    dlua_State* L = scriptlibcontext.m_LuaState;
 
-    lua_pushcfunction(L, ScriptComponentTestCallback);
-    lua_setglobal(L, "test_callback");
+    dlua_pushcfunction(L, ScriptComponentTestCallback);
+    dlua_setglobal(L, "test_callback");
 
     ScriptComponentTestData data;
     data.m_Collection = m_Collection;
     data.m_ComponentType = p.m_ComponentType;
-    lua_pushlightuserdata(L, &data);
-    lua_setglobal(L, "test_data");
+    dlua_pushlightuserdata(L, &data);
+    dlua_setglobal(L, "test_data");
 
     // TODO: Perhaps device a better way of passing the correct url
     dmMessage::URL url;
@@ -1700,7 +1700,7 @@ TEST_P(ScriptComponentTest, GetComponentFromLua)
     dmMessage::SetFragment(&url, dmHashString64(p.m_ComponentName));
 
     dmScript::PushURL(L, url);
-    lua_setglobal(L, "test_url");
+    dlua_setglobal(L, "test_url");
 
     // Create gameobject
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.m_GOPath, dmHashString64("/go"));
@@ -1820,7 +1820,7 @@ TEST_F(SoundTest, DelayedSoundStoppedBeforePlay)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
     ASSERT_NE((void*)0, go);
 
-    lua_State* L = scriptlibcontext.m_LuaState;
+    dlua_State* L = scriptlibcontext.m_LuaState;
 
     bool tests_done = false;
     while (!tests_done)
@@ -1829,9 +1829,9 @@ TEST_F(SoundTest, DelayedSoundStoppedBeforePlay)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -2043,17 +2043,17 @@ TEST_F(SpriteTest, FlipbookAnim)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_flipbook_anim.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    dlua_State* L = m_Scriptlibcontext.m_LuaState;
 
     WaitForTestsDone(10000, true, 0);
 
-    lua_getglobal(L, "num_finished");
-    int num_finished = lua_tointeger(L, -1);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "num_finished");
+    int num_finished = dlua_tointeger(L, -1);
+    dlua_pop(L, 1);
 
-    lua_getglobal(L, "num_messages");
-    int num_messages = lua_tointeger(L, -1);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "num_messages");
+    int num_messages = dlua_tointeger(L, -1);
+    dlua_pop(L, 1);
 
     ASSERT_EQ(2, num_finished);
     ASSERT_EQ(1, num_messages);
@@ -2354,7 +2354,7 @@ static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id,
 
 TEST_F(CursorTest, GuiFlipbookCursor)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
@@ -2378,12 +2378,12 @@ TEST_F(CursorTest, GuiFlipbookCursor)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
         // check if there was an error
-        lua_getglobal(L, "test_err");
-        bool test_err = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-        lua_getglobal(L, "test_err_str");
-        const char* test_err_str = lua_tostring(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "test_err");
+        bool test_err = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
+        dlua_getglobal(L, "test_err_str");
+        const char* test_err_str = dlua_tostring(L, -1);
+        dlua_pop(L, 1);
 
         if (test_err) {
             dmLogError("Lua Error: %s", test_err_str);
@@ -2392,9 +2392,9 @@ TEST_F(CursorTest, GuiFlipbookCursor)
         ASSERT_FALSE(test_err);
 
         // continue test?
-        lua_getglobal(L, "continue_test");
-        continue_test = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "continue_test");
+        continue_test = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -2892,7 +2892,7 @@ TEST_F(FontTest, ScriptAddRemoveFont)
     uint32_t font_version = dmGameSystem::ResFontGetVersion(font);
 
     // Add the font via Lua and verify refcount + collection size.
-    lua_State* L = scriptlibcontext.m_LuaState;
+    dlua_State* L = scriptlibcontext.m_LuaState;
     ASSERT_TRUE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
     ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, ttf_hash));
     ASSERT_EQ(font_count_before + 1, FontCollectionGetFontCount(font_collection));
@@ -3085,7 +3085,7 @@ TEST_P(FactoryTest, Test)
     uint32_t num_dyn_prototype_resources = 0;
     bool custom_prototype_has_subresources = false;
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -3167,17 +3167,17 @@ TEST_P(FactoryTest, Test)
         {
             for(;;)
             {
-                lua_getglobal(L, "global_created");
-                bool ready = !lua_isnil(L, -1);
-                lua_pop(L, 1);
+                dlua_getglobal(L, "global_created");
+                bool ready = !dlua_isnil(L, -1);
+                dlua_pop(L, 1);
                 if(ready)
                 {
-                    lua_getglobal(L, "first_instance");
+                    dlua_getglobal(L, "first_instance");
                     dmhash_t first_instance = dmScript::CheckHash(L, -1);
-                    lua_pop(L, 1);
-                    lua_getglobal(L, "second_instance");
+                    dlua_pop(L, 1);
+                    dlua_getglobal(L, "second_instance");
                     dmhash_t second_instance = dmScript::CheckHash(L, -1);
-                    lua_pop(L, 1);
+                    dlua_pop(L, 1);
                     dmhash_t last_object_id = i == 0 ? second_instance : first_instance; // stacked index list in dynamic spawning
                     if (dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
                         break;
@@ -3264,14 +3264,14 @@ TEST_P(FactoryTest, Test)
             // set and load a custom prototype, then create two instances
             for(;;)
             {
-                lua_getglobal(L, "global_created");
-                bool ready = !lua_isnil(L, -1);
-                lua_pop(L, 1);
+                dlua_getglobal(L, "global_created");
+                bool ready = !dlua_isnil(L, -1);
+                dlua_pop(L, 1);
                 if(ready)
                 {
-                    lua_getglobal(L, "second_instance");
+                    dlua_getglobal(L, "second_instance");
                     dmhash_t second_instance = dmScript::CheckHash(L, -1);
-                    lua_pop(L, 1);
+                    dlua_pop(L, 1);
                     if (dmGameObject::GetInstanceFromIdentifier(m_Collection, second_instance) != 0x0)
                         break;
                 }
@@ -3385,14 +3385,14 @@ TEST_P(FactoryTest, Test)
             // set and load a custom prototype, then create two instances
             for (;;)
             {
-                lua_getglobal(L, "global_created");
-                bool ready = !lua_isnil(L, -1);
-                lua_pop(L, 1);
+                dlua_getglobal(L, "global_created");
+                bool ready = !dlua_isnil(L, -1);
+                dlua_pop(L, 1);
                 if (ready)
                 {
-                    lua_getglobal(L, "second_instance");
+                    dlua_getglobal(L, "second_instance");
                     dmhash_t second_instance = dmScript::CheckHash(L, -1);
-                    lua_pop(L, 1);
+                    dlua_pop(L, 1);
                     if (dmGameObject::GetInstanceFromIdentifier(m_Collection, second_instance) != 0x0)
                         break;
                 }
@@ -3459,7 +3459,7 @@ TEST_P(FactoryTest, Test)
 TEST_P(FactoryTest, IdHashTest)
 {
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -3492,7 +3492,7 @@ TEST_P(FactoryTest, IdHashTest)
 
 TEST_P(FactoryTest, Create)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -3503,8 +3503,8 @@ TEST_P(FactoryTest, Create)
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     
-    lua_pushnumber(L, m_projectOptions.m_MaxInstances);
-    lua_setglobal(L, "max_instances");
+    dlua_pushnumber(L, m_projectOptions.m_MaxInstances);
+    dlua_setglobal(L, "max_instances");
 
     // Spawn the game object with the script we want to call
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -3526,7 +3526,7 @@ TEST_P(FactoryTest, Create)
 
 TEST_P(FactoryRecursivePrototypeTest, RecursivePrototype)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -3573,14 +3573,14 @@ TEST_P(FactoryRecursivePrototypeTest, RecursivePrototype)
     dmhash_t recursive_instance = 0;
     for(;;)
     {
-        lua_getglobal(L, "global_recursive_created");
-        bool ready = !lua_isnil(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "global_recursive_created");
+        bool ready = !dlua_isnil(L, -1);
+        dlua_pop(L, 1);
         if(ready)
         {
-            lua_getglobal(L, "recursive_instance");
+            dlua_getglobal(L, "recursive_instance");
             recursive_instance = dmScript::CheckHash(L, -1);
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             if (dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance) != 0x0)
                 break;
         }
@@ -3611,7 +3611,7 @@ TEST_P(FactoryRecursivePrototypeTest, RecursivePrototype)
 
 TEST_P(FactoryRecursivePrototypeTest, RecursivePrototypeCppCleanup)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -3659,14 +3659,14 @@ TEST_P(FactoryRecursivePrototypeTest, RecursivePrototypeCppCleanup)
     dmhash_t recursive_instance = 0;
     for(;;)
     {
-        lua_getglobal(L, "global_recursive_created");
-        bool ready = !lua_isnil(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "global_recursive_created");
+        bool ready = !dlua_isnil(L, -1);
+        dlua_pop(L, 1);
         if(ready)
         {
-            lua_getglobal(L, "recursive_instance");
+            dlua_getglobal(L, "recursive_instance");
             recursive_instance = dmScript::CheckHash(L, -1);
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             if (dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance) != 0x0)
                 break;
         }
@@ -3725,7 +3725,7 @@ TEST_P(CollectionFactoryTest, Test)
 
     if (param.m_PrototypePath)
     {
-        lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+        dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
         char buffer[256];
         dmSnPrintf(buffer, sizeof(buffer), "prototype_path = '%s'", param.m_PrototypePath);
         RunString(L, buffer);
@@ -4012,7 +4012,7 @@ TEST_P(CollectionFactoryTest, Test)
 
 TEST_P(CollectionFactoryRecursivePrototypeTest, RecursivePrototype)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -4062,14 +4062,14 @@ TEST_P(CollectionFactoryRecursivePrototypeTest, RecursivePrototype)
     dmhash_t recursive_instance = 0;
     for(;;)
     {
-        lua_getglobal(L, "global_recursive_created");
-        bool ready = !lua_isnil(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "global_recursive_created");
+        bool ready = !dlua_isnil(L, -1);
+        dlua_pop(L, 1);
         if(ready)
         {
-            lua_getglobal(L, "recursive_instance");
+            dlua_getglobal(L, "recursive_instance");
             recursive_instance = dmScript::CheckHash(L, -1);
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             if (dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance) != 0x0)
                 break;
         }
@@ -4100,7 +4100,7 @@ TEST_P(CollectionFactoryRecursivePrototypeTest, RecursivePrototype)
 
 TEST_P(CollectionFactoryRecursivePrototypeTest, RecursivePrototypeCppCleanup)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -4151,14 +4151,14 @@ TEST_P(CollectionFactoryRecursivePrototypeTest, RecursivePrototypeCppCleanup)
     dmhash_t recursive_instance = 0;
     for(;;)
     {
-        lua_getglobal(L, "global_recursive_created");
-        bool ready = !lua_isnil(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "global_recursive_created");
+        bool ready = !dlua_isnil(L, -1);
+        dlua_pop(L, 1);
         if(ready)
         {
-            lua_getglobal(L, "recursive_instance");
+            dlua_getglobal(L, "recursive_instance");
             recursive_instance = dmScript::CheckHash(L, -1);
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             if (dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance) != 0x0)
                 break;
         }
@@ -4675,7 +4675,7 @@ TEST_F(ComponentTest, LabelPreparedTextLayoutFallbackMutation)
     ASSERT_NE((HTextLayout)0, initial_layout);
     ASSERT_EQ(default_ttf_hash, GetTextLayoutGlyphFontPathHash(dynamic_font_resource, initial_layout));
 
-    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    dlua_State* L = m_Scriptlibcontext.m_LuaState;
     ASSERT_TRUE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), \"/font/NotoSansArabic-Regular.ttf\")"));
 
     HTextLayout added_layout = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
@@ -4835,7 +4835,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
 TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
 {
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -4874,9 +4874,9 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -4887,7 +4887,7 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
 TEST_F(CollisionObject2DTest, PropertiesTest)
 {
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -4912,9 +4912,9 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -4924,7 +4924,7 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
 TEST_F(Trigger2DTest, EventTriggerFalseTest)
 {
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -4953,9 +4953,9 @@ TEST_F(Trigger2DTest, EventTriggerFalseTest)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -4967,7 +4967,7 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     const GroupAndMaskParams& params = GetParam();
 
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -4989,10 +4989,10 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     ;
 */
 
-    lua_pushstring(L, params.m_Actions); //actions);
-    lua_setglobal(L, "actions");
-    lua_pushboolean(L, params.m_CollisionExpected); //true);
-    lua_setglobal(L, "collision_expected");
+    dlua_pushstring(L, params.m_Actions); //actions);
+    dlua_setglobal(L, "actions");
+    dlua_pushboolean(L, params.m_CollisionExpected); //true);
+    dlua_setglobal(L, "collision_expected");
 
     // Note, body2 should get spawned before body1. body1 contains script code and init() function of that code is run when it's spawned thus missing body2.
     const char* path_body2_go = "/collision_object/groupmask_body2.goc";
@@ -5015,9 +5015,9 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -5030,7 +5030,7 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest)
     const GroupAndMaskParams& params = GetParam();
 
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -5052,10 +5052,10 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest)
     ;
 */
 
-    lua_pushstring(L, params.m_Actions); //actions);
-    lua_setglobal(L, "actions");
-    lua_pushboolean(L, params.m_CollisionExpected); //true);
-    lua_setglobal(L, "collision_expected");
+    dlua_pushstring(L, params.m_Actions); //actions);
+    dlua_setglobal(L, "actions");
+    dlua_pushboolean(L, params.m_CollisionExpected); //true);
+    dlua_setglobal(L, "collision_expected");
 
     // Note, body2 should get spawned before body1. body1 contains script code and init() function of that code is run when it's spawned thus missing body2.
     const char* path_body2_go = "/collision_object/groupmask_body2.goc";
@@ -5078,9 +5078,9 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -5101,7 +5101,7 @@ INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask3DTest, jc_test_values_in(
 TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
 {
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -5136,9 +5136,9 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -6447,7 +6447,7 @@ INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, jc_test_values_in(cursor_properties)
 #undef F1T3
 #undef F2T3
 
-bool RunFile(lua_State* L, const char* filename)
+bool RunFile(dlua_State* L, const char* filename)
 {
     char path[1024];
     dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", filename);
@@ -6461,13 +6461,13 @@ bool RunFile(lua_State* L, const char* filename)
     memcpy((void*) buffer, ddf->m_Source.m_Script.m_Data, ddf->m_Source.m_Script.m_Count);
     buffer[ddf->m_Source.m_Script.m_Count] = '\0';
 
-    int ret = luaL_dostring(L, buffer);
+    int ret = dluaL_dostring(L, buffer);
     free(buffer);
     dmDDF::FreeMessage(ddf);
 
     if (ret != 0)
     {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
+        dmLogError("%s", dlua_tolstring(L, -1, 0));
         return false;
     }
     return true;
@@ -6475,21 +6475,21 @@ bool RunFile(lua_State* L, const char* filename)
 
 TEST_F(ScriptImageTest, TestImage)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     ASSERT_TRUE(RunFile(L, "image/test_image.luac"));
 
-    lua_getglobal(L, "functions");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "test_images");
-    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
+    dlua_getglobal(L, "functions");
+    ASSERT_EQ(DLUA_TTABLE, dlua_type(L, -1));
+    dlua_getfield(L, -1, "test_images");
+    ASSERT_EQ(DLUA_TFUNCTION, dlua_type(L, -1));
 
     char hostfs[64] = {};
     if (strlen(DM_HOSTFS) != 0)
         dmSnPrintf(hostfs, sizeof(hostfs), "%s/", DM_HOSTFS);
-    lua_pushstring(L, hostfs);
-    int result = dmScript::PCall(L, 1, LUA_MULTRET);
-    if (result == LUA_ERRRUN)
+    dlua_pushstring(L, hostfs);
+    int result = dmScript::PCall(L, 1, DLUA_MULTRET);
+    if (result == DLUA_ERRRUN)
     {
         ASSERT_TRUE(false);
     }
@@ -6497,14 +6497,14 @@ TEST_F(ScriptImageTest, TestImage)
     {
         ASSERT_EQ(0, result);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptImageTest, TestImageBuffer)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -6522,12 +6522,12 @@ TEST_F(ScriptImageTest, TestImageBuffer)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
     dmScript::LuaHBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
@@ -6538,13 +6538,13 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
     ASSERT_NE((void*)0x0, buffer_ptr2);
     ASSERT_EQ(m_Buffer, buffer_ptr2->m_Buffer);
 
-    lua_pop(L, 1);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pop(L, 1);
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, PushCheckUnpackBuffer)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
 
@@ -6556,53 +6556,53 @@ TEST_F(ScriptBufferTest, PushCheckUnpackBuffer)
     ASSERT_NE((dmBuffer::HBuffer)0x0, buf2);
     ASSERT_EQ(m_Buffer, buf2);
 
-    lua_pop(L, 1);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pop(L, 1);
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, IsBuffer)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
-    lua_pushstring(L, "not_a_buffer");
-    lua_pushnumber(L, 1337);
+    dlua_pushstring(L, "not_a_buffer");
+    dlua_pushnumber(L, 1337);
     ASSERT_FALSE(dmScript::IsBuffer(L, -1));
     ASSERT_FALSE(dmScript::IsBuffer(L, -2));
     ASSERT_TRUE(dmScript::IsBuffer(L, -3));
-    lua_pop(L, 3);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pop(L, 3);
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, PrintBuffer)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
-    lua_setglobal(L, "test_buffer");
+    dlua_setglobal(L, "test_buffer");
 
     ASSERT_TRUE(RunString(L, "print(test_buffer)"));
 
     ASSERT_TRUE(RunString(L, "local stream = buffer.get_stream(test_buffer, \"rgb\"); print(stream)"));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, GetCount)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
-    lua_setglobal(L, "test_buffer");
+    dlua_setglobal(L, "test_buffer");
 
     ASSERT_TRUE(RunString(L, "assert(256 == #test_buffer)"));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, CreateBuffer)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmScript::LuaHBuffer* buffer = 0;
     uint32_t element_count = 0;
@@ -6611,28 +6611,28 @@ TEST_F(ScriptBufferTest, CreateBuffer)
     uint32_t typecount;
 
     RunString(L, "test_buffer = buffer.create( 12, { {name=hash(\"rgba\"), type=buffer.VALUE_TYPE_UINT8, count=4 } } )");
-    lua_getglobal(L, "test_buffer");
+    dlua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(12, element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("rgba"), &type, &typecount ) );
     ASSERT_EQ(dmBuffer::VALUE_TYPE_UINT8, type);
     ASSERT_EQ(4, typecount);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     RunString(L, "test_buffer = buffer.create( 24, { {name=hash(\"position\"), type=buffer.VALUE_TYPE_FLOAT32, count=3 } } )");
-    lua_getglobal(L, "test_buffer");
+    dlua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(24, element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("position"), &type, &typecount ) );
     ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT32, type);
     ASSERT_EQ(3, typecount);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     RunString(L, "test_buffer = buffer.create( 10, { {name=hash(\"position\"), type=buffer.VALUE_TYPE_UINT16, count=4 }, \
                                                     {name=hash(\"normal\"), type=buffer.VALUE_TYPE_FLOAT32, count=3 } } )");
-    lua_getglobal(L, "test_buffer");
+    dlua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(10, element_count);
@@ -6644,14 +6644,14 @@ TEST_F(ScriptBufferTest, CreateBuffer)
     ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT32, type);
     ASSERT_EQ(3, typecount);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, GetBytes)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     uint8_t* data;
     uint32_t datasize;
     dmBuffer::GetBytes(m_Buffer, (void**)&data, &datasize);
@@ -6663,7 +6663,7 @@ TEST_F(ScriptBufferTest, GetBytes)
 
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
-    lua_setglobal(L, "test_buffer");
+    dlua_setglobal(L, "test_buffer");
 
     char str[1024];
     dmSnPrintf(str, sizeof(str), " local bytes = buffer.get_bytes(test_buffer, \"rgb\") \
@@ -6675,7 +6675,7 @@ TEST_F(ScriptBufferTest, GetBytes)
     bool run = RunString(L, str);
     ASSERT_TRUE(run);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 
@@ -6693,7 +6693,7 @@ static void memset_stream(T* data, uint32_t count, uint32_t components, uint32_t
 
 TEST_F(ScriptBufferTest, Indexing)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmBuffer::Result r;
     uint16_t* stream_rgb = 0;
@@ -6716,7 +6716,7 @@ TEST_F(ScriptBufferTest, Indexing)
 
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
-    lua_setglobal(L, "test_buffer");
+    dlua_setglobal(L, "test_buffer");
 
     // Set full buffer (uint16)
     memset_stream(stream_rgb, count_rgb, components_rgb, stride_rgb, (uint16_t)0);
@@ -6760,12 +6760,12 @@ TEST_F(ScriptBufferTest, Indexing)
         a += stride_a;
     }
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, CopyStream)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmBuffer::Result r;
     uint16_t* stream_rgb = 0;
@@ -6791,7 +6791,7 @@ TEST_F(ScriptBufferTest, CopyStream)
 
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
-    lua_setglobal(L, "test_buffer");
+    dlua_setglobal(L, "test_buffer");
 
 
     // Copy one stream to another
@@ -6898,7 +6898,7 @@ TEST_F(ScriptBufferTest, CopyStream)
             }
             a += stride_a;
         }
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
     }
 
     // Buffer overrun (write)
@@ -6922,7 +6922,7 @@ TEST_F(ScriptBufferTest, CopyStream)
             }
             a += stride_a;
         }
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
     }
 
 
@@ -6943,12 +6943,12 @@ TEST_F(ScriptBufferTest, CopyStream)
         {
             ASSERT_EQ('X', a[i-1]);
         }
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
     }
 
     dmLogWarning("<- Expected error outputs end.");
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 
@@ -6956,7 +6956,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
 {
     const CopyBufferTestParams& p = GetParam();
 
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmBuffer::Result r;
     uint16_t* stream_rgb = 0;
@@ -6986,7 +6986,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
 
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
-    lua_setglobal(L, "dstbuffer");
+    dlua_setglobal(L, "dstbuffer");
 
         // Copy one stream to another
     {
@@ -7058,7 +7058,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
                 ASSERT_EQ(0, stream_rgb[(i-1)*3 + 2]);
                 ASSERT_EQ(0, stream_a[i-1]);
             }
-            lua_pop(L, 1); // ?
+            dlua_pop(L, 1); // ?
         }
 
 
@@ -7068,7 +7068,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
         }
     }
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 
@@ -7103,7 +7103,7 @@ TEST_F(ScriptBufferTest, RefCount)
     // Create a buffer, store it globally, test that it works, remove buffer, test that the script usage throws an error
     dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
     dmScript::PushBuffer(L, luabuf);
-    lua_setglobal(L, "test_buffer");
+    dlua_setglobal(L, "test_buffer");
 
     ASSERT_TRUE(RunString(L, "print(test_buffer)"));
 
@@ -7111,11 +7111,11 @@ TEST_F(ScriptBufferTest, RefCount)
     m_Buffer = 0;
 
     // DE 190114: DEF-3677
-    // This test is disabled since the Buffer_tostring issues a lua_error which results
+    // This test is disabled since the Buffer_tostring issues a dlua_error which results
     // in follow up failures with ASAN enabled in the test ScriptBufferCopyTest.CopyBuffer
     // Why this happens is unclear and the Jira will remain open until this is sorted out.
-    // Attempting other actions on the test_buffer that issues a lua_error works fine, it
-    // is just when Buffer_tostring issues a lua_error that we end up with a ASAN error
+    // Attempting other actions on the test_buffer that issues a dlua_error works fine, it
+    // is just when Buffer_tostring issues a dlua_error that we end up with a ASAN error
     // in ScriptBufferCopyTest.CopyBuffer
     // Disabling this test to make the dev nightly builds pass.
 #if defined(GITHUB_CI) && !defined(DM_SANITIZE_ADDRESS)

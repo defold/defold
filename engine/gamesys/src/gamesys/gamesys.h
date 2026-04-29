@@ -24,7 +24,7 @@
 
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
-#include <dmsdk/lua/lua.h>
+#include <dmsdk/dlua/dlua.h>
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/gamesys/resources/res_collision_object.h>
 
@@ -258,7 +258,7 @@ namespace dmGameSystem
     {
         ScriptLibContext();
 
-        lua_State*              m_LuaState;
+        dlua_State*             m_LuaState;
         dmResource::HFactory    m_Factory;
         dmGameObject::HRegister m_Register;
         dmHID::HContext         m_HidContext;

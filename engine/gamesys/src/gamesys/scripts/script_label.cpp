@@ -274,14 +274,14 @@ static const char* LABEL_EXT = "labelc";
  * end
  * ```
  */
-static int SetText(lua_State* L)
+static int SetText(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
     (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
     size_t text_len = 0;
-    const char* text = luaL_checklstring(L, 2, &text_len);
+    const char* text = dluaL_checklstring(L, 2, &text_len);
     if (!text)
     {
         return DM_LUA_ERROR("Expected string as second argument");
@@ -313,7 +313,7 @@ static int SetText(lua_State* L)
 
 /** DEPRECATED
  */
-static int GetTextMetrics(lua_State* L)
+static int GetTextMetrics(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
@@ -331,19 +331,19 @@ static int GetTextMetrics(lua_State* L)
     dmRender::TextMetrics metrics;
     dmGameSystem::CompLabelGetTextMetrics(component, metrics);
 
-    lua_createtable(L, 0, 4);
-    lua_pushliteral(L, "width");
-    lua_pushnumber(L, metrics.m_Width);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "height");
-    lua_pushnumber(L, metrics.m_Height);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "max_ascent");
-    lua_pushnumber(L, metrics.m_MaxAscent);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "max_descent");
-    lua_pushnumber(L, metrics.m_MaxDescent);
-    lua_rawset(L, -3);
+    dlua_createtable(L, 0, 4);
+    dlua_pushliteral(L, "width");
+    dlua_pushnumber(L, metrics.m_Width);
+    dlua_rawset(L, -3);
+    dlua_pushliteral(L, "height");
+    dlua_pushnumber(L, metrics.m_Height);
+    dlua_rawset(L, -3);
+    dlua_pushliteral(L, "max_ascent");
+    dlua_pushnumber(L, metrics.m_MaxAscent);
+    dlua_rawset(L, -3);
+    dlua_pushliteral(L, "max_descent");
+    dlua_pushnumber(L, metrics.m_MaxDescent);
+    dlua_rawset(L, -3);
 
     return 1;
 }
@@ -365,7 +365,7 @@ static int GetTextMetrics(lua_State* L)
  * end
  * ```
  */
-static int GetText(lua_State* L)
+static int GetText(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
@@ -379,12 +379,12 @@ static int GetText(lua_State* L)
     dmScript::GetComponentFromLua(L, 1, LABEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
 
     const char* value = dmGameSystem::CompLabelGetText(component);
-    lua_pushstring(L, value);
+    dlua_pushstring(L, value);
 
     return 1;
 }
 
-static const luaL_reg Module_methods[] =
+static const dluaL_reg Module_methods[] =
 {
     {"set_text", SetText},
     {"get_text", GetText},
@@ -392,12 +392,12 @@ static const luaL_reg Module_methods[] =
     {0, 0}
 };
 
-static void LuaInit(lua_State* L)
+static void LuaInit(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    luaL_register(L, "label", Module_methods);
-    lua_pop(L, 1);
+    dluaL_register(L, "label", Module_methods);
+    dlua_pop(L, 1);
 }
 
 void ScriptLabelRegister(const ScriptLibContext& context)

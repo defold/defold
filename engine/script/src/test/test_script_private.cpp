@@ -20,9 +20,9 @@ namespace dmScriptTest
 {
 
 static jmp_buf*         g_CurrentJmpBuf = 0;
-static lua_CFunction    g_CurrentPanicFn = 0;
+static dlua_CFunction    g_CurrentPanicFn = 0;
 
-static int TestLuaPanic(lua_State* L)
+static int TestLuaPanic(dlua_State* L)
 {
     assert(g_CurrentJmpBuf != 0);
     assert(g_CurrentPanicFn != 0);
@@ -31,19 +31,19 @@ static int TestLuaPanic(lua_State* L)
     return result;
 }
 
-LuaPanicScope::LuaPanicScope(lua_State* L, lua_CFunction fn)
+LuaPanicScope::LuaPanicScope(dlua_State* L, dlua_CFunction fn)
 : m_L(L)
 {
     assert(g_CurrentJmpBuf == 0);
     assert(g_CurrentPanicFn == 0);
     g_CurrentJmpBuf = &m_JmpBuf;
     g_CurrentPanicFn = fn;
-    m_OldFn = lua_atpanic(m_L, TestLuaPanic);
+    m_OldFn = dlua_atpanic(m_L, TestLuaPanic);
 }
 
 LuaPanicScope::~LuaPanicScope()
 {
-    lua_atpanic(m_L, m_OldFn);
+    dlua_atpanic(m_L, m_OldFn);
     assert(g_CurrentJmpBuf != 0);
     assert(g_CurrentPanicFn != 0);
     g_CurrentJmpBuf = 0;

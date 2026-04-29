@@ -25,8 +25,7 @@
 
 extern "C"
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 #if defined(__NX__)
@@ -86,18 +85,18 @@ protected:
     dmScript::HContext m_Context;
     dmConfigFile::HConfig m_ConfigFile;
     dmResource::HFactory m_ResourceFactory;
-    lua_State* L;
+    dlua_State* L;
     ExtensionAppParams  m_AppParams;
     ExtensionParams     m_Params;
 };
 
-bool RunFile(lua_State* L, const char* filename)
+bool RunFile(dlua_State* L, const char* filename)
 {
     char path[64];
     dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
+    if (dluaL_dofile(L, path) != 0)
     {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
+        dmLogError("%s", dlua_tolstring(L, -1, 0));
         return false;
     }
     return true;
@@ -106,16 +105,16 @@ bool RunFile(lua_State* L, const char* filename)
 #if !defined(__NX__)
 TEST_F(ScriptCrashTest, TestCrash)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     ASSERT_TRUE(RunFile(L, "test_crash.luac"));
 
-    lua_getglobal(L, "functions");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "test_crash");
-    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    if (result == LUA_ERRRUN)
+    dlua_getglobal(L, "functions");
+    ASSERT_EQ(DLUA_TTABLE, dlua_type(L, -1));
+    dlua_getfield(L, -1, "test_crash");
+    ASSERT_EQ(DLUA_TFUNCTION, dlua_type(L, -1));
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    if (result == DLUA_ERRRUN)
     {
         ASSERT_TRUE(false);
     }
@@ -123,9 +122,9 @@ TEST_F(ScriptCrashTest, TestCrash)
     {
         ASSERT_EQ(0, result);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 #endif
 

@@ -31,11 +31,7 @@
 #include <dmsdk/gamesys/script.h>
 #include <dmsdk/rig/rig.h>
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 #define MODEL_MODULE_NAME "model"
 
@@ -163,7 +159,7 @@ namespace dmGameSystem
         {
             if (dmScript::IsCallbackValid(cbctx->m_LuaCallback))
             {
-                lua_State* L = dmScript::GetCallbackLuaContext(cbctx->m_LuaCallback);
+                dlua_State* L = dmScript::GetCallbackLuaContext(cbctx->m_LuaCallback);
                 DM_LUA_STACK_CHECK(L, 0);
                 if (!dmScript::SetupCallback(cbctx->m_LuaCallback))
                 {
@@ -245,11 +241,11 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int LuaModelComp_Play(lua_State* L)
+    static int LuaModelComp_Play(dlua_State* L)
     {
         dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, MODEL_MODULE_NAME, "play", MODEL_MODULE_NAME, "play_anim");
 
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         // default values
         float offset = 0.0f;
         float playback_rate = 1.0f;
@@ -257,8 +253,8 @@ namespace dmGameSystem
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
-        lua_Integer playback = luaL_checkinteger(L, 3);
-        lua_Number blend_duration = luaL_checknumber(L, 4);
+        dlua_Integer playback = dluaL_checkinteger(L, 3);
+        dlua_Number blend_duration = dluaL_checknumber(L, 4);
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -269,7 +265,7 @@ namespace dmGameSystem
         dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
         if (!component)
         {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+            return dluaL_error(L, "the component '%s' could not be found", dlua_tostring(L, 1));
         }
 
         AnimationCallbackContext* callback_ctx = new AnimationCallbackContext();
@@ -278,7 +274,7 @@ namespace dmGameSystem
 
         if (top > 4)
         {
-            if (lua_isfunction(L, 5))
+            if (dlua_isfunction(L, 5))
             {
                 callback_ctx->m_LuaCallback = dmScript::CreateCallback(L, 5);
             }
@@ -300,7 +296,7 @@ namespace dmGameSystem
                     dmHashReverseSafe64(anim_id));
         }
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -387,39 +383,39 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int LuaModelComp_PlayAnim(lua_State* L)
+    static int LuaModelComp_PlayAnim(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
-        lua_Integer playback = luaL_checkinteger(L, 3);
-        lua_Number blend_duration = 0.0, offset = 0.0, playback_rate = 1.0;
+        dlua_Integer playback = dluaL_checkinteger(L, 3);
+        dlua_Number blend_duration = 0.0, offset = 0.0, playback_rate = 1.0;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        if (top > 3 && !lua_isnil(L, 4)) // table with args
+        if (top > 3 && !dlua_isnil(L, 4)) // table with args
         {
-            luaL_checktype(L, 4, LUA_TTABLE);
-            lua_pushvalue(L, 4);
+            dluaL_checktype(L, 4, DLUA_TTABLE);
+            dlua_pushvalue(L, 4);
 
-            lua_getfield(L, -1, "blend_duration");
-            blend_duration = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "blend_duration");
+            blend_duration = dlua_isnil(L, -1) ? 0.0 : dluaL_checknumber(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "offset");
-            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "offset");
+            offset = dlua_isnil(L, -1) ? 0.0 : dluaL_checknumber(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "playback_rate");
-            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "playback_rate");
+            playback_rate = dlua_isnil(L, -1) ? 1.0 : dluaL_checknumber(L, -1);
+            dlua_pop(L, 1);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         ModelWorld* world;
@@ -427,7 +423,7 @@ namespace dmGameSystem
         dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
         if (!component)
         {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+            return dluaL_error(L, "the component '%s' could not be found", dlua_tostring(L, 1));
         }
 
         AnimationCallbackContext* callback_ctx = new AnimationCallbackContext();
@@ -436,7 +432,7 @@ namespace dmGameSystem
 
         if (top > 4)
         {
-            if (lua_isfunction(L, 5))
+            if (dlua_isfunction(L, 5))
             {
                 callback_ctx->m_LuaCallback = dmScript::CreateCallback(L, 5);
             }
@@ -467,9 +463,9 @@ namespace dmGameSystem
      * @name model.cancel
      * @param url [type:string|hash|url] the model for which to cancel the animation
      */
-    static int LuaModelComp_Cancel(lua_State* L)
+    static int LuaModelComp_Cancel(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
@@ -480,7 +476,7 @@ namespace dmGameSystem
         dmModelDDF::ModelCancelAnimation msg;
 
         dmMessage::Post(&sender, &receiver, dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmModelDDF::ModelCancelAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -507,9 +503,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int LuaModelComp_GetGO(lua_State* L)
+    static int LuaModelComp_GetGO(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -518,12 +514,12 @@ namespace dmGameSystem
         dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
         if (!component)
         {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+            return dluaL_error(L, "the component '%s' could not be found", dlua_tostring(L, 1));
         }
         ModelResource* resource = CompModelGetModelResource(component);
         if (!resource || !resource->m_RigScene->m_SkeletonRes)
         {
-            return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
+            return dluaL_error(L, "the bone '%s' could not be found", dlua_tostring(L, 2));
         }
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
@@ -533,22 +529,22 @@ namespace dmGameSystem
 
         if (!bone_index)
         {
-            return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
+            return dluaL_error(L, "the bone '%s' could not be found", dlua_tostring(L, 2));
         }
 
         dmGameObject::HInstance instance = CompModelGetNodeInstance(component, *bone_index);
         if (instance == 0x0)
         {
-            return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
+            return dluaL_error(L, "no game object found for the bone '%s'", dlua_tostring(L, 2));
         }
         dmhash_t instance_id = dmGameObject::GetIdentifier(instance);
         if (instance_id == 0x0)
         {
-            return luaL_error(L, "game object contains no identifier for the bone '%s'", lua_tostring(L, 2));
+            return dluaL_error(L, "game object contains no identifier for the bone '%s'", dlua_tostring(L, 2));
         }
         dmScript::PushHash(L, instance_id);
 
-        assert((top + 1) == lua_gettop(L));
+        assert((top + 1) == dlua_gettop(L));
         return 1;
     }
 
@@ -576,9 +572,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int LuaModelComp_SetConstant(lua_State* L)
+    static int LuaModelComp_SetConstant(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
@@ -595,7 +591,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -621,9 +617,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int LuaModelComp_ResetConstant(lua_State* L)
+    static int LuaModelComp_ResetConstant(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
@@ -636,11 +632,11 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
-    static void LuaModelComp_GetSetMeshEnabled_Internal(lua_State* L, ModelComponent** out_component, dmhash_t* out_mesh_id)
+    static void LuaModelComp_GetSetMeshEnabled_Internal(dlua_State* L, ModelComponent** out_component, dmhash_t* out_mesh_id)
     {
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -665,24 +661,24 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int LuaModelComp_SetMeshEnabled(lua_State* L)
+    static int LuaModelComp_SetMeshEnabled(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         ModelComponent* component = 0;
         dmhash_t mesh_id = 0;
         LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id);
         if (!component)
         {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+            return dluaL_error(L, "the component '%s' could not be found", dlua_tostring(L, 1));
         }
 
         bool enable = dmScript::CheckBoolean(L, 3);
         bool result = CompModelSetMeshEnabled(component, mesh_id, enable);
         if (!result)
-            return luaL_error(L, "Component %s had no mesh with id %s", lua_tostring(L, 1), lua_tostring(L, 2));
+            return dluaL_error(L, "Component %s had no mesh with id %s", dlua_tostring(L, 1), dlua_tostring(L, 2));
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -704,25 +700,25 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int LuaModelComp_GetMeshEnabled(lua_State* L)
+    static int LuaModelComp_GetMeshEnabled(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         ModelComponent* component = 0;
         dmhash_t mesh_id = 0;
         LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id);
         if (!component)
         {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+            return dluaL_error(L, "the component '%s' could not be found", dlua_tostring(L, 1));
         }
 
         bool enabled = true;
         bool result = CompModelGetMeshEnabled(component, mesh_id, &enabled);
         if (!result)
-            return luaL_error(L, "Component %s had no mesh with id %s", lua_tostring(L, 1), lua_tostring(L, 2));
+            return dluaL_error(L, "Component %s had no mesh with id %s", dlua_tostring(L, 1), dlua_tostring(L, 2));
 
-        lua_pushboolean(L, enabled);
-        assert((top + 1) == lua_gettop(L));
+        dlua_pushboolean(L, enabled);
+        assert((top + 1) == dlua_gettop(L));
         return 1;
     }
 
@@ -740,7 +736,7 @@ namespace dmGameSystem
      * model.get_aabb("#empty") -> { min = vmath.vector3(0, 0, 0), max = vmath.vector3(0, 0, 0) }
      * ```
      */
-    static int LuaModelComp_GetAabb(lua_State* L)
+    static int LuaModelComp_GetAabb(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         ModelComponent* component = 0;
@@ -749,16 +745,16 @@ namespace dmGameSystem
         dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
         if (!component)
         {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+            return dluaL_error(L, "the component '%s' could not be found", dlua_tostring(L, 1));
         }
-        lua_newtable(L);
+        dlua_newtable(L);
         dmVMath::Vector3 min, max;
         CompModelGetAABB(component, &min, &max);
 
         dmScript::PushVector3(L, min);
-        lua_setfield(L, -2, "min");
+        dlua_setfield(L, -2, "min");
         dmScript::PushVector3(L, max);
-        lua_setfield(L, -2, "max");
+        dlua_setfield(L, -2, "max");
 
         return 1;
     }
@@ -776,7 +772,7 @@ namespace dmGameSystem
      * model.get_mesh_aabb("#model") -> { hash("Sword") = { min = vmath.vector3(-0.5, -0.5, 0), max = vmath.vector3(0.5, 0.5, 0) }, hash("Shield") = { min = vmath.vector3(-0.5, -0.5, -0.5), max = vmath.vector3(0.5, 0.5, 0.5) } }
      * ```
      */
-    static int LuaModelComp_GetMeshAabb(lua_State* L)
+    static int LuaModelComp_GetMeshAabb(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         ModelComponent* component = 0;
@@ -785,11 +781,11 @@ namespace dmGameSystem
         dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
         if (!component)
         {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+            return dluaL_error(L, "the component '%s' could not be found", dlua_tostring(L, 1));
         }
 
         uint32_t mesh_count = CompModelGetMeshCount(component);
-        lua_createtable(L, 0, mesh_count);
+        dlua_createtable(L, 0, mesh_count);
         for (uint32_t idx = 0; idx < mesh_count; ++idx)
         {
             dmVMath::Vector3 min, max;
@@ -797,13 +793,13 @@ namespace dmGameSystem
             CompModelGetMeshAABB(component, idx, &mesh_id, &min, &max);
             dmScript::PushHash(L, mesh_id);
 
-            lua_newtable(L);
+            dlua_newtable(L);
             dmScript::PushVector3(L, min);
-            lua_setfield(L, -2, "min");
+            dlua_setfield(L, -2, "min");
             dmScript::PushVector3(L, max);
-            lua_setfield(L, -2, "max");
+            dlua_setfield(L, -2, "max");
 
-            lua_settable(L, -3);
+            dlua_settable(L, -3);
         }
         return 1;
     }
@@ -828,7 +824,7 @@ namespace dmGameSystem
      * model.set_blend_weights("#model", w)
      * ```
      */
-    static int LuaModelComp_GetBlendWeights(lua_State* L)
+    static int LuaModelComp_GetBlendWeights(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         ModelComponent* component = 0;
@@ -837,22 +833,22 @@ namespace dmGameSystem
         dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
         if (!component)
         {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+            return dluaL_error(L, "the component '%s' could not be found", dlua_tostring(L, 1));
         }
 
         const float* w = 0;
         uint32_t wc = 0;
         if (!CompModelGetBlendWeights(component, &w, &wc))
         {
-            lua_createtable(L, 0, 0);
+            dlua_createtable(L, 0, 0);
             return 1;
         }
 
-        lua_createtable(L, (int)wc, 0);
+        dlua_createtable(L, (int)wc, 0);
         for (uint32_t i = 0; i < wc; ++i)
         {
-            lua_pushnumber(L, (lua_Number)w[i]);
-            lua_rawseti(L, -2, (int)(i + 1));
+            dlua_pushnumber(L, (dlua_Number)w[i]);
+            dlua_rawseti(L, -2, (int)(i + 1));
         }
         return 1;
     }
@@ -877,7 +873,7 @@ namespace dmGameSystem
      * model.set_blend_weights("#model") -- clear script override
      * ```
      */
-    static int LuaModelComp_SetBlendWeights(lua_State* L)
+    static int LuaModelComp_SetBlendWeights(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         ModelComponent* component = 0;
@@ -886,20 +882,20 @@ namespace dmGameSystem
         dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
         if (!component)
         {
-            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+            return dluaL_error(L, "the component '%s' could not be found", dlua_tostring(L, 1));
         }
 
-        if (lua_gettop(L) < 2 || lua_isnil(L, 2))
+        if (dlua_gettop(L) < 2 || dlua_isnil(L, 2))
         {
             CompModelResetBlendWeights(component);
             return 0;
         }
 
-        luaL_checktype(L, 2, LUA_TTABLE);
-        const size_t len = lua_objlen(L, 2);
+        dluaL_checktype(L, 2, DLUA_TTABLE);
+        const size_t len = dlua_objlen(L, 2);
         if (len == 0)
         {
-            return luaL_error(L, "blend weights table must not be empty (use model.set_blend_weights without weights or pass nil to reset)");
+            return dluaL_error(L, "blend weights table must not be empty (use model.set_blend_weights without weights or pass nil to reset)");
         }
 
         dmArray<float> buffer;
@@ -907,21 +903,21 @@ namespace dmGameSystem
         buffer.SetSize((uint32_t)len);
         for (size_t i = 0; i < len; ++i)
         {
-            lua_rawgeti(L, 2, (int)(i + 1));
-            if (!lua_isnumber(L, -1))
+            dlua_rawgeti(L, 2, (int)(i + 1));
+            if (!dlua_isnumber(L, -1))
             {
-                lua_pop(L, 1);
-                buffer.SetCapacity(0); // Required as luaL_error longjmps and skips the destructor
-                return luaL_error(L, "blend weights must be numbers (bad value at index %d)", (int)(i + 1));
+                dlua_pop(L, 1);
+                buffer.SetCapacity(0); // Required as dluaL_error longjmps and skips the destructor
+                return dluaL_error(L, "blend weights must be numbers (bad value at index %d)", (int)(i + 1));
             }
-            buffer[(uint32_t)i] = (float)lua_tonumber(L, -1);
-            lua_pop(L, 1);
+            buffer[(uint32_t)i] = (float)dlua_tonumber(L, -1);
+            dlua_pop(L, 1);
         }
         CompModelSetBlendWeights(component, buffer.Begin(), buffer.Size());
         return 0;
     }
 
-    static const luaL_reg MODEL_COMP_FUNCTIONS[] =
+    static const dluaL_reg MODEL_COMP_FUNCTIONS[] =
     {
         {"play",    LuaModelComp_Play}, // Deprecated
         {"play_anim", LuaModelComp_PlayAnim},
@@ -941,9 +937,9 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptModelInitialize(dmExtension::Params* params)
     {
-        lua_State* L = params->m_L;
-        luaL_register(L, MODEL_MODULE_NAME, MODEL_COMP_FUNCTIONS);
-        lua_pop(L, 1);
+        dlua_State* L = params->m_L;
+        dluaL_register(L, MODEL_MODULE_NAME, MODEL_COMP_FUNCTIONS);
+        dlua_pop(L, 1);
         return dmExtension::RESULT_OK;
     }
 

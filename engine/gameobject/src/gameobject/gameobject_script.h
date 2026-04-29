@@ -17,6 +17,8 @@
 
 #include <dlib/array.h>
 
+#include <dmsdk/dlua/dlua.h>
+
 #include <script/script.h>
 
 #include <resource/resource.h>
@@ -59,7 +61,7 @@ namespace dmGameObject
 
     struct Script
     {
-        lua_State*              m_LuaState;
+        dlua_State*             m_LuaState;
         int                     m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         PropertySet             m_PropertySet;
         dmLuaDDF::LuaModule*    m_LuaModule;
@@ -98,14 +100,14 @@ namespace dmGameObject
 
     void    InitializeScript(HRegister regist, dmScript::HContext context);
 
-    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module);
+    HScript NewScript(dlua_State* L, dmLuaDDF::LuaModule* lua_module);
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
     void    DeleteScript(HScript script);
 
     HScriptInstance NewScriptInstance(CompScriptWorld* script_world, HScript script, HInstance instance, uint16_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
-    PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);
+    PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, dlua_State* L, int index);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

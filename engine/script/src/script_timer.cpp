@@ -416,8 +416,8 @@ namespace dmScript
     static void SetTimerWorld(HScriptWorld script_world, HTimerWorld timer_world)
     {
         HContext context = GetScriptWorldContext(script_world);
-        lua_pushinteger(context->m_LuaState, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
-        lua_pushlightuserdata(context->m_LuaState, timer_world);
+        dlua_pushinteger(context->m_LuaState, (dlua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
+        dlua_pushlightuserdata(context->m_LuaState, timer_world);
         SetScriptWorldContextValue(script_world);
     }
 
@@ -426,14 +426,14 @@ namespace dmScript
         assert(script_world != 0x0);
         HContext context = GetScriptWorldContext(script_world);
         assert(context != 0x0);
-        lua_State* L = context->m_LuaState;
+        dlua_State* L = context->m_LuaState;
         assert(L != 0x0);
         DM_LUA_STACK_CHECK(L, 0);
 
-        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
+        dlua_pushinteger(L, (dlua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
         GetScriptWorldContextValue(script_world);
-        HTimerWorld timer_world = (HTimerWorld)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        HTimerWorld timer_world = (HTimerWorld)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
         return timer_world;
     }
 
@@ -442,13 +442,13 @@ namespace dmScript
         assert(script_world != 0x0);
         HContext context = GetScriptWorldContext(script_world);
         assert(context != 0x0);
-        lua_State* L = context->m_LuaState;
+        dlua_State* L = context->m_LuaState;
         assert(L != 0x0);
         DM_LUA_STACK_CHECK(L, 0);
 
         HTimerWorld timer_world = NewTimerWorld();
-        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
-        lua_pushlightuserdata(L, timer_world);
+        dlua_pushinteger(L, (dlua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
+        dlua_pushlightuserdata(L, timer_world);
         SetScriptWorldContextValue(script_world);
     }
 
@@ -476,27 +476,27 @@ namespace dmScript
     static void TimerInitializeScriptInstance(HScriptWorld script_world)
     {
         HContext context = GetScriptWorldContext(script_world);
-        lua_State* L = GetLuaState(context);
+        dlua_State* L = GetLuaState(context);
         DM_LUA_STACK_CHECK(L, 0);
 
-        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
+        dlua_pushinteger(L, (dlua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
         HTimerWorld timer_world = GetTimerWorld(script_world);
-        lua_pushlightuserdata(L, timer_world);
+        dlua_pushlightuserdata(L, timer_world);
         SetInstanceContextValue(L);
     }
 
     static void TimerFinalizeScriptInstance(HScriptWorld script_world)
     {
         HContext context = GetScriptWorldContext(script_world);
-        lua_State* L = GetLuaState(context);
+        dlua_State* L = GetLuaState(context);
         DM_LUA_STACK_CHECK(L, 0);
 
         uintptr_t owner = dmScript::GetInstanceId(L);
         HTimerWorld timer_world = GetTimerWorld(script_world);
         KillTimers(timer_world, owner);
 
-        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
-        lua_pushnil(L);
+        dlua_pushinteger(L, (dlua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
+        dlua_pushnil(L);
         SetInstanceContextValue(L);
     }
 
@@ -506,11 +506,11 @@ namespace dmScript
         float time_elapsed;
     };
 
-    static void LuaTimerCallbackArgsCB(lua_State* L, void* user_context)
+    static void LuaTimerCallbackArgsCB(dlua_State* L, void* user_context)
     {
         LuaTimerCallbackArgs* args = (LuaTimerCallbackArgs*)user_context;
-        lua_pushinteger(L, args->timer_handle);
-        lua_pushnumber(L, args->time_elapsed);
+        dlua_pushinteger(L, args->timer_handle);
+        dlua_pushnumber(L, args->time_elapsed);
 
     }
 
@@ -539,28 +539,28 @@ namespace dmScript
         }
     }
 
-    static dmScript::HTimerWorld GetTimerWorld(lua_State* L)
+    static dmScript::HTimerWorld GetTimerWorld(dlua_State* L)
     {
-        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
+        dlua_pushinteger(L, (dlua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
         dmScript::GetInstanceContextValue(L);
 
-        if (lua_type(L, -1) != LUA_TLIGHTUSERDATA)
+        if (dlua_type(L, -1) != DLUA_TLIGHTUSERDATA)
         {
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             return 0x0;
         }
 
-        dmScript::HTimerWorld world = (dmScript::HTimerWorld)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        dmScript::HTimerWorld world = (dmScript::HTimerWorld)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
         return world;
     }
 
-    static dmScript::HTimerWorld CheckTimerWorld(lua_State* L)
+    static dmScript::HTimerWorld CheckTimerWorld(dlua_State* L)
     {
         dmScript::HTimerWorld timer_world = GetTimerWorld(L);
         if (timer_world == 0x0)
         {
-            luaL_error(L, "Unable to trigger callback, the lua context does not have a timer world");
+            dluaL_error(L, "Unable to trigger callback, the lua context does not have a timer world");
             return 0;
         }
         return timer_world;
@@ -615,19 +615,19 @@ namespace dmScript
      * ```
      *
      */
-    static int TimerDelay(lua_State* L) {
-        int top = lua_gettop(L);
-        luaL_checktype(L, 1, LUA_TNUMBER);
-        luaL_checktype(L, 2, LUA_TBOOLEAN);
-        luaL_checktype(L, 3, LUA_TFUNCTION);
+    static int TimerDelay(dlua_State* L) {
+        int top = dlua_gettop(L);
+        dluaL_checktype(L, 1, DLUA_TNUMBER);
+        dluaL_checktype(L, 2, DLUA_TBOOLEAN);
+        dluaL_checktype(L, 3, DLUA_TFUNCTION);
 
-        const double seconds = lua_tonumber(L, 1);
+        const double seconds = dlua_tonumber(L, 1);
         if (seconds < 0.0)
         {
-            return luaL_error(L, "timer.delay does not support negative delay times");
+            return dluaL_error(L, "timer.delay does not support negative delay times");
         }
 
-        bool repeat = lua_toboolean(L, 2);
+        bool repeat = dlua_toboolean(L, 2);
         dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         uintptr_t owner = dmScript::GetInstanceId(L);
@@ -636,8 +636,8 @@ namespace dmScript
 
         dmScript::HTimer handle = dmScript::AddTimer(timer_world, seconds, repeat, LuaTimerCallback, (uintptr_t)owner, (uintptr_t)user_data);
 
-        lua_pushinteger(L, handle);
-        assert(top + 1 == lua_gettop(L));
+        dlua_pushinteger(L, handle);
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -661,16 +661,16 @@ namespace dmScript
      * ```
      *
      */
-    static int TimerCancel(lua_State* L)
+    static int TimerCancel(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        const int handle = luaL_checkint(L, 1);
+        int top = dlua_gettop(L);
+        const int handle = dluaL_checkint(L, 1);
 
         dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         bool cancelled = dmScript::CancelTimer(timer_world, (dmScript::HTimer)handle);
-        lua_pushboolean(L, cancelled ? 1 : 0);
-        assert(top + 1 == lua_gettop(L));
+        dlua_pushboolean(L, cancelled ? 1 : 0);
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -692,31 +692,31 @@ namespace dmScript
      * end
      * ```
      */
-    static int TimerTrigger(lua_State* L)
+    static int TimerTrigger(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const int timer_handle = luaL_checkint(L, 1);
+        const int timer_handle = dluaL_checkint(L, 1);
         dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
         if (!timer)
         {
-            lua_pushboolean(L, 0);
+            dlua_pushboolean(L, 0);
             return 1;
         }
 
         LuaCallbackInfo* callback = (LuaCallbackInfo*)timer->m_UserData;
         if (!IsCallbackValid(callback))
         {
-            lua_pushboolean(L, 0);
+            dlua_pushboolean(L, 0);
             return 1;
         }
 
         LuaTimerCallbackArgs args = { timer->m_Handle, timer->m_Delay - timer->m_Remaining };
         InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
 
-        lua_pushboolean(L, 1);
+        dlua_pushboolean(L, 1);
         return 1;
     }
 
@@ -751,31 +751,31 @@ namespace dmScript
      * ```
      *
      */
-    static int TimerGetInfo(lua_State* L)
+    static int TimerGetInfo(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const int timer_handle = luaL_checkint(L, 1);
+        const int timer_handle = dluaL_checkint(L, 1);
         dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
         if (!timer)
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
             return 1;
         }
 
-        lua_newtable(L);
-        lua_pushnumber(L,timer->m_Remaining);
-        lua_setfield(L, -2, "time_remaining");
-        lua_pushnumber(L,timer->m_Delay);
-        lua_setfield(L, -2, "delay");
-        lua_pushboolean(L,timer->m_Repeat==1);
-        lua_setfield(L, -2, "repeating");
+        dlua_newtable(L);
+        dlua_pushnumber(L,timer->m_Remaining);
+        dlua_setfield(L, -2, "time_remaining");
+        dlua_pushnumber(L,timer->m_Delay);
+        dlua_setfield(L, -2, "delay");
+        dlua_pushboolean(L,timer->m_Repeat==1);
+        dlua_setfield(L, -2, "repeating");
         return 1;
     }
 
-    static const luaL_reg TIMER_COMP_FUNCTIONS[] = {
+    static const dluaL_reg TIMER_COMP_FUNCTIONS[] = {
         { "delay", TimerDelay },
         { "cancel", TimerCancel },
         { "trigger", TimerTrigger},
@@ -785,14 +785,14 @@ namespace dmScript
 
     void TimerInitialize(HContext context)
     {
-        lua_State* L = context->m_LuaState;
+        dlua_State* L = context->m_LuaState;
         DM_LUA_STACK_CHECK(L, 0);
 
-        luaL_register(L, "timer", TIMER_COMP_FUNCTIONS);
+        dluaL_register(L, "timer", TIMER_COMP_FUNCTIONS);
 
         #define SETCONSTANT(name) \
-            lua_pushnumber(L, (lua_Number) name); \
-            lua_setfield(L, -2, #name);\
+            dlua_pushnumber(L, (dlua_Number) name); \
+            dlua_setfield(L, -2, #name);\
 
         /*# Indicates an invalid timer handle
          *
@@ -801,7 +801,7 @@ namespace dmScript
          */
         SETCONSTANT(INVALID_TIMER_HANDLE);
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
     }
 
     void InitializeTimer(HContext context)

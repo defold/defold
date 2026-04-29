@@ -4,6 +4,21 @@ def configure(conf):
     pass
 
 def build(bld):
+    bld.program(features = 'cxx test',
+                includes = '.',
+                use = 'DLIB PROFILE_NULL SOCKET dlua lua_static',
+                target = 'test_lua',
+                source = 'test_lua.cpp')
+
+    if not 'web' in bld.env.PLATFORM:
+        bld.env['STLIB_LUAJIT_TEST'] = ['luajit-5.1']
+        bld.program(features = 'cxx test',
+                    includes = '.',
+                    use = 'DLIB PROFILE_NULL SOCKET dluajit LUAJIT_TEST',
+                    defines = ['DM_LUA_TEST_LUAJIT'],
+                    target = 'test_luajit',
+                    source = 'test_lua.cpp')
+
     if bld.env.DOTNET:
         bld.stlib(features= 'cs_stlib',
                   project = 'cs/test_lua_cs.csproj')

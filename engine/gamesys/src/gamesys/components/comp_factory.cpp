@@ -41,7 +41,7 @@ namespace dmGameSystem
 
     static const dmhash_t FACTORY_PROP_PROTOTYPE = dmHashString64("prototype");
 
-    static void CleanupAsyncLoading(lua_State*, FactoryComponent*);
+    static void CleanupAsyncLoading(dlua_State*, FactoryComponent*);
     static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams*);
     static void LoadComplete(const dmGameObject::ComponentsUpdateParams&, FactoryComponent*, const dmResource::Result);
 
@@ -63,9 +63,9 @@ namespace dmGameSystem
     void FactoryComponent::Init()
     {
         memset(this, 0x0, sizeof(FactoryComponent));
-        this->m_PreloaderCallbackRef = LUA_NOREF;
-        this->m_PreloaderSelfRef = LUA_NOREF;
-        this->m_PreloaderURLRef = LUA_NOREF;
+        this->m_PreloaderCallbackRef = DLUA_NOREF;
+        this->m_PreloaderSelfRef = DLUA_NOREF;
+        this->m_PreloaderURLRef = DLUA_NOREF;
     }
 
     struct FactoryWorld
@@ -290,9 +290,9 @@ namespace dmGameSystem
 
     static void ResetCallbacks(FactoryComponent* component)
     {
-        component->m_PreloaderCallbackRef = LUA_NOREF;
-        component->m_PreloaderSelfRef = LUA_NOREF;
-        component->m_PreloaderURLRef = LUA_NOREF;
+        component->m_PreloaderCallbackRef = DLUA_NOREF;
+        component->m_PreloaderSelfRef = DLUA_NOREF;
+        component->m_PreloaderURLRef = DLUA_NOREF;
     }
 
     bool CompFactoryLoad(HFactoryWorld world, HFactoryComponent component, int callback_ref, int self_ref, int url_ref)
@@ -420,17 +420,17 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
-    static void CleanupAsyncLoading(lua_State* L, HFactoryComponent component)
+    static void CleanupAsyncLoading(dlua_State* L, HFactoryComponent component)
     {
         component->m_Loading = 0;
-        if (component->m_PreloaderCallbackRef != LUA_NOREF)
+        if (component->m_PreloaderCallbackRef != DLUA_NOREF)
         {
-            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
-            component->m_PreloaderCallbackRef = LUA_NOREF;
-            component->m_PreloaderSelfRef = LUA_NOREF;
-            component->m_PreloaderURLRef = LUA_NOREF;
+            dmScript::Unref(L, DLUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
+            dmScript::Unref(L, DLUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
+            dmScript::Unref(L, DLUA_REGISTRYINDEX, component->m_PreloaderURLRef);
+            component->m_PreloaderCallbackRef = DLUA_NOREF;
+            component->m_PreloaderSelfRef = DLUA_NOREF;
+            component->m_PreloaderURLRef = DLUA_NOREF;
         }
         if(component->m_Preloader)
         {
@@ -448,34 +448,34 @@ namespace dmGameSystem
     static void LoadComplete(const dmGameObject::ComponentsUpdateParams& params, HFactoryComponent component, const dmResource::Result result)
     {
         component->m_Loading = 0;
-        lua_State* L = dmScript::GetLuaState(((FactoryContext*)params.m_Context)->m_ScriptContext);
-        int top = lua_gettop(L);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
-        lua_pushvalue(L, -1);
+        dlua_State* L = dmScript::GetLuaState(((FactoryContext*)params.m_Context)->m_ScriptContext);
+        int top = dlua_gettop(L);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
+        dlua_pushvalue(L, -1);
         dmScript::SetInstance(L);
         if (!dmScript::IsInstanceValid(L))
         {
-            lua_pop(L, 2);
+            dlua_pop(L, 2);
             dmLogError("Could not run factory.load complete callback because the instance has been deleted.");
             CleanupAsyncLoading(L, component);
-            assert(top == lua_gettop(L));
+            assert(top == dlua_gettop(L));
             return;
         }
-        if (component->m_PreloaderCallbackRef == LUA_NOREF)
+        if (component->m_PreloaderCallbackRef == DLUA_NOREF)
         {
-            lua_pop(L, 2);
+            dlua_pop(L, 2);
             dmLogError("No callback set");
             CleanupAsyncLoading(L, component);
-            assert(top == lua_gettop(L));
+            assert(top == dlua_gettop(L));
             return;
         }
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
-        lua_pushboolean(L, result == dmResource::RESULT_OK ? 1 : 0);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, component->m_PreloaderURLRef);
+        dlua_pushboolean(L, result == dmResource::RESULT_OK ? 1 : 0);
         dmScript::PCall(L, 3, 0);
         CleanupAsyncLoading(L, component);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 
     dmGameObject::Result CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection, dmhash_t id,

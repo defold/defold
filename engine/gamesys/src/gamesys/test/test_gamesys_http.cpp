@@ -25,7 +25,7 @@ static char g_HttpAddress[128] = "localhost";
 
 #define DEFAULT_URL "__default_url"
 
-static void SetHttpAddress(lua_State* L)
+static void SetHttpAddress(dlua_State* L)
 {
     char buf[128];
     dmSnPrintf(buf, sizeof(buf), "IP='%s'\n", g_HttpAddress);
@@ -38,14 +38,14 @@ static void SetHttpAddress(lua_State* L)
 
 TEST_F(ComponentTest, HTTPRequest)
 {
-    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    dlua_State* L = m_Scriptlibcontext.m_LuaState;
 
     dmMessage::URL m_DefaultURL;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("default_socket", &m_DefaultURL.m_Socket));
     m_DefaultURL.m_Path = dmHashString64("default_path");
     m_DefaultURL.m_Fragment = dmHashString64("default_fragment");
     dmScript::PushURL(m_Scriptlibcontext.m_LuaState, m_DefaultURL);
-    lua_setglobal(L, DEFAULT_URL);
+    dlua_setglobal(L, DEFAULT_URL);
 
     SetHttpAddress(L);
 
@@ -61,9 +61,9 @@ TEST_F(ComponentTest, HTTPRequest)
     	ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
 
         dmTime::Sleep(30*1000);
     }

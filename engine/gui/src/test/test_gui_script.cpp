@@ -17,6 +17,7 @@
 #include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlua/dlua.h>
 #include <platform/window.hpp>
 
 #include <ddf/ddf.h>
@@ -27,12 +28,6 @@
 #include "../gui.h"
 #include "../gui_private.h"
 #include "../gui_script.h"
-
-extern "C"
-{
-#include "lua/lua.h"
-#include "lua/lauxlib.h"
-}
 
 using namespace dmVMath;
 
@@ -173,26 +168,26 @@ TEST_F(dmGuiScriptTest, GetScreenPos)
 
 #define REF_VALUE "__ref_value"
 
-int TestRef(lua_State* L)
+int TestRef(dlua_State* L)
 {
-    lua_getglobal(L, REF_VALUE);
-    int* ref = (int*)lua_touserdata(L, -1);
+    dlua_getglobal(L, REF_VALUE);
+    int* ref = (int*)dlua_touserdata(L, -1);
     dmScript::GetInstance(L);
-    *ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    lua_pop(L, 1);
+    *ref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
+    dlua_pop(L, 1);
     return 0;
 }
 
 TEST_F(dmGuiScriptTest, TestInstanceCallback)
 {
-    lua_State* L = dmGui::GetLuaState(m_Context);
+    dlua_State* L = dmGui::GetLuaState(m_Context);
 
-    lua_register(L, "test_ref", TestRef);
+    dlua_register(L, "test_ref", TestRef);
 
-    int ref = LUA_NOREF;
+    int ref = DLUA_NOREF;
 
-    lua_pushlightuserdata(L, &ref);
-    lua_setglobal(L, REF_VALUE);
+    dlua_pushlightuserdata(L, &ref);
+    dlua_setglobal(L, REF_VALUE);
 
     dmGui::HScript script = NewScript(m_Context);
 
@@ -214,8 +209,8 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
 
     dmGui::InitScene(scene);
 
-    ASSERT_NE(ref, LUA_NOREF);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    ASSERT_NE(ref, DLUA_NOREF);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, ref);
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
@@ -223,7 +218,7 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
 
     dmGui::DeleteScript(script);
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, ref);
     dmScript::SetInstance(L);
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 }
@@ -1157,7 +1152,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationAll)
 
 TEST_F(dmGuiScriptTest, TestInstanceContext)
 {
-    lua_State* L = dmGui::GetLuaState(m_Context);
+    dlua_State* L = dmGui::GetLuaState(m_Context);
 
     dmGui::NewSceneParams params;
     params.m_MaxNodes = 64;
@@ -1167,23 +1162,23 @@ TEST_F(dmGuiScriptTest, TestInstanceContext)
 
     dmGui::InitScene(scene);
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, scene->m_InstanceReference);
     dmScript::SetInstance(L);
 
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
-    lua_pushstring(L, "__my_context_value");
-    lua_pushnumber(L, 81233);
+    dlua_pushstring(L, "__my_context_value");
+    dlua_pushnumber(L, 81233);
     ASSERT_TRUE(dmScript::SetInstanceContextValue(L));
 
-    lua_pushstring(L, "__my_context_value");
+    dlua_pushstring(L, "__my_context_value");
     dmScript::GetInstanceContextValue(L);
-    ASSERT_EQ(81233, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    ASSERT_EQ(81233, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
     dmGui::DeleteScene(scene);
 
-    lua_pushnil(L);
+    dlua_pushnil(L);
     dmScript::SetInstance(L);
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 }

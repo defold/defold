@@ -17,8 +17,7 @@
 
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 #define LIB_NAME "types"
@@ -45,9 +44,9 @@ namespace dmScript
     *
     * @return result [type:boolean] True if passed type is vector
     */
-    static int Types_IsVector(lua_State* L)
+    static int Types_IsVector(dlua_State* L)
     {
-        lua_pushboolean(L, dmScript::IsVector(L, 1));
+        dlua_pushboolean(L, dmScript::IsVector(L, 1));
         return 1;
     }
 
@@ -58,9 +57,9 @@ namespace dmScript
     *
     * @return result [type:boolean] True if passed type is matrix4
     */
-    static int Types_IsMatrix4(lua_State* L)
+    static int Types_IsMatrix4(dlua_State* L)
     {
-        lua_pushboolean(L, dmScript::IsMatrix4(L, 1));
+        dlua_pushboolean(L, dmScript::IsMatrix4(L, 1));
         return 1;
     }
 
@@ -71,9 +70,9 @@ namespace dmScript
     *
     * @return result [type:boolean] True if passed type is vector3
     */
-    static int Types_IsVector3(lua_State* L)
+    static int Types_IsVector3(dlua_State* L)
     {
-        lua_pushboolean(L, dmScript::IsVector3(L, 1));
+        dlua_pushboolean(L, dmScript::IsVector3(L, 1));
         return 1;
     }
 
@@ -84,9 +83,9 @@ namespace dmScript
     *
     * @return result [type:boolean] True if passed type is vector4
     */
-    static int Types_IsVector4(lua_State* L)
+    static int Types_IsVector4(dlua_State* L)
     {
-        lua_pushboolean(L, dmScript::IsVector4(L, 1));
+        dlua_pushboolean(L, dmScript::IsVector4(L, 1));
         return 1;
     }
 
@@ -97,9 +96,9 @@ namespace dmScript
     *
     * @return result [type:boolean] True if passed type is quaternion
     */
-    static int Types_IsQuat(lua_State* L)
+    static int Types_IsQuat(dlua_State* L)
     {
-        lua_pushboolean(L, dmScript::IsQuat(L, 1));
+        dlua_pushboolean(L, dmScript::IsQuat(L, 1));
         return 1;
     }
 
@@ -110,9 +109,9 @@ namespace dmScript
     *
     * @return result [type:boolean] True if passed type is hash
     */
-    static int Types_IsHash(lua_State* L)
+    static int Types_IsHash(dlua_State* L)
     {
-        lua_pushboolean(L, dmScript::IsHash(L, 1));
+        dlua_pushboolean(L, dmScript::IsHash(L, 1));
         return 1;
     }
 
@@ -123,13 +122,13 @@ namespace dmScript
     *
     * @return result [type:boolean] True if passed type is URL
     */
-    static int Types_IsUrl(lua_State* L)
+    static int Types_IsUrl(dlua_State* L)
     {
-        lua_pushboolean(L, dmScript::IsURL(L, 1));
+        dlua_pushboolean(L, dmScript::IsURL(L, 1));
         return 1;
     }
 
-    static const luaL_reg Types_methods[] =
+    static const dluaL_reg Types_methods[] =
     {
         { "is_vector", Types_IsVector },
         { "is_matrix4", Types_IsMatrix4 },
@@ -143,11 +142,11 @@ namespace dmScript
 
     static dmExtension::Result ScriptTypesInitialize(dmExtension::Params* params)
     {
-        lua_State* L = params->m_L;
-        int top = lua_gettop(L);
-        luaL_register(L, LIB_NAME, Types_methods);
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+        dlua_State* L = params->m_L;
+        int top = dlua_gettop(L);
+        dluaL_register(L, LIB_NAME, Types_methods);
+        dlua_pop(L, 1);
+        assert(top == dlua_gettop(L));
         return dmExtension::RESULT_OK;
     }
 

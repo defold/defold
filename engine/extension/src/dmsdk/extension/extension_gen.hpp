@@ -122,7 +122,7 @@ namespace dmExtension
      * @language C++
      * @member m_ConfigFile [type:HConfigFile] The game project settings (including overrides and plugins)
      * @member m_ResourceFactory [type:HResourceFactory] The game resource factory / repository
-     * @member m_L [type:lua_State*] The Lua state.
+     * @member m_L [type:dlua_State*] The Lua state.
      */
     typedef ExtensionParams Params;
 
@@ -375,7 +375,7 @@ namespace dmExtension
  * @language C
  * @member m_ConfigFile [type:HConfigFile] The game project settings (including overrides and plugins)
  * @member m_ResourceFactory [type:HResourceFactory] The game resource factory / repository
- * @member m_L [type:lua_State*] The Lua state.
+ * @member m_L [type:dlua_State*] The Lua state.
  */
 
 /*# 

@@ -16,11 +16,7 @@
 #include <dmsdk/extension/extension.hpp>
 #include "test_extension.h"
 
-extern "C"
-{
-#include "lua/lua.h"
-#include "lua/lauxlib.h"
-}
+#include <dmsdk/dlua/dlua.h>
 
 // Extension created in a separate lib in order to
 // test potential problems with dead stripping of symbols

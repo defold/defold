@@ -258,9 +258,9 @@ TEST_F(dmRenderScriptTest, TestReloadPreservesInstanceReferenceAndUpdatesSourceF
 
     int instance_reference = render_script->m_InstanceReference;
     const char* initial_source_file_name = render_script->m_SourceFileName;
-    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+    dlua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
 
-    ASSERT_NE(LUA_NOREF, instance_reference);
+    ASSERT_NE(DLUA_NOREF, instance_reference);
     ASSERT_STREQ("render-a", initial_source_file_name);
 
     ASSERT_TRUE(dmRender::ReloadRenderScript(m_Context, render_script, LuaSourceFromStringAndFilename(script_b, "render-b")));
@@ -269,10 +269,10 @@ TEST_F(dmRenderScriptTest, TestReloadPreservesInstanceReferenceAndUpdatesSourceF
     ASSERT_NE((const char*)0, render_script->m_SourceFileName);
     ASSERT_STREQ("render-b", render_script->m_SourceFileName);
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
-    ASSERT_TRUE(lua_isuserdata(L, -1));
-    ASSERT_EQ((void*)render_script, lua_touserdata(L, -1));
-    lua_pop(L, 1);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, render_script->m_InstanceReference);
+    ASSERT_TRUE(dlua_isuserdata(L, -1));
+    ASSERT_EQ((void*)render_script, dlua_touserdata(L, -1));
+    dlua_pop(L, 1);
 
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
@@ -1214,26 +1214,26 @@ TEST_F(dmRenderScriptTest, TestDrawText)
 
 #define REF_VALUE "__ref_value"
 
-int TestRef(lua_State* L)
+int TestRef(dlua_State* L)
 {
-    lua_getglobal(L, REF_VALUE);
-    int* ref = (int*)lua_touserdata(L, -1);
+    dlua_getglobal(L, REF_VALUE);
+    int* ref = (int*)dlua_touserdata(L, -1);
     dmScript::GetInstance(L);
-    *ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    lua_pop(L, 1);
+    *ref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
+    dlua_pop(L, 1);
     return 0;
 }
 
 TEST_F(dmRenderScriptTest, TestInstanceCallback)
 {
-    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+    dlua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
 
-    lua_register(L, "test_ref", TestRef);
+    dlua_register(L, "test_ref", TestRef);
 
-    int ref = LUA_NOREF;
+    int ref = DLUA_NOREF;
 
-    lua_pushlightuserdata(L, &ref);
-    lua_setglobal(L, REF_VALUE);
+    dlua_pushlightuserdata(L, &ref);
+    dlua_setglobal(L, REF_VALUE);
 
     const char* script =
         "function init(self)\n"
@@ -1245,15 +1245,15 @@ TEST_F(dmRenderScriptTest, TestInstanceCallback)
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
-    ASSERT_NE(ref, LUA_NOREF);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    ASSERT_NE(ref, DLUA_NOREF);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, ref);
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, ref);
     dmScript::SetInstance(L);
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 }
@@ -1281,30 +1281,30 @@ TEST_F(dmRenderScriptTest, TestURL)
 
 TEST_F(dmRenderScriptTest, TestInstanceContext)
 {
-    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+    dlua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
 
     const char* script =
         "";
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
-    lua_pushstring(L, "__my_context_value");
-    lua_pushnumber(L, 81233);
+    dlua_pushstring(L, "__my_context_value");
+    dlua_pushnumber(L, 81233);
     ASSERT_TRUE(dmScript::SetInstanceContextValue(L));
 
-    lua_pushstring(L, "__my_context_value");
+    dlua_pushstring(L, "__my_context_value");
     dmScript::GetInstanceContextValue(L);
-    ASSERT_EQ(81233, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    ASSERT_EQ(81233, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 
-    lua_pushnil(L);
+    dlua_pushnil(L);
     dmScript::SetInstance(L);
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 }
@@ -1482,9 +1482,9 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
     ASSERT_EQ(5u, commands.Size());
 
     // Force a full garbage collection cycle from C++
-    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
-    lua_gc(L, LUA_GCCOLLECT, 0);
-    lua_gc(L, LUA_GCCOLLECT, 0);
+    dlua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+    dlua_gc(L, DLUA_GCCOLLECT, 0);
+    dlua_gc(L, DLUA_GCCOLLECT, 0);
 
     for (uint32_t i = 0; i < commands.Size(); ++i)
     {

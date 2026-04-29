@@ -266,16 +266,16 @@ extern "C"
 
 namespace dmScript
 {
-    void InitializeBitop(lua_State* L)
+    void InitializeBitop(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         luaopen_bit(L);
 
-        int stack = lua_gettop(L);
+        int stack = dlua_gettop(L);
 
         // Above call leaves a table and a number on the stack which will not
         // be needed for anything.
-        lua_pop(L, stack - top);
+        dlua_pop(L, stack - top);
     }
 }

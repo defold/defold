@@ -6,8 +6,7 @@
 #include <limits.h>
 #include <float.h>
 
-#include "lua.h"
-#include "lauxlib.h"
+#include <dmsdk/dlua/dlua.h>
 
 #include "auxiliar.h"
 #include "timeout.h"
@@ -30,10 +29,10 @@
 /*=========================================================================*\
 * Internal function prototypes
 \*=========================================================================*/
-static int timeout_lua_gettime(lua_State *L);
-static int timeout_lua_sleep(lua_State *L);
+static int timeout_lua_gettime(dlua_State *L);
+static int timeout_lua_sleep(dlua_State *L);
 
-static luaL_Reg func[] = {
+static dluaL_Reg func[] = {
     { "gettime", timeout_lua_gettime },
     { "sleep", timeout_lua_sleep },
     { NULL, NULL }
@@ -143,11 +142,11 @@ double timeout_gettime(void) {
 /*-------------------------------------------------------------------------*\
 * Initializes module
 \*-------------------------------------------------------------------------*/
-int timeout_open(lua_State *L) {
-#if LUA_VERSION_NUM > 501 && !defined(LUA_COMPAT_MODULE)
-    luaL_setfuncs(L, func, 0);
+int timeout_open(dlua_State *L) {
+#if 0
+    dluaL_setfuncs(L, func, 0);
 #else
-    luaL_openlib(L, NULL, func, 0);
+    dluaL_openlib(L, NULL, func, 0);
 #endif
     return 0;
 }
@@ -158,9 +157,9 @@ int timeout_open(lua_State *L) {
 *   time: time out value in seconds
 *   mode: "b" for block timeout, "t" for total timeout. (default: b)
 \*-------------------------------------------------------------------------*/
-int timeout_meth_settimeout(lua_State *L, p_timeout tm) {
-    double t = luaL_optnumber(L, 2, -1);
-    const char *mode = luaL_optstring(L, 3, "b");
+int timeout_meth_settimeout(dlua_State *L, p_timeout tm) {
+    double t = dluaL_optnumber(L, 2, -1);
+    const char *mode = dluaL_optstring(L, 3, "b");
     switch (*mode) {
         case 'b':
             tm->block = t; 
@@ -169,10 +168,10 @@ int timeout_meth_settimeout(lua_State *L, p_timeout tm) {
             tm->total = t;
             break;
         default:
-            luaL_argcheck(L, 0, 3, "invalid timeout mode");
+            dluaL_argcheck(L, 0, 3, "invalid timeout mode");
             break;
     }
-    lua_pushnumber(L, 1);
+    dlua_pushnumber(L, 1);
     return 1;
 }
 
@@ -182,9 +181,9 @@ int timeout_meth_settimeout(lua_State *L, p_timeout tm) {
 /*-------------------------------------------------------------------------*\
 * Returns the time the system has been up, in secconds.
 \*-------------------------------------------------------------------------*/
-static int timeout_lua_gettime(lua_State *L)
+static int timeout_lua_gettime(dlua_State *L)
 {
-    lua_pushnumber(L, timeout_gettime());
+    dlua_pushnumber(L, timeout_gettime());
     return 1;
 }
 
@@ -192,9 +191,9 @@ static int timeout_lua_gettime(lua_State *L)
 * Sleep for n seconds.
 \*-------------------------------------------------------------------------*/
 #ifdef _WIN32
-int timeout_lua_sleep(lua_State *L)
+int timeout_lua_sleep(dlua_State *L)
 {
-    double n = luaL_checknumber(L, 1);
+    double n = dluaL_checknumber(L, 1);
     if (n < 0.0) n = 0.0;
     if (n < DBL_MAX/1000.0) n *= 1000.0;
     if (n > INT_MAX) n = INT_MAX;
@@ -202,9 +201,9 @@ int timeout_lua_sleep(lua_State *L)
     return 0;
 }
 #else
-int timeout_lua_sleep(lua_State *L)
+int timeout_lua_sleep(dlua_State *L)
 {
-    double n = luaL_checknumber(L, 1);
+    double n = dluaL_checknumber(L, 1);
     struct timespec t, r;
     if (n < 0.0) n = 0.0;
     if (n > INT_MAX) n = INT_MAX;

@@ -26,16 +26,16 @@ class ScriptJsonTest : public dmScriptTest::ScriptTest
 
 TEST_F(ScriptJsonTest, TestJson)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     ASSERT_TRUE(RunFile(L, "test_json.luac"));
 
-    lua_getglobal(L, "functions");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "test_json");
-    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    if (result == LUA_ERRRUN)
+    dlua_getglobal(L, "functions");
+    ASSERT_EQ(DLUA_TTABLE, dlua_type(L, -1));
+    dlua_getfield(L, -1, "test_json");
+    ASSERT_EQ(DLUA_TFUNCTION, dlua_type(L, -1));
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    if (result == DLUA_ERRRUN)
     {
         ASSERT_TRUE(false);
     }
@@ -43,15 +43,15 @@ TEST_F(ScriptJsonTest, TestJson)
     {
         ASSERT_EQ(0, result);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptJsonTest, TestJsonToLua)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     {
         const char* json_original = "{\"foo\":\"bar\",\"num\":16}hello";
@@ -62,16 +62,16 @@ TEST_F(ScriptJsonTest, TestJsonToLua)
 
         int ret = dmScript::JsonToLua(L, json, json_length);
         ASSERT_EQ(1, ret);
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
         free((void*)json);
     }
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptJsonTest, TestJsonToLua_Issue10304)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     {
         const char* json_original = "xxxx";
@@ -82,31 +82,31 @@ TEST_F(ScriptJsonTest, TestJsonToLua_Issue10304)
 
         int ret = dmScript::JsonToLua(L, json, json_length);
         ASSERT_EQ(0, ret);
-        int newtop = lua_gettop(L);
+        int newtop = dlua_gettop(L);
         ASSERT_EQ(0, newtop - top);
         free((void*)json);
     }
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 
 TEST_F(ScriptJsonTest, TestLuaToJson)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     {
-        lua_newtable(L);
-            lua_pushstring(L, "str");
-            lua_setfield(L, -2, "a");
-            lua_pushnumber(L, 1.5);
-            lua_setfield(L, -2, "b");
+        dlua_newtable(L);
+            dlua_pushstring(L, "str");
+            dlua_setfield(L, -2, "a");
+            dlua_pushnumber(L, 1.5);
+            dlua_setfield(L, -2, "b");
 
-            lua_newtable(L);
-                lua_pushinteger(L, 7);
-                lua_setfield(L, -2, "d");
+            dlua_newtable(L);
+                dlua_pushinteger(L, 7);
+                dlua_setfield(L, -2, "d");
 
-            lua_setfield(L, -2, "c");
+            dlua_setfield(L, -2, "c");
 
         char* json = 0;
         size_t json_length;
@@ -123,11 +123,11 @@ TEST_F(ScriptJsonTest, TestLuaToJson)
         ASSERT_TRUE(strstr(json, "\"b\":1.5") != 0);
         ASSERT_TRUE(strstr(json, "\"c\":{\"d\":7}") != 0);
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
         free((void*)json);
     }
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 extern "C" void dmExportedSymbols();

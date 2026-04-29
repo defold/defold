@@ -39,17 +39,6 @@ extern "C"
 #define DLUA_ERRRUN 2
 #define DLUA_ERRMEM 4
 
-#define DLUA_TNONE (-1)
-#define DLUA_TNIL 0
-#define DLUA_TBOOLEAN 1
-#define DLUA_TLIGHTUSERDATA 2
-#define DLUA_TNUMBER 3
-#define DLUA_TSTRING 4
-#define DLUA_TTABLE 5
-#define DLUA_TFUNCTION 6
-#define DLUA_TUSERDATA 7
-#define DLUA_TTHREAD 8
-
 #define DLUA_GCCOLLECT 2
 #define DLUA_GCCOUNT 3
 
@@ -63,6 +52,20 @@ extern "C"
 
     typedef struct lua_State  dlua_State;
     typedef struct dlua_Debug dlua_Debug;
+
+    typedef enum dlua_Type
+    {
+        DLUA_TNONE          = -1,
+        DLUA_TNIL           = 0,
+        DLUA_TBOOLEAN       = 1,
+        DLUA_TLIGHTUSERDATA = 2,
+        DLUA_TNUMBER        = 3,
+        DLUA_TSTRING        = 4,
+        DLUA_TTABLE         = 5,
+        DLUA_TFUNCTION      = 6,
+        DLUA_TUSERDATA      = 7,
+        DLUA_TTHREAD        = 8
+    } dlua_Type;
 
     typedef double            dlua_Number;
     typedef ptrdiff_t         dlua_Integer;
@@ -117,7 +120,7 @@ extern "C"
     DLUA_API int            dlua_isnumber(dlua_State* L, int idx);
     DLUA_API int            dlua_isstring(dlua_State* L, int idx);
     DLUA_API int            dlua_isuserdata(dlua_State* L, int idx);
-    DLUA_API int            dlua_type(dlua_State* L, int idx);
+    DLUA_API dlua_Type      dlua_type(dlua_State* L, int idx);
     DLUA_API const char*    dlua_typename(dlua_State* L, int tp);
     DLUA_API int            dlua_rawequal(dlua_State* L, int idx1, int idx2);
     DLUA_API dlua_Number    dlua_tonumber(dlua_State* L, int idx);
@@ -138,7 +141,7 @@ extern "C"
 #if defined(__GNUC__)
     DLUA_API const char* dlua_pushfstring(dlua_State* L, const char* fmt, ...) __attribute__((format(printf, 2, 3)));
 #else
-DLUA_API const char* dlua_pushfstring(dlua_State* L, const char* fmt, ...);
+    DLUA_API const char* dlua_pushfstring(dlua_State* L, const char* fmt, ...);
 #endif
     DLUA_API void         dlua_pushcclosure(dlua_State* L, dlua_CFunction fn, int n);
     DLUA_API void         dlua_pushboolean(dlua_State* L, int b);
@@ -192,7 +195,7 @@ DLUA_API const char* dlua_pushfstring(dlua_State* L, const char* fmt, ...);
 #if defined(__GNUC__)
     DLUA_API int dluaL_error(dlua_State* L, const char* fmt, ...) __attribute__((format(printf, 2, 3)));
 #else
-DLUA_API int dluaL_error(dlua_State* L, const char* fmt, ...);
+    DLUA_API int dluaL_error(dlua_State* L, const char* fmt, ...);
 #endif
     DLUA_API int   dluaL_checkoption(dlua_State* L, int narg, const char* def, const char* const lst[]);
     DLUA_API int   dluaL_ref(dlua_State* L, int t);
@@ -240,4 +243,4 @@ DLUA_API int dluaL_error(dlua_State* L, const char* fmt, ...);
 }
 #endif
 
-#endif DMSDK_DLUA_H
+#endif

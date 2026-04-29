@@ -28,12 +28,7 @@
 
 #include "render.h"
 
-extern "C"
-{
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmRender
 {
@@ -208,7 +203,7 @@ namespace dmRender
     {
         RenderScriptContext();
 
-        lua_State*                  m_LuaState;
+        dlua_State*                  m_LuaState;
         uint32_t                    m_CommandBufferSize;
     };
 
@@ -408,7 +403,7 @@ namespace dmRender
 
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
-    RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
+    RenderCamera* CheckRenderCamera(dlua_State* L, int index, HRenderContext render_context);
 
     // Lights
     void FinalizeLightData(HRenderContext render_context);

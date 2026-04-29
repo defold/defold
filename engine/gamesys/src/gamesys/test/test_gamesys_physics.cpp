@@ -20,7 +20,7 @@ TEST_F(ComponentTest, JointTest)
     */
 
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
     const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
@@ -47,9 +47,9 @@ TEST_F(ComponentTest, JointTest)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -68,7 +68,7 @@ TEST_F(ComponentTest, PhysicsListenerTest)
     */
 
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     const char* path_test_object = "/collision_object/callback_object.goc";
     const char* path_test_trigger = "/collision_object/callback_trigger.goc";
@@ -89,9 +89,9 @@ TEST_F(ComponentTest, PhysicsListenerTest)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -108,7 +108,7 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
     */
 
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     const char* path_test_object = "/collision_object/mass_object.goc";
 
@@ -124,9 +124,9 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
         // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "tests_done");
+        tests_done = dlua_toboolean(L, -1);
+        dlua_pop(L, 1);
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));

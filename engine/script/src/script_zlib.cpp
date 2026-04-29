@@ -24,8 +24,7 @@
 
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 #include "script_private.h"
@@ -70,22 +69,22 @@ namespace dmScript
      * print(uncompressed_data) --> This is a string with uncompressed data.
      * ```
      */
-    int Zlib_Inflate(lua_State* L)
+    int Zlib_Inflate(dlua_State* L)
     {
         dmArray<uint8_t> out;
         out.SetCapacity(32 * 1024);
-        const char* in = luaL_checkstring(L, 1);
-        int in_len = lua_strlen(L, 1);
+        const char* in = dluaL_checkstring(L, 1);
+        int in_len = dlua_strlen(L, 1);
         dmZlib::Result r = dmZlib::InflateBuffer(in, in_len, &out, Writer);
         if (r == dmZlib::RESULT_OK)
         {
-            lua_pushlstring(L, (const char*) out.Begin(), out.Size());
+            dlua_pushlstring(L, (const char*) out.Begin(), out.Size());
             return 1;
         }
         else
         {
             out.SetCapacity(0); // Required as the destructor isn't run
-            luaL_error(L, "Failed to inflate buffer (%d)", r);
+            dluaL_error(L, "Failed to inflate buffer (%d)", r);
             return 0;
         }
 
@@ -111,21 +110,21 @@ namespace dmScript
      * print(s) --> \120\94\11\201\200\44\86\0\162\68\133\226\146\162 ...
      * ```
      */
-    int Zlib_Deflate(lua_State* L)
+    int Zlib_Deflate(dlua_State* L)
     {
         dmArray<uint8_t> out;
         out.SetCapacity(32 * 1024);
-        const char* in = luaL_checkstring(L, 1);
-        int in_len = lua_strlen(L, 1);
+        const char* in = dluaL_checkstring(L, 1);
+        int in_len = dlua_strlen(L, 1);
         dmZlib::Result r = dmZlib::DeflateBuffer(in, in_len, 3, &out, Writer);
         if (r == dmZlib::RESULT_OK)
         {
-            lua_pushlstring(L, (const char*) out.Begin(), out.Size());
+            dlua_pushlstring(L, (const char*) out.Begin(), out.Size());
             return 1;
         }
         else
         {
-            luaL_error(L, "Failed to deflate buffer (%d)", r);
+            dluaL_error(L, "Failed to deflate buffer (%d)", r);
             return 0;
         }
 
@@ -133,21 +132,21 @@ namespace dmScript
         return 0;
     }
 
-    static const luaL_reg ScriptZlib_methods[] =
+    static const dluaL_reg ScriptZlib_methods[] =
     {
         {"inflate", Zlib_Inflate},
         {"deflate", Zlib_Deflate},
         {0, 0}
     };
 
-    void InitializeZlib(lua_State* L)
+    void InitializeZlib(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
-        lua_pushvalue(L, LUA_GLOBALSINDEX);
-        luaL_register(L, LIB_NAME, ScriptZlib_methods);
-        lua_pop(L, 2);
+        dlua_pushvalue(L, DLUA_GLOBALSINDEX);
+        dluaL_register(L, LIB_NAME, ScriptZlib_methods);
+        dlua_pop(L, 2);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 }

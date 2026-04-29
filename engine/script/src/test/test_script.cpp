@@ -21,25 +21,25 @@
 namespace dmScriptTest
 {
 
-bool RunFile(lua_State* L, const char* filename, const char* base_dir)
+bool RunFile(dlua_State* L, const char* filename, const char* base_dir)
 {
     char path[1024];
     dmTestUtil::MakeHostPathf(path, sizeof(path), "%s/%s", base_dir, filename);
 
-    if (luaL_dofile(L, path) != 0)
+    if (dluaL_dofile(L, path) != 0)
     {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
+        dmLogError("%s", dlua_tolstring(L, -1, 0));
         return false;
     }
     return true;
 }
 
 
-bool RunString(lua_State* L, const char* script)
+bool RunString(dlua_State* L, const char* script)
 {
-    if (luaL_dostring(L, script) != 0)
+    if (dluaL_dostring(L, script) != 0)
     {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
+        dmLogError("%s", dlua_tolstring(L, -1, 0));
         return false;
     }
     return true;
@@ -122,15 +122,15 @@ void ScriptTest::AppendToLog(const char* log)
     m_Log.PushArray(log, len);
 }
 
-bool ScriptTest::RunFile(lua_State* L, const char* filename)
+bool ScriptTest::RunFile(dlua_State* L, const char* filename)
 {
     return dmScriptTest::RunFile(L, filename, "build/src/test/scripts");
 }
-bool ScriptTest::RunFile(lua_State* L, const char* filename, const char* base_dir)
+bool ScriptTest::RunFile(dlua_State* L, const char* filename, const char* base_dir)
 {
     return dmScriptTest::RunFile(L, filename, base_dir);
 }
-bool ScriptTest::RunString(lua_State* L, const char* script)
+bool ScriptTest::RunString(dlua_State* L, const char* script)
 {
     return dmScriptTest::RunString(L, script);
 }

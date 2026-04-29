@@ -100,9 +100,9 @@ int dlua_isuserdata(dlua_State* L, int idx)
     return lua_isuserdata(DLUA_L(L), idx);
 }
 
-int dlua_type(dlua_State* L, int idx)
+dlua_Type dlua_type(dlua_State* L, int idx)
 {
-    return lua_type(DLUA_L(L), idx);
+    return (dlua_Type)lua_type(DLUA_L(L), idx);
 }
 
 const char* dlua_typename(dlua_State* L, int tp)

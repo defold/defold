@@ -17,12 +17,12 @@
 
 extern "C"
 {
-#include <lua/lua.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript
 {
-    void InitializeJson(lua_State* L);
+    void InitializeJson(dlua_State* L);
 }
 
 #endif // DM_SCRIPT_JSON_H

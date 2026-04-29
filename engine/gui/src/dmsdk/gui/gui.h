@@ -408,14 +408,14 @@ namespace dmGui
     /*#
      * Pushes a dmGui::HNode to the stack
      * @name LuaPushNode
-     * @param L [type:lua_State*] the Lua scene
+     * @param L [type:dlua_State*] the Lua scene
      * @param scene [type:dmGui::HScene] the gui scene
      * @param node [type:HNode] the gui node
      */
-    void LuaPushNode(lua_State* L, dmGui::HScene scene, dmGui::HNode node);
+    void LuaPushNode(dlua_State* L, dmGui::HScene scene, dmGui::HNode node);
 
-    HScene LuaCheckScene(lua_State* L);
-    HNode LuaCheckNode(lua_State* L, int index);
+    HScene LuaCheckScene(dlua_State* L);
+    HNode LuaCheckNode(dlua_State* L, int index);
 }
 
 #endif

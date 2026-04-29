@@ -644,8 +644,8 @@ namespace dmGameObject
     static bool ResolveURL(Properties* properties, const char* url, dmMessage::URL* out_url)
     {
         dmMessage::URL default_url;
-        properties->m_GetURLCallback((lua_State*)properties->m_ResolvePathUserData, &default_url);
-        dmMessage::Result result = dmScript::ResolveURL((lua_State*)properties->m_ResolvePathUserData, url, out_url, &default_url);
+        properties->m_GetURLCallback((dlua_State*)properties->m_ResolvePathUserData, &default_url);
+        dmMessage::Result result = dmScript::ResolveURL((dlua_State*)properties->m_ResolvePathUserData, url, out_url, &default_url);
         if (result != dmMessage::RESULT_OK)
         {
             return false;

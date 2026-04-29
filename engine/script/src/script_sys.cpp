@@ -47,8 +47,7 @@
 #include <string.h>
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 #include "script_private.h"
@@ -127,18 +126,18 @@ union SaveLoadBuffer
      * ```
      */
 
-    static int Sys_Save(lua_State* L)
+    static int Sys_Save(dlua_State* L)
     {
-        const char* filename = luaL_checkstring(L, 1);
+        const char* filename = dluaL_checkstring(L, 1);
 
-        luaL_checktype(L, 2, LUA_TTABLE);
+        dluaL_checktype(L, 2, DLUA_TTABLE);
 
         uint32_t table_size = CheckTableSize(L, 2);
 
         char* buffer = Sys_SetupTableSerializationBuffer(table_size);
         if (!buffer)
         {
-            return luaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
+            return dluaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
         }
         uint32_t n_used = CheckTable(L, buffer, table_size, 2);
 
@@ -153,7 +152,7 @@ union SaveLoadBuffer
         if (res == -1)
         {
             Sys_FreeTableSerializationBuffer(buffer);
-            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
+            return dluaL_error(L, "Could not write to the file %s. Path too long.", filename);
         }
 
         FILE* file = fopen(tmp_filename, "wb");
@@ -162,11 +161,11 @@ union SaveLoadBuffer
             Sys_FreeTableSerializationBuffer(buffer);
 
         #if defined(DM_NO_ERRNO)
-            return luaL_error(L, "Could not open the file %s", tmp_filename);
+            return dluaL_error(L, "Could not open the file %s", tmp_filename);
         #else
             char errmsg[128] = {};
             dmStrError(errmsg, sizeof(errmsg), errno);
-            return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
+            return dluaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
         #endif
         }
 
@@ -179,20 +178,20 @@ union SaveLoadBuffer
             dmSys::Unlink(tmp_filename);
 
         #if defined(DM_NO_ERRNO)
-            return luaL_error(L, "Could not write to the file %s.", filename);
+            return dluaL_error(L, "Could not write to the file %s.", filename);
         #else
             char errmsg[128] = {};
             dmStrError(errmsg, sizeof(errmsg), errno);
-            return luaL_error(L, "Could not write to the file %s, reason: %s.", filename, errmsg);
+            return dluaL_error(L, "Could not write to the file %s, reason: %s.", filename, errmsg);
         #endif
         }
 
         if (dmSys::Rename(filename, tmp_filename) != dmSys::RESULT_OK)
         {
-            return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
+            return dluaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
         }
 
-        lua_pushboolean(L, result);
+        dlua_pushboolean(L, result);
         return 1;
 
 #else // __EMSCRIPTEN__
@@ -201,7 +200,7 @@ union SaveLoadBuffer
         if (!file)
         {
             Sys_FreeTableSerializationBuffer(buffer);
-            return luaL_error(L, "Could not write to the file %s.", filename);
+            return dluaL_error(L, "Could not write to the file %s.", filename);
         }
 
         bool result = fwrite(buffer, 1, n_used, file) == n_used;
@@ -211,10 +210,10 @@ union SaveLoadBuffer
         if (!result)
         {
             dmSys::Unlink(filename);
-            return luaL_error(L, "Could not write to the file %s.", filename);
+            return dluaL_error(L, "Could not write to the file %s.", filename);
         }
 
-        lua_pushboolean(L, result);
+        dlua_pushboolean(L, result);
         return 1;
 #endif
     }
@@ -239,13 +238,13 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    static int Sys_Load(lua_State* L)
+    static int Sys_Load(dlua_State* L)
     {
-        const char* filename = luaL_checkstring(L, 1);
+        const char* filename = dluaL_checkstring(L, 1);
         FILE* file = fopen(filename, "rb");
         if (file == 0x0)
         {
-            lua_newtable(L);
+            dlua_newtable(L);
             return 1;
         }
 
@@ -256,7 +255,7 @@ union SaveLoadBuffer
         char* buffer = Sys_SetupTableSerializationBuffer(file_size);
         if (!buffer)
         {
-            return luaL_error(L, "Could not allocate %d bytes for table deserialization.", file_size);
+            return dluaL_error(L, "Could not allocate %d bytes for table deserialization.", file_size);
         }
         size_t nread = fread(buffer, 1, file_size, file);
         bool result = ferror(file) == 0;
@@ -264,7 +263,7 @@ union SaveLoadBuffer
         if (!result)
         {
             Sys_FreeTableSerializationBuffer(buffer);
-            return luaL_error(L, "Could not read from the file %s.", filename);
+            return dluaL_error(L, "Could not read from the file %s.", filename);
         }
         PushTable(L, buffer, nread);
         Sys_FreeTableSerializationBuffer(buffer);
@@ -289,11 +288,11 @@ union SaveLoadBuffer
      * return sys.load(path) -- returns {} if it failed
      * ```
      */
-    static int Sys_Exists(lua_State* L)
+    static int Sys_Exists(dlua_State* L)
     {
-        const char* path = luaL_checkstring(L, 1);
+        const char* path = dluaL_checkstring(L, 1);
         bool result = dmSys::Exists(path);
-        lua_pushboolean(L, result);
+        dlua_pushboolean(L, result);
         return 1;
     }
 
@@ -321,12 +320,12 @@ union SaveLoadBuffer
      * local table = sys.load(host_path)
      * ```
      */
-    static int Sys_GetHostPath(lua_State* L)
+    static int Sys_GetHostPath(dlua_State* L)
     {
-        const char* path = luaL_checkstring(L, 1);
+        const char* path = dluaL_checkstring(L, 1);
         char host_path[DMPATH_MAX_PATH];
         dmSys::GetHostFileName(host_path, sizeof(host_path), path);
-        lua_pushstring(L, host_path);
+        dlua_pushstring(L, host_path);
         return 1;
     }
 
@@ -366,18 +365,18 @@ union SaveLoadBuffer
      * print(my_file_path) --> /data/.my_game/my_file
      * ```
      */
-    static int Sys_GetSaveFile(lua_State* L)
+    static int Sys_GetSaveFile(dlua_State* L)
     {
-        const char* application_id = luaL_checkstring(L, 1);
+        const char* application_id = dluaL_checkstring(L, 1);
 
         char app_support_path[1024];
         dmSys::Result r = dmSys::GetApplicationSavePath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)
         {
-            return luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
+            return dluaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
         }
 
-        const char* filename = luaL_checkstring(L, 2);
+        const char* filename = dluaL_checkstring(L, 2);
         char* dm_home = dmSys::GetEnv("DM_SAVE_HOME");
         // Higher priority
         if (dm_home)
@@ -387,7 +386,7 @@ union SaveLoadBuffer
 
         dmStrlCat(app_support_path, dmPath::PATH_CHARACTER, sizeof(app_support_path));
         dmStrlCat(app_support_path, filename, sizeof(app_support_path));
-        lua_pushstring(L, app_support_path);
+        dlua_pushstring(L, app_support_path);
 
         return 1;
     }
@@ -424,20 +423,20 @@ union SaveLoadBuffer
      * print(application_path) --> http://www.foobar.com/my_game
      * ```
      */
-    static int Sys_GetApplicationPath(lua_State* L)
+    static int Sys_GetApplicationPath(dlua_State* L)
     {
         char application_path[4096 + 2]; // Linux PATH_MAX is defined to 4096. Windows MAX_PATH is 260.
         dmSys::Result r = dmSys::GetApplicationPath(application_path, sizeof(application_path));
         if (r != dmSys::RESULT_OK)
         {
-            return luaL_error(L, "Unable to locate application path: (%d)", r);
+            return dluaL_error(L, "Unable to locate application path: (%d)", r);
         }
-        lua_pushstring(L, application_path);
+        dlua_pushstring(L, application_path);
 
         return 1;
     }
 
-    static dmConfigFile::HConfig GetConfigFile(lua_State* L)
+    static dmConfigFile::HConfig GetConfigFile(dlua_State* L)
     {
         HContext context = dmScript::GetScriptContext(L);
         if (context)
@@ -474,26 +473,26 @@ union SaveLoadBuffer
      * local testmode = sys.get_config_int("mygame.testmode")
      * ```
      */
-    static int Sys_GetConfigString(lua_State* L)
+    static int Sys_GetConfigString(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const char* key = luaL_checkstring(L, 1);
+        const char* key = dluaL_checkstring(L, 1);
         const char* default_value = 0;
-        if (lua_isstring(L, 2))
+        if (dlua_isstring(L, 2))
         {
-            default_value = lua_tostring(L, 2);
+            default_value = dlua_tostring(L, 2);
         }
 
         dmConfigFile::HConfig config_file = GetConfigFile(L);
         if (config_file)
         {
             const char* value = dmConfigFile::GetString(config_file, key, default_value);
-            lua_pushstring(L, value);
+            dlua_pushstring(L, value);
         }
         else
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
         return 1;
     }
@@ -520,26 +519,26 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    static int Sys_GetConfigInt(lua_State* L)
+    static int Sys_GetConfigInt(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const char* key = luaL_checkstring(L, 1);
+        const char* key = dluaL_checkstring(L, 1);
         int default_value = 0;
-        if (!lua_isnone(L, 2))
+        if (!dlua_isnone(L, 2))
         {
-            default_value = luaL_checkinteger(L, 2);
+            default_value = dluaL_checkinteger(L, 2);
         }
 
         dmConfigFile::HConfig config_file = GetConfigFile(L);
         if (config_file)
         {
             int value = dmConfigFile::GetInt(config_file, key, default_value);
-            lua_pushinteger(L, value);
+            dlua_pushinteger(L, value);
         }
         else
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
         return 1;
     }
@@ -559,26 +558,26 @@ union SaveLoadBuffer
      * local speed = sys.get_config_number("my_game.speed", 20.0)
      * ```
      */
-    static int Sys_GetConfigNumber(lua_State* L)
+    static int Sys_GetConfigNumber(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const char* key = luaL_checkstring(L, 1);
+        const char* key = dluaL_checkstring(L, 1);
         float default_value = 0;
-        if (!lua_isnone(L, 2))
+        if (!dlua_isnone(L, 2))
         {
-            default_value = luaL_checknumber(L, 2);
+            default_value = dluaL_checknumber(L, 2);
         }
 
         dmConfigFile::HConfig config_file = GetConfigFile(L);
         if (config_file)
         {
             float value = dmConfigFile::GetFloat(config_file, key, default_value);
-            lua_pushnumber(L, value);
+            dlua_pushnumber(L, value);
         }
         else
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
         return 1;
     }
@@ -598,15 +597,15 @@ union SaveLoadBuffer
      * local vsync = sys.get_config_boolean("display.vsync", false)
      * ```
      */
-    static int Sys_GetConfigBoolean(lua_State* L)
+    static int Sys_GetConfigBoolean(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const char* key = luaL_checkstring(L, 1);
+        const char* key = dluaL_checkstring(L, 1);
         bool default_value = false;
-        if (!lua_isnone(L, 2))
+        if (!dlua_isnone(L, 2))
         {
-            default_value = lua_toboolean(L, 2);
+            default_value = dlua_toboolean(L, 2);
         }
 
         dmConfigFile::HConfig config_file = GetConfigFile(L);
@@ -614,11 +613,11 @@ union SaveLoadBuffer
         {
             int32_t int_value = dmConfigFile::GetInt(config_file, key, default_value ? 1 : 0);
             bool value = int_value != 0;
-            lua_pushboolean(L, value);
+            dlua_pushboolean(L, value);
         }
         else
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
         return 1;
     }
@@ -650,22 +649,22 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    static int Sys_OpenURL(lua_State* L)
+    static int Sys_OpenURL(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1)
-        int top = lua_gettop(L);
-        const char* url = luaL_checkstring(L, 1);
+        int top = dlua_gettop(L);
+        const char* url = dluaL_checkstring(L, 1);
         dmSys::Result result;
         if (top > 1)
         {
-            luaL_checktype(L, 2, LUA_TTABLE);
-            lua_pushvalue(L, 2);
+            dluaL_checktype(L, 2, DLUA_TTABLE);
+            dlua_pushvalue(L, 2);
 
-            lua_getfield(L, -1, "target");
-            const char* target = lua_isnil(L, -1) ? 0 : luaL_checkstring(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "target");
+            const char* target = dlua_isnil(L, -1) ? 0 : dluaL_checkstring(L, -1);
+            dlua_pop(L, 1);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             result = dmSys::OpenURL(url, target);
         }
         else
@@ -673,7 +672,7 @@ union SaveLoadBuffer
             result = dmSys::OpenURL(url, 0);
         }
 
-        lua_pushboolean(L, result == dmSys::RESULT_OK);
+        dlua_pushboolean(L, result == dmSys::RESULT_OK);
 
         return 1;
     }
@@ -710,10 +709,10 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    static int Sys_LoadResource(lua_State* L)
+    static int Sys_LoadResource(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        const char* filename = luaL_checkstring(L, 1);
+        int top = dlua_gettop(L);
+        const char* filename = dluaL_checkstring(L, 1);
 
         HContext context = dmScript::GetScriptContext(L);
 
@@ -721,14 +720,14 @@ union SaveLoadBuffer
         uint32_t resource_size;
         dmResource::Result r = dmResource::GetRaw(context->m_ResourceFactory, filename, &resource, &resource_size);
         if (r != dmResource::RESULT_OK) {
-            lua_pushnil(L);
-            lua_pushfstring(L, "Failed to load resource: %s (%d)", filename, r);
-            assert(top + 2 == lua_gettop(L));
+            dlua_pushnil(L);
+            dlua_pushfstring(L, "Failed to load resource: %s (%d)", filename, r);
+            assert(top + 2 == dlua_gettop(L));
             return 2;
         }
-        lua_pushlstring(L, (const char*) resource, resource_size);
+        dlua_pushlstring(L, (const char*) resource, resource_size);
         free(resource);
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -784,9 +783,9 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    static int Sys_GetSysInfo(lua_State* L)
+    static int Sys_GetSysInfo(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmSys::SystemInfo info;
         dmSys::GetSystemInfo(&info);
@@ -795,14 +794,14 @@ union SaveLoadBuffer
 
         if ( top >= 1)
         {
-            luaL_checktype(L, 1, LUA_TTABLE);
-            lua_pushvalue(L, 1);
+            dluaL_checktype(L, 1, DLUA_TTABLE);
+            dlua_pushvalue(L, 1);
 
-            lua_getfield(L, -1, "ignore_secure");
-            ignore_secure_values = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "ignore_secure");
+            ignore_secure_values = dlua_isnil(L, -1) ? false : dlua_toboolean(L, -1);
+            dlua_pop(L, 1);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         if (!ignore_secure_values)
@@ -810,42 +809,42 @@ union SaveLoadBuffer
             dmSys::GetSecureInfo(&info);
         }
 
-        lua_newtable(L);
-        lua_pushliteral(L, "device_model");
-        lua_pushstring(L, info.m_DeviceModel);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "manufacturer");
-        lua_pushstring(L, info.m_Manufacturer);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "system_name");
-        lua_pushstring(L, info.m_SystemName);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "system_version");
-        lua_pushstring(L, info.m_SystemVersion);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "api_version");
-        lua_pushstring(L, info.m_ApiVersion);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "language");
-        lua_pushstring(L, info.m_Language);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "device_language");
-        lua_pushstring(L, info.m_DeviceLanguage);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "territory");
-        lua_pushstring(L, info.m_Territory);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "gmt_offset");
-        lua_pushinteger(L, info.m_GmtOffset);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "device_ident");
-        lua_pushstring(L, info.m_DeviceIdentifier);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "user_agent");
-        lua_pushstring(L, info.m_UserAgent ? info.m_UserAgent : "");
-        lua_rawset(L, -3);
+        dlua_newtable(L);
+        dlua_pushliteral(L, "device_model");
+        dlua_pushstring(L, info.m_DeviceModel);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "manufacturer");
+        dlua_pushstring(L, info.m_Manufacturer);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "system_name");
+        dlua_pushstring(L, info.m_SystemName);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "system_version");
+        dlua_pushstring(L, info.m_SystemVersion);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "api_version");
+        dlua_pushstring(L, info.m_ApiVersion);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "language");
+        dlua_pushstring(L, info.m_Language);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "device_language");
+        dlua_pushstring(L, info.m_DeviceLanguage);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "territory");
+        dlua_pushstring(L, info.m_Territory);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "gmt_offset");
+        dlua_pushinteger(L, info.m_GmtOffset);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "device_ident");
+        dlua_pushstring(L, info.m_DeviceIdentifier);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "user_agent");
+        dlua_pushstring(L, info.m_UserAgent ? info.m_UserAgent : "");
+        dlua_rawset(L, -3);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -876,25 +875,25 @@ union SaveLoadBuffer
      * gui.set_text(gui.get_node("version"), version_str)
      * ```
      */
-    static int Sys_GetEngineInfo(lua_State* L)
+    static int Sys_GetEngineInfo(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         dmSys::EngineInfo info;
         dmSys::GetEngineInfo(&info);
 
-        lua_newtable(L);
-        lua_pushliteral(L, "version");
-        lua_pushstring(L, info.m_Version);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "version_sha1");
-        lua_pushstring(L, info.m_VersionSHA1);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "is_debug");
-        lua_pushboolean(L, info.m_IsDebug);
-        lua_rawset(L, -3);
+        dlua_newtable(L);
+        dlua_pushliteral(L, "version");
+        dlua_pushstring(L, info.m_Version);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "version_sha1");
+        dlua_pushstring(L, info.m_VersionSHA1);
+        dlua_rawset(L, -3);
+        dlua_pushliteral(L, "is_debug");
+        dlua_pushboolean(L, info.m_IsDebug);
+        dlua_rawset(L, -3);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -945,21 +944,21 @@ union SaveLoadBuffer
      * ...
      * ```
      */
-    static int Sys_GetApplicationInfo(lua_State* L)
+    static int Sys_GetApplicationInfo(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
-        const char* id = luaL_checkstring(L, 1);
+        const char* id = dluaL_checkstring(L, 1);
 
         dmSys::ApplicationInfo info;
         dmSys::GetApplicationInfo(id, &info);
 
-        lua_newtable(L);
-        lua_pushliteral(L, "installed");
-        lua_pushboolean(L, info.m_Installed);
-        lua_rawset(L, -3);
+        dlua_newtable(L);
+        dlua_pushliteral(L, "installed");
+        dlua_pushboolean(L, info.m_Installed);
+        dlua_rawset(L, -3);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -1008,52 +1007,52 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    static int Sys_GetIfaddrs(lua_State* L)
+    static int Sys_GetIfaddrs(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         const uint32_t max_count = 16;
         dmSocket::IfAddr addresses[max_count];
 
         uint32_t count = 0;
         dmSocket::GetIfAddresses(addresses, max_count, &count);
-        lua_createtable(L, count, 0);
+        dlua_createtable(L, count, 0);
         for (uint32_t i = 0; i < count; ++i)
         {
             dmSocket::IfAddr* ifa = &addresses[i];
 
-            lua_newtable(L);
+            dlua_newtable(L);
 
-            lua_pushstring(L, ifa->m_Name);
-            lua_setfield(L, -2, "name");
+            dlua_pushstring(L, ifa->m_Name);
+            dlua_setfield(L, -2, "name");
 
             if (ifa->m_Flags & dmSocket::FLAGS_INET)
             {
                 char* ip = dmSocket::AddressToIPString(ifa->m_Address);
                 if (ip)
-                    lua_pushstring(L, ip);
+                    dlua_pushstring(L, ip);
                 else
-                    lua_pushnil(L);
+                    dlua_pushnil(L);
                 free(ip);
             }
             else
             {
-                lua_pushnil(L);
+                dlua_pushnil(L);
             }
-            lua_setfield(L, -2, "address");
+            dlua_setfield(L, -2, "address");
 
             if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
             {
-                lua_pushliteral(L, "ipv4");
+                dlua_pushliteral(L, "ipv4");
             }
             else if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV6)
             {
-                lua_pushliteral(L, "ipv6");
+                dlua_pushliteral(L, "ipv6");
             }
             else
             {
-                lua_pushnil(L);
+                dlua_pushnil(L);
             }
-            lua_setfield(L, -2, "family");
+            dlua_setfield(L, -2, "family");
 
             if (ifa->m_Flags & dmSocket::FLAGS_LINK)
             {
@@ -1065,28 +1064,28 @@ union SaveLoadBuffer
                         ifa->m_MacAddress[3],
                         ifa->m_MacAddress[4],
                         ifa->m_MacAddress[5]);
-                lua_pushstring(L, tmp);
+                dlua_pushstring(L, tmp);
             }
             else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
             {
-                lua_pushliteral(L, "02:00:00:00:00:00");
+                dlua_pushliteral(L, "02:00:00:00:00:00");
             }
             else
             {
-                lua_pushnil(L);
+                dlua_pushnil(L);
             }
-            lua_setfield(L, -2, "mac");
+            dlua_setfield(L, -2, "mac");
 
-            lua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_UP) != 0);
-            lua_setfield(L, -2, "up");
+            dlua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_UP) != 0);
+            dlua_setfield(L, -2, "up");
 
-            lua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_RUNNING) != 0);
-            lua_setfield(L, -2, "running");
+            dlua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_RUNNING) != 0);
+            dlua_setfield(L, -2, "running");
 
-            lua_rawseti(L, -2, i + 1);
+            dlua_rawseti(L, -2, i + 1);
         }
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -1130,24 +1129,24 @@ union SaveLoadBuffer
      *end
      * ```
      */
-    static int Sys_SetErrorHandler(lua_State* L)
+    static int Sys_SetErrorHandler(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        luaL_checktype(L, 1, LUA_TFUNCTION);
+        int top = dlua_gettop(L);
+        dluaL_checktype(L, 1, DLUA_TFUNCTION);
 
         // store the supplied function in debug.<SCRIPT_ERROR_HANDLER_VAR> so that it can
         // be called from dmScript::PCall
-        lua_getfield(L, LUA_GLOBALSINDEX, "debug");
-        if (!lua_istable(L, -1)) {
-            lua_pop(L, 1);
+        dlua_getfield(L, DLUA_GLOBALSINDEX, "debug");
+        if (!dlua_istable(L, -1)) {
+            dlua_pop(L, 1);
             return 1;
         }
 
-        lua_pushvalue(L, 1);
-        lua_setfield(L, -2, SCRIPT_ERROR_HANDLER_VAR);
-        lua_pop(L, 1);
+        dlua_pushvalue(L, 1);
+        dlua_setfield(L, -2, SCRIPT_ERROR_HANDLER_VAR);
+        dlua_pop(L, 1);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -1163,11 +1162,11 @@ union SaveLoadBuffer
      * sys.set_connectivity_host("www.google.com")
      * ```
      */
-    static int Sys_SetConnectivityHost(lua_State* L)
+    static int Sys_SetConnectivityHost(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        dmSys::SetNetworkConnectivityHost( luaL_checkstring(L, 1) );
-        assert(top == lua_gettop(L));
+        int top = dlua_gettop(L);
+        dmSys::SetNetworkConnectivityHost( dluaL_checkstring(L, 1) );
+        assert(top == dlua_gettop(L));
         return 0;
     }
 
@@ -1195,11 +1194,11 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    static int Sys_GetConnectivity(lua_State* L)
+    static int Sys_GetConnectivity(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        lua_pushnumber(L, dmSys::GetNetworkConnectivity());
-        assert(top + 1 == lua_gettop(L));
+        int top = dlua_gettop(L);
+        dlua_pushnumber(L, dmSys::GetNetworkConnectivity());
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -1235,12 +1234,12 @@ union SaveLoadBuffer
     * end
     * ```
     */
-    static int Sys_Exit(lua_State* L)
+    static int Sys_Exit(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         dmSystemDDF::Exit msg;
-        msg.m_Code = luaL_checkinteger(L, 1);
+        msg.m_Code = dluaL_checkinteger(L, 1);
 
         dmMessage::URL url;
         GetSystemURL(&url);
@@ -1276,17 +1275,17 @@ union SaveLoadBuffer
     * sys.reboot(arg1, arg2)
     * ```
     */
-    static int Sys_Reboot(lua_State* L)
+    static int Sys_Reboot(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
 #define PUSH_FIELD(name, index) \
-        if (lua_isstring(L, index)) { \
-            lua_pushstring(L, luaL_checkstring(L, index)); \
-            lua_setfield(L, -2, name);\
+        if (dlua_isstring(L, index)) { \
+            dlua_pushstring(L, dluaL_checkstring(L, index)); \
+            dlua_setfield(L, -2, name);\
         }
 
-        lua_newtable(L);
+        dlua_newtable(L);
         PUSH_FIELD("arg1", 1);
         PUSH_FIELD("arg2", 2);
         PUSH_FIELD("arg3", 3);
@@ -1307,7 +1306,7 @@ union SaveLoadBuffer
         {
             return DM_LUA_ERROR("Failed to send reboot message!");
         }
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
         return 0;
     }
 
@@ -1334,12 +1333,12 @@ union SaveLoadBuffer
     * sys.set_vsync_swap_interval(1)
     * ```
     */
-    static int Sys_SetVsyncSwapInterval(lua_State* L)
+    static int Sys_SetVsyncSwapInterval(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         dmSystemDDF::SetVsync msg;
-        msg.m_SwapInterval = luaL_checkinteger(L, 1);
+        msg.m_SwapInterval = dluaL_checkinteger(L, 1);
 
         dmMessage::URL url;
         GetSystemURL(&url);
@@ -1367,12 +1366,12 @@ union SaveLoadBuffer
     * sys.set_update_frequency(60)
     * ```
     */
-    static int Sys_SetUpdateFrequency(lua_State* L)
+    static int Sys_SetUpdateFrequency(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         dmSystemDDF::SetUpdateFrequency msg;
-        msg.m_Frequency = luaL_checkinteger(L, 1);
+        msg.m_Frequency = dluaL_checkinteger(L, 1);
 
         dmMessage::URL url;
         GetSystemURL(&url);
@@ -1402,20 +1401,20 @@ union SaveLoadBuffer
      * ```
      */
 
-    static int Sys_Serialize(lua_State* L)
+    static int Sys_Serialize(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        luaL_checktype(L, 1, LUA_TTABLE);
+        dluaL_checktype(L, 1, DLUA_TTABLE);
 
         uint32_t table_size = CheckTableSize(L, 1);
         char* buffer = Sys_SetupTableSerializationBuffer(table_size);
         if (!buffer)
         {
-            return luaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
+            return dluaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
         }
 
         uint32_t n_used = CheckTable(L, buffer, table_size, 1);
-        lua_pushlstring(L, (const char*)buffer, n_used);
+        dlua_pushlstring(L, (const char*)buffer, n_used);
         Sys_FreeTableSerializationBuffer(buffer);
         return 1;
 
@@ -1437,59 +1436,59 @@ union SaveLoadBuffer
      * ```
      */
 
-    static int Sys_Deserialize(lua_State* L)
+    static int Sys_Deserialize(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         size_t bytes_lenght;
-        const char* bytes = luaL_checklstring(L, 1, &bytes_lenght);
+        const char* bytes = dluaL_checklstring(L, 1, &bytes_lenght);
         PushTable(L, bytes, bytes_lenght);
         return 1;
     }
 
     //undocummented function for debugger
 
-    static void Sys_DebuggerLightweightHook(lua_State *L, lua_Debug *ar)
+    static void Sys_DebuggerLightweightHook(dlua_State *L, dlua_Debug *ar)
     {
-        int top = lua_gettop(L);
-        lua_getinfo(L, "S", ar);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
-        lua_pushstring(L, ar->source);
-        lua_pushnumber(L, ar->lastlinedefined);
-        if (lua_pushthread(L))
+        int top = dlua_gettop(L);
+        dlua_getinfo(L, "S", ar);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+        dlua_pushstring(L, ar->source);
+        dlua_pushnumber(L, ar->lastlinedefined);
+        if (dlua_pushthread(L))
         {
-            lua_pop(L, 1);
-            lua_pushnil(L); //main thread is not a coroutine
+            dlua_pop(L, 1);
+            dlua_pushnil(L); //main thread is not a coroutine
         }
         //[-1] - thread or nil
         //[-2] - lastlinedefined (number)
         //[-3] - source (string)
         //[-4] - callback
-        lua_call(L, 3, 0);
-        assert(top == lua_gettop(L));
+        dlua_call(L, 3, 0);
+        assert(top == dlua_gettop(L));
     }
 
-    static int Sys_SetDebuggerLightweightHook(lua_State* L)
+    static int Sys_SetDebuggerLightweightHook(dlua_State* L)
     {
         int index = 1;
-        lua_State* L1 = L;
-        if (lua_isthread(L, 1)) {
-            L1 = lua_tothread(L, 1);
+        dlua_State* L1 = L;
+        if (dlua_isthread(L, 1)) {
+            L1 = dlua_tothread(L, 1);
             index++;
         }
-        luaL_checktype(L, index, LUA_TFUNCTION);
-        lua_pushvalue(L, index);
+        dluaL_checktype(L, index, DLUA_TFUNCTION);
+        dlua_pushvalue(L, index);
         if (g_DebuggerLightweightHook)
         {
-            dmScript::Unref(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+            dmScript::Unref(L, DLUA_REGISTRYINDEX, g_DebuggerLightweightHook);
             g_DebuggerLightweightHook = 0;
         }
-        g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        g_DebuggerLightweightHook = dmScript::Ref(L, DLUA_REGISTRYINDEX);
 
-        lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
+        dlua_sethook(L1, Sys_DebuggerLightweightHook, DLUA_MASKCALL, 0);
         return 0;
     }
 
-    static const luaL_reg ScriptSys_methods[] =
+    static const dluaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
         {"load", Sys_Load},
@@ -1538,16 +1537,16 @@ union SaveLoadBuffer
      * @constant
      */
 
-    void InitializeSys(lua_State* L)
+    void InitializeSys(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
-        lua_pushvalue(L, LUA_GLOBALSINDEX);
-        luaL_register(L, LIB_NAME, ScriptSys_methods);
+        dlua_pushvalue(L, DLUA_GLOBALSINDEX);
+        dluaL_register(L, LIB_NAME, ScriptSys_methods);
 
 #define SETCONSTANT(name, val) \
-        lua_pushnumber(L, (lua_Number) val); \
-        lua_setfield(L, -2, #name);\
+        dlua_pushnumber(L, (dlua_Number) val); \
+        dlua_setfield(L, -2, #name);\
 
         SETCONSTANT(NETWORK_CONNECTED, dmSys::NETWORK_CONNECTED);
         SETCONSTANT(NETWORK_CONNECTED_CELLULAR, dmSys::NETWORK_CONNECTED_CELLULAR);
@@ -1555,8 +1554,8 @@ union SaveLoadBuffer
 
 #undef SETCONSTANT
 
-        lua_pop(L, 2);
+        dlua_pop(L, 2);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 }

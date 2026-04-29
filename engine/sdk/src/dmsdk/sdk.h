@@ -18,9 +18,7 @@
 #include <dmsdk/extension/extension.hpp>
 #include <dmsdk/engine/extension.h>
 #include <dmsdk/script.h> // references both script/script.h and gamesys/script.h
-#include <dmsdk/lua/luaconf.h>
-#include <dmsdk/lua/lauxlib.h>
-#include <dmsdk/lua/lua.h>
+#include <dmsdk/dlua/dlua.h>
 #include <dmsdk/dlib/time.h>
 #include <dmsdk/dlib/condition_variable.h>
 #include <dmsdk/dlib/align.h>

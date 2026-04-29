@@ -1347,14 +1347,14 @@ namespace dmRender
             {
                 return;
             }
-            lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+            dlua_State* L = dmScript::GetCallbackLuaContext(cbk);
             DM_LUA_STACK_CHECK(L, 0);
 
             if (!dmScript::SetupCallback(cbk))
             {
                 return;
             }
-            lua_pushinteger(L, event_type);
+            dlua_pushinteger(L, event_type);
             int ret = dmScript::PCall(L, 2, 0);
             (void)ret;
             dmScript::TeardownCallback(cbk);

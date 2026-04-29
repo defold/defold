@@ -22,11 +22,7 @@
 #include "crash.h"
 #include "crash_private.h"
 
-extern "C"
-{
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 #define LIB_NAME "crash"
 
@@ -42,12 +38,12 @@ namespace dmCrash
      * @language Lua
      */
 
-    static HDump CheckHandle(lua_State* L, int index)
+    static HDump CheckHandle(dlua_State* L, int index)
     {
-        HDump h = (HDump) luaL_checkint(L, index);
+        HDump h = (HDump) dluaL_checkint(L, index);
         if (!IsValidHandle(h))
         {
-            luaL_error(L, "Provided handle is invalid");
+            dluaL_error(L, "Provided handle is invalid");
         }
         return h;
     }
@@ -59,7 +55,7 @@ namespace dmCrash
      *
      * @name crash.write_dump
      */
-    static int Crash_WriteDump(lua_State* L)
+    static int Crash_WriteDump(dlua_State* L)
     {
         WriteDump();
         return 0;
@@ -72,9 +68,9 @@ namespace dmCrash
      * @name crash.set_file_path
      * @param path [type:string] file path to use
      */
-    static int Crash_SetFilePath(lua_State* L)
+    static int Crash_SetFilePath(dlua_State* L)
     {
-        const char* path = luaL_checkstring(L, 1);
+        const char* path = dluaL_checkstring(L, 1);
         SetFilePath(path);
         return 0;
     }
@@ -87,17 +83,17 @@ namespace dmCrash
      * @name crash.load_previous
      * @return handle [type:number|nil] handle to the loaded dump, or `nil` if no dump was found
      */
-    static int Crash_LoadPrevious(lua_State* L)
+    static int Crash_LoadPrevious(dlua_State* L)
     {
         HDump dump = LoadPrevious();
         if (dump != 0)
         {
-            lua_pushnumber(L, dump);
+            dlua_pushnumber(L, dump);
             Purge();
         }
         else
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
         return 1;
     }
@@ -107,7 +103,7 @@ namespace dmCrash
      * @name crash.release
      * @param handle [type:number] handle to loaded crash dump
      */
-    static int Crash_ReleasePrevious(lua_State* L)
+    static int Crash_ReleasePrevious(dlua_State* L)
     {
         Release(CheckHandle(L, 1));
         return 0;
@@ -123,14 +119,14 @@ namespace dmCrash
      * @param index [type:number] slot index. 0-indexed
      * @param value [type:string] string value to store
      */
-    static int Crash_SetUserField(lua_State* L)
+    static int Crash_SetUserField(dlua_State* L)
     {
-        int index = luaL_checkint(L, 1);
-        const char* value = luaL_checkstring(L, 2);
+        int index = dluaL_checkint(L, 1);
+        const char* value = dluaL_checkstring(L, 2);
 
         if (index < 0 || index >= (int)AppState::USERDATA_SLOTS)
         {
-            return luaL_error(L, "User data slot index out of range. Max elements is %d", AppState::USERDATA_SLOTS);
+            return dluaL_error(L, "User data slot index out of range. Max elements is %d", AppState::USERDATA_SLOTS);
         }
 
         if (strlen(value) > (int)(AppState::USERDATA_SIZE-1))
@@ -151,13 +147,13 @@ namespace dmCrash
      * @param handle [type:number] crash dump handle
      * @return modules [type:table] module table
      */
-    static int Crash_GetModules(lua_State* L)
+    static int Crash_GetModules(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         HDump h = CheckHandle(L, 1);
 
-        lua_newtable(L);
+        dlua_newtable(L);
         for (uint32_t i=0;true;i++)
         {
             void* addr = GetModuleAddr(h, i);
@@ -168,23 +164,23 @@ namespace dmCrash
                 break;
             }
 
-            lua_pushnumber(L, i+1);
+            dlua_pushnumber(L, i+1);
 
-            lua_newtable(L);
-            lua_pushliteral(L, "name");
-            lua_pushstring(L, name);
-            lua_settable(L, -3);
+            dlua_newtable(L);
+            dlua_pushliteral(L, "name");
+            dlua_pushstring(L, name);
+            dlua_settable(L, -3);
 
             char str[64];
             dmSnPrintf(str, sizeof(str), "%p", addr);
-            lua_pushliteral(L, "address");
-            lua_pushstring(L, str);
-            lua_settable(L, -3);
+            dlua_pushliteral(L, "address");
+            dlua_pushstring(L, str);
+            dlua_settable(L, -3);
 
-            lua_settable(L, -3);
+            dlua_settable(L, -3);
         }
 
-        assert(lua_gettop(L) == (top+1));
+        assert(dlua_gettop(L) == (top+1));
         return 1;
     }
 
@@ -195,23 +191,23 @@ namespace dmCrash
      * @param index [type:number] user data slot index
      * @return value [type:string] user data value recorded in the crash dump
      */
-    static int Crash_GetUserField(lua_State* L)
+    static int Crash_GetUserField(dlua_State* L)
     {
         HDump h = CheckHandle(L, 1);
-        int index = luaL_checkint(L, 2);
+        int index = dluaL_checkint(L, 2);
         if (index < 0 || index >= (int)AppState::USERDATA_SLOTS)
         {
-            return luaL_error(L, "User data slot index out of range. Max elements is %d", AppState::USERDATA_SLOTS);
+            return dluaL_error(L, "User data slot index out of range. Max elements is %d", AppState::USERDATA_SLOTS);
         }
 
         const char *value = GetUserField(h, index);
         if (!value)
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
         else
         {
-            lua_pushstring(L, value);
+            dlua_pushstring(L, value);
         }
 
         return 1;
@@ -224,23 +220,23 @@ namespace dmCrash
      * @param index [type:number] system field enum. Must be less than [ref:crash.SYSFIELD_MAX]
      * @return value [type:string|nil] value recorded in the crash dump, or `nil` if it didn't exist
      */
-    static int Crash_GetSysField(lua_State* L)
+    static int Crash_GetSysField(dlua_State* L)
     {
         HDump h = CheckHandle(L, 1);
-        int field = luaL_checkint(L, 2);
+        int field = dluaL_checkint(L, 2);
         if (field < 0 || field >= SYSFIELD_MAX)
         {
-            return luaL_error(L, "Unknown system field provided");
+            return dluaL_error(L, "Unknown system field provided");
         }
 
         const char *value = GetSysField(h, (SysField)field);
         if (!value)
         {
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
         else
         {
-            lua_pushstring(L, value);
+            dlua_pushstring(L, value);
         }
 
         return 1;
@@ -252,10 +248,10 @@ namespace dmCrash
      * @param handle [type:number] crash dump handle
      * @return signal [type:number] signal number
      */
-    static int Crash_GetSignum(lua_State* L)
+    static int Crash_GetSignum(dlua_State* L)
     {
         HDump h = CheckHandle(L, 1);
-        lua_pushnumber(L, GetSignum(h));
+        dlua_pushnumber(L, GetSignum(h));
         return 1;
     }
 
@@ -267,22 +263,22 @@ namespace dmCrash
      * @param handle [type:number] crash dump handle
      * @return backtrace [type:table] table containing the backtrace
      */
-    static int Crash_GetBacktrace(lua_State* L)
+    static int Crash_GetBacktrace(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         HDump h = CheckHandle(L, 1);
         uint32_t count = GetBacktraceAddrCount(h);
-        lua_newtable(L);
+        dlua_newtable(L);
       for (uint32_t i=0;i!=count;i++)
         {
             char str[64];
             dmSnPrintf(str, sizeof(str), "%p", GetBacktraceAddr(h, i));
-            lua_pushnumber(L, i+1);
-            lua_pushstring(L, str);
-            lua_settable(L, -3);
+            dlua_pushnumber(L, i+1);
+            dlua_pushstring(L, str);
+            dlua_settable(L, -3);
         }
 
-        assert(lua_gettop(L) == (top+1));
+        assert(dlua_gettop(L) == (top+1));
         return 1;
     }
 
@@ -296,14 +292,14 @@ namespace dmCrash
      * @param handle [type:number] crash dump handle
      * @return blob [type:string] string with the platform specific data
      */
-    static int Crash_GetExtraData(lua_State* L)
+    static int Crash_GetExtraData(dlua_State* L)
     {
         HDump h = CheckHandle(L, 1);
-        lua_pushstring(L, GetExtraData(h));
+        dlua_pushstring(L, GetExtraData(h));
         return 1;
     }
 
-    static const luaL_reg Crash_methods[] =
+    static const dluaL_reg Crash_methods[] =
     {
         {"set_file_path", Crash_SetFilePath},
         {"load_previous", Crash_LoadPrevious},
@@ -323,13 +319,13 @@ namespace dmCrash
     {
         assert(dmCrash::IsInitialized());
 
-        lua_State* L = params->m_L;
-        int top = lua_gettop(L);
-        luaL_register(L, LIB_NAME, Crash_methods);
+        dlua_State* L = params->m_L;
+        int top = dlua_gettop(L);
+        dluaL_register(L, LIB_NAME, Crash_methods);
 
         #define SETCONSTANT(name) \
-            lua_pushnumber(L, (lua_Number) name); \
-            lua_setfield(L, -2, #name);\
+            dlua_pushnumber(L, (dlua_Number) name); \
+            dlua_setfield(L, -2, #name);\
 
         /*# engine version as release number
          *
@@ -412,8 +408,8 @@ namespace dmCrash
         #undef SETCONSTANT
 
         #define SETCUSTOMCONSTANT(name, value) \
-            lua_pushnumber(L, (lua_Number) (value)); \
-            lua_setfield(L, -2, #name);\
+            dlua_pushnumber(L, (dlua_Number) (value)); \
+            dlua_setfield(L, -2, #name);\
 
         /*# The max number of user fields.
          *
@@ -431,8 +427,8 @@ namespace dmCrash
 
         #undef SETCUSTOMCONSTANT
 
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+        dlua_pop(L, 1);
+        assert(top == dlua_gettop(L));
         return dmExtension::RESULT_OK;
     }
 

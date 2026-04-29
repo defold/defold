@@ -25,11 +25,7 @@
 
 #include "../gamesys.h"
 
-extern "C"
-{
-    #include <lua/lua.h>
-    #include <lua/lauxlib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameSystem
 {
@@ -69,34 +65,34 @@ namespace dmGameSystem
      * @constant
      */
 
-    static void PushImageParameters(lua_State* L, dmImage::Image image)
+    static void PushImageParameters(dlua_State* L, dmImage::Image image)
     {
-        lua_pushliteral(L, "width");
-        lua_pushinteger(L, image.m_Width);
-        lua_rawset(L, -3);
+        dlua_pushliteral(L, "width");
+        dlua_pushinteger(L, image.m_Width);
+        dlua_rawset(L, -3);
 
-        lua_pushliteral(L, "height");
-        lua_pushinteger(L, image.m_Height);
-        lua_rawset(L, -3);
+        dlua_pushliteral(L, "height");
+        dlua_pushinteger(L, image.m_Height);
+        dlua_rawset(L, -3);
 
-        lua_pushliteral(L, "type");
+        dlua_pushliteral(L, "type");
         switch (image.m_Type) {
             case dmImage::TYPE_RGB:
-                lua_pushliteral(L, "rgb");
+                dlua_pushliteral(L, "rgb");
                 break;
             case dmImage::TYPE_RGBA:
-                lua_pushliteral(L, "rgba");
+                dlua_pushliteral(L, "rgba");
                 break;
             case dmImage::TYPE_LUMINANCE:
-                lua_pushliteral(L, "l");
+                dlua_pushliteral(L, "l");
                 break;
             case dmImage::TYPE_LUMINANCE_ALPHA:
-                lua_pushliteral(L, "la");
+                dlua_pushliteral(L, "la");
                 break;
             default:
                 assert(false);
         }
-        lua_rawset(L, -3);
+        dlua_rawset(L, -3);
     }
 
     /*# load image from buffer
@@ -135,12 +131,12 @@ namespace dmGameSystem
     *     end)
     * ```
     */
-    int Image_Load(lua_State* L)
+    int Image_Load(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        luaL_checktype(L, 1, LUA_TSTRING);
+        int top = dlua_gettop(L);
+        dluaL_checktype(L, 1, DLUA_TSTRING);
         size_t buffer_len = 0;
-        const char* buffer = lua_tolstring(L, 1, &buffer_len);
+        const char* buffer = dlua_tolstring(L, 1, &buffer_len);
 
         bool premult = false;
         bool flip_vertically = false;
@@ -148,21 +144,21 @@ namespace dmGameSystem
         if (top >= 2)
         {
             // Parse as options table
-            if (lua_istable(L, 2))
+            if (dlua_istable(L, 2))
             {
-                lua_pushvalue(L, 2);
+                dlua_pushvalue(L, 2);
 
-                lua_getfield(L, -1, "premultiply_alpha");
-                if (!lua_isnil(L, -1))
+                dlua_getfield(L, -1, "premultiply_alpha");
+                if (!dlua_isnil(L, -1))
                     premult = dmScript::CheckBoolean(L, -1);
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
 
-                lua_getfield(L, -1, "flip_vertically");
-                if (!lua_isnil(L, -1))
+                dlua_getfield(L, -1, "flip_vertically");
+                if (!dlua_isnil(L, -1))
                     flip_vertically = dmScript::CheckBoolean(L, -1);
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
 
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
             }
             // backwards compatability
             else
@@ -178,26 +174,26 @@ namespace dmGameSystem
             int bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);
             if (bytes_per_pixel == 0) {
                 dmImage::Free(&image);
-                luaL_error(L, "unknown image type %d", image.m_Type);
+                dluaL_error(L, "unknown image type %d", image.m_Type);
             }
 
-            lua_newtable(L);
+            dlua_newtable(L);
 
             PushImageParameters(L, image);
 
-            lua_pushliteral(L, "buffer");
-            lua_pushlstring(L, (const char*) image.m_Buffer, bytes_per_pixel * image.m_Width * image.m_Height);
-            lua_rawset(L, -3);
+            dlua_pushliteral(L, "buffer");
+            dlua_pushlstring(L, (const char*) image.m_Buffer, bytes_per_pixel * image.m_Width * image.m_Height);
+            dlua_rawset(L, -3);
 
             dmImage::Free(&image);
         }
         else
         {
             dmLogWarning("failed to load image (%d)", r);
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -246,12 +242,12 @@ namespace dmGameSystem
     * ```
     *
     */
-    static int Image_LoadBuffer(lua_State* L)
+    static int Image_LoadBuffer(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        luaL_checktype(L, 1, LUA_TSTRING);
+        int top = dlua_gettop(L);
+        dluaL_checktype(L, 1, DLUA_TSTRING);
         size_t buffer_len = 0;
-        const char* buffer = lua_tolstring(L, 1, &buffer_len);
+        const char* buffer = dlua_tolstring(L, 1, &buffer_len);
 
         bool premult = false;
         bool flip_vertically = false;
@@ -259,21 +255,21 @@ namespace dmGameSystem
         if (top >= 2)
         {
             // Parse as options table
-            if (lua_istable(L, 2))
+            if (dlua_istable(L, 2))
             {
-                lua_pushvalue(L, 2);
+                dlua_pushvalue(L, 2);
 
-                lua_getfield(L, -1, "premultiply_alpha");
-                if (!lua_isnil(L, -1))
+                dlua_getfield(L, -1, "premultiply_alpha");
+                if (!dlua_isnil(L, -1))
                     premult = dmScript::CheckBoolean(L, -1);
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
 
-                lua_getfield(L, -1, "flip_vertically");
-                if (!lua_isnil(L, -1))
+                dlua_getfield(L, -1, "flip_vertically");
+                if (!dlua_isnil(L, -1))
                     flip_vertically = dmScript::CheckBoolean(L, -1);
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
 
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
             }
             // backwards compatability
             else
@@ -289,17 +285,17 @@ namespace dmGameSystem
             uint8_t bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);
             if (bytes_per_pixel == 0) {
                 dmImage::Free(&image);
-                luaL_error(L, "unknown image type %d", image.m_Type);
+                dluaL_error(L, "unknown image type %d", image.m_Type);
             }
 
-            lua_newtable(L);
+            dlua_newtable(L);
 
             PushImageParameters(L, image);
 
             uint32_t imagesize = image.m_Width * image.m_Height;
             uint32_t datasize = bytes_per_pixel * imagesize;
 
-            lua_pushliteral(L, "buffer");
+            dlua_pushliteral(L, "buffer");
 
             dmBuffer::StreamDeclaration streams_decl[] = {
                 { dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, bytes_per_pixel }
@@ -316,17 +312,17 @@ namespace dmGameSystem
             dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
             dmScript::PushBuffer(L, luabuf);
 
-            lua_rawset(L, -3);
+            dlua_rawset(L, -3);
 
             dmImage::Free(&image);
         }
         else
         {
             dmLogWarning("failed to load image (%d)", r);
-            lua_pushnil(L);
+            dlua_pushnil(L);
         }
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
@@ -356,46 +352,46 @@ namespace dmGameSystem
     * pprint(s)
     * ```
     */
-    int Image_GetAstcHeader(lua_State* L)
+    int Image_GetAstcHeader(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        luaL_checktype(L, 1, LUA_TSTRING);
+        int top = dlua_gettop(L);
+        dluaL_checktype(L, 1, DLUA_TSTRING);
         size_t data_len = 0;
-        const char* data = lua_tolstring(L, 1, &data_len);
+        const char* data = dlua_tolstring(L, 1, &data_len);
 
         uint32_t width, height, depth;
         if (!dmImage::GetAstcDimensions((void*)data, (uint32_t)data_len, &width, &height, &depth))
         {
-            return luaL_error(L, "Data is not a valid .astc file");
+            return dluaL_error(L, "Data is not a valid .astc file");
         }
 
         uint32_t block_size_x, block_size_y, block_size_z;
         if (!dmImage::GetAstcBlockSize((void*)data, (uint32_t)data_len, &block_size_x, &block_size_y, &block_size_z))
         {
-            return luaL_error(L, "Data is not a valid .astc file");
+            return dluaL_error(L, "Data is not a valid .astc file");
         }
 
-        lua_newtable(L);
+        dlua_newtable(L);
 
-            lua_pushinteger(L, width);
-            lua_setfield(L, -2, "width");
-            lua_pushinteger(L, height);
-            lua_setfield(L, -2, "height");
-            lua_pushinteger(L, depth);
-            lua_setfield(L, -2, "depth");
+            dlua_pushinteger(L, width);
+            dlua_setfield(L, -2, "width");
+            dlua_pushinteger(L, height);
+            dlua_setfield(L, -2, "height");
+            dlua_pushinteger(L, depth);
+            dlua_setfield(L, -2, "depth");
 
-            lua_pushinteger(L, block_size_x);
-            lua_setfield(L, -2, "block_size_x");
-            lua_pushinteger(L, block_size_y);
-            lua_setfield(L, -2, "block_size_y");
-            lua_pushinteger(L, block_size_z);
-            lua_setfield(L, -2, "block_size_z");
+            dlua_pushinteger(L, block_size_x);
+            dlua_setfield(L, -2, "block_size_x");
+            dlua_pushinteger(L, block_size_y);
+            dlua_setfield(L, -2, "block_size_y");
+            dlua_pushinteger(L, block_size_z);
+            dlua_setfield(L, -2, "block_size_z");
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top + 1 == dlua_gettop(L));
         return 1;
     }
 
-    static const luaL_reg ScriptImage_methods[] =
+    static const dluaL_reg ScriptImage_methods[] =
     {
         {"load",            Image_Load},
         {"load_buffer",     Image_LoadBuffer},
@@ -403,15 +399,15 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    static void ScriptImageRegister(lua_State* L)
+    static void ScriptImageRegister(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
-        luaL_register(L, LIB_NAME, ScriptImage_methods);
+        dluaL_register(L, LIB_NAME, ScriptImage_methods);
 
 #define SETCONSTANT(name, val) \
-        lua_pushliteral(L, val); \
-        lua_setfield(L, -2, #name);\
+        dlua_pushliteral(L, val); \
+        dlua_setfield(L, -2, #name);\
 
         SETCONSTANT(TYPE_RGB, "rgb")
         SETCONSTANT(TYPE_RGBA, "rgba")
@@ -419,14 +415,14 @@ namespace dmGameSystem
         SETCONSTANT(TYPE_LUMINANCE_ALPHA, "la")
 #undef SETCONSTANT
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 
     static dmExtension::Result ScriptImageInitialize(dmExtension::Params* params)
     {
-        lua_State* L = params->m_L;
+        dlua_State* L = params->m_L;
         ScriptImageRegister(L);
         return dmExtension::RESULT_OK;
     }

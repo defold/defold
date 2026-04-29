@@ -255,7 +255,7 @@ namespace dmGameSystem
 struct SetTextureAsyncRequest
 {
     dmhash_t                   m_PathHash;
-    lua_State*                 m_LuaState;
+    dlua_State*                m_LuaState;
     dmScript::LuaCallbackInfo* m_CallbackInfo;
     TextureResource*           m_TextureResource;
     uint8_t*                   m_RawData;
@@ -271,7 +271,7 @@ struct ResourceModule
     dmOpaqueHandleContainer<SetTextureAsyncRequest> m_LoadRequests;
 } g_ResourceModule;
 
-static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
+static int ReportPathError(dlua_State* L, dmResource::Result result, dmhash_t path_hash)
 {
     char msg[256];
     const char* format = 0;
@@ -282,14 +282,14 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     default:                                    format = "The resource was not updated (%d): %llu, %s"; break;
     }
     dmSnPrintf(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
-    return luaL_error(L, "%s", msg);
+    return dluaL_error(L, "%s", msg);
 }
 
-static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+static void* CheckResource(dlua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
 {
     HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
     if (!rd) {
-        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
+        dluaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
         return 0;
     }
 
@@ -302,7 +302,7 @@ static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t 
 
     HResourceType resource_type = dmResource::GetType(rd);
     if (resource_type != expected_resource_type) {
-        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
+        dluaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
         return 0;
     }
 
@@ -316,7 +316,7 @@ static dmhash_t GetCanonicalPathHash(const char* path)
     return dmHashBuffer64(canonical_path, path_len);
 }
 
-static void PreCreateResources(lua_State* L, const char* path_str, const char** supported_exts, uint32_t num_supported_exts, dmhash_t* canonical_path_hash_out)
+static void PreCreateResources(dlua_State* L, const char* path_str, const char** supported_exts, uint32_t num_supported_exts, dmhash_t* canonical_path_hash_out)
 {
     const char* path_ext = dmResource::GetExtFromPath(path_str);
     bool path_ok = false;
@@ -341,19 +341,19 @@ static void PreCreateResources(lua_State* L, const char* path_str, const char** 
         {
             dmStrlCat(message, supported_exts[i], sizeof(message));
         }
-        luaL_error(L, "%s", message);
+        dluaL_error(L, "%s", message);
     }
 
     dmhash_t canonical_path_hash = GetCanonicalPathHash(path_str);
     if (dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash))
     {
-        luaL_error(L, "Unable to create resource, a resource is already registered at path '%s'", path_str);
+        dluaL_error(L, "Unable to create resource, a resource is already registered at path '%s'", path_str);
     }
 
     *canonical_path_hash_out = canonical_path_hash;
 }
 
-static void PreCreateResource(lua_State* L, const char* path_str, const char* path_ext_wanted, dmhash_t* canonical_path_hash_out)
+static void PreCreateResource(dlua_State* L, const char* path_str, const char* path_ext_wanted, dmhash_t* canonical_path_hash_out)
 {
     PreCreateResources(L, path_str, &path_ext_wanted, 1, canonical_path_hash_out);
 }
@@ -376,9 +376,9 @@ static void PreCreateResource(lua_State* L, const char* path_str, const char* pa
  * resource.set(go.get("#sprite", "texture0"), buffer)
  * ```
  */
-static int Set(lua_State* L)
+static int Set(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 2);
@@ -390,10 +390,10 @@ static int Set(lua_State* L)
     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, data, datasize);
     if( r != dmResource::RESULT_OK )
     {
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return ReportPathError(L, r, path_hash);
     }
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
     return 0;
 }
 
@@ -422,10 +422,10 @@ static int Set(lua_State* L)
  * custom_resources = resources/,assets/level_data.json
  * ```
  */
-static int Load(lua_State* L)
+static int Load(dlua_State* L)
 {
-    int top = lua_gettop(L);
-    const char* name = luaL_checkstring(L, 1);
+    int top = dlua_gettop(L);
+    const char* name = dluaL_checkstring(L, 1);
 
     void* resource = 0;
     uint32_t resourcesize = 0;
@@ -433,7 +433,7 @@ static int Load(lua_State* L)
 
     if( r != dmResource::RESULT_OK )
     {
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return ReportPathError(L, r, dmHashString64(name));
     }
 
@@ -452,22 +452,22 @@ static int Load(lua_State* L)
 
     dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
     dmScript::PushBuffer(L, luabuf);
-    assert(top + 1 == lua_gettop(L));
+    assert(top + 1 == dlua_gettop(L));
     return 1;
 }
 
 
-static int DoCheckError(lua_State* L, const char* attr_name, const char* expected_type)
+static int DoCheckError(dlua_State* L, const char* attr_name, const char* expected_type)
 {
     char msg[256];
-    dmSnPrintf(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected %s, got %s", attr_name, expected_type, luaL_typename(L, -1) );
-    return luaL_error(L, "%s", msg);
+    dmSnPrintf(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected %s, got %s", attr_name, expected_type, dluaL_typename(L, -1) );
+    return dluaL_error(L, "%s", msg);
 }
 
 ////////////////////////////////////
 
 template<typename T>
-T CheckValue(lua_State* L, int index, const char* attr_name)
+T CheckValue(dlua_State* L, int index, const char* attr_name)
 {
     (void)L;
     (void)index;
@@ -477,36 +477,36 @@ T CheckValue(lua_State* L, int index, const char* attr_name)
 }
 
 template<>
-bool CheckValue<bool>(lua_State* L, int index, const char* attr_name)
+bool CheckValue<bool>(dlua_State* L, int index, const char* attr_name)
 {
-    if (!lua_isboolean(L, index)) {
+    if (!dlua_isboolean(L, index)) {
         return DoCheckError(L, attr_name, "boolean");
     }
-    return lua_toboolean(L, index);
+    return dlua_toboolean(L, index);
 }
 
 template<>
-float CheckValue<float>(lua_State* L, int index, const char* attr_name)
+float CheckValue<float>(dlua_State* L, int index, const char* attr_name)
 {
-    if (!lua_isnumber(L, index)) {
+    if (!dlua_isnumber(L, index)) {
         return DoCheckError(L, attr_name, "number");
     }
-    return lua_tonumber(L, index);
+    return dlua_tonumber(L, index);
 }
 
 template<>
-int CheckValue<int>(lua_State* L, int index, const char* attr_name)
+int CheckValue<int>(dlua_State* L, int index, const char* attr_name)
 {
-    if (!lua_isnumber(L, index)) {
+    if (!dlua_isnumber(L, index)) {
         return DoCheckError(L, attr_name, "integer");
     }
-    return lua_tointeger(L, index);
+    return dlua_tointeger(L, index);
 }
 
 template<typename T>
-T CheckValueDefault(lua_State* L, int index, const char* attr_name, T default_value)
+T CheckValueDefault(dlua_State* L, int index, const char* attr_name, T default_value)
 {
-    if (lua_isnil(L, -1)) {
+    if (dlua_isnil(L, -1)) {
         return default_value;
     }
     return CheckValue<T>(L, -1, attr_name);
@@ -515,57 +515,57 @@ T CheckValueDefault(lua_State* L, int index, const char* attr_name, T default_va
 ////////////////////////////////////
 
 template<typename T>
-T CheckTableValue(lua_State* L, int index, const char* name)
+T CheckTableValue(dlua_State* L, int index, const char* name)
 {
-    lua_pushstring(L, name);
-    lua_gettable(L, index);
+    dlua_pushstring(L, name);
+    dlua_gettable(L, index);
     T result = CheckValue<T>(L, -1, name);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
     return result;
 }
 
 template<typename T>
-T CheckTableValue(lua_State* L, int index, const char* name, T default_value)
+T CheckTableValue(dlua_State* L, int index, const char* name, T default_value)
 {
-    lua_pushstring(L, name);
-    lua_gettable(L, index);
+    dlua_pushstring(L, name);
+    dlua_gettable(L, index);
     T result = CheckValueDefault<T>(L, -1, name, default_value);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
     return result;
 }
 
 template<typename T>
-T CheckFieldValue(lua_State* L, int index, const char* name)
+T CheckFieldValue(dlua_State* L, int index, const char* name)
 {
-    lua_getfield(L, index, name);
+    dlua_getfield(L, index, name);
     T result = CheckValue<T>(L, -1, name);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
     return result;
 }
 
 template<typename T>
-T CheckFieldValue(lua_State* L, int index, const char* name, T default_value)
+T CheckFieldValue(dlua_State* L, int index, const char* name, T default_value)
 {
-    lua_getfield(L, index, name);
+    dlua_getfield(L, index, name);
     T result = CheckValueDefault<T>(L, -1, name, default_value);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
     return result;
 }
 
 ////////////////////////////////////
-static bool CheckTableBoolean(lua_State* L, int index, const char* name, bool default_value)
+static bool CheckTableBoolean(dlua_State* L, int index, const char* name, bool default_value)
 {
     return CheckTableValue<bool>(L, index, name, default_value);
 }
-static int CheckTableInteger(lua_State* L, int index, const char* name)
+static int CheckTableInteger(dlua_State* L, int index, const char* name)
 {
     return CheckTableValue<int>(L, index, name);
 }
-static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
+static int CheckTableInteger(dlua_State* L, int index, const char* name, int default_value)
 {
     return CheckTableValue<int>(L, index, name, default_value);
 }
-static float CheckTableNumber(lua_State* L, int index, const char* name, float default_value)
+static float CheckTableNumber(dlua_State* L, int index, const char* name, float default_value)
 {
     return CheckTableValue<float>(L, index, name, default_value);
 }
@@ -580,24 +580,24 @@ static inline bool IsTextureFormatSupported(dmGraphics::TextureType type)
            type == dmGraphics::TEXTURE_TYPE_IMAGE_3D;
 }
 
-static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
+static void CheckTextureResource(dlua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
 {
-    lua_getfield(L, i, field_name);
+    dlua_getfield(L, i, field_name);
     dmhash_t path_hash           = dmScript::CheckHashOrString(L, -1);
     TextureResource* texture_res = (TextureResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
     *texture_out                 = texture_res->m_Texture;
     *texture_path_out            = path_hash;
-    lua_pop(L, 1); // "texture"
+    dlua_pop(L, 1); // "texture"
 }
 
-static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceParams* params)
+static int CheckCreateTextureResourceParams(dlua_State* L, CreateTextureResourceParams* params)
 {
-    const char* path = luaL_checkstring(L, 1);
+    const char* path = dluaL_checkstring(L, 1);
 
     dmhash_t path_hash;
     PreCreateResource(L, path, "texturec", &path_hash);
 
-    luaL_checktype(L, 2, LUA_TTABLE);
+    dluaL_checktype(L, 2, DLUA_TTABLE);
     dmGraphics::TextureType type     = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
     dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) CheckTableInteger(L, 2, "format");
     int width                        = CheckTableInteger(L, 2, "width");
@@ -609,23 +609,23 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
 
     if (width < 1 || height < 1 || depth < 1 || page_count < 1)
     {
-        return luaL_error(L, "Unable to create texture, width, height, depth and page count must be larger than 0");
+        return dluaL_error(L, "Unable to create texture, width, height, depth and page count must be larger than 0");
     }
 
     if (!IsTextureFormatSupported(type))
     {
-        return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
+        return dluaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
 
     if (dmGraphics::IsTextureType3D(type) && !dmGraphics::IsContextFeatureSupported(g_ResourceModule.m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
     {
-        return luaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
+        return dluaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
     }
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
     dmBuffer::HBuffer buffer = 0;
-    if (lua_gettop(L) > 2 && !lua_isnil(L, 3))
+    if (dlua_gettop(L) > 2 && !dlua_isnil(L, 3))
     {
         // TODO: Support creating texture from string
         dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
@@ -655,13 +655,13 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
 
     if (!dmGraphics::IsTextureFormatSupportedForType(g_ResourceModule.m_GraphicsContext, type, format))
     {
-        return luaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
+        return dluaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
     }
 
     // TODO: To support this, we need to supply separate buffers for each side as an option, or offsets into the buffer where each side is located
     if ((tex_type == dmGraphics::TextureImage::TYPE_CUBEMAP || tex_type == dmGraphics::TextureImage::TYPE_2D_ARRAY) && compression_type != dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT)
     {
-        return luaL_error(L, "Compression type %d requested for texture %s with type '%s', but this is currently not supported.",
+        return dluaL_error(L, "Compression type %d requested for texture %s with type '%s', but this is currently not supported.",
             (int) compression_type, path, dmGraphics::GetTextureTypeLiteral(type));
     }
 
@@ -698,18 +698,18 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
     {
-        lua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
+        dlua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
         DM_LUA_STACK_CHECK(L, 0);
 
         // callback has the format:
         // function(self, request_id, result)
         if (dmScript::SetupCallback(request->m_CallbackInfo))
         {
-            lua_pushnumber(L, request->m_Handle);
+            dlua_pushnumber(L, request->m_Handle);
 
-            lua_newtable(L);
+            dlua_newtable(L);
             dmScript::PushHash(L, request->m_PathHash);
-            lua_setfield(L, -2, "path");
+            dlua_setfield(L, -2, "path");
 
             dmScript::PCall(L, 3, 0);
             dmScript::TeardownCallback(request->m_CallbackInfo);
@@ -728,7 +728,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
     }
     if (request->m_Buffer)
     {
-        dmScript::Unref(request->m_LuaState, LUA_REGISTRYINDEX, request->m_BufferRef);
+        dmScript::Unref(request->m_LuaState, DLUA_REGISTRYINDEX, request->m_BufferRef);
     }
 
     g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
@@ -918,10 +918,10 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * 		})
  * ```
  */
-static int CreateTexture(lua_State* L)
+static int CreateTexture(dlua_State* L)
 {
     // This function pushes the hash of the resource created
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
 
@@ -929,13 +929,13 @@ static int CreateTexture(lua_State* L)
     dmResource::Result res = CreateTextureResource(g_ResourceModule.m_Factory, create_params, &resource_out);
     if (res != dmResource::RESULT_OK)
     {
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return ReportPathError(L, res, create_params.m_PathHash);
     }
 
     dmGameObject::AddDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
     dmScript::PushHash(L, create_params.m_PathHash);
-    assert((top+1) == lua_gettop(L));
+    assert((top+1) == dlua_gettop(L));
     return 1;
 }
     
@@ -1119,7 +1119,7 @@ static int CreateTexture(lua_State* L)
  * end
  * ```
  */
-static int CreateTextureAsync(lua_State* L)
+static int CreateTextureAsync(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 2);
 
@@ -1200,8 +1200,8 @@ static int CreateTextureAsync(lua_State* L)
     // this is so that we can make sure that the buffer to live during the upload.
     if (create_params.m_Buffer)
     {
-        lua_pushvalue(L, 3);
-        request->m_BufferRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        dlua_pushvalue(L, 3);
+        request->m_BufferRef = dmScript::Ref(L, DLUA_REGISTRYINDEX);
     }
 
     dmBuffer::GetBytes(request->m_Buffer, (void**) &texture_params.m_Data, &texture_params.m_DataSize);
@@ -1239,7 +1239,7 @@ static int CreateTextureAsync(lua_State* L)
     dmGraphics::SetTextureAsync(g_ResourceModule.m_GraphicsContext, texture_dst, texture_params, HandleRequestCompleted, request);
 
     dmScript::PushHash(L, create_params.m_PathHash);
-    lua_pushnumber(L, request_handle);
+    dlua_pushnumber(L, request_handle);
 
     return 2;
 }
@@ -1254,13 +1254,13 @@ static int CreateTextureAsync(lua_State* L)
  * @param path [type:hash|string] The path to the resource.
  *
  */
-static int ReleaseResource(lua_State* L)
+static int ReleaseResource(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd) {
-        return luaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));
+        return dluaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));
     }
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
@@ -1491,15 +1491,15 @@ static int ReleaseResource(lua_State* L)
  *	go.set("#mesh", "texture0", new_tex)
  * ```
  */
-static int SetTexture(lua_State* L)
+static int SetTexture(dlua_State* L)
 {
     const int32_t DEFAULT_INT_NOT_SET = -1;
 
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
-    luaL_checktype(L, 2, LUA_TTABLE);
+    dluaL_checktype(L, 2, DLUA_TTABLE);
     dmGraphics::TextureType type     = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
     dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) CheckTableInteger(L, 2, "format");
     uint32_t width                   = (uint32_t) CheckTableInteger(L, 2, "width");
@@ -1513,17 +1513,17 @@ static int SetTexture(lua_State* L)
 
     if (!dmGraphics::IsTextureFormatSupportedForType(g_ResourceModule.m_GraphicsContext, type, format))
     {
-        return luaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
+        return dluaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
     }
 
     if (!IsTextureFormatSupported(type))
     {
-        return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
+        return dluaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
 
     if (dmGraphics::IsTextureType3D(type) && !dmGraphics::IsContextFeatureSupported(g_ResourceModule.m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
     {
-        return luaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
+        return dluaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
     }
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
@@ -1562,11 +1562,11 @@ static int SetTexture(lua_State* L)
 
     if( r != dmResource::RESULT_OK )
     {
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         return ReportPathError(L, r, path_hash);
     }
 
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
     return 0;
 }
 
@@ -1652,7 +1652,7 @@ static int SetTexture(lua_State* L)
  * ```
  */
 
-static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
+static void PushTextureInfo(dlua_State* L, dmGraphics::HTexture texture_handle)
 {
     uint32_t texture_width               = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_handle);
     uint32_t texture_height              = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_handle);
@@ -1662,52 +1662,52 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
     uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(g_ResourceModule.m_GraphicsContext, texture_handle);
     uint8_t  page_count                  = dmGraphics::GetTexturePageCount(texture_handle);
 
-    lua_pushnumber(L, texture_handle);
-    lua_setfield(L, -2, "handle");
+    dlua_pushnumber(L, texture_handle);
+    dlua_setfield(L, -2, "handle");
 
-    lua_pushinteger(L, texture_width);
-    lua_setfield(L, -2, "width");
+    dlua_pushinteger(L, texture_width);
+    dlua_setfield(L, -2, "width");
 
-    lua_pushinteger(L, texture_height);
-    lua_setfield(L, -2, "height");
+    dlua_pushinteger(L, texture_height);
+    dlua_setfield(L, -2, "height");
 
-    lua_pushinteger(L, texture_mipmaps);
-    lua_setfield(L, -2, "mipmaps");
+    dlua_pushinteger(L, texture_mipmaps);
+    dlua_setfield(L, -2, "mipmaps");
 
-    lua_pushinteger(L, texture_type);
-    lua_setfield(L, -2, "type");
+    dlua_pushinteger(L, texture_type);
+    dlua_setfield(L, -2, "type");
 
-    lua_pushinteger(L, texture_flags);
-    lua_setfield(L, -2, "flags");
+    dlua_pushinteger(L, texture_flags);
+    dlua_setfield(L, -2, "flags");
 
-    lua_pushinteger(L, page_count);
-    lua_setfield(L, -2, "page_count");
+    dlua_pushinteger(L, page_count);
+    dlua_setfield(L, -2, "page_count");
 
     // JG: We use depth to indicate the sides of a cube map, but the actual texture depth is 1,
     //     since it's not a 3D texture. This is a technicality that should't matter for now at least.
     if (texture_type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
     {
-        lua_pushinteger(L, 6);
-        lua_setfield(L, -2, "depth");
+        dlua_pushinteger(L, 6);
+        dlua_setfield(L, -2, "depth");
     }
     else
     {
-        lua_pushinteger(L, texture_depth);
-        lua_setfield(L, -2, "depth");
+        dlua_pushinteger(L, texture_depth);
+        dlua_setfield(L, -2, "depth");
     }
 }
 
-static int GetTextureInfo(lua_State* L)
+static int GetTextureInfo(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmGraphics::HTexture texture_handle = 0;
 
-    if (lua_isnumber(L, 1))
+    if (dlua_isnumber(L, 1))
     {
-        texture_handle = lua_tonumber(L, 1);
+        texture_handle = dlua_tonumber(L, 1);
         if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, texture_handle))
         {
-            return luaL_error(L, "Texture handle is not valid.");
+            return dluaL_error(L, "Texture handle is not valid.");
         }
     }
     else
@@ -1718,19 +1718,19 @@ static int GetTextureInfo(lua_State* L)
 
         if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, texture_handle))
         {
-            return luaL_error(L, "Texture '%s' is not a valid texture handle.", dmHashReverseSafe64(path_hash));
+            return dluaL_error(L, "Texture '%s' is not a valid texture handle.", dmHashReverseSafe64(path_hash));
         }
     }
 
     if (dmGraphics::GetAssetType(texture_handle) != dmGraphics::ASSET_TYPE_TEXTURE)
     {
-        return luaL_error(L, "Asset handle is not a texture");
+        return dluaL_error(L, "Asset handle is not a texture");
     }
 
-    lua_newtable(L);
+    dlua_newtable(L);
     PushTextureInfo(L, texture_handle);
 
-    assert((top + 1) == lua_gettop(L));
+    assert((top + 1) == dlua_gettop(L));
     return 1;
 }
 
@@ -1806,18 +1806,18 @@ static int GetTextureInfo(lua_State* L)
  * end
  * ```
  */
-static int GetRenderTargetInfo(lua_State* L)
+static int GetRenderTargetInfo(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmGraphics::HRenderTarget rt_handle = 0;
     RenderTargetResource* rt_res = 0;
 
-    if (lua_isnumber(L, 1))
+    if (dlua_isnumber(L, 1))
     {
-        rt_handle = lua_tonumber(L, 1);
+        rt_handle = dlua_tonumber(L, 1);
         if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, rt_handle))
         {
-            return luaL_error(L, "Render target handle is not valid.");
+            return dluaL_error(L, "Render target handle is not valid.");
         }
     }
     else
@@ -1828,13 +1828,13 @@ static int GetRenderTargetInfo(lua_State* L)
 
         if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, rt_handle))
         {
-            return luaL_error(L, "Texture '%s' is not a valid texture handle.", dmHashReverseSafe64(path_hash));
+            return dluaL_error(L, "Texture '%s' is not a valid texture handle.", dmHashReverseSafe64(path_hash));
         }
     }
 
     if (dmGraphics::GetAssetType(rt_handle) != dmGraphics::ASSET_TYPE_RENDER_TARGET)
     {
-        return luaL_error(L, "Asset handle is not a render target");
+        return dluaL_error(L, "Asset handle is not a render target");
     }
 
     dmGraphics::BufferType color_buffer_flags[] = {
@@ -1846,13 +1846,13 @@ static int GetRenderTargetInfo(lua_State* L)
         dmGraphics::BUFFER_TYPE_STENCIL_BIT,
     };
 
-    lua_newtable(L);
+    dlua_newtable(L);
 
-    lua_pushnumber(L, rt_handle);
-    lua_setfield(L, -2, "handle");
+    dlua_pushnumber(L, rt_handle);
+    dlua_setfield(L, -2, "handle");
 
-    lua_pushliteral(L, "attachments");
-    lua_newtable(L);
+    dlua_pushliteral(L, "attachments");
+    dlua_newtable(L);
 
     uint32_t attachment_count = 0;
     for (int i = 0; i < DM_ARRAY_SIZE(color_buffer_flags); ++i)
@@ -1861,58 +1861,58 @@ static int GetRenderTargetInfo(lua_State* L)
         dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(g_ResourceModule.m_GraphicsContext, rt_handle, buffer_type);
         if (t)
         {
-            lua_pushinteger(L, (lua_Integer) (attachment_count+1));
-            lua_newtable(L);
+            dlua_pushinteger(L, (dlua_Integer) (attachment_count+1));
+            dlua_newtable(L);
 
             PushTextureInfo(L, t);
 
-            lua_pushinteger(L, buffer_type);
-            lua_setfield(L, -2, "buffer_type");
+            dlua_pushinteger(L, buffer_type);
+            dlua_setfield(L, -2, "buffer_type");
 
             if (rt_res)
             {
                 if (dmGraphics::IsColorBufferType(buffer_type))
                 {
                     dmScript::PushHash(L, rt_res->m_ColorAttachmentPaths[i]);
-                    lua_setfield(L, -2, "texture");
+                    dlua_setfield(L, -2, "texture");
                 }
                 else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
                 {
                     dmScript::PushHash(L, rt_res->m_DepthAttachmentPath);
-                    lua_setfield(L, -2, "texture");
+                    dlua_setfield(L, -2, "texture");
                 }
                 // Separate stencil attachment textures are not supported (yet)
             }
 
-            lua_rawset(L, -3);
+            dlua_rawset(L, -3);
 
             attachment_count++;
         }
     }
 
-    lua_rawset(L, -3);
+    dlua_rawset(L, -3);
 
-    assert((top + 1) == lua_gettop(L));
+    assert((top + 1) == dlua_gettop(L));
     return 1;
 }
 
 // Allocates a new array and fills it with data from a lua table at top of stack.
 // Only supports number values. Note: Doesn't do any error checking!
 template<typename T>
-static void MakeNumberArrayFromLuaTable(lua_State* L, const char* field, void** data_out, uint32_t* count_out)
+static void MakeNumberArrayFromLuaTable(dlua_State* L, const char* field, void** data_out, uint32_t* count_out)
 {
-    lua_getfield(L, -1, field);
-    int num_entries = lua_objlen(L, -1);
+    dlua_getfield(L, -1, field);
+    int num_entries = dlua_objlen(L, -1);
     T* data_ptr = new T[num_entries];
 
-    lua_pushnil(L);
-    while (lua_next(L, -2))
+    dlua_pushnil(L);
+    while (dlua_next(L, -2))
     {
-        int32_t table_index     = lua_tonumber(L, -2);
-        data_ptr[table_index-1] = lua_tonumber(L, -1);
-        lua_pop(L, 1);
+        int32_t table_index     = dlua_tonumber(L, -2);
+        data_ptr[table_index-1] = dlua_tonumber(L, -1);
+        dlua_pop(L, 1);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
     *data_out  = data_ptr;
     *count_out = num_entries;
 }
@@ -1970,38 +1970,38 @@ static dmGameSystemDDF::Playback GameObjectPlaybackToDDFPlayback(dmGameObject::P
     return (dmGameSystemDDF::Playback) -1;
 }
 
-static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out, uint32_t* num_animation_frames_out)
+static void CheckAtlasArguments(dlua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out, uint32_t* num_animation_frames_out)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     uint32_t num_geometries = 0;
     uint32_t num_animations = 0;
     uint32_t num_animation_frames = 0;
 
-    lua_getfield(L, -1, "geometries");
+    dlua_getfield(L, -1, "geometries");
 
-    if (!lua_isnil(L, -1))
+    if (!dlua_isnil(L, -1))
     {
-        luaL_checktype(L, -1, LUA_TTABLE);
-        lua_pushnil(L);
-        while (lua_next(L, -2))
+        dluaL_checktype(L, -1, DLUA_TTABLE);
+        dlua_pushnil(L);
+        while (dlua_next(L, -2))
         {
-            luaL_checktype(L, -1, LUA_TTABLE);
-            int geometry_index = luaL_checkinteger(L, -2);
+            dluaL_checktype(L, -1, DLUA_TTABLE);
+            int geometry_index = dluaL_checkinteger(L, -2);
 
             #define VALIDATE_GEOMETRY_STREAM(field_name, num_components) \
                 { \
-                    lua_getfield(L, -1, field_name); \
-                    luaL_checktype(L, -1, LUA_TTABLE); \
-                    if (lua_objlen(L, -1) % num_components != 0) \
-                        luaL_error(L, "Uneven number of entries in %s table for geometry [%d]", field_name, geometry_index); \
-                    lua_pushnil(L); \
-                    while (lua_next(L, -2)) \
+                    dlua_getfield(L, -1, field_name); \
+                    dluaL_checktype(L, -1, DLUA_TTABLE); \
+                    if (dlua_objlen(L, -1) % num_components != 0) \
+                        dluaL_error(L, "Uneven number of entries in %s table for geometry [%d]", field_name, geometry_index); \
+                    dlua_pushnil(L); \
+                    while (dlua_next(L, -2)) \
                     { \
-                        luaL_checkinteger(L, -1); \
-                        luaL_checktype(L, -2, LUA_TNUMBER); \
-                        lua_pop(L, 1); \
+                        dluaL_checkinteger(L, -1); \
+                        dluaL_checktype(L, -2, DLUA_TNUMBER); \
+                        dlua_pop(L, 1); \
                     } \
-                    lua_pop(L, 1); \
+                    dlua_pop(L, 1); \
                 }
 
             VALIDATE_GEOMETRY_STREAM("vertices", 2);
@@ -2017,32 +2017,32 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             CheckFieldValue<float>(L,  -1, "pivot_x", 0);
             CheckFieldValue<float>(L,  -1, "pivot_y", 0);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
             num_geometries++;
 
             num_animation_frames++;
         }
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_getfield(L, -1, "animations");
-    if (!lua_isnil(L, -1))
+    dlua_getfield(L, -1, "animations");
+    if (!dlua_isnil(L, -1))
     {
-        luaL_checktype(L, -1, LUA_TTABLE);
-        lua_pushnil(L);
-        while (lua_next(L, -2))
+        dluaL_checktype(L, -1, DLUA_TTABLE);
+        dlua_pushnil(L);
+        while (dlua_next(L, -2))
         {
-            luaL_checktype(L, -1, LUA_TTABLE);
-            int animation_index = luaL_checkinteger(L, -2);
+            dluaL_checktype(L, -1, DLUA_TTABLE);
+            int animation_index = dluaL_checkinteger(L, -2);
 
             // Note: checkstring can change the lua stack, so we use isstring instead
-            lua_getfield(L, -1, "id");
-            if (!lua_isstring(L, -1))
+            dlua_getfield(L, -1, "id");
+            if (!dlua_isstring(L, -1))
             {
-                luaL_error(L, "Invalid 'id' in animations table at index [%d], either missing or wrong type", num_animations + 1);
+                dluaL_error(L, "Invalid 'id' in animations table at index [%d], either missing or wrong type", num_animations + 1);
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
             // Required fields
             CheckFieldValue<int>(L, -1, "width");
@@ -2055,37 +2055,37 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             CheckFieldValue<bool>(L, -1, "flip_horizontal", false );
 
             int frame_interval = 0;
-            lua_getfield(L, -1, "frames");
-            if (!lua_isnil(L, -1))
+            dlua_getfield(L, -1, "frames");
+            if (!dlua_isnil(L, -1))
             {
-                luaL_checktype(L, -1, LUA_TTABLE);
-                size_t frame_count = lua_objlen(L, -1);
+                dluaL_checktype(L, -1, DLUA_TTABLE);
+                size_t frame_count = dlua_objlen(L, -1);
                 frame_interval = frame_count;
 
                 // verify that list of animation frames exist in the geometry
                 for (int j=0; j < frame_count; ++j)
                 {
-                    lua_pushinteger(L, j + 1);
-                    lua_gettable(L, -2); // pop frames index and get animation frame index
-                    uint32_t animation_frame_index = luaL_checknumber(L, -1);
+                    dlua_pushinteger(L, j + 1);
+                    dlua_gettable(L, -2); // pop frames index and get animation frame index
+                    uint32_t animation_frame_index = dluaL_checknumber(L, -1);
                     if (animation_frame_index < 1 || animation_frame_index > (num_geometries+1))
                     {
-                        luaL_error(L, "Invalid frame in animation [%d], index %d is outside of geometry bounds 1..%d",
+                        dluaL_error(L, "Invalid frame in animation [%d], index %d is outside of geometry bounds 1..%d",
                             animation_index, animation_frame_index, num_geometries);
                     }
-                    lua_pop(L, 1); // pop animation frame index
+                    dlua_pop(L, 1); // pop animation frame index
                 }
 
                 if (frame_interval <= 0)
                 {
-                    luaL_error(L, "Invalid frame interval in animation [%d], animation is empty", animation_index);
+                    dluaL_error(L, "Invalid frame interval in animation [%d], animation is empty", animation_index);
                 }
 
-                lua_pop(L, 1); // frames
+                dlua_pop(L, 1); // frames
             }
             else
             {
-                lua_pop(L, 1); // frames
+                dlua_pop(L, 1); // frames
                 int frame_start = CheckFieldValue<int>(L, -1, "frame_start");
                 int frame_end   = CheckFieldValue<int>(L, -1, "frame_end");
 
@@ -2093,19 +2093,19 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
                 frame_interval = frame_end - frame_start;
                 if (frame_start < 1 || frame_start > (num_geometries+1)) // +1 for lua indexing
                 {
-                    luaL_error(L, "Invalid frame_start in animation [%d], index %d is outside of geometry bounds 1..%d",
+                    dluaL_error(L, "Invalid frame_start in animation [%d], index %d is outside of geometry bounds 1..%d",
                             animation_index, frame_start, num_geometries);
                 }
 
                 if (frame_end < 1 || frame_end > (num_geometries+1)) // +1 for lua indexing
                 {
-                    luaL_error(L, "Invalid frame_end in animation [%d], index %d is outside of geometry bounds 1..%d",
+                    dluaL_error(L, "Invalid frame_end in animation [%d], index %d is outside of geometry bounds 1..%d",
                         animation_index, frame_end, num_geometries);
                 }
 
                 if (frame_interval <= 0)
                 {
-                    luaL_error(L, "Invalid frame interval in animation [%d], start - end = %d", animation_index, frame_interval);
+                    dluaL_error(L, "Invalid frame interval in animation [%d], start - end = %d", animation_index, frame_interval);
                 }
 
             }
@@ -2114,11 +2114,11 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
 
             num_animation_frames += frame_interval;
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
     }
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     *num_animations_out       = num_animations;
     *num_geometries_out       = num_geometries;
@@ -2126,21 +2126,21 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
 
     if (num_geometries == 0)
     {
-        luaL_error(L, "Atlas requires at least one entry in the 'geometries' table");
+        dluaL_error(L, "Atlas requires at least one entry in the 'geometries' table");
     }
     if (num_animations == 0)
     {
-        luaL_error(L, "Atlas requires at least one entry in the 'animations' table");
+        dluaL_error(L, "Atlas requires at least one entry in the 'animations' table");
     }
 
-    assert(lua_gettop(L) == top);
+    assert(dlua_gettop(L) == top);
 }
 
 // Creates a texture set from the lua stack, it is expected that the argument
 // table is on top of the stack and that all fields have valid data
-static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint32_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
+static void MakeTextureSetFromLua(dlua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint32_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     texture_set_ddf->m_Texture     = 0;
     texture_set_ddf->m_TextureHash = texture_path_hash;
 
@@ -2180,11 +2180,11 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
         float inv_tex_width  = 1.0f / tex_width;
         float inv_tex_height = 1.0f / tex_height;
 
-        lua_getfield(L, -1, "geometries");
+        dlua_getfield(L, -1, "geometries");
         for (int i = 0; i < num_geometries; ++i)
         {
-            lua_pushnumber(L, i+1);
-            lua_gettable(L, -2);
+            dlua_pushnumber(L, i+1);
+            dlua_gettable(L, -2);
 
             dmGameSystemDDF::SpriteGeometry& geometry = texture_set_ddf->m_Geometries[i];
             MakeNumberArrayFromLuaTable<float>(L, "vertices", (void**) &geometry.m_Vertices.m_Data, &geometry.m_Vertices.m_Count);
@@ -2192,12 +2192,12 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             MakeNumberArrayFromLuaTable<int>(L, "indices", (void**) &geometry.m_Indices.m_Data, &geometry.m_Indices.m_Count);
 
             dmhash_t id_hash = 0;
-            lua_getfield(L, -1, "id");
-            if (lua_isstring(L, -1))
+            dlua_getfield(L, -1, "id");
+            if (dlua_isstring(L, -1))
             {
-                id_hash = dmHashString64(lua_tostring(L, -1));
+                id_hash = dmHashString64(dlua_tostring(L, -1));
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             texture_set_ddf->m_ImageNameHashes[i] = id_hash;
 
             float geo_width = (float)CheckFieldValue<int>(L, -1, "width", 0);
@@ -2210,7 +2210,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             // rotation flag for atlas packing - affects UV coordinate generation
             bool rotated = CheckFieldValue<bool>(L, -1, "rotated", false);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             // End of lua table interaction
 
             // default SpriteGeometry pivot is (0,0) which is middle of image.
@@ -2303,7 +2303,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
 
             texture_set_ddf->m_FrameIndices[frame_index++] = i;
         }
-        lua_pop(L, 1); // geometries
+        dlua_pop(L, 1); // geometries
     }
 
     // We can write all geometry UV bounds
@@ -2312,11 +2312,11 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
 
     if (num_animations > 0)
     {
-        lua_getfield(L, -1, "animations");
+        dlua_getfield(L, -1, "animations");
         for (int i = 0; i < num_animations; ++i)
         {
-            lua_pushnumber(L, i+1);
-            lua_gettable(L, -2);
+            dlua_pushnumber(L, i+1);
+            dlua_gettable(L, -2);
 
             dmGameSystemDDF::TextureSetAnimation& animation = texture_set_ddf->m_Animations[i];
 
@@ -2324,23 +2324,23 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             animation.m_Fps      = 30;
             animation.m_Playback = dmGameSystemDDF::PLAYBACK_ONCE_FORWARD;
 
-            lua_getfield(L, -1, "id");
-            animation.m_Id = lua_tostring(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "id");
+            animation.m_Id = dlua_tostring(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "width");
-            animation.m_Width = lua_tointeger(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "width");
+            animation.m_Width = dlua_tointeger(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "height");
-            animation.m_Height = lua_tointeger(L, -1);
-            lua_pop(L, 1);
+            dlua_getfield(L, -1, "height");
+            animation.m_Height = dlua_tointeger(L, -1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "frames");
-            if (!lua_isnil(L, -1))
+            dlua_getfield(L, -1, "frames");
+            if (!dlua_isnil(L, -1))
             {
-                luaL_checktype(L, -1, LUA_TTABLE);
-                size_t frame_count = lua_objlen(L, -1);
+                dluaL_checktype(L, -1, DLUA_TTABLE);
+                size_t frame_count = dlua_objlen(L, -1);
 
                 animation.m_Start  = frame_index;
                 animation.m_End    = frame_index + frame_count; // non inclusive
@@ -2348,31 +2348,31 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
                 // iterate list of animation frames
                 for (int j=0; j < frame_count; ++j)
                 {
-                    lua_pushinteger(L, j + 1);
-                    lua_gettable(L, -2); // pop frames index and get animation frame index
+                    dlua_pushinteger(L, j + 1);
+                    dlua_gettable(L, -2); // pop frames index and get animation frame index
 
                     // copy geometry and write frame
-                    uint32_t animation_frame_index = luaL_checknumber(L, -1) - 1;
+                    uint32_t animation_frame_index = dluaL_checknumber(L, -1) - 1;
                     float* tc_read_ptr             = &geometry_scratch_ptr[animation_frame_index * 8];
                     memcpy(texcoord_ptr, tc_read_ptr, sizeof(float) * 8);
                     texcoord_ptr += 8;
                     texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index;
-                    lua_pop(L, 1); // pop animation frame index
+                    dlua_pop(L, 1); // pop animation frame index
                 }
 
-                lua_pop(L, 1); // frames
+                dlua_pop(L, 1); // frames
             }
             else
             {
-                lua_pop(L, 1); // frames
+                dlua_pop(L, 1); // frames
 
-                lua_getfield(L, -1, "frame_start");
-                int frame_start = lua_tointeger(L, -1);
-                lua_pop(L, 1);
+                dlua_getfield(L, -1, "frame_start");
+                int frame_start = dlua_tointeger(L, -1);
+                dlua_pop(L, 1);
 
-                lua_getfield(L, -1, "frame_end"); // non-inclusive
-                int frame_end = lua_tointeger(L, -1);
-                lua_pop(L, 1);
+                dlua_getfield(L, -1, "frame_end"); // non-inclusive
+                int frame_end = dlua_tointeger(L, -1);
+                dlua_pop(L, 1);
 
                 int frame_count = (frame_end - frame_start);
                 animation.m_Start  = frame_index;
@@ -2393,43 +2393,43 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             }
 
             // Get optional arguments
-            lua_getfield(L, -1, "playback");
-            if (lua_isnumber(L, -1))
+            dlua_getfield(L, -1, "playback");
+            if (dlua_isnumber(L, -1))
             {
-                animation.m_Playback = GameObjectPlaybackToDDFPlayback((dmGameObject::Playback) lua_tointeger(L,-1));
+                animation.m_Playback = GameObjectPlaybackToDDFPlayback((dmGameObject::Playback) dlua_tointeger(L,-1));
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "fps");
-            if (lua_isnumber(L, -1))
+            dlua_getfield(L, -1, "fps");
+            if (dlua_isnumber(L, -1))
             {
-                animation.m_Fps = lua_tointeger(L, -1);
+                animation.m_Fps = dlua_tointeger(L, -1);
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "flip_vertical");
-            if (lua_isboolean(L, -1))
+            dlua_getfield(L, -1, "flip_vertical");
+            if (dlua_isboolean(L, -1))
             {
-                animation.m_FlipVertical = lua_toboolean(L, -1);
+                animation.m_FlipVertical = dlua_toboolean(L, -1);
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
-            lua_getfield(L, -1, "flip_horizontal");
-            if (lua_isboolean(L, -1))
+            dlua_getfield(L, -1, "flip_horizontal");
+            if (dlua_isboolean(L, -1))
             {
-                animation.m_FlipHorizontal = lua_toboolean(L, -1);
+                animation.m_FlipHorizontal = dlua_toboolean(L, -1);
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
 
         }
-        lua_pop(L, 1); // animations
+        dlua_pop(L, 1); // animations
     }
 
     delete[] geometry_scratch_ptr;
 
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
 }
 
 /*# create an atlas resource
@@ -2576,11 +2576,11 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * end
  * ```
  */
-static int CreateAtlas(lua_State* L)
+static int CreateAtlas(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
-    const char* path_str           = luaL_checkstring(L, 1);
+    const char* path_str           = dluaL_checkstring(L, 1);
     const char* texturec_ext       = "texturesetc";
     const char* texture_field_name = "texture";
 
@@ -2591,8 +2591,8 @@ static int CreateAtlas(lua_State* L)
 
     // Validate arguments and get atlas data
     {
-        luaL_checktype(L, 2, LUA_TTABLE);
-        lua_pushvalue(L, 2);
+        dluaL_checktype(L, 2, DLUA_TTABLE);
+        dlua_pushvalue(L, 2);
         dmGraphics::HTexture texture;
         dmhash_t texture_path;
         CheckTextureResource(L, -1, texture_field_name, &texture_path, &texture);
@@ -2602,13 +2602,13 @@ static int CreateAtlas(lua_State* L)
         uint32_t num_animation_frames = 0;
 
         // Note: We do a separate pass over the lua state to validate the data in the args table,
-        //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
+        //       this is because we need to allocate dynamic memory and can't use dluaL_check** functions
         //       since they longjmp away so we can't release the memory..
         CheckAtlasArguments(L, &num_geometries, &num_animations, &num_animation_frames);
 
         MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, num_animation_frames, &texture_set_ddf);
 
-        lua_pop(L, 1); // args table
+        dlua_pop(L, 1); // args table
     }
 
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
@@ -2761,7 +2761,7 @@ static int CreateAtlas(lua_State* L)
  * ```
  */
 
-static int SetAtlas(lua_State* L)
+static int SetAtlas(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -2773,20 +2773,20 @@ static int SetAtlas(lua_State* L)
     uint32_t num_animations                     = 0;
     uint32_t num_animation_frames               = 0;
 
-    luaL_checktype(L, 2, LUA_TTABLE);
-    lua_pushvalue(L, 2);
+    dluaL_checktype(L, 2, DLUA_TTABLE);
+    dlua_pushvalue(L, 2);
 
     dmGraphics::HTexture texture;
     dmhash_t texture_path;
     CheckTextureResource(L, -1, "texture", &texture_path, &texture);
 
     // Note: We do a separate pass over the lua state to validate the data in the args table,
-    //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
+    //       this is because we need to allocate dynamic memory and can't use dluaL_check** functions
     //       since they longjmp away so we can't release the memory..
     CheckAtlasArguments(L, &num_geometries, &num_animations, &num_animation_frames);
 
     MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, num_animation_frames, &texture_set_ddf);
-    lua_pop(L, 1); // args table
+    dlua_pop(L, 1); // args table
 
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
@@ -2805,63 +2805,63 @@ static int SetAtlas(lua_State* L)
 }
 
 
-static void PushGeometry(lua_State* L, int index, dmGameSystemDDF::SpriteGeometry& geom, float tex_width, float tex_height)
+static void PushGeometry(dlua_State* L, int index, dmGameSystemDDF::SpriteGeometry& geom, float tex_width, float tex_height)
 {
     #define SET_LUA_TABLE_FIELD(set_fn, key, val) \
         set_fn(L, val); \
-        lua_setfield(L, -2, key);
+        dlua_setfield(L, -2, key);
 
     #define SET_LUA_TABLE_RAW(set_fn, key, val) \
         set_fn(L, val); \
-        lua_rawseti(L, -2, key);
+        dlua_rawseti(L, -2, key);
 
-    lua_pushinteger(L, (lua_Integer) (index + 1));
-    lua_newtable(L);
+    dlua_pushinteger(L, (dlua_Integer) (index + 1));
+    dlua_newtable(L);
     {
         assert(geom.m_Vertices.m_Count % 2 == 0);
         assert(geom.m_Uvs.m_Count      % 2 == 0);
         assert(geom.m_Indices.m_Count  % 3 == 0);
 
-        SET_LUA_TABLE_FIELD(lua_pushnumber, "width",    geom.m_Width);
-        SET_LUA_TABLE_FIELD(lua_pushnumber, "height",   geom.m_Height);
+        SET_LUA_TABLE_FIELD(dlua_pushnumber, "width",    geom.m_Width);
+        SET_LUA_TABLE_FIELD(dlua_pushnumber, "height",   geom.m_Height);
         // Transform back to image space (0,0) is top left corner, (1,1) is bottom right
-        SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_x",          geom.m_PivotX + 0.5);
-        SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_y",  1.0f - (geom.m_PivotY + 0.5f));
-        SET_LUA_TABLE_FIELD(lua_pushboolean, "rotated",  geom.m_Rotated);
+        SET_LUA_TABLE_FIELD(dlua_pushnumber, "pivot_x",          geom.m_PivotX + 0.5);
+        SET_LUA_TABLE_FIELD(dlua_pushnumber, "pivot_y",  1.0f - (geom.m_PivotY + 0.5f));
+        SET_LUA_TABLE_FIELD(dlua_pushboolean, "rotated",  geom.m_Rotated);
 
-        lua_pushliteral(L, "vertices");
-        lua_newtable(L);
+        dlua_pushliteral(L, "vertices");
+        dlua_newtable(L);
         for (int j = 0; j < geom.m_Vertices.m_Count; j += 2)
         {
             float x = (geom.m_Vertices[j] + 0.5) * geom.m_Width;
             float y = (0.5 - geom.m_Vertices[j+1]) * geom.m_Height;
 
-            SET_LUA_TABLE_RAW(lua_pushnumber, j + 1, x);
-            SET_LUA_TABLE_RAW(lua_pushnumber, j + 2, y);
+            SET_LUA_TABLE_RAW(dlua_pushnumber, j + 1, x);
+            SET_LUA_TABLE_RAW(dlua_pushnumber, j + 2, y);
         }
-        lua_rawset(L, -3);
+        dlua_rawset(L, -3);
 
-        lua_pushliteral(L, "uvs");
-        lua_newtable(L);
+        dlua_pushliteral(L, "uvs");
+        dlua_newtable(L);
         for (int j = 0; j < geom.m_Uvs.m_Count; j += 2)
         {
             float s = geom.m_Uvs[j] * tex_width;
             float t = (1.0 - geom.m_Uvs[j + 1]) * tex_height;
 
-            SET_LUA_TABLE_RAW(lua_pushnumber, j + 1, s);
-            SET_LUA_TABLE_RAW(lua_pushnumber, j + 2, t);
+            SET_LUA_TABLE_RAW(dlua_pushnumber, j + 1, s);
+            SET_LUA_TABLE_RAW(dlua_pushnumber, j + 2, t);
         }
-        lua_rawset(L, -3);
+        dlua_rawset(L, -3);
 
-        lua_pushliteral(L, "indices");
-        lua_newtable(L);
+        dlua_pushliteral(L, "indices");
+        dlua_newtable(L);
         for (int j = 0; j < geom.m_Indices.m_Count; ++j)
         {
-            SET_LUA_TABLE_RAW(lua_pushinteger, j + 1, geom.m_Indices[j]);
+            SET_LUA_TABLE_RAW(dlua_pushinteger, j + 1, geom.m_Indices[j]);
         }
-        lua_rawset(L, -3);
+        dlua_rawset(L, -3);
     }
-    lua_rawset(L, -3);
+    dlua_rawset(L, -3);
 
     #undef SET_LUA_TABLE_RAW
     #undef SET_LUA_TABLE_FIELD
@@ -2886,7 +2886,7 @@ static void PushGeometry(lua_State* L, int index, dmGameSystemDDF::SpriteGeometr
  * See [ref:resource.set_atlas] for a detailed description of each field
  *
  */
-static int GetAtlas(lua_State* L)
+static int GetAtlas(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
@@ -2898,9 +2898,9 @@ static int GetAtlas(lua_State* L)
 
     #define SET_LUA_TABLE_FIELD(set_fn, key, val) \
         set_fn(L, val); \
-        lua_setfield(L, -2, key);
+        dlua_setfield(L, -2, key);
 
-    lua_newtable(L);
+    dlua_newtable(L);
 
     if (texture_set->m_TextureHash)
     {
@@ -2908,49 +2908,49 @@ static int GetAtlas(lua_State* L)
     }
     else
     {
-        SET_LUA_TABLE_FIELD(lua_pushstring, "texture", texture_set->m_Texture);
+        SET_LUA_TABLE_FIELD(dlua_pushstring, "texture", texture_set->m_Texture);
     }
 
-    lua_pushliteral(L, "animations");
-    lua_newtable(L);
+    dlua_pushliteral(L, "animations");
+    dlua_newtable(L);
     {
         for (int i = 0; i < texture_set->m_Animations.m_Count; ++i)
         {
             dmGameSystemDDF::TextureSetAnimation& anim = texture_set->m_Animations[i];
 
-            lua_pushinteger(L, (lua_Integer) (i+1));
-            lua_newtable(L);
+            dlua_pushinteger(L, (dlua_Integer) (i+1));
+            dlua_newtable(L);
 
-            SET_LUA_TABLE_FIELD(lua_pushstring, "id", anim.m_Id);
-            SET_LUA_TABLE_FIELD(lua_pushinteger, "width", anim.m_Width);
-            SET_LUA_TABLE_FIELD(lua_pushinteger, "height", anim.m_Height);
-            SET_LUA_TABLE_FIELD(lua_pushinteger, "fps", anim.m_Fps);
-            SET_LUA_TABLE_FIELD(lua_pushinteger, "playback", (lua_Integer) DDFPlaybackToGameObjectPlayback(anim.m_Playback));
-            SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_horizontal", anim.m_FlipHorizontal);
-            SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_vertical", anim.m_FlipVertical);
-            lua_pushliteral(L, "frames");
-            lua_newtable(L);
+            SET_LUA_TABLE_FIELD(dlua_pushstring, "id", anim.m_Id);
+            SET_LUA_TABLE_FIELD(dlua_pushinteger, "width", anim.m_Width);
+            SET_LUA_TABLE_FIELD(dlua_pushinteger, "height", anim.m_Height);
+            SET_LUA_TABLE_FIELD(dlua_pushinteger, "fps", anim.m_Fps);
+            SET_LUA_TABLE_FIELD(dlua_pushinteger, "playback", (dlua_Integer) DDFPlaybackToGameObjectPlayback(anim.m_Playback));
+            SET_LUA_TABLE_FIELD(dlua_pushboolean, "flip_horizontal", anim.m_FlipHorizontal);
+            SET_LUA_TABLE_FIELD(dlua_pushboolean, "flip_vertical", anim.m_FlipVertical);
+            dlua_pushliteral(L, "frames");
+            dlua_newtable(L);
 
             for (uint32_t frame_index = anim.m_Start; frame_index < anim.m_End; ++frame_index)
             {
                 uint32_t geometry_index = texture_set->m_FrameIndices[frame_index];
-                lua_pushinteger(L, (lua_Integer) (frame_index - anim.m_Start + 1));
-                lua_pushinteger(L, (lua_Integer) (geometry_index + 1));
-                lua_rawset(L, -3);
+                dlua_pushinteger(L, (dlua_Integer) (frame_index - anim.m_Start + 1));
+                dlua_pushinteger(L, (dlua_Integer) (geometry_index + 1));
+                dlua_rawset(L, -3);
             }
-            lua_settable(L, -3);
+            dlua_settable(L, -3);
 
-            lua_rawset(L, -3);
+            dlua_rawset(L, -3);
         }
     }
-    lua_rawset(L, -3);
+    dlua_rawset(L, -3);
     #undef SET_LUA_TABLE_FIELD
 
     float tex_width  = (float) dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
     float tex_height = (float) dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
 
-    lua_pushliteral(L, "geometries");
-    lua_newtable(L);
+    dlua_pushliteral(L, "geometries");
+    dlua_newtable(L);
     {
         int geometry_count = 0;
         for (int i = 0; i < texture_set->m_Geometries.m_Count; ++i)
@@ -2961,7 +2961,7 @@ static int GetAtlas(lua_State* L)
         }
 
     }
-    lua_rawset(L, -3);
+    dlua_rawset(L, -3);
 
     return 1;
 }
@@ -2974,15 +2974,15 @@ static int GetAtlas(lua_State* L)
  * @param path [type:hash|string] The path to the resource
  * @param buffer [type:string] A lua string containing the binary sound data
  */
-static int SetSound(lua_State* L) {
+static int SetSound(dlua_State* L) {
     DM_LUA_STACK_CHECK(L, 0);
 
     // get resource path as hash
     const dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     // get the sound buffer
-    luaL_checktype(L, 2, LUA_TSTRING);
+    dluaL_checktype(L, 2, DLUA_TSTRING);
     size_t buffer_size;
-    const char* buffer = lua_tolstring(L, 2, &buffer_size);
+    const char* buffer = dlua_tolstring(L, 2, &buffer_size);
 
     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) buffer, buffer_size);
 
@@ -2993,7 +2993,7 @@ static int SetSound(lua_State* L) {
     return 0;
 }
 
-static uint8_t* CheckBufferOrString(lua_State* L, int index, uint32_t* data_size)
+static uint8_t* CheckBufferOrString(dlua_State* L, int index, uint32_t* data_size)
 {
     dmScript::LuaHBuffer* lua_buffer = dmScript::ToBuffer(L, index);
     if (lua_buffer)
@@ -3004,14 +3004,14 @@ static uint8_t* CheckBufferOrString(lua_State* L, int index, uint32_t* data_size
         dmBuffer::GetBytes(buffer, (void**)&data, data_size);
         return data;
     }
-    else if (lua_isstring(L, index))
+    else if (dlua_isstring(L, index))
     {
         size_t string_len;
-        uint8_t* data = (uint8_t*)luaL_checklstring(L, -1, &string_len);
+        uint8_t* data = (uint8_t*)dluaL_checklstring(L, -1, &string_len);
         *data_size = (uint32_t)string_len;
         return data;
     }
-    luaL_error(L, "The field must be using either a buffer or a string.");
+    dluaL_error(L, "The field must be using either a buffer or a string.");
     return 0;
 }
 
@@ -3048,11 +3048,11 @@ static uint8_t* CheckBufferOrString(lua_State* L, int index, uint32_t* data_size
  * end
  * ```
  */
-static int CreateSoundData(lua_State* L)
+static int CreateSoundData(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
-    const char* path = luaL_checkstring(L, 1);
+    const char* path = dluaL_checkstring(L, 1);
     const char* path_ext = dmResource::GetExtFromPath(path);
 
     const char* exts[]  = {"wav", "ogg", "opus", "wavc", "oggc", "opusc"};
@@ -3075,20 +3075,20 @@ static int CreateSoundData(lua_State* L)
     dmResource::Result r = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, type_suffix, &resource_type);
     if (dmResource::RESULT_OK != r)
     {
-        return luaL_error(L, "Failed to find resource type '%s': %s %d", type_suffix, dmResource::ResultToString(r), r);
+        return dluaL_error(L, "Failed to find resource type '%s': %s %d", type_suffix, dmResource::ResultToString(r), r);
     }
 
     //////////////////////////////////////////////////
     // Options table
-    luaL_checktype(L, 2, LUA_TTABLE);
-    lua_pushvalue(L, 2);
+    dluaL_checktype(L, 2, DLUA_TTABLE);
+    dlua_pushvalue(L, 2);
 
     uint32_t data_size = 0;
     uint8_t* data = 0;
 
-    lua_getfield(L, -1, "data");
+    dlua_getfield(L, -1, "data");
     data = CheckBufferOrString(L, -1, &data_size);
-    lua_pop(L, 1); // "data"
+    dlua_pop(L, 1); // "data"
 
     uint32_t file_size = data_size;
     bool partial = CheckFieldValue<bool>(L, -1, "partial", false);
@@ -3097,7 +3097,7 @@ static int CreateSoundData(lua_State* L)
         file_size = CheckFieldValue<int>(L, -1, "filesize");
     }
 
-    lua_pop(L, 1); // args table
+    dlua_pop(L, 1); // args table
     // End options table
     //////////////////////////////////////////////////
 
@@ -3209,26 +3209,26 @@ void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
  * end
  * ```
  */
-static int CreateBuffer(lua_State* L)
+static int CreateBuffer(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
-    const char* path_str     = luaL_checkstring(L, 1);
+    const char* path_str     = dluaL_checkstring(L, 1);
     const char* resource_ext = "bufferc";
 
     dmhash_t canonical_path_hash = 0;
     PreCreateResource(L, path_str, resource_ext, &canonical_path_hash);
 
-    luaL_checktype(L, 2, LUA_TTABLE);
-    lua_pushvalue(L, 2);
+    dluaL_checktype(L, 2, DLUA_TTABLE);
+    dlua_pushvalue(L, 2);
 
-    lua_getfield(L, -1, "buffer");
+    dlua_getfield(L, -1, "buffer");
     dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, -1);
-    lua_pop(L, 1); // "buffer"
+    dlua_pop(L, 1); // "buffer"
 
     bool transfer_ownership = CheckFieldValue<bool>(L, -1, "transfer_ownership", true);
 
-    lua_pop(L, 1); // args table
+    dlua_pop(L, 1); // args table
 
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
@@ -3271,7 +3271,7 @@ static int CreateBuffer(lua_State* L)
         {
             dmhash_t res_path_other;
             dmResource::GetPath(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes, &res_path_other);
-            return luaL_error(L, "Unable to create buffer resource '%s' from buffer resource '%s': %s (%d).",
+            return dluaL_error(L, "Unable to create buffer resource '%s' from buffer resource '%s': %s (%d).",
                 dmHashReverseSafe64(canonical_path_hash), dmHashReverseSafe64(res_path_other),
                 dmBuffer::GetResultString(br), br);
         }
@@ -3345,9 +3345,9 @@ static int CreateBuffer(lua_State* L)
  * end
  * ```
  */
-static int GetBuffer(lua_State* L)
+static int GetBuffer(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     void* resource = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
@@ -3356,14 +3356,14 @@ static int GetBuffer(lua_State* L)
 
     if (!dmBuffer::IsBufferValid(buffer_resource->m_Buffer))
     {
-        return luaL_error(L, "The buffer handle is invalid");
+        return dluaL_error(L, "The buffer handle is invalid");
     }
 
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
     dmScript::LuaHBuffer luabuf(g_ResourceModule.m_Factory, (void*)buffer_resource);
     PushBuffer(L, luabuf);
 
-    assert(top + 1 == lua_gettop(L));
+    assert(top + 1 == dlua_gettop(L));
     return 1;
 }
 
@@ -3422,18 +3422,18 @@ static int GetBuffer(lua_State* L)
  * end
  * ```
  */
-static int SetBuffer(lua_State* L)
+static int SetBuffer(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmhash_t path_hash           = dmScript::CheckHashOrString(L, 1);
     dmScript::LuaHBuffer* luabuf = dmScript::CheckBuffer(L, 2);
     bool transfer_ownership      = false;
 
-    if (lua_istable(L, 3))
+    if (dlua_istable(L, 3))
     {
-        lua_pushvalue(L, 3);
+        dlua_pushvalue(L, 3);
         transfer_ownership = CheckFieldValue<bool>(L, -1, "transfer_ownership", false);
-        lua_pop(L, 1); // args table
+        dlua_pop(L, 1); // args table
     }
 
     dmBuffer::HBuffer src_buffer                  = dmGameSystem::UnpackLuaBuffer(luabuf);
@@ -3449,7 +3449,7 @@ static int SetBuffer(lua_State* L)
             dmBuffer::Result br = dmBuffer::GetCount(src_buffer, &src_count);
             if (br != dmBuffer::RESULT_OK)
             {
-                return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+                return dluaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
             }
 
             dmBuffer::Destroy(buffer_resource->m_Buffer);
@@ -3484,14 +3484,14 @@ static int SetBuffer(lua_State* L)
         dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
         if (br != dmBuffer::RESULT_OK)
         {
-            return luaL_error(L, "Unable to get buffer size for %s: %s (%d).", dmHashReverseSafe64(path_hash), dmBuffer::GetResultString(br), br);
+            return dluaL_error(L, "Unable to get buffer size for %s: %s (%d).", dmHashReverseSafe64(path_hash), dmBuffer::GetResultString(br), br);
         }
 
         uint32_t src_count = 0;
         br = dmBuffer::GetCount(src_buffer, &src_count);
         if (br != dmBuffer::RESULT_OK)
         {
-            return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+            return dluaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
         }
 
         if (dst_count != src_count)
@@ -3500,7 +3500,7 @@ static int SetBuffer(lua_State* L)
             br = dmBuffer::Clone(src_buffer, &dst_buffer);
             if (br != dmBuffer::RESULT_OK)
             {
-                return luaL_error(L, "Unable to create cloned buffer: %s (%d)", dmBuffer::GetResultString(br), br);
+                return dluaL_error(L, "Unable to create cloned buffer: %s (%d)", dmBuffer::GetResultString(br), br);
             }
 
             dmBuffer::Destroy(buffer_resource->m_Buffer);
@@ -3512,7 +3512,7 @@ static int SetBuffer(lua_State* L)
             br = dmBuffer::Copy(dst_buffer, src_buffer);
             if (br != dmBuffer::RESULT_OK)
             {
-                return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+                return dluaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
             }
         }
     }
@@ -3522,25 +3522,25 @@ static int SetBuffer(lua_State* L)
     dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
     buffer_resource->m_NameHash = path_hash;
 
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
     return 0;
 }
 
-static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metrics)
+static void PushTextMetricsTable(dlua_State* L, const dmRender::TextMetrics* metrics)
 {
-    lua_createtable(L, 0, 4);
-    lua_pushliteral(L, "width");
-    lua_pushnumber(L, metrics->m_Width);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "height");
-    lua_pushnumber(L, metrics->m_Height);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "max_ascent");
-    lua_pushnumber(L, metrics->m_MaxAscent);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "max_descent");
-    lua_pushnumber(L, metrics->m_MaxDescent);
-    lua_rawset(L, -3);
+    dlua_createtable(L, 0, 4);
+    dlua_pushliteral(L, "width");
+    dlua_pushnumber(L, metrics->m_Width);
+    dlua_rawset(L, -3);
+    dlua_pushliteral(L, "height");
+    dlua_pushnumber(L, metrics->m_Height);
+    dlua_rawset(L, -3);
+    dlua_pushliteral(L, "max_ascent");
+    dlua_pushnumber(L, metrics->m_MaxAscent);
+    dlua_rawset(L, -3);
+    dlua_pushliteral(L, "max_descent");
+    dlua_pushnumber(L, metrics->m_MaxDescent);
+    dlua_rawset(L, -3);
 }
 
 /*#  gets the text metrics for a font
@@ -3581,14 +3581,14 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  * end
  * ```
  */
-static int GetTextMetrics(lua_State* L)
+static int GetTextMetrics(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     size_t len = 0;
-    const char* text = luaL_checklstring(L, 2, &len);
+    const char* text = dluaL_checklstring(L, 2, &len);
 
     dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)CheckResource(L, g_ResourceModule.m_Factory, path_hash, "fontc");;
 
@@ -3599,7 +3599,7 @@ static int GetTextMetrics(lua_State* L)
     if (top >= 3)
     {
         int table_index = 3;
-        luaL_checktype(L, table_index, LUA_TTABLE); // Make sure it's actually a table
+        dluaL_checktype(L, table_index, DLUA_TTABLE); // Make sure it's actually a table
         width = (float)CheckTableNumber(L, table_index, "width", width);
         leading = (float)CheckTableNumber(L, table_index, "leading", leading);
         tracking = (float)CheckTableNumber(L, table_index, "tracking", tracking);
@@ -3623,7 +3623,7 @@ static int GetTextMetrics(lua_State* L)
     return 1;
 }
 
-static const luaL_reg Module_methods[] =
+static const dluaL_reg Module_methods[] =
 {
     {"set",                     Set},
     {"load",                    Load},
@@ -3645,10 +3645,10 @@ static const luaL_reg Module_methods[] =
     {0, 0}
 };
 
-static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
+static void LuaInit(dlua_State* L, dmGraphics::HContext graphics_context)
 {
-    int top = lua_gettop(L);
-    luaL_register(L, "resource", Module_methods);
+    int top = dlua_gettop(L);
+    dluaL_register(L, "resource", Module_methods);
 
     ////////////////////////////////////////////////////////////////////
     // DEPRECATED!
@@ -3658,8 +3658,8 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     ////////////////////////////////////////////////////////////////////
 
 #define SETGRAPHICS_ENUM(name) \
-    lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-    lua_setfield(L, -2, #name);
+    dlua_pushnumber(L, (dlua_Number) dmGraphics:: name); \
+    dlua_setfield(L, -2, #name);
 
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
@@ -3681,8 +3681,8 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 #define SETTEXTUREFORMAT_IF_SUPPORTED(name) \
     if (graphics_context != 0 && dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::name)) \
     { \
-        lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-        lua_setfield(L, -2, #name); \
+        dlua_pushnumber(L, (dlua_Number) dmGraphics:: name); \
+        dlua_setfield(L, -2, #name); \
     }
 
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_LUMINANCE);
@@ -3718,16 +3718,16 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 
 
 #define SETCOMPRESSIONTYPE(name) \
-    lua_pushnumber(L, (lua_Number) dmGraphics::TextureImage:: name); \
-    lua_setfield(L, -2, #name);
+    dlua_pushnumber(L, (dlua_Number) dmGraphics::TextureImage:: name); \
+    dlua_setfield(L, -2, #name);
 
     SETCOMPRESSIONTYPE(COMPRESSION_TYPE_DEFAULT);
     SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_UASTC);
 
 #undef SETCOMPRESSIONTYPE
 
-    lua_pop(L, 1);
-    assert(top == lua_gettop(L));
+    dlua_pop(L, 1);
+    assert(top == dlua_gettop(L));
 }
 
 void ScriptResourceRegister(const ScriptLibContext& context)

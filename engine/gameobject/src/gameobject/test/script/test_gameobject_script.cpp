@@ -384,34 +384,34 @@ TEST_F(ScriptTest, TestURLNilId)
 
 #define REF_VALUE "__ref_value"
 
-int TestRef(lua_State* L)
+int TestRef(dlua_State* L)
 {
-    lua_getglobal(L, REF_VALUE);
-    int* ref = (int*)lua_touserdata(L, -1);
+    dlua_getglobal(L, REF_VALUE);
+    int* ref = (int*)dlua_touserdata(L, -1);
     dmScript::GetInstance(L);
-    *ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    lua_pop(L, 1);
+    *ref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
+    dlua_pop(L, 1);
     return 0;
 }
 
 TEST_F(ScriptTest, TestInstanceCallback)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
-    lua_register(L, "test_ref", TestRef);
+    dlua_register(L, "test_ref", TestRef);
 
-    int ref = LUA_NOREF;
+    int ref = DLUA_NOREF;
 
-    lua_pushlightuserdata(L, &ref);
-    lua_setglobal(L, REF_VALUE);
+    dlua_pushlightuserdata(L, &ref);
+    dlua_setglobal(L, REF_VALUE);
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/instance_ref.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    ASSERT_NE(ref, LUA_NOREF);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    ASSERT_NE(ref, DLUA_NOREF);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, ref);
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
@@ -419,7 +419,7 @@ TEST_F(ScriptTest, TestInstanceCallback)
 
     dmGameObject::PostUpdate(m_Collection);
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, ref);
     dmScript::SetInstance(L);
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 }
@@ -454,32 +454,32 @@ TEST_F(ScriptTest, TestScriptMany)
 
     dmGameObject::Init(m_Collection);
 
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
     DM_LUA_STACK_CHECK(L, 0);
 
     for( uint32_t i = 0; i < num_components; ++i)
     {
 
         if (i == 0) { // a.script
-            lua_getglobal(L, "globalvar_a");
-            int value = lua_tointeger(L, -1);
-            lua_pop(L, 1);
+            dlua_getglobal(L, "globalvar_a");
+            int value = dlua_tointeger(L, -1);
+            dlua_pop(L, 1);
             ASSERT_EQ(1, value);
 
-            lua_getglobal(L, "globalvar_a_name");
+            dlua_getglobal(L, "globalvar_a_name");
             dmhash_t name = dmScript::CheckHash(L, -1);
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             ASSERT_EQ(dmHashString64("script0"), name);
         }
         else if (i == 256) { // b.script
-            lua_getglobal(L, "globalvar_b");
-            int value = lua_tointeger(L, -1);
-            lua_pop(L, 1);
+            dlua_getglobal(L, "globalvar_b");
+            int value = dlua_tointeger(L, -1);
+            dlua_pop(L, 1);
             ASSERT_EQ(20, value);
 
-            lua_getglobal(L, "globalvar_b_name");
+            dlua_getglobal(L, "globalvar_b_name");
             dmhash_t name = dmScript::CheckHash(L, -1);
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             ASSERT_EQ(dmHashString64("script256"), name);
         }
     }
@@ -490,15 +490,15 @@ TEST_F(ScriptTest, TestScriptMany)
     dmGameObject::Delete(m_Collection, go, false);
 }
 
-int TestSetInstanceContext(lua_State* L)
+int TestSetInstanceContext(dlua_State* L)
 {
     if(!dmScript::IsInstanceValid(L))
     {
         return 0;
     }
 
-    lua_pushstring(L, "__my_context_value");
-    lua_pushnumber(L, 81233);
+    dlua_pushstring(L, "__my_context_value");
+    dlua_pushnumber(L, 81233);
     if(!dmScript::SetInstanceContextValue(L))
     {
         return 0;
@@ -507,56 +507,56 @@ int TestSetInstanceContext(lua_State* L)
     return 0;
 }
 
-int TestGetInstanceContext(lua_State* L)
+int TestGetInstanceContext(dlua_State* L)
 {
     if(!dmScript::IsInstanceValid(L))
     {
         return 0;
     }
 
-    lua_pushstring(L, "__my_context_value");
+    dlua_pushstring(L, "__my_context_value");
     dmScript::GetInstanceContextValue(L);
-    if (lua_isnil(L, -1))
+    if (dlua_isnil(L, -1))
     {
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
         return 0;
     }
-    lua_Number number = lua_tonumber(L, -1);
-    lua_pop(L, 1);
+    dlua_Number number = dlua_tonumber(L, -1);
+    dlua_pop(L, 1);
     if (81233 != number)
     {
         return 0;
     }
 
-    lua_pushboolean(L, 1);
-    lua_setglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
+    dlua_pushboolean(L, 1);
+    dlua_setglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
 
     return 0;
 }
 
 TEST_F(ScriptTest, TestInstanceContext)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dlua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
-    lua_register(L, "test_set_instance_context", TestSetInstanceContext);
-    lua_register(L, "test_get_instance_context", TestGetInstanceContext);
+    dlua_register(L, "test_set_instance_context", TestSetInstanceContext);
+    dlua_register(L, "test_get_instance_context", TestGetInstanceContext);
 
-    lua_pushboolean(L, 0);
-    lua_setglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
+    dlua_pushboolean(L, 0);
+    dlua_setglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/instance_context.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    lua_getglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
-    ASSERT_EQ(0, lua_toboolean(L, -1));
-    lua_pop(L, 1);
+    dlua_getglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
+    ASSERT_EQ(0, dlua_toboolean(L, -1));
+    dlua_pop(L, 1);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    lua_getglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
-    ASSERT_EQ(1, lua_toboolean(L, -1));
-    lua_pop(L, 1);
+    dlua_getglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
+    ASSERT_EQ(1, dlua_toboolean(L, -1));
+    dlua_pop(L, 1);
 
     dmGameObject::Delete(m_Collection, go, false);
 

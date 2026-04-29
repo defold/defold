@@ -729,7 +729,7 @@ namespace dmEngine
         uint32_t m_BufferSize;
     };
 
-    static void GetLuaStackTraceCbk(lua_State* L, lua_Debug* entry, void* _ctx)
+    static void GetLuaStackTraceCbk(dlua_State* L, dlua_Debug* entry, void* _ctx)
     {
         LuaCallstackCtx* ctx = (LuaCallstackCtx*)_ctx;
 

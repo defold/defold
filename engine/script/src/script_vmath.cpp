@@ -25,8 +25,7 @@
 
 extern "C"
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript
@@ -123,10 +122,10 @@ namespace dmScript
             !isnan(m->getElem(0, 3)) && !isnan(m->getElem(1, 3)) && !isnan(m->getElem(2, 3)) && !isnan(m->getElem(3, 3));
     }
 
-    static ScriptUserType CheckUserData(lua_State* L, int index, void** userdata)
+    static ScriptUserType CheckUserData(dlua_State* L, int index, void** userdata)
     {
-        int type = lua_type(L, index);
-        if (type != LUA_TUSERDATA)
+        dlua_Type type = dlua_type(L, index);
+        if (type != DLUA_TUSERDATA)
         {
             dmLogError("Argument %d is not userdata.", index);
             return SCRIPT_TYPE_UNKNOWN;
@@ -136,7 +135,7 @@ namespace dmScript
             Vector3* v = (Vector3*)*userdata;
             if (!CheckVector3Components(v))
             {
-                luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
+                dluaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
                 return SCRIPT_TYPE_UNKNOWN;
             }
             return SCRIPT_TYPE_VECTOR3;
@@ -146,7 +145,7 @@ namespace dmScript
             Vector4* v = (Vector4*)*userdata;
             if (!CheckVector4Components(v))
             {
-                luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
+                dluaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
                 return SCRIPT_TYPE_UNKNOWN;
             }
             return SCRIPT_TYPE_VECTOR4;
@@ -160,7 +159,7 @@ namespace dmScript
             Quat* q = (Quat*)*userdata;
             if (!CheckQuatComponents(q))
             {
-                luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
+                dluaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
                 return SCRIPT_TYPE_UNKNOWN;
             }
             return SCRIPT_TYPE_QUAT;
@@ -170,7 +169,7 @@ namespace dmScript
             Matrix4* m = (Matrix4*)*userdata;
             if (!CheckMatrix4Components(m))
             {
-                luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.matrix4(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", index,
+                dluaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.matrix4(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", index,
                     m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
                     m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
                     m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
@@ -183,86 +182,86 @@ namespace dmScript
         return SCRIPT_TYPE_UNKNOWN;
     }
 
-    bool IsVector(lua_State *L, int index)
+    bool IsVector(dlua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR];
     }
 
-    FloatVector* ToVector(lua_State* L, int index)
+    FloatVector* ToVector(dlua_State* L, int index)
     {
         return (FloatVector*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR]);
     }
 
-    static const luaL_reg Vector_methods[] =
+    static const dluaL_reg Vector_methods[] =
     {
         {0,0}
     };
 
-    static int Vector_len(lua_State *L)
+    static int Vector_len(dlua_State *L)
     {
-        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
+        FloatVector* v = *(FloatVector**)dlua_touserdata(L, 1);
 
-        lua_pushnumber(L, v->size);
+        dlua_pushnumber(L, v->size);
         return 1;
     }
 
-    static int Vector_index(lua_State *L)
+    static int Vector_index(dlua_State *L)
     {
-        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
+        FloatVector* v = *(FloatVector**)dlua_touserdata(L, 1);
 
-        int key = luaL_checkinteger(L, 2);
+        int key = dluaL_checkinteger(L, 2);
         if (key > 0 && key <= v->size)
         {
-            lua_pushnumber(L, v->values[key-1]);
+            dlua_pushnumber(L, v->values[key-1]);
             return 1;
         }
         else
         {
             if (v->size > 0)
             {
-                return luaL_error(L, "%s.%s only has valid indices between 1 and %d.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
+                return dluaL_error(L, "%s.%s only has valid indices between 1 and %d.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
             }
 
-            return luaL_error(L, "%s.%s has no addressable indices, size is 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR);
+            return dluaL_error(L, "%s.%s has no addressable indices, size is 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR);
         }
     }
 
-    static int Vector_newindex(lua_State *L)
+    static int Vector_newindex(dlua_State *L)
     {
-        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
+        FloatVector* v = *(FloatVector**)dlua_touserdata(L, 1);
 
-        int key = luaL_checkinteger(L, 2);
+        int key = dluaL_checkinteger(L, 2);
         if (key > 0 && key <= v->size)
         {
-            v->values[key-1] = (float)luaL_checknumber(L, 3);
+            v->values[key-1] = (float)dluaL_checknumber(L, 3);
         }
         else
         {
             if (v->size > 0)
             {
-                return luaL_error(L, "%s.%s only has valid indices between 1 and %d.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
+                return dluaL_error(L, "%s.%s only has valid indices between 1 and %d.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
             }
 
-            return luaL_error(L, "%s.%s has no addressable indices, size is 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR);
+            return dluaL_error(L, "%s.%s has no addressable indices, size is 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR);
         }
         return 0;
     }
 
-    static int Vector_tostring(lua_State *L)
+    static int Vector_tostring(dlua_State *L)
     {
-        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
-        lua_pushfstring(L, "%s.%s (size: %d)", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
+        FloatVector* v = *(FloatVector**)dlua_touserdata(L, 1);
+        dlua_pushfstring(L, "%s.%s (size: %d)", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
         return 1;
     }
 
-    static int Vector_gc(lua_State *L)
+    static int Vector_gc(dlua_State *L)
     {
-        FloatVector* v = *(FloatVector**)lua_touserdata(L, 1);
+        FloatVector* v = *(FloatVector**)dlua_touserdata(L, 1);
         delete v;
         return 0;
     }
 
-    static const luaL_reg Vector_meta[] =
+    static const dluaL_reg Vector_meta[] =
     {
         {"__gc",        Vector_gc},
         {"__tostring",  Vector_tostring},
@@ -272,74 +271,74 @@ namespace dmScript
         {0,0}
     };
 
-    bool IsVector3(lua_State *L, int index)
+    bool IsVector3(dlua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR3];
     }
 
-    Vector3* ToVector3(lua_State* L, int index)
+    Vector3* ToVector3(dlua_State* L, int index)
     {
         return (Vector3*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3]);
     }
 
-    static int Vector3_tostring(lua_State *L)
+    static int Vector3_tostring(dlua_State *L)
     {
-        Vector3* v = (Vector3*)lua_touserdata(L, 1);
-        lua_pushfstring(L, "vmath.%s(%f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
+        Vector3* v = (Vector3*)dlua_touserdata(L, 1);
+        dlua_pushfstring(L, "vmath.%s(%f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
         return 1;
     }
 
-    static int Vector3_index(lua_State *L)
+    static int Vector3_index(dlua_State *L)
     {
-        Vector3* v = (Vector3*)lua_touserdata(L, 1);
+        Vector3* v = (Vector3*)dlua_touserdata(L, 1);
 
-        const char* key = luaL_checkstring(L, 2);
+        const char* key = dluaL_checkstring(L, 2);
         if (key[0] == 'x')
         {
-            lua_pushnumber(L, v->getX());
+            dlua_pushnumber(L, v->getX());
             return 1;
         }
         else if (key[0] == 'y')
         {
-            lua_pushnumber(L, v->getY());
+            dlua_pushnumber(L, v->getY());
             return 1;
         }
         else if (key[0] == 'z')
         {
-            lua_pushnumber(L, v->getZ());
+            dlua_pushnumber(L, v->getZ());
             return 1;
         }
         else
         {
-            return luaL_error(L, "%s.%s only has fields x, y, z.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3);
+            return dluaL_error(L, "%s.%s only has fields x, y, z.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3);
         }
     }
 
-    static int Vector3_newindex(lua_State *L)
+    static int Vector3_newindex(dlua_State *L)
     {
-        Vector3* v = (Vector3*)lua_touserdata(L, 1);
+        Vector3* v = (Vector3*)dlua_touserdata(L, 1);
 
-        const char* key = luaL_checkstring(L, 2);
+        const char* key = dluaL_checkstring(L, 2);
         if (key[0] == 'x')
         {
-            v->setX((float) luaL_checknumber(L, 3));
+            v->setX((float) dluaL_checknumber(L, 3));
         }
         else if (key[0] == 'y')
         {
-            v->setY((float) luaL_checknumber(L, 3));
+            v->setY((float) dluaL_checknumber(L, 3));
         }
         else if (key[0] == 'z')
         {
-            v->setZ((float) luaL_checknumber(L, 3));
+            v->setZ((float) dluaL_checknumber(L, 3));
         }
         else
         {
-            return luaL_error(L, "%s.%s only has fields x, y, z.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3);
+            return dluaL_error(L, "%s.%s only has fields x, y, z.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3);
         }
         return 0;
     }
 
-    static int Vector3_add(lua_State *L)
+    static int Vector3_add(dlua_State *L)
     {
         Vector3* v1 = CheckVector3(L, 1);
         Vector3* v2 = CheckVector3(L, 2);
@@ -347,7 +346,7 @@ namespace dmScript
         return 1;
     }
 
-    static int Vector3_sub(lua_State *L)
+    static int Vector3_sub(dlua_State *L)
     {
         Vector3* v1 = CheckVector3(L, 1);
         Vector3* v2 = CheckVector3(L, 2);
@@ -355,65 +354,65 @@ namespace dmScript
         return 1;
     }
 
-    static int Vector3_mul(lua_State *L)
+    static int Vector3_mul(dlua_State *L)
     {
         Vector3* v = ToVector3(L, 1);
         float s;
         if (v != 0)
         {
-            s = (float) luaL_checknumber(L, 2);
+            s = (float) dluaL_checknumber(L, 2);
         }
         else
         {
-            s = (float) luaL_checknumber(L, 1);
+            s = (float) dluaL_checknumber(L, 1);
             v = CheckVector3(L, 2);
         }
         PushVector3(L, *v * s);
         return 1;
     }
 
-    static int Vector3_div(lua_State *L)
+    static int Vector3_div(dlua_State *L)
     {
         Vector3* v = CheckVector3(L, 1);
-        float s = (float) luaL_checknumber(L, 2);
+        float s = (float) dluaL_checknumber(L, 2);
         PushVector3(L, *v / s);
         return 1;
     }
 
-    static int Vector3_unm(lua_State *L)
+    static int Vector3_unm(dlua_State *L)
     {
-        Vector3* v = (Vector3*)lua_touserdata(L, 1);
+        Vector3* v = (Vector3*)dlua_touserdata(L, 1);
         PushVector3(L, - *v);
         return 1;
     }
 
-    static int Vector3_concat(lua_State *L)
+    static int Vector3_concat(dlua_State *L)
     {
         size_t size = 0;
-        const char* s = luaL_checklstring(L, 1, &size);
+        const char* s = dluaL_checklstring(L, 1, &size);
         Vector3* v = CheckVector3(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_VECTOR3 + 1;
         char* buffer = new char[buffer_size];
-        // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
+        // Use same format as Lua when converting number to string (from DLUA_NUMBER_FMT in luaconf.h)
         dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR3, s, v->getX(), v->getY(), v->getZ());
-        lua_pushstring(L, buffer);
+        dlua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
     }
 
-    static int Vector3_eq(lua_State *L)
+    static int Vector3_eq(dlua_State *L)
     {
         Vector3* v1 = ToVector3(L, 1);
         Vector3* v2 = ToVector3(L, 2);
-        lua_pushboolean(L, v1 && v2 && v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ());
+        dlua_pushboolean(L, v1 && v2 && v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ());
         return 1;
     }
 
-    static const luaL_reg Vector3_methods[] =
+    static const dluaL_reg Vector3_methods[] =
     {
         {0,0}
     };
-    static const luaL_reg Vector3_meta[] =
+    static const dluaL_reg Vector3_meta[] =
     {
         {"__tostring",  Vector3_tostring},
         {"__index",     Vector3_index},
@@ -428,83 +427,83 @@ namespace dmScript
         {0,0}
     };
 
-    bool IsVector4(lua_State *L, int index)
+    bool IsVector4(dlua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR4];
     }
 
-    Vector4* ToVector4(lua_State *L, int index)
+    Vector4* ToVector4(dlua_State *L, int index)
     {
         return (Vector4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4]);
     }
 
-    static int Vector4_tostring(lua_State *L)
+    static int Vector4_tostring(dlua_State *L)
     {
-        Vector4* v = (Vector4*)lua_touserdata(L, 1);
-        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
+        Vector4* v = (Vector4*)dlua_touserdata(L, 1);
+        dlua_pushfstring(L, "vmath.%s(%f, %f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
         return 1;
     }
 
-    static int Vector4_index(lua_State *L)
+    static int Vector4_index(dlua_State *L)
     {
-        Vector4* v = (Vector4*)lua_touserdata(L, 1);
+        Vector4* v = (Vector4*)dlua_touserdata(L, 1);
 
-        const char* key = luaL_checkstring(L, 2);
+        const char* key = dluaL_checkstring(L, 2);
         if (key[0] == 'x')
         {
-            lua_pushnumber(L, v->getX());
+            dlua_pushnumber(L, v->getX());
             return 1;
         }
         else if (key[0] == 'y')
         {
-            lua_pushnumber(L, v->getY());
+            dlua_pushnumber(L, v->getY());
             return 1;
         }
         else if (key[0] == 'z')
         {
-            lua_pushnumber(L, v->getZ());
+            dlua_pushnumber(L, v->getZ());
             return 1;
         }
         else if (key[0] == 'w')
         {
-            lua_pushnumber(L, v->getW());
+            dlua_pushnumber(L, v->getW());
             return 1;
         }
         else
         {
-            return luaL_error(L, "%s.%s only has fields x, y, z, w.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR4);
+            return dluaL_error(L, "%s.%s only has fields x, y, z, w.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR4);
         }
     }
 
-    static int Vector4_newindex(lua_State *L)
+    static int Vector4_newindex(dlua_State *L)
     {
-        Vector4* v = (Vector4*)lua_touserdata(L, 1);
+        Vector4* v = (Vector4*)dlua_touserdata(L, 1);
 
-        const char* key = luaL_checkstring(L, 2);
+        const char* key = dluaL_checkstring(L, 2);
         if (key[0] == 'x')
         {
-            v->setX((float) luaL_checknumber(L, 3));
+            v->setX((float) dluaL_checknumber(L, 3));
         }
         else if (key[0] == 'y')
         {
-            v->setY((float) luaL_checknumber(L, 3));
+            v->setY((float) dluaL_checknumber(L, 3));
         }
         else if (key[0] == 'z')
         {
-            v->setZ((float) luaL_checknumber(L, 3));
+            v->setZ((float) dluaL_checknumber(L, 3));
         }
         else if (key[0] == 'w')
         {
-            v->setW((float) luaL_checknumber(L, 3));
+            v->setW((float) dluaL_checknumber(L, 3));
         }
         else
         {
-            return luaL_error(L, "%s.%s only has fields x, y, z, w.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR4);
+            return dluaL_error(L, "%s.%s only has fields x, y, z, w.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR4);
         }
         return 0;
     }
 
-    static int Vector4_add(lua_State *L)
+    static int Vector4_add(dlua_State *L)
     {
         Vector4* v1 = CheckVector4(L, 1);
         Vector4* v2 = CheckVector4(L, 2);
@@ -512,7 +511,7 @@ namespace dmScript
         return 1;
     }
 
-    static int Vector4_sub(lua_State *L)
+    static int Vector4_sub(dlua_State *L)
     {
         Vector4* v1 = CheckVector4(L, 1);
         Vector4* v2 = CheckVector4(L, 2);
@@ -520,65 +519,65 @@ namespace dmScript
         return 1;
     }
 
-    static int Vector4_mul(lua_State *L)
+    static int Vector4_mul(dlua_State *L)
     {
         Vector4* v = ToVector4(L, 1);
         float s;
         if (v != 0)
         {
-            s = (float) luaL_checknumber(L, 2);
+            s = (float) dluaL_checknumber(L, 2);
         }
         else
         {
-            s = (float) luaL_checknumber(L, 1);
+            s = (float) dluaL_checknumber(L, 1);
             v = CheckVector4(L, 2);
         }
         PushVector4(L, *v * s);
         return 1;
     }
 
-    static int Vector4_div(lua_State *L)
+    static int Vector4_div(dlua_State *L)
     {
         Vector4* v = CheckVector4(L, 1);
-        float s = (float) luaL_checknumber(L, 2);
+        float s = (float) dluaL_checknumber(L, 2);
         PushVector4(L, *v / s);
         return 1;
     }
 
-    static int Vector4_unm(lua_State *L)
+    static int Vector4_unm(dlua_State *L)
     {
-        Vector4* v = (Vector4*)lua_touserdata(L, 1);
+        Vector4* v = (Vector4*)dlua_touserdata(L, 1);
         PushVector4(L, - *v);
         return 1;
     }
 
-    static int Vector4_concat(lua_State *L)
+    static int Vector4_concat(dlua_State *L)
     {
         size_t size = 0;
-        const char* s = luaL_checklstring(L, 1, &size);
+        const char* s = dluaL_checklstring(L, 1, &size);
         Vector4* v = CheckVector4(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_VECTOR4 + 1;
         char* buffer = new char[size + buffer_size];
-        // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
+        // Use same format as Lua when converting number to string (from DLUA_NUMBER_FMT in luaconf.h)
         dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR4, s, v->getX(), v->getY(), v->getZ(), v->getW());
-        lua_pushstring(L, buffer);
+        dlua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
     }
 
-    static int Vector4_eq(lua_State *L)
+    static int Vector4_eq(dlua_State *L)
     {
         Vector4* v1 = ToVector4(L, 1);
         Vector4* v2 = ToVector4(L, 2);
-        lua_pushboolean(L, v1 && v2 && v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ() && v1->getW() == v2->getW());
+        dlua_pushboolean(L, v1 && v2 && v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ() && v1->getW() == v2->getW());
         return 1;
     }
 
-    static const luaL_reg Vector4_methods[] =
+    static const dluaL_reg Vector4_methods[] =
     {
         {0,0}
     };
-    static const luaL_reg Vector4_meta[] =
+    static const dluaL_reg Vector4_meta[] =
     {
         {"__tostring",  Vector4_tostring},
         {"__index",     Vector4_index},
@@ -593,84 +592,84 @@ namespace dmScript
         {0,0}
     };
 
-    bool IsQuat(lua_State *L, int index)
+    bool IsQuat(dlua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_QUAT];
     }
 
-    Quat* ToQuat(lua_State *L, int index)
+    Quat* ToQuat(dlua_State *L, int index)
     {
         return (Quat*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT]);
     }
 
-    static int Quat_tostring(lua_State *L)
+    static int Quat_tostring(dlua_State *L)
     {
-        Quat* q = (Quat*)lua_touserdata(L, 1);
-        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f)", SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
+        Quat* q = (Quat*)dlua_touserdata(L, 1);
+        dlua_pushfstring(L, "vmath.%s(%f, %f, %f, %f)", SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
         return 1;
     }
 
-    static int Quat_index(lua_State *L)
+    static int Quat_index(dlua_State *L)
     {
-        Quat* q = (Quat*)lua_touserdata(L, 1);
+        Quat* q = (Quat*)dlua_touserdata(L, 1);
 
-        const char* key = luaL_checkstring(L, 2);
+        const char* key = dluaL_checkstring(L, 2);
         if (key[0] == 'x')
         {
-            lua_pushnumber(L, q->getX());
+            dlua_pushnumber(L, q->getX());
             return 1;
         }
         else if (key[0] == 'y')
         {
-            lua_pushnumber(L, q->getY());
+            dlua_pushnumber(L, q->getY());
             return 1;
         }
         else if (key[0] == 'z')
         {
-            lua_pushnumber(L, q->getZ());
+            dlua_pushnumber(L, q->getZ());
             return 1;
         }
         else if (key[0] == 'w')
         {
-            lua_pushnumber(L, q->getW());
+            dlua_pushnumber(L, q->getW());
             return 1;
         }
         else
         {
-            return luaL_error(L, "%s.%s only has fields x, y, z, w.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
+            return dluaL_error(L, "%s.%s only has fields x, y, z, w.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
         }
         return 0;
     }
 
-    static int Quat_newindex(lua_State *L)
+    static int Quat_newindex(dlua_State *L)
     {
-        Quat* q = (Quat*)lua_touserdata(L, 1);
+        Quat* q = (Quat*)dlua_touserdata(L, 1);
 
-        const char* key = luaL_checkstring(L, 2);
+        const char* key = dluaL_checkstring(L, 2);
         if (key[0] == 'x')
         {
-            q->setX((float) luaL_checknumber(L, -1));
+            q->setX((float) dluaL_checknumber(L, -1));
         }
         else if (key[0] == 'y')
         {
-            q->setY((float) luaL_checknumber(L, -1));
+            q->setY((float) dluaL_checknumber(L, -1));
         }
         else if (key[0] == 'z')
         {
-            q->setZ((float) luaL_checknumber(L, -1));
+            q->setZ((float) dluaL_checknumber(L, -1));
         }
         else if (key[0] == 'w')
         {
-            q->setW((float) luaL_checknumber(L, -1));
+            q->setW((float) dluaL_checknumber(L, -1));
         }
         else
         {
-            return luaL_error(L, "%s.%s only has fields x, y, z, w.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
+            return dluaL_error(L, "%s.%s only has fields x, y, z, w.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
         }
         return 0;
     }
 
-    static int Quat_mul(lua_State *L)
+    static int Quat_mul(dlua_State *L)
     {
         Quat* q1 = CheckQuat(L, 1);
         Quat* q2 = CheckQuat(L, 2);
@@ -678,33 +677,33 @@ namespace dmScript
         return 1;
     }
 
-    static int Quat_concat(lua_State *L)
+    static int Quat_concat(dlua_State *L)
     {
         size_t size = 0;
-        const char* s = luaL_checklstring(L, 1, &size);
+        const char* s = dluaL_checklstring(L, 1, &size);
         Quat* q = CheckQuat(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_QUAT + 1;
         char* buffer = new char[buffer_size];
-        // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
+        // Use same format as Lua when converting number to string (from DLUA_NUMBER_FMT in luaconf.h)
         dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_QUAT, s, q->getX(), q->getY(), q->getZ(), q->getW());
-        lua_pushstring(L, buffer);
+        dlua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
     }
 
-    static int Quat_eq(lua_State *L)
+    static int Quat_eq(dlua_State *L)
     {
         Quat* q1 = ToQuat(L, 1);
         Quat* q2 = ToQuat(L, 2);
-        lua_pushboolean(L, q1 && q2 && q1->getX() == q2->getX() && q1->getY() == q2->getY() && q1->getZ() == q2->getZ() && q1->getW() == q2->getW());
+        dlua_pushboolean(L, q1 && q2 && q1->getX() == q2->getX() && q1->getY() == q2->getY() && q1->getZ() == q2->getZ() && q1->getW() == q2->getW());
         return 1;
     }
 
-    static const luaL_reg Quat_methods[] =
+    static const dluaL_reg Quat_methods[] =
     {
         {0,0}
     };
-    static const luaL_reg Quat_meta[] =
+    static const dluaL_reg Quat_meta[] =
     {
         {"__tostring",  Quat_tostring},
         {"__index",     Quat_index},
@@ -715,20 +714,20 @@ namespace dmScript
         {0,0}
     };
 
-    bool IsMatrix4(lua_State *L, int index)
+    bool IsMatrix4(dlua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_MATRIX4];
     }
 
-    Matrix4* ToMatrix4(lua_State *L, int index)
+    Matrix4* ToMatrix4(dlua_State *L, int index)
     {
         return (Matrix4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4]);
     }
 
-    static int Matrix4_tostring(lua_State *L)
+    static int Matrix4_tostring(dlua_State *L)
     {
-        Matrix4* m = (Matrix4*)lua_touserdata(L, 1);
-        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", SCRIPT_TYPE_NAME_MATRIX4,
+        Matrix4* m = (Matrix4*)dlua_touserdata(L, 1);
+        dlua_pushfstring(L, "vmath.%s(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", SCRIPT_TYPE_NAME_MATRIX4,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
@@ -736,19 +735,19 @@ namespace dmScript
         return 1;
     }
 
-    static int Matrix4_index(lua_State *L)
+    static int Matrix4_index(dlua_State *L)
     {
-        Matrix4* m = (Matrix4*)lua_touserdata(L, 1);
+        Matrix4* m = (Matrix4*)dlua_touserdata(L, 1);
 
         size_t key_len = 0;
-        const char* key = luaL_checklstring(L, 2, &key_len);
+        const char* key = dluaL_checklstring(L, 2, &key_len);
         if (key_len == 3)
         {
             int row = key[1] - (char)'0';
             int col = key[2] - (char)'0';
             if (0 <= row && row < 4 && 0 <= col && col < 4)
             {
-                lua_pushnumber(L, m->getElem(col, row));
+                dlua_pushnumber(L, m->getElem(col, row));
                 return 1;
             }
         }
@@ -761,22 +760,22 @@ namespace dmScript
                 return 1;
             }
         }
-        return luaL_error(L, "%s.%s only has fields c0, ..., c3 and m00, m01, ..., m10, ..., m33.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4);
+        return dluaL_error(L, "%s.%s only has fields c0, ..., c3 and m00, m01, ..., m10, ..., m33.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4);
     }
 
-    static int Matrix4_newindex(lua_State *L)
+    static int Matrix4_newindex(dlua_State *L)
     {
-        Matrix4* m = (Matrix4*)lua_touserdata(L, 1);
+        Matrix4* m = (Matrix4*)dlua_touserdata(L, 1);
 
         size_t key_len = 0;
-        const char* key = luaL_checklstring(L, 2, &key_len);
+        const char* key = dluaL_checklstring(L, 2, &key_len);
         if (key_len == 3)
         {
             int row = key[1] - (char)'0';
             int col = key[2] - (char)'0';
             if (0 <= row && row < 4 && 0 <= col && col < 4)
             {
-                m->setElem(col, row, (float) luaL_checknumber(L, -1));
+                m->setElem(col, row, (float) dluaL_checknumber(L, -1));
                 return 0;
             }
         }
@@ -790,15 +789,15 @@ namespace dmScript
                 return 0;
             }
         }
-        return luaL_error(L, "%s.%s only has fields c0, ..., c3 and m00, m01, ..., m10, ..., m33.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4);
+        return dluaL_error(L, "%s.%s only has fields c0, ..., c3 and m00, m01, ..., m10, ..., m33.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4);
     }
 
-    static int Matrix4_mul(lua_State *L)
+    static int Matrix4_mul(dlua_State *L)
     {
         Matrix4 m1;
-        if (lua_isnumber(L, 1))
+        if (dlua_isnumber(L, 1))
         {
-            float f = (float) lua_tonumber(L, 1);
+            float f = (float) dlua_tonumber(L, 1);
             m1 = *CheckMatrix4(L, 2);
             PushMatrix4(L, m1 * f);
         }
@@ -815,42 +814,42 @@ namespace dmScript
             {
                 PushVector4(L, m1 * *v);
             }
-            else if (lua_isnumber(L, 2))
+            else if (dlua_isnumber(L, 2))
             {
-                float f = (float) luaL_checknumber(L, 2);
+                float f = (float) dluaL_checknumber(L, 2);
                 PushMatrix4(L, m1 * f);
             }
             else
             {
-                return luaL_error(L, "%s.%s can only be multiplied with a number, another %s or a %s.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_VECTOR4);
+                return dluaL_error(L, "%s.%s can only be multiplied with a number, another %s or a %s.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_VECTOR4);
             }
         }
         return 1;
     }
 
-    static int Matrix4_concat(lua_State *L)
+    static int Matrix4_concat(dlua_State *L)
     {
         size_t size = 0;
-        const char* s = luaL_checklstring(L, 1, &size);
+        const char* s = dluaL_checklstring(L, 1, &size);
         Matrix4* m = CheckMatrix4(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_MATRIX4 + 1;
         char* buffer = new char[buffer_size];
-        // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
+        // Use same format as Lua when converting number to string (from DLUA_NUMBER_FMT in luaconf.h)
         dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_MATRIX4, s,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
             m->getElem(0, 3), m->getElem(1, 3), m->getElem(2, 3), m->getElem(3, 3));
-        lua_pushstring(L, buffer);
+        dlua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
     }
 
-    static int Matrix4_eq(lua_State *L)
+    static int Matrix4_eq(dlua_State *L)
     {
         Matrix4* m1 = ToMatrix4(L, 1);
         Matrix4* m2 = ToMatrix4(L, 2);
-        lua_pushboolean(L,
+        dlua_pushboolean(L,
             m1 && m2 &&
             m1->getElem(0, 0) == m2->getElem(0, 0) && m1->getElem(1, 0) == m2->getElem(1, 0) && m1->getElem(2, 0) == m2->getElem(2, 0) && m1->getElem(3, 0) == m2->getElem(3, 0) &&
             m1->getElem(0, 1) == m2->getElem(0, 1) && m1->getElem(1, 1) == m2->getElem(1, 1) && m1->getElem(2, 1) == m2->getElem(2, 1) && m1->getElem(3, 1) == m2->getElem(3, 1) &&
@@ -859,11 +858,11 @@ namespace dmScript
         return 1;
     }
 
-    static const luaL_reg Matrix4_methods[] =
+    static const dluaL_reg Matrix4_methods[] =
     {
         {0,0}
     };
-    static const luaL_reg Matrix4_meta[] =
+    static const dluaL_reg Matrix4_meta[] =
     {
         {"__tostring",  Matrix4_tostring},
         {"__index",     Matrix4_index},
@@ -896,25 +895,25 @@ namespace dmScript
      * print(vec[2]) --> 0.5
      * ```
      */
-    static int Vector_new(lua_State* L)
+    static int Vector_new(dlua_State* L)
     {
         FloatVector *v;
-        if (lua_gettop(L) == 0)
+        if (dlua_gettop(L) == 0)
         {
             v = new FloatVector(0);
         }
         else
         {
-            luaL_checktype(L, 1, LUA_TTABLE);
-            int array_size = lua_objlen(L, 1);
+            dluaL_checktype(L, 1, DLUA_TTABLE);
+            int array_size = dlua_objlen(L, 1);
             v = new FloatVector(array_size);
 
             for (int i = 0; i < array_size; i++)
             {
-                lua_pushnumber(L, i+1);
-                lua_gettable(L, 1);
-                v->values[i] = (float) lua_tonumber(L, -1);
-                lua_pop(L, 1);
+                dlua_pushnumber(L, i+1);
+                dlua_gettable(L, 1);
+                v->values[i] = (float) dlua_tonumber(L, -1);
+                dlua_pop(L, 1);
             }
         }
 
@@ -996,19 +995,19 @@ namespace dmScript
      * print(vec - vmath.vector3(2.0)) --> vmath.vector3(-1, 0, 1)
      * ```
      */
-    static int Vector3_new(lua_State* L)
+    static int Vector3_new(dlua_State* L)
     {
         Vector3 v;
-        if (lua_gettop(L) == 0)
+        if (dlua_gettop(L) == 0)
         {
             v = Vector3(0.0f, 0.0f, 0.0f);
         }
-        else if (lua_gettop(L) == 1)
+        else if (dlua_gettop(L) == 1)
         {
-            int type = lua_type(L, -1);
-            if (type == LUA_TNUMBER)
+            dlua_Type type = dlua_type(L, -1);
+            if (type == DLUA_TNUMBER)
             {
-                float x = (float) lua_tonumber(L, -1);
+                float x = (float) dlua_tonumber(L, -1);
                 v = Vector3(x, x, x);
             }
             else
@@ -1019,9 +1018,9 @@ namespace dmScript
         }
         else
         {
-            v.setX((float) luaL_checknumber(L, 1));
-            v.setY((float) luaL_checknumber(L, 2));
-            v.setZ((float) luaL_checknumber(L, 3));
+            v.setX((float) dluaL_checknumber(L, 1));
+            v.setY((float) dluaL_checknumber(L, 2));
+            v.setZ((float) dluaL_checknumber(L, 3));
         }
         PushVector3(L, v);
         return 1;
@@ -1102,23 +1101,23 @@ namespace dmScript
      * print(vec - vmath.vector4(2.0)) --> vmath.vector4(-1, 0, 1, 2)
      * ```
      */
-    static int Vector4_new(lua_State* L)
+    static int Vector4_new(dlua_State* L)
     {
         Vector4 v;
         // NOTE: The following comment is obsolete
         // "No empty constructor, since the value of w matters"
         // Don't understand why. Every component matters :-)
         // Empty constructor added.
-        if (lua_gettop(L) == 0)
+        if (dlua_gettop(L) == 0)
         {
             v = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
         }
-        else if (lua_gettop(L) == 1)
+        else if (dlua_gettop(L) == 1)
         {
-            int type = lua_type(L, -1);
-            if (type == LUA_TNUMBER)
+            dlua_Type type = dlua_type(L, -1);
+            if (type == DLUA_TNUMBER)
             {
-                float x = (float) lua_tonumber(L, -1);
+                float x = (float) dlua_tonumber(L, -1);
                 v = Vector4(x, x, x, x);
             }
             else
@@ -1129,10 +1128,10 @@ namespace dmScript
         }
         else
         {
-            v.setX((float) luaL_checknumber(L, 1));
-            v.setY((float) luaL_checknumber(L, 2));
-            v.setZ((float) luaL_checknumber(L, 3));
-            v.setW((float) luaL_checknumber(L, 4));
+            v.setX((float) dluaL_checknumber(L, 1));
+            v.setY((float) dluaL_checknumber(L, 2));
+            v.setZ((float) dluaL_checknumber(L, 3));
+            v.setW((float) dluaL_checknumber(L, 4));
         }
         PushVector4(L, v);
         return 1;
@@ -1195,23 +1194,23 @@ namespace dmScript
      * print(quat) --> vmath.quat(1, 2, 3, 4)
      * ```
      */
-    static int Quat_new(lua_State* L)
+    static int Quat_new(dlua_State* L)
     {
         Quat q;
-        if (lua_gettop(L) == 0)
+        if (dlua_gettop(L) == 0)
         {
             q = Quat::identity();
         }
-        else if (lua_gettop(L) == 1)
+        else if (dlua_gettop(L) == 1)
         {
             q = *CheckQuat(L, -1);
         }
         else
         {
-            q.setX((float) luaL_checknumber(L, 1));
-            q.setY((float) luaL_checknumber(L, 2));
-            q.setZ((float) luaL_checknumber(L, 3));
-            q.setW((float) luaL_checknumber(L, 4));
+            q.setX((float) dluaL_checknumber(L, 1));
+            q.setY((float) dluaL_checknumber(L, 2));
+            q.setZ((float) dluaL_checknumber(L, 3));
+            q.setW((float) dluaL_checknumber(L, 4));
         }
         PushQuat(L, q);
         return 1;
@@ -1239,7 +1238,7 @@ namespace dmScript
      * print(vmath.rotate(rot, v1)) --> vmath.vector3(0, 0.99999994039536, 0)
      * ```
      */
-    static int Quat_FromTo(lua_State* L)
+    static int Quat_FromTo(dlua_State* L)
     {
         Vector3* v1 = CheckVector3(L, 1);
         Vector3* v2 = CheckVector3(L, 2);
@@ -1265,10 +1264,10 @@ namespace dmScript
      * print(vmath.rotate(rot, vec)) --> vmath.vector3(1, -1, -8.7422776573476e-08)
      * ```
      */
-    static int Quat_AxisAngle(lua_State* L)
+    static int Quat_AxisAngle(dlua_State* L)
     {
         Vector3* axis = CheckVector3(L, 1);
-        float angle = (float) luaL_checknumber(L, 2);
+        float angle = (float) dluaL_checknumber(L, 2);
         PushQuat(L, Quat::rotation(angle, *axis));
         return 1;
     }
@@ -1299,7 +1298,7 @@ namespace dmScript
      * end
      * ```
      */
-    static int Quat_Basis(lua_State* L)
+    static int Quat_Basis(dlua_State* L)
     {
         Vector3* x = CheckVector3(L, 1);
         Vector3* y = CheckVector3(L, 2);
@@ -1328,9 +1327,9 @@ namespace dmScript
      * print(vmath.rotate(rot, vec)) --> vmath.vector3(1, -1, -8.7422776573476e-08)
      * ```
      */
-    static int Quat_RotationX(lua_State* L)
+    static int Quat_RotationX(dlua_State* L)
     {
-        float angle = (float) luaL_checknumber(L, 1);
+        float angle = (float) dluaL_checknumber(L, 1);
         PushQuat(L, Quat::rotationX(angle));
         return 1;
     }
@@ -1351,9 +1350,9 @@ namespace dmScript
      * print(vmath.rotate(rot, vec)) --> vmath.vector3(-1, 1, 8.7422776573476e-08)
      * ```
      */
-    static int Quat_RotationY(lua_State* L)
+    static int Quat_RotationY(dlua_State* L)
     {
-        float angle = (float) luaL_checknumber(L, 1);
+        float angle = (float) dluaL_checknumber(L, 1);
         PushQuat(L, Quat::rotationY(angle));
         return 1;
     }
@@ -1374,9 +1373,9 @@ namespace dmScript
      * print(vmath.rotate(rot, vec)) --> vmath.vector3(-0.99999988079071, -1, 0)
      * ```
      */
-    static int Quat_RotationZ(lua_State* L)
+    static int Quat_RotationZ(dlua_State* L)
     {
-        float angle = (float) luaL_checknumber(L, 1);
+        float angle = (float) dluaL_checknumber(L, 1);
         PushQuat(L, Quat::rotationZ(angle));
         return 1;
     }
@@ -1420,20 +1419,20 @@ namespace dmScript
      * end
      * ```
      */
-    static int Matrix4_new(lua_State* L)
+    static int Matrix4_new(dlua_State* L)
     {
         Matrix4 m;
-        if (lua_gettop(L) == 0)
+        if (dlua_gettop(L) == 0)
         {
             m = Matrix4::identity();
         }
-        else if (lua_gettop(L) == 1)
+        else if (dlua_gettop(L) == 1)
         {
             m = *CheckMatrix4(L, -1);
         }
         else
         {
-            return luaL_error(L, "A %s.%s can only be constructed with empty argument list or from another %s.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_MATRIX4);
+            return dluaL_error(L, "A %s.%s can only be constructed with empty argument list or from another %s.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_MATRIX4);
         }
         PushMatrix4(L, m);
         return 1;
@@ -1463,19 +1462,19 @@ namespace dmScript
      * render.set_projection(proj)
      * ```
      */
-    static int Matrix4_Frustum(lua_State* L)
+    static int Matrix4_Frustum(dlua_State* L)
     {
-        float left = (float) luaL_checknumber(L, 1);
-        float right = (float) luaL_checknumber(L, 2);
-        float bottom = (float) luaL_checknumber(L, 3);
-        float top = (float) luaL_checknumber(L, 4);
-        float near_z = (float) luaL_checknumber(L, 5);
+        float left = (float) dluaL_checknumber(L, 1);
+        float right = (float) dluaL_checknumber(L, 2);
+        float bottom = (float) dluaL_checknumber(L, 3);
+        float top = (float) dluaL_checknumber(L, 4);
+        float near_z = (float) dluaL_checknumber(L, 5);
         if(near_z == 0.0f)
         {
-            luaL_where(L, 1);
-            dmLogWarning("%sperspective projection invalid, znear = 0", lua_tostring(L,-1));
+            dluaL_where(L, 1);
+            dmLogWarning("%sperspective projection invalid, znear = 0", dlua_tostring(L,-1));
         }
-        float far_z = (float) luaL_checknumber(L, 6);
+        float far_z = (float) dluaL_checknumber(L, 6);
         PushMatrix4(L, Matrix4::frustum(left, right, bottom, top, near_z, far_z));
         return 1;
     }
@@ -1505,7 +1504,7 @@ namespace dmScript
      * render.set_projection(proj)
      * ```
      */
-    static int Matrix4_LookAt(lua_State* L)
+    static int Matrix4_LookAt(dlua_State* L)
     {
         PushMatrix4(L, Matrix4::lookAt(Point3(*CheckVector3(L, 1)), Point3(*CheckVector3(L, 2)), *CheckVector3(L, 3)));
         return 1;
@@ -1534,14 +1533,14 @@ namespace dmScript
      * render.set_projection(proj)
      * ```
      */
-    static int Matrix4_Orthographic(lua_State* L)
+    static int Matrix4_Orthographic(dlua_State* L)
     {
-        float left = (float) luaL_checknumber(L, 1);
-        float right = (float) luaL_checknumber(L, 2);
-        float bottom = (float) luaL_checknumber(L, 3);
-        float top = (float) luaL_checknumber(L, 4);
-        float near_z = (float) luaL_checknumber(L, 5);
-        float far_z = (float) luaL_checknumber(L, 6);
+        float left = (float) dluaL_checknumber(L, 1);
+        float right = (float) dluaL_checknumber(L, 2);
+        float bottom = (float) dluaL_checknumber(L, 3);
+        float top = (float) dluaL_checknumber(L, 4);
+        float near_z = (float) dluaL_checknumber(L, 5);
+        float far_z = (float) dluaL_checknumber(L, 6);
         PushMatrix4(L, Matrix4::orthographic(left, right, bottom, top, near_z, far_z));
         return 1;
     }
@@ -1570,16 +1569,16 @@ namespace dmScript
      * render.set_projection(proj)
      * ```
      */
-    static int Matrix4_Perspective(lua_State* L)
+    static int Matrix4_Perspective(dlua_State* L)
     {
-        float fov = (float) luaL_checknumber(L, 1);
-        float aspect = (float) luaL_checknumber(L, 2);
-        float near_z = (float) luaL_checknumber(L, 3);
-        float far_z = (float) luaL_checknumber(L, 4);
+        float fov = (float) dluaL_checknumber(L, 1);
+        float aspect = (float) dluaL_checknumber(L, 2);
+        float near_z = (float) dluaL_checknumber(L, 3);
+        float far_z = (float) dluaL_checknumber(L, 4);
         if(near_z == 0.0f)
         {
-            luaL_where(L, 1);
-            dmLogWarning("%sperspective projection invalid, znear = 0", lua_tostring(L,-1));
+            dluaL_where(L, 1);
+            dmLogWarning("%sperspective projection invalid, znear = 0", dlua_tostring(L,-1));
         }
         PushMatrix4(L, Matrix4::perspective(fov, aspect, near_z, far_z));
         return 1;
@@ -1600,7 +1599,7 @@ namespace dmScript
      * print(mat * vec) --> vmath.matrix4_frustum(-1, 1, -1, 1, 1, 1000)
      * ```
      */
-    static int Matrix4_Quat(lua_State* L)
+    static int Matrix4_Quat(dlua_State* L)
     {
         PushMatrix4(L, Matrix4::rotation(*CheckQuat(L, 1)));
         return 1;
@@ -1622,10 +1621,10 @@ namespace dmScript
      * print(mat * vec) --> vmath.vector4(-0.99999994039536, -1.0000001192093, 0, 0)
      * ```
      */
-    static int Matrix4_AxisAngle(lua_State* L)
+    static int Matrix4_AxisAngle(dlua_State* L)
     {
         Vector3* axis = CheckVector3(L, 1);
-        float angle = (float) luaL_checknumber(L, 2);
+        float angle = (float) dluaL_checknumber(L, 2);
         PushMatrix4(L, Matrix4::rotation(angle, *axis));
         return 1;
     }
@@ -1645,9 +1644,9 @@ namespace dmScript
      * print(mat * vec) --> vmath.vector4(1, -1, -8.7422776573476e-08, 0)
      * ```
      */
-    static int Matrix4_RotationX(lua_State* L)
+    static int Matrix4_RotationX(dlua_State* L)
     {
-        PushMatrix4(L, Matrix4::rotationX((float) luaL_checknumber(L, 1)));
+        PushMatrix4(L, Matrix4::rotationX((float) dluaL_checknumber(L, 1)));
         return 1;
     }
 
@@ -1666,9 +1665,9 @@ namespace dmScript
      * print(mat * vec) --> vmath.vector4(-1, 1, 8.7422776573476e-08, 0)
      * ```
      */
-    static int Matrix4_RotationY(lua_State* L)
+    static int Matrix4_RotationY(dlua_State* L)
     {
-        PushMatrix4(L, Matrix4::rotationY((float) luaL_checknumber(L, 1)));
+        PushMatrix4(L, Matrix4::rotationY((float) dluaL_checknumber(L, 1)));
         return 1;
     }
 
@@ -1687,9 +1686,9 @@ namespace dmScript
      * print(mat * vec) --> vmath.vector4(-0.99999994039536, -1.0000001192093, 0, 0)
      * ```
      */
-    static int Matrix4_RotationZ(lua_State* L)
+    static int Matrix4_RotationZ(dlua_State* L)
     {
-        PushMatrix4(L, Matrix4::rotationZ((float) luaL_checknumber(L, 1)));
+        PushMatrix4(L, Matrix4::rotationZ((float) dluaL_checknumber(L, 1)));
         return 1;
     }
 
@@ -1709,7 +1708,7 @@ namespace dmScript
      * render.set_view(mat_view * mat_trans)
      * ```
      */
-    static int Matrix4_Translation(lua_State* L)
+    static int Matrix4_Translation(dlua_State* L)
     {
         void* argument = 0;
         const ScriptUserType v_type = CheckUserData(L, 1, &argument);
@@ -1726,7 +1725,7 @@ namespace dmScript
         }
         else
         {
-            return luaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "matrix4_translation",
+            return dluaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "matrix4_translation",
                 SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
         }
 
@@ -1753,7 +1752,7 @@ namespace dmScript
      * print(mat1 * mat2) --> vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
      * ```
      */
-    static int Inverse(lua_State* L)
+    static int Inverse(dlua_State* L)
     {
         const Matrix4* m = CheckMatrix4(L, 1);
         Matrix4 mi = dmVMath::Inverse(*m);
@@ -1781,7 +1780,7 @@ namespace dmScript
      * print(mat1 * mat2) --> vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
      * ```
      */
-    static int OrthoInverse(lua_State* L)
+    static int OrthoInverse(dlua_State* L)
     {
         const Matrix4* m = CheckMatrix4(L, 1);
         Matrix4 mi = dmVMath::OrthoInverse(*m);
@@ -1814,7 +1813,7 @@ namespace dmScript
      * end
      * ```
      */
-    static int Dot(lua_State* L)
+    static int Dot(dlua_State* L)
     {
         void* argument1 = 0;
         void* argument2 = 0;
@@ -1823,23 +1822,23 @@ namespace dmScript
 
         if (type1 != type2)
         {
-            return luaL_error(L, "%s.%s Arguments needs to be of same type!", SCRIPT_LIB_NAME, "dot");
+            return dluaL_error(L, "%s.%s Arguments needs to be of same type!", SCRIPT_LIB_NAME, "dot");
         }
         if (type1 == SCRIPT_TYPE_VECTOR3)
         {
             Vector3* v1 = (Vector3*)argument1;
             Vector3* v2 = (Vector3*)argument2;
-            lua_pushnumber(L, dmVMath::Dot(*v1, *v2));
+            dlua_pushnumber(L, dmVMath::Dot(*v1, *v2));
         }
         else if (type1 == SCRIPT_TYPE_VECTOR4)
         {
             Vector4* v1 = (Vector4*)argument1;
             Vector4* v2 = (Vector4*)argument2;
-            lua_pushnumber(L, dmVMath::Dot(*v1, *v2));
+            dlua_pushnumber(L, dmVMath::Dot(*v1, *v2));
         }
         else
         {
-            return luaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "dot", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
+            return dluaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "dot", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
         }
         return 1;
     }
@@ -1860,28 +1859,28 @@ namespace dmScript
      * end
      * ```
      */
-    static int LengthSqr(lua_State* L)
+    static int LengthSqr(dlua_State* L)
     {
         void* argument = 0;
         const ScriptUserType type = CheckUserData(L, 1, &argument);
         if (type == SCRIPT_TYPE_VECTOR3)
         {
             Vector3* v = (Vector3*)argument;
-            lua_pushnumber(L, dmVMath::LengthSqr(*v));
+            dlua_pushnumber(L, dmVMath::LengthSqr(*v));
         }
         else if (type == SCRIPT_TYPE_VECTOR4)
         {
             Vector4* v = (Vector4*)argument;
-            lua_pushnumber(L, dmVMath::LengthSqr(*v));
+            dlua_pushnumber(L, dmVMath::LengthSqr(*v));
         }
         else if (type == SCRIPT_TYPE_QUAT)
         {
             Quat* value = (Quat*)argument;
-            lua_pushnumber(L, dmVMath::LengthSqr(*value));
+            dlua_pushnumber(L, dmVMath::LengthSqr(*value));
         }
         else
         {
-            return luaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "lengthSqr", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT);
+            return dluaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "lengthSqr", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT);
         }
         return 1;
     }
@@ -1909,28 +1908,28 @@ namespace dmScript
      * end
      * ```
      */
-    static int Length(lua_State* L)
+    static int Length(dlua_State* L)
     {
         void* argument = 0;
         const ScriptUserType type = CheckUserData(L, 1, &argument);
         if (type == SCRIPT_TYPE_VECTOR3)
         {
             Vector3* v = (Vector3*)argument;
-            lua_pushnumber(L, dmVMath::Length(*v));
+            dlua_pushnumber(L, dmVMath::Length(*v));
         }
         else if (type == SCRIPT_TYPE_VECTOR4)
         {
             Vector4* v = (Vector4*)argument;
-            lua_pushnumber(L, dmVMath::Length(*v));
+            dlua_pushnumber(L, dmVMath::Length(*v));
         }
         else if (type == SCRIPT_TYPE_QUAT)
         {
             Quat* value = (Quat*)argument;
-            lua_pushnumber(L, dmVMath::Length(*value));
+            dlua_pushnumber(L, dmVMath::Length(*value));
         }
         else
         {
-            return luaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "length", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT);
+            return dluaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "length", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT);
         }
         return 1;
     }
@@ -1955,7 +1954,7 @@ namespace dmScript
      * print(vmath.length(norm_vec)) --> 0.99999994039536
      * ```
      */
-    static int Normalize(lua_State* L)
+    static int Normalize(dlua_State* L)
     {
         void* argument = 0;
         const ScriptUserType type = CheckUserData(L, 1, &argument);
@@ -1976,7 +1975,7 @@ namespace dmScript
         }
         else
         {
-            return luaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "normalize", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT);
+            return dluaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "normalize", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT);
         }
         return 1;
     }
@@ -2005,7 +2004,7 @@ namespace dmScript
      * print(vmath.cross(vec1, vec3)) --> vmath.vector3(0, -0, 0)
      * ```
      */
-    static int Cross(lua_State* L)
+    static int Cross(dlua_State* L)
     {
         Vector3* v1 = CheckVector3(L, 1);
         Vector3* v2 = CheckVector3(L, 2);
@@ -2110,14 +2109,14 @@ namespace dmScript
      * ```
      */
 
-    static int Lerp(lua_State* L)
+    static int Lerp(dlua_State* L)
     {
-        float t = (float) luaL_checknumber(L, 1);
-        if (lua_isnumber(L, 2) && lua_isnumber(L, 3))
+        float t = (float) dluaL_checknumber(L, 1);
+        if (dlua_isnumber(L, 2) && dlua_isnumber(L, 3))
         {
-            lua_Number n1 = (float) luaL_checknumber(L, 2);
-            lua_Number n2 = (float) luaL_checknumber(L, 3);
-            lua_pushnumber(L, n1 + t * (n2 - n1));
+            dlua_Number n1 = (float) dluaL_checknumber(L, 2);
+            dlua_Number n2 = (float) dluaL_checknumber(L, 3);
+            dlua_pushnumber(L, n1 + t * (n2 - n1));
             return 1;
         }
 
@@ -2149,7 +2148,7 @@ namespace dmScript
                 return 1;
             }
         }
-        return luaL_error(L, "%s.%s takes one number and a pair of either %s.%ss, %s.%ss, %s.%ss or numbers as arguments.", SCRIPT_LIB_NAME, "lerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
+        return dluaL_error(L, "%s.%s takes one number and a pair of either %s.%ss, %s.%ss, %s.%ss or numbers as arguments.", SCRIPT_LIB_NAME, "lerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
     }
 
     /*# slerps between two vectors
@@ -2224,7 +2223,7 @@ namespace dmScript
      * end
      * ```
      */
-    static int Slerp(lua_State* L)
+    static int Slerp(dlua_State* L)
     {
         void* argument1 = 0;
         void* argument2 = 0;
@@ -2233,7 +2232,7 @@ namespace dmScript
 
         if (type1 == type2)
         {
-            float t = (float) luaL_checknumber(L, 1);
+            float t = (float) dluaL_checknumber(L, 1);
             if (type1 == SCRIPT_TYPE_QUAT)
             {
                 Quat* q1 = (Quat*)argument1;
@@ -2256,7 +2255,7 @@ namespace dmScript
                 return 1;
             }
         }
-        return luaL_error(L, "%s.%s takes one number and either two %s.%s or two %s.%s as arguments.", SCRIPT_LIB_NAME, "slerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
+        return dluaL_error(L, "%s.%s takes one number and either two %s.%s or two %s.%s as arguments.", SCRIPT_LIB_NAME, "slerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
     }
 
     /*# calculates the conjugate of a quaternion
@@ -2277,7 +2276,7 @@ namespace dmScript
      * print(vmath.conj(quat)) --> vmath.quat(-1, -2, -3, 4)
      * ```
      */
-    static int Conj(lua_State* L)
+    static int Conj(dlua_State* L)
     {
         Quat* q = CheckQuat(L, 1);
         PushQuat(L, dmVMath::Conjugate(*q));
@@ -2302,7 +2301,7 @@ namespace dmScript
      * print(vmath.rotate(rot, vec)) --> vmath.vector3(-1.0000002384186, -0.99999988079071, 0)
      * ```
      */
-    static int Rotate(lua_State* L)
+    static int Rotate(dlua_State* L)
     {
         Quat* q = CheckQuat(L, 1);
         Vector3* v = CheckVector3(L, 2);
@@ -2331,14 +2330,14 @@ namespace dmScript
      * print(vmath.project(v1, v2)) --> 0.5
      * ```
      */
-    static int Project(lua_State* L)
+    static int Project(dlua_State* L)
     {
         Vector3* v1 = CheckVector3(L, 1);
         Vector3* v2 = CheckVector3(L, 2);
         float sq_len = dmVMath::LengthSqr(*v2);
         if (sq_len == 0.0f)
-            return luaL_error(L, "The second %s.%s to %s.%s must have a length bigger than 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, "project");
-        lua_pushnumber(L, dmVMath::Dot(*v1, *v2) / sq_len);
+            return dluaL_error(L, "The second %s.%s to %s.%s must have a length bigger than 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, "project");
+        dlua_pushnumber(L, dmVMath::Dot(*v1, *v2) / sq_len);
         return 1;
     }
 
@@ -2359,7 +2358,7 @@ namespace dmScript
      * local blend_color = vmath.mul_per_elem(color1, color2)
      * ```
      */
-    static int MulPerElem(lua_State* L)
+    static int MulPerElem(dlua_State* L)
     {
         void* argument1 = 0;
         void* argument2 = 0;
@@ -2368,7 +2367,7 @@ namespace dmScript
 
         if (type1 != type2)
         {
-            return luaL_error(L, "%s.%s Arguments needs to be of same type!", SCRIPT_LIB_NAME, "mul_per_elem");
+            return dluaL_error(L, "%s.%s Arguments needs to be of same type!", SCRIPT_LIB_NAME, "mul_per_elem");
         }
         if (type1 == SCRIPT_TYPE_VECTOR3)
         {
@@ -2384,7 +2383,7 @@ namespace dmScript
         }
         else
         {
-            return luaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "mul_per_elem", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
+            return dluaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "mul_per_elem", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
         }
         return 1;
     }
@@ -2398,7 +2397,7 @@ namespace dmScript
      * @param matrix [type:matrix4] source matrix4
      * @return q [type:quaternion] new quaternion
      */
-    static int Quat_Matrix4(lua_State* L)
+    static int Quat_Matrix4(dlua_State* L)
     {
         Matrix4* matrix = CheckMatrix4(L, 1);
         PushQuat(L, dmVMath::Quat(matrix->getUpper3x3()));
@@ -2425,7 +2424,7 @@ namespace dmScript
      * print(result) --> vmath.matrix4(-25, -10, 11, 103, 28, -9.5, 2, -95, -10, 10, -4.5, 14, 0, 0, 0, 1)
      * ```
      */
-    static int Matrix4_Compose(lua_State* L)
+    static int Matrix4_Compose(dlua_State* L)
     {
         Matrix4 translation_matrix = Matrix4::identity();
         void* argument = 0;
@@ -2443,7 +2442,7 @@ namespace dmScript
         }
         else
         {
-            return luaL_error(L, "%s.%s accepts (%s|%s) as first argument.", SCRIPT_LIB_NAME, "matrix4_compose",
+            return dluaL_error(L, "%s.%s accepts (%s|%s) as first argument.", SCRIPT_LIB_NAME, "matrix4_compose",
                 SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
         }
         Matrix4 rotation_matrix = Matrix4::rotation(*CheckQuat(L, 2));
@@ -2501,16 +2500,16 @@ namespace dmScript
      * print(result) --> vmath.matrix4(1, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 1)
      * ```
      */
-    static int Matrix4_Scale(lua_State* L)
+    static int Matrix4_Scale(dlua_State* L)
     {
-        if (lua_isnumber(L, 1))
+        if (dlua_isnumber(L, 1))
         {
             float x, y, z;
-            x = (float) luaL_checknumber(L, 1);
-            if (lua_gettop(L) == 3)
+            x = (float) dluaL_checknumber(L, 1);
+            if (dlua_gettop(L) == 3)
             {
-                y = (float) luaL_checknumber(L, 2);
-                z = (float) luaL_checknumber(L, 3);
+                y = (float) dluaL_checknumber(L, 2);
+                z = (float) dluaL_checknumber(L, 3);
             }
             else
             {
@@ -2525,7 +2524,7 @@ namespace dmScript
             PushMatrix4(L, result);
             return 1;
         }
-        return luaL_error(L, "First argument should be number or vector3");
+        return dluaL_error(L, "First argument should be number or vector3");
     }
 
     /*# clamp input value in range [min, max] and return clamped value
@@ -2553,37 +2552,37 @@ namespace dmScript
      * print(vmath.clamp(v3, min_v, 20)) -> vmath.vector4(20, -10, 20, 1)
      * ```
      */
-    static int Vector_Clamp(lua_State* L)
+    static int Vector_Clamp(dlua_State* L)
     {
-        if (lua_type(L, 1) == LUA_TNUMBER)
+        if (dlua_type(L, 1) == DLUA_TNUMBER)
         {
-            float value = (float) luaL_checknumber(L, 1);
-            float min = (float) luaL_checknumber(L, 2);
-            float max = (float) luaL_checknumber(L, 3);
-            lua_pushnumber(L, dmMath::Clamp(value, min, max));
+            float value = (float) dluaL_checknumber(L, 1);
+            float min = (float) dluaL_checknumber(L, 2);
+            float max = (float) dluaL_checknumber(L, 3);
+            dlua_pushnumber(L, dmMath::Clamp(value, min, max));
             return 1;
         }
 
         void* argument = 0;
         const ScriptUserType argument_type = CheckUserData(L, 1, &argument);
-        int argument2_type = lua_type(L, 2);
-        int argument3_type = lua_type(L, 3);
+        dlua_Type argument2_type = dlua_type(L, 2);
+        dlua_Type argument3_type = dlua_type(L, 3);
         if (argument_type == SCRIPT_TYPE_VECTOR3)
         {
             Vector3* value = (Vector3*)argument;
             Vector3 min_v, max_v;
-            if (argument2_type == LUA_TNUMBER)
+            if (argument2_type == DLUA_TNUMBER)
             {
-                float min = (float) luaL_checknumber(L, 2);
+                float min = (float) dluaL_checknumber(L, 2);
                 min_v = Vector3(min, min, min);
             }
             else
             {
                 min_v = *CheckVector3(L, 2);
             }
-            if (argument3_type == LUA_TNUMBER)
+            if (argument3_type == DLUA_TNUMBER)
             {
-                float max = (float) luaL_checknumber(L, 3);
+                float max = (float) dluaL_checknumber(L, 3);
                 max_v = Vector3(max, max, max);
             }
             else
@@ -2601,18 +2600,18 @@ namespace dmScript
         {
             Vector4* value = (Vector4*)argument;
             Vector4 min_v, max_v;
-            if (argument2_type == LUA_TNUMBER)
+            if (argument2_type == DLUA_TNUMBER)
             {
-                float min = (float) luaL_checknumber(L, 2);
+                float min = (float) dluaL_checknumber(L, 2);
                 min_v = Vector4(min, min, min, min);
             }
             else
             {
                 min_v = *CheckVector4(L, 2);
             }
-            if (argument3_type == LUA_TNUMBER)
+            if (argument3_type == DLUA_TNUMBER)
             {
-                float max = (float) luaL_checknumber(L, 3);
+                float max = (float) dluaL_checknumber(L, 3);
                 max_v = Vector4(max, max, max, max);
             }
             else
@@ -2628,7 +2627,7 @@ namespace dmScript
         }
         else
         {
-            return luaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "clamp",
+            return dluaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "clamp",
                             "number", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
         }
         return 1;
@@ -2657,13 +2656,13 @@ namespace dmScript
      * print(v) --> vmath.vector3(0, 45, 90)
      * ```
      */
-    static int QuatToEuler(lua_State* L)
+    static int QuatToEuler(dlua_State* L)
     {
         Quat* q = CheckQuat(L, 1);
         Vector3 euler = dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW());
-        lua_pushnumber(L, euler.getX());
-        lua_pushnumber(L, euler.getY());
-        lua_pushnumber(L, euler.getZ());
+        dlua_pushnumber(L, euler.getX());
+        dlua_pushnumber(L, euler.getY());
+        dlua_pushnumber(L, euler.getZ());
         return 3;
     }
 
@@ -2688,13 +2687,13 @@ namespace dmScript
      * print(vmath.euler_to_quat(v)) --> vmath.quat(0, 0, 0.70710676908493, 0.70710676908493)
      * ```
      */
-    static int EulerToQuat(lua_State* L)
+    static int EulerToQuat(dlua_State* L)
     {
-        if (lua_type(L, 1) == LUA_TNUMBER)
+        if (dlua_type(L, 1) == DLUA_TNUMBER)
         {
-            float x = (float) luaL_checknumber(L, 1);
-            float y = (float) luaL_checknumber(L, 2);
-            float z = (float) luaL_checknumber(L, 3);
+            float x = (float) dluaL_checknumber(L, 1);
+            float y = (float) dluaL_checknumber(L, 2);
+            float z = (float) dluaL_checknumber(L, 3);
             PushQuat(L, dmVMath::EulerToQuat(dmVMath::Vector3(x, y, z)));
             return 1;
         }
@@ -2704,7 +2703,7 @@ namespace dmScript
         return 1;
     }
 
-    static const luaL_reg methods[] =
+    static const dluaL_reg methods[] =
     {
         {SCRIPT_TYPE_NAME_VECTOR, Vector_new},
         {SCRIPT_TYPE_NAME_VECTOR3, Vector3_new},
@@ -2750,16 +2749,16 @@ namespace dmScript
         {0, 0}
     };
 
-    void InitializeVmath(lua_State* L)
+    void InitializeVmath(dlua_State* L)
     {
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
         const uint32_t type_count = 5;
         struct
         {
             const char* m_Name;
-            const luaL_reg* m_Methods;
-            const luaL_reg* m_Metatable;
+            const dluaL_reg* m_Methods;
+            const dluaL_reg* m_Metatable;
             uint32_t* m_TypeHash;
         } types[type_count] =
         {
@@ -2773,93 +2772,93 @@ namespace dmScript
         {
             *types[i].m_TypeHash = dmScript::RegisterUserType(L, types[i].m_Name, types[i].m_Methods, types[i].m_Metatable);
         }
-        luaL_register(L, SCRIPT_LIB_NAME, methods);
-        lua_pop(L, 1);
+        dluaL_register(L, SCRIPT_LIB_NAME, methods);
+        dlua_pop(L, 1);
 
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
     }
 
-    void PushVector(lua_State* L, FloatVector* v)
+    void PushVector(dlua_State* L, FloatVector* v)
     {
-        FloatVector** vp = (FloatVector**)lua_newuserdata(L, sizeof(FloatVector*));
+        FloatVector** vp = (FloatVector**)dlua_newuserdata(L, sizeof(FloatVector*));
         *vp = v;
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR);
-        lua_setmetatable(L, -2);
+        dluaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR);
+        dlua_setmetatable(L, -2);
     }
 
-    FloatVector* CheckVector(lua_State* L, int index)
+    FloatVector* CheckVector(dlua_State* L, int index)
     {
         return *(FloatVector**)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR], 0);
     }
 
-    void PushVector3(lua_State* L, const Vector3& v)
+    void PushVector3(dlua_State* L, const Vector3& v)
     {
-        Vector3* vp = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+        Vector3* vp = (Vector3*)dlua_newuserdata(L, sizeof(Vector3));
         *vp = v;
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR3);
-        lua_setmetatable(L, -2);
+        dluaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR3);
+        dlua_setmetatable(L, -2);
     }
 
-    Vector3* CheckVector3(lua_State* L, int index)
+    Vector3* CheckVector3(dlua_State* L, int index)
     {
         Vector3* v = (Vector3*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3], 0);
         if (!CheckVector3Components(v))
         {
-            luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
+            dluaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
         }
         return v;
     }
 
-    void PushVector4(lua_State* L, const Vector4& v)
+    void PushVector4(dlua_State* L, const Vector4& v)
     {
-        Vector4* vp = (Vector4*)lua_newuserdata(L, sizeof(Vector4));
+        Vector4* vp = (Vector4*)dlua_newuserdata(L, sizeof(Vector4));
         *vp = v;
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR4);
-        lua_setmetatable(L, -2);
+        dluaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR4);
+        dlua_setmetatable(L, -2);
     }
 
-    Vector4* CheckVector4(lua_State* L, int index)
+    Vector4* CheckVector4(dlua_State* L, int index)
     {
         Vector4* v = (Vector4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4], 0);
         if (!CheckVector4Components(v))
         {
-            luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
+            dluaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
         }
         return v;
     }
 
-    void PushQuat(lua_State* L, const Quat& q)
+    void PushQuat(dlua_State* L, const Quat& q)
     {
-        Quat* qp = (Quat*)lua_newuserdata(L, sizeof(Quat));
+        Quat* qp = (Quat*)dlua_newuserdata(L, sizeof(Quat));
         *qp = q;
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_QUAT);
-        lua_setmetatable(L, -2);
+        dluaL_getmetatable(L, SCRIPT_TYPE_NAME_QUAT);
+        dlua_setmetatable(L, -2);
     }
 
-    Quat* CheckQuat(lua_State* L, int index)
+    Quat* CheckQuat(dlua_State* L, int index)
     {
         Quat* q = (Quat*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT], 0);
         if (!CheckQuatComponents(q))
         {
-            luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
+            dluaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
         }
         return q;
     }
 
-    void PushMatrix4(lua_State* L, const Matrix4& m)
+    void PushMatrix4(dlua_State* L, const Matrix4& m)
     {
-        Matrix4* mp = (Matrix4*)lua_newuserdata(L, sizeof(Matrix4));
+        Matrix4* mp = (Matrix4*)dlua_newuserdata(L, sizeof(Matrix4));
         *mp = m;
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_MATRIX4);
-        lua_setmetatable(L, -2);
+        dluaL_getmetatable(L, SCRIPT_TYPE_NAME_MATRIX4);
+        dlua_setmetatable(L, -2);
     }
 
-    Matrix4* CheckMatrix4(lua_State* L, int index)
+    Matrix4* CheckMatrix4(dlua_State* L, int index)
     {
         Matrix4* m = (Matrix4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4], 0);
         if (!CheckMatrix4Components(m))
         {
-            luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.matrix4(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", index,
+            dluaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.matrix4(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", index,
                 m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
                 m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
                 m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),

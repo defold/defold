@@ -45,18 +45,18 @@ namespace dmLiveUpdate
 
     // ******************************************************************************************
 
-    static int Resource_GetCurrentManifest(lua_State* L)
+    static int Resource_GetCurrentManifest(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, MANIFEST_MAGIC_VALUE);
+        dlua_pushnumber(L, MANIFEST_MAGIC_VALUE);
         return 1;
     }
 
-    static int Resource_IsUsingLiveUpdateData(lua_State* L)
+    static int Resource_IsUsingLiveUpdateData(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         bool uses_lu = dmLiveUpdate::HasLiveUpdateMount();
-        lua_pushboolean(L, uses_lu);
+        dlua_pushboolean(L, uses_lu);
         return 1;
     }
 
@@ -67,7 +67,7 @@ namespace dmLiveUpdate
         if (!dmScript::IsCallbackValid(callback_data->m_Callback))
             return;
 
-        lua_State* L = dmScript::GetCallbackLuaContext(callback_data->m_Callback);
+        dlua_State* L = dmScript::GetCallbackLuaContext(callback_data->m_Callback);
         DM_LUA_STACK_CHECK(L, 0)
 
         if (!dmScript::SetupCallback(callback_data->m_Callback))
@@ -76,24 +76,24 @@ namespace dmLiveUpdate
             return;
         }
 
-        lua_pushstring(L, callback_data->m_HexDigest);
-        lua_pushboolean(L, status);
+        dlua_pushstring(L, callback_data->m_HexDigest);
+        dlua_pushboolean(L, status);
 
         dmScript::PCall(L, 3, 0); // instance + 2
 
         dmScript::TeardownCallback(callback_data->m_Callback);
         dmScript::DestroyCallback(callback_data->m_Callback);
 
-        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_ResourceRef);
-        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_HexDigestRef);
+        dmScript::Unref(L, DLUA_REGISTRYINDEX, callback_data->m_ResourceRef);
+        dmScript::Unref(L, DLUA_REGISTRYINDEX, callback_data->m_HexDigestRef);
         delete callback_data;
     }
 
-    static int Resource_StoreResource(lua_State* L)
+    static int Resource_StoreResource(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        // manifest index in first arg [luaL_checkint(L, 1)] deprecated
+        // manifest index in first arg [dluaL_checkint(L, 1)] deprecated
 
         // dmResource::Manifest* manifest = dmLiveUpdate::GetCurrentManifest();
         // if (manifest == 0x0)
@@ -103,15 +103,15 @@ namespace dmLiveUpdate
 
         // The resource data (including the liveupdate header)
         size_t buf_len = 0;
-        const char* buf = luaL_checklstring(L, 2, &buf_len);
+        const char* buf = dluaL_checklstring(L, 2, &buf_len);
         // The hash digest of the resource (which is also the filename)
         size_t hex_digest_length = 0;
-        const char* hex_digest = luaL_checklstring(L, 3, &hex_digest_length);
+        const char* hex_digest = dluaL_checklstring(L, 3, &hex_digest_length);
 
-        lua_pushvalue(L, 2);
-        int buf_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        lua_pushvalue(L, 3);
-        int hex_digest_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        dlua_pushvalue(L, 2);
+        int buf_ref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
+        dlua_pushvalue(L, 3);
+        int hex_digest_ref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
 
 
         dmResourceArchive::LiveUpdateResource resource((const uint8_t*) buf, buf_len);
@@ -158,7 +158,7 @@ namespace dmLiveUpdate
         if (!dmScript::IsCallbackValid(cbk))
             return;
 
-        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        dlua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0)
 
         if (!dmScript::SetupCallback(cbk))
@@ -167,7 +167,7 @@ namespace dmLiveUpdate
             return;
         }
 
-        lua_pushinteger(L, result);
+        dlua_pushinteger(L, result);
 
         dmScript::PCall(L, 2, 0); // instance + 1
 
@@ -175,12 +175,12 @@ namespace dmLiveUpdate
         dmScript::DestroyCallback(cbk);
     }
 
-    static int Resource_StoreManifest(lua_State* L)
+    static int Resource_StoreManifest(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         size_t manifest_len = 0;
-        const uint8_t* manifest_data = (const uint8_t*)luaL_checklstring(L, 1, &manifest_len);
+        const uint8_t* manifest_data = (const uint8_t*)dluaL_checklstring(L, 1, &manifest_len);
 
         dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 2);
 
@@ -202,7 +202,7 @@ namespace dmLiveUpdate
         if (!dmScript::IsCallbackValid(cbk))
             return;
 
-        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        dlua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0)
 
         if (!dmScript::SetupCallback(cbk))
@@ -211,8 +211,8 @@ namespace dmLiveUpdate
             return;
         }
 
-        lua_pushstring(L, path);
-        lua_pushboolean(L, dmLiveUpdate::RESULT_OK == result);
+        dlua_pushstring(L, path);
+        dlua_pushboolean(L, dmLiveUpdate::RESULT_OK == result);
 
         dmScript::PCall(L, 3, 0); // instance + 2
 
@@ -220,29 +220,29 @@ namespace dmLiveUpdate
         dmScript::DestroyCallback(cbk);
     }
 
-    static int Resource_StoreArchive(lua_State* L)
+    static int Resource_StoreArchive(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
 
-        const char* path = luaL_checkstring(L, 1);
+        const char* path = dluaL_checkstring(L, 1);
 
         dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 2);
 
         bool verify_archive = true;
-        if (top > 2 && !lua_isnil(L, 3)) {
-            luaL_checktype(L, 3, LUA_TTABLE);
-            lua_pushvalue(L, 3);
-            lua_pushnil(L);
-            while (lua_next(L, -2)) {
-                const char* attr = lua_tostring(L, -2);
+        if (top > 2 && !dlua_isnil(L, 3)) {
+            dluaL_checktype(L, 3, DLUA_TTABLE);
+            dlua_pushvalue(L, 3);
+            dlua_pushnil(L);
+            while (dlua_next(L, -2)) {
+                const char* attr = dlua_tostring(L, -2);
                 if (strcmp(attr, "verify") == 0)
                 {
-                    verify_archive = lua_toboolean(L, -1);
+                    verify_archive = dlua_toboolean(L, -1);
                 }
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
 
         const char* name = LIVEUPDATE_LEGACY_MOUNT_NAME;
@@ -262,7 +262,7 @@ namespace dmLiveUpdate
 
     // *********************
 
-    static int Resource_GetMounts(lua_State* L)
+    static int Resource_GetMounts(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -272,7 +272,7 @@ namespace dmLiveUpdate
 
         uint32_t count = dmResourceMounts::GetNumMounts(mounts);
 
-        lua_createtable(L, count, 0);
+        dlua_createtable(L, count, 0);
 
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -283,22 +283,22 @@ namespace dmLiveUpdate
                 dmURI::Parts uri;
                 dmResourceProvider::GetUri(info.m_Archive, &uri);
 
-                lua_pushinteger(L, i+1);
-                lua_newtable(L);
+                dlua_pushinteger(L, i+1);
+                dlua_newtable(L);
 
-                    lua_pushinteger(L, info.m_Priority);
-                    lua_setfield(L, -2, "priority");
+                    dlua_pushinteger(L, info.m_Priority);
+                    dlua_setfield(L, -2, "priority");
 
-                    lua_pushstring(L, info.m_Name);
-                    lua_setfield(L, -2, "name");
+                    dlua_pushstring(L, info.m_Name);
+                    dlua_setfield(L, -2, "name");
 
                     if (uri.m_Location[0] == '\0')
-                        lua_pushfstring(L, "%s:%s", uri.m_Scheme, uri.m_Path);
+                        dlua_pushfstring(L, "%s:%s", uri.m_Scheme, uri.m_Path);
                     else
-                        lua_pushfstring(L, "%s:%s/%s", uri.m_Scheme, uri.m_Location, uri.m_Path);
-                    lua_setfield(L, -2, "uri");
+                        dlua_pushfstring(L, "%s:%s/%s", uri.m_Scheme, uri.m_Location, uri.m_Path);
+                    dlua_setfield(L, -2, "uri");
 
-                lua_settable(L, -3);
+                dlua_settable(L, -3);
             }
         }
 
@@ -307,17 +307,17 @@ namespace dmLiveUpdate
 
     // *********************
 
-    static int Resource_RemoveMount(lua_State* L)
+    static int Resource_RemoveMount(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const char* name = luaL_checkstring(L, 1);
+        const char* name = dluaL_checkstring(L, 1);
 
         if (name[0] == '_')
             return DM_LUA_ERROR("Cannot remove base mounts: %s", name);
 
         dmLiveUpdate::Result result = dmLiveUpdate::RemoveMountSync(name);
-        lua_pushinteger(L, result);
+        dlua_pushinteger(L, result);
         return 1;
     }
 
@@ -330,7 +330,7 @@ namespace dmLiveUpdate
         if (!dmScript::IsCallbackValid(cbk))
             return;
 
-        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        dlua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0)
 
         if (!dmScript::SetupCallback(cbk))
@@ -339,9 +339,9 @@ namespace dmLiveUpdate
             return;
         }
 
-        lua_pushstring(L, path);
-        lua_pushstring(L, uri);
-        lua_pushinteger(L, result);
+        dlua_pushstring(L, path);
+        dlua_pushstring(L, uri);
+        dlua_pushinteger(L, result);
 
         dmScript::PCall(L, 4, 0); // instance + 3
 
@@ -349,13 +349,13 @@ namespace dmLiveUpdate
         dmScript::DestroyCallback(cbk);
     }
 
-    static int Resource_AddMount(lua_State* L)
+    static int Resource_AddMount(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const char* name = luaL_checkstring(L, 1);
-        const char* uri = luaL_checkstring(L, 2);
-        int priority = luaL_checkinteger(L, 3);
+        const char* name = dluaL_checkstring(L, 1);
+        const char* uri = dluaL_checkstring(L, 2);
+        int priority = dluaL_checkinteger(L, 3);
         dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 4);
 
         // validate args
@@ -374,22 +374,22 @@ namespace dmLiveUpdate
             dmScript::DestroyCallback(cbk);
         }
 
-        lua_pushinteger(L, res);
+        dlua_pushinteger(L, res);
         return 1;
     }
 
-    static int Resource_IsBuiltWithExcludedFiles(lua_State* L)
+    static int Resource_IsBuiltWithExcludedFiles(dlua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
         bool result = dmLiveUpdate::IsBuiltWithExcludedFiles();
-        lua_pushboolean(L, result);
+        dlua_pushboolean(L, result);
         return 1;
     }
 
     // ************************************************************************************
 
-    static const luaL_reg Module_methods[] =
+    static const dluaL_reg Module_methods[] =
     {
 // Legacy api
         {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},        /// bogus data, and never used?
@@ -408,10 +408,10 @@ namespace dmLiveUpdate
     };
 
 #define SETCONSTANT(_NAME) \
-        lua_pushnumber(L, (lua_Number)dmLiveUpdate::RESULT_ ## _NAME); \
-        lua_setfield(L, -2, "LIVEUPDATE_" #_NAME );\
+        dlua_pushnumber(L, (dlua_Number)dmLiveUpdate::RESULT_ ## _NAME); \
+        dlua_setfield(L, -2, "LIVEUPDATE_" #_NAME );\
 
-    static void SetConstants(lua_State* L)
+    static void SetConstants(dlua_State* L)
     {
         SETCONSTANT(OK);
         SETCONSTANT(INVALID_HEADER);
@@ -431,17 +431,17 @@ namespace dmLiveUpdate
 
 #undef SETCONSTANT
 
-    static void LuaInit(lua_State* L)
+    static void LuaInit(dlua_State* L)
     {
-        int top = lua_gettop(L);
-        luaL_register(L, "liveupdate", Module_methods);
+        int top = dlua_gettop(L);
+        dluaL_register(L, "liveupdate", Module_methods);
         SetConstants(L);
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+        dlua_pop(L, 1);
+        assert(top == dlua_gettop(L));
     }
 
 
-    void ScriptInit(lua_State* L, dmResource::HFactory factory)
+    void ScriptInit(dlua_State* L, dmResource::HFactory factory)
     {
         memset(&g_LUScriptCtx, 0, sizeof(g_LUScriptCtx));
         g_LUScriptCtx.m_Factory = factory;

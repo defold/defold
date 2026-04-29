@@ -22,8 +22,7 @@
 
 extern "C"
 {
-    #include <lua/lauxlib.h>
-    #include <lua/lualib.h>
+    #include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript
@@ -641,30 +640,30 @@ namespace dmScript
      * @constant
      */
 
-    static const luaL_reg ScriptGraphics_methods[] =
+    static const dluaL_reg ScriptGraphics_methods[] =
     {
         {0, 0}
     };
 
-    void InitializeGraphics(lua_State* L, dmGraphics::HContext graphics_context)
+    void InitializeGraphics(dlua_State* L, dmGraphics::HContext graphics_context)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        luaL_register(L, SCRIPT_LIB_NAME, ScriptGraphics_methods);
+        dluaL_register(L, SCRIPT_LIB_NAME, ScriptGraphics_methods);
 
     #define SET_GRAPHICS_ENUM(name) \
-        lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-        lua_setfield(L, -2, #name);
+        dlua_pushnumber(L, (dlua_Number) dmGraphics:: name); \
+        dlua_setfield(L, -2, #name);
 
     #define SET_GRAPHICS_ENUM_NAMED(enum_name, name) \
-        lua_pushnumber(L, (lua_Number) dmGraphics:: enum_name); \
-        lua_setfield(L, -2, #name);
+        dlua_pushnumber(L, (dlua_Number) dmGraphics:: enum_name); \
+        dlua_setfield(L, -2, #name);
 
     #define SET_TEXTUREFORMAT_IF_SUPPORTED(name) \
         if (graphics_context && dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::name)) \
         { \
-            lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-            lua_setfield(L, -2, #name); \
+            dlua_pushnumber(L, (dlua_Number) dmGraphics:: name); \
+            dlua_setfield(L, -2, #name); \
         }
 
         // Buffer
@@ -820,7 +819,7 @@ namespace dmScript
     #undef SET_GRAPHICS_ENUM
     #undef SET_TEXTUREFORMAT_IF_SUPPORTED
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
     }
 
     #undef SCRIPT_LIB_NAME

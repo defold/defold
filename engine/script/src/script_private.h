@@ -76,7 +76,7 @@ namespace dmScript
         dmHashTable64<Module*>      m_PathToModule;
         dmHashTable64<int>          m_HashInstances;
         dmArray<HScriptExtension>   m_ScriptExtensions;
-        lua_State*                  m_LuaState;
+        dlua_State*                  m_LuaState;
         int                         m_ContextTableRef;
         int                         m_ContextWeakTableRef;
     };
@@ -93,13 +93,13 @@ namespace dmScript
 
     const char* ReadHeader(const char* buffer, TableHeader& header);
 
-    HContext GetScriptContext(lua_State* L);
+    HContext GetScriptContext(dlua_State* L);
 
-    bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash);
+    bool ResolvePath(dlua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash);
 
-    bool GetURL(lua_State* L, dmMessage::URL& out_url);
+    bool GetURL(dlua_State* L, dmMessage::URL& out_url);
 
-    bool IsValidInstance(lua_State* L);
+    bool IsValidInstance(dlua_State* L);
 
     /**
      * Remove all modules.

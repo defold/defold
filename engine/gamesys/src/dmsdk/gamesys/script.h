@@ -21,11 +21,7 @@
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/resource/resource.hpp>
 
-extern "C"
-{
-#include <dmsdk/lua/lua.h>
-#include <dmsdk/lua/lauxlib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 
 /*# Script API documentation
@@ -44,10 +40,10 @@ namespace dmScript
      * Works in both gameobjects and gui scripts
      *
      * @name CheckGOInstance
-     * @param L [type: lua_State*] lua state
+     * @param L [type: dlua_State*] lua state
      * @return instance [type: dmGameObject::HInstance]
      */
-    dmGameObject::HInstance CheckGOInstance(lua_State* L);
+    dmGameObject::HInstance CheckGOInstance(dlua_State* L);
 
     /*#
      * Get gameobject instance
@@ -56,7 +52,7 @@ namespace dmScript
      * @note The function only accepts instances in "this" collection. Otherwise a lua-error will be raised.
      *
      * @name CheckGOInstance
-     * @param L [type: lua_State*] lua state
+     * @param L [type: dlua_State*] lua state
      * @param index [type: int] lua-arg
      * @return instance [type: dmGameObject::HInstance] gameobject instance
      *
@@ -65,19 +61,19 @@ namespace dmScript
      * How to get the position of a gameobject in a script extension
      *
      * ```cpp
-     * static int get_position(lua_State* L)
+     * static int get_position(dlua_State* L)
      * {
      *     DM_LUA_STACK_CHECK(L, 3);
      *     dmGameObject::HInstance instance = dmScript::CheckGOInstance(L, 1);
      *     dmVMath::Point3 position = dmGameObject::GetPosition(instance);
-     *     lua_pushnumber(L, position.getX());
-     *     lua_pushnumber(L, position.getY());
-     *     lua_pushnumber(L, position.getZ());
+     *     dlua_pushnumber(L, position.getX());
+     *     dlua_pushnumber(L, position.getY());
+     *     dlua_pushnumber(L, position.getZ());
      *     return 3;
      * }
      * ```
      */
-    dmGameObject::HInstance CheckGOInstance(lua_State* L, int index);
+    dmGameObject::HInstance CheckGOInstance(dlua_State* L, int index);
 
     /*#
      * Get current gameobject's collection handle
@@ -85,25 +81,25 @@ namespace dmScript
      * @note Works from both a .script/.gui_script
      *
      * @name CheckCollection
-     * @param L [type: lua_State*] lua state
+     * @param L [type: dlua_State*] lua state
      * @param index [type: int] lua-arg
-     * @return instance [type: lua_State*] gameobject instance
+     * @return instance [type: dlua_State*] gameobject instance
      */
-    dmGameObject::HCollection CheckCollection(lua_State* L);
+    dmGameObject::HCollection CheckCollection(dlua_State* L);
 
     /*#
      * Get component user data from a url.
      * @note The object referenced by the url must be in the same collection as the caller.
      *
      * @name GetComponentFromLua
-     * @param L [type:lua_State*] Lua state
+     * @param L [type:dlua_State*] Lua state
      * @param index [type:int] index to argument (a url)
      * @param component_type [type:const char*] E.g. "factoryc". The call will fail if the found component does not have the specified extension
      * @param world [type:dmGameObject::HComponentWorld*] The world associated owning the component. May be 0
      * @param component [type:dmGameObject::HComponent*] The component data associated with the url. May be 0
      * @param url [type:dmMessage::URL*] The resolved url. May be 0
      */
-    void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url);
+    void GetComponentFromLua(dlua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url);
 
     /*# buffer ownership
      *
@@ -170,18 +166,18 @@ namespace dmScript
      * Check if the value is a dmScript::LuaHBuffer
      *
      * @name dmScript::IsBuffer
-     * @param L [type:lua_State*] lua state
+     * @param L [type:dlua_State*] lua state
      * @param index [type:int] Index of the value
      * @return boolean [type:boolean] True if value at index is a LuaHBuffer
      */
-    bool IsBuffer(lua_State* L, int index);
+    bool IsBuffer(dlua_State* L, int index);
 
     /*# push a LuaHBuffer onto the supplied lua state
      *
      * Will increase the stack by 1.
      *
      * @name dmScript::PushBuffer
-     * @param L [type:lua_State*] lua state
+     * @param L [type:dlua_State*] lua state
      * @param buffer [type:dmScript::LuaHBuffer] buffer to push
      * @examples
      *
@@ -199,44 +195,44 @@ namespace dmScript
      * PushBuffer(L, luabuf);
      * ```
      */
-    void PushBuffer(lua_State* L, const LuaHBuffer& buffer);
+    void PushBuffer(dlua_State* L, const LuaHBuffer& buffer);
 
     /*# retrieve a LuaHBuffer from the supplied lua state
      * Retrieve a LuaHBuffer from the supplied lua state.
      * Check if the value in the supplied index on the lua stack is a LuaHBuffer and returns it.
      *
      * @name dmScript::CheckBuffer
-     * @param L [type:lua_State*] lua state
+     * @param L [type:dlua_State*] lua state
      * @param index [type:int] Index of the value
      * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer
      * @note The dmBuffer::IsBufferValid is already called on the returned buffer
      */
-    LuaHBuffer* CheckBuffer(lua_State* L, int index);
+    LuaHBuffer* CheckBuffer(dlua_State* L, int index);
 
     /*# retrieve a LuaHBuffer from the supplied lua state.
      * Retrieve a LuaHBuffer from the supplied lua state.
      * Check if the value in the supplied index on the lua stack is a LuaHBuffer and returns it.
-     * @note Returns 0 on error. Does not invoke lua_error.
+     * @note Returns 0 on error. Does not invoke dlua_error.
      * @note deprecated. Prefer ToBuffer() instead.
      * @name dmScript::CheckBufferNoError
-     * @param L [type:lua_State*] lua state
+     * @param L [type:dlua_State*] lua state
      * @param index [type:int] Index of the value
      * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer or 0 if not valid
      * @note The dmBuffer::IsBufferValid is already called on the returned buffer
      */
-    LuaHBuffer* CheckBufferNoError(lua_State* L, int index);
+    LuaHBuffer* CheckBufferNoError(dlua_State* L, int index);
 
     /*# retrieve a LuaHBuffer from the supplied lua state.
      * Retrieve a LuaHBuffer from the supplied lua state.
      * Check if the value in the supplied index on the lua stack is a LuaHBuffer and returns it.
-     * @note Returns 0 on error. Does not invoke lua_error.
+     * @note Returns 0 on error. Does not invoke dlua_error.
      * @name dmScript::ToBuffer
-     * @param L [type:lua_State*] lua state
+     * @param L [type:dlua_State*] lua state
      * @param index [type:int] Index of the value
      * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer or 0 if not valid
      * @note The dmBuffer::IsBufferValid is already called on the returned buffer
      */
-    LuaHBuffer* ToBuffer(lua_State* L, int index);
+    LuaHBuffer* ToBuffer(dlua_State* L, int index);
 
     /*# retrieve a HBuffer from the supplied lua state
      * Retrieve a HBuffer from the supplied lua state
@@ -246,11 +242,11 @@ namespace dmScript
      * @note The dmBuffer::IsBufferValid is already called on the returned buffer
      *
      * @name dmScript::CheckBufferUnpack
-     * @param L [type:lua_State*] lua state
+     * @param L [type:dlua_State*] lua state
      * @param index [type:int] Index of the value
      * @return buffer [type:dmBuffer::HBuffer] buffer if valid, 0 otherwise
      */
-    dmBuffer::HBuffer CheckBufferUnpack(lua_State* L, int index);
+    dmBuffer::HBuffer CheckBufferUnpack(dlua_State* L, int index);
 
     /*# retrieve a HBuffer from the supplied lua state
      * Retrieve a HBuffer from the supplied lua state
@@ -260,11 +256,11 @@ namespace dmScript
      * @note The dmBuffer::IsBufferValid is already called on the returned buffer
      *
      * @name dmScript::CheckBufferUnpackNoError
-     * @param L [type:lua_State*] lua state
+     * @param L [type:dlua_State*] lua state
      * @param index [type:int] Index of the value
      * @return buffer [type:dmBuffer::HBuffer] buffer if valid, 0 otherwise
      */
-    dmBuffer::HBuffer CheckBufferUnpackNoError(lua_State* L, int index);
+    dmBuffer::HBuffer CheckBufferUnpackNoError(dlua_State* L, int index);
 }
 
 #endif // DMSDK_GAMESYS_SCRIPT_H

@@ -3646,7 +3646,7 @@ namespace dmGameSystem
     void    CompGuiNodeTypeSetNodeDescFn(CompGuiNodeType* type, CompGuiNodeSetNodeDescFn fn)      { type->m_SetNodeDesc = fn; }
 
     void*                   GetContext(const struct CompGuiNodeTypeCtx* ctx, dmhash_t name)     { void* const * p = ctx->m_Contexts.Get(name); if (p) return *p; else return 0; }
-    lua_State*              GetLuaState(const struct CompGuiNodeTypeCtx* ctx)                   { return dmScript::GetLuaState(ctx->m_Script); }
+    dlua_State*             GetLuaState(const struct CompGuiNodeTypeCtx* ctx)                   { return dmScript::GetLuaState(ctx->m_Script); }
     dmScript::HContext      GetScript(const struct CompGuiNodeTypeCtx* ctx)                     { return ctx->m_Script; }
     dmConfigFile::HConfig   GetConfigFile(const struct CompGuiNodeTypeCtx* ctx)                 { return ctx->m_Config; }
     dmResource::HFactory    GetFactory(const struct CompGuiNodeTypeCtx* ctx)                    { return ctx->m_Factory; }

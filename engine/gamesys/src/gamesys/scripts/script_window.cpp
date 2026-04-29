@@ -64,15 +64,15 @@ struct CallbackInfo
 
 WindowInfo g_Window = {};
 
-static void PushNumberOrNil(lua_State* L, const char* name, bool expression, lua_Number number)
+static void PushNumberOrNil(dlua_State* L, const char* name, bool expression, dlua_Number number)
 {
-    lua_pushstring(L, name);
+    dlua_pushstring(L, name);
     if( expression ) {
-        lua_pushnumber(L, number);
+        dlua_pushnumber(L, number);
     } else {
-        lua_pushnil(L);
+        dlua_pushnil(L);
     }
-    lua_rawset(L, -3);
+    dlua_rawset(L, -3);
 }
 
 static void RunCallback(CallbackInfo* cbinfo)
@@ -81,7 +81,7 @@ static void RunCallback(CallbackInfo* cbinfo)
         return;
 
     dmScript::LuaCallbackInfo* callback = cbinfo->m_Info->m_Callback;
-    lua_State* L = dmScript::GetCallbackLuaContext(callback);
+    dlua_State* L = dmScript::GetCallbackLuaContext(callback);
     DM_LUA_STACK_CHECK(L, 0);
 
     if (!dmScript::SetupCallback(callback))
@@ -89,9 +89,9 @@ static void RunCallback(CallbackInfo* cbinfo)
         return;
     }
 
-    lua_pushnumber(L, (lua_Number)cbinfo->m_Event);
+    dlua_pushnumber(L, (dlua_Number)cbinfo->m_Event);
 
-    lua_newtable(L);
+    dlua_newtable(L);
 
     PushNumberOrNil(L, "width", cbinfo->m_Event == WINDOW_EVENT_RESIZED, cbinfo->m_Size[0]);
     PushNumberOrNil(L, "height", cbinfo->m_Event == WINDOW_EVENT_RESIZED, cbinfo->m_Size[1]);
@@ -148,13 +148,13 @@ static void RunCallback(CallbackInfo* cbinfo)
  * end
  * ```
  */
-static int SetListener(lua_State* L)
+static int SetListener(dlua_State* L)
 {
-    luaL_checkany(L, 1);
+    dluaL_checkany(L, 1);
 
     WindowInfo* window_info = &g_Window;
 
-    if (lua_isnil(L, 1))
+    if (dlua_isnil(L, 1))
     {
         if (window_info->m_Callback)
             dmScript::DestroyCallback(window_info->m_Callback);
@@ -167,7 +167,7 @@ static int SetListener(lua_State* L)
     window_info->m_Callback = dmScript::CreateCallback(L, 1);
 
     if (!dmScript::IsCallbackValid(window_info->m_Callback))
-        return luaL_error(L, "Failed to create callback");
+        return dluaL_error(L, "Failed to create callback");
 
     return 0;
 }
@@ -182,7 +182,7 @@ static int SetListener(lua_State* L)
  * @name window.set_mouse_lock
  * @param flag [type:boolean] The lock state for the mouse cursor
  */
-static int SetMouseLock(lua_State* L)
+static int SetMouseLock(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -216,11 +216,11 @@ static int SetMouseLock(lua_State* L)
  * - `window.DIMMING_OFF`
  */
 
-static int SetDimMode(lua_State* L)
+static int SetDimMode(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
-    DimMode mode = (DimMode) luaL_checkint(L, 1);
+    DimMode mode = (DimMode) dluaL_checkint(L, 1);
     if (mode == DIMMING_ON)
     {
         dmGameSystem::PlatformSetDimMode(DIMMING_ON);
@@ -231,11 +231,11 @@ static int SetDimMode(lua_State* L)
     }
     else
     {
-        assert(top == lua_gettop(L));
-        return luaL_error(L, "The dim mode specified is not supported.");
+        assert(top == dlua_gettop(L));
+        return dluaL_error(L, "The dim mode specified is not supported.");
     }
 
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
     return 0;
 }
 
@@ -254,12 +254,12 @@ static int SetDimMode(lua_State* L)
  * - `window.DIMMING_ON`
  * - `window.DIMMING_OFF`
  */
-static int GetDimMode(lua_State* L)
+static int GetDimMode(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
     DimMode mode = dmGameSystem::PlatformGetDimMode();
-    lua_pushnumber(L, (lua_Number) mode);
+    dlua_pushnumber(L, (dlua_Number) mode);
 
     return 1;
 }
@@ -272,12 +272,12 @@ static int GetDimMode(lua_State* L)
  * @return width [type:number] The window width
  * @return height [type:number] The window height
  */
-static int GetSize(lua_State* L)
+static int GetSize(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 2);
 
-    lua_pushnumber(L, g_Window.m_Width);
-    lua_pushnumber(L, g_Window.m_Height);
+    dlua_pushnumber(L, g_Window.m_Width);
+    dlua_pushnumber(L, g_Window.m_Height);
 
     return 2;
 }
@@ -303,7 +303,7 @@ static int GetSize(lua_State* L)
  * - [type:number] `inset_right`
  * - [type:number] `inset_bottom`
  */
-static int GetSafeArea(lua_State* L)
+static int GetSafeArea(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
@@ -320,39 +320,39 @@ static int GetSafeArea(lua_State* L)
         safe_area.m_InsetBottom = 0;
     }
 
-    lua_newtable(L);
+    dlua_newtable(L);
 
-    lua_pushstring(L, "x");
-    lua_pushnumber(L, safe_area.m_X);
-    lua_rawset(L, -3);
+    dlua_pushstring(L, "x");
+    dlua_pushnumber(L, safe_area.m_X);
+    dlua_rawset(L, -3);
 
-    lua_pushstring(L, "y");
-    lua_pushnumber(L, safe_area.m_Y);
-    lua_rawset(L, -3);
+    dlua_pushstring(L, "y");
+    dlua_pushnumber(L, safe_area.m_Y);
+    dlua_rawset(L, -3);
 
-    lua_pushstring(L, "width");
-    lua_pushnumber(L, safe_area.m_Width);
-    lua_rawset(L, -3);
+    dlua_pushstring(L, "width");
+    dlua_pushnumber(L, safe_area.m_Width);
+    dlua_rawset(L, -3);
 
-    lua_pushstring(L, "height");
-    lua_pushnumber(L, safe_area.m_Height);
-    lua_rawset(L, -3);
+    dlua_pushstring(L, "height");
+    dlua_pushnumber(L, safe_area.m_Height);
+    dlua_rawset(L, -3);
 
-    lua_pushstring(L, "inset_left");
-    lua_pushnumber(L, safe_area.m_InsetLeft);
-    lua_rawset(L, -3);
+    dlua_pushstring(L, "inset_left");
+    dlua_pushnumber(L, safe_area.m_InsetLeft);
+    dlua_rawset(L, -3);
 
-    lua_pushstring(L, "inset_top");
-    lua_pushnumber(L, safe_area.m_InsetTop);
-    lua_rawset(L, -3);
+    dlua_pushstring(L, "inset_top");
+    dlua_pushnumber(L, safe_area.m_InsetTop);
+    dlua_rawset(L, -3);
 
-    lua_pushstring(L, "inset_right");
-    lua_pushnumber(L, safe_area.m_InsetRight);
-    lua_rawset(L, -3);
+    dlua_pushstring(L, "inset_right");
+    dlua_pushnumber(L, safe_area.m_InsetRight);
+    dlua_rawset(L, -3);
 
-    lua_pushstring(L, "inset_bottom");
-    lua_pushnumber(L, safe_area.m_InsetBottom);
-    lua_rawset(L, -3);
+    dlua_pushstring(L, "inset_bottom");
+    dlua_pushnumber(L, safe_area.m_InsetBottom);
+    dlua_rawset(L, -3);
 
     return 1;
 }
@@ -364,13 +364,13 @@ static int GetSafeArea(lua_State* L)
  * @name window.get_mouse_lock
  * @return state [type:boolean] The lock state
  */
-static int GetMouseLock(lua_State* L)
+static int GetMouseLock(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
     bool cursor_visible = dmHID::GetCursorVisible(g_Window.m_HidContext);
     // If cursor is visible, it is not locked
-    lua_pushboolean(L, !cursor_visible);
+    dlua_pushboolean(L, !cursor_visible);
 
     return 1;
 }
@@ -382,12 +382,12 @@ static int GetMouseLock(lua_State* L)
  * @name window.get_display_scale
  * @return scale [type:number] The display scale
  */
-static int GetDisplayScale(lua_State* L)
+static int GetDisplayScale(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
     float scale = dmPlatform::GetDisplayScaleFactor(g_Window.m_Window);
-    lua_pushnumber(L, scale);
+    dlua_pushnumber(L, scale);
 
     return 1;
 }
@@ -399,11 +399,11 @@ static int GetDisplayScale(lua_State* L)
  * @name window.set_title
  * @param title [type:string] The title, encoded as UTF-8
  */
-static int SetTitle(lua_State* L)
+static int SetTitle(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    const char* title = luaL_checkstring(L, 1);
+    const char* title = dluaL_checkstring(L, 1);
     dmPlatform::SetWindowTitle(g_Window.m_Window, title);
 
     return 0;
@@ -417,12 +417,12 @@ static int SetTitle(lua_State* L)
  * @param width [type:number] Width of window
  * @param height [type:number] Height of window
  */
-static int SetSize(lua_State* L)
+static int SetSize(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    int width = luaL_checkinteger(L, 1);
-    int height = luaL_checkinteger(L, 2);
+    int width = dluaL_checkinteger(L, 1);
+    int height = dluaL_checkinteger(L, 2);
     dmPlatform::SetWindowSize(g_Window.m_Window, width, height);
 
     return 0;
@@ -437,18 +437,18 @@ static int SetSize(lua_State* L)
  * @param x [type:number] Horizontal position of window
  * @param y [type:number] Vertical position of window
  */
-static int SetPosition(lua_State* L)
+static int SetPosition(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    int x = luaL_checkinteger(L, 1);
-    int y = luaL_checkinteger(L, 2);
+    int x = dluaL_checkinteger(L, 1);
+    int y = dluaL_checkinteger(L, 2);
     dmPlatform::SetWindowPosition(g_Window.m_Window, x, y);
 
     return 0;
 }
 
-static const luaL_reg Module_methods[] =
+static const dluaL_reg Module_methods[] =
 {
     {"set_listener",      SetListener},
     {"set_dim_mode",      SetDimMode},
@@ -528,14 +528,14 @@ static const luaL_reg Module_methods[] =
   * @constant
   */
 
-static void LuaInit(lua_State* L)
+static void LuaInit(dlua_State* L)
 {
-    int top = lua_gettop(L);
-    luaL_register(L, "window", Module_methods);
+    int top = dlua_gettop(L);
+    dluaL_register(L, "window", Module_methods);
 
 #define SETCONSTANT(name) \
-        lua_pushnumber(L, (lua_Number) name); \
-        lua_setfield(L, -2, #name);\
+        dlua_pushnumber(L, (dlua_Number) name); \
+        dlua_setfield(L, -2, #name);\
 
     SETCONSTANT(WINDOW_EVENT_FOCUS_LOST)
     SETCONSTANT(WINDOW_EVENT_FOCUS_GAINED)
@@ -549,8 +549,8 @@ static void LuaInit(lua_State* L)
 
 #undef SETCONSTANT
 
-    lua_pop(L, 1);
-    assert(top == lua_gettop(L));
+    dlua_pop(L, 1);
+    assert(top == dlua_gettop(L));
 }
 
 void ScriptWindowRegister(const ScriptLibContext& context)

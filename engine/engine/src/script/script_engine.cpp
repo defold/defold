@@ -16,12 +16,6 @@
 #include <dmsdk/script/script.h>
 #include "../engine_private.h"
 
-extern "C"
-{
-    #include <lua/lua.h>
-    #include <lua/lauxlib.h>
-}
-
 namespace dmEngine
 {
     dmEngine::HEngine g_Engine = 0;
@@ -64,14 +58,14 @@ namespace dmEngine
  * ```
  *
  */
-static int EngineSys_SetEngineThrottle(lua_State* L)
+static int EngineSys_SetEngineThrottle(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
     bool enable = true;
-    if (lua_isboolean(L, 1))
+    if (dlua_isboolean(L, 1))
     {
-        enable = lua_toboolean(L, 1);
+        enable = dlua_toboolean(L, 1);
     }
     else
     {
@@ -81,7 +75,7 @@ static int EngineSys_SetEngineThrottle(lua_State* L)
     float cooldown = 0.0f;
     if (enable)
     {
-        cooldown = luaL_checknumber(L, 2);
+        cooldown = dluaL_checknumber(L, 2);
     }
 
     dmEngine::SetEngineThrottle(g_Engine, enable, cooldown);
@@ -106,14 +100,14 @@ static int EngineSys_SetEngineThrottle(lua_State* L)
  * ```
  *
  */
-static int EngineSys_SetRenderEnabled(lua_State* L)
+static int EngineSys_SetRenderEnabled(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
     bool enable = true;
-    if (lua_isboolean(L, 1))
+    if (dlua_isboolean(L, 1))
     {
-        enable = lua_toboolean(L, 1);
+        enable = dlua_toboolean(L, 1);
     }
     else
     {
@@ -125,27 +119,27 @@ static int EngineSys_SetRenderEnabled(lua_State* L)
 }
 
 
-static const luaL_reg EngineSys_methods[] =
+static const dluaL_reg EngineSys_methods[] =
 {
     {"set_engine_throttle", EngineSys_SetEngineThrottle},
     {"set_render_enabled", EngineSys_SetRenderEnabled},
     {0, 0}
 };
 
-void ScriptSysEngineInitialize(lua_State* L, dmEngine::HEngine engine)
+void ScriptSysEngineInitialize(dlua_State* L, dmEngine::HEngine engine)
 {
     g_Engine = engine;
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     (void)top;
 
-    luaL_register(L, "sys", EngineSys_methods);
+    dluaL_register(L, "sys", EngineSys_methods);
 
-    lua_pop(L, 1);
-    assert(top == lua_gettop(L));
+    dlua_pop(L, 1);
+    assert(top == dlua_gettop(L));
 }
 
 
-void ScriptSysEngineFinalize(lua_State* L, dmEngine::HEngine engine)
+void ScriptSysEngineFinalize(dlua_State* L, dmEngine::HEngine engine)
 {
     g_Engine = 0;
 }

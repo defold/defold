@@ -20,8 +20,8 @@
 
 namespace dmEngine
 {
-    void ScriptSysEngineInitialize(lua_State* L, dmEngine::HEngine engine);
-    void ScriptSysEngineFinalize(lua_State* L, dmEngine::HEngine engine);
+    void ScriptSysEngineInitialize(dlua_State* L, dmEngine::HEngine engine);
+    void ScriptSysEngineFinalize(dlua_State* L, dmEngine::HEngine engine);
 }
 
 #endif // #ifndef DM_SCRIPT_ENGINE_H

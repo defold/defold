@@ -15,11 +15,7 @@
 #ifndef DMSDK_GAMEOBJECT_SCRIPT_H
 #define DMSDK_GAMEOBJECT_SCRIPT_H
 
-extern "C"
-{
-#include <dmsdk/lua/lua.h>
-#include <dmsdk/lua/lauxlib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 #include <dmsdk/dlib/message.h>
 #include <dmsdk/ddf/ddf.h>
@@ -78,11 +74,11 @@ namespace dmScript
     /*#
      * Creates a property container from a lua table
      * @name PropertyContainerCreateFromLua
-     * @param L [type: lua_State*] The lua state
+     * @param L [type: dlua_State*] The lua state
      * @param index [type: int] The lua stack index of the lua table
      * @return container [type: HPropertyContainer] The property container
      */
-    dmGameObject::HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index);
+    dmGameObject::HPropertyContainer PropertyContainerCreateFromLua(dlua_State* L, int index);
 }
 
 #endif // DMSDK_GAMEOBJECT_SCRIPT_H

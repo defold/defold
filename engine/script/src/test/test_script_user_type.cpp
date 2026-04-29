@@ -28,12 +28,12 @@ struct UserType
     int m_Reference;
 };
 
-static const luaL_reg UserType_methods[] =
+static const dluaL_reg UserType_methods[] =
 {
     {0,0}
 };
 
-static int UserType_gc(lua_State *L)
+static int UserType_gc(dlua_State *L)
 {
     UserType* object = (UserType*)dmScript::CheckUserType(L, 1, USERTYPE_HASH, NULL);
     memset(object, 0, sizeof(*object));
@@ -42,62 +42,62 @@ static int UserType_gc(lua_State *L)
     return 0;
 }
 
-static int UserType_GetUserData(lua_State* L)
+static int UserType_GetUserData(dlua_State* L)
 {
-    UserType* ut = (UserType*)lua_touserdata(L, -1);
-    lua_pushlightuserdata(L, ut);
+    UserType* ut = (UserType*)dlua_touserdata(L, -1);
+    dlua_pushlightuserdata(L, ut);
     return 1;
 }
 
-static const luaL_reg UserType_meta[] =
+static const dluaL_reg UserType_meta[] =
 {
     {"__gc",                                UserType_gc},
     {dmScript::META_TABLE_GET_USER_DATA,    UserType_GetUserData},
     {0, 0}
 };
 
-UserType* NewUserType(lua_State* L)
+UserType* NewUserType(dlua_State* L)
 {
 
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     (void) top;
 
-    UserType* object = (UserType*)lua_newuserdata(L, sizeof(UserType));
+    UserType* object = (UserType*)dlua_newuserdata(L, sizeof(UserType));
 
-    lua_pushvalue(L, -1);
-    object->m_Reference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    dlua_pushvalue(L, -1);
+    object->m_Reference = dmScript::Ref(L, DLUA_REGISTRYINDEX);
 
-    luaL_getmetatable(L, USERTYPE);
-    lua_setmetatable(L, -2);
+    dluaL_getmetatable(L, USERTYPE);
+    dlua_setmetatable(L, -2);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
 
     return object;
 }
 
-void DeleteUserType(lua_State* L, UserType* object)
+void DeleteUserType(dlua_State* L, UserType* object)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     (void) top;
 
-    dmScript::Unref(L, LUA_REGISTRYINDEX, object->m_Reference);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, object->m_Reference);
 
-    assert(top == lua_gettop(L));
+    assert(top == dlua_gettop(L));
 }
 
-void PushUserType(lua_State* L, UserType* object)
+void PushUserType(dlua_State* L, UserType* object)
 {
-    lua_rawgeti(L, LUA_REGISTRYINDEX, object->m_Reference);
-    lua_pushvalue(L, -1);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, object->m_Reference);
+    dlua_pushvalue(L, -1);
     dmScript::SetInstance(L);
 }
 
-void PopUserType(lua_State* L)
+void PopUserType(dlua_State* L)
 {
-    lua_pop(L, 1);
-    lua_pushnil(L);
+    dlua_pop(L, 1);
+    dlua_pushnil(L);
     dmScript::SetInstance(L);
 }
 
@@ -113,19 +113,19 @@ public:
 
 TEST_F(ScriptUserTypeTest, TestUserType)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     UserType* object = NewUserType(L);
     PushUserType(L, object);
     PopUserType(L);
     DeleteUserType(L, object);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptUserTypeTest, TestIsUserType)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     UserType* object = NewUserType(L);
     PushUserType(L, object);
@@ -135,12 +135,12 @@ TEST_F(ScriptUserTypeTest, TestIsUserType)
     PopUserType(L);
     DeleteUserType(L, object);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptUserTypeTest, TestCheckUserType)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     UserType* object = NewUserType(L);
     PushUserType(L, object);
@@ -150,12 +150,12 @@ TEST_F(ScriptUserTypeTest, TestCheckUserType)
     PopUserType(L);
     DeleteUserType(L, object);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptUserTypeTest, TestGetUserData)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     UserType* object = NewUserType(L);
     PushUserType(L, object);
@@ -170,7 +170,7 @@ TEST_F(ScriptUserTypeTest, TestGetUserData)
     PopUserType(L);
     DeleteUserType(L, object);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 extern "C" void dmExportedSymbols();

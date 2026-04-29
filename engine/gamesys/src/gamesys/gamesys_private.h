@@ -19,6 +19,8 @@
 #include <dlib/object_pool.h>
 #include <dlib/buffer.h>
 
+#include <dmsdk/dlua/dlua.h>
+
 #include <render/render.h>
 
 #include <gameobject/gameobject.h>
@@ -100,7 +102,7 @@ namespace dmGameSystem
     };
 
     // A wrapper for dmScript::CheckGoInstance
-    dmGameObject::HInstance CheckGoInstance(lua_State* L);
+    dmGameObject::HInstance CheckGoInstance(dlua_State* L);
 
     // Logs an error for when a component buffer is full
     void ShowFullBufferError(const char* object_name, const char* config_key, int max_count);

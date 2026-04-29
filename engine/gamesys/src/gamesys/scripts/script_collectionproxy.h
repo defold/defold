@@ -15,11 +15,7 @@
 #ifndef H_SCRIPT_COLLECTIONPROXY
 #define H_SCRIPT_COLLECTIONPROXY
 
-extern "C"
-{
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-}
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmGameSystem
 {

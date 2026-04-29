@@ -60,13 +60,13 @@ static const char* RemoveTableAddresses(char* str)
 
 TEST_F(ScriptTestLua, TestPrint)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     ASSERT_TRUE(RunString(L, "print(\"test print\")"));
     ASSERT_TRUE(RunString(L, "print(\"test\", \"multiple\")"));
 
     char* log = GetLog();
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 #if defined(DM_NO_HTTP_CACHE)
     ASSERT_STREQ("WARNING:SCRIPT: Http cache disabled\nDEBUG:SCRIPT: test print\nDEBUG:SCRIPT: test\tmultiple\n", log);
 #else
@@ -76,9 +76,9 @@ TEST_F(ScriptTestLua, TestPrint)
 
 TEST_F(ScriptTestLua, TestPPrint)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     ASSERT_TRUE(RunFile(L, "test_script_lua.luac"));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     const char* log = GetLog();
     const char* result = RemoveTableAddresses(GetLog());
@@ -102,9 +102,9 @@ TEST_F(ScriptTestLua, TestPPrint)
 
 TEST_F(ScriptTestLua, TestCircularRefPPrint)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     ASSERT_TRUE(RunFile(L, "test_circular_ref_pprint.luac"));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     const char* result = RemoveTableAddresses(GetLog());
 #if defined(DM_NO_HTTP_CACHE)
@@ -125,16 +125,16 @@ TEST_F(ScriptTestLua, TestCircularRefPPrint)
 
 TEST_F(ScriptTestLua, TestLuaCallstack)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     ASSERT_TRUE(RunFile(L, "test_lua_callstack.luac"));
 
     // Retrieve and run callback from c func
-    lua_getglobal(L, "do_crash");
-    luaL_checktype(L, -1, LUA_TFUNCTION);
-    int ret = dmScript::PCall(L, 0, LUA_MULTRET);
+    dlua_getglobal(L, "do_crash");
+    dluaL_checktype(L, -1, DLUA_TFUNCTION);
+    int ret = dmScript::PCall(L, 0, DLUA_MULTRET);
 
     ASSERT_EQ(5, ret);
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 
     const char* log = GetLog();
     printf("LOG: %s\n", log ? log : "");
@@ -142,9 +142,9 @@ TEST_F(ScriptTestLua, TestLuaCallstack)
 
 TEST_F(ScriptTestLua, TestPPrintTruncate)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     ASSERT_TRUE(RunFile(L, "test_pprint_truncate.luac"));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
     const char* log = GetLog();
     const char* truncate_message_addr = strstr(log, "...\n[Output truncated]\n");
     ASSERT_NE((const char*)0x0, truncate_message_addr);
@@ -154,7 +154,7 @@ TEST_F(ScriptTestLua, TestPPrintTruncate)
 
 TEST_F(ScriptTestLua, TestRandom)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     ASSERT_TRUE(RunString(L, "math.randomseed(123)"));
     ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 58)"));
     ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 71)"));
@@ -171,16 +171,16 @@ TEST_F(ScriptTestLua, TestRandom)
         "assert(math.floor(sum/count) == 5)\n";
     ASSERT_TRUE(RunString(L, sum_random_numbers));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
-static int LuaCallCallback(lua_State* L)
+static int LuaCallCallback(dlua_State* L)
 {
-    luaL_checktype(L, -1, LUA_TFUNCTION);
-    lua_pushvalue(L, 1);
-    lua_setglobal(L, "_callback");
-    lua_pushlightuserdata(L, L);
-    lua_setglobal(L, "_state");
+    dluaL_checktype(L, -1, DLUA_TFUNCTION);
+    dlua_pushvalue(L, 1);
+    dlua_setglobal(L, "_callback");
+    dlua_pushlightuserdata(L, L);
+    dlua_setglobal(L, "_state");
     return 0;
 }
 
@@ -189,29 +189,29 @@ static int LuaCallCallback(lua_State* L)
  */
 TEST_F(ScriptTestLua, TestCoroutineCallback)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     // Setup test function
-    lua_pushcfunction(L, LuaCallCallback);
-    lua_setglobal(L, "call_callback");
+    dlua_pushcfunction(L, LuaCallCallback);
+    dlua_setglobal(L, "call_callback");
     // Run script
     ASSERT_TRUE(RunFile(L, "test_script_coroutine.luac"));
     // Retrieve lua state from c func
-    lua_getglobal(L, "_state");
-    lua_State* state = (lua_State*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
+    dlua_getglobal(L, "_state");
+    dlua_State* state = (dlua_State*)dlua_touserdata(L, -1);
+    dlua_pop(L, 1);
     // Retrieve and run callback from c func
-    lua_getglobal(L, "_callback");
-    luaL_checktype(L, -1, LUA_TFUNCTION);
-    int ret = dmScript::PCall(dmScript::GetMainThread(state), 0, LUA_MULTRET);
+    dlua_getglobal(L, "_callback");
+    dluaL_checktype(L, -1, DLUA_TFUNCTION);
+    int ret = dmScript::PCall(dmScript::GetMainThread(state), 0, DLUA_MULTRET);
     ASSERT_EQ(0, ret);
 
     // Retrieve coroutine
-    lua_getglobal(L, "global_co");
-    int status = lua_status(lua_tothread(L, -1));
-    lua_pop(L, 1);
-    ASSERT_NE(LUA_YIELD, status);
+    dlua_getglobal(L, "global_co");
+    int status = dlua_status(dlua_tothread(L, -1));
+    dlua_pop(L, 1);
+    ASSERT_NE(DLUA_YIELD, status);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 struct TestDummy {
@@ -222,63 +222,63 @@ struct TestDummy {
     uint32_t        m_UniqueScriptId;
 };
 
-static int TestGetURL(lua_State* L) {
-    TestDummy* dummy = (TestDummy*)lua_touserdata(L, 1);
+static int TestGetURL(dlua_State* L) {
+    TestDummy* dummy = (TestDummy*)dlua_touserdata(L, 1);
     dmScript::PushURL(L, dummy->m_URL);
     return 1;
 }
 
-static int TestGetUserData(lua_State* L) {
-    TestDummy* dummy = (TestDummy*)lua_touserdata(L, 1);
-    lua_pushlightuserdata(L, (void*)(uintptr_t)dummy->m_Dummy);
+static int TestGetUserData(dlua_State* L) {
+    TestDummy* dummy = (TestDummy*)dlua_touserdata(L, 1);
+    dlua_pushlightuserdata(L, (void*)(uintptr_t)dummy->m_Dummy);
     return 1;
 }
 
-static int TestResolvePath(lua_State* L) {
-    dmScript::PushHash(L, dmHashString64(luaL_checkstring(L, 2)));
+static int TestResolvePath(dlua_State* L) {
+    dmScript::PushHash(L, dmHashString64(dluaL_checkstring(L, 2)));
     return 1;
 }
 
-static int TestIsValid(lua_State* L)
+static int TestIsValid(dlua_State* L)
 {
-    TestDummy* dummy = (TestDummy*)lua_touserdata(L, 1);
-    lua_pushboolean(L, dummy != 0x0 && dummy->m_Dummy != 0);
+    TestDummy* dummy = (TestDummy*)dlua_touserdata(L, 1);
+    dlua_pushboolean(L, dummy != 0x0 && dummy->m_Dummy != 0);
     return 1;
 }
 
-static int TestGetContextTableRef(lua_State* L)
+static int TestGetContextTableRef(dlua_State* L)
 {
     const int self_index = 1;
 
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
-    TestDummy* i = (TestDummy*)lua_touserdata(L, self_index);
-    lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
+    TestDummy* i = (TestDummy*)dlua_touserdata(L, self_index);
+    dlua_pushnumber(L, i ? i->m_ContextTableReference : DLUA_NOREF);
 
-    assert(top + 1 == lua_gettop(L));
+    assert(top + 1 == dlua_gettop(L));
 
     return 1;
 }
 
-static int TestScriptGetUniqueScriptId(lua_State* L)
+static int TestScriptGetUniqueScriptId(dlua_State* L)
 {
-    TestDummy* inst = (TestDummy*)lua_touserdata(L, 1);
-    lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+    TestDummy* inst = (TestDummy*)dlua_touserdata(L, 1);
+    dlua_pushinteger(L, (dlua_Integer)inst->m_UniqueScriptId);
     return 1;
 }
 
-static int TestToString(lua_State* L)
+static int TestToString(dlua_State* L)
 {
-    lua_pushstring(L, "TestDummy");
+    dlua_pushstring(L, "TestDummy");
     return 1;
 }
 
-static const luaL_reg Test_methods[] =
+static const dluaL_reg Test_methods[] =
 {
     {0,0}
 };
 
-static const luaL_reg Test_meta[] =
+static const dluaL_reg Test_meta[] =
 {
     {dmScript::META_TABLE_GET_URL,                  TestGetURL},
     {dmScript::META_TABLE_GET_USER_DATA,            TestGetUserData},
@@ -305,21 +305,21 @@ TEST_F(ScriptTestLua, TestUserType) {
     uint32_t type_hash = dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
 
     // Create an instance
-    TestDummy* dummy = (TestDummy*)lua_newuserdata(L, sizeof(TestDummy));
+    TestDummy* dummy = (TestDummy*)dlua_newuserdata(L, sizeof(TestDummy));
     dummy->m_Dummy = 1;
     // dummy URL value
     memset(&dummy->m_URL, 0xABCD, sizeof(dmMessage::URL));
-    luaL_getmetatable(L, type_name);
-    lua_setmetatable(L, -2);
-    dummy->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    lua_newtable(L);
-    dummy->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    dluaL_getmetatable(L, type_name);
+    dlua_setmetatable(L, -2);
+    dummy->m_InstanceReference = dmScript::Ref(L, DLUA_REGISTRYINDEX);
+    dlua_newtable(L);
+    dummy->m_ContextTableReference = dmScript::Ref(L, DLUA_REGISTRYINDEX);
     dummy->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
     // Invalid
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 
     // Set as current instance
-    lua_rawgeti(L, LUA_REGISTRYINDEX, dummy->m_InstanceReference);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, dummy->m_InstanceReference);
     dmScript::SetInstance(L);
 
     // Valid
@@ -359,65 +359,65 @@ TEST_F(ScriptTestLua, TestUserType) {
     result = dmMessage::DeleteSocket(socket);
     ASSERT_EQ(dmMessage::RESULT_OK, result);
 
-    lua_pushstring(L, "__context_value_4711_");
-    lua_pushnumber(L, 4711);
+    dlua_pushstring(L, "__context_value_4711_");
+    dlua_pushnumber(L, 4711);
     ASSERT_TRUE(dmScript::SetInstanceContextValue(L));
 
-    lua_pushstring(L, "__context_value_666_");
-    lua_pushnumber(L, 666);
+    dlua_pushstring(L, "__context_value_666_");
+    dlua_pushnumber(L, 666);
     ASSERT_TRUE(dmScript::SetInstanceContextValue(L));
 
-    lua_pushstring(L, "__context_value_4711_");
+    dlua_pushstring(L, "__context_value_4711_");
     dmScript::GetInstanceContextValue(L);
-    ASSERT_EQ(4711, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    ASSERT_EQ(4711, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
-    lua_pushstring(L, "__context_value_666_");
+    dlua_pushstring(L, "__context_value_666_");
     dmScript::GetInstanceContextValue(L);
-    ASSERT_EQ(666, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    ASSERT_EQ(666, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
-    lua_pushstring(L, "__context_value_invalid_");
+    dlua_pushstring(L, "__context_value_invalid_");
     dmScript::GetInstanceContextValue(L);
-    ASSERT_TRUE(lua_isnil(L, -1));
-    lua_pop(L, 1);
+    ASSERT_TRUE(dlua_isnil(L, -1));
+    dlua_pop(L, 1);
 
-    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
-    dummy->m_ContextTableReference = LUA_NOREF;
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+    dummy->m_ContextTableReference = DLUA_NOREF;
 
-    lua_pushstring(L, "__context_value_4711_");
+    dlua_pushstring(L, "__context_value_4711_");
     dmScript::GetInstanceContextValue(L);
-    ASSERT_TRUE(lua_isnil(L, -1));
-    lua_pop(L, 1);
+    ASSERT_TRUE(dlua_isnil(L, -1));
+    dlua_pop(L, 1);
 
     // Destruction
-    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_InstanceReference);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, dummy->m_InstanceReference);
     memset(dummy, 0, sizeof(TestDummy));
 
-    lua_pushnil(L);
+    dlua_pushnil(L);
     dmScript::SetInstance(L);
-    lua_pushstring(L, "__context_value_4711_");
+    dlua_pushstring(L, "__context_value_4711_");
     dmScript::GetInstanceContextValue(L);
-    ASSERT_TRUE(lua_isnil(L, -1));
-    lua_pop(L, 1);
+    ASSERT_TRUE(dlua_isnil(L, -1));
+    dlua_pop(L, 1);
 }
 
 #undef ASSERT_EQ_URL
 #undef ASSERT_NE_URL
 
-static int FailingFunc(lua_State* L) {
-    return luaL_error(L, "this function does not work");
+static int FailingFunc(dlua_State* L) {
+    return dluaL_error(L, "this function does not work");
 }
 
 TEST_F(ScriptTestLua, TestErrorHandler) {
 
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
-    lua_pushcfunction(L, FailingFunc);
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    dlua_pushcfunction(L, FailingFunc);
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
 
-    ASSERT_EQ(LUA_ERRRUN, result);
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(DLUA_ERRRUN, result);
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptTestLua, TestStackCheck) {
@@ -425,18 +425,18 @@ TEST_F(ScriptTestLua, TestStackCheck) {
     DM_LUA_STACK_CHECK(L, 0);
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, 0);
+        dlua_pushnumber(L, 0);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 #if !defined(JC_TEST_NO_DEATH_TEST)
-static void TestStackCheckAssert(lua_State* L, int expected, int num_stack_vars) {
+static void TestStackCheckAssert(dlua_State* L, int expected, int num_stack_vars) {
     DM_LUA_STACK_CHECK(L, expected);
 
     for (int i = 0; i < num_stack_vars; ++i)
     {
-        lua_pushnumber(L, i);
+        dlua_pushnumber(L, i);
     }
 }
 
@@ -445,25 +445,25 @@ TEST_F(ScriptTestLua, TestStackCheckAssert) {
     {
         int num_stack_vars = i+1;
         ASSERT_DEATH(TestStackCheckAssert(L, i, i+1),"");
-        lua_pop(L, num_stack_vars);
+        dlua_pop(L, num_stack_vars);
     }
 }
 #endif // JC_TEST_NO_DEATH_TEST
 
-static int TestStackCheckErrorFunc(lua_State* L) {
+static int TestStackCheckErrorFunc(dlua_State* L) {
     DM_LUA_STACK_CHECK(L, 0);
     return DM_LUA_ERROR("this function does not work");
 }
 
 TEST_F(ScriptTestLua, TestStackCheckError) {
-    lua_pushcfunction(L, TestStackCheckErrorFunc);
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    ASSERT_EQ(LUA_ERRRUN, result);
+    dlua_pushcfunction(L, TestStackCheckErrorFunc);
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    ASSERT_EQ(DLUA_ERRRUN, result);
 }
 
 TEST_F(ScriptTestLua, TestErrorHandlerFunction)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     const char *install_working =
         "sys.set_error_handler(function(type, error, traceback)\n"
@@ -475,10 +475,10 @@ TEST_F(ScriptTestLua, TestErrorHandlerFunction)
 
     ASSERT_TRUE(RunString(L, install_working));
 
-    lua_pushcfunction(L, FailingFunc);
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    ASSERT_EQ(LUA_ERRRUN, result);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pushcfunction(L, FailingFunc);
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    ASSERT_EQ(DLUA_ERRRUN, result);
+    ASSERT_EQ(top, dlua_gettop(L));
 
     ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
     ASSERT_TRUE(RunString(L, "assert(_error == \"this function does not work\")"));
@@ -492,17 +492,17 @@ TEST_F(ScriptTestLua, TestErrorHandlerFunction)
 
     ASSERT_TRUE(RunString(L, install_failing));
 
-    lua_pushcfunction(L, FailingFunc);
-    result = dmScript::PCall(L, 0, LUA_MULTRET);
-    ASSERT_EQ(LUA_ERRRUN, result);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pushcfunction(L, FailingFunc);
+    result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    ASSERT_EQ(DLUA_ERRRUN, result);
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
-static int UserdataErrorFunc(lua_State* L) {
+static int UserdataErrorFunc(dlua_State* L) {
     // This simulates calling error() from Lua with userdata
-    lua_getglobal(L, "error");
+    dlua_getglobal(L, "error");
     dmScript::PushHash(L, dmHashString64("test_userdata_error"));
-    lua_call(L, 1, 0);
+    dlua_call(L, 1, 0);
     return 0; // Never reached
 }
 
@@ -510,7 +510,7 @@ TEST_F(ScriptTestLua, TestUserdataError)
 {
     // Test that passing userdata to error() no longer crashes
     // https://github.com/defold/defold/issues/9392
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     const char *install_error_handler =
         "sys.set_error_handler(function(type, error, traceback)\n"
@@ -521,10 +521,10 @@ TEST_F(ScriptTestLua, TestUserdataError)
 
     ASSERT_TRUE(RunString(L, install_error_handler));
 
-    lua_pushcfunction(L, UserdataErrorFunc);
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    ASSERT_EQ(LUA_ERRRUN, result);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pushcfunction(L, UserdataErrorFunc);
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    ASSERT_EQ(DLUA_ERRRUN, result);
+    ASSERT_EQ(top, dlua_gettop(L));
 
     // Check that the error was converted to a string representation
     ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
@@ -540,18 +540,18 @@ TEST_F(ScriptTestLua, TestUserdataError)
     ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
 }
 
-static int NumberErrorFunc(lua_State* L) {
+static int NumberErrorFunc(dlua_State* L) {
     // Test with a number - this should use tostring() behavior
-    lua_getglobal(L, "error");
-    lua_pushnumber(L, 42.5);
-    lua_call(L, 1, 0);
+    dlua_getglobal(L, "error");
+    dlua_pushnumber(L, 42.5);
+    dlua_call(L, 1, 0);
     return 0; // Never reached
 }
 
 TEST_F(ScriptTestLua, TestNumberError)
 {
     // Test that passing numbers to error() works with tostring() behavior
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     const char *install_error_handler =
         "sys.set_error_handler(function(type, error, traceback)\n"
@@ -562,10 +562,10 @@ TEST_F(ScriptTestLua, TestNumberError)
 
     ASSERT_TRUE(RunString(L, install_error_handler));
 
-    lua_pushcfunction(L, NumberErrorFunc);
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    ASSERT_EQ(LUA_ERRRUN, result);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pushcfunction(L, NumberErrorFunc);
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    ASSERT_EQ(DLUA_ERRRUN, result);
+    ASSERT_EQ(top, dlua_gettop(L));
 
     // Check that the number was converted to string using tostring() behavior
     ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
@@ -576,16 +576,16 @@ TEST_F(ScriptTestLua, TestNumberError)
     ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
 }
 
-static int AssertNilNilFunc(lua_State* L) {
+static int AssertNilNilFunc(dlua_State* L) {
     // Test assert(nil, nil) which should call error(nil)
-    lua_getglobal(L, "assert");
-    lua_pushnil(L); // condition = nil (falsy)
-    lua_pushnil(L); // message = nil
-    lua_call(L, 2, 0);
+    dlua_getglobal(L, "assert");
+    dlua_pushnil(L); // condition = nil (falsy)
+    dlua_pushnil(L); // message = nil
+    dlua_call(L, 2, 0);
     return 0; // Never reached
 }
 
-static int DeepLuaErrorFunc(lua_State* L) {
+static int DeepLuaErrorFunc(dlua_State* L) {
     // Create a Lua call stack to show traceback with content
     const char *lua_with_callstack = 
         "function deep_func()\n"
@@ -597,11 +597,11 @@ static int DeepLuaErrorFunc(lua_State* L) {
         "main_func()\n";
     
     // Use loadstring + call instead of dostring to let error propagate
-    int result = luaL_loadstring(L, lua_with_callstack);
+    int result = dluaL_loadstring(L, lua_with_callstack);
     if (result != 0) {
         return result; // Compilation error
     }
-    lua_call(L, 0, 0); // This will throw the error from error(nil)
+    dlua_call(L, 0, 0); // This will throw the error from error(nil)
     return 0; // Never reached
 }
 
@@ -609,7 +609,7 @@ TEST_F(ScriptTestLua, TestAssertNilNil)
 {
     // Test the specific case: assert(nil, nil) which should error with "nil"
     // https://github.com/defold/defold/issues/8540
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     const char *install_error_handler =
         "sys.set_error_handler(function(type, error, traceback)\n"
@@ -620,10 +620,10 @@ TEST_F(ScriptTestLua, TestAssertNilNil)
 
     ASSERT_TRUE(RunString(L, install_error_handler));
 
-    lua_pushcfunction(L, AssertNilNilFunc);
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    ASSERT_EQ(LUA_ERRRUN, result);
-    ASSERT_EQ(top, lua_gettop(L));
+    dlua_pushcfunction(L, AssertNilNilFunc);
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    ASSERT_EQ(DLUA_ERRRUN, result);
+    ASSERT_EQ(top, dlua_gettop(L));
 
     // Check that the error message is "nil" (from tostring(nil))
     ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
@@ -642,7 +642,7 @@ TEST_F(ScriptTestLua, TestAssertNilNil)
 TEST_F(ScriptTestLua, TestErrorWithLuaCallstack)
 {
     // Test error from deep Lua call stack to show traceback with content
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     const char *install_error_handler =
         "sys.set_error_handler(function(type, error, traceback)\n"
@@ -654,11 +654,11 @@ TEST_F(ScriptTestLua, TestErrorWithLuaCallstack)
     ASSERT_TRUE(RunString(L, install_error_handler));
 
     // Create a Lua call stack: main -> deep_func -> error(nil)
-    lua_pushcfunction(L, DeepLuaErrorFunc);
+    dlua_pushcfunction(L, DeepLuaErrorFunc);
 
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    ASSERT_EQ(LUA_ERRRUN, result);
-    ASSERT_EQ(top, lua_gettop(L));
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    ASSERT_EQ(DLUA_ERRRUN, result);
+    ASSERT_EQ(top, dlua_gettop(L));
 
     // Check that error is still "nil"
     ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
@@ -681,15 +681,15 @@ struct CallbackArgs
     float b;
 };
 
-static void LuaCallbackCustomArgs(lua_State* L, void* user_args)
+static void LuaCallbackCustomArgs(dlua_State* L, void* user_args)
 {
     CallbackArgs* args = (CallbackArgs*)user_args;
     dmScript::PushHash(L, args->a);
-    lua_pushnumber(L, args->b);
+    dlua_pushnumber(L, args->b);
 }
 
 
-static int CreateAndPushInstance(lua_State* L)
+static int CreateAndPushInstance(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -697,16 +697,16 @@ static int CreateAndPushInstance(lua_State* L)
     dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
 
     // Create an instance
-    TestDummy* dummy = (TestDummy*)lua_newuserdata(L, sizeof(TestDummy));
+    TestDummy* dummy = (TestDummy*)dlua_newuserdata(L, sizeof(TestDummy));
     dummy->m_Dummy = 1;
-    luaL_getmetatable(L, type_name);
-    lua_setmetatable(L, -2);
-    int instanceref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    lua_newtable(L);
-    dummy->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    dluaL_getmetatable(L, type_name);
+    dlua_setmetatable(L, -2);
+    int instanceref = dmScript::Ref(L, DLUA_REGISTRYINDEX);
+    dlua_newtable(L);
+    dummy->m_ContextTableReference = dmScript::Ref(L, DLUA_REGISTRYINDEX);
     dummy->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref);
     dmScript::SetInstance(L);
     return instanceref;
 }
@@ -727,16 +727,16 @@ TEST_F(ScriptTestLua, LuaCallbackHelpers)
 
     int instanceref = CreateAndPushInstance(L);
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
-    TestDummy* dummy = (TestDummy*)lua_touserdata(L, -1);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref);
+    TestDummy* dummy = (TestDummy*)dlua_touserdata(L, -1);
     dmScript::SetInstance(L);
 
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
-    lua_getglobal(L, "test_callback");
-    luaL_checktype(L, -1, LUA_TFUNCTION);
+    dlua_getglobal(L, "test_callback");
+    dluaL_checktype(L, -1, DLUA_TFUNCTION);
 
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, -1);
     ASSERT_TRUE(dmScript::IsCallbackValid(cbk));
@@ -758,33 +758,33 @@ TEST_F(ScriptTestLua, LuaCallbackHelpers)
     dmScript::DestroyCallback(cbk);
     ASSERT_FALSE(dmScript::IsCallbackValid(cbk));
 
-    char* test_string = (char*)lua_newuserdata(L, strlen("test_ref_data") + 1);
+    char* test_string = (char*)dlua_newuserdata(L, strlen("test_ref_data") + 1);
     strcpy(test_string, "test_ref_data");
     int string_ref = dmScript::RefInInstance(L);
     dmScript::ResolveInInstance(L, string_ref);
-    const char* verify_string = (const char*)lua_touserdata(L, -1);
+    const char* verify_string = (const char*)dlua_touserdata(L, -1);
     ASSERT_STREQ(test_string, verify_string);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::UnrefInInstance(L, string_ref);
     dmScript::ResolveInInstance(L, string_ref);
-    void* unset_ref = lua_touserdata(L, -1);
+    void* unset_ref = dlua_touserdata(L, -1);
     ASSERT_EQ(0x0, unset_ref);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    char* test_string_gcd = (char*)lua_newuserdata(L, strlen("test_ref_data") + 1);
+    char* test_string_gcd = (char*)dlua_newuserdata(L, strlen("test_ref_data") + 1);
     strcpy(test_string_gcd, "test_ref_data");
     int string_ref_gcd = dmScript::RefInInstance(L);
 
-    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, instanceref);
 
     dmScript::ResolveInInstance(L, string_ref_gcd);
-    void* unset_ref_2 = lua_touserdata(L, -1);
+    void* unset_ref_2 = dlua_touserdata(L, -1);
     ASSERT_EQ(0x0, unset_ref_2);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptTestLua, GetTableValues)
@@ -803,15 +803,15 @@ TEST_F(ScriptTestLua, GetTableValues)
 
     int instanceref = CreateAndPushInstance(L);
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
-    TestDummy* dummy = (TestDummy*)lua_touserdata(L, -1);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref);
+    TestDummy* dummy = (TestDummy*)dlua_touserdata(L, -1);
     dmScript::SetInstance(L);
 
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
-    lua_getglobal(L, "test_table");
-    luaL_checktype(L, -1, LUA_TTABLE);
-    int table_index = lua_gettop(L);
+    dlua_getglobal(L, "test_table");
+    dluaL_checktype(L, -1, DLUA_TTABLE);
+    int table_index = dlua_gettop(L);
 
     // Check for integer values
     ASSERT_EQ(1, dmScript::GetTableIntValue(L, table_index, "a", 0));
@@ -826,19 +826,19 @@ TEST_F(ScriptTestLua, GetTableValues)
     ASSERT_STREQ("3", dmScript::GetTableStringValue(L, table_index, "c", NULL));
     ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "d", NULL));
     ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "e", NULL));
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     // Test empty table
-    lua_getglobal(L, "empty_table");
-    luaL_checktype(L, -1, LUA_TTABLE);
-    table_index = lua_gettop(L);
+    dlua_getglobal(L, "empty_table");
+    dluaL_checktype(L, -1, DLUA_TTABLE);
+    table_index = dlua_gettop(L);
 
     ASSERT_EQ(0, dmScript::GetTableIntValue(L, table_index, "a", 0));
     ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "a", NULL));
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, instanceref);
 }
 
 struct TestScriptExtension
@@ -869,36 +869,36 @@ uint32_t TestScriptExtension::m_FinalizeScriptInstancedCalled = 0;
 
 static TestScriptExtension* GetTestScriptExtension(dmScript::HContext context)
 {
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
-    lua_pushinteger(L, (lua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
+    dlua_pushinteger(L, (dlua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
     dmScript::GetContextValue(context);
-    int ref = lua_tonumber(L, 1);
-    lua_pop(L, 1);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-    TestScriptExtension* extension = (TestScriptExtension*)(lua_touserdata(L, -1));
-    lua_pop(L, 1);
+    int ref = dlua_tonumber(L, 1);
+    dlua_pop(L, 1);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, ref);
+    TestScriptExtension* extension = (TestScriptExtension*)(dlua_touserdata(L, -1));
+    dlua_pop(L, 1);
     return extension;
 }
 
 void TestScriptExtensionInitialize(dmScript::HContext context)
 {
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
-    TestScriptExtension* extension = (TestScriptExtension*)lua_newuserdata(L, sizeof(TestScriptExtension));
+    TestScriptExtension* extension = (TestScriptExtension*)dlua_newuserdata(L, sizeof(TestScriptExtension));
     memset(extension, 0, sizeof(TestScriptExtension));
-    extension->m_SelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    extension->m_SelfRef = dmScript::Ref(L, DLUA_REGISTRYINDEX);
     extension->m_InitializeCalled = 1;
-    lua_pushinteger(L, (lua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
-    lua_pushnumber(L, extension->m_SelfRef);
+    dlua_pushinteger(L, (dlua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
+    dlua_pushnumber(L, extension->m_SelfRef);
     dmScript::SetContextValue(context);
 }
 
 static void TestScriptExtensionUpdate(dmScript::HContext context)
 {
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
     TestScriptExtension* extension = GetTestScriptExtension(context);
@@ -907,15 +907,15 @@ static void TestScriptExtensionUpdate(dmScript::HContext context)
 
 static void TestScriptExtensionFinalize(dmScript::HContext context)
 {
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
     TestScriptExtension* extension = GetTestScriptExtension(context);
     ++extension->m_FinalizedCalled = 1;
-    lua_pushinteger(L, (lua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
-    lua_pushnil(L);
+    dlua_pushinteger(L, (dlua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
+    dlua_pushnil(L);
     dmScript::SetContextValue(context);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, extension->m_SelfRef);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, extension->m_SelfRef);
 }
 
 struct TestScriptWorldContext
@@ -942,47 +942,47 @@ uint32_t TestScriptWorldContext::m_FinalizeScriptInstancedCalled = 0;
 static void TestScriptExtensionNewScriptWorld(dmScript::HScriptWorld script_world)
 {
     dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
     TestScriptExtension* extension = GetTestScriptExtension(context);
     ++extension->m_NewScriptWorldCalled = 1;
 
-    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_newuserdata(L, sizeof(TestScriptWorldContext));
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)dlua_newuserdata(L, sizeof(TestScriptWorldContext));
     memset(extension_world, 0, sizeof(TestScriptWorldContext));
     extension_world->m_Extension = extension;
-    lua_pushstring(L, "__TestScriptWorldContext__");
-    lua_pushvalue(L, -2);
+    dlua_pushstring(L, "__TestScriptWorldContext__");
+    dlua_pushvalue(L, -2);
     dmScript::SetScriptWorldContextValue(script_world);
-    extension_world->m_SelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    extension_world->m_SelfRef = dmScript::Ref(L, DLUA_REGISTRYINDEX);
     ++extension_world->m_NewScriptWorldCalled;
 }
 
 static void TestScriptExtensionDeleteScriptWorld(dmScript::HScriptWorld script_world)
 {
     dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
-    lua_pushstring(L, "__TestScriptWorldContext__");
+    dlua_pushstring(L, "__TestScriptWorldContext__");
     dmScript::GetScriptWorldContextValue(script_world);
-    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)dlua_touserdata(L, -1);
+    dlua_pop(L, 1);
     ++extension_world->m_DeleteScriptWorldCalled;
     ++extension_world->m_Extension->m_DeleteScriptWorldCalled;
-    dmScript::Unref(L, LUA_REGISTRYINDEX, extension_world->m_SelfRef);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, extension_world->m_SelfRef);
 }
 
 static void TestScriptExtensionUpdateScriptWorld(dmScript::HScriptWorld script_world, float dt)
 {
     dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
-    lua_pushstring(L, "__TestScriptWorldContext__");
+    dlua_pushstring(L, "__TestScriptWorldContext__");
     dmScript::GetScriptWorldContextValue(script_world);
-    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)dlua_touserdata(L, -1);
+    dlua_pop(L, 1);
     ++extension_world->m_UpdateScriptWorldCalled;
     extension_world->m_DeltaT += dt;
     ++extension_world->m_Extension->m_UpdateScriptWorldCalled;
@@ -992,13 +992,13 @@ static void TestScriptExtensionUpdateScriptWorld(dmScript::HScriptWorld script_w
 static void TestScriptExtensionFixedUpdateScriptWorld(dmScript::HScriptWorld script_world, float dt)
 {
     dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
-    lua_pushstring(L, "__TestScriptWorldContext__");
+    dlua_pushstring(L, "__TestScriptWorldContext__");
     dmScript::GetScriptWorldContextValue(script_world);
-    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)dlua_touserdata(L, -1);
+    dlua_pop(L, 1);
     ++extension_world->m_FixedUpdateScriptWorldCalled;
     extension_world->m_FixedDeltaT += dt;
     ++extension_world->m_Extension->m_FixedUpdateScriptWorldCalled;
@@ -1008,32 +1008,32 @@ static void TestScriptExtensionFixedUpdateScriptWorld(dmScript::HScriptWorld scr
 static void TestScriptExtensionInitializeScriptInstance(dmScript::HScriptWorld script_world)
 {
     dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
-    lua_pushstring(L, "__TestScriptWorldContext__");
+    dlua_pushstring(L, "__TestScriptWorldContext__");
     dmScript::GetScriptWorldContextValue(script_world);
-    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)dlua_touserdata(L, -1);
     ++extension_world->m_InitializeScriptInstancedCalled;
     ++extension_world->m_Extension->m_InitializeScriptInstancedCalled;
-    lua_pushstring(L, "__TestScriptWorldContext__");
-    lua_insert(L, -2);
+    dlua_pushstring(L, "__TestScriptWorldContext__");
+    dlua_insert(L, -2);
     dmScript::SetInstanceContextValue(L);
 }
 
 static void TestScriptExtensionFinalizeScriptInstance(dmScript::HScriptWorld script_world)
 {
     dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
-    lua_State* L = dmScript::GetLuaState(context);
+    dlua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
-    lua_pushstring(L, "__TestScriptWorldContext__");
+    dlua_pushstring(L, "__TestScriptWorldContext__");
     dmScript::GetInstanceContextValue(L);
-    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
-    lua_pop(L, 1);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)dlua_touserdata(L, -1);
+    dlua_pop(L, 1);
     ++extension_world->m_FinalizeScriptInstancedCalled;
     ++extension_world->m_Extension->m_FinalizeScriptInstancedCalled;
-    lua_pushstring(L, "__TestScriptWorldContext__");
-    lua_pushnil(L);
+    dlua_pushstring(L, "__TestScriptWorldContext__");
+    dlua_pushnil(L);
     dmScript::SetInstanceContextValue(L);
 }
 
@@ -1056,7 +1056,7 @@ TEST_F(ScriptTestLua, ScriptExtension)
     };
 
     {
-        lua_State* L = dmScript::GetLuaState(context);
+        dlua_State* L = dmScript::GetLuaState(context);
 
         DM_LUA_STACK_CHECK(L, 0);
         int ref_count = dmScript::GetLuaRefCount();
@@ -1089,9 +1089,9 @@ TEST_F(ScriptTestLua, ScriptExtension)
 
         int instanceref = CreateAndPushInstance(L);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
-        TestDummy* dummy = (TestDummy*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref);
+        TestDummy* dummy = (TestDummy*)dlua_touserdata(L, -1);
+        dlua_pop(L, 1);
 
         ASSERT_EQ(0u, TestScriptExtension::m_InitializeScriptInstancedCalled);
         ASSERT_EQ(0u, TestScriptWorldContext::m_InitializeScriptInstancedCalled);
@@ -1105,11 +1105,11 @@ TEST_F(ScriptTestLua, ScriptExtension)
         ASSERT_EQ(1u, TestScriptExtension::m_FinalizeScriptInstancedCalled);
         ASSERT_EQ(1u, TestScriptWorldContext::m_FinalizeScriptInstancedCalled);
 
-        lua_pushnil(L);
+        dlua_pushnil(L);
         dmScript::SetInstance(L);
 
-        dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
-        dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
+        dmScript::Unref(L, DLUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+        dmScript::Unref(L, DLUA_REGISTRYINDEX, instanceref);
 
         ASSERT_EQ(0u, TestScriptExtension::m_DeleteScriptWorldCalled);
         ASSERT_EQ(0u, TestScriptWorldContext::m_DeleteScriptWorldCalled);
@@ -1132,18 +1132,18 @@ TEST_F(ScriptTestLua, InstanceId)
     uintptr_t instanceid0 = dmScript::GetInstanceId(L);
     ASSERT_EQ(0, instanceid0);
     int instanceref1 = CreateAndPushInstance(L);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref1);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref1);
     dmScript::SetInstance(L);
     uintptr_t instanceid1 = dmScript::GetInstanceId(L);
     int instanceref2 = CreateAndPushInstance(L);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref2);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref2);
     dmScript::SetInstance(L);
     uintptr_t instanceid2 = dmScript::GetInstanceId(L);
     int instanceref3 = CreateAndPushInstance(L);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref3);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref3);
     dmScript::SetInstance(L);
     uintptr_t instanceid3 = dmScript::GetInstanceId(L);
-    lua_pushnil(L);
+    dlua_pushnil(L);
     dmScript::SetInstance(L);
     uintptr_t instanceid0_2 = dmScript::GetInstanceId(L);
     ASSERT_EQ(0, instanceid0_2);
@@ -1156,38 +1156,38 @@ TEST_F(ScriptTestLua, InstanceId)
     ASSERT_NE(instanceid3, instanceid1);
     ASSERT_NE(instanceid2, instanceid3);
 
-    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref1);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref2);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, instanceref1);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, instanceref2);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, instanceref3);
 }
 
-static void printStack(lua_State* L)
+static void printStack(dlua_State* L)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     int bottom = 1;
-    lua_getglobal(L, "tostring");
+    dlua_getglobal(L, "tostring");
     for(int i = top; i >= bottom; i--)
     {
-        lua_pushvalue(L, -1);
-        lua_pushvalue(L, i);
-        lua_pcall(L, 1, 1, 0);
-        const char *str = lua_tostring(L, -1);
+        dlua_pushvalue(L, -1);
+        dlua_pushvalue(L, i);
+        dlua_pcall(L, 1, 1, 0);
+        const char *str = dlua_tostring(L, -1);
         if (str) {
             printf("%2d: %s\n", i, str);
         }else{
-            printf("%2d: %s\n", i, luaL_typename(L, i));
+            printf("%2d: %s\n", i, dluaL_typename(L, i));
         }
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 static bool g_panic_function_called = false;
 
-static int boolean_panic_fn(lua_State* L)
+static int boolean_panic_fn(dlua_State* L)
 {
     g_panic_function_called = true;
-    fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s) (custom boolean_panic_fn)\n", lua_tostring(L, -1));
+    fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s) (custom boolean_panic_fn)\n", dlua_tostring(L, -1));
     return 1; // In our case, we pass this to the longjmp, and we check it with setjmp()
 }
 
@@ -1198,19 +1198,19 @@ TEST_F(ScriptTestLua, LuaBooleanFunctions)
     ///////////////////////////////
     // Test simple CheckBoolean fn
     ///////////////////////////////
-    lua_pushboolean(L, true);
+    dlua_pushboolean(L, true);
     ASSERT_TRUE(dmScript::CheckBoolean(L, -1));
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pushboolean(L, true);
+    dlua_pushboolean(L, true);
     ASSERT_TRUE(dmScript::CheckBoolean(L, -1));
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     /////////////////////////////////////////////
     // Test checking something that isn't boolean
     /////////////////////////////////////////////
 
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     printf("\nExpected error begin -->\n");
 #if !defined(_WIN32)
     {
@@ -1221,7 +1221,7 @@ TEST_F(ScriptTestLua, LuaBooleanFunctions)
         ++count;
         if (jmpval == 0)
         {
-            lua_pushnumber(L, 123);
+            dlua_pushnumber(L, 123);
             dmScript::CheckBoolean(L, -1);
         }
 
@@ -1230,7 +1230,7 @@ TEST_F(ScriptTestLua, LuaBooleanFunctions)
 #else
     try {
 
-        lua_pushnumber(L, 123);
+        dlua_pushnumber(L, 123);
         dmScript::CheckBoolean(L, -1);
 
     } catch (...)
@@ -1242,14 +1242,14 @@ TEST_F(ScriptTestLua, LuaBooleanFunctions)
 
     ASSERT_TRUE(g_panic_function_called);
 
-    lua_pop(L, lua_gettop(L) - top); // There is no guarantuee how many items are left on the stack
+    dlua_pop(L, dlua_gettop(L) - top); // There is no guarantuee how many items are left on the stack
 
     /////////////////////////////////////
     // Test PushBoolean with simple value
     /////////////////////////////////////
     dmScript::PushBoolean(L, true);
-    ASSERT_TRUE(lua_toboolean(L, -1));
-    lua_pop(L, 1);
+    ASSERT_TRUE(dlua_toboolean(L, -1));
+    dlua_pop(L, 1);
 }
 
 // Test that callback registry reference collision (reuse) does not allow invoking the old callback after the instance is destroyed or reused.
@@ -1259,34 +1259,34 @@ TEST_F(ScriptTestLua, TestCallbackCollisionByInstanceReuse)
     ASSERT_TRUE(RunString(L, "function test_cb(self) _G.cb_call_count = (_G.cb_call_count or 0) + 1 end"));
     // Create and destroy instance with callback
     int instanceref1 = CreateAndPushInstance(L);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref1);
-    TestDummy* dummy = (TestDummy*)lua_touserdata(L, -1);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref1);
+    TestDummy* dummy = (TestDummy*)dlua_touserdata(L, -1);
     dmScript::SetInstance(L);
-    lua_getglobal(L, "test_cb");
+    dlua_getglobal(L, "test_cb");
     dmScript::LuaCallbackInfo* cbk1 = dmScript::CreateCallback(L, -1);
     dmScript::InvokeCallback(cbk1, 0, 0);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref1);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, instanceref1);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, dummy->m_ContextTableReference);
 
     // Create and destroy instance with callback
     int instanceref2 = CreateAndPushInstance(L);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref2);
-    TestDummy* dummy2 = (TestDummy*)lua_touserdata(L, -1);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref2);
+    TestDummy* dummy2 = (TestDummy*)dlua_touserdata(L, -1);
     dmScript::SetInstance(L);
-    lua_getglobal(L, "test_cb");
+    dlua_getglobal(L, "test_cb");
     dmScript::LuaCallbackInfo* cbk2 = dmScript::CreateCallback(L, -1);
     dmScript::InvokeCallback(cbk2, 0, 0);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref2);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy2->m_ContextTableReference);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, instanceref2);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, dummy2->m_ContextTableReference);
 
 
     ASSERT_TRUE(RunString(L, "function test_cb1(self) _G.cb2_call_count = (_G.cb2_call_count or 0) + 1 end"));
     // Create and destroy instance with callback
     int instanceref3 = CreateAndPushInstance(L);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref3);
-    TestDummy* dummy3 = (TestDummy*)lua_touserdata(L, -1);
+    dlua_rawgeti(L, DLUA_REGISTRYINDEX, instanceref3);
+    TestDummy* dummy3 = (TestDummy*)dlua_touserdata(L, -1);
     dmScript::SetInstance(L);
-    lua_getglobal(L, "test_cb1");
+    dlua_getglobal(L, "test_cb1");
     dmScript::LuaCallbackInfo* cbk3 = dmScript::CreateCallback(L, -1);
 
     // We expect that dummy3 reuses the same context table address
@@ -1300,7 +1300,7 @@ TEST_F(ScriptTestLua, TestCallbackCollisionByInstanceReuse)
     dmScript::DestroyCallback(cbk2);
 
     dmScript::InvokeCallback(cbk3, 0, 0);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
+    dmScript::Unref(L, DLUA_REGISTRYINDEX, instanceref3);
     dmScript::DestroyCallback(cbk3);
 
     // At the end, assert that _G.cb_call_count == 2

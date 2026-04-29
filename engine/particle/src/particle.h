@@ -21,12 +21,6 @@
 #include <graphics/graphics.h>
 #include "particle/particle_ddf.h"
 
-/*extern "C"
-{
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-}*/
-
 /**
  * System to handle particle systems
  */

@@ -15,11 +15,11 @@
 #ifndef DM_SCRIPT_LUASOCKET_H
 #define DM_SCRIPT_LUASOCKET_H
 
-struct lua_State;
+#include <dmsdk/dlua/dlua.h>
 
 namespace dmScript
 {
-    void InitializeLuasocket(lua_State* L);
+    void InitializeLuasocket(dlua_State* L);
 }
 
 #endif // DM_SCRIPT_LUASOCKET_H

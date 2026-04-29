@@ -29,8 +29,7 @@
 
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 
@@ -64,13 +63,13 @@ namespace dmScript
      *
      * CAUTION! The implementation should *NOT* create a new ref, it
      * should return an existing one. If it does not have one, it should
-     * return LUA_NOREF
+     * return DLUA_NOREF
      *
      * Lua stack on entry
      *  [-1] instance
      *
      * Lua stack on exit
-     *  [-1] ref to instance context table or LUA_NOREF
+     *  [-1] ref to instance context table or DLUA_NOREF
      *
      */
     extern const char META_GET_INSTANCE_CONTEXT_TABLE_REF[];
@@ -109,14 +108,14 @@ namespace dmScript
      * @param name name of the global value
      * @return name_hash the hash of the name
      */
-    uint32_t SetGlobal(lua_State* L, const char* name);
+    uint32_t SetGlobal(dlua_State* L, const char* name);
 
     /**
      * Gets the global value and puts it at top of stack
      * @param L lua state
      * @param name_hash the hash of the name returned by SetGlobal
      */
-    void GetGlobal(lua_State* L, uint32_t name_hash);
+    void GetGlobal(dlua_State* L, uint32_t name_hash);
 
     /**
      * Use a ScriptExtension to hook into various callbacks of the script lifetime
@@ -160,7 +159,7 @@ namespace dmScript
      * @param L lua state
      * @param out_url Pointer to the url that should be filled with information
      */
-    typedef void (*GetURLCallback)(lua_State* L, dmMessage::URL* out_url);
+    typedef void (*GetURLCallback)(dlua_State* L, dmMessage::URL* out_url);
 
     /**
      * Callback used to validate the state instance, assumed to be fetchable by GetInstance.
@@ -168,7 +167,7 @@ namespace dmScript
      * @param L lua state
      * @return whether the instance is valid or not
      */
-    typedef bool (*ValidateInstanceCallback)(lua_State* L);
+    typedef bool (*ValidateInstanceCallback)(dlua_State* L);
 
     /**
      * Callback used to retrieve message user data
@@ -176,7 +175,7 @@ namespace dmScript
      * @param L lua state
      * @return User data pointer
      */
-    typedef uintptr_t (*GetUserDataCallback)(lua_State* L);
+    typedef uintptr_t (*GetUserDataCallback)(dlua_State* L);
 
     /**
      * DDF to Lua decoder. Useful for custom interpretation of field, e.g. pointers.
@@ -187,7 +186,7 @@ namespace dmScript
      * @param data Data to decode
      * @return RESULT_OK on success
      */
-    typedef Result (*MessageDecoder)(lua_State* L, const dmDDF::Descriptor* desc, const char* data);
+    typedef Result (*MessageDecoder)(dlua_State* L, const dmDDF::Descriptor* desc, const char* data);
 
     /**
      * Register the script libraries into the supplied script context.
@@ -243,7 +242,7 @@ namespace dmScript
      *  [-1] key
      *
      * Lua stack on exit
-     *  [-1] value or LUA_NIL
+     *  [-1] value or DLUA_TNIL
     */
     void GetContextValue(HContext context);
 
@@ -256,7 +255,7 @@ namespace dmScript
      * @param index Index of the table
      * @return Number of bytes used in the buffer
      */
-    uint32_t CheckDDF(lua_State* L, const dmDDF::Descriptor* descriptor, char* buffer, uint32_t buffer_size, int index);
+    uint32_t CheckDDF(dlua_State* L, const dmDDF::Descriptor* descriptor, char* buffer, uint32_t buffer_size, int index);
 
     /**
      * Push DDF message to Lua stack
@@ -265,7 +264,7 @@ namespace dmScript
      * @param data DDF data
      * @param pointers_are_offets True if pointers are offsets
      */
-    void PushDDFNoDecoder(lua_State* L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
+    void PushDDFNoDecoder(dlua_State* L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
     /**
      * Push DDF message to Lua stack. Invokes any registered decoder
@@ -274,7 +273,7 @@ namespace dmScript
      * @param descriptor Field descriptor
      * @param data DDF data
      */
-    void PushDDF(lua_State* L, const dmDDF::Descriptor* descriptor, const char* data);
+    void PushDDF(dlua_State* L, const dmDDF::Descriptor* descriptor, const char* data);
 
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 
@@ -283,7 +282,7 @@ namespace dmScript
      * @param L Lua state
      * @param hash Hash value to release
      */
-    void ReleaseHash(lua_State* L, dmhash_t hash);
+    void ReleaseHash(dlua_State* L, dmhash_t hash);
 
     /**
      * Check if the value at #index is a FloatVector
@@ -291,22 +290,22 @@ namespace dmScript
      * @param index Index of the value
      * @return true if value at #index is a FloatVector
      */
-    bool IsVector(lua_State *L, int index);
+    bool IsVector(dlua_State *L, int index);
 
     /** get the value at index as a dmVMath::FloatVector*
      * Get the value at index as a dmVMath::FloatVector*
-     * @param L [type:lua_State*] Lua state
+     * @param L [type:dlua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return v [type:dmVMath::FloatVector*] The pointer to the value, or 0 if not correct type
      */
-    dmVMath::FloatVector* ToVector(lua_State *L, int index);
+    dmVMath::FloatVector* ToVector(dlua_State *L, int index);
 
     /**
      * Push a FloatVector value onto the supplied lua state, will increase the stack by 1.
      * @param L Lua state
      * @param v Vector3 value to push
      */
-    void PushVector(lua_State* L, dmVMath::FloatVector* v);
+    void PushVector(dlua_State* L, dmVMath::FloatVector* v);
 
     /**
      * Check if the value in the supplied index on the lua stack is a Vector.
@@ -314,7 +313,7 @@ namespace dmScript
      * @param index Index of the value
      * @return The FloatVector value
      */
-    dmVMath::FloatVector* CheckVector(lua_State* L, int index);
+    dmVMath::FloatVector* CheckVector(dlua_State* L, int index);
 
     /**
      * Check if the value in the supplied index on the lua stack is a boolean.
@@ -322,14 +321,14 @@ namespace dmScript
      * @param index Index of the value
      * @return The boolean value
      */
-    bool CheckBoolean(lua_State* L, int index);
+    bool CheckBoolean(dlua_State* L, int index);
 
     /**
      * Push a Boolean value onto the supplied lua state, will increase the stack by 1.
      * @param L Lua state
      * @param v boolean value to push
      */
-    void PushBoolean(lua_State* L, bool v);
+    void PushBoolean(dlua_State* L, bool v);
 
     /**
      * Check if the value at #index is a URL
@@ -337,14 +336,14 @@ namespace dmScript
      * @param index Index of the value
      * @return true is value at #index is a URL
      */
-    bool IsURL(lua_State *L, int index);
+    bool IsURL(dlua_State *L, int index);
 
     /**
      * Push a URL value onto the supplied lua state, will increase the stack by 1
      * @param L Lua state
      * @param a URL value to push
      */
-    void PushURL(lua_State* L, const dmMessage::URL& m);
+    void PushURL(dlua_State* L, const dmMessage::URL& m);
 
     /**
      * Check if the value in the supplied index on the lua stack is a URL
@@ -352,7 +351,7 @@ namespace dmScript
      * @param index Index of the value
      * @return The URL value
      */
-    dmMessage::URL* CheckURL(lua_State* L, int index);
+    dmMessage::URL* CheckURL(dlua_State* L, int index);
 
     /**
      * Returns the URL of a script currently operating on the given lua state.
@@ -360,7 +359,7 @@ namespace dmScript
      * @param out_url Pointer to a URL to be written to
      * @return true if a URL could be found
      */
-    bool GetURL(lua_State* L, dmMessage::URL* out_url);
+    bool GetURL(dlua_State* L, dmMessage::URL* out_url);
 
     /**
      * Returns the user data of a script currently operating on the given lua state.
@@ -368,7 +367,7 @@ namespace dmScript
      * @param out_user_data Pointer to a uintptr_t to be written to
      * @return true if the user data could be found
      */
-    bool GetUserData(lua_State* L, uintptr_t* out_user_data, uint32_t user_type_hash);
+    bool GetUserData(dlua_State* L, uintptr_t* out_user_data, uint32_t user_type_hash);
 
 
     /**
@@ -378,7 +377,7 @@ namespace dmScript
      * @param L Lua state
      * @return unique identifier for the instance
      */
-    uintptr_t GetInstanceId(lua_State* L);
+    uintptr_t GetInstanceId(dlua_State* L);
 
     /**
      * Create a "world" for this script, normally this matches a GO collection,
@@ -443,7 +442,7 @@ namespace dmScript
      *
      * Lua stack on exit
     */
-    bool SetInstanceContextValue(lua_State* L);
+    bool SetInstanceContextValue(dlua_State* L);
 
     /**
      * Get value by key using the META_GET_INSTANCE_CONTEXT_TABLE_REF meta table function
@@ -457,9 +456,9 @@ namespace dmScript
      *  [-1] key
      *
      * Lua stack on exit
-     *  [-1] value or LUA_NIL
+     *  [-1] value or DLUA_TNIL
     */
-    void GetInstanceContextValue(lua_State* L);
+    void GetInstanceContextValue(dlua_State* L);
 
     /**
      * Resolves the instance local ref and pushes it to top of stack
@@ -473,9 +472,9 @@ namespace dmScript
      * Lua stack on entry
      *
      * Lua stack on exit
-     *  [-1] value or LUA_NIL
+     *  [-1] value or DLUA_TNIL
      */
-    void ResolveInInstance(lua_State* L, int ref);
+    void ResolveInInstance(dlua_State* L, int ref);
 
     HContext GetScriptWorldContext(HScriptWorld script_world);
 
@@ -519,11 +518,11 @@ namespace dmScript
     /**
      * Retrieve the Lua traceback from the current context
      * @param lua context
-     * @param infostring determines what fields are valid in the entry (passed to lua_getinfo())
+     * @param infostring determines what fields are valid in the entry (passed to dlua_getinfo())
      * @param cbk the callback which receives calls for each debug entry in the callstack
      * @param ctx the user data to be passed to the callback
      */
-    void GetLuaTraceback(lua_State* L, const char* infostring, void (*cbk)(lua_State* L, lua_Debug* entry, void* ctx), void* ctx);
+    void GetLuaTraceback(dlua_State* L, const char* infostring, void (*cbk)(dlua_State* L, dlua_Debug* entry, void* ctx), void* ctx);
 
     /**
      * Write a Lua traceback entry to a character buffer
@@ -532,7 +531,7 @@ namespace dmScript
      * @param buffer_size the size of the buffer
      * @return number of bytes written
      */
-    uint32_t WriteLuaTracebackEntry(lua_Debug* entry, char* buffer, uint32_t buffer_size);
+    uint32_t WriteLuaTracebackEntry(dlua_Debug* entry, char* buffer, uint32_t buffer_size);
 
     /**
      * Retrieve config file handle from the context
@@ -591,7 +590,7 @@ namespace dmScript
      * @param name user type name
      * @return type_key the hash key registered for this user type
      */
-    uint32_t SetUserType(lua_State* L, int meta_table_index, const char* name);
+    uint32_t SetUserType(dlua_State* L, int meta_table_index, const char* name);
 
     /**
      * Register a user type along with methods and meta methods.
@@ -602,7 +601,7 @@ namespace dmScript
      * @param meta array of meta methods
      * @return type_key the hash key registered for this user type
      */
-    uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
+    uint32_t RegisterUserType(dlua_State* L, const char* name, const dluaL_reg methods[], const dluaL_reg meta[]);
 
     /**
      * Register an object oriented style user type along with methods.
@@ -612,7 +611,7 @@ namespace dmScript
      * @param meta array of meta methods and object functions
      * @return type_key the hash key registered for this user type
      */
-    uint32_t RegisterUserTypeLocal(lua_State* L, const char* name, const luaL_reg meta[]);
+    uint32_t RegisterUserTypeLocal(dlua_State* L, const char* name, const dluaL_reg meta[]);
 
     /**
      * Gets the type key of a user datas meta table.
@@ -620,7 +619,7 @@ namespace dmScript
      * @param user_data_index the stack index of the user data
      * @return type_key the hash key for the user data meta table, 0 if type is not set
      */
-    uint32_t GetUserType(lua_State* L, int user_data_index);
+    uint32_t GetUserType(dlua_State* L, int user_data_index);
 
     /**
      * Validates type of user data and returns pointer to it.
@@ -629,22 +628,22 @@ namespace dmScript
      * @param type_hash the type of the user data we require
      * @return pointer to the user data, 0 if the value at user_data_index is not the correct type
      */
-    void* ToUserType(lua_State* L, int user_data_index, uint32_t type_hash);
+    void* ToUserType(dlua_State* L, int user_data_index, uint32_t type_hash);
 
     /**
      * Validates type of user data and returns pointer to it.
      * @param L lua state
      * @param user_data_index the stack index of the user data
      * @param type_hash the type of the user data we require
-     * @param error_message luaL_error error message to output if data is not correct type, if 0 a lua typeerror is issued
+     * @param error_message dluaL_error error message to output if data is not correct type, if 0 a lua typeerror is issued
      * @return pointer to the user data, a lua error is issued if the value at user_data_index is not the correct type
      */
-    void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message);
+    void* CheckUserType(dlua_State* L, int user_data_index, uint32_t type_hash, const char* error_message);
 
     /**
-     * Wraps luaL_loadbuffer but takes dmLuaDDF::LuaSource instead of buffer directly.
+     * Wraps dluaL_loadbuffer but takes dmLuaDDF::LuaSource instead of buffer directly.
      */
-    int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source);
+    int LuaLoad(dlua_State *L, dmLuaDDF::LuaSource* source);
 
     /** Gets the number of references currently kept
      * @return the total number of references in the game
@@ -659,14 +658,14 @@ namespace dmScript
     * @param L lua state
     * @return the number of kilobytes lua uses
     */
-    uint32_t GetLuaGCCount(lua_State* L);
+    uint32_t GetLuaGCCount(dlua_State* L);
 
 // DEPRECATED
 // I really don't like this callback setup (mistake on my part). It's clunky.
 // Perhaps better to have a lambda function? (now that all compilers support C++11) /MAWE
     /** A helper function for the user to easily push Lua stack arguments prior to invoking the callback
      */
-    typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
+    typedef void (*LuaCallbackUserFn)(dlua_State* L, void* user_context);
 
     /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments
      * to the stack, prior to the call
@@ -685,7 +684,7 @@ namespace dmScript
      * @param default_value Value to return if key is not found
      * @return Integer value at key, or the default value if not found or invalid value type.
      */
-    int GetTableIntValue(lua_State* L, int table_index, const char* key, int default_value);
+    int GetTableIntValue(dlua_State* L, int table_index, const char* key, int default_value);
 
     /**
      * Get an string value at a specific key in a table.
@@ -695,7 +694,7 @@ namespace dmScript
      * @param default_value Value to return if key is not found
      * @return String value at key, or the default value if not found or invalid value type.
      */
-    const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
+    const char* GetTableStringValue(dlua_State* L, int table_index, const char* key, const char* default_value);
 
     /**
      * Build a profiler function name string and calculate its hash.
@@ -708,13 +707,13 @@ namespace dmScript
      * @param buffer_size size of buffer in bytes
      * @return Pointer to buffer
      */
-    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, char* buffer, uint32_t buffer_size);
+    const char* GetProfilerString(dlua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, char* buffer, uint32_t buffer_size);
 
     /**
      * Prints the current stack (uses dmLogInfo)
      * @param L lua state
      */
-    void PrintStack(lua_State* L);
+    void PrintStack(dlua_State* L);
 
 } // dmScript
 

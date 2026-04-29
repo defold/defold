@@ -17,12 +17,12 @@
 
 extern "C"
 {
-#include <lua/lua.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript
 {
-    void InitializeZlib(lua_State* L);
+    void InitializeZlib(dlua_State* L);
 }
 
 #endif // DM_SCRIPT_ZLIB_H

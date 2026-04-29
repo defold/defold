@@ -41,46 +41,46 @@ struct ScriptInstance
     int m_ContextTableReference;
 };
 
-static int ResolvePathCallback(lua_State* L)
+static int ResolvePathCallback(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
     const int self_index = 1;
 
-    ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
+    ScriptInstance* i = (ScriptInstance*)dlua_touserdata(L, self_index);
     assert(i);
-    assert(i->m_ContextTableReference != LUA_NOREF);
-    const char* path = luaL_checkstring(L, 2);
+    assert(i->m_ContextTableReference != DLUA_NOREF);
+    const char* path = dluaL_checkstring(L, 2);
     dmScript::PushHash(L, dmHashString64(path));
     return 1;
 }
 
-static int GetURLCallback(lua_State* L)
+static int GetURLCallback(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
     const int self_index = 1;
 
-    ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
+    ScriptInstance* i = (ScriptInstance*)dlua_touserdata(L, self_index);
     assert(i);
-    assert(i->m_ContextTableReference != LUA_NOREF);
-    lua_getglobal(L, DEFAULT_URL);
+    assert(i->m_ContextTableReference != DLUA_NOREF);
+    dlua_getglobal(L, DEFAULT_URL);
     return 1;
 }
 
-static int GetInstaceContextTableRef(lua_State* L)
+static int GetInstaceContextTableRef(dlua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
     const int self_index = 1;
 
-    ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
-    lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
+    ScriptInstance* i = (ScriptInstance*)dlua_touserdata(L, self_index);
+    dlua_pushnumber(L, i ? i->m_ContextTableReference : DLUA_NOREF);
 
     return 1;
 }
 
-static const luaL_reg META_TABLE[] =
+static const dluaL_reg META_TABLE[] =
 {
     {dmScript::META_TABLE_RESOLVE_PATH,             ResolvePathCallback},
     {dmScript::META_TABLE_GET_URL,                  GetURLCallback},
@@ -93,7 +93,7 @@ class ScriptHttpTest : public jc_test_base_class
 public:
     int m_HttpResponseCount;
     dmScript::HContext m_ScriptContext;
-    lua_State* L;
+    dlua_State* L;
     dmMessage::URL m_DefaultURL;
     HWindow m_Window;
     dmResource::HFactory m_Factory;
@@ -175,20 +175,20 @@ protected:
         m_DefaultURL.m_Fragment = dmHashString64("default_fragment");
         dmScript::PushURL(L, m_DefaultURL);
 
-        lua_setglobal(L, DEFAULT_URL);
+        dlua_setglobal(L, DEFAULT_URL);
 
-        int top = lua_gettop(L);
+        int top = dlua_gettop(L);
         (void)top;
-        ScriptInstance* script_instance = (ScriptInstance*)lua_newuserdata(L, sizeof(ScriptInstance));
-        lua_pushvalue(L, -1);
-        script_instance->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        lua_newtable(L);
-        script_instance->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        luaL_newmetatable(L, "ScriptMsgTest");
-        luaL_register(L, 0, META_TABLE);
-        lua_setmetatable(L, -2);
+        ScriptInstance* script_instance = (ScriptInstance*)dlua_newuserdata(L, sizeof(ScriptInstance));
+        dlua_pushvalue(L, -1);
+        script_instance->m_InstanceReference = dmScript::Ref(L, DLUA_REGISTRYINDEX);
+        dlua_newtable(L);
+        script_instance->m_ContextTableReference = dmScript::Ref(L, DLUA_REGISTRYINDEX);
+        dluaL_newmetatable(L, "ScriptMsgTest");
+        dluaL_register(L, 0, META_TABLE);
+        dlua_setmetatable(L, -2);
         dmScript::SetInstance(L);
-        assert(top == lua_gettop(L));
+        assert(top == dlua_gettop(L));
         m_NumberOfFails = 0;
 
         dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
@@ -197,12 +197,12 @@ protected:
     void TearDown() override
     {
         dmScript::GetInstance(L);
-        ScriptInstance* script_instance = (ScriptInstance*)lua_touserdata(L, -1);
-        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ContextTableReference);
-        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-        lua_pop(L, 1);
+        ScriptInstance* script_instance = (ScriptInstance*)dlua_touserdata(L, -1);
+        dmScript::Unref(L, DLUA_REGISTRYINDEX, script_instance->m_ContextTableReference);
+        dmScript::Unref(L, DLUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dlua_pop(L, 1);
 
-        lua_pushnil(L);
+        dlua_pushnil(L);
         dmScript::SetInstance(L);
 
         if (m_DefaultURL.m_Socket) {
@@ -230,7 +230,7 @@ protected:
         dmConfigFile::Delete(m_ConfigFile);
     }
 
-    void SetHttpAddress(lua_State* L)
+    void SetHttpAddress(dlua_State* L)
     {
         char buf[128];
         dmSnPrintf(buf, sizeof(buf), "IP='%s'\n", g_HttpAddress);
@@ -246,14 +246,14 @@ static void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 {
     ScriptHttpTest* test = (ScriptHttpTest*) user_ptr;
     test->m_HttpResponseCount++;
-    lua_State* L = test->L;
+    dlua_State* L = test->L;
     assert(message->m_Descriptor != 0);
     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
 
-    int ref = message->m_UserData2 + LUA_NOREF;
+    int ref = message->m_UserData2 + DLUA_NOREF;
     dmScript::ResolveInInstance(L, ref);
     dmScript::UnrefInInstance(L, ref);
-    lua_gc(L, LUA_GCCOLLECT, 0);
+    dlua_gc(L, DLUA_GCCOLLECT, 0);
 
     dmScript::PushDDF(L, descriptor, (const char*)&message->m_Data[0]);
     int ret = dmScript::PCall(L, 1, 0);
@@ -264,17 +264,17 @@ static void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 
 TEST_F(ScriptHttpTest, TestGetPost)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http.lua.rawc", "build/src/gamesys/test/http"));
     SetHttpAddress(L);
 
-    lua_getglobal(L, "functions");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "test_http");
-    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    if (result == LUA_ERRRUN)
+    dlua_getglobal(L, "functions");
+    ASSERT_EQ(DLUA_TTABLE, dlua_type(L, -1));
+    dlua_getfield(L, -1, "test_http");
+    ASSERT_EQ(DLUA_TFUNCTION, dlua_type(L, -1));
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    if (result == DLUA_ERRRUN)
     {
         ASSERT_TRUE(false);
     }
@@ -282,7 +282,7 @@ TEST_F(ScriptHttpTest, TestGetPost)
     {
         ASSERT_EQ(0, result);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     uint64_t start = dmTime::GetMonotonicTime();
 
@@ -290,9 +290,9 @@ TEST_F(ScriptHttpTest, TestGetPost)
         dmSys::PumpMessageQueue();
         dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
 
-        lua_getglobal(L, "requests_left");
-        int requests_left = lua_tointeger(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "requests_left");
+        int requests_left = dlua_tointeger(L, -1);
+        dlua_pop(L, 1);
 
         if (requests_left == 0) {
             break;
@@ -317,7 +317,7 @@ TEST_F(ScriptHttpTest, TestGetPost)
         }
     }
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 struct SHttpRequestTimeoutGuard // Makes sure it gets reset after gtest returns
@@ -336,17 +336,17 @@ TEST_F(ScriptHttpTest, TestTimeout)
 {
     SHttpRequestTimeoutGuard timeoutguard(1000 * 1000);
 
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http_timeout.lua.rawc", "build/src/gamesys/test/http"));
     SetHttpAddress(L);
 
-    lua_getglobal(L, "functions");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "test_http_timeout");
-    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    if (result == LUA_ERRRUN)
+    dlua_getglobal(L, "functions");
+    ASSERT_EQ(DLUA_TTABLE, dlua_type(L, -1));
+    dlua_getfield(L, -1, "test_http_timeout");
+    ASSERT_EQ(DLUA_TFUNCTION, dlua_type(L, -1));
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    if (result == DLUA_ERRRUN)
     {
         ASSERT_TRUE(false);
     }
@@ -354,16 +354,16 @@ TEST_F(ScriptHttpTest, TestTimeout)
     {
         ASSERT_EQ(0, result);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     uint64_t start = dmTime::GetMonotonicTime();
     while (1) {
         dmSys::PumpMessageQueue();
         dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
 
-        lua_getglobal(L, "requests_left");
-        int requests_left = lua_tointeger(L, -1);
-        lua_pop(L, 1);
+        dlua_getglobal(L, "requests_left");
+        int requests_left = dlua_tointeger(L, -1);
+        dlua_pop(L, 1);
 
         if (requests_left == 0) {
             break;
@@ -384,24 +384,24 @@ TEST_F(ScriptHttpTest, TestTimeout)
         }
     }
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptHttpTest, TestDeletedSocket)
 {
     SHttpRequestTimeoutGuard timeoutguard(300 * 1000);
 
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http.lua.rawc", "build/src/gamesys/test/http"));
     SetHttpAddress(L);
 
-    lua_getglobal(L, "functions");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "test_http");
-    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
-    if (result == LUA_ERRRUN)
+    dlua_getglobal(L, "functions");
+    ASSERT_EQ(DLUA_TTABLE, dlua_type(L, -1));
+    dlua_getfield(L, -1, "test_http");
+    ASSERT_EQ(DLUA_TFUNCTION, dlua_type(L, -1));
+    int result = dmScript::PCall(L, 0, DLUA_MULTRET);
+    if (result == DLUA_ERRRUN)
     {
         ASSERT_TRUE(false);
     }
@@ -409,7 +409,7 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
     {
         ASSERT_EQ(0, result);
     }
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
     dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
     m_DefaultURL.m_Socket = 0;
 
@@ -418,7 +418,7 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
         dmTime::Sleep(10 * 1000);
     }
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 static void Destroy()

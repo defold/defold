@@ -21,8 +21,7 @@
 #include <string.h>
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+#include <dmsdk/dlua/dlua.h>
 }
 
 namespace dmScript
@@ -32,14 +31,14 @@ namespace dmScript
     static const dmhash_t DDF_TYPE_NAME_HASH_VECTOR4   = dmHashString64("vector4");
     static const dmhash_t DDF_TYPE_NAME_HASH_QUAT      = dmHashString64("quat");
     static const dmhash_t DDF_TYPE_NAME_HASH_MATRIX4   = dmHashString64("matrix4");
-    static const dmhash_t DDF_TYPE_NAME_HASH_LUAREF    = dmHashString64("lua_ref");
+    static const dmhash_t DDF_TYPE_NAME_HASH_LUAREF    = dmHashString64("dlua_ref");
 
     dmHashTable<uintptr_t, MessageDecoder> g_Decoders;
 
-    static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
+    static void DoLuaTableToDDF(dlua_State* L, const dmDDF::Descriptor* descriptor,
                                 char* buffer, char** data_start, char** data_last, int index, char* pointer_base);
 
-    static void DefaultLuaValueToDDF(lua_State* L, const dmDDF::FieldDescriptor* f,
+    static void DefaultLuaValueToDDF(dlua_State* L, const dmDDF::FieldDescriptor* f,
                                      char* buffer, char** data_start, char** data_end, const char* default_value, char* pointer_base)
     {
         switch (f->m_Type)
@@ -80,7 +79,7 @@ namespace dmScript
                 int size = strlen(s) + 1;
                 if (*data_start + size > *data_end)
                 {
-                    luaL_error(L, "Message data doesn't fit");
+                    dluaL_error(L, "Message data doesn't fit");
                 }
                 else
                 {
@@ -100,13 +99,13 @@ namespace dmScript
 
             default:
             {
-                luaL_error(L, "Unsupported type %d for default value in field %s", f->m_Type, f->m_Name);
+                dluaL_error(L, "Unsupported type %d for default value in field %s", f->m_Type, f->m_Name);
             }
             break;
         }
     }
 
-    static void UnityValueToDDF(lua_State* L, const dmDDF::FieldDescriptor* f, char* buffer, char** data_start, char** data_end, char* pointer_base)
+    static void UnityValueToDDF(dlua_State* L, const dmDDF::FieldDescriptor* f, char* buffer, char** data_start, char** data_end, char* pointer_base)
     {
         switch (f->m_Type)
         {
@@ -146,7 +145,7 @@ namespace dmScript
                 int size = strlen(s) + 1;
                 if (*data_start + size > *data_end)
                 {
-                    luaL_error(L, "Message data doesn't fit");
+                    dluaL_error(L, "Message data doesn't fit");
                 }
                 else
                 {
@@ -166,24 +165,24 @@ namespace dmScript
 
             default:
             {
-                luaL_error(L, "Unsupported type %d for unity value in field %s", f->m_Type, f->m_Name);
+                dluaL_error(L, "Unsupported type %d for unity value in field %s", f->m_Type, f->m_Name);
             }
             break;
         }
     }
 
-    static void LuaValueToDDF(lua_State* L, const dmDDF::FieldDescriptor* f,
+    static void LuaValueToDDF(dlua_State* L, const dmDDF::FieldDescriptor* f,
                               char* buffer, char** data_start, char** data_end, char* pointer_base)
     {
         char* where = &buffer[f->m_Offset];
-        bool nil_val = lua_isnil(L, -1);
+        bool nil_val = dlua_isnil(L, -1);
         bool array = false;
         uint32_t n = 1;
         uint32_t sz = 0;
 
         if (f->m_Label == dmDDF::LABEL_REPEATED)
         {
-            luaL_checktype(L, -1, LUA_TTABLE);
+            dluaL_checktype(L, -1, DLUA_TTABLE);
 
             switch (f->m_Type)
             {
@@ -216,11 +215,11 @@ namespace dmScript
                     assert(false);
             }
 
-            n = lua_objlen(L, -1);
+            n = dlua_objlen(L, -1);
             *data_start = (char*)DM_ALIGN(*data_start, 16);
             if (*data_start + n * sz > *data_end)
             {
-                luaL_error(L, "Message too large.");
+                dluaL_error(L, "Message too large.");
                 return;
             }
 
@@ -237,7 +236,7 @@ namespace dmScript
         {
             if (array)
             {
-                lua_rawgeti(L, -1, i + 1);
+                dlua_rawgeti(L, -1, i + 1);
             }
 
             switch (f->m_Type)
@@ -247,7 +246,7 @@ namespace dmScript
                     if (nil_val)
                         *((int32_t *) where) = 0;
                     else
-                        *((int32_t *) where) = (int32_t) luaL_checkinteger(L, -1);
+                        *((int32_t *) where) = (int32_t) dluaL_checkinteger(L, -1);
                 }
                 break;
 
@@ -256,7 +255,7 @@ namespace dmScript
                     if (nil_val)
                         *((uint32_t *) where) = 0;
                     else
-                        *((uint32_t *) where) = (uint32_t) luaL_checkinteger(L, -1);
+                        *((uint32_t *) where) = (uint32_t) dluaL_checkinteger(L, -1);
                 }
                 break;
 
@@ -274,7 +273,7 @@ namespace dmScript
                     if (nil_val)
                         *((bool *) where) = false;
                     else
-                        *((bool *) where) = (bool)lua_toboolean(L, -1) ;
+                        *((bool *) where) = (bool)dlua_toboolean(L, -1) ;
                 }
                 break;
 
@@ -283,7 +282,7 @@ namespace dmScript
                     if (nil_val)
                         *((float *) where) = 0.0f;
                     else
-                        *((float *) where) = (float) luaL_checknumber(L, -1);
+                        *((float *) where) = (float) dluaL_checknumber(L, -1);
                 }
                 break;
 
@@ -291,11 +290,11 @@ namespace dmScript
                 {
                     const char* s = "";
                     if (!nil_val)
-                        s = luaL_checkstring(L, -1);
+                        s = dluaL_checkstring(L, -1);
                     int size = strlen(s) + 1;
                     if (*data_start + size > *data_end)
                     {
-                        luaL_error(L, "Message data doesn't fit");
+                        dluaL_error(L, "Message data doesn't fit");
                     }
                     else
                     {
@@ -312,7 +311,7 @@ namespace dmScript
                     if (nil_val)
                         *((int32_t *) where) = 0;
                     else
-                        *((int32_t *) where) = (int32_t) luaL_checkinteger(L, -1);
+                        *((int32_t *) where) = (int32_t) dluaL_checkinteger(L, -1);
                 }
                 break;
 
@@ -350,7 +349,7 @@ namespace dmScript
                         }
                         else
                         {
-                            DoLuaTableToDDF(L, d, where, data_start, data_end, lua_gettop(L), pointer_base);
+                            DoLuaTableToDDF(L, d, where, data_start, data_end, dlua_gettop(L), pointer_base);
                         }
                     }
                 }
@@ -358,20 +357,20 @@ namespace dmScript
 
                 default:
                 {
-                    luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
+                    dluaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
                 }
                 break;
             }
 
             if (array)
             {
-                lua_pop(L, 1);
+                dlua_pop(L, 1);
                 where += sz;
             }
         }
     }
 
-    static void DoDefaultLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
+    static void DoDefaultLuaTableToDDF(dlua_State* L, const dmDDF::Descriptor* descriptor,
                                        char* buffer, char** data_start, char** data_last)
     {
         for (uint32_t i = 0; i < descriptor->m_FieldCount; ++i)
@@ -385,18 +384,18 @@ namespace dmScript
         }
     }
 
-    static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
+    static void DoLuaTableToDDF(dlua_State* L, const dmDDF::Descriptor* descriptor,
                                 char* buffer, char** data_start, char** data_last, int index, char* pointer_base)
     {
-        luaL_checktype(L, index, LUA_TTABLE);
+        dluaL_checktype(L, index, DLUA_TTABLE);
 
         for (uint32_t i = 0; i < descriptor->m_FieldCount; ++i)
         {
             const dmDDF::FieldDescriptor* f = &descriptor->m_Fields[i];
 
-            lua_pushstring(L, f->m_Name);
-            lua_rawget(L, index);
-            if (lua_isnil(L, -1))
+            dlua_pushstring(L, f->m_Name);
+            dlua_rawget(L, index);
+            if (dlua_isnil(L, -1))
             {
                 if (f->m_Label == dmDDF::LABEL_OPTIONAL)
                 {
@@ -417,26 +416,26 @@ namespace dmScript
                 }
                 else
                 {
-                    luaL_error(L, "Field %s not specified in table", f->m_Name);
+                    dluaL_error(L, "Field %s not specified in table", f->m_Name);
                 }
             }
             else
             {
                 LuaValueToDDF(L, f, buffer, data_start, data_last, pointer_base);
             }
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
         }
     }
 
-    uint32_t CheckDDF(lua_State* L, const dmDDF::Descriptor* descriptor, char* buffer, uint32_t buffer_size, int index)
+    uint32_t CheckDDF(dlua_State* L, const dmDDF::Descriptor* descriptor, char* buffer, uint32_t buffer_size, int index)
     {
         if (index < 0)
-            index = lua_gettop(L) + 1 + index;
+            index = dlua_gettop(L) + 1 + index;
         uint32_t size = descriptor->m_Size;
 
         if (size > buffer_size)
         {
-            luaL_error(L, "sizeof(%s) > %d", descriptor->m_Name, buffer_size);
+            dluaL_error(L, "sizeof(%s) > %d", descriptor->m_Name, buffer_size);
         }
 
         char* data_start = buffer + size;
@@ -446,7 +445,7 @@ namespace dmScript
         return data_start - buffer;
     }
 
-    void DDFToLuaValue(lua_State* L, const dmDDF::FieldDescriptor* f, const char* data, uintptr_t pointers_offset)
+    void DDFToLuaValue(dlua_State* L, const dmDDF::FieldDescriptor* f, const char* data, uintptr_t pointers_offset)
     {
         DM_PROFILE("DDFToLuaValue");
 
@@ -462,7 +461,7 @@ namespace dmScript
             count = repeated->m_ArrayCount;
             array = true;
 
-            lua_createtable(L, count, 0);
+            dlua_createtable(L, count, 0);
         }
         else
         {
@@ -484,13 +483,13 @@ namespace dmScript
                 case dmDDF::TYPE_ENUM:
                 case dmDDF::TYPE_INT32:
                 {
-                    lua_pushinteger(L, iptr[i]);
+                    dlua_pushinteger(L, iptr[i]);
                 }
                 break;
 
                 case dmDDF::TYPE_UINT32:
                 {
-                    lua_pushinteger(L, (int)uptr[i]);
+                    dlua_pushinteger(L, (int)uptr[i]);
                 }
                 break;
 
@@ -502,13 +501,13 @@ namespace dmScript
 
                 case dmDDF::TYPE_BOOL:
                 {
-                    lua_pushboolean(L, bptr[i]);
+                    dlua_pushboolean(L, bptr[i]);
                 }
                 break;
 
                 case dmDDF::TYPE_FLOAT:
                 {
-                    lua_pushnumber(L, fptr[i]);
+                    dlua_pushnumber(L, fptr[i]);
                 }
                 break;
 
@@ -516,7 +515,7 @@ namespace dmScript
                 {
                     uintptr_t* ptr = (uintptr_t*) where;
                     uintptr_t loc = ptr[i] + pointers_offset;
-                    lua_pushstring(L, (const char*) loc);
+                    dlua_pushstring(L, (const char*) loc);
                 }
                 break;
 
@@ -546,16 +545,16 @@ namespace dmScript
                     }
                     else if (d->m_NameHash == DDF_TYPE_NAME_HASH_LUAREF)
                     {
-                        dmScriptDDF::LuaRef* lua_ref = (dmScriptDDF::LuaRef*) ptr;
-                        if (lua_ref->m_Ref)
+                        dmScriptDDF::LuaRef* dlua_ref = (dmScriptDDF::LuaRef*) ptr;
+                        if (dlua_ref->m_Ref)
                         {
-                            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref->m_ContextTableRef);
-                            lua_rawgeti(L, -1, lua_ref->m_Ref);
-                            lua_remove(L, -2);
+                            dlua_rawgeti(L, DLUA_REGISTRYINDEX, dlua_ref->m_ContextTableRef);
+                            dlua_rawgeti(L, -1, dlua_ref->m_Ref);
+                            dlua_remove(L, -2);
                         }
                         else
                         {
-                            lua_pushnil(L);
+                            dlua_pushnil(L);
                         }
                     }
                     else
@@ -564,30 +563,30 @@ namespace dmScript
                         uint32_t field_count = d->m_FieldCount;
                         const dmDDF::FieldDescriptor* fields = d->m_Fields;
 
-                        lua_createtable(L, 0, field_count);
+                        dlua_createtable(L, 0, field_count);
                         for (uint32_t j = 0; j < field_count; ++j)
                         {
                             const dmDDF::FieldDescriptor* f2 = &fields[j];
                             DDFToLuaValue(L, &fields[j], ptr, pointers_offset);
-                            lua_setfield(L, -2, f2->m_Name);
+                            dlua_setfield(L, -2, f2->m_Name);
                         }
                     }
                 }
                 break;
                 default:
                 {
-                    luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
+                    dluaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
                 }
             }
 
             if (array)
             {
-                lua_rawseti(L, -2, i+1);
+                dlua_rawseti(L, -2, i+1);
             }
         }
     }
 
-    void PushDDFNoDecoder(lua_State* L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
+    void PushDDFNoDecoder(dlua_State* L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
     {
         DM_PROFILE("PushDDFNoDecoder");
         uintptr_t pointers_offset = 0;
@@ -597,30 +596,30 @@ namespace dmScript
         uint32_t field_count = d->m_FieldCount;
         const dmDDF::FieldDescriptor* fields = d->m_Fields;
 
-        lua_createtable(L, 0, field_count);
+        dlua_createtable(L, 0, field_count);
         for (uint32_t i = 0; i < field_count; ++i)
         {
             const dmDDF::FieldDescriptor* f = &fields[i];
 
             DDFToLuaValue(L, &fields[i], data, pointers_offset);
-            lua_setfield(L, -2, f->m_Name);
+            dlua_setfield(L, -2, f->m_Name);
         }
     }
 
-    void PushDDF(lua_State* L, const dmDDF::Descriptor* d, const char* data)
+    void PushDDF(dlua_State* L, const dmDDF::Descriptor* d, const char* data)
     {
         // TODO: Can/should we use the decoders here too?
         PushDDF(L, d, data, false);
     }
 
-    void PushDDF(lua_State* L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
+    void PushDDF(dlua_State* L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
     {
         DM_PROFILE("PushDDF");
         MessageDecoder* decoder = g_Decoders.Get((uintptr_t) d);
         if (decoder) {
             Result r = (*decoder)(L, d, data); // May call PushDDFNoDecoder with different value on pointers_are_offsets
             if (r != RESULT_OK) {
-                luaL_error(L, "Failed to decode %s message (%d)", d->m_Name, r);
+                dluaL_error(L, "Failed to decode %s message (%d)", d->m_Name, r);
             }
         } else {
             PushDDFNoDecoder(L, d, data, pointers_are_offsets);

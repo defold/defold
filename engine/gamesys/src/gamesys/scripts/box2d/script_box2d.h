@@ -15,6 +15,7 @@
 #ifndef DM_GAMESYS_SCRIPT_BOX2D_H
 #define DM_GAMESYS_SCRIPT_BOX2D_H
 
+#include <dmsdk/dlua/dlua.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
 
@@ -28,10 +29,10 @@ namespace dmGameSystem
     float GetPhysicsScale();
     float GetInvPhysicsScale();
 
-    void  PushWorld(struct lua_State* L, void* world);
-    void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
+    void  PushWorld(dlua_State* L, void* world);
+    void  PushBody(dlua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
 
-    void  ScriptBox2DInitializeBody(struct lua_State* L);
+    void  ScriptBox2DInitializeBody(dlua_State* L);
 }
 
 #endif // DM_GAMESYS_SCRIPT_BOX2D_H

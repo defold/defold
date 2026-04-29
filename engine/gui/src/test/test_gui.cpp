@@ -26,6 +26,7 @@
 #include <dlib/log.h>
 #include <dlib/testutil.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlua/dlua.h>
 #include <particle/particle.h>
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
@@ -34,12 +35,6 @@
 #include "test_gui_ddf.h"
 
 #include "test_gui_shared.h"
-
-extern "C"
-{
-#include "lua/lua.h"
-#include "lua/lauxlib.h"
-}
 
 using namespace dmVMath;
 
@@ -2148,11 +2143,11 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
     message->m_UserData1 = 0;
     message->m_UserData2 = 0;
 
-    lua_State* L = lua_open();
-    lua_newtable(L);
-    lua_pushstring(L, "a");
-    lua_pushinteger(L, 456);
-    lua_settable(L, -3);
+    dlua_State* L = dlua_open();
+    dlua_newtable(L);
+    dlua_pushstring(L, "a");
+    dlua_pushinteger(L, 456);
+    dlua_settable(L, -3);
     message->m_DataSize = dmScript::CheckTable(L, (char*)message->m_Data, 256, -1);
     ASSERT_GT(message->m_DataSize, 0U);
     ASSERT_LE(message->m_DataSize, 256u);
@@ -2163,7 +2158,7 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    lua_close(L);
+    dlua_close(L);
 }
 
 TEST_F(dmGuiTest, SaveNode)
@@ -2418,11 +2413,11 @@ TEST_F(dmGuiTest, Bug352)
     message->m_UserData1 = 0;
     message->m_UserData2 = 0;
 
-    lua_State* L = lua_open();
-    lua_newtable(L);
-    lua_pushstring(L, "score");
-    lua_pushinteger(L, 123);
-    lua_settable(L, -3);
+    dlua_State* L = dlua_open();
+    dlua_newtable(L);
+    dlua_pushstring(L, "score");
+    dlua_pushinteger(L, 123);
+    dlua_settable(L, -3);
 
     message->m_DataSize = dmScript::CheckTable(L, (char*)message->m_Data, 256, -1);
     ASSERT_GT(message->m_DataSize, 0U);
@@ -2436,7 +2431,7 @@ TEST_F(dmGuiTest, Bug352)
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
-    lua_close(L);
+    dlua_close(L);
 }
 
 TEST_F(dmGuiTest, Scaling)

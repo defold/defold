@@ -44,7 +44,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromText(const char *text)
 
 TEST_F(ScriptModuleTest, TestModule)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     const char* script = "module(..., package.seeall)\n function f1()\n return 123\n end\n";
     const char* script_file_name = "x.test_mod";
     ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, script_file_name));
@@ -52,12 +52,12 @@ TEST_F(ScriptModuleTest, TestModule)
     ASSERT_EQ(dmScript::RESULT_OK, ret);
     ASSERT_TRUE(dmScript::ModuleLoaded(m_Context, script_file_name));
     ASSERT_TRUE(RunFile(L, "test_module.luac"));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptModuleTest, TestReload)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     const char* script = "module(..., package.seeall)\n function f1()\n return 123\n end\n";
     const char* script_reload = "module(..., package.seeall)\n reloaded = 1010\n function f1()\n return 456\n end\n";
     const char* script_file_name = "x.test_mod";
@@ -69,19 +69,19 @@ TEST_F(ScriptModuleTest, TestReload)
 
     ret = dmScript::ReloadModule(m_Context, LuaSourceFromText(script_reload), dmHashString64(script_file_name));
     ASSERT_EQ(dmScript::RESULT_OK, ret);
-    lua_getfield(L, LUA_GLOBALSINDEX, "x");
-    lua_getfield(L, -1, "test_mod");
-    lua_getfield(L, -1, "reloaded");
-    int reloaded = luaL_checkinteger(L, -1);
+    dlua_getfield(L, DLUA_GLOBALSINDEX, "x");
+    dlua_getfield(L, -1, "test_mod");
+    dlua_getfield(L, -1, "reloaded");
+    int reloaded = dluaL_checkinteger(L, -1);
     ASSERT_EQ(1010, reloaded);
-    lua_pop(L, 3);
+    dlua_pop(L, 3);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptModuleTest, TestReloadReturn)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     const char* script = "local M = {}\nreturn M\n";
     const char* script_file_name = "x.test_mod";
     ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, script_file_name));
@@ -92,12 +92,12 @@ TEST_F(ScriptModuleTest, TestReloadReturn)
     ret = dmScript::ReloadModule(m_Context, LuaSourceFromText(script), dmHashString64(script_file_name));
     ASSERT_EQ(dmScript::RESULT_OK, ret);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptModuleTest, TestReloadFail)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     const char* script = "module(..., package.seeall)\n reloaded = 1010\n function f1()\n return 123\n end\n";
     const char* script_reload = "module(..., package.seeall)\n reloaded = -1\n function f1()\n return 123\n en\n"; // NOTE: en instead of end
     const char* script_file_name = "x.test_mod";
@@ -109,30 +109,30 @@ TEST_F(ScriptModuleTest, TestReloadFail)
 
     ret = dmScript::ReloadModule(m_Context, LuaSourceFromText(script_reload), dmHashString64(script_file_name));
     ASSERT_EQ(dmScript::RESULT_LUA_ERROR, ret);
-    lua_getfield(L, LUA_GLOBALSINDEX, "x");
-    lua_getfield(L, -1, "test_mod");
-    lua_getfield(L, -1, "reloaded");
-    int reloaded = luaL_checkinteger(L, -1);
+    dlua_getfield(L, DLUA_GLOBALSINDEX, "x");
+    dlua_getfield(L, -1, "test_mod");
+    dlua_getfield(L, -1, "reloaded");
+    int reloaded = dluaL_checkinteger(L, -1);
     ASSERT_EQ(1010, reloaded);
-    lua_pop(L, 3);
+    dlua_pop(L, 3);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(ScriptModuleTest, TestModuleMissing)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     ASSERT_FALSE(RunFile(L, "test_module_missing.luac"));
-    ASSERT_EQ(top+1, lua_gettop(L));
-    lua_pop(L, lua_gettop(L)-top);
+    ASSERT_EQ(top+1, dlua_gettop(L));
+    dlua_pop(L, dlua_gettop(L)-top);
 }
 
 TEST_F(ScriptModuleTest, TestReloadNotLoaded)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
     dmScript::Result ret = dmScript::ReloadModule(m_Context, LuaSourceFromText(""), dmHashString64("not_loaded"));
     ASSERT_EQ(dmScript::RESULT_MODULE_NOT_LOADED, ret);
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 extern "C" void dmExportedSymbols();

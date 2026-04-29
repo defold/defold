@@ -46,19 +46,19 @@ class LuaTableTest : public dmScriptTest::ScriptTest
 
 TEST_F(LuaTableTest, EmptyTable)
 {
-    lua_newtable(L);
+    dlua_newtable(L);
     char DM_ALIGNED(16) buf[8 + 4];
     uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
     // 4 bytes for count
     ASSERT_EQ(12U, buffer_used);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 /**
  * A helper function used when validating serialized data in original or v1 format.
  */
 typedef double (*TableGenFunc)(double);
-static int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, TableGenFunc fn, int key_stride)
+static int ReadSerializedTable(dlua_State* L, uint8_t* source, uint32_t source_length, TableGenFunc fn, int key_stride)
 {
     int error = 0;
     const double epsilon = 1.0e-7f;
@@ -68,18 +68,18 @@ static int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_le
 
     for (uint32_t i=0; i<0xfff; ++i)
     {
-        lua_pushnumber(L, i * key_stride);
-        lua_gettable(L, -2);
-        EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
-        if  (LUA_TNUMBER != lua_type(L, -1))
+        dlua_pushnumber(L, i * key_stride);
+        dlua_gettable(L, -2);
+        EXPECT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+        if  (DLUA_TNUMBER != dlua_type(L, -1))
         {
             printf("Invalid key on row %d\n", i);
         }
-        double value_read = lua_tonumber(L, -1);
+        double value_read = dlua_tonumber(L, -1);
         double value_expected = fn(2.0 * M_PI * (double)i / (double)0xffff);
         double diff = fabs(value_read - value_expected);
         EXPECT_GT(epsilon, diff);
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
 
         if (epsilon < diff)
         {
@@ -88,12 +88,12 @@ static int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_le
         }
     }
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     return error;
 }
 
-static int ReadUnsupportedVersion(lua_State* L)
+static int ReadUnsupportedVersion(dlua_State* L)
 {
     dmScript::PushTable(L, (const char*)TABLE_V818192_DAT, TABLE_V818192_DAT_SIZE);
     return 1;
@@ -101,88 +101,88 @@ static int ReadUnsupportedVersion(lua_State* L)
 
 
 // The v0.0 tables were generated with dense keys.
-static int ReadCosTableDataOriginal(lua_State* L)
+static int ReadCosTableDataOriginal(dlua_State* L)
 {
     return ReadSerializedTable(L, TABLE_COS_V0_DAT, TABLE_COS_V0_DAT_SIZE, cos, 1);
 }
 
-static int ReadSinTableDataOriginal(lua_State* L)
+static int ReadSinTableDataOriginal(dlua_State* L)
 {
     return ReadSerializedTable(L, TABLE_SIN_V0_DAT, TABLE_SIN_V0_DAT_SIZE, sin, 1);
 }
 
 TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
 {
-    int result = lua_cpcall(L, ReadUnsupportedVersion, 0x0);
+    int result = dlua_cpcall(L, ReadUnsupportedVersion, 0x0);
     ASSERT_NE(0, result);
     char str[256];
     dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 5);
-    ASSERT_STREQ(str, lua_tostring(L, -1));
+    ASSERT_STREQ(str, dlua_tostring(L, -1));
     // pop error message
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, DeprecatedVersion0)
 {
-    int result = lua_cpcall(L, ReadCosTableDataOriginal, 0x0);
-    ASSERT_EQ(LUA_ERRRUN, result);
+    int result = dlua_cpcall(L, ReadCosTableDataOriginal, 0x0);
+    ASSERT_EQ(DLUA_ERRRUN, result);
 
-    result = lua_cpcall(L, ReadSinTableDataOriginal, 0x0);
-    ASSERT_EQ(LUA_ERRRUN, result);
+    result = dlua_cpcall(L, ReadSinTableDataOriginal, 0x0);
+    ASSERT_EQ(DLUA_ERRRUN, result);
 }
 
 
 // The v1 tables were generated with sparse keys: every other integer over the defined range.
-int ReadCosTableDataVersion01(lua_State* L)
+int ReadCosTableDataVersion01(dlua_State* L)
 {
     return ReadSerializedTable(L, TABLE_COS_V1_DAT, TABLE_COS_V1_DAT_SIZE, cos, 2);
 }
 
 
-int ReadSinTableDataVersion01(lua_State* L)
+int ReadSinTableDataVersion01(dlua_State* L)
 {
     return ReadSerializedTable(L, TABLE_SIN_V1_DAT, TABLE_SIN_V1_DAT_SIZE, sin, 2);
 }
 
 TEST_F(LuaTableTest, VerifyCosTable01)
 {
-    int result = lua_cpcall(L, ReadCosTableDataVersion01, 0x0);
+    int result = dlua_cpcall(L, ReadCosTableDataVersion01, 0x0);
     ASSERT_EQ(0, result);
 }
 
 TEST_F(LuaTableTest, VerifySinTable01)
 {
-    int result = lua_cpcall(L, ReadSinTableDataVersion01, 0x0);
+    int result = dlua_cpcall(L, ReadSinTableDataVersion01, 0x0);
     ASSERT_EQ(0, result);
 }
 
 TEST_F(LuaTableTest, TestSerializeLargeNumbers)
 {
-    lua_Number numbers[] = {0, -1, -4294967295, 4294967295, 0x1234, 0x8765, 0xffff, 0x12345678, 0x7fffffff, 0x87654321, 268435456, 0xffffffff, 0xfffffffe};
-    const uint32_t count = sizeof(numbers) / sizeof(lua_Number);
+    dlua_Number numbers[] = {0, -1, -4294967295, 4294967295, 0x1234, 0x8765, 0xffff, 0x12345678, 0x7fffffff, 0x87654321, 268435456, 0xffffffff, 0xfffffffe};
+    const uint32_t count = sizeof(numbers) / sizeof(dlua_Number);
 
-    lua_newtable(L);
+    dlua_newtable(L);
     for (uint32_t i=0;i!=count;i++)
     {
         // same key & value
-        lua_pushnumber(L, numbers[i]);
-        lua_pushnumber(L, numbers[i]);
-        lua_settable(L, -3);
+        dlua_pushnumber(L, numbers[i]);
+        dlua_pushnumber(L, numbers[i]);
+        dlua_settable(L, -3);
     }
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_Number found[count] = { 0 };
+    dlua_Number found[count] = { 0 };
 
-    lua_pushnil(L);
-    while (lua_next(L, -2) != 0)
+    dlua_pushnil(L);
+    while (dlua_next(L, -2) != 0)
     {
-        lua_Number value = lua_tonumber(L, -1);
-        lua_Number key = lua_tonumber(L, -2);
+        dlua_Number value = dlua_tonumber(L, -1);
+        dlua_Number key = dlua_tonumber(L, -2);
         ASSERT_EQ(key, value);
 
         for (uint32_t i=0;i!=count;i++)
@@ -191,27 +191,27 @@ TEST_F(LuaTableTest, TestSerializeLargeNumbers)
                 found[i]++;
         }
 
-        lua_pop(L, 1);
+        dlua_pop(L, 1);
     }
 
     for (uint32_t i=0;i!=count;i++)
         ASSERT_EQ(found[i], 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
-const uint32_t IOOB_BUFFER_SIZE = 8 + 2 + 2 + (sizeof(char) + sizeof(char) + 5 * sizeof(char) + sizeof(lua_Number));
+const uint32_t IOOB_BUFFER_SIZE = 8 + 2 + 2 + (sizeof(char) + sizeof(char) + 5 * sizeof(char) + sizeof(dlua_Number));
 
-static int ProduceIndexOutOfBounds(lua_State *L)
+static int ProduceIndexOutOfBounds(dlua_State *L)
 {
     char DM_ALIGNED(16) buf[IOOB_BUFFER_SIZE];
-    lua_newtable(L);
+    dlua_newtable(L);
     // invalid key
-    lua_pushnumber(L, 0xffffffffLL+1);
+    dlua_pushnumber(L, 0xffffffffLL+1);
     // value
-    lua_pushnumber(L, 0);
+    dlua_pushnumber(L, 0);
     // store pair
-    lua_settable(L, -3);
+    dlua_settable(L, -3);
     uint32_t buffer_used = dmScript::CheckTable(L, buf, IOOB_BUFFER_SIZE, -1);
     // expect it to fail, avoid warning
     (void)buffer_used;
@@ -220,164 +220,164 @@ static int ProduceIndexOutOfBounds(lua_State *L)
 
 TEST_F(LuaTableTest, IndexOutOfBounds)
 {
-    int result = lua_cpcall(L, ProduceIndexOutOfBounds, 0x0);
+    int result = dlua_cpcall(L, ProduceIndexOutOfBounds, 0x0);
     // 2 bytes for count
     ASSERT_NE(0, result);
     char expected_error[64];
     dmSnPrintf(expected_error, 64, "index out of bounds, max is %d", 0xffffffff);
-    ASSERT_STREQ(expected_error, lua_tostring(L, -1));
+    ASSERT_STREQ(expected_error, dlua_tostring(L, -1));
     // pop error message
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
-static int LuaCheckTable(lua_State* L) {
+static int LuaCheckTable(dlua_State* L) {
   int index = 1;
-  char* buf = (char*) lua_topointer(L, 2);
-  int buffer_size = (int) lua_tonumber(L, 3);
+  char* buf = (char*) dlua_topointer(L, 2);
+  int buffer_size = (int) dlua_tonumber(L, 3);
   dmScript::CheckTable(L, buf, buffer_size, index);
   return 0;
 }
 
-#define abs_index(L, i) ((i) > 0 || (i) <= LUA_REGISTRYINDEX ? (i) : \
-             lua_gettop(L) + (i) + 1)
+#define abs_index(L, i) ((i) > 0 || (i) <= DLUA_REGISTRYINDEX ? (i) : \
+             dlua_gettop(L) + (i) + 1)
 
-static int PCallCheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index, bool do_log)
+static int PCallCheckTable(dlua_State* L, char* buffer, uint32_t buffer_size, int index, bool do_log)
 {
   index = abs_index(L, index);
 
-  int oldtop = lua_gettop(L);
-  lua_pushcfunction(L, LuaCheckTable);
-  lua_pushvalue(L, index); // add table again...
-  lua_pushlightuserdata(L, buffer);
-  lua_pushnumber(L, buffer_size);
-  int result = lua_pcall(L, 3, 0, 0);
+  int oldtop = dlua_gettop(L);
+  dlua_pushcfunction(L, LuaCheckTable);
+  dlua_pushvalue(L, index); // add table again...
+  dlua_pushlightuserdata(L, buffer);
+  dlua_pushnumber(L, buffer_size);
+  int result = dlua_pcall(L, 3, 0, 0);
   if (result != 0) {
     if (do_log)
-        printf("error %s\n", lua_tostring(L, oldtop + 1));
-    lua_pop(L, 1);
+        printf("error %s\n", dlua_tostring(L, oldtop + 1));
+    dlua_pop(L, 1);
   }
-  assert(lua_gettop(L) == oldtop);
+  assert(dlua_gettop(L) == oldtop);
   return result;
 }
 
 TEST_F(LuaTableTest, Table01)
 {
     // Create table
-    lua_newtable(L);
-    lua_pushinteger(L, 123);
-    lua_setfield(L, -2, "a");
+    dlua_newtable(L);
+    dlua_pushinteger(L, 123);
+    dlua_setfield(L, -2, "a");
 
-    lua_pushinteger(L, 456);
-    lua_setfield(L, -2, "b");
+    dlua_pushinteger(L, 456);
+    dlua_setfield(L, -2, "b");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "a");
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(123, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    dlua_getfield(L, -1, "a");
+    ASSERT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+    ASSERT_EQ(123, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
-    lua_getfield(L, -1, "b");
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(456, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    dlua_getfield(L, -1, "b");
+    ASSERT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+    ASSERT_EQ(456, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     // Create table again
-    lua_newtable(L);
-    lua_pushinteger(L, 123);
-    lua_setfield(L, -2, "a");
-    lua_pushinteger(L, 456);
-    lua_setfield(L, -2, "b");
+    dlua_newtable(L);
+    dlua_pushinteger(L, 123);
+    dlua_setfield(L, -2, "a");
+    dlua_pushinteger(L, 456);
+    dlua_setfield(L, -2, "b");
 
     int result = PCallCheckTable(L, g_Buf, buffer_used-1, -1, true);
 
     ASSERT_NE(result, 0);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, Table02)
 {
     // Create table
-    lua_newtable(L);
-    lua_pushboolean(L, 1);
-    lua_setfield(L, -2, "foo");
+    dlua_newtable(L);
+    dlua_pushboolean(L, 1);
+    dlua_setfield(L, -2, "foo");
 
-    lua_pushstring(L, "kalle");
-    lua_setfield(L, -2, "foo2");
+    dlua_pushstring(L, "kalle");
+    dlua_setfield(L, -2, "foo2");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "foo");
-    ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
-    ASSERT_EQ(1, lua_toboolean(L, -1));
-    lua_pop(L, 1);
+    dlua_getfield(L, -1, "foo");
+    ASSERT_EQ(DLUA_TBOOLEAN, dlua_type(L, -1));
+    ASSERT_EQ(1, dlua_toboolean(L, -1));
+    dlua_pop(L, 1);
 
-    lua_getfield(L, -1, "foo2");
-    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
-    ASSERT_STREQ("kalle", lua_tostring(L, -1));
-    lua_pop(L, 1);
+    dlua_getfield(L, -1, "foo2");
+    ASSERT_EQ(DLUA_TSTRING, dlua_type(L, -1));
+    ASSERT_STREQ("kalle", dlua_tostring(L, -1));
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     // Create table again
-    lua_newtable(L);
-    lua_pushboolean(L, 1);
-    lua_setfield(L, -2, "foo");
+    dlua_newtable(L);
+    dlua_pushboolean(L, 1);
+    dlua_setfield(L, -2, "foo");
 
-    lua_pushstring(L, "kalle");
-    lua_setfield(L, -2, "foo2");
+    dlua_pushstring(L, "kalle");
+    dlua_setfield(L, -2, "foo2");
 
     int result = PCallCheckTable(L, g_Buf, buffer_used-1, -1, true);
 
     ASSERT_NE(result, 0);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, case1308)
 {
     // Create table
-    lua_newtable(L);
-    lua_pushstring(L, "ab");
-    lua_setfield(L, -2, "a");
+    dlua_newtable(L);
+    dlua_pushstring(L, "ab");
+    dlua_setfield(L, -2, "a");
 
-    lua_newtable(L);
-    lua_pushinteger(L, 123);
-    lua_setfield(L, -2, "x");
+    dlua_newtable(L);
+    dlua_pushinteger(L, 123);
+    dlua_setfield(L, -2, "x");
 
-    lua_setfield(L, -2, "t");
+    dlua_setfield(L, -2, "t");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "a");
-    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
-    ASSERT_STREQ("ab", lua_tostring(L, -1));
-    lua_pop(L, 1);
+    dlua_getfield(L, -1, "a");
+    ASSERT_EQ(DLUA_TSTRING, dlua_type(L, -1));
+    ASSERT_STREQ("ab", dlua_tostring(L, -1));
+    dlua_pop(L, 1);
 
-    lua_getfield(L, -1, "t");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "x");
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(123, lua_tonumber(L, -1));
-    lua_pop(L, 1);
-    lua_pop(L, 1);
+    dlua_getfield(L, -1, "t");
+    ASSERT_EQ(DLUA_TTABLE, dlua_type(L, -1));
+    dlua_getfield(L, -1, "x");
+    ASSERT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+    ASSERT_EQ(123, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, NestedTableSizeCheck)
@@ -395,26 +395,26 @@ TEST_F(LuaTableTest, NestedTableSizeCheck)
      *
      */
     // create outer table
-    lua_newtable(L);
+    dlua_newtable(L);
 
     // foo = 1234
-    lua_pushnumber(L, 1234);
-    lua_setfield(L, -2, "foo");
+    dlua_pushnumber(L, 1234);
+    dlua_setfield(L, -2, "foo");
 
     // create inner table "b"
-    lua_newtable(L);
+    dlua_newtable(L);
 
     // a = 1234
-    lua_pushnumber(L, 1234);
-    lua_setfield(L, -2, "a");
+    dlua_pushnumber(L, 1234);
+    dlua_setfield(L, -2, "a");
 
     // b = {}
-    lua_setfield(L, -2, "b");
+    dlua_setfield(L, -2, "b");
 
     uint32_t calculated_table_size = dmScript::CheckTableSize(L, -1);
     uint32_t actual_table_size = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     ASSERT_EQ(calculated_table_size, actual_table_size);
 }
@@ -422,43 +422,43 @@ TEST_F(LuaTableTest, NestedTableSizeCheck)
 TEST_F(LuaTableTest, KeyTypesTableSizeCheck)
 {
     // create table
-    lua_newtable(L);
+    dlua_newtable(L);
 
     // string key
-    lua_pushnumber(L, 1234);
-    lua_setfield(L, -2, "foo");
+    dlua_pushnumber(L, 1234);
+    dlua_setfield(L, -2, "foo");
 
     // hash key
     dmScript::PushHash(L, dmHashString64("key1"));
-    lua_pushnumber(L, 1234);
-    lua_settable(L, -3);
+    dlua_pushnumber(L, 1234);
+    dlua_settable(L, -3);
 
     // number key
-    lua_pushnumber(L, 128);
-    lua_pushnumber(L, 1234);
-    lua_settable(L, -3);
+    dlua_pushnumber(L, 128);
+    dlua_pushnumber(L, 1234);
+    dlua_settable(L, -3);
 
     // negative, bigger number key
-    lua_pushnumber(L, -123456789);
-    lua_pushnumber(L, 1234);
-    lua_settable(L, -3);
+    dlua_pushnumber(L, -123456789);
+    dlua_pushnumber(L, 1234);
+    dlua_settable(L, -3);
 
     uint32_t calculated_table_size = dmScript::CheckTableSize(L, -1);
     uint32_t actual_table_size = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     ASSERT_EQ(calculated_table_size, actual_table_size);
 }
 
 static int g_CustomPanicFunctionCalled = 0;
-static int CustomPanicFn(lua_State* L)
+static int CustomPanicFn(dlua_State* L)
 {
-    fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s) (custom CustomPanicFn)\n", lua_tostring(L, -1));
+    fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s) (custom CustomPanicFn)\n", dlua_tostring(L, -1));
     return ++g_CustomPanicFunctionCalled; // In our case, we pass this to the longjmp, and we check it with setjmp()
 }
 
-static void SetupCyclicTable(lua_State* L)
+static void SetupCyclicTable(dlua_State* L)
 {
     /**
      *  local x1 = {}
@@ -467,23 +467,23 @@ static void SetupCyclicTable(lua_State* L)
      *  x2.x1 = x1
      */
 
-    lua_newtable(L); // x1
+    dlua_newtable(L); // x1
     // -1: x1
 
-    lua_newtable(L); // x2
+    dlua_newtable(L); // x2
     // -2: x1
     // -1: x2
 
-    lua_pushvalue(L, -2);
+    dlua_pushvalue(L, -2);
     // -3: x1
     // -2: x2
     // -1: x1
 
-    lua_setfield(L, -2, "x1"); // x2.x1 = x1
+    dlua_setfield(L, -2, "x1"); // x2.x1 = x1
     // -2: x1
     // -1: x2
 
-    lua_setfield(L, -2, "x2"); // x1.x2 = x2
+    dlua_setfield(L, -2, "x2"); // x1.x2 = x2
     // -1: x1
 }
 
@@ -492,7 +492,7 @@ TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
     g_CustomPanicFunctionCalled = 0;
     SetupCyclicTable(L);
 
-    int scope_top = lua_gettop(L);
+    int scope_top = dlua_gettop(L);
 
     printf("\nExpected error begin -->\n");
 #if !defined(_WIN32)
@@ -522,8 +522,8 @@ TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
     printf("<-- Expected error end\n");
 
     ASSERT_EQ(1, g_CustomPanicFunctionCalled);
-    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
-    lua_pop(L, 1);
+    dlua_pop(L, dlua_gettop(L) - scope_top); // Pop any items that the function put on the stack
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, CyclicTable_CheckTable)
@@ -531,7 +531,7 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
     g_CustomPanicFunctionCalled = 0;
     SetupCyclicTable(L);
 
-    int scope_top = lua_gettop(L);
+    int scope_top = dlua_gettop(L);
 
     printf("\nExpected error begin -->\n");
 #if !defined(_WIN32)
@@ -561,8 +561,8 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
     printf("<-- Expected error end\n");
 
     ASSERT_EQ(1, g_CustomPanicFunctionCalled);
-    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
-    lua_pop(L, 1);
+    dlua_pop(L, dlua_gettop(L) - scope_top); // Pop any items that the function put on the stack
+    dlua_pop(L, 1);
 }
 
 
@@ -580,20 +580,20 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
 // Once done, copy the file and add it to the repo / wscript so we can test against it
 // TEST_F(LuaTableTest, TSTRING_GenerateData)
 // {
-//     int top = lua_gettop(L);
+//     int top = dlua_gettop(L);
 
 //     ASSERT_TRUE(RunString(L, "TEST_PATH = 'src/test/data/table_tstring_v2.dat'"));
 //     ASSERT_TRUE(RunString(L, "TEST_WRITE = 1"));
 //     ASSERT_TRUE(RunString(L, "TABLE_VERSION_CURRENT = 2"));
 //     ASSERT_TRUE(RunFile(L, "test_script_table.luac"));
-//     ASSERT_EQ(top, lua_gettop(L));
+//     ASSERT_EQ(top, dlua_gettop(L));
 // }
 
 
 TEST_F(LuaTableTest, Verify_TSTRING_V1) // old tostring/pushstring format
 {
     dmScript::PushTable(L, (const char*)TABLE_TSTRING_V1_DAT, TABLE_TSTRING_V1_DAT_SIZE);
-    lua_setglobal(L, "t");
+    dlua_setglobal(L, "t");
 
     ASSERT_TRUE(RunString(L, " \
         --assert( t['binary\\0string'] == 'payload\\1\\0\\2\\3' ) \
@@ -610,7 +610,7 @@ TEST_F(LuaTableTest, Verify_TSTRING_V1) // old tostring/pushstring format
 TEST_F(LuaTableTest, Verify_TSTRING_V2) // tolstring / pushlstring
 {
     dmScript::PushTable(L, (const char*)TABLE_TSTRING_V2_DAT, TABLE_TSTRING_V2_DAT_SIZE);
-    lua_setglobal(L, "t");
+    dlua_setglobal(L, "t");
 
     ASSERT_TRUE(RunString(L, " \
         assert( t['binary\\0string'] == 'payload\\1\\0\\2\\3' ) \
@@ -626,7 +626,7 @@ TEST_F(LuaTableTest, Verify_TSTRING_V2) // tolstring / pushlstring
 TEST_F(LuaTableTest, Verify_TSTRING_V3) // tolstring / pushlstring
 {
     dmScript::PushTable(L, (const char*)TABLE_TSTRING_V3_DAT, TABLE_TSTRING_V3_DAT_SIZE);
-    lua_setglobal(L, "t");
+    dlua_setglobal(L, "t");
 
     ASSERT_TRUE(RunString(L, " \
         assert( t['binary\\0string'] == 'payload\\1\\0\\2\\3' ) \
@@ -641,22 +641,22 @@ TEST_F(LuaTableTest, Verify_TSTRING_V3) // tolstring / pushlstring
 
 TEST_F(LuaTableTest, TSTRING) // binary strings (def2821)
 {
-    lua_newtable(L);
+    dlua_newtable(L);
 
-    lua_pushstring(L, "plain string");
-    lua_setfield(L, -2, "key1");
+    dlua_pushstring(L, "plain string");
+    dlua_setfield(L, -2, "key1");
 
     char binary_string[] = "\0binary\0string\0"; // 16 chars in total
-    lua_pushlstring(L, binary_string, 16);
-    lua_setfield(L, -2, "key2");
+    dlua_pushlstring(L, binary_string, 16);
+    dlua_setfield(L, -2, "key2");
 
     uint8_t binary_string2[] = {0,1,2,3,4,5,6,7};
-    lua_pushlstring(L, (const char*)binary_string2, 8);
-    lua_setfield(L, -2, "key3");
+    dlua_pushlstring(L, (const char*)binary_string2, 8);
+    dlua_setfield(L, -2, "key3");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::TableHeader header;
     (void) dmScript::ReadHeader(g_Buf, header);
@@ -664,39 +664,39 @@ TEST_F(LuaTableTest, TSTRING) // binary strings (def2821)
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "key1");
-    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
-    ASSERT_STREQ("plain string", lua_tostring(L, -1));
-    lua_pop(L, 1);
+    dlua_getfield(L, -1, "key1");
+    ASSERT_EQ(DLUA_TSTRING, dlua_type(L, -1));
+    ASSERT_STREQ("plain string", dlua_tostring(L, -1));
+    dlua_pop(L, 1);
 
-    lua_getfield(L, -1, "key2");
-    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    dlua_getfield(L, -1, "key2");
+    ASSERT_EQ(DLUA_TSTRING, dlua_type(L, -1));
     size_t length = 0;
-    const char* str = lua_tolstring(L, -1, &length);
+    const char* str = dlua_tolstring(L, -1, &length);
     ASSERT_EQ(16, length);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_getfield(L, -1, "key3");
-    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    dlua_getfield(L, -1, "key3");
+    ASSERT_EQ(DLUA_TSTRING, dlua_type(L, -1));
     length = 0;
-    str = lua_tolstring(L, -1, &length);
+    str = dlua_tolstring(L, -1, &length);
     ASSERT_EQ(8, length);
     ASSERT_EQ( 0u, memcmp(binary_string2, str, 8) );
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, Vector3)
 {
     // Create table
-    lua_newtable(L);
+    dlua_newtable(L);
     dmScript::PushVector3(L, dmVMath::Vector3(1,2,3));
-    lua_setfield(L, -2, "v");
+    dlua_setfield(L, -2, "v");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::TableHeader header;
     (void) dmScript::ReadHeader(g_Buf, header);
@@ -704,7 +704,7 @@ TEST_F(LuaTableTest, Vector3)
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "v");
+    dlua_getfield(L, -1, "v");
     dmVMath::Vector3* v1 = dmScript::ToVector3(L, -1);
     ASSERT_EQ(1, v1->getX());
     ASSERT_EQ(2, v1->getY());
@@ -714,21 +714,21 @@ TEST_F(LuaTableTest, Vector3)
     ASSERT_EQ(1, v2->getX());
     ASSERT_EQ(2, v2->getY());
     ASSERT_EQ(3, v2->getZ());
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, Vector4)
 {
     // Create table
-    lua_newtable(L);
+    dlua_newtable(L);
     dmScript::PushVector4(L, dmVMath::Vector4(1,2,3,4));
-    lua_setfield(L, -2, "v");
+    dlua_setfield(L, -2, "v");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::TableHeader header;
     (void) dmScript::ReadHeader(g_Buf, header);
@@ -736,7 +736,7 @@ TEST_F(LuaTableTest, Vector4)
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "v");
+    dlua_getfield(L, -1, "v");
     dmVMath::Vector4* v1 = dmScript::ToVector4(L, -1);
     ASSERT_EQ(1, v1->getX());
     ASSERT_EQ(2, v1->getY());
@@ -748,21 +748,21 @@ TEST_F(LuaTableTest, Vector4)
     ASSERT_EQ(2, v2->getY());
     ASSERT_EQ(3, v2->getZ());
     ASSERT_EQ(4, v2->getW());
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, Quat)
 {
     // Create table
-    lua_newtable(L);
+    dlua_newtable(L);
     dmScript::PushQuat(L, dmVMath::Quat(1,2,3,4));
-    lua_setfield(L, -2, "v");
+    dlua_setfield(L, -2, "v");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::TableHeader header;
     (void) dmScript::ReadHeader(g_Buf, header);
@@ -770,7 +770,7 @@ TEST_F(LuaTableTest, Quat)
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "v");
+    dlua_getfield(L, -1, "v");
     dmVMath::Quat* v1 = dmScript::ToQuat(L, -1);
     ASSERT_EQ(1, v1->getX());
     ASSERT_EQ(2, v1->getY());
@@ -782,25 +782,25 @@ TEST_F(LuaTableTest, Quat)
     ASSERT_EQ(2, v2->getY());
     ASSERT_EQ(3, v2->getZ());
     ASSERT_EQ(4, v2->getW());
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, Matrix4)
 {
     // Create table
-    lua_newtable(L);
+    dlua_newtable(L);
     dmVMath::Matrix4 m;
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
             m.setElem((float) i, (float) j, (float) (i * 4 + j));
     dmScript::PushMatrix4(L, m);
-    lua_setfield(L, -2, "v");
+    dlua_setfield(L, -2, "v");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::TableHeader header;
     (void) dmScript::ReadHeader(g_Buf, header);
@@ -808,7 +808,7 @@ TEST_F(LuaTableTest, Matrix4)
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "v");
+    dlua_getfield(L, -1, "v");
     dmVMath::Matrix4* m1 = dmScript::ToMatrix4(L, -1);
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
@@ -818,24 +818,24 @@ TEST_F(LuaTableTest, Matrix4)
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
             ASSERT_EQ(i * 4 + j, m2->getElem(i, j));
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, Hash)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     // Create table
-    lua_newtable(L);
+    dlua_newtable(L);
     dmhash_t hash = dmHashString64("test");
     dmScript::PushHash(L, hash);
-    lua_setfield(L, -2, "h");
+    dlua_setfield(L, -2, "h");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::TableHeader header;
     (void) dmScript::ReadHeader(g_Buf, header);
@@ -843,34 +843,34 @@ TEST_F(LuaTableTest, Hash)
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "h");
+    dlua_getfield(L, -1, "h");
     ASSERT_TRUE(dmScript::IsHash(L, -1));
     dmhash_t hash2 = dmScript::CheckHash(L, -1);
     ASSERT_EQ(hash, hash2);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(LuaTableTest, Hashkey)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     // Create table
-    lua_newtable(L);
+    dlua_newtable(L);
 
     dmhash_t hash = dmHashString64("key1");
     dmScript::PushHash(L, hash);   // key
-    lua_pushnumber(L, 1234);       // value
-    lua_settable(L, -3);           // table[key] = 1234
+    dlua_pushnumber(L, 1234);       // value
+    dlua_settable(L, -3);           // table[key] = 1234
 
     // Serialize table into buffer
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
 
-    lua_pop(L, 1); // pop the original table
+    dlua_pop(L, 1); // pop the original table
 
     // Deserialize table from buffer
     dmScript::TableHeader header;
@@ -878,36 +878,36 @@ TEST_F(LuaTableTest, Hashkey)
     ASSERT_EQ(header.m_Version, 5); // TABLE_VERSION_HASH_KEYS_ADDED
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
-    ASSERT_TRUE(lua_istable(L, -1));
+    ASSERT_TRUE(dlua_istable(L, -1));
 
     // Push hash key and get the value back
     dmScript::PushHash(L, hash);
-    lua_gettable(L, -2); // value = table[hash]
+    dlua_gettable(L, -2); // value = table[hash]
 
-    ASSERT_TRUE(lua_isnumber(L, -1));
-    ASSERT_EQ(lua_tonumber(L, -1), 1234);
+    ASSERT_TRUE(dlua_isnumber(L, -1));
+    ASSERT_EQ(dlua_tonumber(L, -1), 1234);
 
-    lua_pop(L, 2); // pop value and table
+    dlua_pop(L, 2); // pop value and table
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(LuaTableTest, URL)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     // Create table
-    lua_newtable(L);
+    dlua_newtable(L);
     dmMessage::URL url = dmMessage::URL();
     url.m_Socket = 1;
     url.m_Path = 2;
     url.m_Fragment = 3;
     dmScript::PushURL(L, url);
-    lua_setfield(L, -2, "url");
+    dlua_setfield(L, -2, "url");
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::TableHeader header;
     (void) dmScript::ReadHeader(g_Buf, header);
@@ -915,146 +915,146 @@ TEST_F(LuaTableTest, URL)
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_getfield(L, -1, "url");
+    dlua_getfield(L, -1, "url");
     ASSERT_TRUE(dmScript::IsURL(L, -1));
     dmMessage::URL url2 = *dmScript::CheckURL(L, -1);
     ASSERT_EQ(url.m_Socket, url2.m_Socket);
     ASSERT_EQ(url.m_Path, url2.m_Path);
     ASSERT_EQ(url.m_Fragment, url2.m_Fragment);
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 TEST_F(LuaTableTest, MixedKeys)
 {
     // Create table
-    lua_newtable(L);
+    dlua_newtable(L);
 
-    lua_pushnumber(L, 1);
-    lua_pushnumber(L, 2);
-    lua_settable(L, -3);
+    dlua_pushnumber(L, 1);
+    dlua_pushnumber(L, 2);
+    dlua_settable(L, -3);
 
-    lua_pushstring(L, "key1");
-    lua_pushnumber(L, 3);
-    lua_settable(L, -3);
+    dlua_pushstring(L, "key1");
+    dlua_pushnumber(L, 3);
+    dlua_settable(L, -3);
 
     dmScript::PushHash(L, dmHashString64("key2"));
-    lua_pushnumber(L, 4);
-    lua_settable(L, -3);
+    dlua_pushnumber(L, 4);
+    dlua_settable(L, -3);
 
-    lua_pushnumber(L, 2);
-    lua_pushnumber(L, 5);
-    lua_settable(L, -3);
+    dlua_pushnumber(L, 2);
+    dlua_pushnumber(L, 5);
+    dlua_settable(L, -3);
 
-    lua_pushstring(L, "key3");
-    lua_pushnumber(L, 6);
-    lua_settable(L, -3);
+    dlua_pushstring(L, "key3");
+    dlua_pushnumber(L, 6);
+    dlua_settable(L, -3);
 
     dmScript::PushHash(L, dmHashString64("key4"));
-    lua_pushnumber(L, 7);
-    lua_settable(L, -3);
+    dlua_pushnumber(L, 7);
+    dlua_settable(L, -3);
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
-    lua_pushnumber(L, 1);
-    lua_gettable(L, -2);
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(2, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    dlua_pushnumber(L, 1);
+    dlua_gettable(L, -2);
+    ASSERT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+    ASSERT_EQ(2, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
-    lua_pushstring(L, "key1");
-    lua_gettable(L, -2);
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(3, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    dlua_pushstring(L, "key1");
+    dlua_gettable(L, -2);
+    ASSERT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+    ASSERT_EQ(3, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
     dmScript::PushHash(L, dmHashString64("key2"));
-    lua_gettable(L, -2);
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(4, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    dlua_gettable(L, -2);
+    ASSERT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+    ASSERT_EQ(4, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
-    lua_pushnumber(L, 2);
-    lua_gettable(L, -2);
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(5, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    dlua_pushnumber(L, 2);
+    dlua_gettable(L, -2);
+    ASSERT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+    ASSERT_EQ(5, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
-    lua_pushstring(L, "key3");
-    lua_gettable(L, -2);
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(6, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    dlua_pushstring(L, "key3");
+    dlua_gettable(L, -2);
+    ASSERT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+    ASSERT_EQ(6, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
     dmScript::PushHash(L, dmHashString64("key4"));
-    lua_gettable(L, -2);
-    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    ASSERT_EQ(7, lua_tonumber(L, -1));
-    lua_pop(L, 1);
+    dlua_gettable(L, -2);
+    ASSERT_EQ(DLUA_TNUMBER, dlua_type(L, -1));
+    ASSERT_EQ(7, dlua_tonumber(L, -1));
+    dlua_pop(L, 1);
 
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 }
 
-static int ParseTruncatedTable(lua_State* L)
+static int ParseTruncatedTable(dlua_State* L)
 {
     size_t buffer_len = 0;
-    const char* buffer = lua_tolstring(L, -2, &buffer_len);
-    int buffer_size = luaL_checknumber(L, -1);
+    const char* buffer = dlua_tolstring(L, -2, &buffer_len);
+    int buffer_size = dluaL_checknumber(L, -1);
     dmScript::PushTable(L, buffer, buffer_size);
     return 0;
 }
 
 TEST_F(LuaTableTest, CorruptedTables)
 {
-    int top = lua_gettop(L);
+    int top = dlua_gettop(L);
 
     // Create table
-    lua_newtable(L);
+    dlua_newtable(L);
 
-    lua_pushnumber(L, 1);
-    lua_pushnumber(L, 2);
-    lua_settable(L, -3);
+    dlua_pushnumber(L, 1);
+    dlua_pushnumber(L, 2);
+    dlua_settable(L, -3);
 
-    lua_pushstring(L, "key1");
-    lua_pushnumber(L, 3);
-    lua_settable(L, -3);
+    dlua_pushstring(L, "key1");
+    dlua_pushnumber(L, 3);
+    dlua_settable(L, -3);
 
-    lua_pushnumber(L, 2);
-    lua_pushnumber(L, 4);
-    lua_settable(L, -3);
+    dlua_pushnumber(L, 2);
+    dlua_pushnumber(L, 4);
+    dlua_settable(L, -3);
 
-    lua_pushstring(L, "key2");
-    lua_pushnumber(L, 5);
-    lua_settable(L, -3);
+    dlua_pushstring(L, "key2");
+    dlua_pushnumber(L, 5);
+    dlua_settable(L, -3);
 
     // Make sure we write to the buffer so that Valgrind doesn't complain
-    // at the lua_pushlstring below.
+    // at the dlua_pushlstring below.
     memset(g_Buf, 0, sizeof(g_Buf));
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
-    lua_pop(L, 1);
+    dlua_pop(L, 1);
 
     for (uint32_t i = buffer_used-1; i > 0; --i)
     {
-        lua_pushcfunction(L, ParseTruncatedTable);
-        lua_pushlstring(L, g_Buf, sizeof(g_Buf));
-        lua_pushnumber(L, i);
-        int res = lua_pcall(L, 2, 0, 0x0);
-        ASSERT_EQ(LUA_ERRRUN, res);
+        dlua_pushcfunction(L, ParseTruncatedTable);
+        dlua_pushlstring(L, g_Buf, sizeof(g_Buf));
+        dlua_pushnumber(L, i);
+        int res = dlua_pcall(L, 2, 0, 0x0);
+        ASSERT_EQ(DLUA_ERRRUN, res);
 
-        printf("Err: %s\n", lua_tostring(L, -1));
-        lua_pop(L, 1);
+        printf("Err: %s\n", dlua_tostring(L, -1));
+        dlua_pop(L, 1);
     }
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top, dlua_gettop(L));
 }
 
 static void RandomString(char* s, int max_len)
@@ -1085,7 +1085,7 @@ TEST_F(LuaTableTest, Stress)
         {
             int n = rand() % 15 + 1;
 
-            lua_newtable(L);
+            dlua_newtable(L);
             for (int i = 0; i < n; ++i)
             {
                 int key_type = rand() % 2;
@@ -1093,29 +1093,29 @@ TEST_F(LuaTableTest, Stress)
                 {
                     char key[12];
                     RandomString(key, 11);
-                    lua_pushstring(L, key);
+                    dlua_pushstring(L, key);
                 }
                 else if (key_type == 1)
                 {
-                    lua_pushnumber(L, rand() % (n + 1));
+                    dlua_pushnumber(L, rand() % (n + 1));
                 }
                 int value_type = rand() % 3;
                 if (value_type == 0)
                 {
-                    lua_pushboolean(L, 1);
+                    dlua_pushboolean(L, 1);
                 }
                 else if (value_type == 1)
                 {
-                    lua_pushnumber(L, 123);
+                    dlua_pushnumber(L, 123);
                 }
                 else if (value_type == 2)
                 {
                     char value[16];
                     RandomString(value, 15);
-                    lua_pushstring(L, value);
+                    dlua_pushstring(L, value);
                 }
 
-                lua_settable(L, -3);
+                dlua_settable(L, -3);
             }
 
             // Add eight to ensure there is room for the header too.
@@ -1130,7 +1130,7 @@ TEST_F(LuaTableTest, Stress)
 
             if (result == 0) {
               dmScript::PushTable(L, buf, buf_size);
-              lua_pop(L, 1);
+              dlua_pop(L, 1);
             }
 
             uint8_t a = (uint8_t)0xBA;
@@ -1152,7 +1152,7 @@ TEST_F(LuaTableTest, Stress)
             ASSERT_EQ(c, rc);
             ASSERT_EQ(d, rd);
 
-            lua_pop(L, 1);
+            dlua_pop(L, 1);
             dmMemory::AlignedFree(buf);
         }
     }
