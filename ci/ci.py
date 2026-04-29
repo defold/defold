@@ -240,7 +240,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
                     'arm64-android'):
         install_sdk = ''
 
-    args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
+    args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()
 
     opts = []
     waf_opts = []
@@ -334,7 +334,7 @@ def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False
 
     opts_string = ' '.join(opts)
 
-    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform, opts_string))
+    call('"%s" scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
 
 def archive_editor2(channel, engine_artifacts = None, platform = None, skip_install_ext = False):
     if platform is None:
@@ -351,12 +351,12 @@ def archive_editor2(channel, engine_artifacts = None, platform = None, skip_inst
     opts_string = ' '.join(opts)
     for platform in platforms:
         if skip_install_ext:
-            call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
+            call('"%s" scripts/build.py archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
         else:
-            call('python scripts/build.py install_ext archive_editor2 --platform=%s %s' % (platform, opts_string))
+            call('"%s" scripts/build.py install_ext archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
 
 def distclean():
-    call("python scripts/build.py distclean")
+    call('"%s" scripts/build.py distclean' % sys.executable)
 
 
 def install_ext(platform = None):
@@ -364,10 +364,10 @@ def install_ext(platform = None):
     if platform:
         opts.append('--platform=%s' % platform)
 
-    call("python scripts/build.py install_ext %s" % ' '.join(opts))
+    call('"%s" scripts/build.py install_ext %s' % (sys.executable, ' '.join(opts)))
 
 def build_bob(channel, branch = None, skip_tests = False):
-    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
+    args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
     opts = []
     opts.append("--channel=%s" % channel)
     if skip_tests:
@@ -377,12 +377,12 @@ def build_bob(channel, branch = None, skip_tests = False):
     call(cmd)
 
 def test_bob(channel):
-    call("python scripts/build.py install_ext --channel=%s" % channel)
-    call("python scripts/build.py test_bob --channel=%s" % channel)
+    call('"%s" scripts/build.py install_ext --channel=%s' % (sys.executable, channel))
+    call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
 def release(channel):
-    args = "python scripts/build.py install_ext release".split()
+    args = ('"%s" scripts/build.py install_ext release' % sys.executable).split()
     opts = []
     opts.append("--channel=%s" % channel)
 
@@ -394,7 +394,7 @@ def release(channel):
     call(cmd)
 
 def build_sdk(channel):
-    args = "python scripts/build.py install_ext build_sdk".split()
+    args = ('"%s" scripts/build.py install_ext build_sdk' % sys.executable).split()
     opts = []
     opts.append("--channel=%s" % channel)
 
@@ -403,7 +403,7 @@ def build_sdk(channel):
 
 
 def smoke_test():
-    call('python scripts/build.py distclean install_ext smoke_test')
+    call('"%s" scripts/build.py distclean install_ext smoke_test' % sys.executable)
 
 
 
