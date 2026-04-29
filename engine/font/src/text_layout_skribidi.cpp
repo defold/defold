@@ -17,13 +17,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <limits.h> // INT_MAX
+#include <math.h>
 
-#include <dlib/array.h>
-#include <dlib/log.h>
-#include <dlib/profile.h>
-#include <dlib/math.h>
-#include <dlib/time.h>
 #include <dlib/utf8.h>
 
 #include "font.h"
@@ -85,6 +80,11 @@ static bool LayoutText(LayoutContext* ctx,
     params.flags              = 0;
 
     float tracking = settings->m_Tracking * settings->m_Size;
+    HFont default_font = FontCollectionGetFont(font_collection, 0);
+    float font_scale = FontGetScaleFromSize(default_font, settings->m_Size);
+    uint32_t ascent = (uint32_t)FontGetAscent(default_font, 1.0f);
+    uint32_t descent = (uint32_t)fabsf(FontGetDescent(default_font, 1.0f));
+    float line_height_scaled = (ascent + descent) * font_scale;
 
     // TODO: Allo setting default as italic etc
     const skb_attribute_t attributes[] = {
@@ -105,7 +105,6 @@ static bool LayoutText(LayoutContext* ctx,
     const int32_t glyphs_count = skb_layout_get_glyphs_count(skblayout);
     const skb_glyph_t* glyphs = skb_layout_get_glyphs(skblayout);
     const skb_glyph_run_t* glyph_runs = skb_layout_get_glyph_runs(skblayout);
-    const skb_layout_params_t* layout_params = skb_layout_get_params(skblayout);
     const skb_text_attributes_span_t* attrib_spans = skb_layout_get_attribute_spans(skblayout);
     const skb_layout_line_t* layout_lines = skb_layout_get_lines(skblayout);
     int32_t lines_count = skb_layout_get_lines_count(skblayout);
@@ -123,29 +122,14 @@ static bool LayoutText(LayoutContext* ctx,
         layout->m_Lines.OffsetCapacity(lines_count - remaining_lines);
     }
 
-    const float edit_layout_y = 0.0f;
     uint32_t num_whitespaces = 0;
-
-    float ox = 0.0f;
-    float oy = 0.0f;
-
-    float max_ascender = 0.0f;
-    float max_descender = 0.0f;
 
     // From example_testbed.c
     for (int li = 0; li < lines_count; li++)
     {
         const skb_layout_line_t* line = &layout_lines[li];
 
-        max_ascender = dmMath::Max(max_ascender, -line->ascender); // make it positive
-        max_descender = dmMath::Max(max_descender, line->descender);
-
         uint32_t prev_glyph_index = layout->m_Glyphs.Size();
-
-        skb_font_handle_t font_handle = 0;
-
-        float max_glyph_bounds_width = 0.0f;
-        float max_glyph_bounds_height = 0.0f;
 
         for (int32_t ri = line->glyph_run_range.start; ri < line->glyph_run_range.end; ri++)
         {
@@ -156,13 +140,10 @@ static bool LayoutText(LayoutContext* ctx,
             {
                 const skb_glyph_t* skbglyph = &glyphs[gi];
 
-                float gx = ox + skbglyph->offset_x;
-                float gy = oy + edit_layout_y + -skbglyph->offset_y;
+                float gx = skbglyph->offset_x;
+                float gy = -skbglyph->offset_y;
 
-                skb_rect2_t bounds = skb_font_get_glyph_bounds(layout_params->font_collection, font_handle, skbglyph->gid, attr_font.size);
-
-                max_glyph_bounds_width = dmMath::Max(max_glyph_bounds_width, bounds.width);
-                max_glyph_bounds_height = dmMath::Max(max_glyph_bounds_height, -bounds.height);
+                skb_rect2_t bounds = skb_font_get_glyph_bounds(params.font_collection, skbglyph->font_handle, skbglyph->gid, attr_font.size);
 
                 uint32_t codepoint_index = skbglyph->text_range.start;
                 uint32_t cp = codepoints[codepoint_index];
@@ -218,13 +199,7 @@ static bool LayoutText(LayoutContext* ctx,
 
     skb_rect2_t layout_bounds = skb_layout_get_bounds(skblayout);
     layout->m_Width = layout_bounds.width - (tracking > 0 ? tracking : 0);
-    layout->m_Height = layout_bounds.height;
-    if (lines_count > 0 && settings->m_Leading > 0.0f)
-    {
-        // Normalize Skribidi line height so leading affects only inter-line spacing.
-        float base_line_height = layout_bounds.height / ((float)lines_count * settings->m_Leading);
-        layout->m_Height = layout_bounds.height - base_line_height * (settings->m_Leading - 1.0f);
-    }
+    layout->m_Height = lines_count * (line_height * settings->m_Leading) - line_height * (settings->m_Leading - 1.0f);
 
     return true;
 }
@@ -250,6 +225,10 @@ TextResult TextLayoutSkribidiCreate(HFontCollection collection,
     layout->m_FontCollection = collection;
     layout->m_Direction = TEXT_DIRECTION_LTR;
     layout->m_NumValidGlyphs = 0;
+    layout->m_MaxGlyphWidth = 0.0f;
+    layout->m_MaxGlyphHeight = 0.0f;
+    layout->m_Width = 0.0f;
+    layout->m_Height = 0.0f;
 
     if (num_codepoints == 0) // empty string
     {
