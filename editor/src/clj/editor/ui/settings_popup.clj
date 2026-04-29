@@ -314,13 +314,13 @@
 
 ;; CLJFX Port from here on out
 
-(defn- make-toggle-row-fx [{:keys [label accelerator state swap-state selected on-selected-changed]}]
-   (println state)
+(defn- make-toggle-row-fx [{:keys [key label accelerator state swap-state on-selected-changed] :as thing}]
   {:fx/type fxui/horizontal
    :style-class "toggle-row"
    :alignment :center-left
    :on-mouse-clicked (fn [_]
-                       (on-selected-changed (not selected)))
+                       (swap-state assoc key (not (boolean (when key (key state)))))
+                       (on-selected-changed (not (boolean (when key (key state))))))
    ;; :disable true
    :children [{:fx/type fxui/label
                :style-class "slide-switch-label"
@@ -332,12 +332,11 @@
                :text (or accelerator "")}
               {:fx/type fx.check-box/lifecycle
                :style-class ["slide-switch"]
-               :selected (boolean selected)
+               :selected (boolean (when key (key state)))
                :on-selected-changed (or on-selected-changed (fn [_]))}]})
 
-(defn- make-slider-row-fx [{:keys [label min max value slider-value->string on-value-changed]}]
-  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
-        value (or value 1337.0)]
+(defn- make-slider-row-fx [{:keys [key label min max state swap-state slider-value->string on-value-changed] :as asdf}]
+  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))]
     {:fx/type fxui/horizontal
      :children [{:fx/type fxui/label
                  :text (or label "")
@@ -345,13 +344,15 @@
                  :max-width Double/MAX_VALUE}
                 {:fx/type fxui/label
                  :style-class "slider-value-label"
-                 :text (slider-value->string value)}
+                 :text (slider-value->string (key state))}
                 {:fx/type fx.slider/lifecycle
                  :min min
                  :max max
-                 :value value
+                 :value (key state)
                  :block-increment 0.1
-                 :on-value-changed (or on-value-changed (fn [_]))}]}))
+                 :on-value-changed (fn [v]
+                                     (on-value-changed v)
+                                     (swap-state assoc key v))}]}))
 
 (defn- make-color-row-fx [{:keys [label value on-value-changed]}]
   {:fx/type fxui/horizontal
@@ -408,11 +409,11 @@
     {:fx/type make-toggle-row-fx
      :label (localization-state (localization/message (:label descriptor)))
      :accelerator (keymap/display-text keymap (:command descriptor) "")
+     :key (:key descriptor)
      :selected (:value descriptor)
      :state state
      :swap-state swap-state
-     :on-selected-changed (fn [v]
-                            (:on-value-changed descriptor))}
+     :on-selected-changed #((:on-value-changed descriptor) %)}
 
     :slider
     {:fx/type make-slider-row-fx
@@ -421,9 +422,11 @@
      :max (:max descriptor)
      :snap-to (:snap-to descriptor)
      :slider-value->string (:slider-value->string descriptor)
-     :value (get state (:key descriptor))
-     :on-value-changed {:event-type :set-value
-                        :key (:key descriptor)}}
+     :key (:key descriptor)
+     :state state
+     :swap-state swap-state
+     :value (:value descriptor)
+     :on-value-changed #((:on-value-changed descriptor) %)}
 
     :color
     {:fx/type make-color-row-fx
@@ -455,7 +458,6 @@
              {:fx/type fx/ext-state
               :initial-state (:state props)}]}
   [{:keys [descriptors keymap state swap-state on-change localization-state]}]
-  (println swap-state)
   {:fx/type fxui/vertical
    :style-class "popup-settings"
    :focus-traversable true

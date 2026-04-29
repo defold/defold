@@ -250,8 +250,7 @@
 (defn renderable-tag-descriptors [scene-visibility]
   (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
         filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
-    (cond-> [{:type :toggle
-              :label "scene-popup.scene-visibility.visibility-filters"
+    (cond-> [{:key :visibility-filters :type :toggle :label "scene-popup.scene-visibility.visibility-filters"
               :value filters-enabled?
               :on-value-changed (fn [v]
                                   (g/set-property! scene-visibility :visibility-filters-enabled? v)
@@ -259,45 +258,43 @@
               :command :scene.visibility.toggle-filters
               :always-enabled true}
              {:type :space}
-             {:type :toggle :label "scene-popup.scene-visibility.collision-shapes" :value (not (contains? filtered-tags :collision-shape))
+             {:key :collision-shapes :type :toggle :label "scene-popup.scene-visibility.collision-shapes" :value (not (contains? filtered-tags :collision-shape))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :collision-shape) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.camera" :value (not (contains? filtered-tags :camera))
+             {:key :camera :type :toggle :label "scene-popup.scene-visibility.camera" :value (not (contains? filtered-tags :camera))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :camera) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.gui-bounds" :value (not (contains? filtered-tags :gui-bounds))
+             {:key :gui-bounds :type :toggle :label "scene-popup.scene-visibility.gui-bounds" :value (not (contains? filtered-tags :gui-bounds))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-bounds) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.gui-shapes" :value (not (contains? filtered-tags :gui-shape))
+             {:key :gui-shapes :type :toggle :label "scene-popup.scene-visibility.gui-shapes" :value (not (contains? filtered-tags :gui-shape))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-shape) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.gui-particle-effects" :value (not (contains? filtered-tags :gui-particlefx))
+             {:key :gui-particle-effects :type :toggle :label "scene-popup.scene-visibility.gui-particle-effects" :value (not (contains? filtered-tags :gui-particlefx))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-particlefx) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.gui-spine-scenes" :value (not (contains? filtered-tags :gui-spine))
+             {:key :gui-spine-scenes :type :toggle :label "scene-popup.scene-visibility.gui-spine-scenes" :value (not (contains? filtered-tags :gui-spine))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-spine) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.gui-text" :value (not (contains? filtered-tags :gui-text))
+             {:key :gui-text :type :toggle :label "scene-popup.scene-visibility.gui-text" :value (not (contains? filtered-tags :gui-text))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-text) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.models" :value (not (contains? filtered-tags :model))
+             {:key :models :type :toggle :label "scene-popup.scene-visibility.models" :value (not (contains? filtered-tags :model))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :model) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.particle-effects" :value (not (contains? filtered-tags :particlefx))
+             {:key :particle-effects :type :toggle :label "scene-popup.scene-visibility.particle-effects" :value (not (contains? filtered-tags :particlefx))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :particlefx) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.skeletons" :value (not (contains? filtered-tags :skeleton))
+             {:key :skeletons :type :toggle :label "scene-popup.scene-visibility.skeletons" :value (not (contains? filtered-tags :skeleton))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :skeleton) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.spine-scenes" :value (not (contains? filtered-tags :spine))
+             {:key :spine-scenes :type :toggle :label "scene-popup.scene-visibility.spine-scenes" :value (not (contains? filtered-tags :spine))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :spine) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.sprites" :value (not (contains? filtered-tags :sprite))
+             {:key :sprites :type :toggle :label "scene-popup.scene-visibility.sprites" :value (not (contains? filtered-tags :sprite))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :sprite) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.text" :value (not (contains? filtered-tags :text))
+             {:key :text :type :toggle :label "scene-popup.scene-visibility.text" :value (not (contains? filtered-tags :text))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :text) :style-class "compact-toggle"}
-             {:type :toggle :label "scene-popup.scene-visibility.tile-maps" :value (not (contains? filtered-tags :tilemap))
+             {:key :tile-maps :type :toggle :label "scene-popup.scene-visibility.tile-maps" :value (not (contains? filtered-tags :tilemap))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :tilemap) :style-class "compact-toggle"}
              {:type :separator}
-             {:type :toggle :label "scene-popup.scene-visibility.component-guides" :value (not (contains? filtered-tags :outline))
+             {:key :component-guides :type :toggle :label "scene-popup.scene-visibility.component-guides" :value (not (contains? filtered-tags :outline))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :outline)
               :command :scene.visibility.toggle-component-guides
               :always-enabled true}]
             (system/defold-dev?)
             (into [{:type :separator}
-                   {:type :toggle
-                    :label "scene-popup.scene-visibility.scene-visibility-bounds"
+                   {:key :scene-visibility-bounds :type :toggle :label "scene-popup.scene-visibility.scene-visibility-bounds"
                     :value (not (contains? filtered-tags :dev-visibility-bounds))
-
                     :on-value-changed (toggle-tag-visibility-fn scene-visibility :dev-visibility-bounds)
                     :appear-filtered false}]))))
 
@@ -330,9 +327,7 @@
       (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active") false))))
 
 (defn show-settings! [keymap localization ^Parent owner scene-visibility]
-  (let [setting-descriptors (mapv #(-> %
-                                       (assoc :key (:tag %))
-                                       (dissoc :tag :always-enabled :appear-filtered))
+  (let [setting-descriptors (mapv #(dissoc % :always-enabled :appear-filtered)
                                   (renderable-tag-descriptors scene-visibility))
         keys (keep :key setting-descriptors)
         state (into {} (map (fn [key]
