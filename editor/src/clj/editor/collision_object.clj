@@ -188,7 +188,7 @@
     (pair visibility-aabb user-data)))
 
 (g/defnk produce-sphere-shape-scene
-  [_node-id transform diameter color node-outline-key project-physics-type]
+  [_node-id pose diameter color node-outline-key project-physics-type]
   (let [is-2d (= "2D" project-physics-type)
 
         ;; The preview-fn technically takes and returns a visibility-aabb, but
@@ -201,7 +201,7 @@
 
     {:node-id _node-id
      :node-outline-key node-outline-key
-     :transform transform
+     :pose pose
      :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
                   :preview-fn preview-sphere-shape-renderable
@@ -252,7 +252,7 @@
     (pair visibility-aabb user-data)))
 
 (g/defnk produce-box-shape-scene
-  [_node-id transform dimensions color node-outline-key project-physics-type]
+  [_node-id pose dimensions color node-outline-key project-physics-type]
   (let [is-2d (= "2D" project-physics-type)
 
         ;; The preview-fn technically takes and returns a visibility-aabb, but
@@ -265,7 +265,7 @@
 
     {:node-id _node-id
      :node-outline-key node-outline-key
-     :transform transform
+     :pose pose
      :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
                   :preview-fn preview-box-shape-renderable
@@ -331,7 +331,7 @@
     (pair visibility-aabb user-data)))
 
 (g/defnk produce-capsule-shape-scene
-  [_node-id transform diameter height color node-outline-key project-physics-type]
+  [_node-id pose diameter height color node-outline-key project-physics-type]
   ;; NOTE: Capsules are currently only supported when physics type is 3D.
   (let [is-2d (= "2D" project-physics-type)
 
@@ -346,7 +346,7 @@
 
     {:node-id _node-id
      :node-outline-key node-outline-key
-     :transform transform
+     :pose pose
      :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
                   :preview-fn preview-capsule-shape-renderable
