@@ -241,6 +241,8 @@ namespace dmParticle
     dmhash_t GetAnimation(HPrototype prototype, uint32_t emitter_index);
     void     SetInstanceUserData(HParticleContext context, HInstance instance, void* user_data);
     void*    GetInstanceUserData(HParticleContext context, HInstance instance);
+    // Refresh cached render state after external transform changes.
+    void     UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index, float dt);
 
     // For tests
     dmVMath::Vector3 GetPosition(HParticleContext context, HInstance instance);

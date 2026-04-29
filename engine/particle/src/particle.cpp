@@ -2105,7 +2105,7 @@ namespace dmParticle
         CalculateEmitterCullingSphere(inst, emitter, render_data.m_FrustumCullingCenter, render_data.m_FrustumCullingRadiusSq);
     }
 
-    // Update render data for all emitters on an instance
+    // Update render data for the specified emitter on an instance.
     void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index, float dt)
     {
         Instance* inst = GetInstance(context, instance);
@@ -2113,11 +2113,11 @@ namespace dmParticle
         if (inst != 0x0)
         {
             uint32_t emitter_count = inst->m_Emitters.Size();
-            for (uint32_t i = 0; i < emitter_count; ++i)
+            if (emitter_index < emitter_count)
             {
-                Emitter* emitter = &inst->m_Emitters[i];
-                dmParticleDDF::Emitter* emitter_ddf = &inst->m_Prototype->m_DDF->m_Emitters[i];
-                UpdateEmitterRenderData(instance, i, inst, emitter, emitter_ddf, dt);
+                Emitter* emitter = &inst->m_Emitters[emitter_index];
+                dmParticleDDF::Emitter* emitter_ddf = &inst->m_Prototype->m_DDF->m_Emitters[emitter_index];
+                UpdateEmitterRenderData(instance, emitter_index, inst, emitter, emitter_ddf, dt);
             }
         }
     }

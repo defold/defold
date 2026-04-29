@@ -2334,6 +2334,54 @@ TEST_F(ParticleTest, CullingSphereContainsRenderedVerticesForAutoSizeAndPivot)
     }
 }
 
+TEST_F(ParticleTest, UpdateRenderDataRefreshesTransformChangesInFrame)
+{
+    const float dt = 1.0f;
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+
+    dmParticle::SetPosition(m_Context, instance, Point3(0.0f, 0.0f, 0.0f));
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, EmptyFetchAnimationCallback);
+
+    const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
+    TestVertex vertex_buffer_before[6];
+    uint32_t out_size_before = 0;
+    dmParticle::UpdateRenderData(m_Context, instance, 0, dt);
+    dmParticle::GenerateVertexData(m_Context, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer_before, max_vb_size, &out_size_before);
+    ASSERT_EQ(sizeof(vertex_buffer_before), out_size_before);
+
+    dmParticle::EmitterRenderData* render_data_before = 0x0;
+    dmParticle::GetEmitterRenderData(m_Context, instance, 0, &render_data_before);
+    ASSERT_NE((dmParticle::EmitterRenderData*)0x0, render_data_before);
+    const Point3 center_before = render_data_before->m_FrustumCullingCenter;
+
+    dmParticle::SetPosition(m_Context, instance, Point3(100.0f, 200.0f, 0.0f));
+
+    TestVertex vertex_buffer_after[6];
+    uint32_t out_size_after = 0;
+    dmParticle::UpdateRenderData(m_Context, instance, 0, dt);
+    dmParticle::GenerateVertexData(m_Context, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer_after, max_vb_size, &out_size_after);
+    ASSERT_EQ(sizeof(vertex_buffer_after), out_size_after);
+
+    dmParticle::EmitterRenderData* render_data_after = 0x0;
+    dmParticle::GetEmitterRenderData(m_Context, instance, 0, &render_data_after);
+    ASSERT_NE((dmParticle::EmitterRenderData*)0x0, render_data_after);
+
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        ASSERT_NEAR(vertex_buffer_before[i].m_X + 100.0f, vertex_buffer_after[i].m_X, EPSILON);
+        ASSERT_NEAR(vertex_buffer_before[i].m_Y + 200.0f, vertex_buffer_after[i].m_Y, EPSILON);
+        ASSERT_NEAR(vertex_buffer_before[i].m_Z, vertex_buffer_after[i].m_Z, EPSILON);
+    }
+
+    ASSERT_NEAR(center_before.getX() + 100.0f, render_data_after->m_FrustumCullingCenter.getX(), EPSILON);
+    ASSERT_NEAR(center_before.getY() + 200.0f, render_data_after->m_FrustumCullingCenter.getY(), EPSILON);
+    ASSERT_NEAR(center_before.getZ(), render_data_after->m_FrustumCullingCenter.getZ(), EPSILON);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 /**
  * Verify that local position vertex attributes are unaffected by the instance transform.
  * World positions should change when we move the instance; local positions must stay the same.
