@@ -44,7 +44,7 @@ fi
 
 echo "Creating patch..."
 
-diff -ruw --exclude=".git" ${DIR_A} ${DIR_B} > ${PATCH_FILE}
+diff -ruwN --exclude=".git" ${DIR_A} ${DIR_B} > ${PATCH_FILE}
 
 echo "Wrote ${PATCH_FILE}"
 
