@@ -1005,50 +1005,6 @@ def _strip_executable(bld, platform, target_arch, path):
 
     return bld.exec_command("%s %s" % (strip, path))
 
-AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
-
-def authenticode_certificate_installed(task):
-    if Options.options.skip_codesign:
-        return 0
-    ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, stdout=True, stderr=True)
-    return ret > 0
-
-def authenticode_sign(task):
-    if Options.options.skip_codesign:
-        return
-    exe_file = task.inputs[0].abspath()
-    exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath()
-    exe_file_signed = task.outputs[0].abspath()
-
-    ret = task.exec_command('copy /Y %s %s' % (exe_file, exe_file_to_sign), stdout=True, stderr=True)
-    if ret != 0:
-        error("Unable to copy file before signing")
-        return 1
-
-    ret = task.exec_command('"%s" sign /sm /n "%s" /fd sha256 /tr http://timestamp.comodoca.com /td sha256 /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), stdout=True, stderr=True)
-    if ret != 0:
-        error("Unable to sign executable")
-        return 1
-
-    ret = task.exec_command('move /Y %s %s' % (exe_file_to_sign, exe_file_signed), stdout=True, stderr=True)
-    if ret != 0:
-        error("Unable to rename file after signing")
-        return 1
-
-    return 0
-
-Task.task_factory('authenticode_sign',
-                     func = authenticode_sign,
-                     after = 'link_task stlink_task')
-
-@task_gen
-@feature('authenticode')
-def authenticode(self):
-    exe_file = self.link_task.outputs[0].abspath(self.env)
-    sign_task = self.create_task('authenticode_sign')
-    sign_task.set_inputs(self.link_task.outputs)
-    sign_task.set_outputs([self.link_task.outputs[0].change_ext('_signed.exe')])
-
 @task_gen
 @after('apply_link')
 @feature('cprogram', 'cxxprogram')
