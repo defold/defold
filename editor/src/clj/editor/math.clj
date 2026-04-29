@@ -626,6 +626,16 @@
     (catch SingularMatrixException _
       identity-mat4)))
 
+(defn- inverse-or-identity
+  ^Matrix4d [^Matrix4d mat]
+  (try
+    (inverse mat)
+    (catch SingularMatrixException _
+      identity-mat4)
+    ;; Vecmath may also throw RuntimeException for some singular matrices.
+    (catch RuntimeException _
+      identity-mat4)))
+
 (defn derive-render-transforms
   "Given the world, view, projection, and texture transforms, derive the normal,
   view-proj, world-view, and world-view-proj transforms and return a map with
@@ -639,12 +649,12 @@
   (let [view-proj (doto (Matrix4d. projection) (.mul view))
         world-view (doto (Matrix4d. view) (.mul world))
         world-view-proj (doto (Matrix4d. view-proj) (.mul world))
-        world-inv (inverse world)
-        view-inv (inverse view)
-        projection-inv (inverse projection)
-        view-proj-inv (inverse view-proj)
-        world-view-inv (inverse world-view)
-        world-view-proj-inv (inverse world-view-proj)
+        world-inv (inverse-or-identity world)
+        view-inv (inverse-or-identity view)
+        projection-inv (inverse-or-identity projection)
+        view-proj-inv (inverse-or-identity view-proj)
+        world-view-inv (inverse-or-identity world-view)
+        world-view-proj-inv (inverse-or-identity world-view-proj)
         normal (derive-normal-transform world-view)]
     ;; Some of these may be overwritten by the rederive-render-transforms
     ;; function, so we include the actually derived transforms for all world

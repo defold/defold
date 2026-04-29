@@ -153,6 +153,20 @@
     (is (mat4-eq? (:view-proj derived) (:world-view-proj rederived)))
     (is (mat4-eq? (math/inverse (:view-proj derived)) (:world-view-proj-inv rederived)))))
 
+(deftest derive-render-transforms-tolerates-singular-matrices
+  (let [world (doto (Matrix4d.) (.setIdentity) (.setElement 0 0 0.0))
+        view (doto (Matrix4d.) (.setIdentity) (.rotY 0.5))
+        projection (doto (Matrix4d.) (.setIdentity) (.rotX 0.25))
+        texture (Matrix4d. math/identity-mat4)
+        transforms (math/derive-render-transforms world view projection texture)]
+    (is (mat4-eq? math/identity-mat4 (:world-inv transforms)))
+    (is (mat4-eq? (math/inverse view) (:view-inv transforms)))
+    (is (mat4-eq? (math/inverse projection) (:projection-inv transforms)))
+    (is (mat4-eq? (math/inverse (:view-proj transforms)) (:view-proj-inv transforms)))
+    (is (mat4-eq? math/identity-mat4 (:world-view-inv transforms)))
+    (is (mat4-eq? math/identity-mat4 (:world-view-proj-inv transforms)))
+    (is (mat4-eq? math/identity-mat4 (:normal transforms)))))
+
 (def ^:private particular-xyz-euler-angles
   (mapv #(apply vector-of :double %)
         [[-35.0 120.0 -15.0]
