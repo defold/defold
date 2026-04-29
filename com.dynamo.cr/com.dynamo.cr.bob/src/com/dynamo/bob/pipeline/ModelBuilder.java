@@ -14,10 +14,12 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.File;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Logger;
 
 import com.dynamo.bob.BuilderParams;
@@ -43,6 +45,40 @@ import com.dynamo.rig.proto.Rig.RigScene;
 public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
     private static Logger logger = Logger.getLogger(ModelBuilder.class.getName());
+
+    private static boolean isModelScenePath(String path) {
+        String lowercasePath = path.toLowerCase(Locale.ROOT);
+        return lowercasePath.endsWith(".gltf") || lowercasePath.endsWith(".glb");
+    }
+
+    private void warnOnRootAncestorTransformMismatch(Task task, ModelDesc.Builder modelDescBuilder) throws IOException {
+        if (modelDescBuilder.getSkeleton().isEmpty() || modelDescBuilder.getAnimations().isEmpty()) {
+            return;
+        }
+        if (!isModelScenePath(modelDescBuilder.getSkeleton()) || !isModelScenePath(modelDescBuilder.getAnimations())) {
+            return;
+        }
+        if (modelDescBuilder.getSkeleton().equals(modelDescBuilder.getAnimations())) {
+            return;
+        }
+
+        IResource skeletonResource = this.project.getResource(modelDescBuilder.getSkeleton().substring(1));
+        IResource animationResource = this.project.getResource(modelDescBuilder.getAnimations().substring(1));
+        if (skeletonResource == null || animationResource == null) {
+            return;
+        }
+
+        Modelimporter.Options options = new Modelimporter.Options();
+        ModelImporterJni.DataResolver dataResolver = ModelUtil.createFileDataResolver(new File(this.project.getRootDirectory()));
+        Modelimporter.Scene skeletonScene = ModelUtil.loadScene(skeletonResource.getContent(), skeletonResource.getPath(), options, dataResolver);
+        Modelimporter.Scene animationScene = ModelUtil.loadScene(animationResource.getContent(), animationResource.getPath(), options, dataResolver);
+        String warning = ModelUtil.getRootAncestorTransformWarning(
+                skeletonScene, modelDescBuilder.getSkeleton(),
+                animationScene, modelDescBuilder.getAnimations());
+        if (warning != null) {
+            logger.warning(String.format("%s: warning: %s", task.firstInput().getPath(), warning));
+        }
+    }
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
@@ -93,6 +129,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         ModelDesc.Builder modelDescBuilder = getSrcBuilder(task.firstInput());
+        warnOnRootAncestorTransformMismatch(task, modelDescBuilder);
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();

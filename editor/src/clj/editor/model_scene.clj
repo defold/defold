@@ -500,6 +500,7 @@
                          geom/null-aabb
                          renderable-meshes)]
         {:transform model-transform
+         :transform-without-skeleton local-transform
          :aabb model-aabb
          :renderable-meshes renderable-meshes}))))
 
@@ -570,10 +571,11 @@
      :renderable renderable}))
 
 (defn- make-model-scene [scene-node-id renderable-model]
-  (let [{:keys [transform aabb renderable-meshes]} renderable-model
+  (let [{:keys [transform transform-without-skeleton aabb renderable-meshes]} renderable-model
         mesh-scenes (mapv #(make-mesh-scene scene-node-id %)
                           renderable-meshes)]
     {:transform transform
+     :transform-without-skeleton transform-without-skeleton
      :aabb aabb
      :children mesh-scenes}))
 
@@ -646,10 +648,22 @@
       :children (mapv #(augment-mesh-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
                       mesh-scenes))))
 
-(defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info]
+(defn- select-model-transforms [scene use-skeleton-transforms?]
+  (if use-skeleton-transforms?
+    scene
+    (update scene :children
+            (fn [child-scenes]
+              (mapv (fn [child-scene]
+                      (cond-> child-scene
+                        (:transform-without-skeleton child-scene)
+                        (assoc :transform (:transform-without-skeleton child-scene))))
+                    child-scenes)))))
+
+(defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?]
   (if (g/error-value? scene)
     scene
-    (let [old-node-id (:node-id scene)
+    (let [scene (select-model-transforms scene use-skeleton-transforms?)
+          old-node-id (:node-id scene)
           model-scenes (:children scene)]
       (assoc scene
         :node-id new-node-id

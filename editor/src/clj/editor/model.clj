@@ -26,6 +26,7 @@
             [editor.image :as image]
             [editor.localization :as localization]
             [editor.material :as material]
+            [editor.model-loader :as model-loader]
             [editor.model-scene :as model-scene]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
@@ -93,6 +94,9 @@
     (validation/prop-error :fatal _node-id :default-animation validation/prop-member-of? default-animation (set animation-ids)
                            (localization/message "error.animation-not-found" {"animation" default-animation
                                                                               "property" default-animation-message}))))
+
+(g/defnk produce-animation-root-transform-warning [skeleton-resource animations-resource]
+  (model-loader/root-ancestor-transform-warning skeleton-resource animations-resource))
 
 (defn- update-build-target-vertex-attributes [pb-msg material-binding-infos]
   (let [materials+attribute-build-data (mapv (fn [material+binding-infos]
@@ -177,9 +181,9 @@
       explicit-textures
       samplers)))
 
-(g/defnk produce-scene [_node-id scene material-name->material-scene-info]
+(g/defnk produce-scene [_node-id scene material-name->material-scene-info skeleton-resource]
   (if scene
-    (model-scene/augment-scene scene _node-id "model" material-name->material-scene-info)
+    (model-scene/augment-scene scene _node-id "model" material-name->material-scene-info (some? skeleton-resource))
     {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 
@@ -487,10 +491,12 @@
                                             [:animation-ids :animation-ids]
                                             [:animation-info :animation-infos]
                                             [:animation-set-build-target :animation-set-build-target])))
-            (dynamic error (g/fnk [_node-id animations ^:try animations-bones]
+            (dynamic error (g/fnk [_node-id animations ^:try animations-bones animation-root-transform-warning]
                              (if (g/error-value? animations-bones)
                                animations-bones
-                               (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message))))
+                               (or (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message)
+                                   (when animation-root-transform-warning
+                                     (g/->error _node-id :animations :warning animations animation-root-transform-warning {}))))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/animation-file-types}))
             (dynamic label (properties/label-dynamic :model :animations))
@@ -511,6 +517,7 @@
   (input skeleton-resource resource/Resource)
   (input skeleton-build-target g/Any)
   (input animations-resource resource/Resource)
+  (output animation-root-transform-warning g/Any :cached produce-animation-root-transform-warning)
   (input animation-set-build-target g/Any)
   (input dep-build-targets g/Any :array)
 

@@ -102,3 +102,108 @@
         (g/->error node-id nil :fatal nil
                    (localization/message "error.model-load-failed" {"file" path "error" message})
                    {:type :invalid-content :resource resource})))))
+
+(def ^:private root-ancestor-translation-epsilon 1e-4)
+(def ^:private root-ancestor-scale-epsilon 1e-4)
+(def ^:private root-ancestor-rotation-dot-epsilon 1e-6)
+
+(defn- instance-field [object field-name]
+  (clojure.lang.Reflector/getInstanceField object field-name))
+
+(defn- identity-transform-data []
+  {:translation {:x 0.0 :y 0.0 :z 0.0}
+   :rotation {:x 0.0 :y 0.0 :z 0.0 :w 1.0}
+   :scale {:x 1.0 :y 1.0 :z 1.0}})
+
+(defn- transform->data [transform]
+  (let [translation (instance-field transform "translation")
+        rotation (instance-field transform "rotation")
+        scale (instance-field transform "scale")]
+    {:translation {:x (double (instance-field translation "x"))
+                   :y (double (instance-field translation "y"))
+                   :z (double (instance-field translation "z"))}
+     :rotation {:x (double (instance-field rotation "x"))
+                :y (double (instance-field rotation "y"))
+                :z (double (instance-field rotation "z"))
+                :w (double (instance-field rotation "w"))}
+     :scale {:x (double (instance-field scale "x"))
+             :y (double (instance-field scale "y"))
+             :z (double (instance-field scale "z"))}}))
+
+(defn- root-bone [bones]
+  (or (some #(when (nil? (instance-field % "parent")) %) bones)
+      (first bones)))
+
+(defn- root-bone-ancestor-info [scene]
+  (let [bones (seq (ModelUtil/loadSkeleton scene))]
+    (when-let [root-bone (and bones (root-bone bones))]
+      (let [bone-node (instance-field root-bone "node")
+            ancestor-node (some-> bone-node (instance-field "parent"))]
+        {:bone-name (instance-field root-bone "name")
+         :ancestor-node-name (or (some-> ancestor-node (instance-field "name")) "")
+         :ancestor-transform (if ancestor-node
+                               (transform->data (instance-field ancestor-node "world"))
+                               (identity-transform-data))}))))
+
+(defn- nearly-equal [a b epsilon]
+  (<= (Math/abs ^double (- (double a) (double b))) epsilon))
+
+(defn- equivalent-rotation [a b]
+  (let [dot (+ (* (:x a) (:x b))
+               (* (:y a) (:y b))
+               (* (:z a) (:z b))
+               (* (:w a) (:w b)))]
+    (<= (- 1.0 (Math/abs ^double dot)) root-ancestor-rotation-dot-epsilon)))
+
+(defn- equivalent-transform [a b]
+  (and (nearly-equal (get-in a [:translation :x]) (get-in b [:translation :x]) root-ancestor-translation-epsilon)
+       (nearly-equal (get-in a [:translation :y]) (get-in b [:translation :y]) root-ancestor-translation-epsilon)
+       (nearly-equal (get-in a [:translation :z]) (get-in b [:translation :z]) root-ancestor-translation-epsilon)
+       (nearly-equal (get-in a [:scale :x]) (get-in b [:scale :x]) root-ancestor-scale-epsilon)
+       (nearly-equal (get-in a [:scale :y]) (get-in b [:scale :y]) root-ancestor-scale-epsilon)
+       (nearly-equal (get-in a [:scale :z]) (get-in b [:scale :z]) root-ancestor-scale-epsilon)
+       (equivalent-rotation (:rotation a) (:rotation b))))
+
+(defn- format-root-ancestor-transform [transform]
+  (format "T=(%.4f, %.4f, %.4f) R=(%.4f, %.4f, %.4f, %.4f) S=(%.4f, %.4f, %.4f)"
+          (get-in transform [:translation :x]) (get-in transform [:translation :y]) (get-in transform [:translation :z])
+          (get-in transform [:rotation :x]) (get-in transform [:rotation :y]) (get-in transform [:rotation :z]) (get-in transform [:rotation :w])
+          (get-in transform [:scale :x]) (get-in transform [:scale :y]) (get-in transform [:scale :z])))
+
+(defn- make-root-ancestor-transform-warning [skeleton-scene skeleton-path animations-scene animations-path]
+  (let [skeleton-info (root-bone-ancestor-info skeleton-scene)
+        animations-info (root-bone-ancestor-info animations-scene)]
+    (when (and skeleton-info
+               animations-info
+               (not (equivalent-transform (:ancestor-transform skeleton-info)
+                                          (:ancestor-transform animations-info))))
+      (let [skeleton-ancestor-name (if (string/blank? (:ancestor-node-name skeleton-info)) "<identity>" (:ancestor-node-name skeleton-info))
+            animations-ancestor-name (if (string/blank? (:ancestor-node-name animations-info)) "<identity>" (:ancestor-node-name animations-info))]
+        (format "The skeleton '%s' and animations '%s' use different root ancestor transforms above the root bone. Skeleton root bone '%s' inherits '%s' with %s, while animation root bone '%s' inherits '%s' with %s. Combining these files may cause incorrect root rotation, scale, or translation at runtime."
+                skeleton-path animations-path
+                (:bone-name skeleton-info) skeleton-ancestor-name (format-root-ancestor-transform (:ancestor-transform skeleton-info))
+                (:bone-name animations-info) animations-ancestor-name (format-root-ancestor-transform (:ancestor-transform animations-info)))))))
+
+(defn root-ancestor-transform-warning [skeleton-resource animations-resource]
+  (when (and skeleton-resource
+             animations-resource
+             (not= (resource/proj-path skeleton-resource) (resource/proj-path animations-resource))
+             (#{"gltf" "glb"} (string/lower-case (resource/ext skeleton-resource)))
+             (#{"gltf" "glb"} (string/lower-case (resource/ext animations-resource))))
+    (try
+      (let [workspace (resource/workspace skeleton-resource)
+            project-directory (workspace/project-directory workspace)
+            data-resolver (ModelUtil/createFileDataResolver project-directory)
+            skeleton-path (resource/proj-path skeleton-resource)
+            animations-path (resource/proj-path animations-resource)]
+        (with-open [skeleton-stream (io/input-stream skeleton-resource)
+                    animations-stream (io/input-stream animations-resource)]
+          (let [skeleton-scene (ModelUtil/loadScene skeleton-stream skeleton-path nil data-resolver)
+                animations-scene (ModelUtil/loadScene animations-stream animations-path nil data-resolver)]
+            (make-root-ancestor-transform-warning skeleton-scene skeleton-path animations-scene animations-path))))
+      (catch Exception error
+        (log/warn :message "Failed to compare model skeleton and animation root ancestor transforms"
+                  :skeleton (resource/proj-path skeleton-resource)
+                  :animations (resource/proj-path animations-resource)
+                  :exception error)
+        nil))))
