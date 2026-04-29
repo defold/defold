@@ -199,7 +199,7 @@ static bool LayoutText(LayoutContext* ctx,
 
     skb_rect2_t layout_bounds = skb_layout_get_bounds(skblayout);
     layout->m_Width = layout_bounds.width - (tracking > 0 ? tracking : 0);
-    layout->m_Height = lines_count * (line_height * settings->m_Leading) - line_height * (settings->m_Leading - 1.0f);
+    layout->m_Height = lines_count * (line_height_scaled * settings->m_Leading) - line_height_scaled * (settings->m_Leading - 1.0f);
 
     return true;
 }
