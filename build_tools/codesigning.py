@@ -43,7 +43,7 @@ def mac_certificate(codesigning_identity):
 def sign_file(platform, options, file):
     if _platform_is_windows(platform):
         gcloud = shutil.which('gcloud')
-        if not gclouf:
+        if not gcloud:
             sys.exit("No gcloud tool found")
 
         run.command([
