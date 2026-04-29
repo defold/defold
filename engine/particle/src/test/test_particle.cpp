@@ -2337,7 +2337,7 @@ TEST_F(ParticleTest, CullingSphereContainsRenderedVerticesForAutoSizeAndPivot)
 TEST_F(ParticleTest, UpdateRenderDataRefreshesTransformChangesInFrame)
 {
     const float dt = 1.0f;
-    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("emitter_space.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
 
     dmParticle::SetPosition(m_Context, instance, Point3(0.0f, 0.0f, 0.0f));

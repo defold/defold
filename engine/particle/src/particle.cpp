@@ -1931,14 +1931,8 @@ namespace dmParticle
             unit_width = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
         }
 
-        render_context.m_PivotTransform.SetIdentity();
-        if (length(Vector3(ddf->m_Pivot)) > 0.0f)
-        {
-            render_context.m_PivotTransform.SetTranslation(Vector3(
-                ddf->m_Pivot.getX() * unit_width,
-                ddf->m_Pivot.getY() * unit_height,
-                ddf->m_Pivot.getZ()));
-        }
+        dmVMath::Point3 scaled_pivot = mulPerElem(ddf->m_Pivot, dmVMath::Point3(unit_width, unit_height, 1.0f));
+        render_context.m_PivotTransform = dmTransform::Transform(Vector3(scaled_pivot), dmVMath::Quat::identity(), 1.0f);
         render_context.m_EmissionTransform.SetIdentity();
         if (ddf->m_Space == EMISSION_SPACE_EMITTER)
         {
