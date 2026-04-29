@@ -9,17 +9,18 @@
 Repository for the Defold engine, editor and command line tools.
 
 ## Supported by
-[![](https://defold.com/images/logo/others/melsoft-black.png)](https://melsoft-games.com/)
+[![](https://defold.com/images/logo/others/moonactive-color.png)](https://www.moonactive.com/)
+![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/denda-corporate.png)](https://denda-corporate.com/)
+![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/8bitskull.png)](https://www.8bitskull.com)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/rive-black.png)](https://www.rive.app)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/poki-black.png)](https://www.poki.com)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/op-games-color.png)](https://www.opgames.org)
-![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/heroiclabs-blue.png)](https://www.heroiclabs.com)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/king-color.png)](https://king.com/)
 
 ## Folder Structure
 
