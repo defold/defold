@@ -28,27 +28,28 @@ extern "C"
 #define DLUA_API extern
 #endif
 
-#define DLUA_NUMBER_FMT "%.14g"
+    enum
+    {
+        DLUA_MULTRET       = -1,
+        DLUA_REGISTRYINDEX = -10000,
+        DLUA_GLOBALSINDEX  = -10002,
 
-#define DLUA_MULTRET (-1)
-#define DLUA_REGISTRYINDEX (-10000)
-#define DLUA_GLOBALSINDEX (-10002)
+        DLUA_YIELD  = 1,
+        DLUA_ERRRUN = 2,
+        DLUA_ERRMEM = 4,
+
+        DLUA_GCCOLLECT = 2,
+        DLUA_GCCOUNT   = 3,
+
+        DLUA_MASKCALL = (1 << 0),
+
+        DLUA_NOREF = -2,
+
+        DLUAL_BUFFERSIZE = BUFSIZ,
+        DLUA_IDSIZE      = 60
+    };
+
 #define dlua_upvalueindex(i) (DLUA_GLOBALSINDEX - (i))
-
-#define DLUA_YIELD 1
-#define DLUA_ERRRUN 2
-#define DLUA_ERRMEM 4
-
-#define DLUA_GCCOLLECT 2
-#define DLUA_GCCOUNT 3
-
-#define DLUA_MASKCALL (1 << 0)
-
-#define DLUA_NOREF (-2)
-#define DLUA_REFNIL (-1)
-
-#define DLUAL_BUFFERSIZE BUFSIZ
-#define DLUA_IDSIZE 60
 
     typedef struct lua_State  dlua_State;
     typedef struct dlua_Debug dlua_Debug;
@@ -236,8 +237,6 @@ extern "C"
 #define dluaL_dostring(L, s) (dluaL_loadstring((L), (s)) || dlua_pcall((L), 0, DLUA_MULTRET, 0))
 #define dluaL_getmetatable(L, n) dlua_getfield((L), DLUA_REGISTRYINDEX, (n))
 #define dluaL_addchar(B, c) ((void)((B)->p < ((B)->buffer + DLUAL_BUFFERSIZE) || dluaL_prepbuffer((B))), (*(B)->p++ = (char)(c)))
-
-#define dlua_ref(L, lock) ((lock) ? dluaL_ref((L), DLUA_REGISTRYINDEX) : (dlua_pushstring((L), "unlocked references are obsolete"), dlua_error((L)), 0))
 
 #ifdef __cplusplus
 }

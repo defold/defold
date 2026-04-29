@@ -393,7 +393,7 @@ namespace dmScript
         Vector3* v = CheckVector3(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_VECTOR3 + 1;
         char* buffer = new char[buffer_size];
-        // Use same format as Lua when converting number to string (from DLUA_NUMBER_FMT in luaconf.h)
+        // Use same format as Lua when converting number to string.
         dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR3, s, v->getX(), v->getY(), v->getZ());
         dlua_pushstring(L, buffer);
         delete [] buffer;
@@ -558,7 +558,7 @@ namespace dmScript
         Vector4* v = CheckVector4(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_VECTOR4 + 1;
         char* buffer = new char[size + buffer_size];
-        // Use same format as Lua when converting number to string (from DLUA_NUMBER_FMT in luaconf.h)
+        // Use same format as Lua when converting number to string.
         dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR4, s, v->getX(), v->getY(), v->getZ(), v->getW());
         dlua_pushstring(L, buffer);
         delete [] buffer;
@@ -684,7 +684,7 @@ namespace dmScript
         Quat* q = CheckQuat(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_QUAT + 1;
         char* buffer = new char[buffer_size];
-        // Use same format as Lua when converting number to string (from DLUA_NUMBER_FMT in luaconf.h)
+        // Use same format as Lua when converting number to string.
         dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_QUAT, s, q->getX(), q->getY(), q->getZ(), q->getW());
         dlua_pushstring(L, buffer);
         delete [] buffer;
@@ -834,7 +834,7 @@ namespace dmScript
         Matrix4* m = CheckMatrix4(L, 2);
         const int buffer_size = size + MAX_CHARS_PER_MATRIX4 + 1;
         char* buffer = new char[buffer_size];
-        // Use same format as Lua when converting number to string (from DLUA_NUMBER_FMT in luaconf.h)
+        // Use same format as Lua when converting number to string.
         dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_MATRIX4, s,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
