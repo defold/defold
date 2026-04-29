@@ -217,9 +217,6 @@ namespace dmParticle
     static void ResetEmitter(Emitter* emitter);
     void UpdateEmitterRenderData(HInstance instance, uint32_t emitter_index, Instance* inst, Emitter* emitter, dmParticleDDF::Emitter* ddf, float dt);
     void ReHashEmitter(Emitter* e);
-    static void CalculateAnimationUnitSize(const AnimationData& anim_data, float& width, float& height);
-    static void PrepareParticleTransformContext(Instance* instance, dmParticleDDF::Emitter* ddf, float width, float height, dmTransform::Transform& pivot_transform, dmTransform::TransformS1& emission_transform);
-    static void CalculateParticleTransform(const Particle& p, const dmTransform::TransformS1& emission_transform, const dmTransform::Transform& pivot_transform, const Vector3& size, dmTransform::Transform& particle_transform);
 
     HInstance CreateInstance(HParticleContext context, HPrototype prototype, EmitterStateChangedData* emitter_state_changed_data)
     {
@@ -287,7 +284,6 @@ namespace dmParticle
         {
             Emitter* emitter = &i->m_Emitters[emitter_i];
             emitter->m_Particles.SetCapacity(0);
-            emitter->m_RenderState.SetCapacity(0);
             emitter->m_RenderConstants.SetCapacity(0);
         }
         delete i;
@@ -486,7 +482,6 @@ namespace dmParticle
             if (clear_particles)
             {
                 emitter->m_Particles.SetSize(0);
-                emitter->m_RenderState.SetSize(0);
             }
         }
 
@@ -509,11 +504,9 @@ namespace dmParticle
 
     static void ResetEmitter(Emitter* emitter)
     {
-        // Save particles array and id
+        // Save particle array and id
         dmArray<Particle> tmp;
         tmp.Swap(emitter->m_Particles);
-        dmArray<ParticleRenderState> render_state_tmp;
-        render_state_tmp.Swap(emitter->m_RenderState);
         dmhash_t id = emitter->m_Id;
         uint32_t original_seed = emitter->m_OriginalSeed;
         float duration = emitter->m_Duration;
@@ -525,12 +518,10 @@ namespace dmParticle
 
         // Restore particles and id
         tmp.Swap(emitter->m_Particles);
-        render_state_tmp.Swap(emitter->m_RenderState);
         emitter->m_Id = id;
 
         // Remove living particles
         emitter->m_Particles.SetSize(0);
-        emitter->m_RenderState.SetSize(0);
 
         // Restore values
         emitter->m_OriginalSeed = original_seed;
@@ -678,7 +669,6 @@ namespace dmParticle
     }
 
     static GenerateVertexDataResult GenerateVertexDataInternal(HParticleContext context,
-                                                                float dt,
                                                                 HInstance instance,
                                                                 uint32_t emitter_index,
                                                                 uint32_t particle_start,
@@ -703,7 +693,6 @@ namespace dmParticle
         {
             return GENERATE_VERTEX_DATA_OK;
         }
-        (void) dt;
 
         uint32_t vertex_size            = attribute_infos.m_VertexStride;
         const uint32_t vb_buffer_offset = *out_vertex_buffer_size;
@@ -722,9 +711,7 @@ namespace dmParticle
         GenerateVertexDataResult res = GENERATE_VERTEX_DATA_OK;
         if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
         {
-            assert(emitter->m_RenderState.Size() == emitter->m_Particles.Size());
-
-            uint32_t count = dmMath::Min(emitter->m_RenderState.Size(), particle_count);
+            uint32_t count = dmMath::Min(emitter->m_Particles.Size(), particle_count);
             res = WriteVertexData(emitter, particle_start, count,
                                   attribute_infos, color, vertex_index, vertex_buffer_write, vertex_buffer_size, &bytes_written);
             *out_vertex_buffer_size += bytes_written;
@@ -737,12 +724,14 @@ namespace dmParticle
 
     GenerateVertexDataResult GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
-        return GenerateVertexDataInternal(context, dt, instance, emitter_index, 0, 0xFFFFFFFF, attribute_infos, color, vertex_buffer, vertex_buffer_size, out_vertex_buffer_size);
+        (void) dt;
+        return GenerateVertexDataInternal(context, instance, emitter_index, 0, 0xFFFFFFFF, attribute_infos, color, vertex_buffer, vertex_buffer_size, out_vertex_buffer_size);
     }
 
     GenerateVertexDataResult GenerateVertexDataPartial(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
-        return GenerateVertexDataInternal(context, dt, instance, emitter_index, particle_start, particle_count, attribute_infos, color, vertex_buffer, vertex_buffer_size, out_vertex_buffer_size);
+        (void) dt;
+        return GenerateVertexDataInternal(context, instance, emitter_index, particle_start, particle_count, attribute_infos, color, vertex_buffer, vertex_buffer_size, out_vertex_buffer_size);
     }
 
     void Update(HParticleContext context, float dt, FetchResourcesCallback fetch_resources_callback)
@@ -1216,7 +1205,7 @@ namespace dmParticle
         for (j = particle_start; j < particle_end && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
-            const ParticleRenderState& render_state = emitter->m_RenderState[j];
+            const ParticleRenderState& render_state = particle->m_RenderState;
             float* tex_coord = &tex_coords[render_state.m_Tile << 3];
 
             float hx = render_state.m_HalfWidth;
@@ -1930,90 +1919,34 @@ namespace dmParticle
             emitter->m_RenderConstants.Size());
     }
 
-    static void CalculateAnimationUnitSize(const AnimationData& anim_data, float& width, float& height)
-    {
-        width = 1.0f;
-        height = 1.0f;
-        if (anim_data.m_TileWidth > anim_data.m_TileHeight)
-        {
-            height = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
-        }
-        else if (anim_data.m_TileHeight > 0)
-        {
-            width = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
-        }
-    }
-
-    static void PrepareParticleTransformContext(Instance* instance, dmParticleDDF::Emitter* ddf, float width, float height, dmTransform::Transform& pivot_transform, dmTransform::TransformS1& emission_transform)
-    {
-        pivot_transform.SetIdentity();
-        if (length(Vector3(ddf->m_Pivot)) > 0.0f)
-        {
-            pivot_transform.SetTranslation(Vector3(
-                ddf->m_Pivot.getX() * width,
-                ddf->m_Pivot.getY() * height,
-                ddf->m_Pivot.getZ()));
-        }
-        emission_transform.SetIdentity();
-        if (ddf->m_Space == EMISSION_SPACE_EMITTER)
-        {
-            emission_transform = instance->m_WorldTransform;
-        }
-    }
-
-    static void CalculateParticleTransform(const Particle& p, const dmTransform::TransformS1& emission_transform, const dmTransform::Transform& pivot_transform, const Vector3& size, dmTransform::Transform& particle_transform)
-    {
-        particle_transform.SetIdentity();
-        particle_transform.SetTranslation(Vector3(p.GetPosition()));
-        particle_transform.SetRotation(p.GetRotation());
-        particle_transform.SetScale(size);
-        particle_transform.SetRotation(emission_transform.GetRotation() * particle_transform.GetRotation());
-        particle_transform.SetTranslation(Vector3(Apply(emission_transform, Point3(particle_transform.GetTranslation()))));
-        particle_transform.SetScale(emission_transform.GetScale() * particle_transform.GetScale());
-        particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
-    }
-
-    struct ParticleRenderContext
-    {
-        ParticleRenderContext()
-        : m_StartTile(0)
-        , m_Interval(1)
-        , m_TileCount(1)
-        , m_InvAnimLength(0.0f)
-        , m_HalfDt(0.0f)
-        , m_BaseHalfWidth(0.5f)
-        , m_BaseHalfHeight(0.5f)
-        , m_AnimPlaying(false)
-        , m_AnimAutoSize(false)
-        , m_AnimOnce(false)
-        , m_AnimBackward(false)
-        {
-        }
-
-        dmTransform::Transform   m_PivotTransform;
-        dmTransform::TransformS1 m_EmissionTransform;
-        uint32_t                 m_StartTile;
-        uint32_t                 m_Interval;
-        uint32_t                 m_TileCount;
-        float                    m_InvAnimLength;
-        float                    m_HalfDt;
-        float                    m_BaseHalfWidth;
-        float                    m_BaseHalfHeight;
-        bool                     m_AnimPlaying;
-        bool                     m_AnimAutoSize;
-        bool                     m_AnimOnce;
-        bool                     m_AnimBackward;
-    };
-
     static void CreateParticleRenderContext(Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, float dt, ParticleRenderContext& render_context)
     {
         const AnimationData& anim_data = emitter->m_AnimationData;
 
         float unit_width = 1.0f;
         float unit_height = 1.0f;
-        CalculateAnimationUnitSize(anim_data, unit_width, unit_height);
+        if (anim_data.m_TileWidth > anim_data.m_TileHeight)
+        {
+            unit_height = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
+        }
+        else if (anim_data.m_TileHeight > 0)
+        {
+            unit_width = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
+        }
 
-        PrepareParticleTransformContext(instance, ddf, unit_width, unit_height, render_context.m_PivotTransform, render_context.m_EmissionTransform);
+        render_context.m_PivotTransform.SetIdentity();
+        if (length(Vector3(ddf->m_Pivot)) > 0.0f)
+        {
+            render_context.m_PivotTransform.SetTranslation(Vector3(
+                ddf->m_Pivot.getX() * unit_width,
+                ddf->m_Pivot.getY() * unit_height,
+                ddf->m_Pivot.getZ()));
+        }
+        render_context.m_EmissionTransform.SetIdentity();
+        if (ddf->m_Space == EMISSION_SPACE_EMITTER)
+        {
+            render_context.m_EmissionTransform = instance->m_WorldTransform;
+        }
         render_context.m_BaseHalfWidth = unit_width * 0.5f;
         render_context.m_BaseHalfHeight = unit_height * 0.5f;
         render_context.m_HalfDt = dt * 0.5f;
@@ -2046,30 +1979,25 @@ namespace dmParticle
         }
     }
 
-    static uint32_t CalculateParticleAnimationTile(const Particle& particle, const ParticleRenderContext& render_context)
+    static void UpdateParticleRenderState(Particle& particle, const AnimationData& anim_data, const ParticleRenderContext& render_context)
     {
-        if (!render_context.m_AnimPlaying)
+        ParticleRenderState& render_state = particle.m_RenderState;
+        uint32_t tile = render_context.m_StartTile;
+        if (render_context.m_AnimPlaying)
         {
-            return render_context.m_StartTile;
+            float anim_cursor = particle.GetMaxLifeTime() - particle.GetTimeLeft() - render_context.m_HalfDt;
+            float anim_t = render_context.m_AnimOnce ? anim_cursor * particle.GetooMaxLifeTime() : anim_cursor * render_context.m_InvAnimLength;
+            tile = ((uint32_t)(render_context.m_TileCount * anim_t)) % render_context.m_TileCount;
+            if (tile >= render_context.m_Interval)
+            {
+                tile = (render_context.m_Interval - 1) * 2 - tile;
+            }
+            if (render_context.m_AnimBackward)
+            {
+                tile = render_context.m_TileCount - tile - 1;
+            }
+            tile += render_context.m_StartTile;
         }
-
-        float anim_cursor = particle.GetMaxLifeTime() - particle.GetTimeLeft() - render_context.m_HalfDt;
-        float anim_t = render_context.m_AnimOnce ? anim_cursor * particle.GetooMaxLifeTime() : anim_cursor * render_context.m_InvAnimLength;
-        uint32_t tile = ((uint32_t)(render_context.m_TileCount * anim_t)) % render_context.m_TileCount;
-        if (tile >= render_context.m_Interval)
-        {
-            tile = (render_context.m_Interval - 1) * 2 - tile;
-        }
-        if (render_context.m_AnimBackward)
-        {
-            tile = render_context.m_TileCount - tile - 1;
-        }
-        return render_context.m_StartTile + tile;
-    }
-
-    static void UpdateParticleRenderState(const Particle& particle, const AnimationData& anim_data, const ParticleRenderContext& render_context, ParticleRenderState& render_state)
-    {
-        uint32_t tile = CalculateParticleAnimationTile(particle, render_context);
 
         float half_width = render_context.m_BaseHalfWidth;
         float half_height = render_context.m_BaseHalfHeight;
@@ -2086,7 +2014,14 @@ namespace dmParticle
         }
 
         dmTransform::Transform particle_transform;
-        CalculateParticleTransform(particle, render_context.m_EmissionTransform, render_context.m_PivotTransform, size, particle_transform);
+        particle_transform.SetIdentity();
+        particle_transform.SetTranslation(Vector3(particle.GetPosition()));
+        particle_transform.SetRotation(particle.GetRotation());
+        particle_transform.SetScale(size);
+        particle_transform.SetRotation(render_context.m_EmissionTransform.GetRotation() * particle_transform.GetRotation());
+        particle_transform.SetTranslation(Vector3(Apply(render_context.m_EmissionTransform, Point3(particle_transform.GetTranslation()))));
+        particle_transform.SetScale(render_context.m_EmissionTransform.GetScale() * particle_transform.GetScale());
+        particle_transform = dmTransform::Mul(particle_transform, render_context.m_PivotTransform);
 
         const Vector3 scale = particle_transform.GetScale();
         render_state.m_WorldTransform.SetTranslation(particle_transform.GetTranslation());
@@ -2099,26 +2034,20 @@ namespace dmParticle
 
     static void UpdateEmitterRenderState(Instance* inst, Emitter* emitter, dmParticleDDF::Emitter* ddf, float dt)
     {
-        const uint32_t particle_count = emitter->m_Particles.Size();
-        if (emitter->m_RenderState.Capacity() < particle_count)
-        {
-            emitter->m_RenderState.SetCapacity(particle_count);
-        }
-        emitter->m_RenderState.SetSize(particle_count);
-
         ParticleRenderContext render_context;
         CreateParticleRenderContext(inst, emitter, ddf, dt, render_context);
         const AnimationData& anim_data = emitter->m_AnimationData;
 
+        const uint32_t particle_count = emitter->m_Particles.Size();
         for (uint32_t i = 0; i < particle_count; ++i)
         {
-            UpdateParticleRenderState(emitter->m_Particles[i], anim_data, render_context, emitter->m_RenderState[i]);
+            UpdateParticleRenderState(emitter->m_Particles[i], anim_data, render_context);
         }
     }
 
     static void CalculateEmitterCullingSphere(Instance* inst, Emitter* emitter, dmVMath::Point3& center, float& radius_sq)
     {
-        const uint32_t particle_count = emitter->m_RenderState.Size();
+        const uint32_t particle_count = emitter->m_Particles.Size();
         if (particle_count == 0)
         {
             center = dmVMath::Point3(inst->m_WorldTransform.GetTranslation());
@@ -2132,7 +2061,7 @@ namespace dmParticle
 
         for (uint32_t i = 0; i < particle_count; ++i)
         {
-            const ParticleRenderState& render_state = emitter->m_RenderState[i];
+            const ParticleRenderState& render_state = emitter->m_Particles[i].m_RenderState;
             const dmVMath::Vector3 world_pos(render_state.m_WorldTransform.GetTranslation());
             aabb_min = minPerElem(aabb_min, world_pos);
             aabb_max = maxPerElem(aabb_max, world_pos);

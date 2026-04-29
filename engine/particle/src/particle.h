@@ -168,19 +168,19 @@ namespace dmParticle
         }
 
         dmVMath::Matrix4             m_Transform;
-        void*                        m_Material; // dmRender::HMaterial
-        dmParticleDDF::BlendMode     m_BlendMode;
-        void*                        m_Texture; // dmGraphics::HTexture
-        dmGraphics::VertexAttribute* m_Attributes;
-        uint32_t                     m_AttributeCount;
+        dmVMath::Point3              m_FrustumCullingCenter;
         RenderConstant*              m_RenderConstants;
-        uint32_t                     m_RenderConstantsSize;
+        dmGraphics::VertexAttribute* m_Attributes;
+        void*                        m_Material; // dmRender::HMaterial
+        void*                        m_Texture; // dmGraphics::HTexture
         HInstance                    m_Instance; // Particle instance handle
         uint32_t                     m_EmitterIndex;
         uint32_t                     m_MixedHash;
         uint32_t                     m_MixedHashNoMaterial;
-        dmVMath::Point3              m_FrustumCullingCenter;
+        uint32_t                     m_RenderConstantsSize;
+        uint32_t                     m_AttributeCount;
         float                        m_FrustumCullingRadiusSq;
+        dmParticleDDF::BlendMode     m_BlendMode;
     };
 
     /**

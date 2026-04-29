@@ -217,6 +217,31 @@ static float MaxVertexDistanceSq(const TestVertex* vertex_buffer, uint32_t verte
     return max_distance_sq;
 }
 
+static int CompareParticleSimulationState(const dmParticle::Particle* lhs, const dmParticle::Particle* rhs)
+{
+#define CMP_PARTICLE_MEMBER(member) if (memcmp(&lhs->member, &rhs->member, sizeof(lhs->member)) != 0) return 1
+    CMP_PARTICLE_MEMBER(m_Position);
+    CMP_PARTICLE_MEMBER(m_SourceRotation);
+    CMP_PARTICLE_MEMBER(m_Rotation);
+    CMP_PARTICLE_MEMBER(m_Velocity);
+    CMP_PARTICLE_MEMBER(m_TimeLeft);
+    CMP_PARTICLE_MEMBER(m_MaxLifeTime);
+    CMP_PARTICLE_MEMBER(m_ooMaxLifeTime);
+    CMP_PARTICLE_MEMBER(m_SpreadFactor);
+    CMP_PARTICLE_MEMBER(m_SourceSize);
+    CMP_PARTICLE_MEMBER(m_SourceStretchFactorX);
+    CMP_PARTICLE_MEMBER(m_SourceStretchFactorY);
+    CMP_PARTICLE_MEMBER(m_SourceColor);
+    CMP_PARTICLE_MEMBER(m_Color);
+    CMP_PARTICLE_MEMBER(m_Scale);
+    CMP_PARTICLE_MEMBER(m_SortKey);
+    CMP_PARTICLE_MEMBER(m_StretchFactorX);
+    CMP_PARTICLE_MEMBER(m_StretchFactorY);
+    CMP_PARTICLE_MEMBER(m_SourceAngularVelocity);
+#undef CMP_PARTICLE_MEMBER
+    return 0;
+}
+
 dmParticle::Emitter* GetEmitter(dmParticle::HParticleContext context, dmParticle::HInstance instance, uint32_t index)
 {
     return &context->m_Instances[instance & 0xffff]->m_Emitters[index];
@@ -1645,7 +1670,7 @@ TEST_F(ParticleTest, ReloadInstance)
     ASSERT_EQ(seed, e->m_Seed);
     ASSERT_EQ(1u, e->m_Particles.Size());
     dmParticle::Particle* particle = &e->m_Particles[0];
-    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+    ASSERT_EQ(0, CompareParticleSimulationState(&original_particle, particle));
 
     dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 1);
     ASSERT_EQ(1u, e1->m_Particles.Size());
@@ -1656,7 +1681,7 @@ TEST_F(ParticleTest, ReloadInstance)
 
     ASSERT_EQ(1u, e->m_Particles.Size());
     particle = &e->m_Particles[0];
-    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+    ASSERT_EQ(0, CompareParticleSimulationState(&original_particle, particle));
 
     // Test reload with max_particle_count changed
     ASSERT_TRUE(ReloadPrototype("reload3.particlefxc", m_Prototype));
@@ -1665,7 +1690,7 @@ TEST_F(ParticleTest, ReloadInstance)
 
     ASSERT_EQ(2u, e->m_Particles.Size());
     particle = &e->m_Particles[0];
-    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+    ASSERT_EQ(0, CompareParticleSimulationState(&original_particle, particle));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -1703,7 +1728,7 @@ TEST_F(ParticleTest, ReloadInstanceLoop)
     ASSERT_EQ(emitter_timer, e->m_Timer);
     ASSERT_EQ(1u, e->m_Particles.Size());
     dmParticle::Particle* particle = &e->m_Particles[0];
-    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+    ASSERT_EQ(0, CompareParticleSimulationState(&original_particle, particle));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -2242,6 +2267,7 @@ TEST_F(ParticleTest, Pivot)
 TEST_F(ParticleTest, CullingSphereContainsRenderedVerticesForAutoSizeAndPivot)
 {
     {
+        // Verify auto-sized animated particles stay inside the cached culling sphere.
         const float dt = 0.25f;
         ASSERT_TRUE(LoadPrototype("anim.particlefxc", &m_Prototype));
         dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
@@ -2275,6 +2301,7 @@ TEST_F(ParticleTest, CullingSphereContainsRenderedVerticesForAutoSizeAndPivot)
     }
 
     {
+        // Verify pivoted particles stay inside the cached culling sphere after pivot offset is applied.
         const float dt = 1.0f;
         ASSERT_TRUE(LoadPrototype("pivot.particlefxc", &m_Prototype));
         dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);

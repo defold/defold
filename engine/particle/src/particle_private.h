@@ -42,6 +42,51 @@ namespace dmParticle
         uint32_t     m_Key;
     };
 
+    struct ParticleRenderState
+    {
+        ParticleRenderState()
+        {
+            memset(this, 0, sizeof(ParticleRenderState));
+        }
+
+        dmTransform::TransformS1 m_WorldTransform;
+        float                    m_HalfWidth;
+        float                    m_HalfHeight;
+        uint32_t                 m_Tile;
+    };
+
+    struct ParticleRenderContext
+    {
+        ParticleRenderContext()
+        : m_InvAnimLength(0.0f)
+        , m_HalfDt(0.0f)
+        , m_BaseHalfWidth(0.5f)
+        , m_BaseHalfHeight(0.5f)
+        , m_StartTile(0)
+        , m_Interval(1)
+        , m_TileCount(1)
+        , m_AnimPlaying(0)
+        , m_AnimAutoSize(0)
+        , m_AnimOnce(0)
+        , m_AnimBackward(0)
+        {
+        }
+
+        dmTransform::Transform   m_PivotTransform;
+        dmTransform::TransformS1 m_EmissionTransform;
+        float                    m_InvAnimLength;
+        float                    m_HalfDt;
+        float                    m_BaseHalfWidth;
+        float                    m_BaseHalfHeight;
+        uint32_t                 m_StartTile;
+        uint32_t                 m_Interval;
+        uint32_t                 m_TileCount;
+        uint8_t                  m_AnimPlaying  : 1;
+        uint8_t                  m_AnimAutoSize : 1;
+        uint8_t                  m_AnimOnce     : 1;
+        uint8_t                  m_AnimBackward : 1;
+    };
+
     /**
      * Representation of a particle.
      *
@@ -68,6 +113,8 @@ namespace dmParticle
         GET_SET(SortKey, SortKey)
 #undef GET_SET
 
+        /// Render state, generated during update and consumed during render. This should generate less work during rendering if particles are rendered many times.
+        ParticleRenderState m_RenderState;
         /// Position, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
         dmVMath::Point3 m_Position;
         /// Rotation, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
@@ -102,19 +149,6 @@ namespace dmParticle
         float       m_SourceAngularVelocity;
     };
 
-    struct ParticleRenderState
-    {
-        ParticleRenderState()
-        {
-            memset(this, 0, sizeof(ParticleRenderState));
-        }
-
-        dmTransform::TransformS1 m_WorldTransform;
-        float                    m_HalfWidth;
-        float                    m_HalfHeight;
-        uint32_t                 m_Tile;
-    };
-
     /**
      * Representation of an emitter.
      */
@@ -128,7 +162,6 @@ namespace dmParticle
         AnimationData           m_AnimationData;
         /// Particle buffer.
         dmArray<Particle>       m_Particles;
-        dmArray<ParticleRenderState> m_RenderState;
         dmArray<RenderConstant> m_RenderConstants;
         dmVMath::Vector3        m_Velocity;
         dmVMath::Point3         m_LastPosition;
