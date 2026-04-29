@@ -856,12 +856,12 @@ namespace dmGraphics
         CHECK_VK_ERROR(res);
 
 
-        // Create scratch buffer and descriptor allocators, one for each swap chain image
-        //   Note: These constants are guessed and equals roughly 256 draw calls and 64kb
-        //         of uniform memory per scratch buffer. The scratch buffer can dynamically
-        //         grow, this is just a starting point.
+        // Create scratch buffer and descriptor allocators, one for each swap chain image.
+        // The scratch buffer can dynamically grow, but resizing mid-frame is expensive
+        // (triggers vkAllocateMemory + deferred destroy), so we start large enough to
+        // cover most 3D scenes without a resize on the first frame.
         const uint16_t descriptor_count_per_pool = 512;
-        const uint32_t buffer_size               = 256 * descriptor_count_per_pool;
+        const uint32_t buffer_size               = 512 * 1024; // 512KB
 
         res = CreateMainScratchBuffers(context->m_PhysicalDevice.m_Device, vk_device, DM_MAX_FRAMES_IN_FLIGHT, buffer_size, descriptor_count_per_pool, context->m_MainDescriptorAllocators, context->m_MainScratchBuffers);
         CHECK_VK_ERROR(res);
@@ -1408,6 +1408,12 @@ namespace dmGraphics
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);
         context->m_FenceResourcesToDestroy.Allocate(8);
+
+        // Pre-allocate the dynamic offset buffer to the maximum possible size.
+        // This avoids malloc/realloc in the per-draw PrepareScratchBuffer path.
+        context->m_DynamicOffsetBufferSize = MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT;
+        context->m_DynamicOffsetBuffer     = (uint32_t*) malloc(sizeof(uint32_t) * context->m_DynamicOffsetBufferSize);
+        memset(context->m_DynamicOffsetBuffer, 0, sizeof(uint32_t) * context->m_DynamicOffsetBufferSize);
 
         context->m_AsyncProcessingSupport = context->m_JobContext != 0x0 && dmThread::PlatformHasThreadSupport();
         if (context->m_AsyncProcessingSupport)
@@ -2806,33 +2812,27 @@ bail:
 
         const uint8_t frame_index = (uint8_t) context->m_CurrentFrameInFlight;
 
-        DescriptorSetCacheEntry* cache_entry = 0x0;
+        DescriptorSetCache* cache = 0x0;
         if (bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS)
         {
-            cache_entry = &program_ptr->m_GraphicsDescriptorCache[frame_index];
+            cache = &program_ptr->m_GraphicsDescriptorCache[frame_index];
         }
         else if (bind_point == VK_PIPELINE_BIND_POINT_COMPUTE)
         {
-            cache_entry = &program_ptr->m_ComputeDescriptorCache[frame_index];
+            cache = &program_ptr->m_ComputeDescriptorCache[frame_index];
         }
 
-        const uint32_t allocator_generation = context->m_DescriptorAllocatorGeneration[frame_index];
+        const uint32_t allocator_generation  = context->m_DescriptorAllocatorGeneration[frame_index];
+        const uint32_t descriptor_set_count  = program_ptr->m_Handle.m_DescriptorSetLayoutsCount;
         uint64_t binding_signature = 0;
 
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
         VkResult res = VK_SUCCESS;
 
-        if (cache_entry)
+        if (cache)
         {
             binding_signature = GetDescriptorBindingSignature(context, program_ptr, scratch_buffer);
-
-            if (cache_entry->m_Valid &&
-                cache_entry->m_AllocatorGeneration == allocator_generation &&
-                cache_entry->m_BindingSignature == binding_signature &&
-                cache_entry->m_DescriptorSetCount == program_ptr->m_Handle.m_DescriptorSetLayoutsCount)
-            {
-                vk_descriptor_set_list = cache_entry->m_DescriptorSets;
-            }
+            vk_descriptor_set_list = cache->Find(binding_signature, allocator_generation, descriptor_set_count);
         }
 
         const bool cache_hit = vk_descriptor_set_list != 0;
@@ -2842,7 +2842,7 @@ bail:
             res = scratch_buffer->m_DescriptorAllocator->Allocate(
                 vk_device,
                 program_ptr->m_Handle.m_DescriptorSetLayouts,
-                program_ptr->m_Handle.m_DescriptorSetLayoutsCount,
+                descriptor_set_count,
                 num_descriptors,
                 &vk_descriptor_set_list);
             if (res != VK_SUCCESS)
@@ -2852,17 +2852,9 @@ bail:
 
             UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, true);
 
-            if (cache_entry)
+            if (cache)
             {
-                cache_entry->m_DescriptorSetCount    = program_ptr->m_Handle.m_DescriptorSetLayoutsCount;
-                cache_entry->m_BindingSignature      = binding_signature;
-                cache_entry->m_AllocatorGeneration   = allocator_generation;
-                cache_entry->m_Valid                 = 1;
-
-                for (uint8_t i = 0; i < program_ptr->m_Handle.m_DescriptorSetLayoutsCount; ++i)
-                {
-                    cache_entry->m_DescriptorSets[i] = vk_descriptor_set_list[i];
-                }
+                cache->Insert(binding_signature, allocator_generation, descriptor_set_count, vk_descriptor_set_list);
             }
         }
         else
@@ -2902,30 +2894,21 @@ bail:
 
         if (resize_scratch_buffer)
         {
-            const uint8_t descriptor_increase = 32;
-            const uint32_t bytes_increase = 256 * descriptor_increase;
-            VkResult res = ResizeScratchBuffer(context, scratchBuffer->m_DeviceBuffer.m_MemorySize + bytes_increase, scratchBuffer);
+            // Double the buffer size, or grow to fit the current program's needs,
+            // whichever is larger. This avoids repeated small resizes when many
+            // materials with large uniform blocks are drawn in the same frame.
+            const uint32_t current_size = scratchBuffer->m_DeviceBuffer.m_MemorySize;
+            const uint32_t needed_size  = scratchBuffer->m_MappedDataCursor + program_ptr->m_UniformDataSizeAligned;
+            const uint32_t new_size     = dmMath::Max(current_size * 2, needed_size);
+            VkResult res = ResizeScratchBuffer(context, new_size, scratchBuffer);
             CHECK_VK_ERROR(res);
         }
 
-        // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this dispatch call
-        if (context->m_DynamicOffsetBufferSize < num_uniform_buffers)
-        {
-            const size_t offset_buffer_size = sizeof(uint32_t) * num_uniform_buffers;
-
-            if (context->m_DynamicOffsetBuffer == 0x0)
-            {
-                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(offset_buffer_size);
-            }
-            else
-            {
-                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, offset_buffer_size);
-            }
-
-            memset(context->m_DynamicOffsetBuffer, 0, offset_buffer_size);
-
-            context->m_DynamicOffsetBufferSize = num_uniform_buffers;
-        }
+        // The dynamic offset buffer is pre-allocated at context init to
+        // MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT, which is the upper bound
+        // for any program. Assert rather than silently reallocating.
+        assert(context->m_DynamicOffsetBuffer != 0x0);
+        assert(context->m_DynamicOffsetBufferSize >= num_uniform_buffers);
     }
 
     static void DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)

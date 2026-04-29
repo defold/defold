@@ -282,6 +282,51 @@ namespace dmGraphics
         uint8_t         m_Valid;
     };
 
+    // Ring buffer of descriptor set cache entries. Allows multiple distinct
+    // binding combinations per program per frame to stay cached, which is
+    // critical for 3D scenes where the same shader is used with many
+    // different texture/UBO combinations.
+    const static uint8_t DM_DESCRIPTOR_CACHE_SIZE = 8;
+
+    struct DescriptorSetCache
+    {
+        DescriptorSetCacheEntry m_Entries[DM_DESCRIPTOR_CACHE_SIZE];
+        uint8_t                 m_WriteIndex; // next slot to overwrite on miss
+
+        // Returns the cached descriptor sets if binding_signature matches
+        // an entry with the current allocator generation, or null on miss.
+        VkDescriptorSet* Find(uint64_t binding_signature, uint32_t allocator_generation, uint32_t descriptor_set_count)
+        {
+            for (uint8_t i = 0; i < DM_DESCRIPTOR_CACHE_SIZE; ++i)
+            {
+                DescriptorSetCacheEntry& e = m_Entries[i];
+                if (e.m_Valid &&
+                    e.m_AllocatorGeneration == allocator_generation &&
+                    e.m_BindingSignature == binding_signature &&
+                    e.m_DescriptorSetCount == descriptor_set_count)
+                {
+                    return e.m_DescriptorSets;
+                }
+            }
+            return 0x0;
+        }
+
+        // Insert a new cache entry, overwriting the oldest slot.
+        void Insert(uint64_t binding_signature, uint32_t allocator_generation, uint32_t descriptor_set_count, VkDescriptorSet* sets)
+        {
+            DescriptorSetCacheEntry& e = m_Entries[m_WriteIndex];
+            e.m_BindingSignature    = binding_signature;
+            e.m_AllocatorGeneration = allocator_generation;
+            e.m_DescriptorSetCount  = descriptor_set_count;
+            e.m_Valid               = 1;
+            for (uint8_t i = 0; i < descriptor_set_count; ++i)
+            {
+                e.m_DescriptorSets[i] = sets[i];
+            }
+            m_WriteIndex = (m_WriteIndex + 1) % DM_DESCRIPTOR_CACHE_SIZE;
+        }
+    };
+
     struct VulkanProgram
     {
         VulkanProgram()
@@ -314,8 +359,8 @@ namespace dmGraphics
         uint16_t       m_TotalResourcesCount;
         uint8_t        m_Destroyed : 1;
 
-        DescriptorSetCacheEntry m_GraphicsDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
-        DescriptorSetCacheEntry m_ComputeDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
+        DescriptorSetCache m_GraphicsDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
+        DescriptorSetCache m_ComputeDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
 
         const VulkanResourceType GetType();
     };
