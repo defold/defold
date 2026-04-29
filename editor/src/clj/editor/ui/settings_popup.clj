@@ -475,13 +475,12 @@
                      (make-row-fx keymap localization-state state swap-state descriptor))
                    descriptors)})
 
-(defn- cljfx-popup-desc [descriptors keymap localization state on-change]
-  {:fx/type cljfx-popup-view
-   :descriptors descriptors
-   :keymap keymap
-   :localization localization
-   :state state
-   :on-change on-change})
+(defn settings-visible? [^Parent owner]
+  (some? (ui/user-data owner ::popup)))
+
+(defn- pref-popup-position
+  ^Point2D [^Parent container width x-offset]
+  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
 
 ;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `show!` below). PopupWindow has
 ;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
@@ -513,7 +512,6 @@
                                              :state state
                                              :on-change on-change}]}}))]
        (.setPrefWidth content width)
-       (.setFocusTraversable content true)
        (advance! state)
        (ui/user-data! owner ::popup popup)
        (doto popup
@@ -523,5 +521,6 @@
                           (when on-closed (on-closed e))
                           (ui/user-data! owner ::popup nil)))
          (.show owner (.getX anchor) (.getY anchor)))
+       ;; Request focus so the first UI element loses focus
        (.requestFocus content)
        advance!))))
