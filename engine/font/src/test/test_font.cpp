@@ -944,6 +944,35 @@ TEST_F(FontTest, Layout)
 #endif // !defined(FONT_USE_SKRIBIDI)
 
 #if defined(FONT_USE_SKRIBIDI)
+TEST_F(FontTest, SkribidiLayoutHeightMatchesLegacyLineHeight)
+{
+    dmArray<uint32_t> codepoints;
+    TextToCodePoints("A\nA\nA\nA\nA\nA\nA\nA\nA\nA", codepoints);
+
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Width = 0.0f;
+    settings.m_Size = 40.0f;
+    settings.m_Leading = 1.0f;
+
+    HTextLayout legacy_layout = 0;
+    TextResult r = TextLayoutLegacyCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &legacy_layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, legacy_layout);
+
+    HTextLayout skribidi_layout = 0;
+    r = TestLayout(m_FontCollection, codepoints, &settings, &skribidi_layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, skribidi_layout);
+
+    ASSERT_EQ(10u, skribidi_layout->m_Lines.Size());
+    ASSERT_EQ(legacy_layout->m_Lines.Size(), skribidi_layout->m_Lines.Size());
+    ASSERT_NEAR(legacy_layout->m_Height, skribidi_layout->m_Height, 0.01f);
+
+    TextLayoutRelease(skribidi_layout);
+    TextLayoutRelease(legacy_layout);
+}
+
 TEST_F(FontTest, TextArabic)
 {
     HFont font;
