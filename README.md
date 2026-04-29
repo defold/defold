@@ -9,9 +9,9 @@
 Repository for the Defold engine, editor and command line tools.
 
 ## Supported by
-[![](https://defold.com/images/logo/others/moonactive-color.png)](https://www.moonactive.com/)
+[![](https://defold.com/images/logo/others/moonactive-color-black.png)](https://www.moonactive.com/)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/denda-corporate.png)](https://denda-corporate.com/)
+[![](https://defold.com/images/logo/others/denda-corporate-black.png)](https://denda-corporate.com/)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/8bitskull.png)](https://www.8bitskull.com)
 ![](https://defold.com/images/spacer32.png)
