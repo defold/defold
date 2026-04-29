@@ -451,7 +451,6 @@ def create_bundle(jdk, platform, options):
 
 def sign(bundle_dir, defold_jar, platform, options):
     if platform_is_macos(platform):
-        codesigning.sign_files_in_zip(platform, options, defold_jar)
         # we need to sign the binaries in Resources folder manually as codesign of
         # the *.app will not process files in Resources
         jdk_dir = "jdk-%s" % java_version
