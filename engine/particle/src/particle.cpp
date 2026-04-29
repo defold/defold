@@ -735,7 +735,6 @@ namespace dmParticle
     void Update(HParticleContext context, float dt, FetchResourcesCallback fetch_resources_callback)
     {
         DM_PROFILE(__FUNCTION__);
-        context->m_LastDT = dt;
 
         uint32_t size = context->m_Instances.Size();
         uint32_t TotalAliveParticles = 0;
@@ -2107,7 +2106,7 @@ namespace dmParticle
     }
 
     // Update render data for all emitters on an instance
-    void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index)
+    void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index, float dt)
     {
         Instance* inst = GetInstance(context, instance);
 
@@ -2118,7 +2117,7 @@ namespace dmParticle
             {
                 Emitter* emitter = &inst->m_Emitters[i];
                 dmParticleDDF::Emitter* emitter_ddf = &inst->m_Prototype->m_DDF->m_Emitters[i];
-                UpdateEmitterRenderData(instance, i, inst, emitter, emitter_ddf, context->m_LastDT);
+                UpdateEmitterRenderData(instance, i, inst, emitter, emitter_ddf, dt);
             }
         }
     }

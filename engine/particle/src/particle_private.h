@@ -234,7 +234,6 @@ namespace dmParticle
         Context(uint32_t max_instance_count, uint32_t max_particle_count)
         : m_AttributeDataPtrIndex(0)
         , m_MaxParticleCount(max_particle_count)
-        , m_LastDT(0.0f)
         , m_NextVersionNumber(1)
         , m_InstanceSeeding(0)
         {
@@ -263,8 +262,6 @@ namespace dmParticle
         uint32_t            m_AttributeDataPtrIndex;
         /// Maximum number of particles allowed
         uint32_t            m_MaxParticleCount;
-        /// Latest update delta time, used when refreshing cached render data outside the main update loop.
-        float               m_LastDT;
         /// Version number used to create new handles.
         uint16_t            m_NextVersionNumber;
         /// Instance seeding to avoid same frame instances to look the same.
@@ -339,7 +336,7 @@ namespace dmParticle
         dmParticleDDF::ParticleFX*  m_DDF;
     };
 
-    void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index);
+    void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index, float dt);
 }
 
 #endif // DM_PARTICLE_PRIVATE_H
