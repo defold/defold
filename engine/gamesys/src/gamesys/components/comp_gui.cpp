@@ -1523,7 +1523,6 @@ namespace dmGameSystem
             uint32_t vb_generate_size = 0;
             dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexData(
                 gui_world->m_ParticleContext,
-                gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
                 gui_world->m_ParticleAttributeInfos,

@@ -722,15 +722,13 @@ namespace dmParticle
         return res;
     }
 
-    GenerateVertexDataResult GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    GenerateVertexDataResult GenerateVertexData(HParticleContext context, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
-        (void) dt;
         return GenerateVertexDataInternal(context, instance, emitter_index, 0, 0xFFFFFFFF, attribute_infos, color, vertex_buffer, vertex_buffer_size, out_vertex_buffer_size);
     }
 
-    GenerateVertexDataResult GenerateVertexDataPartial(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    GenerateVertexDataResult GenerateVertexDataPartial(HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
-        (void) dt;
         return GenerateVertexDataInternal(context, instance, emitter_index, particle_start, particle_count, attribute_infos, color, vertex_buffer, vertex_buffer_size, out_vertex_buffer_size);
     }
 
@@ -2431,6 +2429,12 @@ namespace dmParticle
         return name(a1, a2, a3, a4, a5, a6, a7, a8, a9);\
     }\
 
+#define DM_PARTICLE_TRAMPOLINE10(ret, name, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8, t9 a9, t10 a10)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);\
+    }\
+
     DM_PARTICLE_TRAMPOLINE2(HParticleContext, CreateContext, uint32_t, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HParticleContext);
     DM_PARTICLE_TRAMPOLINE1(uint32_t, GetContextMaxParticleCount, HParticleContext);
@@ -2449,7 +2453,8 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchResourcesCallback);
-    DM_PARTICLE_TRAMPOLINE9(GenerateVertexDataResult, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const dmGraphics::VertexAttributeInfos&, const Vector4&, void*, uint32_t, uint32_t*);
+    DM_PARTICLE_TRAMPOLINE8(GenerateVertexDataResult, GenerateVertexData, HParticleContext, HInstance, uint32_t, const dmGraphics::VertexAttributeInfos&, const Vector4&, void*, uint32_t, uint32_t*);
+    DM_PARTICLE_TRAMPOLINE10(GenerateVertexDataResult, GenerateVertexDataPartial, HParticleContext, HInstance, uint32_t, uint32_t, uint32_t, const dmGraphics::VertexAttributeInfos&, const Vector4&, void*, uint32_t, uint32_t*);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(HPrototype, NewPrototypeFromDDF, dmParticleDDF::ParticleFX*);

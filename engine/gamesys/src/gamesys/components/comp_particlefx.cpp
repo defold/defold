@@ -391,7 +391,7 @@ namespace dmGameSystem
                 uint32_t num_particles_to_write = size_left / (VERTEX_COUNT * vx_stride);
 
                 dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexDataPartial(particle_context,
-                    pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
+                    emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
                     p, num_particles_to_write,
                     *emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
 
