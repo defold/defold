@@ -1039,7 +1039,7 @@
 
 (defn- invoke-with-hooks [component-atom rt lua-fn lua-props]
   (binding [*current-component-atom* component-atom]
-    (let [ret (rt/invoke-immediate-1 rt lua-fn lua-props (lifecycle-evaluation-context))
+    (let [ret (rt/invoke-immediate-1 rt {:evaluation-context (lifecycle-evaluation-context)} lua-fn lua-props)
           {:keys [hooks current-hook-index]} @component-atom]
       (swap! component-atom assoc :current-hook-index 0)
       (when (< current-hook-index (count hooks))
@@ -1164,7 +1164,7 @@
               (case (key type+dependencies)
                 :value (val type+dependencies)
                 :function (let [lua-fn+lua-args (val type+dependencies)]
-                            (apply rt/invoke-immediate-1 rt (lua-fn+lua-args 0) (conj (subvec lua-fn+lua-args 1) evaluation-context)))))
+                            (apply rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} (lua-fn+lua-args 0) (subvec lua-fn+lua-args 1)))))
             (eq-type+dependencies? [rt a b]
               (let [t (key a)]
                 (and (= t (key b))
@@ -1185,8 +1185,8 @@
                             lua-args (subvec lua-fn+lua-args 1)]
                         (update-hook-state! component-atom hook-index true update :current
                                             (fn [old-lua-value]
-                                              (apply rt/invoke-immediate-1 rt lua-fn
-                                                     (conj (into [old-lua-value] lua-args) evaluation-context))))))))))]
+                                              (apply rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} lua-fn
+                                                     (into [old-lua-value] lua-args))))))))))]
       (make-hook
         (:name ui-docs/use-state-doc)
         :create (fn create-use-hook-state [component-atom {:keys [rt current-hook-index]} evaluation-context & lua-args]
@@ -1213,13 +1213,13 @@
     :create (fn create-use-memo-state [_ {:keys [rt]} evaluation-context & lua-args]
               (let [deps (vec lua-args)]
                 {:dependencies deps
-                 :value (apply rt/invoke-immediate rt (conj deps evaluation-context))}))
+                 :value (apply rt/invoke-immediate rt {:evaluation-context evaluation-context} deps)}))
     :advance (fn advance-use-memo-state [{:keys [rt]} hook-state evaluation-context & lua-args]
                (let [new-dependencies (vec lua-args)]
                  (if (vectors-with-eq-lua-values? rt new-dependencies (:dependencies hook-state))
                    hook-state
                    {:dependencies new-dependencies
-                    :value (apply rt/invoke-immediate rt (conj new-dependencies evaluation-context))})))
+                    :value (apply rt/invoke-immediate rt {:evaluation-context evaluation-context} new-dependencies)})))
     :return :value))
 
 ;; endregion

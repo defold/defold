@@ -102,9 +102,9 @@
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
-           [java.io File PipedInputStream PipedOutputStream]
+           [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
-           [java.util Arrays Collection List]
+           [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections ListChangeListener ObservableList]
@@ -2395,6 +2395,7 @@
                         (mapv #(substitute-args % arg-sub)))
               project-directory (workspace/project-directory basis workspace)]
           {:type :os-execute
+           :workspace workspace
            :executable custom-editor
            :args args
            :working-directory project-directory})
@@ -2453,11 +2454,21 @@
       false)
 
     :os-execute
-    (let [{:keys [args executable working-directory]} open-resource-plan
-          ^List command (cons executable args)]
-      (doto (ProcessBuilder. command)
-        (.directory working-directory)
-        (.start))
+    (let [{:keys [args executable working-directory workspace]} open-resource-plan]
+      (future/io
+        (error-reporting/catch-all!
+          (try
+            (apply process/start! {:dir working-directory :err :discard :out :discard} executable args)
+            (catch IOException e
+              (ui/run-later
+                (notifications/show!
+                  (workspace/notifications workspace)
+                  {:type :error
+                   :message (localization/message "notification.open-custom-editor-failed.error"
+                                                  {"editor" executable
+                                                   "error" (.getMessage e)})
+                   :actions [{:message (localization/message "notification.open-custom-editor-failed.action.open-preferences")
+                              :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :app.preferences nil)}]}))))))
       false)
 
     :os-open
