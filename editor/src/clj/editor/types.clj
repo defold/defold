@@ -355,8 +355,8 @@
 
 ;; SDK api
 (def TSceneUpdatable
-  {:initial-state s/Any
-   :update-fn (s/pred fn?)
+  {:update-fn (s/pred fn?)
+   (s/optional-key :initial-state) s/Any
    (s/optional-key :name) s/Str
    (s/optional-key :node-id) TNodeID
    s/Keyword s/Any})
