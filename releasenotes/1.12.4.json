@@ -230,7 +230,10 @@
             ],
             "mergecommit": "0eb983abf9d351390032eb5702e60fc50e1945d0",
             "pr_number": 12100,
-            "referencecommits": [],
+            "referencecommits": [
+                "1cdf19ccde6760c1e9e521e1962a5faae4b193f8",
+                "db2bef85d811e7237bac6d65380f5c413d4f2f31"
+            ],
             "repository": "defold",
             "title": "Apply skeleton transforms for orphaned joints",
             "type": "FIX",
@@ -1091,13 +1094,34 @@
             "labels": [],
             "mergecommit": "70807f4c081c1573fec41e23e8d25db112d02002",
             "pr_number": 12291,
-            "referencecommits": [],
+            "referencecommits": [
+                "4983f1d98b98790aea0bd61b709ee93812ee4a18"
+            ],
             "repository": "defold",
             "title": "Fix for calculating multiline text height",
             "type": "FIX",
             "url": "https://github.com/defold/defold/pull/12291"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue with `resource.get_text_metrics()` where it previously didn't return the correct bounding box of the text.",
+            "closed_issues": [
+                12302
+            ],
+            "duplicate": false,
+            "issue_number": 12302,
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "5e0dc447f7b9c7fb7322918c99ad8ed243e83f08",
+            "pr_number": 12306,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed line height calculations for the Skribidi text layout",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12306"
         }
     ],
-    "timestamp": 1777364837.980515,
+    "timestamp": 1777455856.663417,
     "version": "1.12.4"
 }
