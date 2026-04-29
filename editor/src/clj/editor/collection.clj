@@ -277,8 +277,8 @@
   (output node-outline-extras g/Any (g/constantly {}))
   (output build-targets g/Any :abstract)
 
-  (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
-                                (-> (collection-common/any-instance-scene _node-id id transform scene)
+  (output scene g/Any :cached (g/fnk [_node-id id pose scene child-scenes]
+                                (-> (collection-common/any-instance-scene _node-id id pose scene)
                                     (update :children util/intov child-scenes))))
   (output go-inst-ids g/Any (g/fnk [_node-id id] {id _node-id}))
   (output ddf-properties g/Any (g/fnk [id ddf-component-properties] {:id id :properties ddf-component-properties})))
@@ -674,8 +674,8 @@
                                     :scale3 scale
                                     :instance-properties ddf-properties)
                                   (collection-common/strip-default-scale-from-any-instance-desc))))
-  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
-                                (collection-common/any-instance-scene _node-id id transform scene)))
+  (output scene g/Any :cached (g/fnk [_node-id id pose scene]
+                                (collection-common/any-instance-scene _node-id id pose scene)))
   (output build-targets g/Any produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
                                                   (map (fn [m] (update m :id (fn [s] (format "%s/%s" id s)))) ddf-properties)))
