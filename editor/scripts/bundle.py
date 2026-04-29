@@ -498,7 +498,7 @@ def create_dmg(bundle_dir, options, platform):
 
     # sign the dmg
     if not options.skip_codesign:
-        certificate = mac_certificate(options.codesigning_identity)
+        certificate = codesigning.mac_certificate(options.codesigning_identity)
         if certificate is None:
             error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
             sys.exit(1)
