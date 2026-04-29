@@ -1270,9 +1270,15 @@ namespace dmGraphics
         const uint16_t tex_layer_count   = dmMath::Max(texture->m_LayerCount, (uint16_t) params.m_LayerCount);
         const uint32_t subresource_count = tex_layer_count; // only one mip, full array
 
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16] = {};
-        uint32_t num_rows[16];
-        uint64_t row_size_in_bytes[16];
+        dmArray<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> fp;
+        dmArray<uint32_t> num_rows;
+        dmArray<uint64_t> row_size_in_bytes;
+        fp.SetCapacity(tex_layer_count);
+        fp.SetSize(tex_layer_count);
+        num_rows.SetCapacity(tex_layer_count);
+        num_rows.SetSize(tex_layer_count);
+        row_size_in_bytes.SetCapacity(tex_layer_count);
+        row_size_in_bytes.SetSize(tex_layer_count);
         uint64_t total_upload_size = 0;
 
         // Calculate offset/footprint per array slice
