@@ -1971,9 +1971,9 @@ def detect(conf):
         use_vanilla = True
 
     if use_vanilla:
-        conf.env['STLIB_LUA'] = 'lua'
+        conf.env['STLIB_LUA'] = ['dlua', 'lua']
     else:
-        conf.env['STLIB_LUA'] = 'luajit-5.1'
+        conf.env['STLIB_LUA'] = ['dluajit', 'luajit-5.1']
 
     conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
