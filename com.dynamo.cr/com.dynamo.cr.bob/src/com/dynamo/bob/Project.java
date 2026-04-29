@@ -1401,6 +1401,7 @@ public class Project {
 
         options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound","stream_enabled",null));
         options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model","split_meshes",null));
+        options.add(new GameProjectBuildOption("model-recenter-meshes", "model-recenter-meshes", "model","recenter_meshes",null));
         options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus","disabled",null));
         options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font","runtime_generation",null));
 

@@ -33,8 +33,68 @@
         [["model" "max_morph_target_texture_width"]
          ["model" "max_morph_target_texture_height"]]))
 
+(defn- recenter-meshes? [project-settings]
+  (boolean (get project-settings ["model" "recenter_meshes"] false)))
+
+(defn- instance-field [object field-name]
+  (clojure.lang.Reflector/getInstanceField object field-name))
+
+(defn- set-instance-field! [object field-name value]
+  (clojure.lang.Reflector/setInstanceField object field-name value))
+
+(defn- shift-translation! [translation center]
+  (set-instance-field! translation "x" (float (- (double (instance-field translation "x")) (:x center))))
+  (set-instance-field! translation "y" (float (- (double (instance-field translation "y")) (:y center))))
+  (set-instance-field! translation "z" (float (- (double (instance-field translation "z")) (:z center)))))
+
+(defn- update-center-bounds [bounds node]
+  (if (nil? (instance-field node "model"))
+    bounds
+    (let [translation (some-> node (instance-field "world") (instance-field "translation"))
+          x (double (instance-field translation "x"))
+          y (double (instance-field translation "y"))
+          z (double (instance-field translation "z"))]
+      {:min-x (min (:min-x bounds) x)
+       :min-y (min (:min-y bounds) y)
+       :min-z (min (:min-z bounds) z)
+       :max-x (max (:max-x bounds) x)
+       :max-y (max (:max-y bounds) y)
+       :max-z (max (:max-z bounds) z)
+       :valid? true})))
+
+(defn- calc-center-node [bounds node]
+  (let [bounds (update-center-bounds bounds node)]
+    (reduce calc-center-node bounds (seq (instance-field node "children")))))
+
+(defn- scene-center [scene]
+  (let [initial-bounds {:min-x Double/POSITIVE_INFINITY
+                        :min-y Double/POSITIVE_INFINITY
+                        :min-z Double/POSITIVE_INFINITY
+                        :max-x Double/NEGATIVE_INFINITY
+                        :max-y Double/NEGATIVE_INFINITY
+                        :max-z Double/NEGATIVE_INFINITY
+                        :valid? false}
+        bounds (reduce calc-center-node initial-bounds (seq (instance-field scene "rootNodes")))]
+    (if (:valid? bounds)
+      {:x (* 0.5 (+ (:min-x bounds) (:max-x bounds)))
+       :y (* 0.5 (+ (:min-y bounds) (:max-y bounds)))
+       :z (* 0.5 (+ (:min-z bounds) (:max-z bounds)))}
+      {:x 0.0 :y 0.0 :z 0.0})))
+
+(defn- shift-node! [node center]
+  (shift-translation! (some-> node (instance-field "world") (instance-field "translation")) center)
+  (run! #(shift-node! % center) (seq (instance-field node "children"))))
+
+(defn- recenter-scene! [scene]
+  (let [center (scene-center scene)]
+    (run! (fn [node]
+            (shift-node! node center)
+            (shift-translation! (some-> node (instance-field "local") (instance-field "translation")) center))
+          (seq (instance-field scene "rootNodes")))
+    scene))
+
 (defn- load-model-scene
-  [resource ^InputStream stream morph-tex-w morph-tex-h]
+  [resource ^InputStream stream morph-tex-w morph-tex-h project-settings]
   (let [workspace (resource/workspace resource)
         project-directory (workspace/project-directory workspace)
         mesh-set-builder (Rig$MeshSet/newBuilder)
@@ -43,6 +103,8 @@
         options nil
         data-resolver (ModelUtil/createFileDataResolver project-directory)
         scene (ModelUtil/loadScene stream ^String path options data-resolver)
+        _ (when (recenter-meshes? project-settings)
+            (recenter-scene! scene))
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ModelUtil/getAnimationNames scene)] ; sorted on duration (largest first)
@@ -90,7 +152,7 @@
         (handle-gltf-validation-result resource (GLTFValidator/validateGltf (resource/abs-path resource) true))))
     ;; Then, open a new stream for actually loading the scene.
     (with-open [stream (io/input-stream resource)]
-      (load-model-scene resource stream morph-tex-w morph-tex-h))))
+      (load-model-scene resource stream morph-tex-w morph-tex-h project-settings))))
 
 (defn load-scene [node-id resource project-settings]
   (try
@@ -106,9 +168,6 @@
 (def ^:private root-ancestor-translation-epsilon 1e-4)
 (def ^:private root-ancestor-scale-epsilon 1e-4)
 (def ^:private root-ancestor-rotation-dot-epsilon 1e-6)
-
-(defn- instance-field [object field-name]
-  (clojure.lang.Reflector/getInstanceField object field-name))
 
 (defn- identity-transform-data []
   {:translation {:x 0.0 :y 0.0 :z 0.0}

@@ -135,6 +135,10 @@ public class ModelUtil {
     }
 
     public static Scene loadScene(byte[] content, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
+        return loadScene(content, path, options, dataResolver, false);
+    }
+
+    public static Scene loadScene(byte[] content, String path, Options options, ModelImporterJni.DataResolver dataResolver, boolean recenterMeshes) throws IOException {
         if (options == null)
             options = new Options();
 
@@ -149,12 +153,17 @@ public class ModelUtil {
             if (buffer.buffer == null || buffer.buffer.length == 0)
                 throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
         }
-        return loadInternal(scene, options);
+        return loadInternal(scene, options, recenterMeshes);
     }
 
     public static Scene loadScene(InputStream stream, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
         byte[] bytes = IOUtils.toByteArray(stream);
-        return loadScene(bytes, path, options, dataResolver);
+        return loadScene(bytes, path, options, dataResolver, false);
+    }
+
+    public static Scene loadScene(InputStream stream, String path, Options options, ModelImporterJni.DataResolver dataResolver, boolean recenterMeshes) throws IOException {
+        byte[] bytes = IOUtils.toByteArray(stream);
+        return loadScene(bytes, path, options, dataResolver, recenterMeshes);
     }
 
     public static void unloadScene(Scene scene) {
@@ -1139,9 +1148,11 @@ public class ModelUtil {
         }
     }
 
-    private static Scene loadInternal(Scene scene, Options options) {
-        Modelimporter.Vector3 center = calcCenter(scene);
-        //shiftNodes(scene, center); // We might make this optional
+    private static Scene loadInternal(Scene scene, Options options, boolean recenterMeshes) {
+        if (recenterMeshes) {
+            Modelimporter.Vector3 center = calcCenter(scene);
+            shiftNodes(scene, center);
+        }
 
         // Sort on duration. This allows us to return a list of sorted animation names
         Arrays.sort(scene.animations, new SortAnimations());

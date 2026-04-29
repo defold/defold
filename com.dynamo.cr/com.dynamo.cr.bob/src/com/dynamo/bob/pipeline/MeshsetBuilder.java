@@ -34,7 +34,7 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
 
-@BuilderParams(name="Meshset", inExts={".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes"})
+@BuilderParams(name="Meshset", inExts={".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes", "model-recenter-meshes"})
 public class MeshsetBuilder extends Builder  {
     public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
@@ -84,12 +84,13 @@ public class MeshsetBuilder extends Builder  {
         BobProjectProperties projectProperties = this.project.getProjectProperties();
         int morphTexW = projectProperties.getIntValue("model", "max_morph_target_texture_width", 1024);
         int morphTexH = projectProperties.getIntValue("model", "max_morph_target_texture_height", 1024);
+        boolean recenterMeshes = this.project.option("model-recenter-meshes", "false").equals("true");
 
         Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
         Modelimporter.Scene scene;
         try {
-            scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
+            scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver, recenterMeshes);
         } catch (IOException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
