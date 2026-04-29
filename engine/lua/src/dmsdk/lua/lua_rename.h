@@ -268,6 +268,7 @@
 #define lua_xmove DM_LUA_RENAME(lua_xmove)
 #define lua_yield DM_LUA_RENAME(lua_yield)
 #define luaopen_base DM_LUA_RENAME(luaopen_base)
+#define luaopen_bit DM_LUA_RENAME(luaopen_bit)
 #define luaopen_debug DM_LUA_RENAME(luaopen_debug)
 #define luaopen_io DM_LUA_RENAME(luaopen_io)
 #define luaopen_math DM_LUA_RENAME(luaopen_math)
