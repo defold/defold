@@ -278,17 +278,23 @@
         ignore-options (g/node-value grid :options)
         descriptors
         [{:type :reset-all}
-         {:key :size :type :vec3-floats}
+         {:key :size :type :vec3-floats
+          :value (prefs/get prefs [:scene :grid :size])
+          :on-value-changed (fn [v]
+                              (prefs/set! prefs [:scene :grid :size] v)
+                              (invalidate-grids! app-view))}
          {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"}
-         {:key :color :type :color :label "scene-popup.grid.color"}
+         {:key :color :type :color :label "scene-popup.grid.color"
+          :value (prefs/get prefs [:scene :grid :color])
+          :on-value-changed (fn [v]
+                              (prefs/set! prefs [:scene :grid :color] v)
+                              (invalidate-grids! app-view))}
          {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
           :value (prefs/get prefs [:scene :grid :opacity])
           :on-value-changed (fn [v]
-                              (println v)
                               (prefs/set! prefs [:scene :grid :opacity] v)
                               (invalidate-grids! app-view))
           :slider-value->string (fn [^double v]
-                                  (println v)
                                   (str (Math/round (* v 100)) "%"))}]
         initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
     (settings-popup/show! owner keymap localization initial-state identity 220 0.0 descriptors)))

@@ -43,19 +43,6 @@
 
 (defonce ^List axes [:x :y :z])
 
-(defonce/protocol SettingsStore
-  (get-value [this key])
-  (get-default-value [this key])
-  (set-value! [this key v]))
-
-(defonce/record PrefsStore [prefs prefs-prefix setting-descriptors hidden-settings on-change-fn]
-  SettingsStore
-  (get-value [_ key] (prefs/get prefs (conj prefs-prefix key)))
-  (get-default-value [_ key] (prefs/default-value-at prefs (conj prefs-prefix key)))
-  (set-value! [_ key v]
-    (prefs/set! prefs (conj prefs-prefix key) v)
-    (when on-change-fn (on-change-fn key v))))
-
 ;; TODO JOE: Inline this
 (defn make-popup
   ^PopupControl [^Styleable owner ^Node content]
@@ -72,11 +59,6 @@
       (.setAutoHide true)
       (.setAutoFix true)
       (.setHideOnEscape true))))
-
-(defn- ensure-focus-traversable! [^Node node]
-  (ui/observe (.focusTraversableProperty node)
-    (fn [_ _ _]
-      (.setFocusTraversable node true))))
 
 (defn- wrap-in-hbox [children]
   (HBox. (ui/node-array children)))
@@ -330,10 +312,12 @@
               {:fx/type fxui/label
                :style-class "accelerator-label"
                :text (or accelerator "")}
-              {:fx/type fx.check-box/lifecycle
-               :style-class ["slide-switch"]
-               :selected (boolean (when key (key state)))
-               :on-selected-changed (or on-selected-changed (fn [_]))}]})
+              {:fx/type fxui/ext-ensure-focus-traversable
+               :desc
+               {:fx/type fx.check-box/lifecycle
+                :style-class ["slide-switch"]
+                :selected (boolean (when key (key state)))
+                :on-selected-changed (or on-selected-changed (fn [_]))}}]})
 
 (defn- make-slider-row-fx [{:keys [key label min max state swap-state slider-value->string on-value-changed] :as asdf}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))]
@@ -345,46 +329,69 @@
                 {:fx/type fxui/label
                  :style-class "slider-value-label"
                  :text (slider-value->string (key state))}
-                {:fx/type fx.slider/lifecycle
-                 :min min
-                 :max max
-                 :value (key state)
-                 :block-increment 0.1
-                 :on-value-changed (fn [v]
-                                     (on-value-changed v)
-                                     (swap-state assoc key v))}]}))
+                {:fx/type fxui/ext-ensure-focus-traversable
+                 :desc
+                 {:fx/type fx.slider/lifecycle
+                  :min min
+                  :max max
+                  :value (key state)
+                  :block-increment 0.1
+                  :on-value-changed (fn [v]
+                                      (on-value-changed v)
+                                      (swap-state assoc key v))}}]}))
 
-(defn- make-color-row-fx [{:keys [label value on-value-changed]}]
+;; `fxui/color-picker` is a compound component (an HBox containing a value-field and a JavaFX
+;; ColorPicker), so we can't just wrap it the same way -- we need to reach into its internals to
+;; find the text input. Rather than modifying fxui to expose this, we use
+;; `fx/ext-on-instance-lifecycle` here to look up the inner text field by style class and apply the
+;; same focus-traversable workaround.
+(defn- ext-color-picker-focus-traversable [{:keys [desc]}]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [^javafx.scene.Node node]
+                 (when-let [tf (.lookup node ".ext-color-picker-field")]
+                   (ui/observe (.focusTraversableProperty tf)
+                     (fn [_ _ _]
+                       (.setFocusTraversable tf true)))
+                   (.setFocusTraversable tf true)))
+   :desc desc})
+
+(defn- make-color-row-fx [{:keys [key label state on-value-changed]}]
   {:fx/type fxui/horizontal
    :children [{:fx/type fxui/label
                :text (or label "")
                :h-box/hgrow :always
                :max-width Double/MAX_VALUE}
-              {:fx/type fxui/color-picker
-               :value (when value
-                        (let [[r g b a] value]
-                          (Color. (float r) (float g) (float b) (float a))))
-               :on-value-changed (fn [^Color c]
-                                   (when on-value-changed
-                                     (on-value-changed [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)])))
-               :ignore-alpha false}]})
+              {:fx/type ext-color-picker-focus-traversable
+               :desc
+               {:fx/type fxui/color-picker
+                :value (when (key state)
+                         (let [[r g b a] (key state)]
+                           (Color. (float r) (float g) (float b) (float a))))
+                :on-value-changed (fn [^Color c]
+                                    (when on-value-changed
+                                      (on-value-changed [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)])))
+                :ignore-alpha false}}]})
 
-(defn- make-vec3-floats-row-fx [{:keys [value on-value-changed]}]
+(defn- make-vec3-floats-row-fx [{:keys [key state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
    :children (into []
                    (mapcat (fn [axis]
                              [{:fx/type fxui/label
                                :text (string/upper-case (name axis))
                                :min-width :use-pref-size}
-                              {:fx/type fxui/value-field
-                               :text (str (get value axis))
-                               :to-value (fn [s]
-                                           (try (let [v (Float/parseFloat s)]
-                                                  (when (pos? v) v))
-                                                (catch Exception _ nil)))
-                               :on-value-changed (fn [v]
-                                                   (when on-value-changed
-                                                     (on-value-changed (assoc value axis v))))}]))
+                              {:fx/type fxui/ext-ensure-focus-traversable
+                               :desc
+                               {:fx/type fxui/value-field
+                                :value (get (key state) axis)
+                                :to-value (fn [s]
+                                            (try (let [v (Float/parseFloat s)]
+                                                   (when (pos? v) v))
+                                                 (catch Exception _ nil)))
+                                :on-value-changed (fn [v]
+                                                    (let [new-vec3 (assoc (key state) axis v)]
+                                                      (swap-state assoc key new-vec3)
+                                                      (when on-value-changed
+                                                        (on-value-changed new-vec3))))}}]))
                    axes)})
 
 (defn- make-vec3-toggle-row-fx [{:keys [label value on-value-changed]}]
@@ -394,13 +401,15 @@
                      :h-box/hgrow :always
                      :max-width Double/MAX_VALUE}]
                    (map (fn [axis]
-                          {:fx/type fxui/toggle-button
-                           :style-class ["toggle-button" "plane-toggle"]
-                           :text (string/upper-case (name axis))
-                           :selected (= axis value)
-                           :on-action {:event-type :set-value
-                                       :key nil ;; filled in by caller
-                                       :fx/event axis}}))
+                          {:fx/type fxui/ext-ensure-focus-traversable
+                           :desc
+                           {:fx/type fxui/toggle-button
+                            :style-class ["toggle-button" "plane-toggle"]
+                            :text (string/upper-case (name axis))
+                            :selected (= axis value)
+                            :on-action {:event-type :set-value
+                                        :key nil ;; filled in by caller
+                                        :fx/event axis}}}))
                    axes)})
 
 (defn- make-row-fx [keymap localization-state state swap-state descriptor]
@@ -425,21 +434,21 @@
      :key (:key descriptor)
      :state state
      :swap-state swap-state
-     :value (:value descriptor)
      :on-value-changed #((:on-value-changed descriptor) %)}
 
     :color
     {:fx/type make-color-row-fx
      :label (localization-state (localization/message (:label descriptor)))
-     :value (get state (:key descriptor))
-     :on-value-changed {:event-type :set-value
-                        :key (:key descriptor)}}
+     :key (:key descriptor)
+     :state state
+     :on-value-changed #((:on-value-changed descriptor) %)}
 
     :vec3-floats
     {:fx/type make-vec3-floats-row-fx
-     :value (get state (:key descriptor))
-     :on-value-changed {:event-type :set-value
-                        :key (:key descriptor)}}
+     :key (:key descriptor)
+     :state state
+     :swap-state swap-state
+     :on-value-changed #((:on-value-changed descriptor) %)}
 
     :vec3-toggle
     {:fx/type make-vec3-toggle-row-fx
@@ -460,7 +469,6 @@
   [{:keys [descriptors keymap state swap-state on-change localization-state]}]
   {:fx/type fxui/vertical
    :style-class "popup-settings"
-   :focus-traversable true
    :children (keep (fn [descriptor]
                      (make-row-fx keymap localization-state state swap-state descriptor))
                    descriptors)})
@@ -473,6 +481,11 @@
    :state state
    :on-change on-change})
 
+;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `show!` below). PopupWindow has
+;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
+;; breaking Tab navigation inside the popup. For the simple controls we own (toggles, sliders, value
+;; fields), we wrap them in `fxui/ext-ensure-focus-traversable`, which observes the property and
+;; forces it back to true.
 (defn show!
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors]
    (show! owner keymap localization state on-change width x-offset setting-descriptors nil))
@@ -498,6 +511,7 @@
                                              :state state
                                              :on-change on-change}]}}))]
        (.setPrefWidth content width)
+       (.setFocusTraversable content true)
        (advance! state)
        (ui/user-data! owner ::popup popup)
        (doto popup
@@ -507,4 +521,5 @@
                           (when on-closed (on-closed e))
                           (ui/user-data! owner ::popup nil)))
          (.show owner (.getX anchor) (.getY anchor)))
+       (.requestFocus content)
        advance!))))
