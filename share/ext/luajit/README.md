@@ -52,3 +52,4 @@ Note that you may need to remove the previous android sdk/ndk tools from DYNAMO_
     $ ./scripts/build.py install_sdk --platform=armv7-android
 
 Change directory to luajit and build as usual.
+
