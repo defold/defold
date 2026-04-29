@@ -27,7 +27,7 @@ def configure(conf):
 
     conf.env['STLIB_DDF']      = 'ddf'
     conf.env['STLIB_RESOURCE'] = 'resource'
-    conf.env['STLIB_DLIB']     = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB']     = ['dlib', 'image', 'zip', 'mbedtls']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="LIVEUPDATE"')
 

@@ -1195,9 +1195,28 @@ namespace
             dmAtomicStore32(&ctx->m_Accepted, 1);
 
             char request[4];
-            int read = 0;
-            r = dmSocket::Receive(client_socket, request, sizeof(request), &read);
-            if (r != dmSocket::RESULT_OK || read != (int) sizeof(request) || memcmp(request, "PING", 4) != 0)
+            int total_read = 0;
+            // Accepted sockets can inherit non-blocking behavior from the listening socket on some platforms.
+            // Wait briefly for the client payload instead of treating the first empty read as EOF.
+            for (uint32_t j = 0; j < 300 && total_read < (int) sizeof(request) && !dmAtomicGet32(&ctx->m_Stop); ++j)
+            {
+                int read = 0;
+                r = dmSocket::Receive(client_socket, request + total_read, sizeof(request) - total_read, &read);
+                if (r == dmSocket::RESULT_WOULDBLOCK || r == dmSocket::RESULT_TRY_AGAIN)
+                {
+                    dmTime::Sleep(10 * 1000);
+                    continue;
+                }
+                if (r != dmSocket::RESULT_OK)
+                    break;
+                if (read == 0)
+                {
+                    r = dmSocket::RESULT_CONNRESET;
+                    break;
+                }
+                total_read += read;
+            }
+            if (r != dmSocket::RESULT_OK || total_read != (int) sizeof(request) || memcmp(request, "PING", 4) != 0)
             {
                 ctx->m_Result = (r == dmSocket::RESULT_OK) ? dmSocket::RESULT_UNKNOWN : r;
                 goto bail;
