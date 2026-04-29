@@ -229,8 +229,8 @@
             (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true)
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :abstract)
-  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
-                                (game-object-common/component-scene _node-id id transform scene)))
+  (output scene g/Any :cached (g/fnk [_node-id id pose scene]
+                                (game-object-common/component-scene _node-id id pose scene)))
   (output build-targets g/Any :abstract)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output _properties g/Properties :cached produce-component-properties))
