@@ -21,7 +21,6 @@ sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
-import codesigning
 import build_android
 import run
 import s3
@@ -1936,20 +1935,6 @@ class Configuration(object):
         else:
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
             run.command(" ".join([gradle, flags, 'clean', 'install', 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
-
-    def sign_bob(self):
-        if not self.skip_codesign:
-            options = {
-                gcloud_keyname: self.gcloud_keyname,
-                gcloud_certfile: self.gcloud_certfile,
-                gcloud_keyfile: self.gcloud_keyfile,
-                gcloud_location: self.gcloud_location,
-                gcloud_projectid: self.gcloud_projectid,
-                gcloud_keyringname: self.gcloud_keyringname,
-                codesigning_identity: self.codesigning_identity
-            }
-            bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')
-            codesigning.sign_files_in_zip(self.target_platform, options, bob_jar)
 
     def test_bob(self):
         bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')
