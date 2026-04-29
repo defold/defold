@@ -355,7 +355,7 @@
                    (.setFocusTraversable tf true)))
    :desc desc})
 
-(defn- make-color-row-fx [{:keys [key label state on-value-changed]}]
+(defn- make-color-row-fx [{:keys [key label state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
    :children [{:fx/type fxui/label
                :text (or label "")
@@ -368,8 +368,9 @@
                          (let [[r g b a] (key state)]
                            (Color. (float r) (float g) (float b) (float a))))
                 :on-value-changed (fn [^Color c]
-                                    (when on-value-changed
-                                      (on-value-changed [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)])))
+                                    (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
+                                      (swap-state assoc key color)
+                                      (on-value-changed color)))
                 :ignore-alpha false}}]})
 
 (defn- make-vec3-floats-row-fx [{:keys [key state swap-state on-value-changed]}]
@@ -441,6 +442,7 @@
      :label (localization-state (localization/message (:label descriptor)))
      :key (:key descriptor)
      :state state
+     :swap-state swap-state
      :on-value-changed #((:on-value-changed descriptor) %)}
 
     :vec3-floats
