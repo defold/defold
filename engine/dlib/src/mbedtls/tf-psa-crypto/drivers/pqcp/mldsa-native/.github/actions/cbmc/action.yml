@@ -1,0 +1,68 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: CBMC
+description: Run CBMC proofs for mldsa-native
+
+inputs:
+  nix-shell:
+    description: Run in the specified Nix environment if exists
+    default: "ci-cbmc"
+  nix-cache:
+    description: Determine whether to enable nix cache
+    default: 'true'
+  nix-verbose:
+    description: Determine wether to suppress nix log or not
+    default: 'false'
+  custom_shell:
+    description: The shell to use. Only relevant if use-nix is 'false'
+    default: "bash"
+  mldsa_parameter_set:
+    description: "Security level for ML-DSA (2,3,5)"
+    default: "2"
+  gh_token:
+    description: Github access token to use
+    required: true
+runs:
+  using: composite
+  steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/setup-shell
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          script: |
+
+            if [[ ${{ inputs.nix-shell }} != '' ]]; then
+              nix-collect-garbage
+            fi
+
+            cat >> $GITHUB_STEP_SUMMARY << EOF
+              ## Setup
+              Architecture: $(uname -m)
+              - $(nix --version)
+              - $(cbmc --version)
+              - litani Version $(litani --version)
+              - Cadical Version $(cadical --version)
+              - $(bash --version | grep -m1 "")
+            EOF
+      - name: Run CBMC proofs (MLD_CONFIG_PARAMETER_SET=${{ inputs.mldsa_parameter_set }})
+        shell: ${{ env.SHELL }}
+        env:
+          GH_TOKEN: ${{ inputs.gh_token }}
+        run: |
+          echo "::group::cbmc_${{ inputs.mldsa_parameter_set }}"
+          tests cbmc --mldsa-parameter-set ${{ inputs.mldsa_parameter_set }} --per-proof-timeout 1800 --output-result-json ${{ github.workspace }}/cbmc_result_${{ inputs.mldsa_parameter_set }}.json || cbmc_failed=true
+          echo "::endgroup::"
+          python3 ${{ github.action_path }}/report.py \
+            --results-json "${{ github.workspace }}/cbmc_result_${{ inputs.mldsa_parameter_set }}.json" \
+            --mldsa-parameter-set "${{ inputs.mldsa_parameter_set }}" \
+            --min-runtime 20 \
+            --regression-threshold 1.5 \
+            --gh-pages-branch gh-pages \
+            --data-dir dev/cbmc
+          if [ "$cbmc_failed" = "true" ]; then exit 1; fi

@@ -18,22 +18,42 @@ import subprocess
 import platform
 import os
 import base64
+import re
 from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
 PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
+SENSITIVE_OPTIONS = (
+    '--github-token',
+    '--gcloud-service-key',
+    '--notarization-password',
+)
+
+REDACTED = '[REDACTED]'
+
+def redact_sensitive_data(text):
+    for option in SENSITIVE_OPTIONS:
+        option_pattern = re.escape(option)
+        text = re.sub(r'(%s(?:=|\s+))(?:"[^"]*"|\'[^\']*\'|\S+)' % option_pattern, r'\1%s' % REDACTED, text)
+
+    if re.search(r'(^|\s)security\s', text):
+        text = re.sub(r'((?:^|\s)-[Pkp]\s+)(?:"[^"]*"|\'[^\']*\'|\S+)', r'\1%s' % REDACTED, text)
+
+    return text
+
 def call(args, failonerror = True):
-    print(args)
+    print(redact_sensitive_data(args))
     process = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)
 
     output = ''
     while True:
         line = process.stdout.readline().decode()
         if line != '':
+            redacted_line = redact_sensitive_data(line)
             output += line
-            print(line.rstrip())
+            print(redacted_line.rstrip())
         else:
             break
 
@@ -336,6 +356,21 @@ def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False
 
     call('"%s" scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
 
+def test_editor(channel, platform, engine_artifacts = None):
+    if not platform in PLATFORMS_DESKTOP:
+        raise Exception("Unsupported platform for editor tests: %s" % platform)
+
+    opts = []
+
+    opts.append('--channel=%s' % channel)
+
+    if engine_artifacts:
+        opts.append('--engine-artifacts=%s' % engine_artifacts)
+
+    opts_string = ' '.join(opts)
+
+    call('python scripts/build.py distclean install_ext test_editor2 --platform=%s %s' % (platform, opts_string))
+
 def archive_editor2(channel, engine_artifacts = None, platform = None, skip_install_ext = False):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
@@ -382,7 +417,7 @@ def test_bob(channel):
 
 
 def release(channel):
-    args = ('"%s" scripts/build.py install_ext release' % sys.executable).split()
+    args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
     opts = []
     opts.append("--channel=%s" % channel)
 
@@ -394,7 +429,7 @@ def release(channel):
     call(cmd)
 
 def build_sdk(channel):
-    args = ('"%s" scripts/build.py install_ext build_sdk' % sys.executable).split()
+    args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     opts = []
     opts.append("--channel=%s" % channel)
 
@@ -445,7 +480,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -541,6 +576,13 @@ def main(argv):
                 notarization_itc_provider = args.notarization_itc_provider,
                 gcloud_keyfile = gcloud_keyfile, 
                 gcloud_certfile = gcloud_certfile)
+        elif command == "test-editor":
+            if not platform:
+                raise Exception("No --platform specified.")
+            test_editor(
+                channel,
+                platform,
+                engine_artifacts = engine_artifacts)
         elif command == "archive-editor":
             archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform, skip_install_ext = args.skip_install_ext)
         elif command == "bob":

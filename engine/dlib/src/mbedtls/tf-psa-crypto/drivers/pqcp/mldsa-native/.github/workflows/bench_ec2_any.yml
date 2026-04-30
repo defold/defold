@@ -1,0 +1,70 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: bench-ec2-any
+permissions:
+  contents: read
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: Alternative name of instance
+        default: Graviton2
+      ec2_instance_type:
+        description: Type if EC2 instance to benchmark on
+        default: t4g.small
+      ec2_ami:
+        description: AMI ID
+        type: choice
+        options:
+          - ubuntu-latest (x86_64)
+          - ubuntu-latest (aarch64)
+          - ubuntu-latest (custom AMI)
+        default: ubuntu-latest (aarch64)
+      ec2_ami_id:
+        description: AMI ID
+        required: false
+        default: ami-0c4e709339fa8521a
+      cflags:
+        description: Custom CFLAGS for compilation
+        default:
+      archflags:
+        description: Custom ARCH flags for compilation
+        default: ''
+      ldflags:
+        description: Custom LDFLAGS for linking
+        default: ''
+      opt:
+        description: Benchmark optimized, non-optimized, or both
+        type: choice
+        options:
+           - all
+           - opt
+           - no_opt
+      bench_extra_args:
+        description: Additional command line to be appended to `tests bench` script
+        default: ''
+      compiler:
+        description: Compiler to use. When unset, default nix shell is used.
+        default: ''
+jobs:
+  bench-ec2-any:
+    name: Ad-hoc benchmark on $${{ inputs.ec2_instance_type }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    uses: ./.github/workflows/bench_ec2_reusable.yml
+    with:
+      ec2_instance_type: ${{ inputs.ec2_instance_type }}
+      ec2_ami: ${{ inputs.ec2_ami }}
+      ec2_ami_id: ${{ inputs.ec2_ami_id }}
+      cflags: ${{ inputs.cflags }}
+      archflags: ${{ inputs.archflags }}
+      ldflags: ${{ inputs.ldflags }}
+      opt: ${{ inputs.opt }}
+      name: ${{ inputs.name }}
+      store_results: false
+      bench_extra_args: ${{ inputs.bench_extra_args }}
+      compiler: ${{ inputs.compiler }}
+    secrets: inherit
