@@ -87,7 +87,8 @@ namespace dmHID
     void FormatGamepadGuid(const GamepadGuid* guid, char buffer[MAX_GAMEPAD_GUID_LENGTH + 1])
     {
         (void)guid;
-        memset((void*)buffer, 0, MAX_GAMEPAD_GUID_LENGTH + 1);
+        memset(buffer, '0', MAX_GAMEPAD_GUID_LENGTH);
+        buffer[MAX_GAMEPAD_GUID_LENGTH] = '\0';
     }
 
     // platform implementations
