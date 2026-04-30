@@ -20,26 +20,18 @@
 
 namespace dmRender
 {
-    static inline bool ProgramUsesAdjustedNDC(dmGraphics::ShaderDesc::Language program_language)
+    const Matrix4& GetProjectionMatrixForProgram(HRenderContext render_context)
     {
-        return program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
-               program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
-               program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
-               program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50;
-    }
-
-    const Matrix4& GetProjectionMatrixForProgram(HRenderContext render_context, dmGraphics::ShaderDesc::Language program_language)
-    {
-        if (ProgramUsesAdjustedNDC(program_language))
+        if (render_context->m_UseAdjustedNDC)
         {
             return render_context->m_ProjectionAdjustedNDC;
         }
         return render_context->m_Projection;
     }
 
-    const Matrix4& GetViewProjectionMatrixForProgram(HRenderContext render_context, dmGraphics::ShaderDesc::Language program_language)
+    const Matrix4& GetViewProjectionMatrixForProgram(HRenderContext render_context)
     {
-        if (ProgramUsesAdjustedNDC(program_language))
+        if (render_context->m_UseAdjustedNDC)
         {
             return render_context->m_ViewProjAdjustedNDC;
         }
@@ -334,7 +326,7 @@ namespace dmRender
         delete[] default_values;
     }
 
-    void SetProgramConstant(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& texture_matrix, dmGraphics::ShaderDesc::Language program_language, dmRenderDDF::MaterialDesc::ConstantType type, dmGraphics::HProgram program, dmGraphics::HUniformLocation location, HConstant constant)
+    void SetProgramConstant(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& texture_matrix, dmRenderDDF::MaterialDesc::ConstantType type, dmGraphics::HUniformLocation location, HConstant constant)
     {
         switch (type)
         {
@@ -354,7 +346,7 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
             {
-                const Matrix4 view_projection = GetViewProjectionMatrixForProgram(render_context, program_language);
+                const Matrix4 view_projection = GetViewProjectionMatrixForProgram(render_context);
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, 1, location);
                 break;
             }
@@ -375,7 +367,7 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION:
             {
-                const Matrix4 projection = GetProjectionMatrixForProgram(render_context, program_language);
+                const Matrix4 projection = GetProjectionMatrixForProgram(render_context);
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&projection, 1, location);
                 break;
             }
@@ -402,7 +394,7 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
             {
-                const Matrix4 world_view_projection = GetViewProjectionMatrixForProgram(render_context, program_language) * world_matrix;
+                const Matrix4 world_view_projection = GetViewProjectionMatrixForProgram(render_context) * world_matrix;
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
                 break;
             }
@@ -420,13 +412,13 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INV:
             {
-                const Matrix4 projection_inverse = Inverse(GetProjectionMatrixForProgram(render_context, program_language));
+                const Matrix4 projection_inverse = Inverse(GetProjectionMatrixForProgram(render_context));
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&projection_inverse, 1, location);
                 break;
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INV:
             {
-                const Matrix4 view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context, program_language));
+                const Matrix4 view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context));
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection_inverse, 1, location);
                 break;
             }
@@ -438,7 +430,7 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INV:
             {
-                const Matrix4 world_view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context, program_language) * world_matrix);
+                const Matrix4 world_view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context) * world_matrix);
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection_inverse, 1, location);
                 break;
             }

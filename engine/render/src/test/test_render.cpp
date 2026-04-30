@@ -2568,9 +2568,7 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
                                  m_GraphicsContext,
                                  identity,
                                  identity,
-                                 dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
                                  dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME,
-                                 program,
                                  time_uniform->m_Location,
                                  0);
 
@@ -2628,8 +2626,10 @@ TEST_F(dmRenderTest, ConstantTypeInverseMatricesSetExpectedValues)
     };
 
     const dmVMath::Matrix4 view_projection = projection * view;
-    const dmVMath::Matrix4 adjusted_projection = dmRender::GetProjectionMatrixForProgram(m_Context, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
-    const dmVMath::Matrix4 adjusted_view_projection = dmRender::GetViewProjectionMatrixForProgram(m_Context, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
+    m_Context->m_UseAdjustedNDC = 1;
+    const dmVMath::Matrix4 adjusted_projection = dmRender::GetProjectionMatrixForProgram(m_Context);
+    const dmVMath::Matrix4 adjusted_view_projection = dmRender::GetViewProjectionMatrixForProgram(m_Context);
+    m_Context->m_UseAdjustedNDC = 0;
 
     ConstantMatrixExpectation expectations[] =
     {
@@ -2647,17 +2647,17 @@ TEST_F(dmRenderTest, ConstantTypeInverseMatricesSetExpectedValues)
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(expectations); ++i)
     {
         const ConstantMatrixExpectation& expectation = expectations[i];
+        m_Context->m_UseAdjustedNDC = expectation.m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
         dmRender::SetProgramConstant(m_Context,
                                      m_GraphicsContext,
                                      world,
                                      texture,
-                                     expectation.m_Language,
                                      expectation.m_Type,
-                                     program,
                                      matrix_uniform->m_Location,
                                      0);
         AssertMatrixUniformData(expectation.m_Expected, written);
     }
+    m_Context->m_UseAdjustedNDC = 0;
 
     dmGraphics::DisableProgram(m_GraphicsContext);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
