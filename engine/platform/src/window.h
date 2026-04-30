@@ -164,6 +164,14 @@ bool WindowGetSafeArea(HWindow window, WindowSafeArea* out);
  */
 const char* WindowGetJoystickDeviceName(HWindow window, uint32_t joystick_index);
 
+/*# get joystick device guid
+ * @name WindowGetJoystickDeviceGuid
+ * @param window [type:HWindow] window handle
+ * @param joystick_index [type:uint32_t] joystick index
+ * @return guid [type:const char*] SDL-style joystick guid, or 0 if unavailable
+ */
+const char* WindowGetJoystickDeviceGuid(HWindow window, uint32_t joystick_index);
+
 /*# get joystick axes
  * @name WindowGetJoystickAxes
  * @param window [type:HWindow] window handle
