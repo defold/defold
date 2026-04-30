@@ -156,13 +156,6 @@
   ([] (clone-system @*the-system*))
   ([sys] (is/clone-system sys)))
 
-(defn system= [s1 s2]
-  (is/system= s1 s2))
-
-(defmacro with-system [sys & body]
-  `(binding [*the-system* (atom ~sys)]
-     ~@body))
-
 (defn node-by-id
   "Returns a node given its id. If the basis is provided, it returns the value of the node using that basis.
    Otherwise, it uses the current basis."

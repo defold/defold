@@ -21,7 +21,6 @@
 #include <sys/stat.h>
 
 #include <stdio.h>
-#include <algorithm>
 
 #include <crash/crash.h>
 #include <dlib/buffer.h>
@@ -29,12 +28,14 @@
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/http_client.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memprofile.h>
 #include <dlib/path.h>
 #include <dlib/profile.h>
 #include <dlib/socket.h>
+#include <dlib/sslsocket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
@@ -72,8 +73,6 @@
     #include "engine_web.h"
 #endif
 
-#include <dlib/http_client.h>
-#include <dlib/sslsocket.h>
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code

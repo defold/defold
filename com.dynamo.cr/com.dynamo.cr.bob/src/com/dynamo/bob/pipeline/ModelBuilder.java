@@ -105,12 +105,12 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
             // No animations
         }
         else if(modelDescBuilder.getAnimations().endsWith(".animationset")) {
-            // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh collada file
+            // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh scene file
             rigBuilder.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), ".animationsetc"));
         }
         else if(!modelDescBuilder.getAnimations().isEmpty()) {
-            // if a collada file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh collada file
-            // we define this a generated file as the animation set does not come from an .animationset resource, but is exported directly from this collada file
+            // if a model scene file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh scene file
+            // we define this a generated file as the animation set does not come from an .animationset resource, but is exported directly from this model scene file
             // and because we also avoid possible resource name collision (ref: atlas <-> texture).
             rigBuilder.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
         } else {
