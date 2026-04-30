@@ -308,7 +308,7 @@
                  :aabb aabb
                  :renderable {:render-fn render-frustum-outlines
                               :batch-key [outline-shader]
-                              :tags #{:camera :outline}
+                              :tags #{:camera :gizmo :outline}
                               :select-batch-key _node-id
                               :user-data {:fov (math/rad->deg fov) ; TODO: FOV should be edited as degrees, not radians.
                                           :aspect-ratio aspect-ratio

@@ -243,11 +243,14 @@
                 (mapv :node-id))))))
 
 (deftest invalid-fixed-orthographic-camera-inset-test
-  (let [renderable {:user-data {:is-orthographic true
+  (let [renderable {:node-id :camera
+                    :node-id-path [:camera]
+                    :tags #{:camera}
+                    :user-data {:is-orthographic true
                                 :orthographic-mode :ortho-mode-fixed
                                 :orthographic-zoom 0.0
                                 :display-width 1920.0
-                                :display-height 1080.0}}]
+                                :display-height 1080.0}}
+        scene-render-data {:renderables {pass/outline [renderable]}}]
     (is (false? (#'scene/valid-camera-inset-orthographic-zoom? renderable)))
-    (is (nil? (#'scene/camera-inset-dimensions renderable)))
-    (is (nil? (#'scene/make-camera-inset-camera renderable 480.0 270.0)))))
+    (is (nil? (#'scene/make-camera-inset-render-data scene-render-data [:camera])))))
