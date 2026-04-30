@@ -71,7 +71,7 @@
       (doseq [[type index props] [["sphere" 0 {:diameter 0.0}]
                                   ["box" 1 {:dimensions [0.0 0.0 0.0]}]
                                   ["capsule" 2 {:diameter 0.0
-                                                :height 0.0}]]]
+                                                :height -0.001}]]]
         (testing type
           (let [shape (:node-id (test-util/outline node-id [index]))]
             (doseq [[prop value] props]
@@ -84,7 +84,7 @@
       (doseq [[type index props] [["sphere" 0 {:diameter 0.0}]
                                   ["box" 1 {:dimensions [0.0 0.0 0.0]}]
                                   ["capsule" 2 {:diameter 0.0
-                                                :height 0.0}]]]
+                                                :height -0.001}]]]
         (testing (str type " shape error blocks build targets")
           (let [shape (:node-id (test-util/outline node-id [index]))]
             (doseq [[prop value] props]
