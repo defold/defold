@@ -288,20 +288,18 @@
       (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count border-vbuf)))
     (.glLineWidth gl 1.0)))
 
-(defn- find-selected-camera-renderable [scene-render-data selection]
-  (let [selection-set (set selection)
-        selected-cameras
-        (into []
-              (comp (filter camera-renderable?)
-                    (filter (fn [renderable]
-                              (or (contains? selection-set (:node-id renderable))
-                                  (some selection-set (:node-id-path renderable))))))
-              (get-in scene-render-data [:renderables pass/outline]))]
+(defn- find-selected-camera-renderable [scene-render-data]
+  (let [selected-cameras (into []
+                               (comp (filter camera-renderable?)
+                                     (filter :selected))
+                               (mapcat val
+                                       (filter (comp types/selection? key)
+                                               (:renderables scene-render-data))))]
     (when (= 1 (count selected-cameras))
       (first selected-cameras))))
 
-(defn- make-camera-inset-render-data [scene-render-data selection]
-  (when-let [selected-camera-renderable (find-selected-camera-renderable scene-render-data selection)]
+(defn- make-camera-inset-render-data [scene-render-data]
+  (when-let [selected-camera-renderable (find-selected-camera-renderable scene-render-data)]
     (when (valid-camera-inset-orthographic-zoom? selected-camera-renderable)
       (when-let [aspect-ratio (camera-inset-aspect-ratio selected-camera-renderable)]
         (let [display-height camera-inset-height
@@ -501,8 +499,8 @@
         (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
         (batch-render gl pass-render-args pass-renderables batch-key)))))
 
-(g/defnk produce-camera-inset-data [scene-render-data selection updatable-states ^GLAutoDrawable camera-inset-drawable]
-  (when-some [{:keys [camera clear-color display-width display-height render-width render-height]} (make-camera-inset-render-data scene-render-data selection)]
+(g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable]
+  (when-some [{:keys [camera clear-color display-width display-height render-width render-height]} (make-camera-inset-render-data scene-render-data)]
     (when camera-inset-drawable
       (let [camera-inset-viewport (types/->Region 0 render-width 0 render-height)
             camera-inset-pass->render-args (into {}

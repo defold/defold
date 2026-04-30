@@ -15,6 +15,7 @@
 (ns editor.scene-test
   (:require [clojure.test :refer :all]
             [editor.camera :as camera]
+            [editor.camera-editor :as camera-editor]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.math :as math]
@@ -245,12 +246,70 @@
 (deftest invalid-fixed-orthographic-camera-inset-test
   (let [renderable {:node-id :camera
                     :node-id-path [:camera]
+                    :selected :self-selected
                     :tags #{:camera}
                     :user-data {:is-orthographic true
                                 :orthographic-mode :ortho-mode-fixed
                                 :orthographic-zoom 0.0
                                 :display-width 1920.0
                                 :display-height 1080.0}}
-        scene-render-data {:renderables {pass/outline [renderable]}}]
+        scene-render-data {:renderables {pass/selection [renderable]}}]
     (is (false? (#'scene/valid-camera-inset-orthographic-zoom? renderable)))
-    (is (nil? (#'scene/make-camera-inset-render-data scene-render-data [:camera])))))
+    (is (nil? (#'scene/make-camera-inset-render-data scene-render-data)))))
+
+(deftest selected-renderables-include-selected-camera-selection-pass-test
+  (let [local-camera (camera/make-camera)
+        scene {:node-id :root
+               :children [{:node-id :camera
+                           :aabb geom/null-aabb
+                           :renderable {:tags #{:camera}
+                                        :user-data {:is-orthographic false}
+                                        :select-batch-key :camera
+                                        :passes [pass/outline pass/selection]}}]}]
+    (testing "Camera renderable is selected when the camera node itself is selected"
+      (let [scene-render-data (scene/produce-scene-render-data {:scene scene
+                                                                :selection [:camera]
+                                                                :hidden-renderable-tags #{}
+                                                                :hidden-node-outline-key-paths #{}
+                                                                :local-camera local-camera})]
+        (is (= [:camera]
+               (mapv :node-id (:selected-renderables scene-render-data))))
+        (is (= #{:camera}
+               (-> scene-render-data
+                   (#'scene/find-selected-camera-renderable)
+                   :tags)))))
+    (testing "Camera renderable is found when a parent node is selected"
+      (let [deeper-scene {:node-id :root
+                          :children [{:node-id :go
+                                      :aabb geom/null-aabb
+                                      :children [{:node-id :camera
+                                                   :aabb geom/null-aabb
+                                                   :renderable {:tags #{:camera}
+                                                                :user-data {:is-orthographic false}
+                                                                :select-batch-key :camera
+                                                                :passes [pass/outline pass/selection]}}]}]}
+            scene-render-data (scene/produce-scene-render-data {:scene deeper-scene
+                                                                :selection [:go]
+                                                                :hidden-renderable-tags #{}
+                                                                :hidden-node-outline-key-paths #{}
+                                                                :local-camera local-camera})]
+        (is (= #{:camera}
+               (-> scene-render-data
+                   (#'scene/find-selected-camera-renderable)
+                   :tags)))))))
+
+(deftest camera-scene-includes-selection-pass-test
+  (let [camera-scene (camera-editor/produce-camera-scene {:_node-id :camera
+                                                          :fov 1.0
+                                                          :aspect-ratio 1.7777777778
+                                                          :auto-aspect-ratio false
+                                                          :near-z 1.0
+                                                          :far-z 1000.0
+                                                          :orthographic-projection false
+                                                          :orthographic-zoom 1.0
+                                                          :orthographic-mode :ortho-mode-auto-fit
+                                                          :project-display-width 1920.0
+                                                          :project-display-height 1080.0
+                                                          :project-render-clear-color [0.0 0.0 0.0 1.0]})]
+    (is (= [pass/outline pass/selection]
+           (get-in camera-scene [:children 0 :renderable :passes])))))

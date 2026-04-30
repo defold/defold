@@ -32,6 +32,7 @@
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
+            [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
             [editor.shaders :as shaders]
             [editor.validation :as validation]
@@ -257,7 +258,9 @@
   (loop [renderables renderables
          vbuf (->color-vtx (* renderable-count camera-preview-mesh-vertices-count))]
     (if-let [renderable (first renderables)]
-      (let [color (colors/renderable-outline-color renderable)
+      (let [color (if (= pass/selection (:pass render-args))
+                    (scene-picking/picking-id->color (:picking-id renderable))
+                    (colors/renderable-outline-color renderable))
             cr (get color 0)
             cg (get color 1)
             cb (get color 2)
@@ -285,7 +288,7 @@
       (persistent! vbuf))))
 
 (defn- render-frustum-outlines [^GL2 gl render-args renderables ^long renderable-count]
-  (assert (= pass/outline (:pass render-args)))
+  (assert (contains? #{pass/outline pass/selection} (:pass render-args)))
   (let [vertex-buffer (gen-outline-vertex-buffer render-args renderables renderable-count)
         outline-vertex-binding (vtx/use-with ::frustum-outline vertex-buffer outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
@@ -321,7 +324,7 @@
                                           :display-width project-display-width
                                           :display-height project-display-height
                                           :render-clear-color project-render-clear-color}
-                              :passes [pass/outline]}}]}))
+                              :passes [pass/outline pass/selection]}}]}))
 
 (defn load-camera [project self _resource camera-desc]
   {:pre [(map? camera-desc)]} ; Camera$CameraDesc in map format.
