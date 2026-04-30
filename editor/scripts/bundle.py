@@ -356,9 +356,10 @@ def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
 
 def remove_platform_files_from_archive(platform, jar):
+    start_time = time.perf_counter()
     zin = zipfile.ZipFile(jar, 'r')
     files = zin.namelist()
-    files_to_remove = []
+    files_to_remove = set()
 
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
@@ -378,7 +379,7 @@ def remove_platform_files_from_archive(platform, jar):
             if "bundletool-all.jar" in file:
                 continue
             # anything else should be removed
-            files_to_remove.append(file)
+            files_to_remove.add(file)
         # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
         if file.startswith("_unpack"):
             # don't touch '_unpack/'
@@ -394,20 +395,31 @@ def remove_platform_files_from_archive(platform, jar):
             if file.startswith("_unpack/_defold"):
                 continue
             # anything else should be removed
-            files_to_remove.append(file)
+            files_to_remove.add(file)
 
 
     # find libs to remove in the root folder
     for file in files:
         if "/" not in file:
             if platform in ["x86_64-macos", "arm64-macos"] and (file.endswith(".so") or file.endswith(".dll")):
-                files_to_remove.append(file)
+                files_to_remove.add(file)
             elif platform in ["x86_64-win32"] and (file.endswith(".so") or file.endswith(".dylib")):
-                files_to_remove.append(file)
+                files_to_remove.add(file)
             elif platform in ["x86_64-linux", "arm64-linux"]  and (file.endswith(".dll") or file.endswith(".dylib")):
-                files_to_remove.append(file)
+                files_to_remove.add(file)
 
-    # write new jar without the files that should be removed
+    # Always rewrite the jar here, even when Leiningen already excluded all
+    # platform-specific files. The final editor package historically contained
+    # a Python-rewritten jar, and keeping that ZIP layout stable avoids changing
+    # macOS signing/notarization inputs while moving most filtering to uberjar.
+    scan_time = time.perf_counter() - start_time
+    if files_to_remove:
+        log("Warning: removing %d platform-specific files from %s after %.3fs scan" %
+            (len(files_to_remove), jar, scan_time))
+    else:
+        log("Rewriting %s after %.3fs scan; no platform-specific files to remove" %
+            (jar, scan_time))
+    rewrite_start_time = time.perf_counter()
     newjar = jar + "_new"
     zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
     for file in zin.infolist():
@@ -419,6 +431,13 @@ def remove_platform_files_from_archive(platform, jar):
     # switch to jar without removed files
     os.remove(jar)
     os.rename(newjar, jar)
+    rewrite_time = time.perf_counter() - rewrite_start_time
+    if files_to_remove:
+        log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
+            (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
+    else:
+        log("Rewrote %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
+            (jar, time.perf_counter() - start_time, scan_time, rewrite_time))
 
 
 def create_bundle(jdk, platform, options):
@@ -460,7 +479,7 @@ def create_bundle(jdk, platform, options):
     config = configparser.ConfigParser()
     config.read('bundle-resources/config')
     config.set('build', 'editor_sha1', options.editor_sha1)
-    config.set('build', 'engine_sha1', options.engine_sha1)
+    config.set('build', 'engine_sha1', options.engine_sha1 or '')
     config.set('build', 'version', options.version)
     config.set('build', 'time', datetime.datetime.now().isoformat())
     config.set('build', 'archive_domain', options.archive_domain)
@@ -667,32 +686,47 @@ def notarize_dmg(app, options):
                 log("Retrying notarization...")
 
 def build(options):
-    init_command = ['with-profile', '+release', 'init']
-    if options.engine_sha1:
-        init_command += [options.engine_sha1]
-
     for platform in options.target_platform:
         log("Building editor for %s..." % platform)
         jdk = get_jdk(platform)
-        invoke_lein(init_command, jdk_path=jdk)
+        init_editor(options, platform, jdk)
         invoke_lein(['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
         if options.skip_tests:
             log("Skipping tests.")
         else:
-            invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
-            invoke_lein(['test'], jdk_path=jdk)
-            # test that docs can be successfully produced
-            write_docs('target/docs', jdk_path=jdk)
+            run_tests(jdk)
         invoke_lein(['prerelease'], jdk_path=jdk)
         create_bundle(jdk, platform, options)
 
+def init_editor(options, platform, jdk):
+    init_command = ['with-profile', '+release', 'init',
+                    options.engine_sha1 or 'dynamo-home',
+                    options.archive_domain,
+                    platform]
+    invoke_lein(init_command, jdk_path=jdk)
+
+def run_tests(jdk):
+    invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
+    invoke_lein(['test'], jdk_path=jdk)
+    # test that docs can be successfully produced
+    write_docs('target/docs', jdk_path=jdk)
+
+def test(options):
+    for platform in options.target_platform:
+        log("Testing editor for %s..." % platform)
+        jdk = get_jdk(platform)
+        init_editor(options, platform, jdk)
+        invoke_lein(['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
+        run_tests(jdk)
+
 if __name__ == '__main__':
-    allowed_commands = {'build', 'docs'}
+    allowed_commands = {'build', 'docs', 'test'}
     usage = '''%prog [options] command(s)
 
 Commands:
   build                 Build editor
-  docs                  Produce docs (editor.apidoc)'''
+  docs                  Produce docs (editor.apidoc)
+  test                  Run editor tests'''
 
     parser = optparse.OptionParser(usage)
 
@@ -786,16 +820,18 @@ Commands:
     if invalid_commands:
         parser.error('Unknown command(s): %s' % ', '.join(invalid_commands))
 
-    if "build" in commands:
+    if "build" in commands or "test" in commands:
         if not options.target_platform:
             parser.error('No platform specified')
-        if not options.version:
-            parser.error('No version specified')
         supported = supported_platforms()
         unsupported = [platform for platform in options.target_platform if platform not in supported]
         if unsupported:
             log("Unsupported target(s): %s. Supported on this machine: %s." % (", ".join(unsupported), ", ".join(sorted(supported))))
             sys.exit(1)
+
+    if "build" in commands:
+        if not options.version:
+            parser.error('No version specified')
 
     options.editor_sha1 = git_sha1('HEAD')
 
@@ -821,5 +857,7 @@ Commands:
 
     if "docs" in commands:
         write_docs(options.docs_dir)
+    if "test" in commands:
+        test(options)
     if "build" in commands:
         build(options)

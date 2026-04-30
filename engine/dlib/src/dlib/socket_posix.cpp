@@ -53,6 +53,9 @@ namespace dmSocket
         switch (r)
         {
             DM_SOCKET_NATIVE_TO_RESULT_CASE(ACCES);
+#ifndef _WIN32
+            case EPERM: return RESULT_ACCES;
+#endif
             DM_SOCKET_NATIVE_TO_RESULT_CASE(AFNOSUPPORT);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(WOULDBLOCK);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(BADF);
