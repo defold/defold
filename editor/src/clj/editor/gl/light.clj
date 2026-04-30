@@ -118,29 +118,43 @@
     (catch IllegalArgumentException e
       (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." uniform-name) e)))))
 
+(defn- shader-preview-light-capacity ^long [uniform-infos]
+  (let [array-sizes (into []
+                          (keep (fn [field]
+                                  (when-some [array-size (some-> (uniform-infos (gl-light-uniform-name 0 field))
+                                                                 :array-size)]
+                                    (let [array-size (long array-size)]
+                                      (when (pos? array-size)
+                                        array-size)))))
+                          [:position :color :direction_range :params])]
+    (if (seq array-sizes)
+      (reduce min (long default-max-preview-lights) array-sizes)
+      (long default-max-preview-lights))))
+
 (defn bind-preview-lights-for-shader! [^GL2 gl shader-lifecycle render-args]
   (when (shader/uses-preview-light-buffer? shader-lifecycle)
-    (let [packed-lights (or (:editor/preview-lights render-args) [])
-          lights (take default-max-preview-lights packed-lights)
-          light-count (long (count lights))
-          count-v4 (Vector4d. (double light-count) 0.0 0.0 0.0)]
+    (let [packed-lights (or (:editor/preview-lights render-args) [])]
       (when-let [{:keys [^int program uniform-infos]}
                  (scene-cache/request-object! ::shader/shader
                                               (:request-id shader-lifecycle)
                                               gl
                                               (:request-data shader-lifecycle))]
         (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
-          (when-some [uniform-info (uniform-infos lights-count-uniform-name)]
+          (let [shader-light-capacity (shader-preview-light-capacity uniform-infos)
+                lights (take shader-light-capacity packed-lights)
+                light-count (long (count lights))
+                count-v4 (Vector4d. (double light-count) 0.0 0.0 0.0)]
+            (when-some [uniform-info (uniform-infos lights-count-uniform-name)]
             (set-preview-light-uniform-at-index! gl program uniform-info lights-count-uniform-name count-v4))
 
-          (when (pos? light-count)
-            (doseq [^long i (range light-count)
-                    :let [light (nth lights i)]
-                    field [:position :color :direction_range :params]
-                    :let [uniform-name (gl-light-uniform-name i field)
-                          uniform-value (field light)
-                          uniform-info (uniform-infos uniform-name)]
-                    :when (and (string? (not-empty uniform-name))
-                               (some? uniform-value)
-                               uniform-info)]
-              (set-preview-light-uniform-at-index! gl program uniform-info uniform-name uniform-value))))))))
+            (when (pos? light-count)
+              (doseq [^long i (range light-count)
+                      :let [light (nth lights i)]
+                      field [:position :color :direction_range :params]
+                      :let [uniform-name (gl-light-uniform-name i field)
+                            uniform-value (field light)
+                            uniform-info (uniform-infos uniform-name)]
+                      :when (and (string? (not-empty uniform-name))
+                                 (some? uniform-value)
+                                 uniform-info)]
+                (set-preview-light-uniform-at-index! gl program uniform-info uniform-name uniform-value)))))))))

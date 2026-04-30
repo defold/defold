@@ -204,7 +204,7 @@
     (with-redefs [scene-cache/request-object! (fn [& _]
                                                 {:program 7
                                                  :uniform-infos {"lights_count" {:location 3}
-                                                                 "lights[0].position" {:location 4}}})
+                                                                 "lights[0].position" {:location 4 :array-size 8}}})
                   gl/gl-current-program (fn ^long [_gl] 7)
                   shader/set-uniform-at-index (fn [_gl program location value]
                                                 (swap! uniform-updates conj [program location value]))]
@@ -218,3 +218,36 @@
       (is (zero? (.y ^Vector4d value)))
       (is (zero? (.z ^Vector4d value)))
       (is (zero? (.w ^Vector4d value))))))
+
+(deftest bind-preview-lights-for-shader-clamps-to-shader-light-capacity-test
+  (let [uniform-updates (atom [])
+        shader-request-data (shader/make-shader-request-data [] [] {} nil true)
+        test-shader (shader/make-shader-lifecycle ::preview-lights-clamped shader-request-data [] {})
+        preview-light {:position (Vector4d. 1.0 2.0 3.0 1.0)
+                       :color (Vector4d. 1.0 1.0 1.0 1.0)
+                       :direction_range (Vector4d. 0.0 0.0 -1.0 10.0)
+                       :params (Vector4d. 1.0 1.0 0.0 0.0)}
+        preview-lights (vec (repeat 4 preview-light))]
+    (with-redefs [scene-cache/request-object! (fn [& _]
+                                                {:program 7
+                                                 :uniform-infos {"lights_count" {:location 3}
+                                                                 "lights[0].position" {:location 10 :array-size 2}
+                                                                 "lights[0].color" {:location 11 :array-size 2}
+                                                                 "lights[0].direction_range" {:location 12 :array-size 2}
+                                                                 "lights[0].params" {:location 13 :array-size 2}
+                                                                 "lights[1].position" {:location 14}
+                                                                 "lights[1].color" {:location 15}
+                                                                 "lights[1].direction_range" {:location 16}
+                                                                 "lights[1].params" {:location 17}}})
+                  gl/gl-current-program (fn ^long [_gl] 7)
+                  shader/set-uniform-at-index (fn [_gl program location value]
+                                                (swap! uniform-updates conj [program location value]))]
+      (light/bind-preview-lights-for-shader! nil test-shader {:editor/preview-lights preview-lights}))
+    (is (= 9 (count @uniform-updates)))
+    (let [[program location count-value] (first @uniform-updates)
+          updated-locations (into #{} (map second) (rest @uniform-updates))]
+      (is (= 7 program))
+      (is (= 3 location))
+      (is (instance? Vector4d count-value))
+      (is (= 2.0 (.x ^Vector4d count-value)))
+      (is (= #{10 11 12 13 14 15 16 17} updated-locations)))))
