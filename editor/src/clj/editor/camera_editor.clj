@@ -244,9 +244,6 @@
         dh (double display-height)]
     (if (true? is-orthographic)
       (let [zoom (double (or orthographic-zoom 1.0))
-            zoom (if (= orthographic-mode :ortho-mode-fixed)
-                   zoom
-                   1.0)
             ow (/ dw zoom)
             oh (/ dh zoom)]
         (camera/simple-orthographic-projection-matrix near far ow oh))
@@ -264,8 +261,8 @@
             {:keys [is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode]} (:user-data renderable)
             world-translation (:world-translation renderable)
             world-rotation (:world-rotation renderable)]
-        ;; Hide frustum preview when orthographic zoom is invalid (<= 0) in fixed mode
-        (if (and is-orthographic (= orthographic-mode :ortho-mode-fixed)
+        ;; Hide frustum preview when orthographic zoom is invalid (<= 0).
+        (if (and is-orthographic
                  (not (> (double (or orthographic-zoom 0.0)) 0.0)))
           (recur (rest renderables) vbuf)
           (let [;; Pixel-stable scale for the small camera mesh at the camera position.
@@ -368,7 +365,8 @@
   (property orthographic-zoom g/Num (default (protobuf/default Camera$CameraDesc :orthographic-zoom))
             (dynamic label (properties/label-dynamic :camera :orthographic-zoom))
             (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-zoom))
-            (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed)))))
+            (dynamic edit-type (g/constantly {:type g/Num :min Double/MIN_NORMAL}))
+            (dynamic read-only? (g/fnk [orthographic-projection] (not orthographic-projection)))
             (dynamic error (g/fnk [_node-id orthographic-zoom]
                              (validation/prop-error :fatal _node-id :orthographic-zoom validation/prop-zero-or-below? orthographic-zoom orthographic-zoom-message))))
 

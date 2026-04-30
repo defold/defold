@@ -353,6 +353,76 @@ TEST_F(dmRenderTest, TestRenderCameraEffectiveAspectRatio)
     dmRender::DeleteRenderCamera(m_Context, camera);
 }
 
+TEST_F(dmRenderTest, TestRenderCameraOrthographicAutoZoom)
+{
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_BaseContext.m_Width = 10;
+    null_context->m_BaseContext.m_Height = 10;
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport               = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_AspectRatio            = 1.0f;
+    data.m_Fov                    = M_PI / 4.0f;
+    data.m_NearZ                  = 0.1f;
+    data.m_FarZ                   = 100.0f;
+    data.m_OrthographicZoom       = 3.0f;
+    data.m_OrthographicProjection = true;
+    data.m_OrthographicMode       = dmRender::ORTHO_MODE_AUTO_COVER;
+
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+
+    float display_scale = dmGraphics::GetDisplayScaleFactor(m_GraphicsContext);
+    if (display_scale <= 0.0f)
+    {
+        display_scale = 1.0f;
+    }
+    float width         = (float) dmGraphics::GetWindowWidth(m_GraphicsContext);
+    float height        = (float) dmGraphics::GetWindowHeight(m_GraphicsContext);
+    float proj_width    = (float) dmGraphics::GetWidth(m_GraphicsContext);
+    float proj_height   = (float) dmGraphics::GetHeight(m_GraphicsContext);
+    float zx            = width / (display_scale * proj_width);
+    float zy            = height / (display_scale * proj_height);
+    float auto_cover    = zx > zy ? zx : zy;
+    float auto_fit      = zx < zy ? zx : zy;
+
+    ASSERT_NEAR(auto_cover, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
+
+    dmVMath::Point3 position(0.0f, 0.0f, 0.0f);
+    dmVMath::Quat rotation(0.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
+
+    dmVMath::Matrix4 projection;
+    dmRender::GetRenderCameraProjection(m_Context, camera, &projection);
+
+    float effective_zoom = auto_cover * data.m_OrthographicZoom;
+    float zoomed_width   = width / display_scale / effective_zoom;
+    float zoomed_height  = height / display_scale / effective_zoom;
+    dmVMath::Matrix4 expected_projection = dmVMath::Matrix4::orthographic(
+        -zoomed_width / 2.0f, zoomed_width / 2.0f,
+        -zoomed_height / 2.0f, zoomed_height / 2.0f,
+        data.m_NearZ, data.m_FarZ);
+
+    for (int row = 0; row < 4; ++row)
+    {
+        for (int col = 0; col < 4; ++col)
+        {
+            ASSERT_NEAR(expected_projection.getElem(row, col), projection.getElem(row, col), EPSILON);
+        }
+    }
+
+    data.m_OrthographicMode = dmRender::ORTHO_MODE_AUTO_FIT;
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    ASSERT_NEAR(auto_fit, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
+
+    data.m_OrthographicMode = dmRender::ORTHO_MODE_FIXED;
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    ASSERT_NEAR(1.0f, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
+
+    dmRender::DeleteRenderCamera(m_Context, camera);
+}
+
 TEST_F(dmRenderTest, TestSquare2d)
 {
     Square2d(m_Context, 10.0f, 20.0f, 30.0f, 40.0f, Vector4(0.1f, 0.2f, 0.3f, 0.4f));
