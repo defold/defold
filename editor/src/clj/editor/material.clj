@@ -173,12 +173,12 @@
     :constant-type-normal :normal
     :constant-type-worldview :world-view
     :constant-type-worldviewproj :world-view-proj
-    :constant-type-world-inv :world-inv
-    :constant-type-view-inv :view-inv
-    :constant-type-projection-inv :projection-inv
-    :constant-type-viewproj-inv :view-proj-inv
-    :constant-type-worldview-inv :world-view-inv
-    :constant-type-worldviewproj-inv :world-view-proj-inv))
+    :constant-type-world-inverse :world-inv
+    :constant-type-view-inverse :view-inv
+    :constant-type-projection-inverse :projection-inv
+    :constant-type-viewproj-inverse :view-proj-inv
+    :constant-type-worldview-inverse :world-view-inv
+    :constant-type-worldviewproj-inverse :world-view-proj-inv))
 
 (defn- transpile-shader-source
   [shader-resource-node-id shader-resource ^String shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]

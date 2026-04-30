@@ -398,37 +398,37 @@ namespace dmRender
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
                 break;
             }
-            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INV:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE:
             {
                 const Matrix4 world_inverse = Inverse(world_matrix);
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_inverse, 1, location);
                 break;
             }
-            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INV:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE:
             {
                 const Matrix4 view_inverse = Inverse(render_context->m_View);
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_inverse, 1, location);
                 break;
             }
-            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INV:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE:
             {
                 const Matrix4 projection_inverse = Inverse(GetProjectionMatrixForProgram(render_context));
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&projection_inverse, 1, location);
                 break;
             }
-            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INV:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE:
             {
                 const Matrix4 view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context));
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection_inverse, 1, location);
                 break;
             }
-            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INV:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE:
             {
                 const Matrix4 world_view_inverse = Inverse(render_context->m_View * world_matrix);
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_inverse, 1, location);
                 break;
             }
-            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INV:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE:
             {
                 const Matrix4 world_view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context) * world_matrix);
                 dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection_inverse, 1, location);

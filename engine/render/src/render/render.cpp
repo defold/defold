@@ -38,17 +38,15 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    static Matrix4 MakeAdjustedNDCMatrix()
-    {
-        Matrix4 ndc_matrix = Matrix4::identity();
-        ndc_matrix.setElem(2, 2, 0.5f);
-        ndc_matrix.setElem(3, 2, 0.5f);
-        return ndc_matrix;
-    }
-
     static void UpdateRenderContextMatrices(HRenderContext render_context, const Matrix4& view, const Matrix4& projection)
     {
-        static const Matrix4 adjusted_ndc_matrix = MakeAdjustedNDCMatrix();
+        static const Matrix4 adjusted_ndc_matrix = []()
+        {
+            Matrix4 ndc_matrix = Matrix4::identity();
+            ndc_matrix.setElem(2, 2, 0.5f);
+            ndc_matrix.setElem(3, 2, 0.5f);
+            return ndc_matrix;
+        }();
 
         render_context->m_View = view;
         render_context->m_Projection = projection;

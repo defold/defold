@@ -2501,28 +2501,28 @@ TEST(Constants, Constant)
     ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
-    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INV);
-    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INV, dmRender::GetConstantType(constant));
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
-    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INV);
-    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INV, dmRender::GetConstantType(constant));
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
-    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INV);
-    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INV, dmRender::GetConstantType(constant));
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
-    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INV);
-    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INV, dmRender::GetConstantType(constant));
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
-    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INV);
-    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INV, dmRender::GetConstantType(constant));
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
-    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INV);
-    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INV, dmRender::GetConstantType(constant));
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
     dmRender::DeleteConstant(constant);
@@ -2633,15 +2633,15 @@ TEST_F(dmRenderTest, ConstantTypeInverseMatricesSetExpectedValues)
 
     ConstantMatrixExpectation expectations[] =
     {
-        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INV, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(world) },
-        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INV, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view) },
-        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INV, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(projection) },
-        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INV, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view_projection) },
-        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INV, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view * world) },
-        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INV, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view_projection * world) },
-        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INV, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_projection) },
-        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INV, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_view_projection) },
-        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INV, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_view_projection * world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view_projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view * world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view_projection * world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_view_projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_view_projection * world) },
     };
 
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(expectations); ++i)

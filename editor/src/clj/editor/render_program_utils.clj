@@ -19,19 +19,6 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private constant-type-display-name-overrides
-  {:constant-type-world-inv "World Inverse"
-   :constant-type-view-inv "View Inverse"
-   :constant-type-projection-inv "Projection Inverse"
-   :constant-type-viewproj-inv "View Projection Inverse"
-   :constant-type-worldview-inv "World View Inverse"
-   :constant-type-worldviewproj-inv "World View Projection Inverse"})
-
-(defn- constant-type-options []
-  (mapv (fn [[value label]]
-          [value (get constant-type-display-name-overrides value label)])
-        (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$ConstantType))))
-
 (defn gen-form-data-constants [localization-key path-key]
   {:path [path-key]
    :localization-key localization-key
@@ -43,7 +30,7 @@
                {:path [:type]
                 :localization-key (str localization-key ".type")
                 :type :choicebox
-                :options (constant-type-options)
+                :options (protobuf-forms/make-options constant-values)
                 :default (ffirst constant-values)}
                {:path [:value]
                 :localization-key (str localization-key ".value")
@@ -113,12 +100,12 @@
     :constant-type-worldview false
     :constant-type-worldviewproj false
     :constant-type-time false
-    :constant-type-world-inv false
-    :constant-type-view-inv false
-    :constant-type-projection-inv false
-    :constant-type-viewproj-inv false
-    :constant-type-worldview-inv false
-    :constant-type-worldviewproj-inv false
+    :constant-type-world-inverse false
+    :constant-type-view-inverse false
+    :constant-type-projection-inverse false
+    :constant-type-viewproj-inverse false
+    :constant-type-worldview-inverse false
+    :constant-type-worldviewproj-inverse false
     :constant-type-user-matrix4 true))
 
 (defn sanitize-constant [constant]

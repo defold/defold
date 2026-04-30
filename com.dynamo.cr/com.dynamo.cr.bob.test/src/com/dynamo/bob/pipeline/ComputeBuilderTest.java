@@ -75,12 +75,12 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
                 MaterialDesc.ConstantType.CONSTANT_TYPE_WORLDVIEWPROJ,
                 MaterialDesc.ConstantType.CONSTANT_TYPE_USER_MATRIX4,
                 MaterialDesc.ConstantType.CONSTANT_TYPE_TIME,
-                MaterialDesc.ConstantType.CONSTANT_TYPE_WORLD_INV,
-                MaterialDesc.ConstantType.CONSTANT_TYPE_VIEW_INV,
-                MaterialDesc.ConstantType.CONSTANT_TYPE_PROJECTION_INV,
-                MaterialDesc.ConstantType.CONSTANT_TYPE_VIEWPROJ_INV,
-                MaterialDesc.ConstantType.CONSTANT_TYPE_WORLDVIEW_INV,
-                MaterialDesc.ConstantType.CONSTANT_TYPE_WORLDVIEWPROJ_INV
+                MaterialDesc.ConstantType.CONSTANT_TYPE_WORLD_INVERSE,
+                MaterialDesc.ConstantType.CONSTANT_TYPE_VIEW_INVERSE,
+                MaterialDesc.ConstantType.CONSTANT_TYPE_PROJECTION_INVERSE,
+                MaterialDesc.ConstantType.CONSTANT_TYPE_VIEWPROJ_INVERSE,
+                MaterialDesc.ConstantType.CONSTANT_TYPE_WORLDVIEW_INVERSE,
+                MaterialDesc.ConstantType.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE
         };
 
         for (int i = 0; i < constantTypes.length; ++i) {
