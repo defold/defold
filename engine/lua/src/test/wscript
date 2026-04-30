@@ -3,6 +3,13 @@
 def configure(conf):
     pass
 
+def get_luau_codegen_target(platform):
+    if platform in ('arm64-macos', 'arm64-linux', 'arm64-android'):
+        return 'CODEGEN_TARGET_A64'
+    if platform in ('x86_64-macos', 'x86_64-linux', 'x86_64-win32'):
+        return 'CODEGEN_TARGET_X64'
+    return None
+
 def build(bld):
     bld.program(features = 'cxx test',
                 includes = '.',
@@ -18,6 +25,20 @@ def build(bld):
                     defines = ['DM_LUA_TEST_LUAJIT'],
                     target = 'test_luajit',
                     source = 'test_lua.cpp')
+
+    luau_test_use = 'DLIB PROFILE_NULL SOCKET dluau luaucompiler_static luaubytecode_static luauast_static luauvm_static luaucommon_static'
+    luau_test_defines = ['DM_LUA_TEST_LUAU']
+
+    if get_luau_codegen_target(bld.env.PLATFORM):
+        luau_test_defines += ['DM_LUA_TEST_LUAU_CODEGEN',
+                              'LUACODEGEN_API=extern "C"']
+
+    bld.program(features = 'cxx test',
+                includes = '.',
+                use = luau_test_use,
+                defines = luau_test_defines,
+                target = 'test_luau',
+                source = 'test_lua.cpp')
 
     if bld.env.DOTNET:
         bld.stlib(features= 'cs_stlib',

@@ -1,8 +1,21 @@
 #include <dmsdk/dlua/dlua.h>
 
 #include "lua.h"
+#if defined(DM_DLUA_BACKEND_LUAU)
+#include "lualib.h"
+#else
 #include "lauxlib.h"
 #include "lualib.h"
+#endif
+
+#if defined(DM_DLUA_BACKEND_LUAU)
+#include "luacode.h"
+#if defined(DM_DLUA_LUAU_CODEGEN)
+#include "luacodegen.h"
+#endif
+#include <stdlib.h>
+#include <string.h>
+#endif
 
 typedef const char* (*dlua_Reader)(dlua_State* L, void* ud, size_t* sz);
 typedef int (*dlua_Writer)(dlua_State* L, const void* p, size_t sz, void* ud);
@@ -15,9 +28,93 @@ typedef void* (*dlua_Alloc)(void* ud, void* ptr, size_t osize, size_t nsize);
 #define DLUA_BUFFER(B) ((luaL_Buffer*)(B))
 #define DLUA_REG(l) ((const luaL_Reg*)(l))
 
+#if defined(DM_DLUA_BACKEND_LUAU)
+static int dlua_ToLuaType(int type)
+{
+    switch ((dlua_Type)type)
+    {
+    case DLUA_TNONE:          return LUA_TNONE;
+    case DLUA_TNIL:           return LUA_TNIL;
+    case DLUA_TBOOLEAN:       return LUA_TBOOLEAN;
+    case DLUA_TLIGHTUSERDATA: return LUA_TLIGHTUSERDATA;
+    case DLUA_TNUMBER:        return LUA_TNUMBER;
+    case DLUA_TSTRING:        return LUA_TSTRING;
+    case DLUA_TTABLE:         return LUA_TTABLE;
+    case DLUA_TFUNCTION:      return LUA_TFUNCTION;
+    case DLUA_TUSERDATA:      return LUA_TUSERDATA;
+    case DLUA_TTHREAD:        return LUA_TTHREAD;
+    }
+    return type;
+}
+
+static dlua_Type dlua_FromLuaType(int type)
+{
+    switch (type)
+    {
+    case LUA_TNONE:          return DLUA_TNONE;
+    case LUA_TNIL:           return DLUA_TNIL;
+    case LUA_TBOOLEAN:       return DLUA_TBOOLEAN;
+    case LUA_TLIGHTUSERDATA: return DLUA_TLIGHTUSERDATA;
+    case LUA_TNUMBER:        return DLUA_TNUMBER;
+    case LUA_TINTEGER:       return DLUA_TNUMBER;
+    case LUA_TVECTOR:        return DLUA_TUSERDATA;
+    case LUA_TSTRING:        return DLUA_TSTRING;
+    case LUA_TTABLE:         return DLUA_TTABLE;
+    case LUA_TFUNCTION:      return DLUA_TFUNCTION;
+    case LUA_TUSERDATA:      return DLUA_TUSERDATA;
+    case LUA_TTHREAD:        return DLUA_TTHREAD;
+    case LUA_TBUFFER:        return DLUA_TUSERDATA;
+    }
+    return (dlua_Type)type;
+}
+
+#if defined(DM_DLUA_LUAU_CODEGEN)
+static int dlua_LuauCodeGenSupported(void)
+{
+    static int supported = -1;
+    if (supported < 0)
+    {
+        supported = luau_codegen_supported();
+    }
+    return supported;
+}
+
+static void dlua_LuauCodeGenCreate(lua_State* L)
+{
+    if (L != 0 && dlua_LuauCodeGenSupported())
+    {
+        luau_codegen_create(L);
+    }
+}
+
+static void dlua_LuauCodeGenCompile(lua_State* L, int idx)
+{
+    if (dlua_LuauCodeGenSupported())
+    {
+        luau_codegen_compile(L, idx);
+    }
+}
+#else
+static void dlua_LuauCodeGenCreate(lua_State* L)
+{
+    (void)L;
+}
+
+static void dlua_LuauCodeGenCompile(lua_State* L, int idx)
+{
+    (void)L;
+    (void)idx;
+}
+#endif
+#endif
+
 dlua_State* dlua_newstate(dlua_Alloc f, void* ud)
 {
-    return DLUA_DL(lua_newstate(f, ud));
+    lua_State* L = lua_newstate(f, ud);
+#if defined(DM_DLUA_BACKEND_LUAU)
+    dlua_LuauCodeGenCreate(L);
+#endif
+    return DLUA_DL(L);
 }
 
 void dlua_close(dlua_State* L)
@@ -32,7 +129,13 @@ dlua_State* dlua_newthread(dlua_State* L)
 
 dlua_CFunction dlua_atpanic(dlua_State* L, dlua_CFunction panicf)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    (void)panicf;
+    return 0;
+#else
     return lua_atpanic(DLUA_L(L), panicf);
+#endif
 }
 
 dlua_State* dlua_open(void)
@@ -102,12 +205,20 @@ int dlua_isuserdata(dlua_State* L, int idx)
 
 dlua_Type dlua_type(dlua_State* L, int idx)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    return dlua_FromLuaType(lua_type(DLUA_L(L), idx));
+#else
     return (dlua_Type)lua_type(DLUA_L(L), idx);
+#endif
 }
 
 const char* dlua_typename(dlua_State* L, int tp)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    return lua_typename(DLUA_L(L), dlua_ToLuaType(tp));
+#else
     return lua_typename(DLUA_L(L), tp);
+#endif
 }
 
 int dlua_equal(dlua_State* L, int idx1, int idx2)
@@ -212,7 +323,11 @@ const char* dlua_pushfstring(dlua_State* L, const char* fmt, ...)
 
 void dlua_pushcclosure(dlua_State* L, dlua_CFunction fn, int n)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    lua_pushcclosure(DLUA_L(L), fn, "dlua", n);
+#else
     lua_pushcclosure(DLUA_L(L), fn, n);
+#endif
 }
 
 void dlua_pushboolean(dlua_State* L, int b)
@@ -317,12 +432,26 @@ int dlua_cpcall(dlua_State* L, dlua_CFunction func, void* ud)
 
 int dlua_load(dlua_State* L, dlua_Reader reader, void* dt, const char* chunkname)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)reader;
+    (void)dt;
+    lua_pushfstring(DLUA_L(L), "%s is not supported by the Luau backend", "dlua_load");
+    return LUA_ERRRUN;
+#else
     return lua_load(DLUA_L(L), reader, dt, chunkname);
+#endif
 }
 
 int dlua_dump(dlua_State* L, dlua_Writer writer, void* data)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)writer;
+    (void)data;
+    lua_pushfstring(DLUA_L(L), "%s is not supported by the Luau backend", "dlua_dump");
+    return 1;
+#else
     return lua_dump(DLUA_L(L), writer, data);
+#endif
 }
 
 int dlua_yield(dlua_State* L, int nresults)
@@ -332,7 +461,11 @@ int dlua_yield(dlua_State* L, int nresults)
 
 int dlua_resume(dlua_State* L, int narg)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    return lua_resume(DLUA_L(L), 0, narg);
+#else
     return lua_resume(DLUA_L(L), narg);
+#endif
 }
 
 int dlua_status(dlua_State* L)
@@ -347,7 +480,12 @@ int dlua_gc(dlua_State* L, int what, int data)
 
 int dlua_error(dlua_State* L)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    lua_error(DLUA_L(L));
+    return 0;
+#else
     return lua_error(DLUA_L(L));
+#endif
 }
 
 int dlua_next(dlua_State* L, int idx)
@@ -367,32 +505,71 @@ dlua_Alloc dlua_getallocf(dlua_State* L, void** ud)
 
 void dlua_setallocf(dlua_State* L, dlua_Alloc f, void* ud)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    (void)f;
+    (void)ud;
+#else
     lua_setallocf(DLUA_L(L), f, ud);
+#endif
 }
 
 void dlua_setlevel(dlua_State* from, dlua_State* to)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)from;
+    (void)to;
+#else
     lua_setlevel(DLUA_L(from), DLUA_L(to));
+#endif
 }
 
 int dlua_getstack(dlua_State* L, int level, dlua_Debug* ar)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    (void)level;
+    (void)ar;
+    return 0;
+#else
     return lua_getstack(DLUA_L(L), level, DLUA_AR(ar));
+#endif
 }
 
 int dlua_getinfo(dlua_State* L, const char* what, dlua_Debug* ar)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    (void)what;
+    (void)ar;
+    return 0;
+#else
     return lua_getinfo(DLUA_L(L), what, DLUA_AR(ar));
+#endif
 }
 
 const char* dlua_getlocal(dlua_State* L, const dlua_Debug* ar, int n)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    (void)ar;
+    (void)n;
+    return 0;
+#else
     return lua_getlocal(DLUA_L(L), (const lua_Debug*)ar, n);
+#endif
 }
 
 const char* dlua_setlocal(dlua_State* L, const dlua_Debug* ar, int n)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    (void)ar;
+    (void)n;
+    return 0;
+#else
     return lua_setlocal(DLUA_L(L), (const lua_Debug*)ar, n);
+#endif
 }
 
 const char* dlua_getupvalue(dlua_State* L, int funcindex, int n)
@@ -407,22 +584,45 @@ const char* dlua_setupvalue(dlua_State* L, int funcindex, int n)
 
 int dlua_sethook(dlua_State* L, dlua_Hook func, int mask, int count)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    (void)func;
+    (void)mask;
+    (void)count;
+    return 0;
+#else
     return lua_sethook(DLUA_L(L), (lua_Hook)func, mask, count);
+#endif
 }
 
 dlua_Hook dlua_gethook(dlua_State* L)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    return 0;
+#else
     return (dlua_Hook)lua_gethook(DLUA_L(L));
+#endif
 }
 
 int dlua_gethookmask(dlua_State* L)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    return 0;
+#else
     return lua_gethookmask(DLUA_L(L));
+#endif
 }
 
 int dlua_gethookcount(dlua_State* L)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    return 0;
+#else
     return lua_gethookcount(DLUA_L(L));
+#endif
 }
 
 void dluaL_register(dlua_State* L, const char* libname, const dluaL_Reg* l)
@@ -432,7 +632,12 @@ void dluaL_register(dlua_State* L, const char* libname, const dluaL_Reg* l)
 
 void dluaL_openlib(dlua_State* L, const char* libname, const dluaL_Reg* l, int nup)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)nup;
+    luaL_register(DLUA_L(L), libname, DLUA_REG(l));
+#else
     luaL_openlib(DLUA_L(L), libname, DLUA_REG(l), nup);
+#endif
 }
 
 int dluaL_getmetafield(dlua_State* L, int obj, const char* e)
@@ -447,12 +652,22 @@ int dluaL_callmeta(dlua_State* L, int obj, const char* e)
 
 int dluaL_typerror(dlua_State* L, int narg, const char* tname)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    luaL_typeerror(DLUA_L(L), narg, tname);
+    return 0;
+#else
     return luaL_typerror(DLUA_L(L), narg, tname);
+#endif
 }
 
 int dluaL_argerror(dlua_State* L, int numarg, const char* extramsg)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    luaL_argerror(DLUA_L(L), numarg, extramsg);
+    return 0;
+#else
     return luaL_argerror(DLUA_L(L), numarg, extramsg);
+#endif
 }
 
 const char* dluaL_checklstring(dlua_State* L, int numArg, size_t* l)
@@ -492,7 +707,11 @@ void dluaL_checkstack(dlua_State* L, int sz, const char* msg)
 
 void dluaL_checktype(dlua_State* L, int narg, int t)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    luaL_checktype(DLUA_L(L), narg, dlua_ToLuaType(t));
+#else
     luaL_checktype(DLUA_L(L), narg, t);
+#endif
 }
 
 void dluaL_checkany(dlua_State* L, int narg)
@@ -523,7 +742,12 @@ int dluaL_error(dlua_State* L, const char* fmt, ...)
     lua_pushvfstring(DLUA_L(L), fmt, argp);
     va_end(argp);
     lua_concat(DLUA_L(L), 2);
+#if defined(DM_DLUA_BACKEND_LUAU)
+    lua_error(DLUA_L(L));
+    return 0;
+#else
     return lua_error(DLUA_L(L));
+#endif
 }
 
 int dluaL_checkoption(dlua_State* L, int narg, const char* def, const char* const lst[])
@@ -533,37 +757,104 @@ int dluaL_checkoption(dlua_State* L, int narg, const char* def, const char* cons
 
 int dluaL_ref(dlua_State* L, int t)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    if (dlua_isnil(L, -1))
+    {
+        dlua_pop(L, 1);
+        return 0;
+    }
+    if (t == DLUA_REGISTRYINDEX)
+    {
+        return lua_ref(DLUA_L(L), -1);
+    }
+    lua_pushfstring(DLUA_L(L), "%s only supports the registry table on the Luau backend", "dluaL_ref");
+    lua_error(DLUA_L(L));
+    return DLUA_NOREF;
+#else
     return luaL_ref(DLUA_L(L), t);
+#endif
 }
 
 void dluaL_unref(dlua_State* L, int t, int ref)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    if (t == DLUA_REGISTRYINDEX)
+    {
+        lua_unref(DLUA_L(L), ref);
+    }
+#else
     luaL_unref(DLUA_L(L), t, ref);
+#endif
 }
 
 int dluaL_loadfile(dlua_State* L, const char* filename)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    lua_pushfstring(DLUA_L(L), "%s is not supported by the Luau backend", "dluaL_loadfile");
+    (void)filename;
+    return LUA_ERRRUN;
+#else
     return luaL_loadfile(DLUA_L(L), filename);
+#endif
 }
 
 int dluaL_loadbuffer(dlua_State* L, const char* buff, size_t sz, const char* name)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    size_t bytecode_size = 0;
+    lua_CompileOptions options;
+    memset(&options, 0, sizeof(options));
+    options.optimizationLevel = 2;
+    options.debugLevel        = 1;
+#if defined(DM_DLUA_LUAU_CODEGEN)
+    if (dlua_LuauCodeGenSupported())
+    {
+        options.typeInfoLevel = 1;
+    }
+#endif
+
+    char* bytecode = luau_compile(buff, sz, &options, &bytecode_size);
+    int result = luau_load(DLUA_L(L), name, bytecode, bytecode_size, 0);
+    free(bytecode);
+    if (result == 0)
+    {
+        dlua_LuauCodeGenCompile(DLUA_L(L), -1);
+    }
+    return result;
+#else
     return luaL_loadbuffer(DLUA_L(L), buff, sz, name);
+#endif
 }
 
 int dluaL_loadstring(dlua_State* L, const char* s)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    return dluaL_loadbuffer(L, s, strlen(s), "=string");
+#else
     return luaL_loadstring(DLUA_L(L), s);
+#endif
 }
 
 dlua_State* dluaL_newstate(void)
 {
-    return DLUA_DL(luaL_newstate());
+    lua_State* L = luaL_newstate();
+#if defined(DM_DLUA_BACKEND_LUAU)
+    dlua_LuauCodeGenCreate(L);
+#endif
+    return DLUA_DL(L);
 }
 
 const char* dluaL_gsub(dlua_State* L, const char* s, const char* p, const char* r)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    (void)s;
+    (void)p;
+    (void)r;
+    return 0;
+#else
     return luaL_gsub(DLUA_L(L), s, p, r);
+#endif
 }
 
 const char* dluaL_findtable(dlua_State* L, int idx, const char* fname, int szhint)
@@ -578,7 +869,11 @@ void dluaL_buffinit(dlua_State* L, dluaL_Buffer* B)
 
 char* dluaL_prepbuffer(dluaL_Buffer* B)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    return luaL_prepbuffsize(DLUA_BUFFER(B), LUA_BUFFERSIZE);
+#else
     return luaL_prepbuffer(DLUA_BUFFER(B));
+#endif
 }
 
 void dluaL_addlstring(dluaL_Buffer* B, const char* s, size_t l)
@@ -618,7 +913,12 @@ int dluaopen_table(dlua_State* L)
 
 int dluaopen_io(dlua_State* L)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    return 0;
+#else
     return luaopen_io(DLUA_L(L));
+#endif
 }
 
 int dluaopen_os(dlua_State* L)
@@ -643,5 +943,10 @@ int dluaopen_debug(dlua_State* L)
 
 int dluaopen_package(dlua_State* L)
 {
+#if defined(DM_DLUA_BACKEND_LUAU)
+    (void)L;
+    return 0;
+#else
     return luaopen_package(DLUA_L(L));
+#endif
 }

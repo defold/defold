@@ -11,8 +11,16 @@ def configure(conf):
     conf.env.append_value('INCLUDES', "../src")
     conf.recurse('test')
 
+def get_luau_codegen_target(platform):
+    if platform in ('arm64-macos', 'arm64-linux', 'arm64-android'):
+        return 'CODEGEN_TARGET_A64'
+    if platform in ('x86_64-macos', 'x86_64-linux', 'x86_64-win32'):
+        return 'CODEGEN_TARGET_X64'
+    return None
+
 def build(bld):
     bld.recurse('lua')
+    bld.recurse('luau')
 
     bld.stlib(features = 'c',
               source   = 'dlua/dlua.c',
@@ -29,6 +37,24 @@ def build(bld):
                   includes = ['.', luajit_include],
                   defines  = ['DM_DLUA_BACKEND_LUAJIT'],
                   target   = 'dluajit')
+
+    luau_includes = '. luau/VM/include luau/Compiler/include'
+    luau_use = 'luaucompiler_static luauvm_static'
+    luau_defines = ['DM_DLUA_BACKEND_LUAU',
+                    'LUA_API=extern',
+                    'LUACODE_API=extern']
+
+    if get_luau_codegen_target(bld.env.PLATFORM):
+        luau_includes += ' luau/CodeGen/include'
+        luau_defines += ['DM_DLUA_LUAU_CODEGEN',
+                         'LUACODEGEN_API=extern']
+
+    bld.stlib(features = 'c',
+              source   = 'dlua/dlua.c',
+              includes = luau_includes,
+              use      = luau_use,
+              defines  = luau_defines,
+              target   = 'dluau')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
     dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')

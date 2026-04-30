@@ -1,0 +1,184 @@
+#! /usr/bin/env python
+
+luau_ast_source = [
+    'Ast/src/Allocator.cpp',
+    'Ast/src/Ast.cpp',
+    'Ast/src/Confusables.cpp',
+    'Ast/src/Cst.cpp',
+    'Ast/src/Lexer.cpp',
+    'Ast/src/Location.cpp',
+    'Ast/src/Parser.cpp',
+    'Ast/src/PrettyPrinter.cpp',
+]
+
+luau_bytecode_source = [
+    'Bytecode/src/BytecodeBuilder.cpp',
+    'Bytecode/src/BytecodeGraph.cpp',
+]
+
+luau_common_source = [
+    'Common/src/BytecodeWire.cpp',
+    'Common/src/StringUtils.cpp',
+    'Common/src/TimeTrace.cpp',
+]
+
+luau_compiler_source = [
+    'Compiler/src/BuiltinFolding.cpp',
+    'Compiler/src/Builtins.cpp',
+    'Compiler/src/Compiler.cpp',
+    'Compiler/src/ConstantFolding.cpp',
+    'Compiler/src/CostModel.cpp',
+    'Compiler/src/TableShape.cpp',
+    'Compiler/src/Types.cpp',
+    'Compiler/src/ValueTracking.cpp',
+    'Compiler/src/lcode.cpp',
+]
+
+luau_codegen_source = [
+    'CodeGen/src/AssemblyBuilderA64.cpp',
+    'CodeGen/src/AssemblyBuilderX64.cpp',
+    'CodeGen/src/BytecodeAnalysis.cpp',
+    'CodeGen/src/BytecodeSummary.cpp',
+    'CodeGen/src/CodeAllocator.cpp',
+    'CodeGen/src/CodeBlockUnwind.cpp',
+    'CodeGen/src/CodeGen.cpp',
+    'CodeGen/src/CodeGenA64.cpp',
+    'CodeGen/src/CodeGenAssembly.cpp',
+    'CodeGen/src/CodeGenContext.cpp',
+    'CodeGen/src/CodeGenUtils.cpp',
+    'CodeGen/src/CodeGenX64.cpp',
+    'CodeGen/src/EmitBuiltinsX64.cpp',
+    'CodeGen/src/EmitCommonX64.cpp',
+    'CodeGen/src/EmitInstructionX64.cpp',
+    'CodeGen/src/IrAnalysis.cpp',
+    'CodeGen/src/IrBuilder.cpp',
+    'CodeGen/src/IrCallWrapperX64.cpp',
+    'CodeGen/src/IrDump.cpp',
+    'CodeGen/src/IrLoweringA64.cpp',
+    'CodeGen/src/IrLoweringX64.cpp',
+    'CodeGen/src/IrRegAllocA64.cpp',
+    'CodeGen/src/IrRegAllocX64.cpp',
+    'CodeGen/src/IrTranslateBuiltins.cpp',
+    'CodeGen/src/IrTranslation.cpp',
+    'CodeGen/src/IrUtils.cpp',
+    'CodeGen/src/IrValueLocationTracking.cpp',
+    'CodeGen/src/NativeProtoExecData.cpp',
+    'CodeGen/src/NativeState.cpp',
+    'CodeGen/src/OptimizeConstProp.cpp',
+    'CodeGen/src/OptimizeDeadStore.cpp',
+    'CodeGen/src/OptimizeFinalX64.cpp',
+    'CodeGen/src/SharedCodeAllocator.cpp',
+    'CodeGen/src/UnwindBuilderDwarf2.cpp',
+    'CodeGen/src/UnwindBuilderWin.cpp',
+    'CodeGen/src/lcodegen.cpp',
+]
+
+luau_vm_source = [
+    'VM/src/lapi.cpp',
+    'VM/src/laux.cpp',
+    'VM/src/lbaselib.cpp',
+    'VM/src/lbitlib.cpp',
+    'VM/src/lbuffer.cpp',
+    'VM/src/lbuflib.cpp',
+    'VM/src/lbuiltins.cpp',
+    'VM/src/lcorolib.cpp',
+    'VM/src/ldblib.cpp',
+    'VM/src/ldebug.cpp',
+    'VM/src/ldo.cpp',
+    'VM/src/lfunc.cpp',
+    'VM/src/lgc.cpp',
+    'VM/src/lgcdebug.cpp',
+    'VM/src/linit.cpp',
+    'VM/src/lintlib.cpp',
+    'VM/src/lmathlib.cpp',
+    'VM/src/lmem.cpp',
+    'VM/src/lnumprint.cpp',
+    'VM/src/lobject.cpp',
+    'VM/src/loslib.cpp',
+    'VM/src/lperf.cpp',
+    'VM/src/lstate.cpp',
+    'VM/src/lstring.cpp',
+    'VM/src/lstrlib.cpp',
+    'VM/src/ltable.cpp',
+    'VM/src/ltablib.cpp',
+    'VM/src/ltm.cpp',
+    'VM/src/ludata.cpp',
+    'VM/src/lutf8lib.cpp',
+    'VM/src/lveclib.cpp',
+    'VM/src/lvmexecute.cpp',
+    'VM/src/lvmload.cpp',
+    'VM/src/lvmutils.cpp',
+]
+
+def add_luau_flags(task_gen, std):
+    if task_gen.bld.env.CXX_NAME != 'msvc':
+        task_gen.remove_flags = {'CXXFLAGS': [('-std=c++11', 0), ('-fno-exceptions', 0)]}
+        task_gen.env.append_value('CXXFLAGS', [std, '-fno-math-errno'])
+
+def get_luau_codegen_target(platform):
+    if platform in ('arm64-macos', 'arm64-linux', 'arm64-android'):
+        return 'CODEGEN_TARGET_A64'
+    if platform in ('x86_64-macos', 'x86_64-linux', 'x86_64-win32'):
+        return 'CODEGEN_TARGET_X64'
+    return None
+
+def build(bld):
+    luau_codegen_enabled = get_luau_codegen_target(bld.env.PLATFORM) is not None
+
+    luau_common = bld.stlib(features        = 'cxx remove_flags',
+                            name            = 'luaucommon_static',
+                            source          = luau_common_source,
+                            includes        = 'Common/include',
+                            export_includes = 'Common/include',
+                            target          = 'luaucommon')
+    add_luau_flags(luau_common, '-std=c++17')
+
+    luau_ast = bld.stlib(features        = 'cxx remove_flags',
+                         name            = 'luauast_static',
+                         source          = luau_ast_source,
+                         includes        = 'Ast/include Common/include',
+                         export_includes = 'Ast/include',
+                         use             = 'luaucommon_static',
+                         target          = 'luauast')
+    add_luau_flags(luau_ast, '-std=c++17')
+
+    luau_bytecode = bld.stlib(features        = 'cxx remove_flags',
+                              name            = 'luaubytecode_static',
+                              source          = luau_bytecode_source,
+                              includes        = 'Bytecode/include Common/include',
+                              export_includes = 'Bytecode/include',
+                              use             = 'luaucommon_static',
+                              target          = 'luaubytecode')
+    add_luau_flags(luau_bytecode, '-std=c++17')
+
+    luau_compiler = bld.stlib(features        = 'cxx remove_flags',
+                              name            = 'luaucompiler_static',
+                              source          = luau_compiler_source,
+                              includes        = 'Ast/include Bytecode/include Common/include Compiler/include',
+                              export_includes = 'Compiler/include',
+                              defines         = ['LUACODE_API=extern "C"'],
+                              use             = 'luauast_static luaubytecode_static luaucommon_static',
+                              target          = 'luaucompiler')
+    add_luau_flags(luau_compiler, '-std=c++17')
+
+    luau_vm_source_files = list(luau_vm_source)
+    luau_vm_includes = 'Common/include VM/include'
+    luau_vm_export_includes = 'VM/include'
+    luau_vm_defines = ['LUA_USE_LONGJMP=1',
+                       'LUA_API=extern "C"']
+
+    if luau_codegen_enabled:
+        luau_vm_source_files += luau_codegen_source
+        luau_vm_includes += ' CodeGen/include VM/src'
+        luau_vm_export_includes += ' CodeGen/include'
+        luau_vm_defines += ['LUACODEGEN_API=extern "C"']
+
+    luau_vm = bld.stlib(features        = 'cxx remove_flags',
+                        name            = 'luauvm_static',
+                        source          = luau_vm_source_files,
+                        includes        = luau_vm_includes,
+                        export_includes = luau_vm_export_includes,
+                        defines         = luau_vm_defines,
+                        use             = 'luaucommon_static',
+                        target          = 'luauvm')
+    add_luau_flags(luau_vm, '-std=c++17')

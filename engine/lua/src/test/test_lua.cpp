@@ -22,9 +22,15 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#if defined(DM_LUA_TEST_LUAU_CODEGEN)
+#include "luacodegen.h"
+#endif
+
 #include <dmsdk/dlua/dlua.h>
 
-#if defined(DM_LUA_TEST_LUAJIT)
+#if defined(DM_LUA_TEST_LUAU)
+#define DM_LUA_TEST_NAME "dmLuau"
+#elif defined(DM_LUA_TEST_LUAJIT)
 #define DM_LUA_TEST_NAME "dmLuaJIT"
 #else
 #define DM_LUA_TEST_NAME "dmLua"
@@ -241,25 +247,23 @@ static bool RunLuaFunctionCalls(dlua_State* L, BenchmarkResult* benchmark)
 static bool RunCppToLuaCalls(dlua_State* L, BenchmarkResult* benchmark)
 {
     int top = dlua_gettop(L);
-    uint64_t start = dmTime::GetMonotonicTime();
     double value = 0.0;
 
+    dlua_getglobal(L, "lua_add");
+    int function_index = dlua_gettop(L);
+
+    uint64_t start = dmTime::GetMonotonicTime();
     for (uint32_t i = 1; i <= INTEROP_ITERATIONS; ++i)
     {
-        dlua_getglobal(L, "lua_add");
+        dlua_pushvalue(L, function_index);
         dlua_pushinteger(L, i);
         dlua_pushinteger(L, 17);
-        int result = dlua_pcall(L, 2, 1, 0);
-        if (result != 0)
-        {
-            dmLogError("%s", dlua_tostring(L, -1));
-            dlua_pop(L, 1);
-            return false;
-        }
+        dlua_call(L, 2, 1);
         value += dlua_tonumber(L, -1);
         dlua_pop(L, 1);
     }
 
+    dlua_pop(L, 1);
     if (top != dlua_gettop(L))
     {
         return false;
@@ -310,6 +314,34 @@ static void PrintBenchmark(const BenchmarkResult& benchmark)
            (unsigned long long)benchmark.m_ElapsedUs,
            us_per_iteration,
            benchmark.m_Value);
+}
+
+static bool PrewarmBenchmarks(dlua_State* L)
+{
+    BenchmarkResult ignored;
+    if (!RunLuaCalculation(L, &ignored))
+    {
+        return false;
+    }
+    if (!RunTableOperations(L, &ignored))
+    {
+        return false;
+    }
+    if (!RunLuaFunctionCalls(L, &ignored))
+    {
+        return false;
+    }
+    if (!RunCppToLuaCalls(L, &ignored))
+    {
+        return false;
+    }
+    if (!RunLuaToCppCalls(L, &ignored))
+    {
+        return false;
+    }
+
+    dlua_gc(L, DLUA_GCCOLLECT, 0);
+    return true;
 }
 
 TEST3(dmLuaTypes, DluaType, DM_LUA_TEST_NAME)
@@ -377,7 +409,12 @@ TEST3(dmLuaBenchmark, Performance, DM_LUA_TEST_NAME)
     BenchmarkResult cpp_to_lua;
     BenchmarkResult lua_to_cpp;
 
+#if defined(DM_LUA_TEST_LUAU_CODEGEN)
+    printf("[lua-perf] dialect=%s codegen=%s\n", GetLuaDialect(L), luau_codegen_supported() ? "enabled" : "unsupported");
+#else
     printf("[lua-perf] dialect=%s\n", GetLuaDialect(L));
+#endif
+    ASSERT_TRUE(PrewarmBenchmarks(L));
     ASSERT_TRUE(RunLuaCalculation(L, &lua_calc));
     ASSERT_TRUE(RunTableOperations(L, &table_operations));
     ASSERT_TRUE(RunLuaFunctionCalls(L, &function_calls));
