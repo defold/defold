@@ -28,8 +28,9 @@ namespace dmRender
         }
 
         RenderCamera* camera = new RenderCamera();
-        camera->m_URL        = dmMessage::URL();
-        camera->m_Handle     = render_context->m_RenderCameras.Put(camera);
+        camera->m_URL                  = dmMessage::URL();
+        camera->m_Handle               = render_context->m_RenderCameras.Put(camera);
+        camera->m_OrthographicAutoZoom = 1.0f;
 
         memset(&camera->m_Data, 0, sizeof(camera->m_Data));
         camera->m_Data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
@@ -102,52 +103,13 @@ namespace dmRender
         }
     }
 
-    static float CalculateOrthographicAutoZoom(dmGraphics::HContext graphics_context, const RenderCameraData* data)
-    {
-        if (!data->m_OrthographicProjection ||
-            (data->m_OrthographicMode != ORTHO_MODE_AUTO_FIT && data->m_OrthographicMode != ORTHO_MODE_AUTO_COVER))
-        {
-            return 1.0f;
-        }
-
-        float display_scale = dmGraphics::GetDisplayScaleFactor(graphics_context);
-        float width         = (float) dmGraphics::GetWindowWidth(graphics_context);
-        float height        = (float) dmGraphics::GetWindowHeight(graphics_context);
-        float proj_width    = (float) dmGraphics::GetWidth(graphics_context);
-        float proj_height   = (float) dmGraphics::GetHeight(graphics_context);
-
-        if (display_scale <= 0.0f)
-        {
-            display_scale = 1.0f;
-        }
-        if (proj_width <= 0.0f)
-        {
-            proj_width = 1.0f;
-        }
-        if (proj_height <= 0.0f)
-        {
-            proj_height = 1.0f;
-        }
-
-        float zx = width / (display_scale * proj_width);
-        float zy = height / (display_scale * proj_height);
-        float zoom = data->m_OrthographicMode == ORTHO_MODE_AUTO_FIT ? ((zx < zy) ? zx : zy) : ((zx > zy) ? zx : zy);
-
-        if (zoom <= 0.0f)
-        {
-            zoom = 1.0f;
-        }
-
-        return zoom;
-    }
-
     float GetRenderCameraOrthographicAutoZoom(HRenderContext render_context, HRenderCamera camera)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
 
         if (c)
         {
-            return CalculateOrthographicAutoZoom(GetGraphicsContext(render_context), &c->m_Data);
+            return c->m_OrthographicAutoZoom;
         }
 
         return 1.0f;
@@ -171,21 +133,50 @@ namespace dmRender
             aspect_ratio = width / height;
         }
 
+        c->m_OrthographicAutoZoom = 1.0f;
+
         if (c->m_Data.m_OrthographicProjection)
         {
             float display_scale = dmGraphics::GetDisplayScaleFactor(graphics_context);
-            if (display_scale <= 0.0f)
-            {
-                display_scale = 1.0f;
-            }
 
             // Determine zoom
             float zoom = c->m_Data.m_OrthographicZoom;
 
+            // Project (reference) size from game.project
+            float proj_width = (float) dmGraphics::GetWidth(graphics_context);
+            float proj_height = (float) dmGraphics::GetHeight(graphics_context);
+
+            // Fallbacks to avoid division by zero
+            if (proj_width <= 0.0f)
+            {
+                proj_width = 1.0f;
+            }
+            if (proj_height <= 0.0f)
+            {
+                proj_height = 1.0f;
+            }
+
             // Compute auto zoom if requested
             if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_FIT || c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_COVER)
             {
-                zoom *= CalculateOrthographicAutoZoom(graphics_context, &c->m_Data);
+                float zx = width / (display_scale * proj_width);
+                float zy = height / (display_scale * proj_height);
+
+                if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_FIT)
+                {
+                    c->m_OrthographicAutoZoom = (zx < zy) ? zx : zy;
+                }
+                else if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_COVER)
+                {
+                    c->m_OrthographicAutoZoom = (zx > zy) ? zx : zy;
+                }
+
+                if (c->m_OrthographicAutoZoom <= 0.0f)
+                {
+                    c->m_OrthographicAutoZoom = 1.0f;
+                }
+
+                zoom *= c->m_OrthographicAutoZoom;
             }
 
             float zoomed_width = width / display_scale / zoom;

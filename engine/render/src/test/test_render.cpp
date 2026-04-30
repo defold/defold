@@ -372,6 +372,7 @@ TEST_F(dmRenderTest, TestRenderCameraOrthographicAutoZoom)
     data.m_OrthographicMode       = dmRender::ORTHO_MODE_AUTO_COVER;
 
     dmRender::SetRenderCameraData(m_Context, camera, &data);
+    ASSERT_NEAR(1.0f, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
 
     float display_scale = dmGraphics::GetDisplayScaleFactor(m_GraphicsContext);
     if (display_scale <= 0.0f)
@@ -387,11 +388,10 @@ TEST_F(dmRenderTest, TestRenderCameraOrthographicAutoZoom)
     float auto_cover    = zx > zy ? zx : zy;
     float auto_fit      = zx < zy ? zx : zy;
 
-    ASSERT_NEAR(auto_cover, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
-
     dmVMath::Point3 position(0.0f, 0.0f, 0.0f);
     dmVMath::Quat rotation(0.0f, 0.0f, 0.0f, 1.0f);
     dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
+    ASSERT_NEAR(auto_cover, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
 
     dmVMath::Matrix4 projection;
     dmRender::GetRenderCameraProjection(m_Context, camera, &projection);
@@ -414,10 +414,12 @@ TEST_F(dmRenderTest, TestRenderCameraOrthographicAutoZoom)
 
     data.m_OrthographicMode = dmRender::ORTHO_MODE_AUTO_FIT;
     dmRender::SetRenderCameraData(m_Context, camera, &data);
+    dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
     ASSERT_NEAR(auto_fit, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
 
     data.m_OrthographicMode = dmRender::ORTHO_MODE_FIXED;
     dmRender::SetRenderCameraData(m_Context, camera, &data);
+    dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
     ASSERT_NEAR(1.0f, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
 
     dmRender::DeleteRenderCamera(m_Context, camera);
