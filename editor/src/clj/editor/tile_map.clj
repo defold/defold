@@ -34,6 +34,7 @@
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -461,7 +462,7 @@
   [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)
-          transform (doto (Matrix4d.) (.set (Vector3d. 0.0 0.0 z)))
+          layer-pose (pose/translation-pose 0.0 0.0 z)
 
           ;; The visibility-aabb is used to determine the scene extents. We use
           ;; it to adjust the camera near and far clip planes to encompass the
@@ -476,7 +477,7 @@
             aabb)]
       {:node-id _node-id
        :node-outline-key id
-       :transform transform
+       :pose layer-pose
        :aabb aabb
        :visibility-aabb visibility-aabb
        :renderable {:render-fn render-layer

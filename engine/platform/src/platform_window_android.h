@@ -33,6 +33,9 @@ namespace dmPlatform
     jobject      GetAndroidActivity();
     android_app* GetAndroidApp();
     bool         GetSafeAreaAndroid(HWindow window, WindowSafeArea* out);
+
+    void         SetAndroidInputMethod(bool use_hidden_inputfield);
+    void         SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout);
 }
 
 #endif // DM_PLATFORM_WINDOW_ANDROID_H

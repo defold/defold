@@ -19,7 +19,7 @@
 #include <jc_test/jc_test.h>
 
 #if defined(_WIN32)
-    #include <windows.h>
+    #include <Windows.h>
     #include <wchar.h>
 #endif
 
@@ -38,6 +38,9 @@
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSys::ResultToString(r));
 }
+
+int     g_Argc = 0;
+char**  g_Argv = 0;
 
 #if defined(_WIN32)
 static bool WidePathToUtf8(const wchar_t* src, char* dst, int dst_len)
@@ -106,7 +109,6 @@ static void WriteWideDebugLine(const wchar_t* prefix, const wchar_t* value)
 }
 #endif
 
-
 // Unit test helpers
 TEST(dmTestUtil, MakeHostPath)
 {
@@ -119,7 +121,7 @@ TEST(dmTestUtil, MakeHostPath)
 
 TEST(dmSys, Exists)
 {
-    char path[128];
+    char path[1024];
     bool r;
 
     r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), "src"));
@@ -131,7 +133,7 @@ TEST(dmSys, Exists)
 
 TEST(dmSys, IsDir)
 {
-    char path[128];
+    char path[1024];
     dmSys::Result r;
 
     // Check a directory
@@ -141,7 +143,7 @@ TEST(dmSys, IsDir)
     ASSERT_EQ(dmSys::RESULT_OK, r);
 
     // Check a file
-    dmTestUtil::MakeHostPath(path, sizeof(path), "wscript");
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/empty.config");
     ASSERT_TRUE(dmSys::Exists(path));
     r = dmSys::IsDir(path);
     ASSERT_EQ(dmSys::RESULT_UNKNOWN, r); // TODO: This api isn't very nice /MAWE
@@ -203,8 +205,11 @@ TEST(dmSys, Unlink)
 
 TEST(dmSys, GetApplicationSupportPathBuffer)
 {
+#if defined(ANDROID)
+    SKIP(); // A unit test doesn't have the Jni environment
+#endif
+
     char path[4];
-    char discard[128];
     path[3] = '!';
     dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
@@ -214,8 +219,11 @@ TEST(dmSys, GetApplicationSupportPathBuffer)
 
 TEST(dmSys, GetApplicationSavePathBuffer)
 {
+#if defined(ANDROID)
+    SKIP(); // A unit test doesn't have the Jni environment
+#endif
+
     char path[4];
-    char discard[128];
     path[3] = '!';
     dmSys::Result result = dmSys::GetApplicationSavePath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
@@ -225,6 +233,10 @@ TEST(dmSys, GetApplicationSavePathBuffer)
 
 TEST(dmSys, GetApplicationSupportPath)
 {
+#if defined(ANDROID)
+    SKIP(); // A unit test doesn't have the Jni environment
+#endif
+
     char path[1024];
     dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, sizeof(path));
     ASSERT_EQ(dmSys::RESULT_OK, result);
@@ -388,9 +400,6 @@ TEST(dmSys, ResourceFunctionsAcceptAnsiCodePagePaths)
 
 #endif
 
-int g_Argc;
-char** g_Argv;
-
 TEST(dmSys, GetResourcesPath)
 {
     char path[DMPATH_MAX_PATH];
@@ -480,13 +489,16 @@ TEST(dmSys, LoadResource)
     r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &size);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
-    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), 0, 0, &size);
+    const char* local_file = "src/test/data/test.config"; // Must be non-empty
+
+    // Check that the file is larger than the passed buffer size
+    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), local_file), 0, 0, &size);
     ASSERT_EQ(dmSys::RESULT_INVAL, r);
 
-    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), buffer, sizeof(buffer), &size);
+    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), local_file), buffer, sizeof(buffer), &size);
     ASSERT_EQ(dmSys::RESULT_OK, r);
     uint32_t size2;
-    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), &size2);
+    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), local_file), &size2);
     ASSERT_EQ(dmSys::RESULT_OK, r);
     ASSERT_EQ(size, size2);
     ASSERT_GT(size, 0);

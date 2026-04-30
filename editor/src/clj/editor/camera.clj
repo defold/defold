@@ -1128,7 +1128,10 @@
                                        (not= mouse-y last-y)))
               image-view (g/node-value self :image-view evaluation-context)
               [^double mouse-x ^double mouse-y ^double last-x ^double last-y]
-              (warp-mouse-around-edges image-view screen-x screen-y mouse-x mouse-y last-x last-y)
+              (if (or (= :idle movement)
+                      (nil? movement))
+                [mouse-x mouse-y last-x last-y]
+                (warp-mouse-around-edges image-view screen-x screen-y mouse-x mouse-y last-x last-y))
               camera (cond-> camera
                        has-mouse-moved
                        (cond->

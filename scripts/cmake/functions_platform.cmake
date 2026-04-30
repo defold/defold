@@ -29,7 +29,7 @@ function(defold_target_link_platform target platform)
     endif()
 
     # Web platforms map to platform
-    if(platform STREQUAL "js-web" OR platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
+    if(platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
         set(_plat_lib platform)
     else()
         # Platforms using GLFW 3 (same set as waf's platform_glfw_version == 3)
@@ -80,8 +80,8 @@ function(defold_target_link_socket target platform)
     set(_socket_linkopts)
 
     if(_PLAT_OS STREQUAL "win32")
-        # Based on waf_dynamo.py: WS2_32 Iphlpapi AdvAPI32
-        list(APPEND _socket_linkopts WS2_32.lib Iphlpapi.lib AdvAPI32.lib)
+        # Based on waf_dynamo.py: WS2_32 Iphlpapi AdvAPI32 Bcrypt.lib
+        list(APPEND _socket_linkopts WS2_32.lib Iphlpapi.lib AdvAPI32.lib Bcrypt.lib)
     else()
         # Other platforms do not require additional socket libs in waf
     endif()

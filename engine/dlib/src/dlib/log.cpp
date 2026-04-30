@@ -308,7 +308,8 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
 #ifdef __EMSCRIPTEN__
 
         //Emscripten maps stderr to console.error and stdout to console.log.
-        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
+        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
+        {
             EM_ASM_({
                 Module.printErr(UTF8ToString($0));
             }, output);
@@ -319,8 +320,15 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
         }
 #elif defined(_GAMING_XBOX)
     OutputDebugStringA(output);
-#elif !defined(ANDROID)
+#else
+    if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
+    {
         fwrite(output, 1, output_len, stderr);
+    }
+    else
+    {
+        fwrite(output, 1, output_len, stdout);
+    }
 #endif
 }
 

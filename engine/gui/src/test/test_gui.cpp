@@ -4912,7 +4912,8 @@ TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
 
     dmParticle::HPrototype prototype;
     const char* particlefx_name = "once.particlefxc";
-    LoadParticlefxPrototype(particlefx_name, &prototype);
+    bool result = LoadParticlefxPrototype(particlefx_name, &prototype);
+    ASSERT_TRUE(result);
 
     dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
     ASSERT_EQ(res, dmGui::RESULT_OK);

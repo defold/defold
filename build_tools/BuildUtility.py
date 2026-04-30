@@ -39,7 +39,6 @@ class BuildUtility:
                             {'platform': 'arm64-ios', 'os': TargetOS.IOS, 'arch': 'arm64'},
                             {'platform': 'armv7-android', 'os': TargetOS.ANDROID, 'arch': 'armv7'},
                             {'platform': 'arm64-android', 'os': TargetOS.ANDROID, 'arch': 'arm64'},
-                            {'platform': 'js-web', 'os': TargetOS.WEB, 'arch': 'js'},
                             {'platform': 'wasm-web', 'os': TargetOS.WEB, 'arch': 'wasm'},
                             {'platform': 'wasm_pthread-web', 'os': TargetOS.WEB, 'arch': 'wasm'},
                             {'platform': 'arm64-nx64', 'os': TargetOS.NX64, 'arch': 'arm64'},

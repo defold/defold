@@ -61,8 +61,8 @@ import org.junit.runners.Parameterized.Parameters;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.util.FileUtil;
@@ -113,7 +113,8 @@ public class BundlerTest {
             data.add(new Platform[]{Platform.Arm64MacOS});
             data.add(new Platform[]{Platform.X86_64Linux});
             data.add(new Platform[]{Platform.Armv7Android});
-            data.add(new Platform[]{Platform.JsWeb});
+            data.add(new Platform[]{Platform.WasmWeb});
+            data.add(new Platform[]{Platform.WasmPthreadWeb});
 
             // Can only do this on OSX machines currently
             if (Platform.getHostPlatform().isMacOS()) {
@@ -207,11 +208,6 @@ public class BundlerTest {
             checkFileExist(outputDirFile, wasmjsFile);
             File wasmFile = new File(outputDirFile, exeName + "_pthread.wasm");
             checkFileExist(outputDirFile, wasmFile);
-        }
-        else if (platform == Platform.JsWeb)
-        {
-            File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
-            assertTrue(asmjsFile.exists());
         }
         else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
         {
@@ -348,7 +344,7 @@ public class BundlerTest {
 
         setProjectProperties(project);
 
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
+        List<TaskResult> result = project.build(Progress.discarding(), "clean", "build", "bundle");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
@@ -445,7 +441,7 @@ public class BundlerTest {
         setProjectProperties(project);
 
         try {
-            project.build(new NullProgress(), "bundle");
+            project.build(Progress.discarding(), "bundle");
             fail("Expected bundle output under build directory to be rejected.");
         } catch (CompileExceptionError e) {
             assertTrue(e.getMessage().contains(outputDir));
@@ -568,11 +564,12 @@ public class BundlerTest {
                 expectedFiles.add("archive/game0.projectc");
                 expectedFiles.add("archive/archive_files.json");
         }
-        else if (platform == Platform.JsWeb)
+        else if (platform == Platform.WasmPthreadWeb)
         {
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
-                expectedFiles.add("unnamed_asmjs.js");
+                expectedFiles.add("unnamed_pthread_wasm.js");
+                expectedFiles.add("unnamed_pthread.wasm");
                 expectedFiles.add("archive/game0.arcd");
                 expectedFiles.add("archive/game0.arci");
                 expectedFiles.add("archive/game0.dmanifest");
@@ -787,7 +784,7 @@ public class BundlerTest {
     @Test
     public void testBundleWithDynamicLibraries()
             throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+        if (platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
             return;
         }
 
@@ -800,7 +797,7 @@ public class BundlerTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
         setProjectProperties(project);
 
-        List<TaskResult> buildResult = project.build(new NullProgress(), "clean", "build");
+        List<TaskResult> buildResult = project.build(Progress.discarding(), "clean", "build");
         for (TaskResult taskResult : buildResult) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
@@ -812,7 +809,7 @@ public class BundlerTest {
         String libName = platform.getLibPrefix() + "testlib" + platform.getLibSuffix();
         createFile(platformBinaryDir.getAbsolutePath(), libName, "mock_library_content");
 
-        List<TaskResult> bundleResult = project.build(new NullProgress(), "bundle");
+        List<TaskResult> bundleResult = project.build(Progress.discarding(), "bundle");
         for (TaskResult taskResult : bundleResult) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }

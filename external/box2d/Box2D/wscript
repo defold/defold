@@ -35,10 +35,6 @@ def configure(conf):
         conf.env.CFLAGS_SIMD += simd_flags
         conf.env.CXXFLAGS_SIMD += simd_flags
 
-    elif plat == 'js-web':
-        pass
-
-
 def build(bld):
     srcs = bld.path.ant_glob('**/*.c')
     incs = '.. include'
@@ -47,15 +43,14 @@ def build(bld):
     plat = bld.env.PLATFORM
     install_dir = '${PREFIX}/%s/lib/%s/' % (name, plat)
 
-    if plat != 'js-web':
-        bld.stlib(
-            features='c',
-            includes=incs,
-            source=srcs,
-            target='box2d',
-            use='SIMD'
-        )
-        bld.install_files(install_dir, bld.env.cxxstlib_PATTERN % 'box2d')
+    bld.stlib(
+        features='c',
+        includes=incs,
+        source=srcs,
+        target='box2d',
+        use='SIMD'
+    )
+    bld.install_files(install_dir, bld.env.cxxstlib_PATTERN % 'box2d')
 
     bld.stlib(
         features='c',
@@ -65,12 +60,6 @@ def build(bld):
         use='NOSIMD'
     )
     bld.install_files(install_dir, bld.env.cxxstlib_PATTERN % 'box2d_nosimd')
-
-    if plat == 'js-web':
-        simd_name = bld.env.cxxstlib_PATTERN % 'box2d'
-        nosimd_name = bld.env.cxxstlib_PATTERN % 'box2d_nosimd'
-        nosimd_node = bld.path.get_bld().make_node(nosimd_name)
-        bld.install_as(install_dir + simd_name, nosimd_node)
 
     bld.install_files(
         '${PREFIX}/%s' % (name),

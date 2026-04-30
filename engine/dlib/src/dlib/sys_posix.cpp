@@ -64,10 +64,6 @@
 #include <dmsdk/dlib/android.h>
 #include <sys/types.h>
 #include <android/asset_manager.h>
-// By convention we have a global variable called g_AndroidApp
-// This is currently created in glfw..
-// Application life-cycle should perhaps be part of dlib instead
-extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 #endif
 
 #if defined(__linux__) && !defined(ANDROID)
@@ -164,6 +160,14 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
+        struct android_app* app = dmAndroid::GetAndroidApp();
+        if (!app)
+        {
+            // For unit tests
+            dmSnPrintf(path, path_len, "/data/local/tmp");
+            return RESULT_OK;
+        }
+
         dmAndroid::ThreadAttacher thread;
         JNIEnv* env = thread.GetEnv();
         if (!env)
@@ -729,16 +733,28 @@ namespace dmSys
         }
         return path;
     }
+
+    static AAssetManager* GetAndroidAssetManager()
+    {
+        struct android_app* app = dmAndroid::GetAndroidApp();
+        if (!app) return 0;
+        if (!app->activity) return 0;
+        return app->activity->assetManager;
+    }
+
 #endif
 
     bool ResourceExists(const char* path)
     {
 #ifdef __ANDROID__
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
-        if (asset) {
-            AAsset_close(asset);
-            return true;
+        AAssetManager* am = GetAndroidAssetManager();
+        if (am)
+        {
+            AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
+            if (asset) {
+                AAsset_close(asset);
+                return true;
+            }
         }
 #endif
 #ifdef _WIN32
@@ -753,14 +769,17 @@ namespace dmSys
     Result ResourceSize(const char* path, uint32_t* resource_size)
     {
 #ifdef __ANDROID__
-        path = FixAndroidResourcePath(path);
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
-        if (asset) {
-            *resource_size = (uint32_t) AAsset_getLength(asset);
+        AAssetManager* am = GetAndroidAssetManager();
+        if (am)
+        {
+            path = FixAndroidResourcePath(path);
+            AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
+            if (asset) {
+                *resource_size = (uint32_t) AAsset_getLength(asset);
 
-            AAsset_close(asset);
-            return RESULT_OK;
+                AAsset_close(asset);
+                return RESULT_OK;
+            }
         }
 #endif
 #ifdef _WIN32
@@ -783,27 +802,32 @@ namespace dmSys
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
     {
         *resource_size = 0;
-#ifdef __ANDROID__
-        const char* asset_path = FixAndroidResourcePath(path);
 
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
-        AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
-        if (asset) {
-            uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
-            if (asset_size > buffer_size) {
+#ifdef __ANDROID__
+        AAssetManager* am = GetAndroidAssetManager();
+        if (am)
+        {
+            const char* asset_path = FixAndroidResourcePath(path);
+
+            // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
+            if (asset) {
+                uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
+                if (asset_size > buffer_size) {
+                    AAsset_close(asset);
+                    return RESULT_INVAL;
+                }
+                uint32_t nread = (uint32_t)AAsset_read(asset, buffer, asset_size);
                 AAsset_close(asset);
-                return RESULT_INVAL;
+                if (nread != asset_size) {
+                    return RESULT_IO;
+                }
+                *resource_size = asset_size;
+                return RESULT_OK;
             }
-            uint32_t nread = (uint32_t)AAsset_read(asset, buffer, asset_size);
-            AAsset_close(asset);
-            if (nread != asset_size) {
-                return RESULT_IO;
-            }
-            *resource_size = asset_size;
-            return RESULT_OK;
         }
 #endif
+
 #ifdef _WIN32
         struct _stat64 file_stat;
         if (_stat64(path, &file_stat) == 0) {
@@ -836,21 +860,25 @@ namespace dmSys
             return RESULT_INVAL;
 
 #ifdef __ANDROID__
-        const char* asset_path = FixAndroidResourcePath(path);
+        AAssetManager* am = GetAndroidAssetManager();
+        if (am)
+        {
+            const char* asset_path = FixAndroidResourcePath(path);
 
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
-        AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
-        if (asset) {
-            int result = AAsset_seek(asset, offset, SEEK_SET);
-            if (result < 0)
+            // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
+            if (asset)
             {
-                return RESULT_INVAL;
+                int result = AAsset_seek(asset, offset, SEEK_SET);
+                if (result < 0)
+                {
+                    return RESULT_INVAL;
+                }
+                uint32_t nmemb = (uint32_t)AAsset_read(asset, buffer, size);
+                AAsset_close(asset);
+                *nread = nmemb;
+                return RESULT_OK;
             }
-            uint32_t nmemb = (uint32_t)AAsset_read(asset, buffer, size);
-            AAsset_close(asset);
-            *nread = nmemb;
-            return RESULT_OK;
         }
 #endif
 #ifdef _WIN32

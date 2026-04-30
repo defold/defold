@@ -21,6 +21,7 @@ sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
+import build_android
 import run
 import s3
 import sdk
@@ -43,7 +44,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
                     'armv7-android', 'arm64-android',
-                    'js-web', 'wasm-web', 'wasm_pthread-web']
+                    'wasm-web', 'wasm_pthread-web']
 
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
@@ -387,7 +388,6 @@ PLATFORM_PACKAGES = {
     'x86_64-ios':       PACKAGES_IOS_X86_64,
     'armv7-android':    PACKAGES_ANDROID,
     'arm64-android':    PACKAGES_ANDROID_64,
-    'js-web':           PACKAGES_EMSCRIPTEN,
     'wasm-web':         PACKAGES_EMSCRIPTEN,
     'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
@@ -430,9 +430,6 @@ def format_exes(name, platform):
     elif 'android' in platform:
         prefix = 'lib'
         suffix = ['.so']
-    elif platform in ['js-web']:
-        prefix = ''
-        suffix = ['.js']
     elif platform in ['wasm-web', 'wasm_pthread-web']:
         prefix = ''
         suffix = ['.js', '.wasm']
@@ -517,6 +514,7 @@ class Configuration(object):
                  dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
+                 test_device = None,
                  keep_bob_uncompressed = False,
                  skip_codesign = False,
                  skip_docs = False,
@@ -566,6 +564,7 @@ class Configuration(object):
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
+        self.test_device = test_device
         self.keep_bob_uncompressed = keep_bob_uncompressed
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
@@ -702,7 +701,7 @@ class Configuration(object):
         return [sys.executable]
 
     def _create_common_dirs(self):
-        for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js', 'lib/wasm_pthread-web/js']:
+        for p in ['ext/lib/python', 'share', 'lib/wasm-web/js', 'lib/wasm_pthread-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
 
     def _mkdirs(self, path):
@@ -813,6 +812,29 @@ class Configuration(object):
         waf_path = make_package_path(self.defold_root, 'common', waf_package)
         self._extract_tgz(waf_path, self.ext)
 
+    def _install_python_packages(self, packages, whl_patterns):
+        target = join(self.ext, 'lib', 'python')
+        self._mkdirs(target)
+
+        if packages:
+            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', target] + packages)
+
+        for pattern in whl_patterns:
+            for whl in sorted(glob(join(self.defold_root, 'packages', pattern))):
+                self._log('Installing %s' % basename(whl))
+                run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', target, whl])
+
+    def install_release_dependencies(self):
+        print("Installing release python dependencies")
+        self._install_python_packages(
+            ['requests'],
+            [
+                'boto3-*.whl',
+                'botocore-*.whl',
+                's3transfer-*.whl',
+                'urllib3-*.whl',
+            ])
+
     def install_ext(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
@@ -835,7 +857,7 @@ class Configuration(object):
         target_platform = self.target_platform
         other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
-        if target_platform in ['js-web', 'wasm-web', 'wasm_pthread-web']:
+        if target_platform in ['wasm-web', 'wasm_pthread-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
             for package in PACKAGES_NODE_MODULES:
                 path = join(self.defold_root, 'packages', package + '.tar.gz')
@@ -883,16 +905,13 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver', 'pystache'])
-        for whl in glob(join(self.defold_root, 'packages', '*.whl')):
-            self._log('Installing %s' % basename(whl))
-            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
+        self._install_python_packages(['requests', 'pyaml', 'rangehttpserver', 'pystache'], ['*.whl'])
 
         print("Installing javascripts")
-        for n in 'js-web-pre.js'.split():
+        for n in 'web-pre.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
-        for n in 'js-web-pre-engine.js'.split():
+        for n in 'web-pre-engine.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
         print("Installing profiles etc")
@@ -1018,7 +1037,7 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
-        if target_platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        if target_platform in ('wasm-web', 'wasm_pthread-web'):
             emsdk_folder = sdk.get_defold_emsdk()
             download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
 
@@ -1273,14 +1292,6 @@ class Configuration(object):
 
                 self._add_files_to_zip(zip, wagyu_port_files, self.dynamo_home, topfolder)
 
-            if platform in ['js-web']:
-                # JavaScript files
-                # js-web-pre-x files
-                for subdir in ['share', 'lib/js-web/js/', 'ext/lib/js-web/js/']:
-                    jsdir = os.path.join(self.dynamo_home, subdir)
-                    paths = _findjslibs(jsdir)
-                    self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-
             if platform in ['wasm-web', 'wasm_pthread-web']:
                 for subdir in [f'lib/{platform}/js/', f'ext/lib/{platform}/js/']:
                     jsdir = os.path.join(self.dynamo_home, subdir)
@@ -1436,16 +1447,8 @@ class Configuration(object):
             return False
 
         sdkfolder = join(self.ext, 'SDKs')
-
-        strip = "strip"
-        if 'android' in self.target_platform:
-            ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
-
-            ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
-            strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (ANDROID_NDK_ROOT, ANDROID_HOST)
-
-        if self.target_platform in ('x86_64-macos','arm64-macos','arm64-ios','x86_64-ios') and 'linux' == sys.platform:
-            strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
+        sdk_info = self.sdk_info if self.sdk_info else sdk.get_sdk_info(sdkfolder, self.target_platform, self.verbose)
+        strip = sdk.get_strip_executable(self.target_platform, sdk_info)
 
         run.shell_command("%s %s" % (strip, path))
         return True
@@ -1551,8 +1554,21 @@ class Configuration(object):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
-        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
-        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
+        supported_tests['x86_64-linux'] = []
+        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web']
+        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web']
+
+        if 'android' in self.target_platform:
+            can_run_android_tests = build_android.can_run_tests_android(self._log, env = self._form_env(), device = self.test_device)
+            if self.test_device and not can_run_android_tests:
+                self.fatal("Requested Android test device '%s' is not available" % self.test_device)
+
+            if can_run_android_tests:
+                android_tests = ['armv7-android', 'arm64-android']
+                supported_tests['x86_64-macos'].extend(android_tests)
+                supported_tests['arm64-macos'].extend(android_tests)
+                supported_tests['x86_64-linux'].extend(android_tests)
+                supported_tests['x86_64-win32'].extend(android_tests)
 
         return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
 
@@ -1878,7 +1894,7 @@ class Configuration(object):
                                  'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
-                     'js-bundling': js_files,
+                     'web-bundling': js_files,
                      'ios-bundling': {},
                      'osx-bundling': macos_files,
                      'linux-bundling': linux_files,
@@ -1886,7 +1902,7 @@ class Configuration(object):
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
-                           'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
+                           'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
                            'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']],
@@ -1933,12 +1949,32 @@ class Configuration(object):
         if self.keep_bob_uncompressed:
             flags = '-Pkeep-bob-uncompressed'
 
-        # Clean and build the project
-        run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
+        if self.skip_tests:
+            # Clean and build the project
+            run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
+        else:
+            # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
+            run.command(" ".join([gradle, flags, 'clean', 'install', 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
-        # Run tests if not skipped
-        if not self.skip_tests:
-            run.command(" ".join([gradle, flags, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+    def test_bob(self):
+        bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')
+        test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+
+        if not os.path.exists(bob_jar):
+            self.fatal("bob.jar is missing. Build bob or download the bob-jar artifact first.")
+
+        env = self._form_env()
+
+        gradle = self.get_gradle_wrapper()
+        gradle_args = []
+        if self.verbose:
+            gradle_args += ['--info']
+
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
+
+        # compileTest only needs bob.jar on disk. Exclude distBob so this job tests the artifact
+        # produced by build-bob instead of rebuilding it.
+        run.command(" ".join([gradle, 'testJar', '-x', 'distBob'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
 
     def build_sdk_headers(self):
@@ -2093,6 +2129,19 @@ class Configuration(object):
                 cmd.append('--notarization-password=%s' % self.notarization_password)
             if self.notarization_itc_provider:
                 cmd.append('--notarization-itc-provider=%s' % self.notarization_itc_provider)
+
+        self.run_editor_script(cmd)
+
+    def test_editor2(self):
+        cmd = self.get_python() + ['./scripts/bundle.py',
+               '--engine-artifacts=%s' % self.engine_artifacts,
+               '--archive-domain=%s' % self.archive_domain,
+               '--platform=%s' % self.target_platform]
+
+        if self.channel:
+            cmd.append('--channel=%s' % self.channel)
+
+        cmd.append('test')
 
         self.run_editor_script(cmd)
 
@@ -2449,10 +2498,10 @@ class Configuration(object):
         # * Editor files
         # * Defold SDK files
         # * launcher files, used to launch editor2
-        # * rarely used platforms: armv7-android , js-web  and x86-win32
+        # * rarely used platforms: armv7-android and x86-win32
         # * headless builds
         pattern = re.compile(
-            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$|/(armv7-android|js-web|x86-win32)(/|$)|headless'
+            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$|/(armv7-android|x86-win32)(/|$)|headless'
         )
         prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
         for obj_summary in bucket.objects.filter(Prefix=prefix):
@@ -2823,6 +2872,9 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
+        if self.test_device:
+            env['ANDROID_SERIAL'] = self.test_device
+
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:
@@ -2839,15 +2891,18 @@ if __name__ == '__main__':
 Commands:
 distclean        - Removes the DYNAMO_HOME folder
 install_ext      - Install external packages
+install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
 install_waf      - Install waf
 sync_archive     - Sync engine artifacts from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
+test_editor2     - Test editor
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
 build_bob        - Build bob with native libraries included for cross platform deployment
+test_bob         - Test bob using an existing com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
 build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path
 build_docs       - Build documentation
@@ -2874,6 +2929,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'Skip unit-tests. Default is false')
+
+    parser.add_option('--test-device', dest='test_device',
+                      default = None,
+                      help = 'Android device serial to target when running Android tests')
 
     parser.add_option('--keep-bob-uncompressed', dest='keep_bob_uncompressed',
                     action = 'store_true',
@@ -3030,6 +3089,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
+                      test_device = options.test_device,
                       keep_bob_uncompressed = options.keep_bob_uncompressed,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,

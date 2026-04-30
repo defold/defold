@@ -187,7 +187,7 @@ TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnPreRender)
         "    profiler.scope_begin(\"coroutine_outer\")\n"
         "    profiler.scope_begin(\"coroutine_inner\")\n"
         "    coroutine.yield()\n"
-        "    profiler.scope_end()\n"
+        "    return \"coroutine_resumed\"\n"
         "end)\n"
         "assert(coroutine.resume(co))\n"));
 
@@ -201,9 +201,11 @@ TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnPreRender)
     dmExtension::PreRender(&m_Params);
 
     ASSERT_TRUE(RunString(
-        "local ok, err = coroutine.resume(co)\n"
-        "assert(not ok)\n"
-        "assert(string.find(err, \"profiler.scope_end() called without a matching profiler.scope_begin()\", 1, true))\n"));
+        "local ok, value = coroutine.resume(co)\n"
+        "assert(ok)\n"
+        "assert(value == \"coroutine_resumed\")\n"
+        "assert(coroutine.status(co) == \"dead\")\n"
+        "co = nil\n"));
 
     char* log = GetLog();
     ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'coroutine_inner' was not closed before the end of the frame. Auto-closing it."));
@@ -219,6 +221,8 @@ TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnFinalize)
         "assert(coroutine.resume(co))\n"));
 
     FinalizeExtension();
+    ASSERT_TRUE(RunString(
+        "co = nil\n"));
 
     char* log = GetLog();
     ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'coroutine_finalize' was not closed before the end of the frame. Auto-closing it."));

@@ -38,7 +38,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
@@ -181,7 +181,7 @@ public class JBobTest {
     }
 
     List<TaskResult> build() throws IOException, CompileExceptionError, MultipleCompileException {
-        return project.build(new NullProgress(), "build");
+        return project.build(Progress.discarding(), "build");
     }
 
     @After

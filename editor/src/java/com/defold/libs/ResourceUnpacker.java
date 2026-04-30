@@ -14,39 +14,69 @@
 
 package com.defold.libs;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.*;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import java.util.Date;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import com.defold.editor.Editor;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.util.FileUtil;
-
-import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.io.FileUtils;
-
-import com.dynamo.bob.Platform;
 
 public class ResourceUnpacker {
+
+    @FunctionalInterface
+    public interface NativeLibraryLoader {
+        void load(Path libraryPath) throws Throwable;
+    }
+
+    private static final class NativeLibraryLoadException extends RuntimeException {
+        private final String logicalName;
+        private final Path libraryPath;
+
+        private NativeLibraryLoadException(String logicalName, Path libraryPath, Throwable cause) {
+            super("Failed to preload bundled native library '" + logicalName + "' from " + libraryPath, cause);
+            this.logicalName = logicalName;
+            this.libraryPath = libraryPath;
+        }
+    }
 
     public static final String DEFOLD_UNPACK_PATH_KEY = "defold.unpack.path";
     public static final String DEFOLD_UNPACK_PATH_ENV_VAR = "DEFOLD_UNPACK_PATH";
     public static final String DEFOLD_EDITOR_SHA1_KEY = "defold.editor.sha1";
 
     private static volatile boolean isInitialized = false;
-    private static Object lock = new Object();
-    private static Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
+    private static volatile Map<String, Path> preloadedLibraryPaths = Collections.emptyMap();
+    private static final Object lock = new Object();
+    private static final Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
+    private static final NativeLibraryLoader SYSTEM_NATIVE_LIBRARY_LOADER = libraryPath -> System.load(libraryPath.toString());
 
     // unpack dirs should be automatically deleted using a shutdown hook but
     // the shutdown hook will not run if the editor doesn't shut down gracefully
@@ -64,19 +94,21 @@ public class ResourceUnpacker {
         logger.info("deleting old unpack dirs from {}", unpackRoot);
         final long now = new Date().getTime();
         final long oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000);
-        Files.list(unpackRoot)
-                .filter(path -> Files.isDirectory(path) && !path.equals(unpackPath))
-                .forEach(unpackDir -> {
-                    try {
-                        long creationTime = Files.getLastModifiedTime(unpackDir).toMillis();
-                        if (creationTime < oneWeekAgo) {
-                            logger.info("deleting unpack dir {}", unpackDir);
-                            FileUtils.deleteQuietly(unpackDir.toFile());
+        try (Stream<Path> unpackDirs = Files.list(unpackRoot)) {
+            unpackDirs
+                    .filter(path -> Files.isDirectory(path) && !path.equals(unpackPath))
+                    .forEach(unpackDir -> {
+                        try {
+                            long creationTime = Files.getLastModifiedTime(unpackDir).toMillis();
+                            if (creationTime < oneWeekAgo) {
+                                logger.info("deleting unpack dir {}", unpackDir);
+                                FileUtils.deleteQuietly(unpackDir.toFile());
+                            }
+                        } catch (IOException e) {
+                            logger.warn("Couldn't get lastModifiedTime of {}", unpackDir, e);
                         }
-                    } catch (IOException e) {
-                        logger.warn("Couldn't get lastModifiedTime of {}", unpackDir, e);
-                    }
-                });
+                    });
+        }
     }
 
     public static void unpackResources() throws IOException, URISyntaxException {
@@ -93,15 +125,15 @@ public class ResourceUnpacker {
                 return;
             }
 
+            Path unpackPath = getUnpackPath();
+            Platform platform = Platform.getHostPlatform();
             try {
-                Path unpackPath  = getUnpackPath();
                 deleteOldUnpackDirs(unpackPath);
                 String sha1 = System.getProperty(DEFOLD_EDITOR_SHA1_KEY);
                 Path unpackShaPath = unpackPath.resolve("editor-sha.txt");
                 boolean alreadyUnpacked = sha1 != null
                         && Files.exists(unpackShaPath)
                         && sha1.equals(Files.readString(unpackShaPath));
-                Platform platform = Platform.getHostPlatform();
                 if (alreadyUnpacked) {
                     logger.info("Already unpacked for the editor version {}", sha1);
                 } else {
@@ -114,31 +146,25 @@ public class ResourceUnpacker {
                     if (platform.isWindows()) {
                         unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
                         unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
-                    }
-                    else {
+                    } else {
                         unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
                     }
 
                     Path binDir = unpackPath.resolve(platform.getPair() + "/bin").toAbsolutePath();
                     if (Files.exists(binDir)) {
-                        Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
+                        try (Stream<Path> binPaths = Files.walk(binDir)) {
+                            binPaths.forEach(path -> path.toFile().setExecutable(true));
+                        }
                     }
                     if (sha1 != null) {
                         Files.writeString(unpackShaPath, sha1);
                     }
                 }
-                if (unpackPath.getParent().startsWith(Editor.getSupportPath())) {
-                    // Prevent from deletion by deleteOldUnpackDirs
-                    Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
-                        try {
-                            Files.setLastModifiedTime(unpackPath, FileTime.from(Instant.now()));
-                        } catch (IOException e) {
-                            logger.warn("Couldn't set lastModifiedTime for {}", unpackPath, e);
-                        }
-                    }, 0, 1, TimeUnit.DAYS);
-                }
 
                 Path unpackedLibDir = unpackPath.resolve(platform.getPair() + "/lib").toAbsolutePath();
+                System.setProperty("jna.nosys", "true");
+                // Exact-path preloading is authoritative, but JOGL still resolves some bundled
+                // natives by logical name, and JNA-by-name callers still expect these paths.
                 System.setProperty("java.library.path", unpackedLibDir.toString());
                 System.setProperty("jna.library.path", unpackedLibDir.toString());
 
@@ -148,9 +174,188 @@ public class ResourceUnpacker {
 
                 System.setProperty(DEFOLD_UNPACK_PATH_KEY, unpackPath.toAbsolutePath().toString());
                 logger.info("defold.unpack.path={}", System.getProperty(DEFOLD_UNPACK_PATH_KEY));
-            } finally {
+
+                Map<String, Path> discoveredLibraries = discoverBundledNativeLibraries(unpackedLibDir, platform);
+                preloadedLibraryPaths = preloadNativeLibraries(discoveredLibraries, SYSTEM_NATIVE_LIBRARY_LOADER);
+                logger.info("preloaded {} bundled native libraries from {}", preloadedLibraryPaths.size(), unpackedLibDir);
+                if (unpackPath.getParent().startsWith(Editor.getSupportPath())) {
+                    startUnpackDirTouchScheduler(unpackPath);
+                }
                 isInitialized = true;
+            } finally {
+                if (!isInitialized) {
+                    preloadedLibraryPaths = Collections.emptyMap();
+                }
             }
+        }
+    }
+
+    public static Map<String, Path> getPreloadedLibraries() {
+        return preloadedLibraryPaths;
+    }
+
+    public static Path getPreloadedLibraryPath(String logicalName) {
+        Objects.requireNonNull(logicalName, "logicalName");
+        Path libraryPath = preloadedLibraryPaths.get(logicalName);
+        if (libraryPath == null) {
+            throw new IllegalStateException("Bundled native library '" + logicalName + "' has not been preloaded");
+        }
+        return libraryPath;
+    }
+
+    public static Map<String, Path> discoverBundledNativeLibraries(Path libDir, Platform platform) throws IOException {
+        Objects.requireNonNull(libDir, "libDir");
+        Objects.requireNonNull(platform, "platform");
+
+        if (!Files.isDirectory(libDir)) {
+            throw new IOException("Bundled native library directory does not exist: " + libDir);
+        }
+
+        List<Path> libraryFiles;
+        try (Stream<Path> stream = Files.list(libDir)) {
+            libraryFiles = stream
+                    .filter(Files::isRegularFile)
+                    .map(path -> path.toAbsolutePath().normalize())
+                    .filter(path -> hasBundledNativeLibrarySuffix(path.getFileName().toString(), platform))
+                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                    .toList();
+        }
+
+        if (libraryFiles.isEmpty()) {
+            throw new IOException("No bundled native libraries found in " + libDir);
+        }
+
+        LinkedHashMap<String, Path> discoveredLibraries = new LinkedHashMap<>(libraryFiles.size());
+        for (Path libraryPath : libraryFiles) {
+            String logicalName = toBundledNativeLibraryLogicalName(libraryPath.getFileName().toString(), platform);
+            Path previousPath = discoveredLibraries.putIfAbsent(logicalName, libraryPath);
+            if (previousPath != null) {
+                throw new IOException("Duplicate bundled native library logical name '" + logicalName + "' in " + libDir
+                                      + ": " + previousPath + " and " + libraryPath);
+            }
+        }
+
+        return immutableLinkedHashMap(discoveredLibraries);
+    }
+
+    public static Map<String, Path> preloadNativeLibraries(Map<String, Path> discoveredLibraries, NativeLibraryLoader loader) {
+        Objects.requireNonNull(discoveredLibraries, "discoveredLibraries");
+        Objects.requireNonNull(loader, "loader");
+
+        if (discoveredLibraries.isEmpty()) {
+            throw new IllegalArgumentException("No bundled native libraries were discovered for preload");
+        }
+
+        List<Map.Entry<String, Path>> libraryEntries = new ArrayList<>(discoveredLibraries.entrySet());
+        List<Future<?>> futures = new ArrayList<>(libraryEntries.size());
+        List<NativeLibraryLoadException> failures = new ArrayList<>();
+
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            for (Map.Entry<String, Path> libraryEntry : libraryEntries) {
+                String logicalName = libraryEntry.getKey();
+                Path libraryPath = libraryEntry.getValue();
+                futures.add(executor.submit(() -> preloadNativeLibrary(logicalName, libraryPath, loader)));
+            }
+
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof NativeLibraryLoadException failure) {
+                        failures.add(failure);
+                    } else {
+                        throw new IllegalStateException("Unexpected failure while preloading bundled native libraries", cause);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while preloading bundled native libraries", e);
+                }
+            }
+        }
+
+        if (!failures.isEmpty()) {
+            IllegalStateException aggregatedException = new IllegalStateException(buildPreloadFailureMessage(failures));
+            for (NativeLibraryLoadException failure : failures) {
+                aggregatedException.addSuppressed(failure.getCause());
+            }
+            throw aggregatedException;
+        }
+
+        return immutableLinkedHashMap(discoveredLibraries);
+    }
+
+    private static void preloadNativeLibrary(String logicalName, Path libraryPath, NativeLibraryLoader loader) {
+        try {
+            loader.load(libraryPath);
+            logger.info("preloaded bundled native library '{}' from {}", logicalName, libraryPath);
+        } catch (Throwable t) {
+            throw new NativeLibraryLoadException(logicalName, libraryPath, t);
+        }
+    }
+
+    private static String buildPreloadFailureMessage(List<NativeLibraryLoadException> failures) {
+        StringBuilder message = new StringBuilder("Failed to preload bundled native libraries:");
+        for (NativeLibraryLoadException failure : failures) {
+            message.append(System.lineSeparator())
+                    .append(" - ")
+                    .append(failure.logicalName)
+                    .append(" from ")
+                    .append(failure.libraryPath);
+            Throwable cause = failure.getCause();
+            if (cause.getMessage() != null && !cause.getMessage().isEmpty()) {
+                message.append(" (").append(cause.getMessage()).append(')');
+            }
+        }
+        return message.toString();
+    }
+
+    private static boolean hasBundledNativeLibrarySuffix(String fileName, Platform platform) {
+        if (platform.isMacOS()) {
+            return fileName.endsWith(".dylib") || fileName.endsWith(".jnilib");
+        }
+        return fileName.endsWith(platform.getLibSuffix());
+    }
+
+    private static String toBundledNativeLibraryLogicalName(String fileName, Platform platform) {
+        String suffix = bundledNativeLibrarySuffix(fileName, platform);
+        String baseName = fileName.substring(0, fileName.length() - suffix.length());
+        String libPrefix = platform.getLibPrefix();
+        if (!libPrefix.isEmpty() && baseName.startsWith(libPrefix)) {
+            baseName = baseName.substring(libPrefix.length());
+        }
+        if (baseName.isEmpty()) {
+            throw new IllegalArgumentException("Unable to derive bundled native library logical name from " + fileName);
+        }
+        return baseName;
+    }
+
+    private static String bundledNativeLibrarySuffix(String fileName, Platform platform) {
+        if (platform.isMacOS() && fileName.endsWith(".jnilib")) {
+            return ".jnilib";
+        }
+        if (fileName.endsWith(platform.getLibSuffix())) {
+            return platform.getLibSuffix();
+        }
+        throw new IllegalArgumentException("Unsupported bundled native library filename: " + fileName);
+    }
+
+    private static Map<String, Path> immutableLinkedHashMap(Map<String, Path> libraries) {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(libraries));
+    }
+
+    private static void startUnpackDirTouchScheduler(Path unpackPath) {
+        try {
+            // Prevent deletion by deleteOldUnpackDirs once initialization has succeeded.
+            Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
+                try {
+                    Files.setLastModifiedTime(unpackPath, FileTime.from(Instant.now()));
+                } catch (IOException e) {
+                    logger.warn("Couldn't set lastModifiedTime for {}", unpackPath, e);
+                }
+            }, 0, 1, TimeUnit.DAYS);
+        } catch (RuntimeException e) {
+            logger.warn("Couldn't start unpack dir touch scheduler for {}", unpackPath, e);
         }
     }
 
@@ -169,7 +374,7 @@ public class ResourceUnpacker {
 
             Path outputPath = target.resolve(resourceFileName);
             if (ignoreInputFilePath) {
-                outputPath =  target.resolve(outputPath.getFileName());
+                outputPath = target.resolve(outputPath.getFileName());
             }
             File outputFile = outputPath.toFile();
 
@@ -223,8 +428,7 @@ public class ResourceUnpacker {
                     }
                     try {
                         Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                    catch (IOException e) {
+                    } catch (IOException e) {
                         logger.warn("unpacking '{}' to '{}' failed", source, dest, e);
                     }
                 }
@@ -252,7 +456,8 @@ public class ResourceUnpacker {
 
         String sha1 = System.getProperty(DEFOLD_EDITOR_SHA1_KEY);
         if (sha1 != null) {
-            return ensureDirectory(Editor.getSupportPath().resolve(Paths.get("unpack", sha1)));
+            var arch = Platform.getHostPlatform().getArch();
+            return ensureDirectory(Editor.getSupportPath().resolve(Paths.get("unpack", sha1 + "-" + arch)));
         } else {
             Path tmpDir = Files.createTempDirectory("defold-unpack");
             FileUtil.deleteOnExit(tmpDir);

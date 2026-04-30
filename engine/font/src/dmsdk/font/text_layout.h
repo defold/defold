@@ -152,7 +152,7 @@ struct TextLayoutSettings
 
 /*#
  * Create a text layout using a font collection
- * if successful, the caller must call TextLayoutFree() on the layout
+ * if successful, the caller owns the returned layout and must call TextLayoutRelease()
  * @name TextLayoutCreate
  * @param collection [type: HFontCollection] the font collection
  * @param codepoints [type: uint32_t*] an array of codepoints
@@ -166,11 +166,18 @@ TextResult TextLayoutCreate(HFontCollection collection,
                             TextLayoutSettings* settings, HTextLayout* layout);
 
 /*#
- * Frees a previously created layout
- * @name TextLayoutFree
+ * Acquire a shared reference to a previously created layout
+ * @name TextLayoutAcquire
  * @param layout [type: HTextLayout] the text layout
  */
-void TextLayoutFree(HTextLayout layout);
+void TextLayoutAcquire(HTextLayout layout);
+
+/*#
+ * Release a previously created layout
+ * @name TextLayoutRelease
+ * @param layout [type: HTextLayout] the text layout
+ */
+void TextLayoutRelease(HTextLayout layout);
 
 /*#
  * Get the glyph count in the layout

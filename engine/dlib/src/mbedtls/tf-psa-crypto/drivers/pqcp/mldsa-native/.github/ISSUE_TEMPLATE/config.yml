@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+    - name: Mbed TLS & TF-PSA-Crypto security team
+      url: mailto:mbed-tls-security@lists.trustedfirmware.org
+      about: Report a security vulnerability in TF-PSA-Crypto.
+    - name: PQ Code Package security contact
+      url: https://github.com/pq-code-package/mldsa-native/security
+      about: Report a security vulnerability in the upstream mldsa-native.
+    - name: TF-PSA-Crypto issue tracker
+      url: https://github.com/Mbed-TLS/TF-PSA-Crypto/issues
+      about: Bugs and feature requests in TF-PSA-Crypto
+    - name: PSA Crypto mailing list
+      url: https://lists.trustedfirmware.org/mailman3/lists/psa-crypto.lists.trustedfirmware.org/
+      about: PSA Crypto community support and general discussion.

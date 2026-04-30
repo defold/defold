@@ -315,7 +315,7 @@ void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* t
         metrics->m_MaxDescent  = font_map->m_MaxDescent;
     }
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 }
 
 
@@ -520,12 +520,12 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     if (TEXT_RESULT_OK != r)
     {
         if (layout)
-            TextLayoutFree(layout);
+            TextLayoutRelease(layout);
         return 0;
     }
 
     uint32_t vertex_count = CreateFontVertexDataFromTextLayout(font_map, frame, layout, te, sdf_scale, recip_w, recip_h, _vertices, num_vertices);
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
     return vertex_count;
 }
 

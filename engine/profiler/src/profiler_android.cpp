@@ -21,8 +21,6 @@
 DM_PROPERTY_EXTERN(rmtp_Profiler);
 DM_PROPERTY_BOOL(rmtp_AttachedToJVM, false, PROFILE_PROPERTY_FRAME_RESET, "Thread attached to JVM", &rmtp_Profiler);
 
-extern struct android_app* __attribute__((weak)) g_AndroidApp;
-
 void dmProfilerExt::SampleCpuUsage()
 {
     // see https://github.com/defold/defold/issues/3385
@@ -48,7 +46,10 @@ double dmProfilerExt::GetCpuUsage()
 
 void dmProfilerExt::UpdatePlatformProfiler()
 {
+    struct android_app* app = dmAndroid::GetAndroidApp();
+    assert(app);
+
     // Shows if thread was attached to JVM and wasn't detached
     JNIEnv* env = 0;
-    DM_PROPERTY_SET_BOOL(rmtp_AttachedToJVM, g_AndroidApp->activity->vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK);
+    DM_PROPERTY_SET_BOOL(rmtp_AttachedToJVM, app->activity->vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK);
 }

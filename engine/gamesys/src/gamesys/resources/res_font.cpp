@@ -246,7 +246,7 @@ namespace dmGameSystem
         FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, glyph_count, cbk, cbk_ctx);
         job_info->m_Job = dmGameSystem::FontGenAddGlyphs(job_info->m_FontGenJobData, glyphs, glyph_count, TextCallbackJobInfo, job_info);
 
-        TextLayoutFree(layout);
+        TextLayoutRelease(layout);
 
         if (!job_info->m_Job)
         {

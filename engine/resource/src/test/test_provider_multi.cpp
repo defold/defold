@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 #include <dlib/array.h>
-#include <dlib/crypt.h>
+#include <dlib/crypt/crypt.h>
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
 #include <dlib/log.h>

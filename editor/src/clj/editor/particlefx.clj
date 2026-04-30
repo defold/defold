@@ -373,13 +373,13 @@
                      [2500.0 2500.0 2500.0]))
 
 (g/defnk produce-modifier-scene
-  [_node-id transform type magnitude max-distance node-outline-key]
+  [_node-id pose type magnitude max-distance node-outline-key]
   (let [mod-type (mod-types type)
         magnitude (properties/sample magnitude)
         max-distance (properties/sample max-distance)]
     {:node-id _node-id
      :node-outline-key node-outline-key
-     :transform transform
+     :pose pose
      :aabb geom/empty-bounding-box
      :visibility-aabb modifier-visibility-aabb
      :renderable {:render-fn render-lines
@@ -584,7 +584,7 @@
                            [+bx +bx (case type :emitter-type-circle 0.0 +bx)])))))
 
 (g/defnk produce-emitter-scene
-  [_node-id id transform aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes material-attribute-infos max-particle-count vertex-attribute-bytes]
+  [_node-id id pose aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes material-attribute-infos max-particle-count vertex-attribute-bytes]
   (let [emitter-type (emitter-types type)
         user-data {:type type
                    :emitter-sim-data emitter-sim-data
@@ -597,7 +597,7 @@
                                            (mapv properties/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
     {:node-id _node-id
      :node-outline-key id
-     :transform transform
+     :pose pose
      :aabb aabb
      :visibility-aabb visibility-aabb
      :renderable {:render-fn render-emitters

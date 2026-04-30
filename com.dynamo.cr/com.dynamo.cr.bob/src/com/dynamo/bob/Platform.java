@@ -40,7 +40,6 @@ public class Platform {
     public static final Platform X86_64Ios      = new Platform(OS.OS_ID_IOS,        "x86_64",       true,    "ios",     new String[] {""},               "",     "lib",  ".so",      new String[] {"ios", "x86_64-ios"},         PlatformArchitectures.iOS,          "x86_64-ios");
     public static final Platform Armv7Android   = new Platform(OS.OS_ID_ANDROID,    "armv7",        false,   "android", new String[] {".so"},            "lib", "lib",   ".so",      new String[] {"android", "armv7-android"},  PlatformArchitectures.Android,      "armv7-android");
     public static final Platform Arm64Android   = new Platform(OS.OS_ID_ANDROID,    "arm64",        true,    "android", new String[] {".so"},            "lib", "lib",   ".so",      new String[] {"android", "arm64-android"},  PlatformArchitectures.Android,      "arm64-android");
-    public static final Platform JsWeb          = new Platform(OS.OS_ID_WEB,        "js",           true,    "web",     new String[] {".js"},            "",     "lib",  "",         new String[] {"web", "js-web"},             PlatformArchitectures.Web,          "js-web");
     public static final Platform WasmWeb        = new Platform(OS.OS_ID_WEB,        "wasm",         true,    "web",     new String[] {".js", ".wasm"},   "",     "lib",  "",         new String[] {"web", "wasm-web"},           PlatformArchitectures.Web,          "wasm-web");
     public static final Platform WasmPthreadWeb = new Platform(OS.OS_ID_WEB,        "wasm_pthread", true,    "web",     new String[] {".js", ".wasm"},   "",     "lib",  "",         new String[] {"web", "wasm_pthread-web"},   PlatformArchitectures.Web,          "wasm_pthread-web");
 
@@ -149,6 +148,10 @@ public class Platform {
 
     public String getOs() {
         return this.osName;
+    }
+
+    public String getArch() {
+        return this.arch;
     }
 
     public String getExtenderPair() {

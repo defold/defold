@@ -40,8 +40,8 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.util.FileUtil;
@@ -97,7 +97,7 @@ public class ProjectBuildTest {
         }
 
         // project.setOption("platform", Platform.X86Win32.getPair());
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
+        List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
@@ -288,6 +288,8 @@ public class ProjectBuildTest {
 
         assertEquals(0, countExcludedEntries(bundledManifestData));
         assertTrue(countExcludedEntries(publishedManifestData) > 0);
+        assertTrue(bundledManifestData.getHasExcludedResources());
+        assertTrue(publishedManifestData.getHasExcludedResources());
 
         assertFalse(hasResource(bundledManifestData, "/logic/level.collectionc"));
         assertFalse(hasResource(bundledManifestData, "/logic/level.goc"));
@@ -308,6 +310,8 @@ public class ProjectBuildTest {
         Manifest.ManifestData publishedManifestData = readManifestData(getPublishedManifestFile());
 
         assertTrue(countExcludedEntries(bundledManifestData) > 0);
+        assertTrue(bundledManifestData.getHasExcludedResources());
+        assertTrue(publishedManifestData.getHasExcludedResources());
         assertEquals(publishedManifestData, bundledManifestData);
     }
 
@@ -320,6 +324,7 @@ public class ProjectBuildTest {
         Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
 
         assertEquals(0, countExcludedEntries(bundledManifestData));
+        assertFalse(bundledManifestData.getHasExcludedResources());
         assertTrue(hasResource(bundledManifestData, "/logic/level.collectionc"));
         assertTrue(hasResource(bundledManifestData, "/logic/level.goc"));
         assertTrue(hasResource(bundledManifestData, "/logic/level.scriptc"));
@@ -338,6 +343,8 @@ public class ProjectBuildTest {
 
         assertEquals(0, countExcludedEntries(bundledManifestData));
         assertEquals(0, countExcludedEntries(publishedManifestData));
+        assertFalse(bundledManifestData.getHasExcludedResources());
+        assertFalse(publishedManifestData.getHasExcludedResources());
         assertEquals(publishedManifestData, bundledManifestData);
     }
 

@@ -21,6 +21,20 @@
 
 namespace dmRig
 {
+    /// One slot per MeshSet model that has morph targets. Maps a model id to a slice of
+    /// RigInstance::m_MorphWeightsBuffer (m_BufferOffset .. +m_MorphCount floats) where
+    /// animation and sampling read/write blend-shape weights for that model.
+    ///
+    /// m_MorphCount is the maximum morph-target count among meshes on that model (one shared
+    /// weight vector for the whole model, matching morph animation tracks). Reset clears this
+    /// slice to zero; glTF/rest defaults live on mesh DDF (m_MorphBaseWeights) for render fallback.
+    struct MorphWeightSlot
+    {
+        uint64_t m_ModelId;
+        uint32_t m_MorphCount;
+        uint32_t m_BufferOffset;
+    };
+
     struct RigPlayer
     {
         RigPlayer() : m_Animation(0x0),
@@ -77,6 +91,10 @@ namespace dmRig
         dmArray<IKAnimation>          m_IKAnimation;
         /// User IK constraint targets
         dmArray<IKTarget>             m_IKTargets;
+
+        dmArray<MorphWeightSlot>      m_MorphSlots;
+        dmArray<float>                m_MorphWeightsBuffer;
+        dmArray<float>                m_MorphScratch;
 
         const dmRigDDF::Model*        m_Model;      // Currently selected model
         uint32_t                      m_NumModels;

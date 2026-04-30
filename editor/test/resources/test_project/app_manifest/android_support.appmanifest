@@ -26,15 +26,6 @@ platforms:
             libs: []
             linkFlags: []
 
-    js-web:
-        context:
-            excludeLibs: []
-            excludeJsLibs: []
-            excludeSymbols: []
-            symbols: []
-            libs: []
-            linkFlags: []
-
     wasm-web:
         context:
             excludeLibs: []

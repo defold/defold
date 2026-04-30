@@ -30,7 +30,7 @@
 
 (def ios #{:armv7-ios :arm64-ios :x86_64-ios})
 
-(def web #{:js-web :wasm-web :wasm_pthread-web})
+(def web #{:wasm-web :wasm_pthread-web})
 
 (def linux #{:x86_64-linux :arm64-linux})
 
@@ -54,7 +54,7 @@
     ;; windows
     :x86-win32 :x86_64-win32
     ;; web
-    :js-web :wasm-web :wasm_pthread-web})
+    :wasm-web :wasm_pthread-web})
 
 (def custom-lib-names
   {:x86-win32 {"hid" "hid"
@@ -560,7 +560,6 @@
                   [:x86-win32 platform-pattern]
                   [:x86_64-win32 platform-pattern]
                   ;; web
-                  [:js-web platform-pattern]
                   [:wasm-web platform-pattern]
                   [:wasm_pthread-web platform-pattern]]]]))
 

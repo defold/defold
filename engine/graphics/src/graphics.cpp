@@ -27,6 +27,7 @@
 #include <dlib/profile.h>
 #include <dlib/math.h>
 #include <dlib/image.h>
+
 #include <dmsdk/dlib/atomic.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
@@ -945,6 +946,10 @@ namespace dmGraphics
         ps.m_BlendEnabled             = 0;
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
+        ps.m_BlendSrcFactorAlpha      = BLEND_FACTOR_ZERO;
+        ps.m_BlendDstFactorAlpha      = BLEND_FACTOR_ZERO;
+        ps.m_BlendEquationColor       = BLEND_EQUATION_ADD;
+        ps.m_BlendEquationAlpha       = BLEND_EQUATION_ADD;
         ps.m_StencilEnabled           = 0;
         ps.m_ScissorTestEnabled       = 0;
         ps.m_StencilFrontOpFail       = STENCIL_OP_KEEP;
@@ -2027,6 +2032,14 @@ namespace dmGraphics
     {
         g_functions.m_SetBlendFunc(context, source_factor, destinaton_factor);
     }
+    void SetBlendFuncSeparate(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        g_functions.m_SetBlendFuncSeparate(context, src_factor_color, dst_factor_color, src_factor_alpha, dst_factor_alpha);
+    }
+    void SetBlendEquationSeparate(HContext context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        g_functions.m_SetBlendEquationSeparate(context, equation_color, equation_alpha);
+    }
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         g_functions.m_SetColorMask(context, red, green, blue, alpha);
@@ -2293,10 +2306,13 @@ namespace dmGraphics
         g_functions.m_DisableUniformBuffer(context, uniform_buffer);
     }
 
+// TODO: Make graphics.cpp backend agnostic
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
+#if !defined(DM_GRAPHICS_NULL)
         glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
+#endif
     }
 #endif
 

@@ -80,14 +80,6 @@ platforms:
             symbols: []
             libs: [libphysics_2d.lib, libbox2d.lib, libscript_box2d.lib]
             linkFlags: []
-    js-web:
-        context:
-            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
-            excludeSymbols: []
-            symbols: []
-            libs: [physics_2d, box2d, script_box2d]
-            linkFlags: []
-            excludeJslibs: []
     wasm-web:
         context:
             excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
