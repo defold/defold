@@ -295,10 +295,10 @@
 
 (defn- appear-filtered-renderable-tags [scene-visibility]
   (into #{}
-        (keep (fn [{:keys [appear-filtered tag]
+        (keep (fn [{:keys [appear-filtered key]
                     :or {appear-filtered true}}]
                 (when appear-filtered
-                  tag)))
+                  key)))
         (renderable-tag-descriptors scene-visibility)))
 
 (defn toggle-button [app-view]

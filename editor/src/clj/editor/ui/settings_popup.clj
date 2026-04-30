@@ -14,8 +14,10 @@
 
 (ns editor.ui.settings-popup
   (:require [cljfx.api :as fx]
+            [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.region :as fx.region]
+            [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.slider :as fx.slider]
             [clojure.string :as string]
             [editor.colors :as colors]
@@ -25,9 +27,7 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
-            [editor.prefs :as prefs]
-            [editor.ui :as ui]
-            [util.defonce :as defonce])
+            [editor.ui :as ui])
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
            [javafx.css Styleable]
@@ -216,16 +216,9 @@
     (doto (wrap-in-hbox [button])
       (ui/add-style! "reset-button"))))
 
-(defn settings-visible? [^Parent owner]
-  (some? (ui/user-data owner ::popup)))
-
 (defn- make-settings-divider-row [^Control control]
   (doto (wrap-in-hbox [control])
     (ui/add-style! "settings-divider-row")))
-
-(defn- pref-popup-position
-  ^Point2D [^Parent container width x-offset]
-  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
 
 (defn- make-row-from-descriptor [keymap localization popup settings-store descriptor]
   (let [descriptor (cond-> descriptor
@@ -296,13 +289,13 @@
 
 ;; CLJFX Port from here on out
 
-(defn- make-toggle-row-fx [{:keys [key label accelerator state swap-state on-selected-changed] :as thing}]
+(defn- make-toggle-row-fx [{:keys [key label accelerator state swap-state on-selected-changed]}]
   {:fx/type fxui/horizontal
    :style-class "toggle-row"
    :alignment :center-left
    :on-mouse-clicked (fn [_]
-                       (swap-state assoc key (not (boolean (when key (key state)))))
-                       (on-selected-changed (not (boolean (when key (key state))))))
+                       (swap-state assoc key (not (boolean (key state))))
+                       (on-selected-changed (not (boolean (key state)))))
    ;; :disable true
    :children [{:fx/type fxui/label
                :style-class "slide-switch-label"
@@ -316,11 +309,17 @@
                :desc
                {:fx/type fx.check-box/lifecycle
                 :style-class ["slide-switch"]
-                :selected (boolean (when key (key state)))
-                :on-selected-changed (or on-selected-changed (fn [_]))}}]})
+                :selected (key state)
+                :on-selected-changed (fn [v]
+                                       (swap-state assoc key v)
+                                       (on-selected-changed v))}}]})
 
-(defn- make-slider-row-fx [{:keys [key label min max state swap-state slider-value->string on-value-changed] :as asdf}]
-  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))]
+(defn- make-slider-row-fx [{:keys [key label min max snap-to state swap-state slider-value->string on-value-changed]}]
+  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
+        snap-fn (if snap-to
+                  (fn [^double v]
+                    (* (double snap-to) (Math/round (/ v (double snap-to)))))
+                  identity)]
     {:fx/type fxui/horizontal
      :children [{:fx/type fxui/label
                  :text (or label "")
@@ -331,14 +330,21 @@
                  :text (slider-value->string (key state))}
                 {:fx/type fxui/ext-ensure-focus-traversable
                  :desc
-                 {:fx/type fx.slider/lifecycle
-                  :min min
-                  :max max
-                  :value (key state)
-                  :block-increment 0.1
-                  :on-value-changed (fn [v]
-                                      (on-value-changed v)
-                                      (swap-state assoc key v))}}]}))
+                 (cond-> {:fx/type fx.slider/lifecycle
+                          :min min
+                          :max max
+                          :value (key state)
+                          :block-increment 0.1
+                          :on-value-changed (fn [v]
+                                              (on-value-changed v)
+                                              (swap-state assoc key v))}
+                         snap-to
+                         (assoc :snap-to-ticks true :major-tick-unit snap-to
+                                :on-mouse-released (fn [^javafx.event.Event e]
+                                                     (let [slider ^javafx.scene.control.Slider (.getSource e)
+                                                           v (snap-fn (.getValue slider))]
+                                                       (on-value-changed v)
+                                                       (swap-state assoc key v)))))}]}))
 
 ;; `fxui/color-picker` is a compound component (an HBox containing a value-field and a JavaFX
 ;; ColorPicker), so we can't just wrap it the same way -- we need to reach into its internals to
@@ -415,6 +421,16 @@
                                                        (on-value-changed axis))))}}))
                    axes)})
 
+(defn- make-reset-row-fx [{:keys [text swap-state on-reset]}]
+  {:fx/type fxui/horizontal
+   :style-class "reset-button"
+   :children [{:fx/type fxui/ext-ensure-focus-traversable
+               :desc
+               {:fx/type fx.button/lifecycle
+                :text text
+                :max-width Double/MAX_VALUE
+                :on-action (fn [_] (on-reset swap-state))}}]})
+
 (defn- make-row-fx [keymap localization-state state swap-state descriptor]
   (case (:type descriptor)
     :toggle
@@ -422,7 +438,6 @@
      :label (localization-state (localization/message (:label descriptor)))
      :accelerator (keymap/display-text keymap (:command descriptor) "")
      :key (:key descriptor)
-     :selected (:value descriptor)
      :state state
      :swap-state swap-state
      :on-selected-changed #((:on-value-changed descriptor) %)}
@@ -463,6 +478,24 @@
      :swap-state swap-state
      :on-value-changed #((:on-value-changed descriptor) %)}
 
+    :reset-all
+    {:fx/type make-reset-row-fx
+     :text (localization-state (localization/message "scene-popup.reset-defaults-button"))
+     :swap-state swap-state
+     :on-reset (:on-reset descriptor)}
+
+    :space
+    {:fx/type fxui/horizontal
+     :style-class "settings-divider-row"
+     :children [{:fx/type fx.region/lifecycle}]}
+
+    :separator
+    {:fx/type fxui/horizontal
+     :style-class "settings-divider-row"
+     :children [{:fx/type fx.separator/lifecycle
+                 :h-box/hgrow :always
+                 :max-width Double/MAX_VALUE}]}
+
     nil))
 
 (fxui/defc cljfx-popup-view
@@ -496,7 +529,8 @@
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings]
    (show! owner keymap localization state on-change width x-offset setting-descriptors hidden-settings nil))
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings on-closed]
-   (when-not (ui/user-data owner ::popup)
+   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
+     (do (.hide popup) nil)
      (let [visible-descriptors (remove #(contains? hidden-settings (:key %)) setting-descriptors)
            content (StackPane.)
            popup (make-popup owner content)

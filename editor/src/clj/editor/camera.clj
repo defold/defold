@@ -1213,7 +1213,10 @@
 
 (defn show-settings! [^Parent owner camera-node prefs keymap localization]
   (let [descriptors
-        [{:type :reset-all}
+        [{:type :reset-all
+          :on-reset (fn [swap-state]
+                      (prefs/reset-path! prefs [:scene :perspective-camera])
+                      (swap-state merge (prefs/get prefs [:scene :perspective-camera])))}
          {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0 :snap-to 0.25
           :value (prefs/get prefs prefs-key-move-speed)
           :on-value-changed #(prefs/set! prefs prefs-key-move-speed %)

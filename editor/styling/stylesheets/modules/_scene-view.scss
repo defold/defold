@@ -100,6 +100,10 @@
             -fx-background-radius: 4px;
             -fx-padding: 7px 14px 7px 14px;
 
+            .label {
+                -fx-alignment: center-left;
+            }
+
             HBox {
                 -fx-spacing: 5px;
                 -fx-pref-height: 38px;
