@@ -115,8 +115,11 @@
                 -fx-pref-height: 5px;
             }
 
-            .color-setting-row {
-                -fx-max-width: 100px;
+            .ext-color-picker-field {
+                -fx-max-width: 85px;
+            }
+
+            .opacity-row {
             }
 
             .compact-toggle {
@@ -136,7 +139,8 @@
                 -fx-text-fill: -df-text;
                 -fx-background-radius: 0;
                 -fx-border-radius: 0;
-                -fx-pref-width: 30px;
+                -fx-min-width: 35px;
+                -fx-min-height: 30px;
             }
 
             .text-input {
@@ -164,6 +168,7 @@
             }
 
             .toggle-button {
+                -fx-border-width: 1px;
                 &:selected {
                     -fx-text-fill: -df-text-selected;
                     -fx-background-color: -df-background-light;
@@ -196,7 +201,7 @@
             }
 
             .slider {
-                -fx-pref-width: 100px;
+                -fx-pref-width: 90px;
                 .track {
                     -fx-background-color: -df-background-light;
                     -fx-border-color: -df-component-light;

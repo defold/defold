@@ -141,9 +141,8 @@
               {:fx/type ext-color-picker-focus-traversable
                :desc
                {:fx/type fxui/color-picker
-                :value (when (key state)
-                         (let [[r g b a] (key state)]
-                           (Color. (float r) (float g) (float b) (float a))))
+                :value (let [[r g b a] (key state)]
+                         (Color. (float r) (float g) (float b) (float a)))
                 :on-value-changed (fn [^Color c]
                                     (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
                                       (swap-state assoc key color)
