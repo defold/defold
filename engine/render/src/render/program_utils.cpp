@@ -28,28 +28,20 @@ namespace dmRender
                program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50;
     }
 
-    static inline Matrix4 MakeAdjustedNDCMatrix()
-    {
-        Matrix4 ndc_matrix = Matrix4::identity();
-        ndc_matrix.setElem(2, 2, 0.5f);
-        ndc_matrix.setElem(3, 2, 0.5f);
-        return ndc_matrix;
-    }
-
-    static inline Matrix4 GetProjectionMatrixForProgram(HRenderContext render_context, dmGraphics::ShaderDesc::Language program_language)
+    const Matrix4& GetProjectionMatrixForProgram(HRenderContext render_context, dmGraphics::ShaderDesc::Language program_language)
     {
         if (ProgramUsesAdjustedNDC(program_language))
         {
-            return MakeAdjustedNDCMatrix() * render_context->m_Projection;
+            return render_context->m_ProjectionAdjustedNDC;
         }
         return render_context->m_Projection;
     }
 
-    static inline Matrix4 GetViewProjectionMatrixForProgram(HRenderContext render_context, dmGraphics::ShaderDesc::Language program_language)
+    const Matrix4& GetViewProjectionMatrixForProgram(HRenderContext render_context, dmGraphics::ShaderDesc::Language program_language)
     {
         if (ProgramUsesAdjustedNDC(program_language))
         {
-            return MakeAdjustedNDCMatrix() * render_context->m_ViewProj;
+            return render_context->m_ViewProjAdjustedNDC;
         }
         return render_context->m_ViewProj;
     }

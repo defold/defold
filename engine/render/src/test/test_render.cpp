@@ -65,38 +65,6 @@ static void AssertMatrixUniformData(const dmVMath::Matrix4& expected, const floa
     }
 }
 
-static dmVMath::Matrix4 MakeAdjustedNDCMatrix()
-{
-    dmVMath::Matrix4 ndc_matrix = dmVMath::Matrix4::identity();
-    ndc_matrix.setElem(2, 2, 0.5f);
-    ndc_matrix.setElem(3, 2, 0.5f);
-    return ndc_matrix;
-}
-
-static dmVMath::Matrix4 GetProjectionMatrixForLanguage(const dmVMath::Matrix4& projection, dmGraphics::ShaderDesc::Language language)
-{
-    if (language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
-        language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
-        language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
-        language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50)
-    {
-        return MakeAdjustedNDCMatrix() * projection;
-    }
-    return projection;
-}
-
-static dmVMath::Matrix4 GetViewProjectionMatrixForLanguage(const dmVMath::Matrix4& view_projection, dmGraphics::ShaderDesc::Language language)
-{
-    if (language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
-        language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
-        language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
-        language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50)
-    {
-        return MakeAdjustedNDCMatrix() * view_projection;
-    }
-    return view_projection;
-}
-
 static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
 {
     dmRenderDDF::GlyphBank* bank = new dmRenderDDF::GlyphBank;
@@ -2660,8 +2628,8 @@ TEST_F(dmRenderTest, ConstantTypeInverseMatricesSetExpectedValues)
     };
 
     const dmVMath::Matrix4 view_projection = projection * view;
-    const dmVMath::Matrix4 adjusted_projection = GetProjectionMatrixForLanguage(projection, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
-    const dmVMath::Matrix4 adjusted_view_projection = GetViewProjectionMatrixForLanguage(view_projection, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
+    const dmVMath::Matrix4 adjusted_projection = dmRender::GetProjectionMatrixForProgram(m_Context, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
+    const dmVMath::Matrix4 adjusted_view_projection = dmRender::GetViewProjectionMatrixForProgram(m_Context, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
 
     ConstantMatrixExpectation expectations[] =
     {
