@@ -26,8 +26,13 @@ def build(bld):
         script.source = remove_from_node_list(script.source, 'script_html5_js.cpp')
         script.source = remove_from_node_list(script.source, 'http_service_null.cpp')
 
+    stlib_lua = waflib.Utils.to_list(script.env['STLIB_LUA'])
+
+    if 'dluau' in stlib_lua:
+        script.defines = ['DM_SCRIPT_LUAU']
+
     # luabitop
-    if 'lua' in waflib.Utils.to_list(script.env['STLIB_LUA']):
+    if 'lua' in stlib_lua:
         script.source += bld.path.ant_glob('bitop/*.c')
 
     # luasocket

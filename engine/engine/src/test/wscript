@@ -5,6 +5,7 @@ from waflib import Options
 import os, sys, glob, re, shutil
 import run, sdk
 import waf_gamesys
+from waf_dynamo import get_lua_backend
 
 # 1. We want to run it with run.py so that it logs nicely with [exec] ...
 # 2. We need to add DYLD_INSERT_LIBRARIES for macOS
@@ -98,8 +99,8 @@ def build(bld):
 
     bob_flags = ['--variant=debug']
     bob_flags.append("--platform=%s" % platform)
-    if Options.options.use_vanilla_lua:
-        bob_flags.append("--use-vanilla-lua")
+    if get_lua_backend(bld.env.PLATFORM) in ['lua', 'luau']:
+        bob_flags.append("--use-uncompressed-lua-source")
     bob_flags = ' '.join(bob_flags)
 
     classpath = os.pathsep.join(['./build/content/bob-engine.jar'] + bld.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR'])

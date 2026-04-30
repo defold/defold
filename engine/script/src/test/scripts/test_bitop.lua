@@ -14,10 +14,15 @@
 
 -- MD5 test and benchmark. Public domain.
 
+local bit = bit or bit32
 local tobit, tohex, bnot = bit.tobit or bit.cast, bit.tohex, bit.bnot
 local bor, band, bxor = bit.bor, bit.band, bit.bxor
-local lshift, rshift, rol, bswap = bit.lshift, bit.rshift, bit.rol, bit.bswap
+local lshift, rshift, rol, bswap = bit.lshift, bit.rshift, bit.rol or bit.lrotate, bit.bswap or bit.byteswap
 local byte, char, sub, rep = string.byte, string.char, string.sub, string.rep
+
+if not tobit then
+    function tobit(a) return band(a, 0xffffffff) end
+end
 
 if not rol then -- Replacement function if rotates are missing.
     local bor, shl, shr = bit.bor, bit.lshift, bit.rshift

@@ -243,7 +243,7 @@ def install(args):
         install_macos(args)
 
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
-                with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
+                lua_backend = None, skip_tests = False, skip_build_tests = False, skip_codesign = True,
                 skip_docs = False, skip_builtins = False, archive = False):
 
     install_sdk = 'install_sdk'
@@ -296,8 +296,8 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         waf_opts.append('--with-ubsan')
     if with_tsan:
         waf_opts.append('--with-tsan')
-    if with_vanilla_lua:
-        waf_opts.append('--use-vanilla-lua')
+    if lua_backend:
+        waf_opts.append('--enable-feature=%s' % lua_backend)
 
     if platform == 'x86_64-linux':
         args.append('build_sdk_headers') # gather headers after a successful build
@@ -486,7 +486,7 @@ def main(argv):
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
-    parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
+    parser.add_argument("--lua-backend", dest="lua_backend", choices=["lua", "luajit", "luau"], help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
     parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
@@ -551,7 +551,7 @@ def main(argv):
                 with_asan = args.with_asan,
                 with_ubsan = args.with_ubsan,
                 with_tsan = args.with_tsan,
-                with_vanilla_lua = args.with_vanilla_lua,
+                lua_backend = args.lua_backend,
                 archive = args.archive,
                 skip_tests = args.skip_tests,
                 skip_build_tests = args.skip_build_tests,

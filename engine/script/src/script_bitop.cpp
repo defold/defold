@@ -15,10 +15,12 @@
 #include "script.h"
 #include "script_private.h"
 
+#if !defined(DM_SCRIPT_LUAU)
 extern "C"
 {
 #include "bitop/bitop.h"
 }
+#endif
 
 /*# Bitwise operations API documentation
  *
@@ -268,6 +270,9 @@ namespace dmScript
 {
     void InitializeBitop(dlua_State* L)
     {
+#if defined(DM_SCRIPT_LUAU)
+        (void)L;
+#else
         int top = dlua_gettop(L);
 
         luaopen_bit(L);
@@ -277,5 +282,6 @@ namespace dmScript
         // Above call leaves a table and a number on the stack which will not
         // be needed for anything.
         dlua_pop(L, stack - top);
+#endif
     }
 }

@@ -29,6 +29,58 @@ typedef void* (*dlua_Alloc)(void* ud, void* ptr, size_t osize, size_t nsize);
 #define DLUA_REG(l) ((const luaL_Reg*)(l))
 
 #if defined(DM_DLUA_BACKEND_LUAU)
+static void dlua_CopyLuauDebug(dlua_Debug* to, const lua_Debug* from, int level)
+{
+    memset(to, 0, sizeof(*to));
+
+    to->name            = from->name ? from->name : "";
+    to->namewhat        = from->name ? "function" : "";
+    to->what            = from->what ? from->what : "";
+    to->source          = from->source ? from->source : "";
+    to->currentline     = from->currentline;
+    to->nups            = from->nupvals;
+    to->linedefined     = from->linedefined;
+    to->lastlinedefined = from->linedefined;
+    to->i_ci            = level;
+
+    if (from->short_src)
+    {
+        strncpy(to->short_src, from->short_src, sizeof(to->short_src) - 1);
+        to->short_src[sizeof(to->short_src) - 1] = '\0';
+    }
+
+    if (strcmp(to->what, "Lua") == 0 && to->linedefined == 0)
+    {
+        to->what = "main";
+    }
+}
+
+static void dlua_CopyLua51DebugOptions(const char* from, char* to, size_t to_size)
+{
+    size_t index = 0;
+    for (; *from && index + 1 < to_size; ++from)
+    {
+        char option = *from;
+        if (option == 'S')
+        {
+            option = 's';
+        }
+
+        if (option == 'L')
+        {
+            continue;
+        }
+
+        to[index++] = option;
+    }
+    to[index] = '\0';
+}
+
+static int dlua_LuauAbsIndex(dlua_State* L, int idx)
+{
+    return idx > 0 || idx <= DLUA_REGISTRYINDEX ? idx : dlua_gettop(L) + idx + 1;
+}
+
 static int dlua_ToLuaType(int type)
 {
     switch ((dlua_Type)type)
@@ -527,10 +579,20 @@ void dlua_setlevel(dlua_State* from, dlua_State* to)
 int dlua_getstack(dlua_State* L, int level, dlua_Debug* ar)
 {
 #if defined(DM_DLUA_BACKEND_LUAU)
-    (void)L;
-    (void)level;
-    (void)ar;
-    return 0;
+    lua_Debug luau_ar;
+    memset(&luau_ar, 0, sizeof(luau_ar));
+    if (!lua_getinfo(DLUA_L(L), level, "", &luau_ar))
+    {
+        return 0;
+    }
+
+    memset(ar, 0, sizeof(*ar));
+    ar->name     = "";
+    ar->namewhat = "";
+    ar->what     = "";
+    ar->source   = "";
+    ar->i_ci     = level;
+    return 1;
 #else
     return lua_getstack(DLUA_L(L), level, DLUA_AR(ar));
 #endif
@@ -539,10 +601,33 @@ int dlua_getstack(dlua_State* L, int level, dlua_Debug* ar)
 int dlua_getinfo(dlua_State* L, const char* what, dlua_Debug* ar)
 {
 #if defined(DM_DLUA_BACKEND_LUAU)
-    (void)L;
-    (void)what;
-    (void)ar;
-    return 0;
+    char luau_what[16];
+    int inspect_stack_function = what[0] == '>';
+    int level = inspect_stack_function ? -1 : ar->i_ci;
+    lua_Debug luau_ar;
+
+    dlua_CopyLua51DebugOptions(inspect_stack_function ? what + 1 : what, luau_what, sizeof(luau_what));
+    memset(&luau_ar, 0, sizeof(luau_ar));
+    int result = lua_getinfo(DLUA_L(L), level, luau_what, &luau_ar);
+    if (inspect_stack_function)
+    {
+        if (result && strchr(luau_what, 'f'))
+        {
+            dlua_remove(L, -2);
+        }
+        else
+        {
+            dlua_pop(L, 1);
+        }
+    }
+
+    if (!result)
+    {
+        return 0;
+    }
+
+    dlua_CopyLuauDebug(ar, &luau_ar, level);
+    return 1;
 #else
     return lua_getinfo(DLUA_L(L), what, DLUA_AR(ar));
 #endif
@@ -761,15 +846,26 @@ int dluaL_ref(dlua_State* L, int t)
     if (dlua_isnil(L, -1))
     {
         dlua_pop(L, 1);
-        return 0;
+        return -1;
     }
-    if (t == DLUA_REGISTRYINDEX)
+
+    t = dlua_LuauAbsIndex(L, t);
+    dlua_rawgeti(L, t, 0);
+    int ref = (int)dlua_tointeger(L, -1);
+    dlua_pop(L, 1);
+
+    if (ref != 0)
     {
-        return lua_ref(DLUA_L(L), -1);
+        dlua_rawgeti(L, t, ref);
+        dlua_rawseti(L, t, 0);
     }
-    lua_pushfstring(DLUA_L(L), "%s only supports the registry table on the Luau backend", "dluaL_ref");
-    lua_error(DLUA_L(L));
-    return DLUA_NOREF;
+    else
+    {
+        ref = (int)dlua_objlen(L, t) + 1;
+    }
+
+    dlua_rawseti(L, t, ref);
+    return ref;
 #else
     return luaL_ref(DLUA_L(L), t);
 #endif
@@ -778,10 +874,16 @@ int dluaL_ref(dlua_State* L, int t)
 void dluaL_unref(dlua_State* L, int t, int ref)
 {
 #if defined(DM_DLUA_BACKEND_LUAU)
-    if (t == DLUA_REGISTRYINDEX)
+    if (ref < 0)
     {
-        lua_unref(DLUA_L(L), ref);
+        return;
     }
+
+    t = dlua_LuauAbsIndex(L, t);
+    dlua_rawgeti(L, t, 0);
+    dlua_rawseti(L, t, ref);
+    dlua_pushinteger(L, ref);
+    dlua_rawseti(L, t, 0);
 #else
     luaL_unref(DLUA_L(L), t, ref);
 #endif

@@ -73,6 +73,26 @@ def is_platform_private(platform):
 def feature_enabled(feature):
     return feature in getattr(Options.options, 'enable_features', [])
 
+def get_lua_backend(platform):
+    lua_backends = ['lua', 'luajit', 'luau']
+    requested_backends = [backend for backend in lua_backends if feature_enabled(backend)]
+
+    if len(requested_backends) > 1:
+        raise Errors.WafError('Only one Lua backend feature can be enabled: %s' % ', '.join(lua_backends))
+
+    if requested_backends:
+        backend = requested_backends[0]
+        if backend == 'luajit' and ('web' in platform or not platform_supports_feature(platform, 'luajit', {})):
+            raise Errors.WafError('LuaJIT is not supported on platform %s' % platform)
+        if backend == 'luau' and not platform_supports_feature(platform, 'luau', {}):
+            raise Errors.WafError('Luau is not supported on platform %s' % platform)
+        return backend
+
+    if 'web' in platform or not platform_supports_feature(platform, 'luajit', {}):
+        return 'lua'
+
+    return 'luajit'
+
 def platform_supports_feature(platform, feature, data):
     if feature == 'mbedtls' and feature_enabled(feature):
         return True
@@ -1966,14 +1986,14 @@ def detect(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
-    use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
-    if target_os == TargetOS.WEB or not platform_supports_feature(build_util.get_target_platform(), 'luajit', {}):
-        use_vanilla = True
-
-    if use_vanilla:
+    lua_backend = get_lua_backend(build_util.get_target_platform())
+    conf.env['LUA_BACKEND'] = lua_backend
+    if lua_backend == 'lua':
         conf.env['STLIB_LUA'] = ['dlua', 'lua']
-    else:
+    elif lua_backend == 'luajit':
         conf.env['STLIB_LUA'] = ['dluajit', 'luajit-5.1']
+    elif lua_backend == 'luau':
+        conf.env['STLIB_LUA'] = ['dluau', 'luaucompiler', 'luaubytecode', 'luauast', 'luauvm', 'luaucommon']
 
     conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
@@ -2156,7 +2176,6 @@ def options(opt):
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')
-    opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
@@ -2179,5 +2198,5 @@ def options(opt):
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
 
-    # Currently supported features: physics, simd (html5), mbedtls
+    # Currently supported features: physics, simd (html5), mbedtls, lua, luajit, luau
     opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --enable-feature=foo')
