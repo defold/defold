@@ -18,9 +18,11 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
+            [editor.gl.texture :as texture]
             [editor.image :refer :all]
             [editor.image-util :refer :all]
             [editor.geom :refer :all]
+            [editor.workspace :as workspace]
             [schema.test])
   (:import [java.awt.image BufferedImage]))
 
@@ -30,3 +32,22 @@
   (let [img (make-image (as-url (file "foo")) (BufferedImage. 128 192 BufferedImage/TYPE_4BYTE_ABGR))]
     (is (= 128 (.width img)))
     (is (= 192 (.height img)))))
+
+(deftest image-resource-type-opens-in-scene-view
+  (let [registrations (atom [])]
+    (with-redefs [workspace/register-resource-type (fn [_workspace & args]
+                                                     (swap! registrations conj (apply hash-map args))
+                                                     [])]
+      (doall (register-resource-types ::workspace)))
+    (is (= ["jpg" "jpeg" "png"] (:ext (first @registrations))))
+    (is (= [:scene :default] (:view-types (first @registrations))))))
+
+(deftest image-scene
+  (let [scene (produce-scene {:_node-id ::image
+                              :size {:width 128 :height 64}
+                              :gpu-texture (texture/empty-texture ::image :rgba 1 1 texture/default-image-texture-params 0)
+                              :texture-profile {:name "Test"}})]
+    (is (= ::image (:node-id scene)))
+    (is (= "128 x 64 (Test profile)" (:info-text scene)))
+    (is (some? (:renderable scene)))
+    (is (seq (:children scene)))))
