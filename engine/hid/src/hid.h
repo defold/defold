@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 
-#include <dmsdk/hid/hid.h>
+#include "dmsdk/hid/hid.h"
 #include <dmsdk/platform/window.h>
 
 namespace dmHID

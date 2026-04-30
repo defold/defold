@@ -34,7 +34,6 @@ namespace dmHID
         dmArray<GamepadDriver*> m_GamepadDrivers;
     };
 
-#if !defined(__APPLE__)
     static void GLFWAddKeyboardChar(void* ctx, int chr)
     {
         AddKeyboardChar((HContext) ctx, chr);
@@ -45,6 +44,7 @@ namespace dmHID
         SetMarkedText((HContext) ctx, text);
     }
 
+#if !defined(__APPLE__)
     static void GLFWDeviceChangedCallback(void* ctx, int status)
     {
         HContext context = (HContext) ctx;
@@ -186,9 +186,9 @@ namespace dmHID
             }
 
             assert(context->m_Window && "No window has been set.");
-#if !defined(__APPLE__)
             dmPlatform::SetKeyboardCharCallback(context->m_Window, GLFWAddKeyboardChar, (void*) context);
             dmPlatform::SetKeyboardMarkedTextCallback(context->m_Window, GLFWSetMarkedText, (void*) context);
+#if !defined(__APPLE__)
             dmPlatform::SetKeyboardDeviceChangedCallback(context->m_Window, GLFWDeviceChangedCallback, (void*) context);
 #endif
 
