@@ -21,6 +21,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graphics.types :as graphics.types]
             [editor.math :as math]
+            [editor.pose :as pose]
             [editor.shaders :as shaders]
             [editor.types :as types]
             [util.array :as array]
@@ -193,13 +194,25 @@
 
 ;; SDK api
 (defn make-outlined-textured-quad-scene
-  [tags transform width height gpu-texture page-index]
-  {:pre [(instance? Matrix4d transform)]}
+  [tags pose-or-transform width height gpu-texture page-index]
   (let [min (Point3d. 0.0 0.0 0.0)
         max (Point3d. (double width) (double height) 0.0)
-        aabb (types/->AABB min max)]
+        aabb (types/->AABB min max)
+        pose (cond
+               (pose/pose? pose-or-transform)
+               pose-or-transform
+
+               ;; Compatibility with legacy editor plugins.
+               ;; Remove once plugins have been updated.
+               (instance? Matrix4d pose-or-transform)
+               (pose/from-matrix pose-or-transform)
+
+               :else
+               (throw
+                 (ex-info "Expected Pose or Matrix4d."
+                          {:value pose-or-transform})))]
     {:aabb aabb
-     :transform transform
+     :pose pose
      :renderable (make-textured-quad-renderable tags 0.0 0.0 width height gpu-texture page-index)
      :children [{:aabb aabb
                  :renderable (make-aabb-outline-renderable tags)}]}))

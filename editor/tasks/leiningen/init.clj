@@ -79,11 +79,13 @@
 
   Arguments:
     - version: dynamo-home, archived, archived-stable or a sha.
-    - archive-domain: domain where engine artifacts are stored"
-  [project & [version archive-domain]]
+    - archive-domain: domain where engine artifacts are stored
+    - target-platform: optional platform to pack into resources/_unpack"
+  [project & [version archive-domain target-platform]]
   (let [git-sha (resolve-version version)
         archive-domain (resolve-archive-domain archive-domain)
-        project (assoc project :archive-domain archive-domain :engine git-sha)]
+        project (assoc-in (assoc project :archive-domain archive-domain :engine git-sha)
+                          [:packing :target-platform] target-platform)]
     (println (format "Initializing editor with version '%s', resolved to '%s'. Using archive domain '%s'." version (get project :engine) (get project :archive-domain)))
     (doseq [task+args init-tasks]
       (main/resolve-and-apply project task+args))))
