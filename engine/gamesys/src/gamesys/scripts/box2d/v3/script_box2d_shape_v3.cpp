@@ -232,6 +232,22 @@ namespace dmGameSystem
         return shape_def;
     }
 
+    static B2DShapeDef CheckShapeUpdateDef(lua_State* L, int index)
+    {
+        luaL_checktype(L, index, LUA_TTABLE);
+
+        lua_getfield(L, index, "shape");
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 1);
+            return CheckShapeDef(L, index);
+        }
+
+        B2DShapeDef shape_def = CheckShapeDef(L, -1);
+        lua_pop(L, 1);
+        return shape_def;
+    }
+
     void CheckShapeCreateDef(lua_State* L, int index, B2DShapeDef* out_shape_def, b2ShapeDef* out_shape_create_def)
     {
         luaL_checktype(L, index, LUA_TTABLE);
@@ -438,6 +454,54 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Shape_SetShape(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        int shape_index = luaL_checkinteger(L, 2);
+        b2ShapeId shape = GetShapeByIndex(*body, shape_index);
+        if (!b2Shape_IsValid(shape))
+        {
+            return luaL_error(L, "shape_index %d out of range.", shape_index);
+        }
+
+        b2ChainId parent_chain = b2Shape_GetParentChain(shape);
+        if (b2Chain_IsValid(parent_chain))
+        {
+            return luaL_error(L, "Cannot set chain segment shape geometry.");
+        }
+
+        b2WorldId world = b2Shape_GetWorld(shape);
+        if (b2World_IsLocked(world))
+        {
+            return luaL_error(L, "Could not set shape. The world is locked.");
+        }
+
+        B2DShapeDef shape_def = CheckShapeUpdateDef(L, 3);
+        switch (shape_def.m_Type)
+        {
+            case B2DShapeDef::TYPE_CIRCLE:
+                b2Shape_SetCircle(shape, &shape_def.m_Circle);
+                break;
+            case B2DShapeDef::TYPE_CAPSULE:
+                b2Shape_SetCapsule(shape, &shape_def.m_Capsule);
+                break;
+            case B2DShapeDef::TYPE_SEGMENT:
+                b2Shape_SetSegment(shape, &shape_def.m_Segment);
+                break;
+            case B2DShapeDef::TYPE_POLYGON:
+                b2Shape_SetPolygon(shape, &shape_def.m_Polygon);
+                break;
+        }
+
+        bool update_mass = lua_gettop(L) >= 4 && !lua_isnil(L, 4) && lua_toboolean(L, 4);
+        if (update_mass)
+        {
+            b2Body_ApplyMassFromShapes(*body);
+        }
+        return 0;
+    }
+
     static int Shape_IsSensor(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -549,6 +613,7 @@ namespace dmGameSystem
     static const luaL_reg Shape_functions[] =
     {
         {"get_shape", Shape_GetShape},
+        {"set_shape", Shape_SetShape},
         {"get_type", Shape_GetType},
         {"is_sensor", Shape_IsSensor},
         {"set_sensor", Shape_SetSensor},
@@ -587,3 +652,85 @@ namespace dmGameSystem
         lua_setfield(L, -2, "shape");
     }
 }
+
+/*# Box2D b2Shape documentation
+ *
+ * Constants and functions for Box2D v3 shape tables used with
+ * `b2d.body.create_shape` and returned from `b2d.shape.get_shape`.
+ *
+ * @document
+ * @name b2d.shape
+ * @namespace b2d.shape
+ * @language Lua
+ */
+
+/*# Get a shape's geometry.
+ * @name b2d.shape.get_shape
+ * @param body [type: b2Body] body
+ * @param shape_index [type: number] 1-based shape index from `b2d.body.get_shapes`
+ * @return shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
+ */
+
+/*# Set a shape's geometry.
+ * This updates the shape geometry using the same table format as
+ * `b2d.body.create_shape` and `b2d.shape.get_shape`. The body mass is not
+ * updated unless `update_mass` is true.
+ * @warning This function is locked during callbacks.
+ * @name b2d.shape.set_shape
+ * @param body [type: b2Body] body
+ * @param shape_index [type: number] 1-based shape index from `b2d.body.get_shapes`
+ * @param shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
+ * @param update_mass [type: boolean] true to reset body mass from shapes
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ *
+ * -- Move a circle shape relative to the body origin.
+ * local circle = b2d.shape.get_shape(body, 1)
+ * circle.center = vmath.vector3(24, 0, 0)
+ * b2d.shape.set_shape(body, 1, circle, true)
+ *
+ * -- Replace an edge shape's local endpoints.
+ * b2d.shape.set_shape(body, 2, {
+ *     type = b2d.shape.SHAPE_TYPE_EDGE,
+ *     v1 = vmath.vector3(-32, 0, 0),
+ *     v2 = vmath.vector3( 32, 0, 0),
+ * })
+ *
+ * -- Update a box shape using the polygon box convenience format.
+ * b2d.shape.set_shape(body, 3, {
+ *     type = b2d.shape.SHAPE_TYPE_BOX,
+ *     hx = 16,
+ *     hy = 8,
+ *     center = vmath.vector3(0, 20, 0),
+ *     angle = math.rad(30),
+ * }, true)
+ * ```
+ */
+
+/*# Circle shape type.
+ * @name b2d.shape.SHAPE_TYPE_CIRCLE
+ * @constant
+ */
+
+/*# Capsule shape type.
+ * @name b2d.shape.SHAPE_TYPE_CAPSULE
+ * @constant
+ */
+
+/*# Edge shape type.
+ * @name b2d.shape.SHAPE_TYPE_EDGE
+ * @constant
+ */
+
+/*# Polygon shape type.
+ * @name b2d.shape.SHAPE_TYPE_POLYGON
+ * @constant
+ */
+
+/*# Box shape type alias.
+ * Uses the polygon enum value, but indicates the `hx`/`hy` box convenience format.
+ * @name b2d.shape.SHAPE_TYPE_BOX
+ * @constant
+ */
