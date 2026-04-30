@@ -598,22 +598,23 @@ These forms should be quoted, as if they came from a macro."
               (pos? (count attribute-name))))))
 
 (defn make-shader-request-data
-  (^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]
-   (make-shader-request-data shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str false))
-  (^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str uses-preview-light-buffer]
+  ^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]
   {:pre [(every? shader-type+source-pair? shader-type+source-pairs)
          (every? location+attribute-name-pair? location+attribute-name-pairs)
          (map? array-sampler-name->uniform-names)
          (or (nil? strip-resource-binding-namespace-regex-str)
              (and (string? strip-resource-binding-namespace-regex-str)
-                  (pos? (count strip-resource-binding-namespace-regex-str))))
-         (instance? Boolean uses-preview-light-buffer)]}
+                  (pos? (count strip-resource-binding-namespace-regex-str))))]}
   (->ShaderRequestData
     (vec shader-type+source-pairs)
     (vec location+attribute-name-pairs)
     array-sampler-name->uniform-names
     strip-resource-binding-namespace-regex-str
-    uses-preview-light-buffer)))
+    false))
+
+(defn with-preview-light-buffer-usage ^ShaderRequestData [^ShaderRequestData request-data ^boolean uses-preview-light-buffer]
+  {:pre [(instance? ShaderRequestData request-data)]}
+  (assoc request-data :uses-preview-light-buffer uses-preview-light-buffer))
 
 (defn make-shader-lifecycle
   ^ShaderLifecycle [request-id request-data attribute-reflection-infos uniform-values-by-name]
@@ -718,12 +719,12 @@ These forms should be quoted, as if they came from a macro."
         (read-combined-shader-info shader-paths opts shader-path->source)
 
         shader-request-data
-        (make-shader-request-data
-          shader-type+source-pairs
-          location+attribute-name-pairs
-          array-sampler-name->slice-sampler-names
-          strip-resource-binding-namespace-regex-str
-          uses-preview-light-buffer)
+        (-> (make-shader-request-data
+              shader-type+source-pairs
+              location+attribute-name-pairs
+              array-sampler-name->slice-sampler-names
+              strip-resource-binding-namespace-regex-str)
+            (with-preview-light-buffer-usage uses-preview-light-buffer))
 
         attribute-reflection-infos
         (mapv #(editor.graphics.types/assign-attribute-transform % coordinate-space)

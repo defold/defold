@@ -83,7 +83,6 @@
 (def ^:private icon-spot-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-spot-gpu-texture "icons/scene/light_spot.png"))
 (def ^:private icon-sun-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-sun-gpu-texture "icons/scene/light_sun.png"))
 
-;; Property inspector and form choicebox: [value label] pairs.
 (def ^:private light-type-options
   [[:point "Point"]
    [:directional "Directional"]
@@ -225,16 +224,13 @@
          (Math/abs (.-z ws)))
     1.0))
 
-(defn- v3-normalize! [^Vector3d v ^Vector3d fallback]
-  (let [len (Math/sqrt (+ (* (.x v) (.x v)) (* (.y v) (.y v)) (* (.z v) (.z v))))]
-    (if (> len 1e-10)
-      (doto v (.scale (/ 1.0 len)))
-      (.set v fallback))))
-
 (defn- world-dir-from-light [renderable]
   (let [d (Vector3d. 0.0 0.0 -1.0)
         v (math/transform-vector (:world-transform renderable) d)]
-    (v3-normalize! v (Vector3d. 0.0 0.0 -1.0))))
+    (if (> (.lengthSquared v) 1e-20)
+      (doto v
+        (.normalize))
+      (Vector3d. 0.0 0.0 -1.0))))
 
 (defn- billboard-axes [^Vector3d world-center camera]
   (let [cam-pos (Vector3d. (types/position camera))

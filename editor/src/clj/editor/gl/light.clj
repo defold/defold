@@ -112,12 +112,6 @@
 
 (def ^:private lights-count-uniform-name "lights_count")
 
-(defn- set-preview-light-uniform-at-index! [^GL2 gl program uniform-info uniform-name uniform-value]
-  (try
-    (shader/set-uniform-at-index gl program (:location uniform-info) uniform-value)
-    (catch IllegalArgumentException e
-      (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." uniform-name) e)))))
-
 (defn- shader-preview-light-capacity ^long [uniform-infos]
   (let [array-sizes (into []
                           (keep (fn [field]
@@ -145,7 +139,7 @@
                 light-count (long (count lights))
                 count-v4 (Vector4d. (double light-count) 0.0 0.0 0.0)]
             (when-some [uniform-info (uniform-infos lights-count-uniform-name)]
-            (set-preview-light-uniform-at-index! gl program uniform-info lights-count-uniform-name count-v4))
+              (shader/set-uniform-at-index gl program (:location uniform-info) count-v4))
 
             (when (pos? light-count)
               (doseq [^long i (range light-count)
@@ -157,4 +151,4 @@
                       :when (and (string? (not-empty uniform-name))
                                  (some? uniform-value)
                                  uniform-info)]
-                (set-preview-light-uniform-at-index! gl program uniform-info uniform-name uniform-value)))))))))
+                (shader/set-uniform-at-index gl program (:location uniform-info) uniform-value)))))))))

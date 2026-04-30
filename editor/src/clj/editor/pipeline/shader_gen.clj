@@ -152,9 +152,6 @@
                  vertex-shader-stage-flag)))
 
 (def ^:private preview-light-buffer-type-name "LightBuffer")
-(def ^:private preview-light-type-name "Light")
-(def ^:private preview-light-instance-name "lights")
-(def ^:private preview-lights-count-buffer-type-name "fs_uniforms")
 
 (defn- resource-type-at ^Shaderc$ResourceTypeInfo [types ^long type-index]
   (when (<= 0 type-index (dec (count types)))
@@ -167,39 +164,14 @@
 (defn- resource-type-name [types ^Shaderc$ShaderResource shader-resource]
   (some-> ^Shaderc$ResourceTypeInfo (resource-type-from-shader-resource types shader-resource) .-name))
 
-(defn- preview-light-type? [^Shaderc$ResourceTypeInfo resource-type]
-  (and resource-type
-       (= preview-light-type-name (.-name resource-type))))
-
-(defn- preview-light-buffer-wrapper-resource? [types ^Shaderc$ShaderResource uniform-buffer]
-  (= preview-light-buffer-type-name
-     (resource-type-name types uniform-buffer)))
-
-(defn- preview-light-block-array-resource? [types ^Shaderc$ShaderResource uniform-buffer]
-  (let [instance-name (or (some-> uniform-buffer .-instanceName not-empty)
-                          (some-> uniform-buffer .-name not-empty))]
-    (and (= preview-light-type-name
-            (resource-type-name types uniform-buffer))
-         (= preview-light-instance-name instance-name))))
-
-(defn- lights-count-resource? [types ^Shaderc$ShaderResource uniform-buffer]
-  (= preview-lights-count-buffer-type-name
-     (resource-type-name types uniform-buffer)))
-
 (defn- uses-preview-light-buffer? [^SPIRVReflector spirv-reflector]
   (let [types (.getTypes spirv-reflector)
-        uniform-buffers (.getUBOs spirv-reflector)
-        has-light-type (boolean
-                         (some preview-light-type?
-                               types))]
-    (and has-light-type
-         (boolean
-           (or (some (partial preview-light-buffer-wrapper-resource? types)
-                     uniform-buffers)
-               (and (some (partial preview-light-block-array-resource? types)
-                          uniform-buffers)
-                    (some (partial lights-count-resource? types)
-                          uniform-buffers)))))))
+        uniform-buffers (.getUBOs spirv-reflector)]
+    (boolean
+      (some (fn [^Shaderc$ShaderResource uniform-buffer]
+              (= preview-light-buffer-type-name
+                 (resource-type-name types uniform-buffer)))
+            uniform-buffers))))
 
 (defn transpile-shader-source
   "Compiles a single shader source file, for example, a .vp or a .fp file into an

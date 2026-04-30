@@ -677,7 +677,12 @@
               additional-renderables-by-pass)]
     {:renderables filtered-additional-renderables-by-pass}))
 
-(g/defnk produce-pass->render-args [^Region viewport camera scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths local-camera]
+(g/defnk produce-pass->render-args
+  "Builds the usual per-pass render args and also attaches scene-derived preview
+  light data for material shaders. We collect lights in a separate flatten pass
+  so preview overrides are reflected immediately, and we ignore the `:light`
+  visibility tag here since hiding light gizmos should not disable lighting."
+  [^Region viewport camera scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths local-camera]
   (let [preview-lights
         (if-let [error (:error scene)]
           []
