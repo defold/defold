@@ -18,6 +18,7 @@
 #include <Box2D/Collision/Shapes/b2CircleShape.h>
 #include <Box2D/Collision/Shapes/b2EdgeShape.h>
 #include <Box2D/Collision/Shapes/b2PolygonShape.h>
+#include <Box2D/Dynamics/b2World.h>
 
 #include <script/script.h>
 #include <gameobject/script.h>
@@ -300,6 +301,95 @@ namespace dmGameSystem
         return 1;
     }
 
+    static const b2Shape* CheckShapeUpdateDef(lua_State* L, int index, FixtureShapeDef* out_shape)
+    {
+        luaL_checktype(L, index, LUA_TTABLE);
+
+        lua_getfield(L, index, "shape");
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 1);
+            return CheckShapeDef(L, index, out_shape);
+        }
+
+        const b2Shape* shape = CheckShapeDef(L, -1, out_shape);
+        lua_pop(L, 1);
+        return shape;
+    }
+
+    static int Fixture_SetShape(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        int fixture_index = luaL_checkinteger(L, 2);
+        b2Fixture* fixture = GetFixtureByIndex(body, fixture_index);
+        if (!fixture)
+        {
+            return luaL_error(L, "fixture_index %d out of range.", fixture_index);
+        }
+
+        b2World* world = body->GetWorld();
+        if (world && world->IsLocked())
+        {
+            return luaL_error(L, "Could not set fixture shape. The world is locked.");
+        }
+
+        FixtureShapeDef shape_def;
+        const b2Shape* new_shape = CheckShapeUpdateDef(L, 3, &shape_def);
+        b2Shape* shape = fixture->GetShape();
+        if (shape->GetType() != new_shape->GetType())
+        {
+            return luaL_error(L, "Cannot change fixture shape type from %d to %d in Box2D v2.", shape->GetType(), new_shape->GetType());
+        }
+
+        switch (shape->GetType())
+        {
+            case b2Shape::e_circle:
+            {
+                *((b2CircleShape*)shape) = *((const b2CircleShape*)new_shape);
+                break;
+            }
+
+            case b2Shape::e_edge:
+            {
+                *((b2EdgeShape*)shape) = *((const b2EdgeShape*)new_shape);
+                break;
+            }
+
+            case b2Shape::e_polygon:
+            {
+                b2PolygonShape* polygon = (b2PolygonShape*)shape;
+                const b2PolygonShape* new_polygon = (const b2PolygonShape*)new_shape;
+                if (polygon->GetVertexCount() != new_polygon->GetVertexCount())
+                {
+                    return luaL_error(L, "Cannot change polygon vertex count from %d to %d in Box2D v2.", polygon->GetVertexCount(), new_polygon->GetVertexCount());
+                }
+                *polygon = *new_polygon;
+                break;
+            }
+
+            case b2Shape::e_chain:
+            {
+                return luaL_error(L, "Cannot set chain shape geometry in Box2D v2.");
+            }
+
+            default:
+            {
+                return luaL_error(L, "Unsupported shape type %d.", shape->GetType());
+            }
+        }
+
+        body->SynchronizeSingle(shape, 0);
+        fixture->Refilter(true);
+        body->SetAwake(true);
+
+        if (lua_gettop(L) >= 4 && !lua_isnil(L, 4) && lua_toboolean(L, 4))
+        {
+            body->ResetMassData();
+        }
+        return 0;
+    }
+
     static int Fixture_IsSensor(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -501,6 +591,7 @@ namespace dmGameSystem
     static const luaL_reg Fixture_functions[] =
     {
         {"get_shape", Fixture_GetShape},
+        {"set_shape", Fixture_SetShape},
         {"get_type", Fixture_GetType},
         {"is_sensor", Fixture_IsSensor},
         {"set_sensor", Fixture_SetSensor},
@@ -553,6 +644,47 @@ namespace dmGameSystem
  * Circle shapes use `radius` and `center`, edge shapes use `v1`, `v2`, optional `v0`, `v3`,
  * polygon shapes use `vertices`, and chain shapes use `vertices`, `loop`, optional `prev_vertex`, and `next_vertex`.
  * Any angle values are in radians.
+ */
+
+/*# Set the fixture shape geometry.
+ * This updates the existing Box2D v2 shape using the same table format as
+ * `b2d.body.create_fixture` and `b2d.fixture.get_shape`.
+ * The shape type must match the current fixture shape type. Polygon updates must
+ * keep the same vertex count. Chain shape geometry cannot be updated in-place.
+ * The body mass is not updated unless `update_mass` is true.
+ * @warning This function is locked during callbacks.
+ * @name b2d.fixture.set_shape
+ * @param body [type: b2Body] body
+ * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
+ * @param update_mass [type: boolean] if true, reset body mass data after the change
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ *
+ * -- Move a circle shape relative to the body origin.
+ * local circle = b2d.fixture.get_shape(body, 1)
+ * circle.center = vmath.vector3(24, 0, 0)
+ * b2d.fixture.set_shape(body, 1, circle, true)
+ *
+ * -- Replace an edge shape's local endpoints.
+ * b2d.fixture.set_shape(body, 2, {
+ *     type = b2d.shape.SHAPE_TYPE_EDGE,
+ *     v1 = vmath.vector3(-32, 0, 0),
+ *     v2 = vmath.vector3( 32, 0, 0),
+ * })
+ *
+ * -- Update a box shape using the polygon box convenience format.
+ * -- The existing polygon must already have four vertices.
+ * b2d.fixture.set_shape(body, 3, {
+ *     type = b2d.shape.SHAPE_TYPE_BOX,
+ *     hx = 16,
+ *     hy = 8,
+ *     center = vmath.vector3(0, 20, 0),
+ *     angle = math.rad(30),
+ * }, true)
+ * ```
  */
 
 /*# Check if a fixture is a sensor.
