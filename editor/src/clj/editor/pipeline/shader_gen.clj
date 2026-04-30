@@ -151,27 +151,14 @@
   (pos? (bit-and (.-stageFlags shader-resource)
                  vertex-shader-stage-flag)))
 
-(def ^:private preview-light-buffer-type-name "LightBuffer")
-
-(defn- resource-type-at ^Shaderc$ResourceTypeInfo [types ^long type-index]
-  (when (<= 0 type-index (dec (count types)))
-    (.get ^java.util.ArrayList types type-index)))
-
-(defn- resource-type-from-shader-resource [types ^Shaderc$ShaderResource shader-resource]
-  (when (.. shader-resource -type -useTypeIndex)
-    (resource-type-at types (.. shader-resource -type -typeIndex))))
-
-(defn- resource-type-name [types ^Shaderc$ShaderResource shader-resource]
-  (some-> ^Shaderc$ResourceTypeInfo (resource-type-from-shader-resource types shader-resource) .-name))
+(def ^:private preview-light-type-name "Light")
 
 (defn- uses-preview-light-buffer? [^SPIRVReflector spirv-reflector]
-  (let [types (.getTypes spirv-reflector)
-        uniform-buffers (.getUBOs spirv-reflector)]
-    (boolean
-      (some (fn [^Shaderc$ShaderResource uniform-buffer]
-              (= preview-light-buffer-type-name
-                 (resource-type-name types uniform-buffer)))
-            uniform-buffers))))
+  (boolean
+    (some (fn [^Shaderc$ResourceTypeInfo resource-type]
+            (and resource-type
+                 (= preview-light-type-name (.-name resource-type))))
+          (.getTypes spirv-reflector))))
 
 (defn transpile-shader-source
   "Compiles a single shader source file, for example, a .vp or a .fp file into an

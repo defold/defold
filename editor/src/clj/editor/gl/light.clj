@@ -112,8 +112,30 @@
 
 (def ^:private lights-count-uniform-name "lights_count")
 
+(def ^:private indexed-light-uniform-name-pattern #"^lights\[(\d+)\]\.(position|color|direction_range|params)$")
+
+(defn- shader-preview-light-capacity-from-indexed-uniforms [uniform-infos]
+  (let [field->indices (reduce-kv (fn [m uniform-name _]
+                                    (if-some [[_ index-str field-name] (re-matches indexed-light-uniform-name-pattern uniform-name)]
+                                      (update m (keyword field-name) (fnil conj #{}) (Long/parseLong index-str))
+                                      m))
+                                  {}
+                                  uniform-infos)
+        has-explicit-indexed-elements? (some (fn [indices]
+                                               (some pos? indices))
+                                             (vals field->indices))
+        index-counts (into []
+                           (keep (fn [field]
+                                   (when-some [indices (not-empty (get field->indices field))]
+                                     (long (count indices)))))
+                           [:position :color :direction_range :params])]
+    (when (and has-explicit-indexed-elements?
+               (seq index-counts))
+      (reduce min index-counts))))
+
 (defn- shader-preview-light-capacity ^long [uniform-infos]
-  (let [array-sizes (into []
+  (or (shader-preview-light-capacity-from-indexed-uniforms uniform-infos)
+      (let [array-sizes (into []
                           (keep (fn [field]
                                   (when-some [array-size (some-> (uniform-infos (gl-light-uniform-name 0 field))
                                                                  :array-size)]
@@ -121,9 +143,9 @@
                                       (when (pos? array-size)
                                         array-size)))))
                           [:position :color :direction_range :params])]
-    (if (seq array-sizes)
-      (reduce min (long default-max-preview-lights) array-sizes)
-      (long default-max-preview-lights))))
+        (if (seq array-sizes)
+          (reduce min (long default-max-preview-lights) array-sizes)
+          (long default-max-preview-lights)))))
 
 (defn bind-preview-lights-for-shader! [^GL2 gl shader-lifecycle render-args]
   (when (shader/uses-preview-light-buffer? shader-lifecycle)
