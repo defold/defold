@@ -100,18 +100,6 @@
     empty-parse-state
     (line-seq reader)))
 
-(defn inject-jvm-properties [^String raw-setting-value]
-  ;; Replace patterns such as {{defold.extension.spine.url}} with JVM property values.
-  (string/replace
-    raw-setting-value
-    #"\{\{(.+?)\}\}" ; Match the text inside the an {{...}} expression.
-    (fn [[_ jvm-property-key]]
-      (or (System/getProperty jvm-property-key)
-          (throw (ex-info (format "Required JVM property `%s` is not defined."
-                                  jvm-property-key)
-                          {:jvm-property-key jvm-property-key
-                           :raw-setting-value raw-setting-value}))))))
-
 (defmulti parse-setting-value (fn [meta-setting ^String raw] (:type meta-setting)))
 
 (defmethod parse-setting-value :string [_ raw]
@@ -143,7 +131,7 @@
 ;; branch of an extension in the integration tests as we develop new features.
 (if (system/defold-dev?)
   (defmethod parse-setting-value :url [_ raw]
-    (some-> raw inject-jvm-properties url/try-parse))
+    (some-> raw ((requiring-resolve 'local-extensions/inject-jvm-properties)) url/try-parse))
   (defmethod parse-setting-value :url [_ raw]
     (some-> raw url/try-parse)))
 

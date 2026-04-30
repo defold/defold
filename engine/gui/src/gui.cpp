@@ -96,7 +96,7 @@ namespace dmGui
     {
         if (text_layout->m_Handle)
         {
-            TextLayoutFree(text_layout->m_Handle);
+            TextLayoutRelease(text_layout->m_Handle);
         }
         ResetTextLayout(text_layout);
     }
@@ -3761,9 +3761,13 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         TextLayout& current_text_layout = n->m_Node.m_TextLayout;
+        if (text_layout.m_Handle && current_text_layout.m_Handle != text_layout.m_Handle)
+        {
+            TextLayoutAcquire(text_layout.m_Handle);
+        }
         if (current_text_layout.m_Handle && current_text_layout.m_Handle != text_layout.m_Handle)
         {
-            TextLayoutFree(current_text_layout.m_Handle);
+            TextLayoutRelease(current_text_layout.m_Handle);
         }
         current_text_layout = text_layout;
     }

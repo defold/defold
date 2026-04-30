@@ -379,44 +379,52 @@ static void ProfilePropertyReset(void*, ProfileIdx idx)
 static const char* g_ProfilerName = "ProfilerRemotery";
 static ProfileListener g_Listener = {};
 
+struct ProfileListenerInitializer
+{
+    ProfileListenerInitializer()
+    {
+        g_Listener.m_Create = dmProfilerRemotery::CreateListener;
+        g_Listener.m_Destroy = dmProfilerRemotery::DestroyListener;
+        g_Listener.m_SetThreadName = dmProfilerRemotery::SetThreadName;
+
+        g_Listener.m_FrameBegin = dmProfilerRemotery::FrameBegin;
+        g_Listener.m_FrameEnd = dmProfilerRemotery::FrameEnd;
+        g_Listener.m_ScopeBegin = dmProfilerRemotery::ScopeBegin;
+        g_Listener.m_ScopeEnd = dmProfilerRemotery::ScopeEnd;
+
+        g_Listener.m_LogText = dmProfilerRemotery::LogText;
+
+        g_Listener.m_CreatePropertyGroup = ProfileCreatePropertyGroup;
+        g_Listener.m_CreatePropertyBool = ProfileCreatePropertyBool;
+        g_Listener.m_CreatePropertyS32 = ProfileCreatePropertyS32;
+        g_Listener.m_CreatePropertyU32 = ProfileCreatePropertyU32;
+        g_Listener.m_CreatePropertyF32 = ProfileCreatePropertyF32;
+        g_Listener.m_CreatePropertyS64 = ProfileCreatePropertyS64;
+        g_Listener.m_CreatePropertyU64 = ProfileCreatePropertyU64;
+        g_Listener.m_CreatePropertyF64 = ProfileCreatePropertyF64;
+
+        g_Listener.m_PropertySetBool = ProfilePropertySetBool;
+        g_Listener.m_PropertySetS32 = ProfilePropertySetS32;
+        g_Listener.m_PropertySetU32 = ProfilePropertySetU32;
+        g_Listener.m_PropertySetF32 = ProfilePropertySetF32;
+        g_Listener.m_PropertySetS64 = ProfilePropertySetS64;
+        g_Listener.m_PropertySetU64 = ProfilePropertySetU64;
+        g_Listener.m_PropertySetF64 = ProfilePropertySetF64;
+        g_Listener.m_PropertyAddS32 = ProfilePropertyAddS32;
+        g_Listener.m_PropertyAddU32 = ProfilePropertyAddU32;
+        g_Listener.m_PropertyAddF32 = ProfilePropertyAddF32;
+        g_Listener.m_PropertyAddS64 = ProfilePropertyAddS64;
+        g_Listener.m_PropertyAddU64 = ProfilePropertyAddU64;
+        g_Listener.m_PropertyAddF64 = ProfilePropertyAddF64;
+        g_Listener.m_PropertyReset = ProfilePropertyReset;
+    }
+};
+
+static ProfileListenerInitializer g_ProfileListenerInitializer;
+
 static dmExtension::Result ProfilerRemotery_AppInitialize(dmExtension::AppParams* params)
 {
     using namespace dmProfilerRemotery;
-
-    g_Listener.m_Create = CreateListener;
-    g_Listener.m_Destroy = DestroyListener;
-    g_Listener.m_SetThreadName = SetThreadName;
-
-    g_Listener.m_FrameBegin = FrameBegin;
-    g_Listener.m_FrameEnd = FrameEnd;
-    g_Listener.m_ScopeBegin = ScopeBegin;
-    g_Listener.m_ScopeEnd = ScopeEnd;
-
-    g_Listener.m_LogText = LogText;
-
-    g_Listener.m_CreatePropertyGroup = ProfileCreatePropertyGroup;
-    g_Listener.m_CreatePropertyBool = ProfileCreatePropertyBool;
-    g_Listener.m_CreatePropertyS32 = ProfileCreatePropertyS32;
-    g_Listener.m_CreatePropertyU32 = ProfileCreatePropertyU32;
-    g_Listener.m_CreatePropertyF32 = ProfileCreatePropertyF32;
-    g_Listener.m_CreatePropertyS64 = ProfileCreatePropertyS64;
-    g_Listener.m_CreatePropertyU64 = ProfileCreatePropertyU64;
-    g_Listener.m_CreatePropertyF64 = ProfileCreatePropertyF64;
-
-    g_Listener.m_PropertySetBool = ProfilePropertySetBool;
-    g_Listener.m_PropertySetS32 = ProfilePropertySetS32;
-    g_Listener.m_PropertySetU32 = ProfilePropertySetU32;
-    g_Listener.m_PropertySetF32 = ProfilePropertySetF32;
-    g_Listener.m_PropertySetS64 = ProfilePropertySetS64;
-    g_Listener.m_PropertySetU64 = ProfilePropertySetU64;
-    g_Listener.m_PropertySetF64 = ProfilePropertySetF64;
-    g_Listener.m_PropertyAddS32 = ProfilePropertyAddS32;
-    g_Listener.m_PropertyAddU32 = ProfilePropertyAddU32;
-    g_Listener.m_PropertyAddF32 = ProfilePropertyAddF32;
-    g_Listener.m_PropertyAddS64 = ProfilePropertyAddS64;
-    g_Listener.m_PropertyAddU64 = ProfilePropertyAddU64;
-    g_Listener.m_PropertyAddF64 = ProfilePropertyAddF64;
-    g_Listener.m_PropertyReset = ProfilePropertyReset;
 
     g_ProfilerOptions_Port                      = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_port", 0);
     g_ProfilerOptions_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_sleep_between_server_updates", 0);

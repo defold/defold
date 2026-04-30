@@ -28,8 +28,7 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]
-           [javax.vecmath Matrix4d]))
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -350,13 +349,13 @@
                    collection-instance-build-targets)
        :game-object-instance-datas game-object-instance-datas})))
 
-(defn any-instance-scene [node-id node-outline-key ^Matrix4d transform-matrix source-scene]
+(defn any-instance-scene [node-id node-outline-key instance-pose source-scene]
   {:pre [(g/node-id? node-id)
-         (instance? Matrix4d transform-matrix)
+         (pose/pose? instance-pose)
          (or (nil? source-scene) (map? source-scene))]}
   (-> source-scene
       (scene/claim-scene node-id node-outline-key)
-      (assoc :transform transform-matrix
+      (assoc :pose instance-pose
              :aabb geom/empty-bounding-box
              :renderable {:passes [pass/selection]})))
 

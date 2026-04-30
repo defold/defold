@@ -131,9 +131,9 @@
    {:ui-handler :help.open-issues
     :help "Open the Defold Issue Tracker in a web browser."}
 
-   :rebuild
+   :clean-build
    {:ui-handler :project.clean-build
-    :help "Rebuild and run the project."
+    :help "Clear caches, and then build the project."
     :resource-sync true}
 
    :rebundle

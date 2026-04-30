@@ -16,7 +16,8 @@
   (:require [editor.localization :as localization]
             [util.coll :refer [pair]]
             [util.defonce :as defonce])
-  (:import [com.defold.editor.localization MessagePattern]))
+  (:import [com.defold.editor.localization MessagePattern]
+           [com.dynamo.bob IProgress$Message$Building IProgress$Message$BuildingEngine IProgress$Message$Bundling IProgress$Message$Cleaning IProgress$Message$CleaningEngine IProgress$Message$DownloadingArchive IProgress$Message$DownloadingArchives IProgress$Message$DownloadingSymbols IProgress$Message$GeneratingReport IProgress$Message$ReadingClasses IProgress$Message$ReadingTasks IProgress$Message$TranspilingToLua IProgress$Message$Working]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -45,6 +46,30 @@
    (->progress message size pos :not-cancellable))
   (^Progress [^MessagePattern message ^long size ^long pos cancellable]
    (->progress message size pos (if cancellable :cancellable :not-cancellable))))
+
+(defn bob
+  (^Progress [message ^double fraction]
+   (bob message fraction false))
+  (^Progress [message ^double fraction cancellable]
+   (make
+     (condp instance? message
+       IProgress$Message$Bundling (localization/message "progress.bundling")
+       IProgress$Message$BuildingEngine (localization/message "progress.building-engine")
+       IProgress$Message$CleaningEngine (localization/message "progress.cleaning-engine")
+       IProgress$Message$DownloadingSymbols (localization/message "progress.downloading-symbols")
+       IProgress$Message$TranspilingToLua (localization/message "progress.transpiling-to-lua")
+       IProgress$Message$ReadingTasks (localization/message "progress.reading-tasks")
+       IProgress$Message$Building (localization/message "progress.building")
+       IProgress$Message$Cleaning (localization/message "progress.cleaning")
+       IProgress$Message$GeneratingReport (localization/message "progress.generating-report")
+       IProgress$Message$Working (localization/message "progress.working")
+       IProgress$Message$ReadingClasses (localization/message "progress.reading-classes")
+       IProgress$Message$DownloadingArchives (localization/message "progress.downloading-archives" {"count" (.count ^IProgress$Message$DownloadingArchives message)})
+       IProgress$Message$DownloadingArchive (localization/message "progress.downloading-archive" {"uri" (str (.uri ^IProgress$Message$DownloadingArchive message))})
+       localization/empty-message)
+     1000
+     (long (* 1000.0 fraction))
+     cancellable)))
 
 (defn make-indeterminate
   ^Progress [^MessagePattern message]

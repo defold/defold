@@ -172,6 +172,7 @@ namespace dmGraphics
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_3D_TEXTURES;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX;
 
         if (context->m_AsyncProcessingSupport)
         {
@@ -1742,8 +1743,30 @@ namespace dmGraphics
     {
         assert(_context);
         NullContext* context = (NullContext*) _context;
-        context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        context->m_PipelineState.m_BlendSrcFactor      = source_factor;
+        context->m_PipelineState.m_BlendDstFactor      = destinaton_factor;
+        context->m_PipelineState.m_BlendSrcFactorAlpha = source_factor;
+        context->m_PipelineState.m_BlendDstFactorAlpha = destinaton_factor;
+        context->m_PipelineState.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        context->m_PipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void NullSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        assert(_context);
+        NullContext* context = (NullContext*) _context;
+        context->m_PipelineState.m_BlendSrcFactor      = src_factor_color;
+        context->m_PipelineState.m_BlendDstFactor      = dst_factor_color;
+        context->m_PipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
+        context->m_PipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void NullSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        assert(_context);
+        NullContext* context = (NullContext*) _context;
+        context->m_PipelineState.m_BlendEquationColor  = equation_color;
+        context->m_PipelineState.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void NullSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)

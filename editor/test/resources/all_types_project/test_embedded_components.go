@@ -156,7 +156,7 @@ embedded_components {
 embedded_components {
   id: "model"
   type: "model"
-  data: "mesh: \"/test.dae\"\n"
+  data: "mesh: \"/test.gltf\"\n"
   "material: \"/builtins/materials/model.material\"\n"
   "skeleton: \"\"\n"
   "animations: \"\"\n"

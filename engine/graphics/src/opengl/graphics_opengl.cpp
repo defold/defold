@@ -113,6 +113,8 @@
     typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
     typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
     typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+    typedef void (APIENTRY * PFNGLBLENDFUNCSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+    typedef void (APIENTRY * PFNGLBLENDEQUATIONSEPARATEPROC) (GLenum, GLenum);
     typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei, const GLenum*);
     typedef GLint (APIENTRY * PFNGLGETFRAGDATALOCATIONPROC) (GLuint, const char*);
     typedef void (APIENTRY * PFNGLBINDFRAGDATALOCATIONPROC) (GLuint, GLuint, const char*);
@@ -142,6 +144,8 @@
     PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
     PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate = NULL;
     PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate = NULL;
+    PFNGLBLENDFUNCSEPARATEPROC glBlendFuncSeparate = NULL;
+    PFNGLBLENDEQUATIONSEPARATEPROC glBlendEquationSeparate = NULL;
 
     PFNGLGETACTIVEATTRIBPROC glGetActiveAttrib = NULL;
     PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
@@ -691,6 +695,21 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static inline GLenum GetOpenGLBlendEquation(BlendEquation equation)
+    {
+        switch (equation)
+        {
+            case BLEND_EQUATION_ADD:              return GL_FUNC_ADD;
+            case BLEND_EQUATION_SUBTRACT:         return GL_FUNC_SUBTRACT;
+            case BLEND_EQUATION_REVERSE_SUBTRACT: return GL_FUNC_REVERSE_SUBTRACT;
+            case BLEND_EQUATION_MIN:              return GL_MIN;
+            case BLEND_EQUATION_MAX:              return GL_MAX;
+            default:
+                assert(0 && "Unsupported blend equation");
+                return GL_FUNC_ADD;
+        }
+    }
+
     static void ApplyPipelineState(OpenGLContext* context)
     {
         PipelineState& ps_applied = context->m_PipelineState;
@@ -780,10 +799,21 @@ static void LogFrameBufferError(GLenum status)
         }
 
         // Blend factors
-        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor) ||
+            HAS_CHANGED(m_BlendSrcFactorAlpha) || HAS_CHANGED(m_BlendDstFactorAlpha))
         {
-            glBlendFunc(GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactor),
-                        GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactor));
+            glBlendFuncSeparate(GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactor),
+                                GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactor),
+                                GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactorAlpha),
+                                GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactorAlpha));
+            CHECK_GL_ERROR;
+        }
+
+        // Blend equations
+        if (HAS_CHANGED(m_BlendEquationColor) || HAS_CHANGED(m_BlendEquationAlpha))
+        {
+            glBlendEquationSeparate(GetOpenGLBlendEquation((BlendEquation) ps_dirty.m_BlendEquationColor),
+                                    GetOpenGLBlendEquation((BlendEquation) ps_dirty.m_BlendEquationAlpha));
             CHECK_GL_ERROR;
         }
 
@@ -1104,6 +1134,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
             case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
             case CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES:    return context->m_ASTCArrayTextureSupport;
+            case CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX: return context->m_BlendEquationMinMaxSupport;
             case CONTEXT_FEATURE_VSYNC:
                 break;
         }
@@ -1343,6 +1374,8 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
         GET_PROC_ADDRESS(glStencilOpSeparate, "glStencilOpSeparate", PFNGLSTENCILOPSEPARATEPROC);
         GET_PROC_ADDRESS(glStencilFuncSeparate, "glStencilFuncSeparate", PFNGLSTENCILFUNCSEPARATEPROC);
+        GET_PROC_ADDRESS(glBlendFuncSeparate, "glBlendFuncSeparate", PFNGLBLENDFUNCSEPARATEPROC);
+        GET_PROC_ADDRESS(glBlendEquationSeparate, "glBlendEquationSeparate", PFNGLBLENDEQUATIONSEPARATEPROC);
         GET_PROC_ADDRESS(glTexSubImage3D, "glTexSubImage3D", PFNGLTEXSUBIMAGE3DPROC);
         GET_PROC_ADDRESS(glTexImage3D, "glTexImage3D", PFNGLTEXIMAGE3DPROC);
         GET_PROC_ADDRESS(glCompressedTexImage3D, "glCompressedTexImage3D", PFNGLCOMPRESSEDTEXIMAGE3DPROC);
@@ -1806,6 +1839,18 @@ static void LogFrameBufferError(GLenum status)
 
         #undef COMPUTE_VERSION_NEEDED
     #endif
+
+        // GL_MIN/GL_MAX blend equations are core in GLES3+ and desktop GL.
+        // On GLES2/WebGL1 they require EXT_blend_minmax.
+        if (context->m_IsGles3Version)
+        {
+            context->m_BlendEquationMinMaxSupport = 1;
+        }
+        else if (OpenGLIsExtensionSupported(_context, "GL_EXT_blend_minmax") ||
+                 OpenGLIsExtensionSupported(_context, "EXT_blend_minmax"))
+        {
+            context->m_BlendEquationMinMaxSupport = 1;
+        }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
@@ -5259,8 +5304,32 @@ static void LogFrameBufferError(GLenum status)
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        context->m_PipelineStateDirty.m_BlendSrcFactor = source_factor;
-        context->m_PipelineStateDirty.m_BlendDstFactor = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendSrcFactor      = source_factor;
+        context->m_PipelineStateDirty.m_BlendDstFactor      = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendSrcFactorAlpha = source_factor;
+        context->m_PipelineStateDirty.m_BlendDstFactorAlpha = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        context->m_PipelineStateDirty.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void OpenGLSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        context->m_PipelineStateDirty.m_BlendSrcFactor      = src_factor_color;
+        context->m_PipelineStateDirty.m_BlendDstFactor      = dst_factor_color;
+        context->m_PipelineStateDirty.m_BlendSrcFactorAlpha = src_factor_alpha;
+        context->m_PipelineStateDirty.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void OpenGLSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        context->m_PipelineStateDirty.m_BlendEquationColor  = equation_color;
+        context->m_PipelineStateDirty.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void OpenGLSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)

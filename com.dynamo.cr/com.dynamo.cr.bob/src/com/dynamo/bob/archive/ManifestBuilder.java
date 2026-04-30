@@ -281,6 +281,15 @@ public class ManifestBuilder {
         return manifestEntries;
     }
 
+    private boolean hasExcludedResources() {
+        for (ResourceEntry entry : this.resourceEntries) {
+            if ((entry.getFlags() & ResourceEntryFlag.EXCLUDED.getNumber()) != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void buildUrlToResourceMap(List<ResourceEntry> entries) throws IOException {
         urlToResource.clear();
         for (ResourceEntry entry : entries) {
@@ -305,6 +314,7 @@ public class ManifestBuilder {
 
         ManifestHeader manifestHeader = this.buildManifestHeader();
         builder.setHeader(manifestHeader);
+        builder.setHasExcludedResources(hasExcludedResources());
 
         List<ResourceEntry> manifestEntries = getManifestEntries(stripExcludedEntries);
         buildUrlToResourceMap(manifestEntries);
