@@ -53,7 +53,6 @@
 
 (def collision-object-icon "icons/32/Icons_49-Collision-object.png")
 (def ^:private collision-shape-message (properties/label-message :collision-object :collision-shape))
-(def ^:private dimensions-message (properties/label-message :collision-object.shape :dimensions))
 (def ^:private diameter-message (properties/label-message :collision-object.shape :diameter))
 (def ^:private height-message (properties/label-message :collision-object.shape :height))
 (def ^:private mass-message (properties/label-message :collision-object :mass))
@@ -375,9 +374,7 @@
             (dynamic edit-type (g/constantly {:type g/Num :min 0.0}))
 
             (dynamic error (g/fnk [_node-id diameter]
-                             (validation/prop-error
-                               :fatal _node-id
-                               :diameter validation/prop-zero-or-below? diameter diameter-message))))
+                             (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
 
   (display-order [Shape :diameter])
 
@@ -386,9 +383,7 @@
   (output shape-errors g/Any (g/fnk [_node-id id id-counts diameter]
                                (g/package-errors _node-id
                                  (validate-image-id _node-id id id-counts)
-                                 (validation/prop-error
-                                   :fatal _node-id
-                                   :diameter validation/prop-zero-or-below? diameter diameter-message))))
+                                 (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
   (output shape-data g/Any (g/fnk [diameter]
                              [(/ (double diameter) 2.0)])))
 
@@ -407,13 +402,13 @@
 (defmethod scene-tools/manip-scale-manips ::SphereShape [_node-id]
   [:scale-uniform])
 
+;; NOTE: Use a custom, more specific error message to express that we're dealing with multiple properties
 (defn- prop-error-box-dimensions [node-id dimensions]
   (validation/prop-error :fatal node-id :dimensions
-                         (fn [dimensions _]
+                         (fn [dimensions]
                            (when (some #(<= ^double % 0.0) dimensions)
                              (localization/message "error.collision-object-shape-dimensions-must-be-greater-than-zero")))
-                         dimensions
-                         dimensions-message))
+                         dimensions))
 
 (g/defnode BoxShape
   (inherits Shape)
@@ -460,18 +455,14 @@
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
             (dynamic edit-type (g/constantly {:type g/Num :min 0.0}))
             (dynamic error (g/fnk [_node-id diameter]
-                             (validation/prop-error
-                               :fatal _node-id
-                               :diameter validation/prop-zero-or-below? diameter diameter-message))))
+                             (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
   (property height g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :height))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :height))
             (dynamic edit-type (g/constantly {:type g/Num :min 0.0}))
             (dynamic error (g/fnk [_node-id height]
-                             (validation/prop-error
-                               :fatal _node-id
-                               :height validation/prop-zero-or-below? height height-message))))
+                             (validation/prop-error :fatal _node-id :height validation/prop-negative? height height-message))))
 
   (display-order [Shape :diameter :height])
 
@@ -479,12 +470,8 @@
   (output shape-errors g/Any (g/fnk [_node-id id id-counts diameter height]
                                (g/package-errors _node-id
                                  (validate-image-id _node-id id id-counts)
-                                 (validation/prop-error
-                                   :fatal _node-id
-                                   :diameter validation/prop-zero-or-below? diameter diameter-message)
-                                 (validation/prop-error
-                                   :fatal _node-id
-                                   :height validation/prop-zero-or-below? height height-message))))
+                                 (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message)
+                                 (validation/prop-error :fatal _node-id :height validation/prop-negative? height height-message))))
   (output shape-data g/Any (g/fnk [diameter height]
                              [(/ (double diameter) 2) (double height)])))
 
