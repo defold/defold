@@ -65,6 +65,10 @@ namespace dmRender
         if (c)
         {
             c->m_Data = *data;
+            if (!(c->m_Data.m_OrthographicZoom > 0.0f))
+            {
+                c->m_Data.m_OrthographicZoom = 1.0f;
+            }
         }
     }
 

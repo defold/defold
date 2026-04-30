@@ -371,6 +371,18 @@ TEST_F(dmRenderTest, TestRenderCameraOrthographicAutoZoom)
     data.m_OrthographicProjection = true;
     data.m_OrthographicMode       = dmRender::ORTHO_MODE_AUTO_COVER;
 
+    dmRender::RenderCameraData invalid_data = data;
+    invalid_data.m_OrthographicZoom = 0.0f;
+    dmRender::SetRenderCameraData(m_Context, camera, &invalid_data);
+    dmRender::RenderCameraData sanitized_data = {};
+    dmRender::GetRenderCameraData(m_Context, camera, &sanitized_data);
+    ASSERT_NEAR(1.0f, sanitized_data.m_OrthographicZoom, EPSILON);
+
+    invalid_data.m_OrthographicZoom = -1.0f;
+    dmRender::SetRenderCameraData(m_Context, camera, &invalid_data);
+    dmRender::GetRenderCameraData(m_Context, camera, &sanitized_data);
+    ASSERT_NEAR(1.0f, sanitized_data.m_OrthographicZoom, EPSILON);
+
     dmRender::SetRenderCameraData(m_Context, camera, &data);
     ASSERT_NEAR(1.0f, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
 

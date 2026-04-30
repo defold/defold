@@ -286,7 +286,7 @@
   (let [vertex-buffer (gen-outline-vertex-buffer render-args renderables renderable-count)
         outline-vertex-binding (vtx/use-with ::frustum-outline vertex-buffer outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vertex-buffer)))))
 
 (g/defnk produce-camera-scene
   [_node-id fov aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height]
