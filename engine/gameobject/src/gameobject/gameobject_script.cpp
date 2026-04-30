@@ -2930,16 +2930,17 @@ bail:
      *
      * Gamepad specific fields:
      *
-     * Field             | Description
-     * ----------------- | ----------------------------------------------------------
-     * `gamepad`         | The index of the gamepad device that provided the input.
-     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
-     * `gamepad_guid`    | The guid of the gamepad controller. Only passed with "connected" action.
-     * `gamepad_unknown` | True if the input originated from an unknown/unmapped gamepad.
-     * `gamepad_name`    | Name of the gamepad
-     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
-     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
-     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
+     * Field               | Description
+     * ------------------- | ----------------------------------------------------------
+     * `gamepad`           | The index of the gamepad device that provided the input.
+     * `userid`            | Id of the user associated with the controller. Usually only relevant on consoles.
+     * `gamepad_guid`      | The guid of the gamepad controller. Only passed with "connected" action.
+     * `gamepad_guid_info` | Parsed guid info table. Only passed with "connected" action. See table below.
+     * `gamepad_unknown`   | True if the input originated from an unknown/unmapped gamepad.
+     * `gamepad_name`      | Name of the gamepad
+     * `gamepad_axis`      | List of gamepad axis values. For raw gamepad input only.
+     * `gamepadhats`       | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_buttons`   | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:
      *

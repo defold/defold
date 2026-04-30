@@ -529,8 +529,6 @@ namespace dmGameObject
                 lua_pushlstring(L, params.m_InputAction->m_Text, params.m_InputAction->m_Count);
                 lua_setfield(L, action_table, "gamepad_name");
 
-                // TODO: ADD GUID
-
                 const dmHID::GamepadGuid& guid = params.m_InputAction->m_GamepadGuid;
                 char guid_str[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1];
                 dmHID::FormatGamepadGuid(&guid, guid_str);
