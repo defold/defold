@@ -192,7 +192,7 @@
                                                        (on-value-changed axis))))}}))
                    axes)})
 
-(defn- make-reset-row-fx [{:keys [text swap-state on-reset]}]
+(defn- make-reset-button-fx [{:keys [text swap-state on-reset]}]
   {:fx/type fxui/horizontal
    :style-class "reset-button"
    :children [{:fx/type fxui/ext-ensure-focus-traversable
@@ -200,7 +200,9 @@
                {:fx/type fx.button/lifecycle
                 :text text
                 :max-width Double/MAX_VALUE
-                :on-action (fn [_] (on-reset swap-state))}}]})
+                :on-action (fn [^javafx.event.ActionEvent e]
+                             (on-reset swap-state)
+                             (.requestFocus (.getParent ^Node (.getSource e))))}}]})
 
 (defn- make-row-fx [keymap localization-state state swap-state descriptor]
   (case (:type descriptor)
@@ -250,7 +252,7 @@
      :on-value-changed #((:on-value-changed descriptor) %)}
 
     :reset-all
-    {:fx/type make-reset-row-fx
+    {:fx/type make-reset-button-fx
      :text (localization-state (localization/message "scene-popup.reset-defaults-button"))
      :swap-state swap-state
      :on-reset (:on-reset descriptor)}

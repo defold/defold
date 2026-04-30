@@ -280,7 +280,11 @@
                            (prefs/set! prefs [:scene :grid k] v)
                            (invalidate-grids! app-view))
         descriptors
-        [{:type :reset-all}
+        [{:type :reset-all
+          :on-reset (fn [swap-state]
+                      (prefs/reset-path! prefs [:scene :grid])
+                      (swap-state merge (prefs/get prefs [:scene :grid]))
+                      (invalidate-grids! app-view))}
          {:key :size :type :vec3-floats
           :value (prefs/get prefs [:scene :grid :size])
           :on-value-changed (partial value-changed-fn :size)}

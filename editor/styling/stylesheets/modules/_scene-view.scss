@@ -180,7 +180,11 @@
 
             .reset-button {
                 .button {
-                    -fx-max-width: 500px;
+                    -fx-pref-width: 500px;
+                    &:pressed, &:armed {
+                        -fx-background-color: -df-component-lighter;
+                        -fx-text-fill: -df-text-selected;
+                    }
                 }
             }
 
