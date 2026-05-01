@@ -243,6 +243,7 @@ def build(bld):
     bld.stlib(features     = 'cxx embed test',
               target       = 'test_image_embeds',
               source       = 'test_image_embeds_dummy.cpp',
+              includes     = '.. ../../src',
               embed_source = image_embed_source)
 
     bld.add_group()
