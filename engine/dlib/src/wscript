@@ -86,6 +86,7 @@ def build(bld):
     feature_sources = []
     feature_files = []
     for feature_name in ['dlib/condition_variable',
+                         'dlib/file_descriptor',
                          'dlib/thread']:
         selected_files, all_files = find_feature_files(bld, feature_name, bld.env.PLATFORM)
         feature_sources += selected_files
@@ -110,8 +111,7 @@ def build(bld):
                                                     'time.cpp'])
 
     if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
-        source_files = remove_files(source_files, ['file_descriptor_posix.cpp',
-                                                    'mutex_posix.cpp',
+        source_files = remove_files(source_files, ['mutex_posix.cpp',
                                                     'mutex_empty.cpp',
                                                     'socket_posix.cpp',
                                                     'sys_posix.cpp'])
