@@ -43,6 +43,7 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../../proto',
         use = 'gamesys_proto',
+        uselib = 'LUA',
         source = sources,
         target = 'gamesys')
 
@@ -63,6 +64,7 @@ def build(bld):
         protoc_includes = '../../proto',
         proto_gen_py = True,
         use = 'gamesys_proto',
+        uselib = 'LUA',
         source = 'resources/res_model.cpp components/comp_model.cpp scripts/script_model.cpp',
         target = 'gamesys_model')
 
@@ -89,11 +91,13 @@ def build(bld):
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto',
+        uselib = 'LUA',
         source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body.cpp',
         target = 'script_box2d')
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto ' + build_util.get_dynamo_ext('include', 'box2d_defold'),
+        uselib = 'LUA',
         source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body_defold.cpp',
         target = 'script_box2d_defold')
 
