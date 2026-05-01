@@ -88,6 +88,7 @@ def build(bld):
     for feature_name in ['dlib/condition_variable',
                          'dlib/file_descriptor',
                          'dlib/sys',
+                         'dlib/time',
                          'dlib/thread']:
         selected_files, all_files = find_feature_files(bld, feature_name, bld.env.PLATFORM)
         feature_sources += selected_files
@@ -107,8 +108,7 @@ def build(bld):
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['mutex_posix.cpp',
                                                     'mutex_empty.cpp',
-                                                    'socket_posix.cpp',
-                                                    'time.cpp'])
+                                                    'socket_posix.cpp'])
 
     if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
         source_files = remove_files(source_files, ['mutex_posix.cpp',
@@ -116,7 +116,6 @@ def build(bld):
                                                     'socket_posix.cpp'])
 
     if bld.env.PLATFORM in ('x86_64-win32', 'win32', 'x86_64-xbone'):
-        source_files = remove_files(source_files, ['time_posix.cpp'])
         source_files = remove_files(source_files, ['mutex_posix.cpp'])
         source_files = remove_files(source_files, ['mutex_empty.cpp'])
     else:
@@ -125,9 +124,6 @@ def build(bld):
             source_files = remove_files(source_files, ['mutex_posix.cpp'])
         else:
             source_files = remove_files(source_files, ['mutex_empty.cpp'])
-
-    if build_util.get_target_os() in ['macos', 'ios']:
-        source_files = remove_files(source_files, ['time_posix.cpp'])
 
     if 'web' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'sslsocket.cpp', 'configfile_http.cpp'])
