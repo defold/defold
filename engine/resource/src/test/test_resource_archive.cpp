@@ -21,7 +21,7 @@
 #include "../resource_verify.h"
 #include "../providers/provider_archive_private.h"
 #include <dlib/dstrings.h>
-#include <dlib/endian.h>
+#include <dlib/endian.hpp>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <testmain/testmain.h>
