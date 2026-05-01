@@ -66,7 +66,8 @@ def build(bld):
         # on windows due to compile error in RNG_custom_init()
         # when CONFIG_WIN32_USE_CRYPTO_LIB is set (missing entropy_pool, see top of file)
 
-    platform = build_util.get_target_os()
+    target_os = build_util.get_target_os()
+    platform = target_os
     if platform == 'win':
         platform = "win32"
 
@@ -90,17 +91,20 @@ def build(bld):
             return False
         return [x for x in sources if not matches(x.abspath(), patterns)]
 
-<<<<<<< HEAD
     # For certain "features", we select files differently, so make sure we don't glob them into the source files
     feature_sources = []
     feature_files = []
     for feature_name in ['dlib/condition_variable',
+                         'dlib/crypt',
                          'dlib/file_descriptor',
                          'dlib/mutex',
                          'dlib/sys',
                          'dlib/time',
                          'dlib/thread']:
-        selected_files, all_files = find_feature_files(bld, feature_name, bld.env.PLATFORM)
+        extra_tags = None
+        if feature_name == 'dlib/crypt':
+            extra_tags = {'*': ['mbedtls'], 'macos': [], 'ios': []}
+        selected_files, all_files = find_feature_files(bld, feature_name, bld.env.PLATFORM, extra_tags)
         feature_sources += selected_files
         feature_files += all_files
 
@@ -112,12 +116,9 @@ def build(bld):
     if platform_source_dirs:
         platform_source_files = bld.path.ant_glob(platform_source_dirs)
 
-    # build image sources as separate libraries to make it excludable
-    remove_files(source_files, ['image.cpp', 'image_null.cpp'])
-
-    # # build image and SSL socket backends as separate selectable sources
-    # source_files = remove_files(source_files, ['image.cpp', 'image_null.cpp',
-    #                                             'sslsocket_darwin.mm', 'sslsocket_mbedtls.cpp', 'sslsocket_null.cpp'])
+    # build image and SSL socket backends as separate selectable sources
+    source_files = remove_files(source_files, ['image.cpp', 'image_null.cpp',
+                                                'sslsocket_darwin.mm', 'sslsocket_mbedtls.cpp', 'sslsocket_null.cpp'])
 
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['socket_posix.cpp'])
@@ -125,15 +126,7 @@ def build(bld):
     if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
         source_files = remove_files(source_files, ['socket_posix.cpp'])
 
-    crypt_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios']
     sslsocket_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios', 'web']
-
-    crypt_files = ['crypt.cpp']
-    if crypt_uses_mbedtls:
-        crypt_files.append('crypt_mbedtls.cpp')
-    elif target_os in ['macos', 'ios']:
-        crypt_files.append('crypt_darwin.mm')
-    crypt_source_files = bld.path.ant_glob(['dlib/crypt/%s' % file for file in crypt_files])
 
     if 'web' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'configfile_http.cpp'])
@@ -179,7 +172,7 @@ def build(bld):
         mbedtls_defines += ['DM_MBEDTLS_ERROR_C']
 
     dlib = bld.stlib(features = 'c cxx',
-                     source   = source_files + platform_source_files + crypt_source_files + sslsocket_source_files,
+                     source   = source_files + platform_source_files + sslsocket_source_files,
                      includes = mbedtls_public_includes,
                      target   = 'dlib',
                      use      = ['zip'],
@@ -442,7 +435,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
-    bld.install_files('${PREFIX}/include/dlib/crypt', 'dlib/crypt/crypt.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dalloca.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/double_linked_list.h')

@@ -184,13 +184,42 @@ def remove_source_files(sources, remove_sources):
     remove_paths = set(source_file_path(x) for x in remove_sources)
     return [x for x in sources if source_file_path(x) not in remove_paths]
 
-def find_feature_files(bld, feature_name, platform):
+def get_feature_extra_tags(platform, extra_tags):
+    if not extra_tags:
+        return []
+
+    target = platform
+    if '-' in platform:
+        target = platform.split('-')[-1]
+
+    if isinstance(extra_tags, dict):
+        if platform in extra_tags:
+            extra_tags = extra_tags[platform]
+        elif target in extra_tags:
+            extra_tags = extra_tags[target]
+        else:
+            extra_tags = extra_tags.get('*', [])
+    if isinstance(extra_tags, str):
+        extra_tags = [extra_tags]
+
+    tags = []
+    def append_tag(tag):
+        if tag and tag not in tags:
+            tags.append(tag)
+
+    for tag in extra_tags:
+        append_tag(tag)
+    return tags
+
+def find_feature_files(bld, feature_name, platform, extra_tags = None):
     """Return (selected_files, feature_files) for feature_name.
 
     Rules:
     * feature_files contains <feature>.<ext> and <feature>_*.ext when found.
     * selected_files contains all <feature>.<ext> core files when found.
     * selected_files contains all matching <feature>_<tag>.ext files for the platform.
+    * extra_tags may be a list for all platforms, or a dict where platform/target override '*'.
+    * extra tag matches are appended to platform tag matches before fallback tags.
     * fallback tags and default are used only when no platform tag matched.
     * platform roots are searched before the public repo for platform tag matches.
     * missing feature files or missing selected files fail the build.
@@ -224,7 +253,7 @@ def find_feature_files(bld, feature_name, platform):
             append_file(feature_files, node)
 
     tag_files = []
-    for tag in get_platform_file_tags(platform):
+    for tag in get_platform_file_tags(platform) + get_feature_extra_tags(platform, extra_tags):
         for extension in extensions:
             node = find_file('%s_%s%s' % (feature_base, tag, extension))
             if node:
