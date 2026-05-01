@@ -137,10 +137,20 @@ def get_platform_file_tags(platform):
     if target in ('macos', 'ios'):
         append_tag('darwin')
         append_tag('apple')
-        append_tag('posix')
-    elif target == 'android':
-        append_tag('posix')
-    elif target == 'linux':
+
+    return tags
+
+def get_platform_file_fallback_tags(platform):
+    target = platform
+    if '-' in platform:
+        target = platform.split('-')[-1]
+
+    tags = []
+    def append_tag(tag):
+        if tag and tag not in tags:
+            tags.append(tag)
+
+    if target in ('android', 'ios', 'linux', 'macos', 'web'):
         append_tag('posix')
 
     return tags
@@ -175,7 +185,8 @@ def find_feature_files(bld, feature_name, platform):
     Rules:
     * feature_files contains <feature>.<ext> and <feature>_*.ext when found.
     * selected_files contains all <feature>.<ext> core files when found.
-    * selected_files contains all matching <feature>_<tag>.ext files, using platform tags then default.
+    * selected_files contains all matching <feature>_<tag>.ext files for the platform.
+    * fallback tags and default are used only when no platform tag matched.
     * platform roots are searched before the public repo.
     * missing feature files or missing selected files fail the build.
     """
@@ -207,12 +218,24 @@ def find_feature_files(bld, feature_name, platform):
             append_file(files, node)
             append_file(feature_files, node)
 
-    for tag in get_platform_file_tags(platform) + ['default']:
+    tag_files = []
+    for tag in get_platform_file_tags(platform):
         for extension in extensions:
             node = find_file('%s_%s%s' % (feature_base, tag, extension))
             if node:
-                append_file(files, node)
+                append_file(tag_files, node)
                 append_file(feature_files, node)
+
+    if not tag_files:
+        for tag in get_platform_file_fallback_tags(platform) + ['default']:
+            for extension in extensions:
+                node = find_file('%s_%s%s' % (feature_base, tag, extension))
+                if node:
+                    append_file(tag_files, node)
+                    append_file(feature_files, node)
+
+    for node in tag_files:
+        append_file(files, node)
 
     if not feature_files:
         bld.fatal('Could not find any source files for feature %s' % feature_name)

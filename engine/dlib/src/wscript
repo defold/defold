@@ -83,7 +83,13 @@ def build(bld):
         return [x for x in sources if not matches(x.abspath(), patterns)]
 
     # For certain "features", we select files differently, so make sure we don't glob them into the source files
-    feature_sources, feature_files = find_feature_files(bld, 'dlib/condition_variable', bld.env.PLATFORM)
+    feature_sources = []
+    feature_files = []
+    for feature_name in ['dlib/condition_variable',
+                         'dlib/thread']:
+        selected_files, all_files = find_feature_files(bld, feature_name, bld.env.PLATFORM)
+        feature_sources += selected_files
+        feature_files += all_files
 
     source_files = bld.path.ant_glob(source_dirs)
     source_files = remove_source_files(source_files, feature_files)
@@ -108,17 +114,14 @@ def build(bld):
                                                     'mutex_posix.cpp',
                                                     'mutex_empty.cpp',
                                                     'socket_posix.cpp',
-                                                    'thread_posix.cpp',
                                                     'sys_posix.cpp'])
 
     if bld.env.PLATFORM in ('x86_64-win32', 'win32', 'x86_64-xbone'):
         source_files = remove_files(source_files, ['time_posix.cpp'])
-        source_files = remove_files(source_files, ['thread_posix.cpp'])
         source_files = remove_files(source_files, ['mutex_posix.cpp'])
         source_files = remove_files(source_files, ['mutex_empty.cpp'])
         source_files = remove_files(source_files, ['sys_posix.cpp'])
     else:
-        source_files = remove_files(source_files, ['thread_win32.cpp'])
         source_files = remove_files(source_files, ['mutex_win32.cpp'])
         source_files = remove_files(source_files, ['sys_win32.cpp'])
         if bld.env.PLATFORM == 'wasm-web':
