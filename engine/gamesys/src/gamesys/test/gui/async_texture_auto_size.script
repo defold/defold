@@ -1,10 +1,22 @@
-local WIDTH = 8
-local HEIGHT = 8
+local TEXTURE_WIDTH = 32
+local TEXTURE_HEIGHT = 32
 
-local function make_quad(w, h)
+local SPRITES = {
+    {id = "sprite_8x8", x = 0, y = 0, w = 8, h = 8},
+    {id = "sprite_12x6", x = 8, y = 0, w = 12, h = 6},
+    {id = "sprite_5x11", x = 0, y = 8, w = 5, h = 11},
+    {id = "sprite_16x9", x = 5, y = 8, w = 16, h = 9},
+}
+
+local function make_quad(sprite)
     return {
-        vertices = {0, 0, 0, h, w, h, w, 0},
-        uvs = {0, 0, 0, h, w, h, w, 0},
+        vertices = {0, 0, 0, sprite.h, sprite.w, sprite.h, sprite.w, 0},
+        uvs = {
+            sprite.x, sprite.y,
+            sprite.x, sprite.y + sprite.h,
+            sprite.x + sprite.w, sprite.y + sprite.h,
+            sprite.x + sprite.w, sprite.y,
+        },
         indices = {0, 1, 2, 0, 2, 3}
     }
 end
@@ -22,25 +34,32 @@ function init(self)
     async_texture_auto_size_ready = false
 
     local tparams = {
-        width = WIDTH,
-        height = HEIGHT,
+        width = TEXTURE_WIDTH,
+        height = TEXTURE_HEIGHT,
         type = graphics.TEXTURE_TYPE_2D,
         format = graphics.TEXTURE_FORMAT_RGBA,
     }
 
-    resource.create_texture_async("/gui/async_texture_auto_size.texturec", tparams, make_texture_buffer(WIDTH, HEIGHT),
+    resource.create_texture_async("/gui/async_texture_auto_size.texturec", tparams, make_texture_buffer(TEXTURE_WIDTH, TEXTURE_HEIGHT),
         function(self, request_id, result)
-            local atlas_id = resource.create_atlas("/gui/async_texture_auto_size.texturesetc", {
-                texture = result.path,
-                animations = {{
-                    id = "frame",
-                    width = WIDTH,
-                    height = HEIGHT,
-                    frames = {1},
+            local animations = {}
+            local geometries = {}
+            for i, sprite in ipairs(SPRITES) do
+                animations[i] = {
+                    id = sprite.id,
+                    width = sprite.w,
+                    height = sprite.h,
+                    frames = {i},
                     fps = 60,
                     playback = go.PLAYBACK_ONCE_FORWARD,
-                }},
-                geometries = {make_quad(WIDTH, HEIGHT)}
+                }
+                geometries[i] = make_quad(sprite)
+            end
+
+            local atlas_id = resource.create_atlas("/gui/async_texture_auto_size.texturesetc", {
+                texture = result.path,
+                animations = animations,
+                geometries = geometries
             })
             go.set("#gui", "textures", atlas_id, {key = "dynamic_atlas"})
             async_texture_auto_size_ready = true

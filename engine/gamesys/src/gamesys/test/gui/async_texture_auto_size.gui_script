@@ -1,5 +1,9 @@
-local WIDTH = 8
-local HEIGHT = 8
+local SPRITES = {
+    {id = "sprite_8x8", w = 8, h = 8},
+    {id = "sprite_12x6", w = 12, h = 6},
+    {id = "sprite_5x11", w = 5, h = 11},
+    {id = "sprite_16x9", w = 16, h = 9},
+}
 
 function init(self)
     tests_done = false
@@ -13,10 +17,12 @@ function update(self, dt)
 
         local node = gui.get_node("box")
         gui.set_texture(node, "dynamic_atlas")
-        gui.play_flipbook(node, "frame")
 
-        local size = gui.get_size(node)
-        assert(size == vmath.vector3(WIDTH, HEIGHT, 0))
+        for _, sprite in ipairs(SPRITES) do
+            gui.play_flipbook(node, sprite.id)
+            local size = gui.get_size(node)
+            assert(size == vmath.vector3(sprite.w, sprite.h, 0))
+        end
 
         tests_done = true
     end
