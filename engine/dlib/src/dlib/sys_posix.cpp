@@ -12,11 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-
-#if defined(_WIN32)
-#error "Unsupported platform"
-#endif
-
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -757,13 +752,8 @@ namespace dmSys
             }
         }
 #endif
-#ifdef _WIN32
-        struct _stat64 file_stat;
-        return _stat64(path, &file_stat) == 0;
-#else
         struct stat file_stat;
         return stat(path, &file_stat) == 0;
-#endif
     }
 
     Result ResourceSize(const char* path, uint32_t* resource_size)
@@ -782,13 +772,8 @@ namespace dmSys
             }
         }
 #endif
-#ifdef _WIN32
-        struct _stat64 file_stat;
-        if (_stat64(path, &file_stat) == 0) {
-#else
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
-#endif
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -828,13 +813,8 @@ namespace dmSys
         }
 #endif
 
-#ifdef _WIN32
-        struct _stat64 file_stat;
-        if (_stat64(path, &file_stat) == 0) {
-#else
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
-#endif
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -881,13 +861,8 @@ namespace dmSys
             }
         }
 #endif
-#ifdef _WIN32
-        struct _stat64 file_stat;
-        if (_stat64(path, &file_stat) == 0) {
-#else
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
-#endif
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -940,13 +915,8 @@ namespace dmSys
 
     Result IsDir(const char* path)
     {
-#ifdef _WIN32
-        struct _stat64 path_stat;
-        int ret = _stat64(path, &path_stat);
-#else
         struct stat path_stat;
         int ret = stat(path, &path_stat);
-#endif
         if (ret != 0)
             return ErrnoToResult(errno);
         return path_stat.st_mode & S_IFDIR ? RESULT_OK : RESULT_UNKNOWN;
@@ -954,13 +924,8 @@ namespace dmSys
 
     bool Exists(const char* path)
     {
-#ifdef _WIN32
-        struct _stat64 path_stat;
-        int ret = _stat64(path, &path_stat);
-#else
         struct stat path_stat;
         int ret = stat(path, &path_stat);
-#endif
         return ret == 0;
     }
 
@@ -986,13 +951,8 @@ namespace dmSys
             char abs_path[1024];
             dmSnPrintf(abs_path, sizeof(abs_path), "%s/%s", dirpath, entry->d_name);
 
-#ifdef _WIN32
-            struct _stat64 path_stat;
-            int stat_result = _stat64(abs_path, &path_stat);
-#else
             struct stat path_stat = {};
             int stat_result = stat(abs_path, &path_stat);
-#endif
 
             if (stat_result != 0)
             {
@@ -1051,13 +1011,8 @@ namespace dmSys
 
     Result Stat(const char* path, StatInfo* stat_info)
     {
-#ifdef _WIN32
-        struct _stat64 info;
-        int ret = _stat64(path, &info);
-#else
         struct stat info;
         int ret = stat(path, &info);
-#endif
         if (ret != 0)
             return RESULT_NOENT;
         stat_info->m_Size = (uint64_t)info.st_size;

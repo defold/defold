@@ -26,7 +26,7 @@
 #include <limits.h> // UINT_MAX
 
 #include "sys.h"
-#include "sys_internal.h"
+#include "sys_private.h"
 #include "log.h"
 #include "dstrings.h"
 #include "hash.h"
