@@ -34,6 +34,7 @@ namespace dmGameSystem
      * Functions for interacting with compute programs.
      *
      * @document
+     * @language Lua
      * @name Compute
      * @namespace compute
      */

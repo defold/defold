@@ -37,6 +37,7 @@ namespace dmGameSystem
      * Functions for interacting with materials.
      *
      * @document
+     * @language Lua
      * @name Material
      * @namespace material
      */
