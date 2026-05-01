@@ -396,7 +396,7 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
-DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ.get("DM_RELEASE_REPOSITORY") else release_to_github.get_current_repo()
+DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") or os.environ.get("GITHUB_REPOSITORY") or release_to_github.get_current_repo()
 
 PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
@@ -812,6 +812,29 @@ class Configuration(object):
         waf_path = make_package_path(self.defold_root, 'common', waf_package)
         self._extract_tgz(waf_path, self.ext)
 
+    def _install_python_packages(self, packages, whl_patterns):
+        target = join(self.ext, 'lib', 'python')
+        self._mkdirs(target)
+
+        if packages:
+            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', target] + packages)
+
+        for pattern in whl_patterns:
+            for whl in sorted(glob(join(self.defold_root, 'packages', pattern))):
+                self._log('Installing %s' % basename(whl))
+                run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', target, whl])
+
+    def install_release_dependencies(self):
+        print("Installing release python dependencies")
+        self._install_python_packages(
+            ['requests'],
+            [
+                'boto3-*.whl',
+                'botocore-*.whl',
+                's3transfer-*.whl',
+                'urllib3-*.whl',
+            ])
+
     def install_ext(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
@@ -882,10 +905,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver', 'pystache'])
-        for whl in glob(join(self.defold_root, 'packages', '*.whl')):
-            self._log('Installing %s' % basename(whl))
-            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
+        self._install_python_packages(['requests', 'pyaml', 'rangehttpserver', 'pystache'], ['*.whl'])
 
         print("Installing javascripts")
         for n in 'web-pre.js'.split():
@@ -1936,6 +1956,26 @@ class Configuration(object):
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
             run.command(" ".join([gradle, flags, 'clean', 'install', 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
+    def test_bob(self):
+        bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')
+        test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+
+        if not os.path.exists(bob_jar):
+            self.fatal("bob.jar is missing. Build bob or download the bob-jar artifact first.")
+
+        env = self._form_env()
+
+        gradle = self.get_gradle_wrapper()
+        gradle_args = []
+        if self.verbose:
+            gradle_args += ['--info']
+
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
+
+        # compileTest only needs bob.jar on disk. Exclude distBob so this job tests the artifact
+        # produced by build-bob instead of rebuilding it.
+        run.command(" ".join([gradle, 'testJar', '-x', 'distBob'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+
 
     def build_sdk_headers(self):
         # Used to provide a small sized bundle with the headers for any C++ auto completion tools
@@ -2089,6 +2129,19 @@ class Configuration(object):
                 cmd.append('--notarization-password=%s' % self.notarization_password)
             if self.notarization_itc_provider:
                 cmd.append('--notarization-itc-provider=%s' % self.notarization_itc_provider)
+
+        self.run_editor_script(cmd)
+
+    def test_editor2(self):
+        cmd = self.get_python() + ['./scripts/bundle.py',
+               '--engine-artifacts=%s' % self.engine_artifacts,
+               '--archive-domain=%s' % self.archive_domain,
+               '--platform=%s' % self.target_platform]
+
+        if self.channel:
+            cmd.append('--channel=%s' % self.channel)
+
+        cmd.append('test')
 
         self.run_editor_script(cmd)
 
@@ -2838,15 +2891,18 @@ if __name__ == '__main__':
 Commands:
 distclean        - Removes the DYNAMO_HOME folder
 install_ext      - Install external packages
+install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
 install_waf      - Install waf
 sync_archive     - Sync engine artifacts from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
+test_editor2     - Test editor
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
 build_bob        - Build bob with native libraries included for cross platform deployment
+test_bob         - Test bob using an existing com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
 build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path
 build_docs       - Build documentation

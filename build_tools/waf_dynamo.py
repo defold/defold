@@ -14,10 +14,9 @@
 
 import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex, json
 from waflib.Configure import conf
-from waflib import Utils, Build, Options, Task, Logs
+from waflib import Utils, Build, Options, Task, Logs, Errors
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
-from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
@@ -71,7 +70,12 @@ if 'waf_dynamo_vendor' not in sys.modules:
 def is_platform_private(platform):
     return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
 
+def feature_enabled(feature):
+    return feature in getattr(Options.options, 'enable_features', [])
+
 def platform_supports_feature(platform, feature, data):
+    if feature == 'mbedtls' and feature_enabled(feature):
+        return True
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
@@ -541,8 +545,13 @@ def default_flags(self):
         if build_util.get_target_platform() == 'arm64-linux':
             clang_arch = 'aarch64-unknown-linux-gnu'
 
+        debug_flags = ['-g']
+        if Options.options.with_valgrind:
+            # Valgrind versions shipped with supported Linux CI images may not understand newer DWARF forms.
+            debug_flags.append('-gdwarf-4')
+
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, [f'--target={clang_arch}'] + debug_flags + ['-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
@@ -554,7 +563,7 @@ def default_flags(self):
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden', '-fvisibility-inlines-hidden'])
             self.env.append_value(f, ['-DDM_PLATFORM_MACOS'])
 
             self.env.append_value(f, ['-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
@@ -567,8 +576,10 @@ def default_flags(self):
                 self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
-        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
+        # dead strip
+        self.env.append_value('LINKFLAGS', ['-flto','-dead_strip', '-Wl,-dead_strip_dylibs'])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
         if 'linux' in self.env['BUILD_PLATFORM']:
@@ -618,7 +629,7 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
-                                      '-fpic', '-ffunction-sections', '-fstack-protector',
+                                      '-fpic', '-ffunction-sections', '-fdata-sections', '-fstack-protector',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/sources/android/native_app_glue' % (self.sdkinfo['ndk']),
                                       '-I%s/sources/android/cpufeatures' % (self.sdkinfo['ndk']),
@@ -635,6 +646,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
                 '-static-libstdc++',
+                '-Wl,--gc-sections',
                 '-Wl,--build-id=uuid'] + getAndroidLinkFlags(target_arch))
     elif TargetOS.WEB == target_os:
 
@@ -751,7 +763,7 @@ def default_flags(self):
                                         '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', "Bcrypt.lib", 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
         # Make sure we prefix with lib*.lib on windows, since this is not done
@@ -1092,10 +1104,13 @@ def create_export_symbols(task):
 
 task = Task.task_factory('create_export_symbols',
                          func  = create_export_symbols,
-                         color = 'PINK',
-                         before  = 'c cxx')
+                         color = 'PINK')
 
-task.runnable_status = lambda self: RUN_ME
+create_export_symbols_sig_explicit_deps = task.sig_explicit_deps
+def sig_export_symbols(self):
+    create_export_symbols_sig_explicit_deps(self)
+    self.m.update(Utils.h_list(Utils.to_list(getattr(self, 'exported_symbols', []))))
+task.sig_explicit_deps = sig_export_symbols
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -1395,10 +1410,13 @@ def copy_stub(task):
 
 task = Task.task_factory('copy_stub',
                                 func  = copy_stub,
-                                color = 'PINK',
-                                before  = 'c cxx')
+                                color = 'PINK')
 
-task.runnable_status = lambda self: RUN_ME
+copy_stub_sig_explicit_deps = task.sig_explicit_deps
+def sig_copy_stub(self):
+    copy_stub_sig_explicit_deps(self)
+    self.m.update(ANDROID_STUB.encode('utf-8'))
+task.sig_explicit_deps = sig_copy_stub
 
 @task_gen
 @before('process_source')
@@ -1460,7 +1478,6 @@ unsigned char DM_ALIGNED(16) %s[] =
 
 Task.task_factory('dex', '${D8} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
-                      after='jar_files',
                       shell=True)
 
 @task_gen
@@ -1479,26 +1496,35 @@ def apply_dex(self):
 Task.task_factory('embed_file',
                   func = embed_build,
                   vars = ['SRC', 'DST'],
-                  color = 'RED',
-                  before  = 'c cxx')
+                  color = 'RED')
 
 @feature('embed')
 @before('process_source')
 def embed_file(self):
     Utils.def_attrs(self, embed_source=[])
     embed_out_nodes = []
+    embed_tasks = []
 
     for name in Utils.to_list(self.embed_source):
+        if isinstance(name, str):
+            name = name.strip()
+            if not name:
+                continue
+
         Logs.info("Embedding '%s' ..." % name)
-        node = self.path.find_resource(name)
+        node = name if hasattr(name, 'parent') else self.path.find_resource(name)
+
+        if node == None and isinstance(name, str):
+            node = self.path.find_node(name)
 
         if node == None:
-            Logs.info("File %s was not found in %s" % (name, self.path.abspath()))
+            raise Errors.WafError("Embed source '%s' was not found for target '%s' in %s" % (name, self.target, self.path.abspath()))
 
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])
 
         task = self.create_task('embed_file', node, [cc_out, h_out])
+        embed_tasks.append(task)
         embed_out_nodes.append(cc_out)
 
     # some sources are added as nodes and some are not
@@ -1512,6 +1538,15 @@ def embed_file(self):
 
     # Add dependency on generated embed source files to the task gen
     self.source = source_nodes + embed_out_nodes
+    self.embed_tasks = embed_tasks
+
+@feature('embed')
+@after('process_source')
+def order_embed_file(self):
+    embed_tasks = getattr(self, 'embed_tasks', [])
+    for compiled_task in getattr(self, 'compiled_tasks', []):
+        for embed_task in embed_tasks:
+            compiled_task.set_run_after(embed_task)
 
 def do_find_file(file_name, path_list):
     for directory in Utils.to_list(path_list):
@@ -2116,7 +2151,12 @@ def detect(conf):
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
+    if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env['STLIB_DLIB'].append('mbedtls')
+    if target_os in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
+
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
@@ -2141,15 +2181,15 @@ def detect(conf):
             conf.env['STLIB_RECORD'] = 'record_null'
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS']          = ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
     if 'wagyu' in Options.options.enable_features:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'graphics_transcoder_basisu', 'basis_transcoder']
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
     else:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'image', 'graphics_transcoder_null']
 
     conf.env['STLIB_FONT']            = ['font']
     conf.env['STLIB_FONT_LAYOUT']     = ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi']
@@ -2289,5 +2329,5 @@ def options(opt):
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
 
-    # Currently supported features: physics, simd (html5)
-    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --disable-feature=foo')
+    # Currently supported features: physics, simd (html5), mbedtls
+    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --enable-feature=foo')

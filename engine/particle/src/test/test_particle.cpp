@@ -203,6 +203,45 @@ void ParticleTest::VerifyVertexDims(TestVertex* vertex_buffer, uint32_t particle
     }
 }
 
+static float MaxVertexDistanceSq(const TestVertex* vertex_buffer, uint32_t vertex_count, const Point3& center)
+{
+    float max_distance_sq = 0.0f;
+    const float center_x = center.getX();
+    const float center_y = center.getY();
+    const float center_z = center.getZ();
+    for (uint32_t i = 0; i < vertex_count; ++i)
+    {
+        Vector3 delta(vertex_buffer[i].m_X - center_x, vertex_buffer[i].m_Y - center_y, vertex_buffer[i].m_Z - center_z);
+        max_distance_sq = dmMath::Max(max_distance_sq, LengthSqr(delta));
+    }
+    return max_distance_sq;
+}
+
+static int CompareParticleSimulationState(const dmParticle::Particle* lhs, const dmParticle::Particle* rhs)
+{
+#define CMP_PARTICLE_MEMBER(member) if (memcmp(&lhs->member, &rhs->member, sizeof(lhs->member)) != 0) return 1
+    CMP_PARTICLE_MEMBER(m_Position);
+    CMP_PARTICLE_MEMBER(m_SourceRotation);
+    CMP_PARTICLE_MEMBER(m_Rotation);
+    CMP_PARTICLE_MEMBER(m_Velocity);
+    CMP_PARTICLE_MEMBER(m_TimeLeft);
+    CMP_PARTICLE_MEMBER(m_MaxLifeTime);
+    CMP_PARTICLE_MEMBER(m_ooMaxLifeTime);
+    CMP_PARTICLE_MEMBER(m_SpreadFactor);
+    CMP_PARTICLE_MEMBER(m_SourceSize);
+    CMP_PARTICLE_MEMBER(m_SourceStretchFactorX);
+    CMP_PARTICLE_MEMBER(m_SourceStretchFactorY);
+    CMP_PARTICLE_MEMBER(m_SourceColor);
+    CMP_PARTICLE_MEMBER(m_Color);
+    CMP_PARTICLE_MEMBER(m_Scale);
+    CMP_PARTICLE_MEMBER(m_SortKey);
+    CMP_PARTICLE_MEMBER(m_StretchFactorX);
+    CMP_PARTICLE_MEMBER(m_StretchFactorY);
+    CMP_PARTICLE_MEMBER(m_SourceAngularVelocity);
+#undef CMP_PARTICLE_MEMBER
+    return 0;
+}
+
 dmParticle::Emitter* GetEmitter(dmParticle::HParticleContext context, dmParticle::HInstance instance, uint32_t index)
 {
     return &context->m_Instances[instance & 0xffff]->m_Emitters[index];
@@ -466,8 +505,8 @@ TEST_F(ParticleTest, IncompleteParticleFX)
 
         if (has_emitter[i])
         {
-            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*) vertex_buffer, max_vb_size, &out_vertex_buffer_size);
-            dmParticle::UpdateRenderData(m_Context, instance, 0);
+            dmParticle::UpdateRenderData(m_Context, instance, 0, dt);
+            dmParticle::GenerateVertexData(m_Context, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*) vertex_buffer, max_vb_size, &out_vertex_buffer_size);
             ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
 
             dmParticle::EmitterRenderData* emitter_render_data;
@@ -479,8 +518,8 @@ TEST_F(ParticleTest, IncompleteParticleFX)
         }
         else
         {
-            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
-            dmParticle::UpdateRenderData(m_Context, instance, 0);
+            dmParticle::UpdateRenderData(m_Context, instance, 0, dt);
+            dmParticle::GenerateVertexData(m_Context, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
             dmParticle::EmitterRenderData* emitter_render_data = 0x0;
             dmParticle::GetEmitterRenderData(m_Context, instance, 0, &emitter_render_data);
             ASSERT_EQ(0x0, emitter_render_data);
@@ -1506,8 +1545,8 @@ TEST_F(ParticleTest, Animation)
         uint32_t vertex_buffer_size = 0;
         for (uint32_t type = 0; type < type_count; ++type)
         {
-            dmParticle::GenerateVertexData(m_Context, dt, instance, type, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, 6 * type_count * sizeof(TestVertex), &vertex_buffer_size);
-            dmParticle::UpdateRenderData(m_Context, instance, type);
+            dmParticle::UpdateRenderData(m_Context, instance, type, dt);
+            dmParticle::GenerateVertexData(m_Context, instance, type, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, 6 * type_count * sizeof(TestVertex), &vertex_buffer_size);
             uint32_t tile = tiles[type][it];
             if (tile > 0)
             {
@@ -1631,7 +1670,7 @@ TEST_F(ParticleTest, ReloadInstance)
     ASSERT_EQ(seed, e->m_Seed);
     ASSERT_EQ(1u, e->m_Particles.Size());
     dmParticle::Particle* particle = &e->m_Particles[0];
-    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+    ASSERT_EQ(0, CompareParticleSimulationState(&original_particle, particle));
 
     dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 1);
     ASSERT_EQ(1u, e1->m_Particles.Size());
@@ -1642,7 +1681,7 @@ TEST_F(ParticleTest, ReloadInstance)
 
     ASSERT_EQ(1u, e->m_Particles.Size());
     particle = &e->m_Particles[0];
-    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+    ASSERT_EQ(0, CompareParticleSimulationState(&original_particle, particle));
 
     // Test reload with max_particle_count changed
     ASSERT_TRUE(ReloadPrototype("reload3.particlefxc", m_Prototype));
@@ -1651,7 +1690,7 @@ TEST_F(ParticleTest, ReloadInstance)
 
     ASSERT_EQ(2u, e->m_Particles.Size());
     particle = &e->m_Particles[0];
-    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+    ASSERT_EQ(0, CompareParticleSimulationState(&original_particle, particle));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -1689,7 +1728,7 @@ TEST_F(ParticleTest, ReloadInstanceLoop)
     ASSERT_EQ(emitter_timer, e->m_Timer);
     ASSERT_EQ(1u, e->m_Particles.Size());
     dmParticle::Particle* particle = &e->m_Particles[0];
-    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+    ASSERT_EQ(0, CompareParticleSimulationState(&original_particle, particle));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -2147,7 +2186,7 @@ TEST_F(ParticleTest, Stats)
     dmParticle::StartInstance(m_Context, instance);
     dmParticle::Update(m_Context, dt, 0x0);
     dmParticle::Update(m_Context, dt, 0x0);
-    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, dmParticle::GetVertexBufferSize(1024, sizeof(TestVertex)), &out_vertex_buffer_size);
+    dmParticle::GenerateVertexData(m_Context, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, dmParticle::GetVertexBufferSize(1024, sizeof(TestVertex)), &out_vertex_buffer_size);
 
     dmParticle::Stats stats;
     dmParticle::InstanceStats instance_stats;
@@ -2206,8 +2245,8 @@ TEST_F(ParticleTest, Pivot)
     uint32_t out_vertex_buffer_size = 0;
     uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
     TestVertex vertex_buffer[6];
-    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
-    dmParticle::UpdateRenderData(m_Context, instance, 0);
+    dmParticle::UpdateRenderData(m_Context, instance, 0, dt);
+    dmParticle::GenerateVertexData(m_Context, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
     ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
 
     dmParticle::EmitterRenderData* emitter_render_data;
@@ -2221,6 +2260,124 @@ TEST_F(ParticleTest, Pivot)
     ASSERT_NEAR(1.0f, vertex_buffer[3].m_Y, EPSILON); // top right
     ASSERT_NEAR(0.0f, vertex_buffer[4].m_Y, EPSILON); // bottom right
     ASSERT_NEAR(0.0f, vertex_buffer[5].m_Y, EPSILON); // bottom left
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, CullingSphereContainsRenderedVerticesForAutoSizeAndPivot)
+{
+    {
+        // Verify auto-sized animated particles stay inside the cached culling sphere.
+        const float dt = 0.25f;
+        ASSERT_TRUE(LoadPrototype("anim.particlefxc", &m_Prototype));
+        dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+
+        TileSource tile_source;
+        for (uint32_t emitter_i = 0; emitter_i < 7; ++emitter_i)
+        {
+            dmParticle::SetTileSource(m_Prototype, emitter_i, &tile_source);
+        }
+        dmParticle::StartInstance(m_Context, instance);
+
+        dmParticle::Update(m_Context, dt, FetchAnimationCallback);
+
+        TestVertex vertex_buffer[6];
+        uint32_t out_vertex_buffer_size = 0;
+        const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
+        dmParticle::UpdateRenderData(m_Context, instance, 1, dt);
+        dmParticle::GenerateVertexData(m_Context, instance, 1, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
+        ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
+
+        dmParticle::EmitterRenderData* render_data = 0x0;
+        dmParticle::GetEmitterRenderData(m_Context, instance, 1, &render_data);
+        ASSERT_NE((dmParticle::EmitterRenderData*)0x0, render_data);
+
+        const float max_vertex_distance_sq = MaxVertexDistanceSq(vertex_buffer, 6, render_data->m_FrustumCullingCenter);
+        ASSERT_GE(render_data->m_FrustumCullingRadiusSq + EPSILON, max_vertex_distance_sq);
+
+        dmParticle::DestroyInstance(m_Context, instance);
+        dmParticle::Particle_DeletePrototype(m_Prototype);
+        m_Prototype = 0x0;
+    }
+
+    {
+        // Verify pivoted particles stay inside the cached culling sphere after pivot offset is applied.
+        const float dt = 1.0f;
+        ASSERT_TRUE(LoadPrototype("pivot.particlefxc", &m_Prototype));
+        dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+
+        TileSource tile_source;
+        tile_source.m_TileWidth  = 1;
+        tile_source.m_TileHeight = 2;
+
+        dmParticle::SetTileSource(m_Prototype, 0, &tile_source);
+        dmParticle::SetPosition(m_Context, instance, Point3(0.0f, 0.0f, 0.0f));
+        dmParticle::StartInstance(m_Context, instance);
+
+        dmParticle::Update(m_Context, dt, FetchPivotAnimationCallback);
+
+        TestVertex vertex_buffer[6];
+        uint32_t out_vertex_buffer_size = 0;
+        const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
+        dmParticle::UpdateRenderData(m_Context, instance, 0, dt);
+        dmParticle::GenerateVertexData(m_Context, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
+        ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
+
+        dmParticle::EmitterRenderData* render_data = 0x0;
+        dmParticle::GetEmitterRenderData(m_Context, instance, 0, &render_data);
+        ASSERT_NE((dmParticle::EmitterRenderData*)0x0, render_data);
+
+        const float max_vertex_distance_sq = MaxVertexDistanceSq(vertex_buffer, 6, render_data->m_FrustumCullingCenter);
+        ASSERT_GE(render_data->m_FrustumCullingRadiusSq + EPSILON, max_vertex_distance_sq);
+
+        dmParticle::DestroyInstance(m_Context, instance);
+    }
+}
+
+TEST_F(ParticleTest, UpdateRenderDataRefreshesTransformChangesInFrame)
+{
+    const float dt = 1.0f;
+    ASSERT_TRUE(LoadPrototype("emitter_space.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+
+    dmParticle::SetPosition(m_Context, instance, Point3(0.0f, 0.0f, 0.0f));
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, EmptyFetchAnimationCallback);
+
+    const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
+    TestVertex vertex_buffer_before[6];
+    uint32_t out_size_before = 0;
+    dmParticle::UpdateRenderData(m_Context, instance, 0, dt);
+    dmParticle::GenerateVertexData(m_Context, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer_before, max_vb_size, &out_size_before);
+    ASSERT_EQ(sizeof(vertex_buffer_before), out_size_before);
+
+    dmParticle::EmitterRenderData* render_data_before = 0x0;
+    dmParticle::GetEmitterRenderData(m_Context, instance, 0, &render_data_before);
+    ASSERT_NE((dmParticle::EmitterRenderData*)0x0, render_data_before);
+    const Point3 center_before = render_data_before->m_FrustumCullingCenter;
+
+    dmParticle::SetPosition(m_Context, instance, Point3(100.0f, 200.0f, 0.0f));
+
+    TestVertex vertex_buffer_after[6];
+    uint32_t out_size_after = 0;
+    dmParticle::UpdateRenderData(m_Context, instance, 0, dt);
+    dmParticle::GenerateVertexData(m_Context, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer_after, max_vb_size, &out_size_after);
+    ASSERT_EQ(sizeof(vertex_buffer_after), out_size_after);
+
+    dmParticle::EmitterRenderData* render_data_after = 0x0;
+    dmParticle::GetEmitterRenderData(m_Context, instance, 0, &render_data_after);
+    ASSERT_NE((dmParticle::EmitterRenderData*)0x0, render_data_after);
+
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        ASSERT_NEAR(vertex_buffer_before[i].m_X + 100.0f, vertex_buffer_after[i].m_X, EPSILON);
+        ASSERT_NEAR(vertex_buffer_before[i].m_Y + 200.0f, vertex_buffer_after[i].m_Y, EPSILON);
+        ASSERT_NEAR(vertex_buffer_before[i].m_Z, vertex_buffer_after[i].m_Z, EPSILON);
+    }
+
+    ASSERT_NEAR(center_before.getX() + 100.0f, render_data_after->m_FrustumCullingCenter.getX(), EPSILON);
+    ASSERT_NEAR(center_before.getY() + 200.0f, render_data_after->m_FrustumCullingCenter.getY(), EPSILON);
+    ASSERT_NEAR(center_before.getZ(), render_data_after->m_FrustumCullingCenter.getZ(), EPSILON);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -2255,7 +2412,7 @@ TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
     uint32_t out_size = 0;
     const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertexWithLocal));
     TestVertexWithLocal vertex_buffer[6];
-    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, local_infos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_size);
+    dmParticle::GenerateVertexData(m_Context, instance, 0, local_infos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_size);
     ASSERT_EQ(6u, out_size / sizeof(TestVertexWithLocal));
 
     float local_pos_first[6 * 4];
@@ -2269,7 +2426,7 @@ TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
 
     dmParticle::SetPosition(m_Context, instance, Point3(100.0f, 200.0f, 50.0f));
     dmParticle::Update(m_Context, 0.0f, EmptyFetchAnimationCallback);
-    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, local_infos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_size);
+    dmParticle::GenerateVertexData(m_Context, instance, 0, local_infos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_size);
     ASSERT_EQ(6u, out_size / sizeof(TestVertexWithLocal));
 
     for (uint32_t v = 0; v < 6; ++v)

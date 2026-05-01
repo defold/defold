@@ -85,6 +85,20 @@ namespace dmScript
         context->m_ResourceFactory = params.m_Factory;
         context->m_GraphicsContext = params.m_GraphicsContext;
         context->m_LuaState = lua_open();
+#if defined(DM_SANITIZE_THREAD) && defined(__linux__) && !defined(ANDROID) && defined(__aarch64__)
+        // Linux arm64 TSan reserves large shadow-memory ranges. This can make
+        // LuaJIT's mmap probe fail to reserve a valid Lua state range, so retry
+        // state creation before treating it as a real allocation failure.
+        for (int i = 0; context->m_LuaState == 0 && i < 16; ++i)
+        {
+            context->m_LuaState = lua_open();
+        }
+#endif
+        if (context->m_LuaState == 0)
+        {
+            dmLogFatal("Failed to create Lua state.");
+            assert(context->m_LuaState != 0);
+        }
         context->m_ContextTableRef = LUA_NOREF;
         context->m_ContextWeakTableRef = LUA_NOREF;
         return context;

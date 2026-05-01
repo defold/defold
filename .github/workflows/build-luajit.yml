@@ -2,172 +2,60 @@ name: Build LuaJIT
 
 on:
   workflow_dispatch:
+    inputs:
+      push_changes:
+        description: 'Commit built package tarballs to ./packages on the target branch'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
 
 jobs:
-  build-linux:
-    strategy:
-      matrix:
-        arch: [x86_64-linux]
-    runs-on: ubuntu-22.04
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+  build:
+    uses: ./.github/workflows/build-external-template.yml
+    with:
+      package_name: 'luajit'
+      package_root: 'share/ext/luajit'
+      artifact_dir: 'share/ext/build'
+      result_folder_name: 'luajit'
+      result_lib_name: 'libluajit-5.1'
+      package_version: '2.1.0-3e223cb'
+      push_changes: ${{ inputs.push_changes }}
+      setup_msvc: true
+      platforms: >
+        [
+          { "name": "x86_64-linux", "runner": "ubuntu-22.04", "target": "linux" },
+          { "name": "arm64-linux", "runner": "ubuntu-22.04-arm", "target": "linux" },
+          { "name": "arm64-macos", "runner": "macOS-14", "target": "macos" },
+          { "name": "x86_64-macos", "runner": "macOS-14", "target": "macos" },
+          { "name": "arm64-ios", "runner": "macOS-14", "target": "macos" },
+          { "name": "x86_64-ios", "runner": "macOS-14", "target": "macos" },
+          { "name": "win32", "runner": "windows-2025", "target": "windows" },
+          { "name": "x86_64-win32", "runner": "windows-2025", "target": "windows" },
+          { "name": "arm64-android", "runner": "ubuntu-22.04", "target": "android" },
+          { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" }
+        ]
+      pre_build_command: |
+        if [ "$BUILD_PLATFORM_NAME" = "arm64-linux" ]; then
+          sudo dpkg --add-architecture arm64
+          sudo apt update
+          sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev:arm64 build-essential
+          sudo cp -r /usr/include/aarch64-linux-gnu/. /usr/include/
+        fi
 
-    - name: Build
-      run: |
+        if [ "$BUILD_PLATFORM_TARGET" = "android" ]; then
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libc6-dev-i386 gcc-multilib
+        fi
+      build_command: |
         cd share/ext/luajit
-        ./build_luajit.sh ${{ matrix.arch }}
-
-    - name: Archive results
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      with:
-        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
-        path: |
-          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
-
-
-  build-linux-arm:
-    strategy:
-      matrix:
-        arch: [arm64-linux]
-    runs-on: ubuntu-22.04-arm
-    steps:
-      
-    - name: Add ARM64 architecture and install dependencies
-      run: |
-        sudo dpkg --add-architecture arm64
-        sudo apt update
-        sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev:arm64 build-essential
-
-    - name: Apply workaround for missing ARM headers
-      run: |
-        cd /usr/include/aarch64-linux-gnu
-        sudo cp -r . ..
-        
-    - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
-    - name: Build
-      run: |
-        cd share/ext/luajit
-        ./build_luajit.sh ${{ matrix.arch }}
-
-    - name: Archive results
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      with:
-        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
-        path: |
-          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
-
-
-  build-macos:
-    strategy:
-      matrix:
-        arch: [arm64-macos, x86_64-macos]
-    runs-on: macOS-14
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
-    - name: Build
-      run: |
-        cd share/ext/luajit
-        ./build_luajit.sh ${{ matrix.arch }}
-
-    - name: Archive results
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      with:
-        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
-        path: |
-          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
-
-
-  build-ios:
-    strategy:
-      matrix:
-        arch: [arm64-ios, x86_64-ios]
-    runs-on: macOS-14
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
-    - name: Build
-      run: |
-        cd share/ext/luajit
-        ./build_luajit.sh ${{ matrix.arch }}
-
-    - name: Archive results
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      with:
-        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
-        path: |
-          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
-
-
-  build-windows:
-    strategy:
-      matrix:
-        arch: [x64, x86]
-    runs-on: windows-2025
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
-    - name: Setup MSVS
-      uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
-      with:
-        arch: ${{ matrix.arch }}
-
-    - name: Install
-      run: |
+        ./build_luajit.sh "$BUILD_PLATFORM_NAME"
+      windows_build_command: |
         choco install wget -y
-
-    - name: Build
-      shell: cmd
-      run: |
-        cd share/ext/luajit
-        ./build_win32.bat ${{ matrix.arch }}
-
-    - name: Archive results
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      with:
-        name: ${{ matrix.arch }}-win32-luajit-${{ github.sha }}
-        path: |
-          ${{ github.workspace }}\\share\\ext\\luajit\\package\\luajit*.tar.gz
-
-
-  build-android:
-    strategy:
-      matrix:
-        platform: [armv7-android, arm64-android]
-    runs-on: ubuntu-22.04
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
-    - name: Setup NDK
-      uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
-      id: setup-ndk
-      with:
-        ndk-version: r25b
-        add-to-path: false
-
-    - name: Install
-      run: |
-        sudo apt-get install -y --no-install-recommends libc6-dev-i386
-        sudo apt-get install -y --no-install-recommends gcc-multilib
-
-    - name: Build
-      env:
-        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
-      run: |
-        cd share/ext/luajit
-        ./build_luajit.sh ${{ matrix.platform }}
-
-    - name: Archive results
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      with:
-        name: ${{ matrix.platform }}-luajit-${{ github.sha }}
-        path: |
-          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
+        cd share\ext\luajit
+        call build_win32.bat %BUILD_PLATFORM_NAME%
+        if not exist ..\build mkdir ..\build
+        copy package\*.tar.gz ..\build\
+    secrets:
+      dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}

@@ -14,8 +14,9 @@
 
 (ns editor.pose
   (:require [clojure.spec.alpha :as s]
-            [editor.math :as math])
-  (:import [javax.vecmath Matrix4d]))
+            [editor.math :as math]
+            [util.defonce :as defonce])
+  (:import [javax.vecmath Matrix4d Quat4d Tuple3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -28,7 +29,7 @@
 (s/def ::scale ::num3)
 (s/def ::euler-rotation ::num3)
 
-(defrecord Pose [translation rotation scale])
+(defonce/record Pose [translation rotation scale])
 
 (defn pose? [value]
   (instance? Pose value))
@@ -38,7 +39,6 @@
 (def default-scale (vector-of :double 1.0 1.0 1.0))
 (def ^Pose default (->Pose default-translation default-rotation default-scale))
 
-(def ^:private mat4-identity (doto (Matrix4d.) (.setIdentity)))
 (def ^:private num4-zero (vector-of :double 0.0 0.0 0.0 0.0))
 
 (defn- add-vector [[^double ax ^double ay ^double az] [^double bx ^double by ^double bz]]
@@ -107,8 +107,9 @@
   ;; Implementation based on:
   ;; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
   ;; Rotation sequence: 231 (YZX)
-  (if (= 0.0 x-deg y-deg)
-    (if (= 0.0 z-deg)
+  (if (and (zero? x-deg)
+           (zero? y-deg))
+    (if (zero? z-deg)
       default-rotation
       (let [ha (* 0.5 (math/deg->rad z-deg))
             s (Math/sin ha)
@@ -134,7 +135,7 @@
           qw (+ (- (* s1 s2s3))
                 (* c1c2 c3))
           dp (+ (* qx qx) (* qy qy) (* qz qz) (* qw qw))]
-      (if (> dp 0.0)
+      (if (pos? dp)
         (let [r (/ 1.0 (Math/sqrt dp))]
           (vector-of :double (* qx r) (* qy r) (* qz r) (* qw r)))
         num4-zero))))
@@ -262,6 +263,18 @@
     (apply scale-pose scale)
     default))
 
+(defn from-matrix
+  ^Pose [^Matrix4d matrix]
+  (if (nil? matrix)
+    default
+    (let [translation (Vector3d.)
+          rotation (Quat4d.)
+          scale (Vector3d.)]
+      (math/split-mat4 matrix translation rotation scale)
+      (make (math/vecmath->clj translation)
+            (math/vecmath->clj rotation)
+            (math/vecmath->clj scale)))))
+
 (defn pre-multiply
   ^Pose [^Pose child-pose ^Pose parent-pose]
   {:pre [(pose? child-pose)
@@ -294,14 +307,14 @@
   ^Matrix4d [^Pose pose]
   {:pre [(pose? pose)]}
   (if (identical? default pose)
-    mat4-identity
+    math/identity-mat4
     (math/clj->mat4 (.-translation pose) (.-rotation pose) (.-scale pose))))
 
 (defmacro translation-v3 [pose-expr]
   `(.-translation ~(with-meta pose-expr {:tag `Pose})))
 
 (defmacro translation-v4 [pose-expr w-expr]
-  `(conj (translation-v3 ~pose-expr) (float ~w-expr)))
+  `(conj (translation-v3 ~pose-expr) ~w-expr))
 
 (defmacro rotation-q4 [pose-expr]
   `(.-rotation ~(with-meta pose-expr {:tag `Pose})))
@@ -326,3 +339,14 @@
 
 (defmacro scaled? [pose-expr]
   `(not= default-scale (scale-v3 ~pose-expr)))
+
+(defn assign-to-vecmath! [^Pose pose ^Tuple3d out-translation ^Quat4d out-rotation ^Tuple3d out-scale]
+  (if-let [[^double x ^double y ^double z] (translation-v3 pose)]
+    (.set out-translation x y z)
+    (.set out-translation math/zero-v3))
+  (if-let [[^double x ^double y ^double z ^double w] (rotation-q4 pose)]
+    (.set out-rotation x y z w)
+    (.set out-rotation math/identity-quat))
+  (if-let [[^double x ^double y ^double z] (scale-v3 pose)]
+    (.set out-scale x y z)
+    (.set out-scale math/one-v3)))
