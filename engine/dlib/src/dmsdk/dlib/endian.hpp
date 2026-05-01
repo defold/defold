@@ -59,9 +59,11 @@ namespace dmEndian
     }
 
     /*# convert a 16-bit host value to network byte order
+     * Network byte order is big-endian.
+     *
      * @name dmEndian::ToNetwork
      * @param x [type:uint16_t] Host-order value
-     * @return value [type:uint16_t] Network-order value
+     * @return value [type:uint16_t] Network-order (big-endian) value
      */
     static inline uint16_t ToNetwork(uint16_t x)
     {
@@ -69,8 +71,10 @@ namespace dmEndian
     }
 
     /*# convert a 16-bit network value to host byte order
+     * Network byte order is big-endian.
+     *
      * @name dmEndian::ToHost
-     * @param x [type:uint16_t] Network-order value
+     * @param x [type:uint16_t] Network-order (big-endian) value
      * @return value [type:uint16_t] Host-order value
      */
     static inline uint16_t ToHost(uint16_t x)
@@ -79,9 +83,11 @@ namespace dmEndian
     }
 
     /*# convert a 32-bit host value to network byte order
+     * Network byte order is big-endian.
+     *
      * @name dmEndian::ToNetwork
      * @param x [type:uint32_t] Host-order value
-     * @return value [type:uint32_t] Network-order value
+     * @return value [type:uint32_t] Network-order (big-endian) value
      */
     static inline uint32_t ToNetwork(uint32_t x)
     {
@@ -89,8 +95,10 @@ namespace dmEndian
     }
 
     /*# convert a 32-bit network value to host byte order
+     * Network byte order is big-endian.
+     *
      * @name dmEndian::ToHost
-     * @param x [type:uint32_t] Network-order value
+     * @param x [type:uint32_t] Network-order (big-endian) value
      * @return value [type:uint32_t] Host-order value
      */
     static inline uint32_t ToHost(uint32_t x)
@@ -99,9 +107,11 @@ namespace dmEndian
     }
 
     /*# convert a 64-bit host value to network byte order
+     * Network byte order is big-endian.
+     *
      * @name dmEndian::ToNetwork
      * @param x [type:uint64_t] Host-order value
-     * @return value [type:uint64_t] Network-order value
+     * @return value [type:uint64_t] Network-order (big-endian) value
      */
     static inline uint64_t ToNetwork(uint64_t x)
     {
@@ -109,8 +119,10 @@ namespace dmEndian
     }
 
     /*# convert a 64-bit network value to host byte order
+     * Network byte order is big-endian.
+     *
      * @name dmEndian::ToHost
-     * @param x [type:uint64_t] Network-order value
+     * @param x [type:uint64_t] Network-order (big-endian) value
      * @return value [type:uint64_t] Host-order value
      */
     static inline uint64_t ToHost(uint64_t x)

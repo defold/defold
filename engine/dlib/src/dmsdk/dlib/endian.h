@@ -116,9 +116,11 @@ static inline uint64_t EndianSwap64(uint64_t x)
 }
 
 /*# convert a 16-bit host value to network byte order
+ * Network byte order is big-endian.
+ *
  * @name EndianToNetwork16
  * @param x [type:uint16_t] Host-order value
- * @return value [type:uint16_t] Network-order value
+ * @return value [type:uint16_t] Network-order (big-endian) value
  */
 static inline uint16_t EndianToNetwork16(uint16_t x)
 {
@@ -130,8 +132,10 @@ static inline uint16_t EndianToNetwork16(uint16_t x)
 }
 
 /*# convert a 16-bit network value to host byte order
+ * Network byte order is big-endian.
+ *
  * @name EndianToHost16
- * @param x [type:uint16_t] Network-order value
+ * @param x [type:uint16_t] Network-order (big-endian) value
  * @return value [type:uint16_t] Host-order value
  */
 static inline uint16_t EndianToHost16(uint16_t x)
@@ -140,9 +144,11 @@ static inline uint16_t EndianToHost16(uint16_t x)
 }
 
 /*# convert a 32-bit host value to network byte order
+ * Network byte order is big-endian.
+ *
  * @name EndianToNetwork32
  * @param x [type:uint32_t] Host-order value
- * @return value [type:uint32_t] Network-order value
+ * @return value [type:uint32_t] Network-order (big-endian) value
  */
 static inline uint32_t EndianToNetwork32(uint32_t x)
 {
@@ -154,8 +160,10 @@ static inline uint32_t EndianToNetwork32(uint32_t x)
 }
 
 /*# convert a 32-bit network value to host byte order
+ * Network byte order is big-endian.
+ *
  * @name EndianToHost32
- * @param x [type:uint32_t] Network-order value
+ * @param x [type:uint32_t] Network-order (big-endian) value
  * @return value [type:uint32_t] Host-order value
  */
 static inline uint32_t EndianToHost32(uint32_t x)
@@ -164,9 +172,11 @@ static inline uint32_t EndianToHost32(uint32_t x)
 }
 
 /*# convert a 64-bit host value to network byte order
+ * Network byte order is big-endian.
+ *
  * @name EndianToNetwork64
  * @param x [type:uint64_t] Host-order value
- * @return value [type:uint64_t] Network-order value
+ * @return value [type:uint64_t] Network-order (big-endian) value
  */
 static inline uint64_t EndianToNetwork64(uint64_t x)
 {
@@ -178,8 +188,10 @@ static inline uint64_t EndianToNetwork64(uint64_t x)
 }
 
 /*# convert a 64-bit network value to host byte order
+ * Network byte order is big-endian.
+ *
  * @name EndianToHost64
- * @param x [type:uint64_t] Network-order value
+ * @param x [type:uint64_t] Network-order (big-endian) value
  * @return value [type:uint64_t] Host-order value
  */
 static inline uint64_t EndianToHost64(uint64_t x)
