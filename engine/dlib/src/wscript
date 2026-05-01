@@ -3,7 +3,7 @@
 import os, re, sys
 from waflib import Options
 from waflib.TaskGen import feature, after
-from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private, platform_supports_feature
+from waf_dynamo import dmsdk_add_files, find_feature_files, remove_source_files, remove_flag, is_platform_private, platform_supports_feature
 from BuildUtility import BuildUtilityException, create_build_utility
 
 def options(opt):
@@ -70,12 +70,6 @@ def build(bld):
     if platform == 'win':
         platform = "win32"
 
-    source_files = bld.path.ant_glob(source_dirs)
-
-    platform_source_files = []
-    if platform_source_dirs:
-        platform_source_files = bld.path.ant_glob(platform_source_dirs)
-
     # Trying to maintain this set of rules in a way that fits all platforms+combinations is tricky
     # The current incarnation is add all common sources plus the sources for the particular platform
     # We then remove some specific files for each platform
@@ -88,20 +82,29 @@ def build(bld):
             return False
         return [x for x in sources if not matches(x.abspath(), patterns)]
 
+    # For certain "features", we select files differently, so make sure we don't glob them into the source files
+    feature_sources, feature_files = find_feature_files(bld, 'dlib/condition_variable', bld.env.PLATFORM)
+
+    source_files = bld.path.ant_glob(source_dirs)
+    source_files = remove_source_files(source_files, feature_files)
+    source_files += feature_sources
+
+    platform_source_files = []
+    if platform_source_dirs:
+        platform_source_files = bld.path.ant_glob(platform_source_dirs)
+
     # build image sources as separate libraries to make it excludable
     remove_files(source_files, ['image.cpp', 'image_null.cpp'])
 
     if 'arm64-nx64' in bld.env.PLATFORM:
-        source_files = remove_files(source_files, ['condition_variable.cpp',
-                                                    'mutex_posix.cpp',
+        source_files = remove_files(source_files, ['mutex_posix.cpp',
                                                     'mutex_empty.cpp',
                                                     'sys_posix.cpp',
                                                     'socket_posix.cpp',
                                                     'time.cpp'])
 
     if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
-        source_files = remove_files(source_files, ['condition_variable.cpp',
-                                                    'file_descriptor_posix.cpp',
+        source_files = remove_files(source_files, ['file_descriptor_posix.cpp',
                                                     'mutex_posix.cpp',
                                                     'mutex_empty.cpp',
                                                     'socket_posix.cpp',
