@@ -1644,7 +1644,7 @@ static int GetTextureInfo(lua_State* L)
     }
 
     lua_newtable(L);
-    PushTextureInfo(L, texture_handle, 0);
+    PushTextureInfo(L, g_ResourceModule.m_GraphicsContext, texture_handle, 0);
 
     assert((top + 1) == lua_gettop(L));
     return 1;
@@ -1780,7 +1780,7 @@ static int GetRenderTargetInfo(lua_State* L)
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
             lua_newtable(L);
 
-            PushTextureInfo(L, t, 0);
+            PushTextureInfo(L, g_ResourceModule.m_GraphicsContext, t, 0);
 
             lua_pushinteger(L, buffer_type);
             lua_setfield(L, -2, "buffer_type");

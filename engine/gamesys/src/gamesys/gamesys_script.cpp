@@ -36,7 +36,6 @@
 #include "scripts/script_buffer.h"
 #include "scripts/script_sys_gamesys.h"
 #include "scripts/script_camera.h"
-#include "scripts/script_http.h"
 #include "scripts/script_material.h"
 #include "scripts/script_compute.h"
 
@@ -170,14 +169,15 @@ namespace dmGameSystem
         return dmResource::GetResource(rd);
     }
 
-    void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path)
+    void PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path)
     {
-        uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
-        uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
-        uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
-        uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
-        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
-        uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
+        uint32_t texture_width               = dmGraphics::GetTextureWidth(graphics_context, texture_handle);
+        uint32_t texture_height              = dmGraphics::GetTextureHeight(graphics_context, texture_handle);
+        uint32_t texture_depth               = dmGraphics::GetTextureDepth(graphics_context, texture_handle);
+        uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(graphics_context, texture_handle);
+        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(graphics_context, texture_handle);
+        uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(graphics_context, texture_handle);
+        uint8_t page_count                   = dmGraphics::GetTexturePageCount(texture_handle);
 
         if (texture_resource_path != 0)
         {
@@ -206,7 +206,19 @@ namespace dmGameSystem
         lua_pushinteger(L, texture_flags);
         lua_setfield(L, -2, "flags");
 
-        // JG: We should probably expose format as well.
+        lua_pushinteger(L, page_count);
+        lua_setfield(L, -2, "page_count");
+
+        if (texture_type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
+        {
+            lua_pushinteger(L, 6);
+            lua_setfield(L, -2, "depth");
+        }
+        else
+        {
+            lua_pushinteger(L, texture_depth);
+            lua_setfield(L, -2, "depth");
+        }
     }
 
     void PushSampler(lua_State* L, dmRender::HSampler sampler)
@@ -557,7 +569,6 @@ namespace dmGameSystem
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
         ScriptSysGameSysRegister(context);
-        ScriptHttpRegister(context);
         ScriptMaterialRegister(context);
         ScriptComputeRegister(context);
 

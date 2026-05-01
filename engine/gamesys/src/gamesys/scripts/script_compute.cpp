@@ -280,7 +280,8 @@ namespace dmGameSystem
                 lua_pushinteger(L, (lua_Integer) texture_index++);
                 lua_newtable(L);
 
-                PushTextureInfo(L, texture_res->m_Texture, compute_res->m_TextureResourcePaths[i]);
+                dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(dmRender::GetProgramRenderContext(compute_res->m_Program));
+                PushTextureInfo(L, graphics_context, texture_res->m_Texture, compute_res->m_TextureResourcePaths[i]);
                 lua_rawset(L, -3);
             }
         }
@@ -489,7 +490,8 @@ namespace dmGameSystem
         dmhash_t texture_path = dmScript::CheckHashOrString(L, 3);
         TextureResource* texture_res = (TextureResource*) CheckResource(L, g_ComputeModule.m_Factory, texture_path, "texturec");
 
-        dmGraphics::TextureType texture_type_in = dmGraphics::GetTextureType(texture_res->m_Texture);
+        dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(dmRender::GetProgramRenderContext(compute_res->m_Program));
+        dmGraphics::TextureType texture_type_in = dmGraphics::GetTextureType(graphics_context, texture_res->m_Texture);
         dmRender::HSampler sampler              = dmRender::GetComputeProgramSampler(compute_res->m_Program, unit);
 
         uint32_t location;

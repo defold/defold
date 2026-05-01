@@ -162,7 +162,7 @@ namespace dmGameSystem
     // Script resource helpers (Maybe these should be in a "gamesys_script.h" file?)
     int   ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash);
     void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
-    void  PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path);
+    void  PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path);
     void  PushSampler(lua_State* L, dmRender::HSampler sampler);
     void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);
     void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr);
