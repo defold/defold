@@ -279,13 +279,17 @@
              (tag-toggle :text "text")
              (tag-toggle :tilemap "tile-maps")
              {:type :separator}
-             (assoc (tag-toggle :outline "component-guides")
-                    :command :scene.visibility.toggle-component-guides
-                    :always-enabled true)]
+             {:key :outline :type :toggle :label "scene-popup.scene-visibility.component-guides"
+              :value (not (contains? filtered-tags :outline))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :outline)
+              :command :scene.visibility.toggle-component-guides
+              :always-enabled true}]
             (system/defold-dev?)
             (into [{:type :separator}
-                   (assoc (tag-toggle :dev-visibility-bounds "scene-visibility-bounds")
-                          :appear-filtered false)]))))
+                   {:key :dev-visibility-bounds :type :toggle :label "scene-popup.scene-visibility.scene-visibility-bounds"
+                    :value (not (contains? filtered-tags :dev-visibility-bounds))
+                    :on-value-changed (toggle-tag-visibility-fn scene-visibility :dev-visibility-bounds)
+                    :appear-filtered false}]))))
 
 ;; TODO JOE: We might not need this anymore?
 ;; (def ^:private toggleable-filters

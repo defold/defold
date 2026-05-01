@@ -60,9 +60,10 @@
       (.setAutoFix true)
       (.setHideOnEscape true))))
 
-(defn- make-toggle-row-fx [{:keys [key label accelerator state swap-state on-selected-changed]}]
+(defn- make-toggle-row-fx [{:keys [key label accelerator state swap-state on-selected-changed style-class]}]
   {:fx/type fxui/horizontal
-   :style-class "toggle-row"
+   :style-class (cond-> ["toggle-row"]
+                  style-class (conj style-class))
    :alignment :center-left
    :on-mouse-clicked (fn [_]
                        (swap-state assoc key (not (boolean (key state))))
@@ -212,6 +213,7 @@
      :key (:key descriptor)
      :state state
      :swap-state swap-state
+     :style-class (:style-class descriptor)
      :on-selected-changed #((:on-value-changed descriptor) %)}
 
     :slider

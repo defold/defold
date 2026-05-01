@@ -98,7 +98,7 @@
         .popup-settings {
             -fx-background-color: -df-component-dark;
             -fx-background-radius: 4px;
-            -fx-padding: 7px 14px 7px 14px;
+            -fx-padding: 0px 14px 7px 14px;
 
             .label {
                 -fx-alignment: center-left;
@@ -184,6 +184,7 @@
             }
 
             .reset-button {
+                -fx-padding: 12px 0px 5px 0px;
                 .button {
                     -fx-pref-width: 500px;
                     &:pressed, &:armed {
@@ -201,7 +202,7 @@
             }
 
             .slider {
-                -fx-pref-width: 90px;
+                -fx-pref-width: 115px;
                 .track {
                     -fx-background-color: -df-background-light;
                     -fx-border-color: -df-component-light;
