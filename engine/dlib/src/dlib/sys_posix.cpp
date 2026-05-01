@@ -111,7 +111,7 @@ namespace dmSys
         return (NetworkConnectivity)reti;
     }
 
-#elif !defined(__MACH__) // OS X and iOS implementations in sys_cocoa.mm
+#elif !defined(__MACH__) // macOS and iOS implementations in sys_apple.mm
 
     void SetNetworkConnectivityHost(const char* host) { }
 
@@ -149,7 +149,7 @@ namespace dmSys
 
 #if defined(__MACH__)
 
-// NOTE: iOS/OSX implementation of GetApplicationPath()/GetApplicationSupportPath() in sys_cocoa.mm
+// NOTE: iOS/macOS implementation of GetApplicationPath()/GetApplicationSupportPath() in sys_apple.mm
 
 #elif defined(__ANDROID__)
 
@@ -491,7 +491,7 @@ namespace dmSys
     }
 
 #if defined(DM_PLATFORM_IOS)
-    // NOTE: iOS implementation in sys_cocoa.mm
+    // NOTE: iOS implementation in sys_apple.mm
 
 #elif defined(__ANDROID__)
     Result GetLogPath(char* path, uint32_t path_len)
@@ -708,7 +708,7 @@ namespace dmSys
         info->m_Installed = installed;
         return installed;
     }
-#elif !defined(__MACH__) // OS X and iOS implementations in sys_cocoa.mm
+#elif !defined(__MACH__) // macOS and iOS implementations in sys_apple.mm
     bool GetApplicationInfo(const char* id, ApplicationInfo* info)
     {
         memset(info, 0, sizeof(*info));

@@ -303,3 +303,6 @@ namespace dmSys
 
 #endif
 }
+
+// Apple overrides live above; the remaining implementation is shared with POSIX platforms.
+#include "sys_posix.cpp"
