@@ -98,6 +98,7 @@ def build(bld):
                          'dlib/crypt',
                          'dlib/file_descriptor',
                          'dlib/mutex',
+                         'dlib/socket',
                          'dlib/sys',
                          'dlib/time',
                          'dlib/thread']:
@@ -119,12 +120,6 @@ def build(bld):
     # build image and SSL socket backends as separate selectable sources
     source_files = remove_files(source_files, ['image.cpp', 'image_null.cpp',
                                                 'sslsocket_darwin.mm', 'sslsocket_mbedtls.cpp', 'sslsocket_null.cpp'])
-
-    if 'arm64-nx64' in bld.env.PLATFORM:
-        source_files = remove_files(source_files, ['socket_posix.cpp'])
-
-    if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
-        source_files = remove_files(source_files, ['socket_posix.cpp'])
 
     sslsocket_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios', 'web']
 
