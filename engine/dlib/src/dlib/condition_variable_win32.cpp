@@ -45,7 +45,7 @@ namespace dmConditionVariable
     void Wait(HConditionVariable condition, dmMutex::HMutex mutex)
     {
         assert(condition);
-        BOOL ret = SleepConditionVariableCS(&condition->m_NativeHandle, &mutex->m_NativeHandle, INFINITE);
+        BOOL ret = SleepConditionVariableCS(&condition->m_NativeHandle, (CRITICAL_SECTION*)dmMutex::GetNativeHandle(mutex), INFINITE);
         assert(ret);
     }
 

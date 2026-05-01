@@ -155,16 +155,17 @@ def get_platform_file_fallback_tags(platform):
 
     return tags
 
-def find_platform_file(bld, platform, path, public_fallback = True):
+def find_platform_file(bld, platform, path, public_fallback = True, private_roots = True):
     repo_root = get_repo_root()
     base_path = os.path.relpath(bld.path.abspath(), repo_root)
-    for root in get_platform_roots(platform):
-        absolute_path = os.path.join(root, base_path, path)
-        if os.path.exists(absolute_path):
-            node = bld.root.find_node(absolute_path)
-            if node:
-                return node
-            return absolute_path
+    if private_roots:
+        for root in get_platform_roots(platform):
+            absolute_path = os.path.join(root, base_path, path)
+            if os.path.exists(absolute_path):
+                node = bld.root.find_node(absolute_path)
+                if node:
+                    return node
+                return absolute_path
 
     if public_fallback:
         return bld.path.find_node(path)
@@ -187,14 +188,14 @@ def find_feature_files(bld, feature_name, platform):
     * selected_files contains all <feature>.<ext> core files when found.
     * selected_files contains all matching <feature>_<tag>.ext files for the platform.
     * fallback tags and default are used only when no platform tag matched.
-    * platform roots are searched before the public repo.
+    * platform roots are searched before the public repo for platform tag matches.
     * missing feature files or missing selected files fail the build.
     """
     files = []
     feature_files = []
 
-    def find_file(path, public_fallback = True):
-        return find_platform_file(bld, platform, path, public_fallback)
+    def find_file(path, public_fallback = True, private_roots = True):
+        return find_platform_file(bld, platform, path, public_fallback, private_roots)
 
     def append_file(files, node):
         if node and source_file_path(node) not in [source_file_path(x) for x in files]:
@@ -213,7 +214,7 @@ def find_feature_files(bld, feature_name, platform):
         append_file(feature_files, node)
 
     for extension in extensions:
-        node = find_file(feature_base + extension)
+        node = find_file(feature_base + extension, True, False)
         if node:
             append_file(files, node)
             append_file(feature_files, node)
@@ -229,7 +230,7 @@ def find_feature_files(bld, feature_name, platform):
     if not tag_files:
         for tag in get_platform_file_fallback_tags(platform) + ['default']:
             for extension in extensions:
-                node = find_file('%s_%s%s' % (feature_base, tag, extension))
+                node = find_file('%s_%s%s' % (feature_base, tag, extension), True, False)
                 if node:
                     append_file(tag_files, node)
                     append_file(feature_files, node)

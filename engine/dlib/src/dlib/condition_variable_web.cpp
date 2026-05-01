@@ -51,7 +51,7 @@ namespace dmConditionVariable
         // dmLog uses dmMessage, which in turn uses dmConditionVariable (Wait & Signal).
         // We cannot place assertions here.
 #if !defined(DM_NO_THREAD_SUPPORT)
-        pthread_cond_wait(&condition->m_NativeHandle, &mutex->m_NativeHandle);
+        pthread_cond_wait(&condition->m_NativeHandle, (pthread_mutex_t*)dmMutex::GetNativeHandle(mutex));
 #endif
     }
 

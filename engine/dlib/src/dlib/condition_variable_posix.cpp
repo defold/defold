@@ -49,7 +49,7 @@ namespace dmConditionVariable
     void Wait(HConditionVariable condition, dmMutex::HMutex mutex)
     {
         assert(condition);
-        int ret = pthread_cond_wait(&condition->m_NativeHandle, &mutex->m_NativeHandle);
+        int ret = pthread_cond_wait(&condition->m_NativeHandle, (pthread_mutex_t*)dmMutex::GetNativeHandle(mutex));
         assert(ret == 0);
     }
 

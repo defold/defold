@@ -87,6 +87,7 @@ def build(bld):
     feature_files = []
     for feature_name in ['dlib/condition_variable',
                          'dlib/file_descriptor',
+                         'dlib/mutex',
                          'dlib/sys',
                          'dlib/time',
                          'dlib/thread']:
@@ -106,24 +107,10 @@ def build(bld):
     remove_files(source_files, ['image.cpp', 'image_null.cpp'])
 
     if 'arm64-nx64' in bld.env.PLATFORM:
-        source_files = remove_files(source_files, ['mutex_posix.cpp',
-                                                    'mutex_empty.cpp',
-                                                    'socket_posix.cpp'])
+        source_files = remove_files(source_files, ['socket_posix.cpp'])
 
     if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
-        source_files = remove_files(source_files, ['mutex_posix.cpp',
-                                                    'mutex_empty.cpp',
-                                                    'socket_posix.cpp'])
-
-    if bld.env.PLATFORM in ('x86_64-win32', 'win32', 'x86_64-xbone'):
-        source_files = remove_files(source_files, ['mutex_posix.cpp'])
-        source_files = remove_files(source_files, ['mutex_empty.cpp'])
-    else:
-        source_files = remove_files(source_files, ['mutex_win32.cpp'])
-        if bld.env.PLATFORM == 'wasm-web':
-            source_files = remove_files(source_files, ['mutex_posix.cpp'])
-        else:
-            source_files = remove_files(source_files, ['mutex_empty.cpp'])
+        source_files = remove_files(source_files, ['socket_posix.cpp'])
 
     if 'web' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'sslsocket.cpp', 'configfile_http.cpp'])
@@ -399,8 +386,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mdns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_posix.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_empty.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/opaque_handle_container.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
@@ -455,12 +440,10 @@ def build(bld):
     # is this a private platform?
     if is_platform_private(bld.env.PLATFORM):
         bld.install_files('${PREFIX}/include/dlib', 'dlib/endian_vendor.h')
-        bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_vendor.h')
 
     for p in platforms:
         platform_include_dir = 'dlib/%s' % p
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/endian.h')
-        check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/mutex.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/spinlocktypes.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/memory.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/alloca_%s.h' % p)
