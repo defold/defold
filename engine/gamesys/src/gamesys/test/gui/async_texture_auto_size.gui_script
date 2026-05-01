@@ -1,0 +1,23 @@
+local WIDTH = 8
+local HEIGHT = 8
+
+function init(self)
+    tests_done = false
+    self.applied_async_atlas = false
+end
+
+function update(self, dt)
+    if async_texture_auto_size_ready and not self.applied_async_atlas then
+        async_texture_auto_size_ready = false
+        self.applied_async_atlas = true
+
+        local node = gui.get_node("box")
+        gui.set_texture(node, "dynamic_atlas")
+        gui.play_flipbook(node, "frame")
+
+        local size = gui.get_size(node)
+        assert(size == vmath.vector3(WIDTH, HEIGHT, 0))
+
+        tests_done = true
+    end
+end

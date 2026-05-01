@@ -695,6 +695,14 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
     // Swap out the texture
     dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_TextureResource->m_Texture);
     request->m_TextureResource->m_Texture = texture;
+    request->m_TextureResource->m_OriginalWidth = dmGraphics::GetOriginalTextureWidth(g_ResourceModule.m_GraphicsContext, texture);
+    request->m_TextureResource->m_OriginalHeight = dmGraphics::GetOriginalTextureHeight(g_ResourceModule.m_GraphicsContext, texture);
+
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, request->m_PathHash);
+    if (rd)
+    {
+        dmResource::SetResourceSize(rd, dmGraphics::GetTextureResourceSize(g_ResourceModule.m_GraphicsContext, texture));
+    }
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
     {
