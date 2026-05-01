@@ -12,6 +12,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include "luaconf.h"
+#include "lua_rename.h"
 #include "lua.h"
 
 
@@ -174,5 +176,4 @@ LUALIB_API void (luaL_pushresult) (luaL_Buffer *B);
 #define luaL_reg	luaL_Reg
 
 #endif
-
 
