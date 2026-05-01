@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -104,7 +104,8 @@ namespace dmGameSystem
      * @member m_Render [type: dmRender::HRender] The render context
      * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contexts
      */
-    struct CompGuiNodeTypeCtx {
+    struct CompGuiNodeTypeCtx
+    {
         dmConfigFile::HConfig    m_Config;
         dmResource::HFactory     m_Factory;
         dmRender::HRenderContext m_Render;
@@ -144,8 +145,10 @@ namespace dmGameSystem
         dmGraphics::VertexAttributeInfos         m_ParticleAttributeInfos;
         uint32_t                                 m_MaxParticleFXCount;
         uint32_t                                 m_MaxParticleCount;
+        uint32_t                                 m_MaxParticleBufferCount;
         uint32_t                                 m_RenderedParticlesSize;
         uint32_t                                 m_MaxAnimationCount;
+        uint32_t                                 m_RenderOrder;
         float                                    m_DT;
         dmScript::ScriptWorld*                   m_ScriptWorld;
         CompGuiContext*                          m_CompGuiContext;

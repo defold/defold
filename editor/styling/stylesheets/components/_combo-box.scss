@@ -2,62 +2,97 @@
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
     -fx-background-insets: 0;
-    -fx-border-color: -df-background-lighter;
-    -fx-border-width: 1px;
-    -fx-background-color: -df-background-light;
+    -fx-background-color: -df-background-input;
+    -fx-background-radius: 3px;
+    -fx-min-height: 26px;
+    -fx-max-height: 26px;
+    -fx-max-width: Infinity;
+    & > .list-cell {
+        -fx-text-fill: -df-text-light;
+        -fx-padding: 3px 8px 3px 8px;
+        -fx-border-color: -df-component-dark;
+        -fx-border-width: 1px 0 1px 1px;
+        -fx-border-radius: 2px 0 0 2px;
+        -fx-background-radius: 2px 0 0 2px;
+    }
+    &:hover {
+        & > .list-cell {
+            -fx-border-color: -df-component-light;
+        }
+    }
     &:focused {
-        -fx-background-insets: 0;
-        -fx-background-color: -df-background-light;
+        -fx-background-insets: 0 0 0 0;
+        & > .list-cell {
+            -fx-padding: 3px 8px 2px 8px;
+            -fx-background-color: -df-background;
+            -fx-border-width: 1px 0 2px 1px;
+            -fx-border-color: -df-background-lighter -df-background-lighter -df-defold-orange -df-background-lighter;
+        }
     }
     &:showing {
-        .arrow {
+        & > .arrow-button > .arrow {
             -fx-background-color: -df-text-selected;
             -fx-rotate: 180;
         }
-        >.list-cell {
-            -fx-text-fill: -df-text;
-        }
-        .list-view {
-            -fx-border-color: -df-text-dark;
+        & > .list-cell {
+            -fx-text-fill: -df-text-light;
+            -fx-padding: 3px 8px 3px 8px;
+            -fx-border-width: 1px 0 1px 1px;
+            -fx-border-color: -df-component-dark;
         }
     }
-    .list-view {
-        -fx-min-width: 10em;
-        -fx-background-color: -df-background-light;
-        -fx-border-width: 0;
-        -fx-border-color: -df-background-lighter;
-        -fx-border-insets: 0;
+    & > .arrow-button {
+        -fx-border-radius: 0 2px 2px 0;
+        -fx-background-radius: 0 2px 2px 0;
         -fx-background-insets: 0;
-        -fx-text-fill: -df-background-lighter;
-    }
-    .list-cell {
-        -fx-background-color: -df-background;
-        -fx-color: -df-text-dark;
-        &:hover {
-            -fx-cursor: hand;
-            -fx-text-fill: -df-text-selected;
+        -fx-background-color: -df-component-dark;
+        -fx-border-width: 1px 1px 1px 0px;
+        -fx-border-color: -df-component-dark;
+        -fx-padding: 5px 8px;
+        & > .arrow {
+            -fx-background-color: -df-text;
         }
-    }
-    .arrow-button {
-        -fx-background-radius: 0;
-        -fx-border-radius: 0;
-        -fx-background-insets: 0;
-        -fx-background-color: -df-background-lighter !important;
-        -fx-border-width: 0;
-        -fx-padding: 5 7;
-
         &:hover {
-            -fx-background-color: -df-component-darker !important;
-            -fx-background-insets: 0;
+            -fx-background-color: -df-component-lighter;
+            & > .arrow {
+                -fx-background-color: -df-text-selected;
+            }
         }
         &:pressed, &:focused {
-            -fx-background-color: -df-background-light;
-            -fx-text-fill: -df-text-selected;
+            -fx-background-color: -df-component-light;
         }
     }
-    >.list-cell {
-        -fx-text-fill: -df-text-selected;
+
+    &:warning {
+        & > .list-cell {
+            -fx-border-color: -df-error-severity-warning-dim;
+        }
+        &:hover > .list-cell {
+            -fx-border-color: -df-error-severity-warning;
+        }
+        &:focused > .list-cell {
+            -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim;
+        }
+        & > .arrow-button {
+            -fx-border-color: -df-error-severity-warning-dim;
+        }
     }
+
+    &:error {
+        & > .list-cell {
+            -fx-border-color: -df-error-severity-fatal-dim;
+        }
+        &:hover > .list-cell {
+            -fx-border-color: -df-error-severity-fatal;
+        }
+        &:focused > .list-cell {
+            -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim;
+        }
+        & > .arrow-button {
+            -fx-border-color: -df-error-severity-fatal-dim;
+        }
+    }
+
     .text-field, .text-input {
         /*-fx-border-width: 0;*/
         -fx-background-insets: 0;
@@ -69,6 +104,30 @@
             -fx-border-width: 1;
             -fx-border-color: -df-background-lighter;
             -fx-padding: 4px 8px;
+        }
+    }
+}
+
+.combo-box-popup {
+    & > .list-view {
+        -fx-min-width: 10em;
+        -fx-background-color: -df-background-light;
+        -fx-border-width: 0;
+        -fx-border-color: -df-background-lighter;
+        -fx-border-insets: 0;
+        -fx-background-insets: 0;
+        -fx-text-fill: -df-background-lighter;
+        & > .virtual-flow > .clipped-container > .sheet > .list-cell {
+            -fx-background-color: -df-background;
+            -fx-color: -df-text-dark;
+            &:hover {
+                -fx-cursor: hand;
+                -fx-text-fill: -df-text-selected;
+            }
+            &:selected {
+                -fx-text-fill: -df-text-selected;
+                -fx-background-color: -df-background-light;
+            }
         }
     }
 }

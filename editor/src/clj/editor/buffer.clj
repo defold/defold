@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,8 +17,9 @@
             [editor.buffers :as buffers]
             [editor.code.lang.json :as json]
             [editor.code.resource :as r]
-            [util.murmur :as murmur]
-            [editor.pipeline :as pipeline])
+            [editor.localization :as localization]
+            [editor.pipeline :as pipeline]
+            [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto BufferProto$BufferDesc]))
 
 (def ^:private buffer-icon "icons/32/Icons_61-Buffer.png")
@@ -98,7 +99,7 @@
                   (catch Exception error
                     error))]
     (if (instance? Exception streams)
-      (g/->error _node-id :lines :fatal lines "Syntax error in buffer file.")
+      (g/->error _node-id :lines :fatal lines (localization/message "error.buffer-syntax-error"))
       streams)))
 
 (g/defnk produce-stream-ids [streams]
@@ -116,8 +117,9 @@
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
     :ext "buffer"
-    :label "Buffer"
+    :label (localization/message "resource.type.buffer")
     :icon buffer-icon
+    :category (localization/message "resource.category.resources")
     :view-types [:code :default]
     :view-opts {:code {:grammar json/grammar}}
     :node-type BufferNode

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,6 +23,7 @@
 #include <dlib/platform.h>
 
 #include <graphics/graphics.h>
+#include <platform/window.hpp>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -98,16 +99,26 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
-    dmGraphics::InstallAdapter();
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
-    dmPlatform::WindowParams window_params = {};
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
     window_params.m_Width = 32;
     window_params.m_Height = 32;
     window_params.m_Title = "gdc";
     window_params.m_PrintDeviceInfo = false;
-    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    window_params.m_OpenGLVersionHint = 33;
+    if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
+    {
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    }
+    else
+    {
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+    }
+    window_params.m_ContextAlphabits = 8;
 
-    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    HWindow window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(window, window_params);
     dmPlatform::ShowWindow(window);
 
@@ -154,8 +165,8 @@ retry:
     {
         for (uint32_t i = 0; i < gamepad_count; ++i)
         {
-            char device_name[128];
-            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name, sizeof(device_name));
+            char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name);
             printf("%d: %s\n", i+1, device_name);
         }
         printf("\n* Which gamepad do you want to calibrate? [1-%d] ", gamepad_count);
@@ -177,8 +188,8 @@ retry:
         gamepad = gamepads[0];
     }
 
-    char device_name[128];
-    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name, sizeof(device_name));
+    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name);
 
     printf("\n%s will be added to %s\n\n", device_name, filename);
 

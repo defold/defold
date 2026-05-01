@@ -1,30 +1,30 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.changes-view
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
-            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
+            [editor.localization :as localization]
+            [editor.menu-items :as menu-items]
+            [editor.notifications :as notifications]
             [editor.resource :as resource]
-            [editor.sync :as sync]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
@@ -68,102 +68,69 @@
               (error-reporting/report-exception! error))))))))
 
 (handler/register-menu! ::changes-menu
-  [{:label "Open"
+  [menu-items/open-selected
+   menu-items/open-as
+   menu-items/separator
+   {:label (localization/message "command.edit.copy-resource-path")
+    :command :edit.copy-resource-path}
+   {:label (localization/message "command.edit.copy-absolute-path")
+    :command :edit.copy-absolute-path}
+   {:label (localization/message "command.edit.copy-require-path")
+    :command :edit.copy-require-path}
+   menu-items/separator
+   {:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open}
-   {:label "Open As"
+    :command :file.show-in-assets}
+   {:label (localization/message "command.file.show-in-desktop")
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open-as}
-   {:label :separator}
-   {:label "Copy Project Path"
-    :command :copy-project-path}
-   {:label "Copy Full Path"
-    :command :copy-full-path}
-   {:label "Copy Require Path"
-    :command :copy-require-path}
-   {:label :separator}
-   {:label "Show in Asset Browser"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-asset-browser}
-   {:label "Show in Desktop"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-desktop}
-   {:label "Referencing Files..."
-    :command :referencing-files}
-   {:label "Dependencies..."
-    :command :dependencies}
-   {:label "Show Overrides"
-    :command :show-overrides}
-   {:label :separator}
-   {:label "View Diff"
+    :command :file.show-in-desktop}
+   {:label (localization/message "command.file.show-references")
+    :command :file.show-references}
+   {:label (localization/message "command.file.show-dependencies")
+    :command :file.show-dependencies}
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides
+   menu-items/separator
+   {:label (localization/message "command.vcs.diff")
     :icon "icons/32/Icons_S_06_arrowup.png"
-    :command :diff}
-   {:label "Revert"
+    :command :vcs.diff}
+   {:label (localization/message "command.vcs.revert")
     :icon "icons/32/Icons_S_02_Reset.png"
-    :command :revert}])
+    :command :vcs.revert}])
 
-(defn- path->file [workspace ^String path]
-  (File. ^File (workspace/project-path workspace) path))
+(defn- path->file
+  ^File [workspace ^String path]
+  (File. (workspace/project-directory workspace) path))
 
-(handler/defhandler :revert :changes-view
+(handler/defhandler :vcs.revert :changes-view
   (enabled? [selection]
             (and (disk-availability/available?)
                  (pos? (count selection))))
-  (run [async-reload! selection git changes-view workspace]
+  (run [async-reload! selection git changes-view workspace localization]
     (when (dialogs/make-confirmation-dialog
-            {:title "Revert Changes?"
+            localization
+            {:title (localization/message "dialog.changes-revert.title")
              :size :large
              :icon :icon/circle-question
-             :header "Are you sure you want to revert changes on selected files?"
-             :buttons [{:text "Cancel"
+             :header (localization/message "dialog.changes-revert.header")
+             :buttons [{:text (localization/message "dialog.button.cancel")
                         :cancel-button true
                         :default-button true
                         :result false}
-                       {:text "Revert Changes"
+                       {:text (localization/message "dialog.changes-revert.button.revert-changes")
                         :variant :danger
                         :result true}]})
       (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
         (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
         (async-reload! changes-view moved-files)))))
 
-(handler/defhandler :diff :changes-view
+(handler/defhandler :vcs.diff :changes-view
   (enabled? [selection]
-            (git/selection-diffable? selection))
-  (run [selection ^Git git]
-       (diff-view/present-diff-data (git/selection-diff-data git selection))))
-
-(defn project-is-git-repo? [changes-view]
-  (some? (g/node-value changes-view :git)))
-
-(defn regular-sync! [changes-view]
-  (let [git (g/node-value changes-view :git)
-        prefs (g/node-value changes-view :prefs)
-        flow (sync/begin-flow! git prefs)]
-    (sync/open-sync-dialog flow prefs)))
-
-(defn ensure-no-locked-files! [changes-view]
-  (let [git (g/node-value changes-view :git)]
-    (loop []
-      (if-some [locked-files (not-empty (git/locked-files git))]
-        ;; Found locked files below the project. Notify user and offer to retry.
-        (if (dialogs/make-confirmation-dialog
-              {:title "Not Safe to Sync"
-               :icon :icon/circle-question
-               :header "There are locked files, retry?"
-               :content {:fx/type fxui/label
-                         :style-class "dialog-content-padding"
-                         :text (git/locked-files-error-message locked-files)}
-               :buttons [{:text "Cancel"
-                          :cancel-button true
-                          :result false}
-                         {:text "Retry"
-                          :default-button true
-                          :result true}]})
-          (recur)
-          false)
-
-        ;; Found no locked files.
-        true))))
+    (git/selection-diffable? selection))
+  (run [selection ^Git git localization]
+    (diff-view/present-diff-data (git/selection-diff-data git selection) localization)))
 
 (g/defnode ChangesView
   (inherits core/Scope)
@@ -178,15 +145,24 @@
 
 (defn- try-open-git
   ^Git [workspace]
-  (let [repo-path (io/as-file (g/node-value workspace :root))
-        git (git/try-open repo-path)
-        head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
-    (if (some? head-commit)
-      git
-      (when (some? git)
-        (.close git)))))
+  (try
+    (let [repo-directory (workspace/project-directory workspace)
+          git (git/try-open repo-directory)
+          head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
+      (if (some? head-commit)
+        git
+        (when (some? git)
+          (.close git))))
+    (catch Exception e
+      (let [msg (str "Git error: " (.getMessage e))]
+        (log/error :msg msg :exception e)
+        (notifications/show!
+          (workspace/notifications workspace)
+          {:type :warning
+           :message (localization/message "notification.changes-view.git-error")})
+        nil))))
 
-(defn make-changes-view [view-graph workspace prefs ^Parent parent async-reload!]
+(defn make-changes-view [view-graph workspace prefs localization ^Parent parent async-reload!]
   (assert (fn? async-reload!))
   (let [^ListView list-view     (.lookup parent "#changes")
         diff-button             (.lookup parent "#changes-diff")
@@ -196,20 +172,29 @@
         view-id                 (g/make-node! view-graph ChangesView :list-view list-view :progress-overlay progress-overlay :git git :prefs prefs)
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
-                                    (ui/refresh-bound-action-enabled! revert-button)))]
+                                    (g/let-ec [can-revert (ui/bound-action-enabled? revert-button evaluation-context)]
+                                      (ui/enable! revert-button can-revert))))]
+    (localization/localize! diff-button localization (localization/message "changes-view.button.diff"))
+    (localization/localize! revert-button localization (localization/message "changes-view.button.revert"))
     (ui/user-data! list-view :refresh-pending (ref false))
     (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-    (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
+    (ui/context! parent :changes-view
+                 {:async-reload! async-reload!
+                  :changes-view view-id
+                  :workspace workspace
+                  :localization localization}
+                 (ui/->selection-provider list-view)
                  {:git [:changes-view :git]}
                  {resource/Resource (fn [status] (status->resource workspace status))})
     (ui/register-context-menu list-view ::changes-menu)
     (ui/cell-factory! list-view vcs-status/render)
-    (ui/bind-action! diff-button :diff)
-    (ui/bind-action! revert-button :revert)
+    (ui/bind-action! diff-button :vcs.diff)
+    (ui/bind-action! revert-button :vcs.revert)
     (ui/disable! diff-button true)
     (ui/disable! revert-button true)
     (ui/visible! progress-overlay false)
-    (ui/bind-double-click! list-view :open)
+    (ui/bind-double-click! list-view :file.open-selected)
+    (ui/bind-key-commands! list-view {"Enter" :file.open-selected})
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
@@ -222,6 +207,8 @@
                      (.removeListener disk-availability/available-property disk-available-listener)))
     (ui/observe-selection list-view
                           (fn [_ _]
-                            (ui/refresh-bound-action-enabled! diff-button)
-                            (ui/refresh-bound-action-enabled! revert-button)))
+                            (g/let-ec [can-diff (ui/bound-action-enabled? diff-button evaluation-context)
+                                       can-revert (ui/bound-action-enabled? revert-button evaluation-context)]
+                              (ui/enable! diff-button can-diff)
+                              (ui/enable! revert-button can-revert))))
     view-id))

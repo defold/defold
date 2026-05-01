@@ -5,18 +5,6 @@
     -fx-spacing: 0; // Fight crazy non-zero default.
   }
 
-  .list-view {
-    -fx-background-color: transparent;
-    -fx-padding: 0;
-
-    .list-cell {
-      -fx-pref-width: 0; // Stretched by ListView. Without this, we get horizontal scrolling.
-      -fx-background-color: transparent;
-      -fx-border-width: 0;
-      -fx-padding: 0;
-    }
-  }
-
   .scroll-bar {
     -fx-background-color: transparent;
 
@@ -194,11 +182,24 @@
     }
   }
 
+  @mixin welcome-list-view {
+      -fx-background-color: transparent;
+          -fx-padding: 0;
+
+          .list-cell {
+            -fx-pref-width: 0; // Stretched by ListView. Without this, we get horizontal scrolling.
+            -fx-background-color: transparent;
+            -fx-border-width: 0;
+            -fx-padding: 0;
+          }
+  }
+
   .project-list-view {
+    @include welcome-list-view();
     -fx-padding: 0px 16px 0px 0px;
 
     .list-cell {
-      -fx-border-width: 0px 0px 0px 3px;
+      -fx-border-width: 0px 3px 0px 0px;
       -fx-border-color: transparent;
 
       &:selected {
@@ -209,6 +210,7 @@
   }
 
   .template-list-view {
+    @include welcome-list-view();
     -fx-padding: 0px 16px 0px 0px;
 
     .list-cell {
@@ -397,6 +399,11 @@
     -fx-max-width: Infinity;
   }
 
+  .df-sub-header {
+    -fx-text-fill: -df-text;
+    -fx-opacity: 0.75;
+  }
+
   .remove-button {
     -fx-min-width: 22px;
     -fx-max-width: 22px;
@@ -410,4 +417,8 @@
   & .project-entry:hover .remove-button {
     visibility: visible;
   }
+}
+#language-selector {
+    // 115 (defold logo width) + 16 * 2 (defold logo padding) - 24 * 2 (vbox margins)
+    -fx-max-width: 99px;
 }

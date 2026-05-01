@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@
 #include <dmsdk/dlib/configfile_gen.hpp>
 #include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gameobject/component.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/script/script.h>
 #include <gamesys/gui_ddf.h>
@@ -27,32 +28,34 @@ namespace dmBuffer
     struct StreamDeclaration;
 }
 
-/*# SDK Gui Component API documentation
+/*# Gui Component API documentation
  *
  * Built-in scripting functions.
  *
  * @document
  * @name GameSystem Gui
  * @namespace dmGameSystem
- * @path engine/gamesys/src/dmsdk/gamesys/gui.h
+ * @language C++
  */
 
 namespace dmGameSystem
 {
     /*#
      * Gui component node type create/destroy context
-     * @struct CompGuiNodeTypeCtx
+     * @struct
+     * @name CompGuiNodeTypeCtx
     */
     struct CompGuiNodeTypeCtx;
 
     /*#
      * Gui component node type
-     * @struct GuiNodeType
+     * @struct
+     * @name GuiNodeType
     */
     struct CompGuiNodeType;
 
     /*#
-     * @name GuiNodeTypeDestroyFunction
+     * @name GuiNodeTypeCreateFunction
      * @type typedef
      */
     typedef dmGameObject::Result (*GuiNodeTypeCreateFunction)(const struct CompGuiNodeTypeCtx* ctx, CompGuiNodeType* type);
@@ -104,7 +107,7 @@ namespace dmGameSystem
     /*# Registers a new gui node type to the Gui component
      * @name DM_DECLARE_COMPGUI_TYPE
      * @type macro
-     * @param symbol [type:C++ symbol name] The unique C++ symbol name
+     * @param symbol [type:symbol] The unique C++ symbol name
      * @param name [type:const char*] The name of the node type
      * @param type_create_fn [type:GuiNodeTypeCreateFunction] the create function
      * @param type_destroy_fn [type:GuiNodeTypeDestroyFunction] the destroy function. May be 0
@@ -141,10 +144,11 @@ namespace dmGameSystem
     void CompGuiNodeTypeSetCloneFn(CompGuiNodeType* type, CompGuiNodeCloneFn fn);
     void CompGuiNodeTypeSetNodeDescFn(CompGuiNodeType* type, CompGuiNodeSetNodeDescFn fn);
     void CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn);
-    /*#
+    /**
      * Get the vertices in local space
      */
     void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn);
+
 
 }
 

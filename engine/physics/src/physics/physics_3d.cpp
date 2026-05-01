@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -292,12 +292,15 @@ namespace dmPhysics
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
-        if (result != dmMessage::RESULT_OK)
+        if (result != dmMessage::RESULT_OK && result != dmMessage::RESULT_SOCKET_EXISTS)
         {
             dmLogFatal("Could not create socket '%s'.", PHYSICS_SOCKET_NAME);
             DeleteContext3D(context);
             return 0x0;
         }
+
+        int version = btGetVersion();
+        dmLogInfo("Created physics context: Bullet v%d.%02d", version / 100, version % 100);
         return context;
     }
 
@@ -331,11 +334,26 @@ namespace dmPhysics
         return world;
     }
 
+    static void ClearPendingRayCasts3D(HWorld3D world)
+    {
+        uint32_t size = world->m_RayCastRequests.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            const RayCastRequest& request = world->m_RayCastRequests[i];
+            if (request.m_UserData)
+            {
+                free(request.m_UserData);
+            }
+        }
+        world->m_RayCastRequests.SetSize(0);
+    }
+
     void DeleteWorld3D(HContext3D context, HWorld3D world)
     {
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
             if (context->m_Worlds[i] == world)
                 context->m_Worlds.EraseSwap(i);
+        ClearPendingRayCasts3D(world);
         delete world;
     }
 
@@ -588,9 +606,9 @@ namespace dmPhysics
                 }
                 if (max_distance >= context->m_TriggerEnterLimit)
                 {
-                    add_data.m_ObjectA = object_a;
+                    add_data.m_ObjectA = (uint64_t) object_a;
                     add_data.m_UserDataA = object_a->getUserPointer();
-                    add_data.m_ObjectB = object_b;
+                    add_data.m_ObjectB = (uint64_t) object_b;
                     add_data.m_UserDataB = object_b->getUserPointer();
                     add_data.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
                     add_data.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
@@ -802,7 +820,7 @@ namespace dmPhysics
     void DeleteCollisionObject3D(HWorld3D world, HCollisionObject3D collision_object)
     {
         CollisionObject3D* co = (CollisionObject3D*)collision_object;
-        OverlapCacheRemove(&world->m_TriggerOverlaps, co->m_CollisionObject);
+        OverlapCacheRemove(&world->m_TriggerOverlaps, (uint64_t) co->m_CollisionObject);
         btCollisionObject* bt_co = co->m_CollisionObject;
         if (bt_co == 0x0)
             return;
@@ -1170,7 +1188,7 @@ namespace dmPhysics
 		}
 	}
 
-    void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
+    bool RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
         {
@@ -1178,16 +1196,19 @@ namespace dmPhysics
             if (lengthSqr(request.m_To - request.m_From) <= 0.0f)
             {
                 dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+                return false;
             }
             else
             {
                 world->m_RayCastRequests.Push(request);
+                return true;
             }
         }
         else
         {
             dmLogWarning("Ray cast query buffer is full (%d), ignoring request.", world->m_RayCastRequests.Capacity());
         }
+        return false;
     }
 
     static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)
@@ -1201,18 +1222,18 @@ namespace dmPhysics
     void RayCast3D(HWorld3D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
         DM_PROFILE("RayCast3D");
-
-        if (lengthSqr(request.m_To - request.m_From) <= 0.0f)
-        {
-            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
-            return;
-        }
-
+        
         float scale = world->m_Context->m_Scale;
         btVector3 from;
         ToBt(request.m_From, from, scale);
         btVector3 to;
         ToBt(request.m_To, to, scale);
+        
+        if ((to - from).length2() <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting after applying physics scale, ignoring request.");
+            return;
+        }
 
         float inv_scale = world->m_Context->m_InvScale;
 

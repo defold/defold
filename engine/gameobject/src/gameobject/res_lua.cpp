@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -103,6 +103,31 @@ namespace dmGameObject
         {
             // no-op
         }
+    }
+
+    dmResource::Result LoadLuaModule(dmResource::HFactory factory, const char* path, dmLuaDDF::LuaModule** module)
+    {
+        *module = 0;
+
+        void* data = 0;
+        uint32_t data_size = 0;
+        dmResource::Result result = dmResource::GetRaw(factory, path, &data, &data_size);
+        if (result != dmResource::RESULT_OK)
+        {
+            return result;
+        }
+
+        dmDDF::Result ddf_result = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(data, data_size, module);
+        free(data);
+
+        if (ddf_result != dmDDF::RESULT_OK)
+        {
+            dmLogWarning("Failed to load LuaModule message from: %s (%d)", path, ddf_result);
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        PatchLuaBytecode(&(*module)->m_Source);
+        return dmResource::RESULT_OK;
     }
 
 

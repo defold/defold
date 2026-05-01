@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,6 +42,51 @@ namespace dmParticle
         uint32_t     m_Key;
     };
 
+    struct ParticleRenderState
+    {
+        ParticleRenderState()
+        {
+            memset(this, 0, sizeof(ParticleRenderState));
+        }
+
+        dmTransform::TransformS1 m_WorldTransform;
+        float                    m_HalfWidth;
+        float                    m_HalfHeight;
+        uint32_t                 m_Tile;
+    };
+
+    struct ParticleRenderContext
+    {
+        ParticleRenderContext()
+        : m_InvAnimLength(0.0f)
+        , m_HalfDt(0.0f)
+        , m_BaseHalfWidth(0.5f)
+        , m_BaseHalfHeight(0.5f)
+        , m_StartTile(0)
+        , m_Interval(1)
+        , m_TileCount(1)
+        , m_AnimPlaying(0)
+        , m_AnimAutoSize(0)
+        , m_AnimOnce(0)
+        , m_AnimBackward(0)
+        {
+        }
+
+        dmTransform::Transform   m_PivotTransform;
+        dmTransform::TransformS1 m_EmissionTransform;
+        float                    m_InvAnimLength;
+        float                    m_HalfDt;
+        float                    m_BaseHalfWidth;
+        float                    m_BaseHalfHeight;
+        uint32_t                 m_StartTile;
+        uint32_t                 m_Interval;
+        uint32_t                 m_TileCount;
+        uint8_t                  m_AnimPlaying  : 1;
+        uint8_t                  m_AnimAutoSize : 1;
+        uint8_t                  m_AnimOnce     : 1;
+        uint8_t                  m_AnimBackward : 1;
+    };
+
     /**
      * Representation of a particle.
      *
@@ -68,6 +113,8 @@ namespace dmParticle
         GET_SET(SortKey, SortKey)
 #undef GET_SET
 
+        /// Render state, generated during update and consumed during render. This should generate less work during rendering if particles are rendered many times.
+        ParticleRenderState m_RenderState;
         /// Position, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
         dmVMath::Point3 m_Position;
         /// Rotation, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
@@ -120,6 +167,7 @@ namespace dmParticle
         dmVMath::Point3         m_LastPosition;
         dmhash_t                m_Id;
         EmitterRenderData       m_RenderData;
+        void*                   m_Material;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
         /// Number of vertices of the render data for the particles spawned by this emitter.
@@ -139,8 +187,6 @@ namespace dmParticle
         float                   m_StartDelay;
         /// Particle spawn rate spread, randomized on emitter creation and used for the duration of the emitter.
         float                   m_SpawnRateSpread;
-        /// If the user has been warned that all particles cannot be rendered.
-        uint16_t                m_RenderWarning : 1;
         /// If the user has been warned that the emitters animation could not be fetched
         uint16_t                m_FetchAnimWarning : 1;
         uint16_t                m_LastPositionSet : 1;
@@ -159,7 +205,6 @@ namespace dmParticle
         , m_EmitterStateChangedData()
         , m_PlayTime(0.0f)
         , m_VersionNumber(0)
-        , m_ScaleAlongZ(0)
         {
             m_WorldTransform.SetIdentity();
         }
@@ -170,6 +215,7 @@ namespace dmParticle
         uint32_t                m_NumAwakeEmitters;
         /// World transform of the emitter.
         dmTransform::TransformS1 m_WorldTransform;
+        void*                   m_UserData;
         /// DDF resource.
         Prototype*              m_Prototype;
         /// Emitter state changed callback
@@ -178,8 +224,6 @@ namespace dmParticle
         float                   m_PlayTime;
         /// Version number used to check that the handle is still valid.
         uint16_t                m_VersionNumber;
-        /// Whether the scale of the world transform should be used along Z.
-        uint16_t                m_ScaleAlongZ : 1;
     };
 
     /**
@@ -264,10 +308,11 @@ namespace dmParticle
         Property                    m_ParticleProperties[dmParticleDDF::PARTICLE_KEY_COUNT];
         dmArray<ModifierPrototype>  m_Modifiers;
         dmhash_t                    m_Animation;
+        dmhash_t                    m_Id;
         /// Tile source to use when rendering particles.
-        void*                       m_TileSource;
+        void*                       m_TileSource; // TextureSetResource*
         /// Material to use when rendering particles.
-        void*                       m_Material;
+        void*                       m_Material; // MaterialResource*
         /// Blend mode
         dmParticleDDF::BlendMode    m_BlendMode;
         /// The max life time possible of a particle (used for quantizing particle life time when sorting)
@@ -291,7 +336,6 @@ namespace dmParticle
         dmParticleDDF::ParticleFX*  m_DDF;
     };
 
-    void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index);
 }
 
 #endif // DM_PARTICLE_PRIVATE_H

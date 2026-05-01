@@ -1,0 +1,82 @@
+#breakpoints-table-view {
+    -fx-control-inner-background: -df-background-lightish;
+    -fx-control-inner-background-alt: -df-background-lightish;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+
+    &:focused {
+        -fx-border-width: 0;
+    }
+
+    .table-row-cell {
+        -fx-border-width: 2px;
+        -fx-border-color: transparent transparent transparent transparent;
+
+        &:focused {
+            -fx-border-color: transparent transparent transparent -df-defold-orange;
+        }
+
+        .icon-button {
+            -fx-opacity: 0.0;
+            -fx-alignment: center;
+            -fx-min-width: 20;
+            -fx-max-width: 20;
+            -fx-min-height: 20;
+            -fx-max-height: 20;
+            -fx-padding: 10px;
+
+            .icon-graphic {
+                -fx-background-color: white;
+            }
+
+            &:hover {
+                -fx-opacity: 1.0 !important;
+            }
+        }
+
+        .remove-button {
+            .icon-graphic {
+                -fx-background-color: -df-defold-red-dark;
+            }
+        }
+
+        &:hover {
+            .icon-button {
+                -fx-opacity: 0.5;
+            }
+        }
+    }
+
+    .table-cell {
+        -fx-padding: 0px 5px;
+        -fx-border-color: transparent;
+        -fx-alignment: center-left;
+    }
+
+    .column-header {
+        -fx-background-color: -df-background-lightish;
+    }
+
+    .filler {
+        -fx-background-color: -df-background-lightish;
+        -fx-border-color: -df-background-lightish;
+    }
+
+}
+
+.path-cell {
+    -fx-text-fill: derive(-df-text, -30%);
+}
+
+#breakpoints-tool-bar {
+    -fx-background-color: -df-background-light;
+    -fx-padding: 0px 16px;
+    -fx-spacing: 8px;
+}
+
+#breakpoints-enable-all,
+#breakpoints-disable-all,
+#breakpoints-toggle-all,
+#breakpoints-remove-all {
+    @extend .console-button-base;
+}

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -163,6 +163,23 @@
     (is (identical? pose/default-rotation (:rotation pose)))
     (is (= [1.0 2.0 3.0] (:scale pose)))))
 
+(deftest from-matrix-test
+  (is (thrown? Throwable (pose/from-matrix [1.0 2.0 3.0 4.0])))
+  (is (identical? pose/default (pose/from-matrix nil)))
+  (is (identical? pose/default (pose/from-matrix (doto (Matrix4d.) (.setIdentity)))))
+  (let [pose (pose/from-matrix (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 1.0 2.0 3.0))))]
+    (is (= [1.0 2.0 3.0] (:translation pose)))
+    (is (identical? pose/default-rotation (:rotation pose)))
+    (is (identical? pose/default-scale (:scale pose))))
+  (let [pose (pose/from-matrix (doto (Matrix4d.) (.setIdentity) (.setRotation (Quat4d. 0.5 0.5 0.5 0.5))))]
+    (is (identical? pose/default-translation (:translation pose)))
+    (is (= [0.5 0.5 0.5 0.5] (:rotation pose)))
+    (is (identical? pose/default-scale (:scale pose))))
+  (let [pose (pose/from-matrix (doto (Matrix4d.) (.setIdentity) (.setScale 10.0)))]
+    (is (identical? pose/default-translation (:translation pose)))
+    (is (identical? pose/default-rotation (:rotation pose)))
+    (is (= [10.0 10.0 10.0] (:scale pose)))))
+
 (deftest translation-pose-test
   (is (thrown? Throwable (pose/translation-pose nil nil nil)))
   (is (identical? pose/default (pose/translation-pose 0.0 0.0 0.0)))
@@ -284,3 +301,43 @@
   (is (= [0.0 180.0 90.0 0.0] (pose/euler-rotation-v4 (pose/euler-rotation-pose 0.0 180.0 90.0))))
   (is (= [1.0 2.0 3.0] (pose/scale-v3 (pose/scale-pose 1.0 2.0 3.0))))
   (is (= [1.0 2.0 3.0 1.0] (pose/scale-v4 (pose/scale-pose 1.0 2.0 3.0)))))
+
+(deftest assign-to-vecmath!-test
+  (testing "Identity"
+    (let [translation (Vector3d. -99.9 -99.9 -99.9)
+          rotation (Quat4d. -99.9 -99.9 -99.9 -99.9)
+          scale (Vector3d. -99.9 -99.9 -99.9)]
+      (pose/assign-to-vecmath! pose/default translation rotation scale)
+      (is (= math/zero-v3 translation))
+      (is (= math/identity-quat rotation))
+      (is (= math/one-v3 scale))))
+
+  (testing "Translation"
+    (let [translation (Vector3d. -99.9 -99.9 -99.9)
+          rotation (Quat4d. -99.9 -99.9 -99.9 -99.9)
+          scale (Vector3d. -99.9 -99.9 -99.9)
+          pose (pose/translation-pose 1.0 2.0 3.0)]
+      (pose/assign-to-vecmath! pose translation rotation scale)
+      (is (= (Vector3d. 1.0 2.0 3.0) translation))
+      (is (= math/identity-quat rotation))
+      (is (= math/one-v3 scale))))
+
+  (testing "Rotation"
+    (let [translation (Vector3d. -99.9 -99.9 -99.9)
+          rotation (Quat4d. -99.9 -99.9 -99.9 -99.9)
+          scale (Vector3d. -99.9 -99.9 -99.9)
+          pose (pose/rotation-pose 0.5 0.5 0.5 0.5)]
+      (pose/assign-to-vecmath! pose translation rotation scale)
+      (is (= math/zero-v3 translation))
+      (is (= (Quat4d. 0.5 0.5 0.5 0.5) rotation))
+      (is (= math/one-v3 scale))))
+
+  (testing "Scale"
+    (let [translation (Vector3d. -99.9 -99.9 -99.9)
+          rotation (Quat4d. -99.9 -99.9 -99.9 -99.9)
+          scale (Vector3d. -99.9 -99.9 -99.9)
+          pose (pose/scale-pose 10.0 20.0 30.0)]
+      (pose/assign-to-vecmath! pose translation rotation scale)
+      (is (= math/zero-v3 translation))
+      (is (= math/identity-quat rotation))
+      (is (= (Vector3d. 10.0 20.0 30.0) scale)))))

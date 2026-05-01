@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,7 +26,11 @@ import os
 import sys
 import log
 import run
+import re
 import platform
+import json
+import shutil
+import subprocess
 from collections import defaultdict
 
 DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dynamo_home'))
@@ -38,31 +42,32 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="15.4" # we also use this to match version on Github Actions
-VERSION_XCODE_CLANG="15.0.0"
-VERSION_MACOSX="14.5"
-VERSION_IPHONEOS="17.5"
-VERSION_IPHONESIMULATOR="17.5"
+VERSION_XCODE="26.2" # we also use this to match version on Github Actions
+VERSION_XCODE_CLANG="17.0.0"
+VERSION_MACOSX="26.2"
+VERSION_IPHONEOS="26.2"
+VERSION_IPHONESIMULATOR="26.2"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 VERSION_IPHONEOS_MIN="11.0"
-VERSION_MACOSX_MIN="10.13"
+VERSION_MACOSX_MIN="10.15"
 
 SWIFT_VERSION="5.5"
 
-VERSION_LINUX_CLANG="13.0.0"
-PACKAGES_LINUX_CLANG="clang-%s" % VERSION_LINUX_CLANG
-PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION_LINUX_CLANG
+VERSION_LINUX_CLANG="16.0.0"
+PACKAGES_LINUX_CLANG="clang-16.0.0"
+PACKAGES_LINUX_X86_64_TOOLCHAIN="clang+llvm-16.0.0-x86_64-linux-gnu-ubuntu-18.04"
+PACKAGES_LINUX_ARM64_TOOLCHAIN="clang+llvm-16.0.0-aarch64-linux-gnu"
 
 ## **********************************************************************************************
 # Android
 
 ANDROID_NDK_VERSION='25b'
-ANDROID_TARGET_API_LEVEL = 34
+ANDROID_TARGET_API_LEVEL = 36
 ANDROID_PACKAGE = "android-%s" % ANDROID_TARGET_API_LEVEL
-ANDROID_BUILD_TOOLS_VERSION = '34.0.0'
+ANDROID_BUILD_TOOLS_VERSION = '36.1.0'
 ANDROID_NDK_API_VERSION='19' # Android 4.4
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 
@@ -70,10 +75,17 @@ ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 # Win32
 
 # The version we have prepackaged
-VERSION_WINDOWS_SDK_10="10.0.20348.0"
-VERSION_WINDOWS_MSVC_2022="14.37.32822"
+VERSION_WINDOWS_SDK_10="10.0.26100.0"
+VERSION_WINDOWS_MSVC_2022="14.44.35207"
 PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-2022-{VERSION_WINDOWS_MSVC_2022}"
 PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
+
+## **********************************************************************************************
+# Emscripten
+
+EMSCRIPTEN_VERSION_STR  =  "4.0.6"
+EMSCRIPTEN_SDK          = f"sdk-{EMSCRIPTEN_VERSION_STR}-64bit"
+PACKAGES_EMSCRIPTEN_SDK = f"emsdk-{EMSCRIPTEN_VERSION_STR}"
 
 ## **********************************************************************************************
 ## used by build.py
@@ -109,7 +121,57 @@ defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK_10
 defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK_10
 
 defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['x86_64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
+defold_info['x86_64-linux']['pattern'] = 'x86_64-linux/clang-%s' % VERSION_LINUX_CLANG
+
+defold_info['arm64-linux']['version'] = VERSION_LINUX_CLANG
+defold_info['arm64-linux']['pattern'] = 'arm64-linux/clang-%s' % VERSION_LINUX_CLANG
+
+## **********************************************************************************************
+
+def log_verbose(verbose, msg):
+    if verbose:
+        log.log(msg)
+
+def _get_latest_version_from_folders(path, replace_patterns=[]):
+    dirs = [x for x in os.listdir(path)]
+    return _get_latest_version_from_list(dirs, replace_patterns)
+
+def _get_latest_version_from_list(entries, replace_patterns=[]):
+    if len(entries) == 0:
+        return None
+
+    def _replace_pattern(s, patterns):
+        for pattern, replace in patterns:
+            s = s.replace(pattern, replace)
+        # handle -ext to fix Android versions like android-34-ext12
+        if '-ext' in s:
+            s = re.sub(r'-ext\d+$', '', s)
+        return s
+
+    entries = sorted(entries, key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
+    return entries[0]
+
+def _get_version_major_prefix(version):
+    match = re.match(r'^(\d+)', version)
+    if match:
+        return match.group(1)
+    return version
+
+def _sort_version_strings(values):
+    def _normalize_version(s):
+        if '-ext' in s:
+            s = re.sub(r'-ext\d+$', '', s)
+        return s
+
+    return sorted(values, key=lambda x: tuple(int(token) for token in _normalize_version(x).split('.')), reverse=True)
+
+def _get_host_exe_suffix():
+    if sys.platform == 'win32':
+        return '.exe'
+    return ''
+
+class SDKException(Exception):
+    pass
 
 ## **********************************************************************************************
 ## DARWIN
@@ -162,42 +224,117 @@ def get_local_darwin_sdk_version(platform):
 ## **********************************************************************************************
 ## Android
 
+def get_android_sdk_path(root):
+    path = os.path.join(root, "android-sdk")
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
 
-def get_android_local_sdk_path():
+def get_android_ndk_path(root):
+    path = os.path.join(root, "android-ndk-r%s" % ANDROID_NDK_VERSION)
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+def get_android_build_tools_path(root):
+    sdkfolder = get_android_sdk_path(root)
+    path = os.path.join(sdkfolder, "build-tools", ANDROID_BUILD_TOOLS_VERSION)
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+def get_android_jar_path(root):
+    sdkfolder = get_android_sdk_path(root)
+    path = os.path.join(sdkfolder, 'platforms', 'android-%s' % ANDROID_TARGET_API_LEVEL, 'android.jar')
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+
+def get_android_local_sdk_path(verbose=False):
     path = os.environ.get('ANDROID_HOME', None)
-
     if path is None:
+        log_verbose(verbose, f"  No ANDROID_HOME detected")
+
+        # on macOS, it doesn't set an environment variable
         if sys.platform == 'darwin':
             path = os.path.expanduser('~/Library/android/sdk')
+        elif sys.platform == 'win32':
+            path = os.path.expandvars('${LOCALAPPDATA}/Android/Sdk')
+        elif sys.platform == 'linux':
+            path = os.path.expandvars('~/Android/Sdk')
+
+        if path is not None:
+            path = os.path.normpath(path)
 
     if path and os.path.exists(path):
+        log_verbose(verbose, f"  Detected sdk path {path}")
         return path
 
-    return None
+    raise SDKException(f"Path {path} not found")
 
-def _get_latest_version_from_folders(path):
-    dirs = [ x for x in os.listdir(path)]
-    dirs.sort(key=lambda x: tuple(int(token) for token in x.split('.')))
-    return dirs[0]
-
-def get_android_local_ndk_path(platform):
-    sdk_root = get_android_local_sdk_path()
+def get_android_local_ndk_path(platform, verbose=False):
+    sdk_root = get_android_local_sdk_path(verbose)
     ndk_root = os.path.join(sdk_root, 'ndk')
-    version = _get_latest_version_from_folders(ndk_root)
+    if not os.path.exists(ndk_root):
+        raise SDKException(f"  Failed to find {ndk_root}")
+
+    preferred_major = _get_version_major_prefix(ANDROID_NDK_VERSION)
+    ndk_versions = [x for x in os.listdir(ndk_root)]
+
+    preferred_versions = [x for x in ndk_versions if x.startswith(preferred_major)]
+
+    version = None
+    if len(preferred_versions) > 0:
+        version = _get_latest_version_from_list(preferred_versions)
+
+    if not version:
+        version = _get_latest_version_from_folders(ndk_root)
+
+    if not version:
+        raise SDKException(f"  No ndk versions installed in {ndk_root}")
     return os.path.join(ndk_root, version)
 
 def get_android_local_build_tools_path(platform):
     path = get_android_local_sdk_path()
     build_tools_path = os.path.join(path, 'build-tools')
+    if not os.path.exists(build_tools_path):
+        raise SDKException(f"  Failed to find {build_tools_path}")
+
     version = _get_latest_version_from_folders(build_tools_path)
     return os.path.join(build_tools_path, version)
 
 def get_android_local_sdk_version(platform):
     return os.path.basename(get_android_local_build_tools_path(platform))
 
-## **********************************************************************************************
+def get_android_local_jar_path(verbose=False):
+    sdkfolder = get_android_local_sdk_path()
+    platforms_folder = os.path.join(sdkfolder, 'platforms')
+    android_version = _get_latest_version_from_folders(platforms_folder, [('android-', '')])
+    path = os.path.join(sdkfolder, 'platforms', android_version, 'android.jar')
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
 
-# ANDROID_HOME
+def get_android_bintools_path(ndk, platform):
+    ndk_os = 'linux'
+    if sys.platform == 'darwin':
+        ndk_os = 'darwin'
+    elif sys.platform == 'win32':
+        ndk_os = 'windows'
+    return f'{ndk}/toolchains/llvm/prebuilt/{ndk_os}-x86_64/bin'
+
+def get_android_api_version(platform):
+    if platform == 'arm64-android':
+        return ANDROID_64_NDK_API_VERSION
+    else:
+        return ANDROID_NDK_API_VERSION
+
+def get_android_clang_name(platform, api_version):
+    if platform == 'arm64-android':
+        return f'aarch64-linux-android{api_version}-clang'
+    else:
+        return f'armv7a-linux-androideabi{api_version}-clang'
 
 
 ## **********************************************************************************************
@@ -253,39 +390,367 @@ def get_local_compiler_version():
 # Windows
 
 windows_info = None
+windows_info_error = None
+windows_info_trace = None
 
-def get_windows_local_sdk_info(platform):
-    global windows_info
+def _fatal(msg):
+    print("sdk.py: %s" % msg)
+    sys.exit(1)
 
-    if windows_info is not None:
-        return windows_info
-
-    if sys.platform != 'win32':
-        # we cannot currently use vswhere.exe on this platform
-        # todo: check using `wine`
+def _run_windows_command(args):
+    try:
+        process = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace', check=True)
+        return process.stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
         return None
 
-    vswhere_path = '%s/../../scripts/windows/vswhere2/vswhere2.exe' % os.environ.get('DYNAMO_HOME', '.')
-    if not os.path.exists(vswhere_path):
-        vswhere_path = './scripts/windows/vswhere2/vswhere2.exe'
-        vswhere_path = os.path.normpath(vswhere_path)
-        if not os.path.exists(vswhere_path):
-            print ("Couldn't find executable '%s'" % vswhere_path)
-            return None
+def _get_local_vswhere_installations():
+    vswhere_path = _get_local_vswhere_path()
+    if not vswhere_path:
+        return []
 
-    sdk_root = run.shell_command('%s --sdk_root' % vswhere_path).strip()
-    sdk_version = run.shell_command('%s --sdk_version' % vswhere_path).strip()
-    includes = run.shell_command('%s --includes' % vswhere_path).strip()
-    lib_paths = run.shell_command('%s --lib_paths' % vswhere_path).strip()
-    bin_paths = run.shell_command('%s --bin_paths' % vswhere_path).strip()
-    vs_root = run.shell_command('%s --vs_root' % vswhere_path).strip()
-    vs_version = run.shell_command('%s --vs_version' % vswhere_path).strip()
+    output = _run_windows_command([
+        vswhere_path,
+        '-utf8',
+        '-products', '*',
+        '-format', 'json',
+    ])
+    if not output:
+        return []
 
+    try:
+        installations = json.loads(output)
+    except ValueError:
+        return []
+
+    if not isinstance(installations, list):
+        return []
+
+    def _version_key(installation):
+        version = installation.get('installationVersion', '')
+        if not version:
+            return ()
+        return tuple(int(token) for token in version.split('.'))
+
+    return sorted(installations, key=_version_key, reverse=True)
+
+def _get_common_visual_studio_roots():
+    roots = []
+    for base in filter(None, [os.environ.get('ProgramFiles'), os.environ.get('ProgramFiles(x86)')]):
+        for year in ('2022', '2019', '2017'):
+            for edition in ('BuildTools', 'Community', 'Professional', 'Enterprise'):
+                installation_root = os.path.join(base, 'Microsoft Visual Studio', year, edition)
+                if os.path.exists(installation_root):
+                    roots.append(os.path.normpath(installation_root))
+
+    deduped = []
+    for root in roots:
+        if root not in deduped:
+            deduped.append(root)
+    return deduped
+
+def _get_local_vswhere_path():
+    candidates = []
+
+    program_files_x86 = os.environ.get('ProgramFiles(x86)')
+    if program_files_x86:
+        candidates.append(os.path.join(program_files_x86, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe'))
+
+    program_files = os.environ.get('ProgramFiles')
+    if program_files:
+        candidates.append(os.path.join(program_files, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe'))
+
+    which = shutil.which('vswhere.exe') or shutil.which('vswhere')
+    if which:
+        candidates.append(which)
+
+    for candidate in candidates:
+        if candidate and os.path.exists(candidate):
+            return os.path.normpath(candidate)
+    return None
+
+def _get_windows_sdk_root():
+    for key in ('WindowsSdkDir', 'WindowsSDKDir'):
+        value = os.environ.get(key)
+        if value and os.path.exists(value):
+            return os.path.normpath(value)
+
+    try:
+        import winreg
+
+        access_modes = [0]
+        for access_name in ('KEY_WOW64_32KEY', 'KEY_WOW64_64KEY'):
+            access_mode = getattr(winreg, access_name, None)
+            if access_mode is not None:
+                access_modes.append(access_mode)
+
+        for access_mode in access_modes:
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Windows Kits\Installed Roots', 0, winreg.KEY_READ | access_mode)
+                value = winreg.QueryValueEx(key, 'KitsRoot10')[0]
+                key.Close()
+                if value and os.path.exists(value):
+                    return os.path.normpath(value)
+            except OSError:
+                pass
+    except ImportError:
+        pass
+
+    program_files_x86 = os.environ.get('ProgramFiles(x86)')
+    if program_files_x86:
+        candidate = os.path.join(program_files_x86, 'Windows Kits', '10')
+        if os.path.exists(candidate):
+            return os.path.normpath(candidate)
+
+    program_files = os.environ.get('ProgramFiles')
+    if program_files:
+        candidate = os.path.join(program_files, 'Windows Kits', '10')
+        if os.path.exists(candidate):
+            return os.path.normpath(candidate)
+
+    return None
+
+def _get_windows_sdk_version(sdk_root):
+    include_root = os.path.join(sdk_root, 'Include')
+    if not os.path.isdir(include_root):
+        return None
+
+    versions = []
+    for version in os.listdir(include_root):
+        version_root = os.path.join(include_root, version)
+        if not os.path.isdir(version_root):
+            continue
+        if not re.match(r'^\d+(\.\d+)+$', version):
+            continue
+
+        required_paths = [
+            os.path.join(version_root, 'ucrt'),
+            os.path.join(version_root, 'winrt'),
+            os.path.join(version_root, 'um'),
+            os.path.join(version_root, 'shared'),
+            os.path.join(sdk_root, 'Lib', version, 'ucrt'),
+            os.path.join(sdk_root, 'Lib', version, 'um'),
+            os.path.join(sdk_root, 'bin', version),
+        ]
+        if all(os.path.exists(path) for path in required_paths):
+            versions.append(version)
+
+    if not versions:
+        return None
+
+    env_version = os.environ.get('WindowsSdkVersion') or os.environ.get('UCRTVersion')
+    if env_version:
+        env_version = env_version.rstrip('\\/')
+        if env_version in versions:
+            return env_version
+
+    return _sort_version_strings(versions)[0]
+
+def _get_windows_msvc_root(installation_root):
+    msvc_root = os.path.join(installation_root, 'VC', 'Tools', 'MSVC')
+    if not os.path.isdir(msvc_root):
+        return None, None
+
+    versions = [version for version in os.listdir(msvc_root)
+                if os.path.isdir(os.path.join(msvc_root, version)) and re.match(r'^\d+(\.\d+)+$', version)]
+    if not versions:
+        return None, None
+
+    for version in _sort_version_strings(versions):
+        vs_root = os.path.join(msvc_root, version)
+        required_paths = [
+            os.path.join(vs_root, 'include'),
+            os.path.join(vs_root, 'lib'),
+            os.path.join(vs_root, 'bin'),
+        ]
+        if all(os.path.exists(path) for path in required_paths):
+            return os.path.normpath(vs_root), version
+
+    return None, None
+
+def _get_windows_llvm_bin_dir(installation_root):
+    llvm_bin_dir = os.path.join(installation_root, 'VC', 'Tools', 'Llvm', 'bin')
+    clang = os.path.join(llvm_bin_dir, 'clang.exe')
+    clangpp = os.path.join(llvm_bin_dir, 'clang++.exe')
+    if os.path.isdir(llvm_bin_dir) and os.path.exists(clang) and os.path.exists(clangpp):
+        return os.path.normpath(llvm_bin_dir)
+    return None
+
+def _log_windows_detection_trace(verbose):
+    global windows_info_trace
+
+    if not verbose or windows_info_trace is None:
+        return
+
+    trace = windows_info_trace
+    log_verbose(verbose, f"  vswhere.exe: {trace.get('vswhere_path')}")
+
+    installations = trace.get('vswhere_installations', [])
+    if installations:
+        log_verbose(verbose, "  vswhere installations:")
+        for installation_root in installations:
+            log_verbose(verbose, f"    {installation_root}")
+    else:
+        log_verbose(verbose, "  vswhere installations: none")
+
+    candidate_roots = trace.get('candidate_roots', [])
+    if candidate_roots:
+        log_verbose(verbose, "  Visual Studio candidate roots:")
+        for installation_root in candidate_roots:
+            log_verbose(verbose, f"    {installation_root}")
+    else:
+        log_verbose(verbose, "  Visual Studio candidate roots: none")
+
+    log_verbose(verbose, f"  Selected Visual Studio installation: {trace.get('installation_root')}")
+    log_verbose(verbose, f"  Selected MSVC root: {trace.get('vs_root')}")
+    log_verbose(verbose, f"  Selected MSVC version: {trace.get('vs_version')}")
+    log_verbose(verbose, f"  Visual Studio LLVM bin dir: {trace.get('llvm_bin_dir')}")
+    log_verbose(verbose, f"  Windows SDK root: {trace.get('sdk_root')}")
+    log_verbose(verbose, f"  Windows SDK version: {trace.get('sdk_version')}")
+
+def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
+    global windows_info
+    global windows_info_error
+    global windows_info_trace
+
+    if windows_info is not None:
+        _log_windows_detection_trace(verbose)
+        return windows_info, None
+
+    if windows_info_error is not None:
+        _log_windows_detection_trace(verbose)
+        return None, windows_info_error
+
+    if sys.platform != 'win32':
+        windows_info_error = 'Local Visual Studio detection is only supported on Windows.'
+        windows_info_trace = {
+            'vswhere_path': None,
+            'vswhere_installations': [],
+            'candidate_roots': [],
+            'vs_root': None,
+            'vs_version': None,
+            'sdk_root': None,
+            'sdk_version': None,
+        }
+        _log_windows_detection_trace(verbose)
+        return None, windows_info_error
+
+    vswhere_path = _get_local_vswhere_path()
+    vswhere_installations = []
+    installation_roots = []
+    for installation in _get_local_vswhere_installations():
+        installation_root = installation.get('installationPath')
+        if installation_root:
+            installation_root = os.path.normpath(installation_root)
+            vswhere_installations.append(installation_root)
+            installation_roots.append(installation_root)
+
+    for installation_root in _get_common_visual_studio_roots():
+        if installation_root not in installation_roots:
+            installation_roots.append(installation_root)
+
+    selected_installation_root = None
+    vs_root = None
+    vs_version = None
+    for installation_root in installation_roots:
+        vs_root, vs_version = _get_windows_msvc_root(installation_root)
+        if vs_root:
+            selected_installation_root = installation_root
+            break
+
+    sdk_root = _get_windows_sdk_root()
+    sdk_version = _get_windows_sdk_version(sdk_root) if sdk_root else None
+    llvm_bin_dir = _get_windows_llvm_bin_dir(selected_installation_root) if selected_installation_root else None
+
+    windows_info_trace = {
+        'vswhere_path': vswhere_path,
+        'vswhere_installations': vswhere_installations,
+        'candidate_roots': installation_roots,
+        'installation_root': selected_installation_root,
+        'vs_root': vs_root,
+        'vs_version': vs_version,
+        'llvm_bin_dir': llvm_bin_dir,
+        'sdk_root': sdk_root,
+        'sdk_version': sdk_version,
+    }
+    _log_windows_detection_trace(verbose)
+
+    errors = []
+    if not installation_roots:
+        errors.append('Visual Studio was not found. Install Visual Studio Community or Build Tools with Desktop development with C++.')
+    elif not vs_root:
+        errors.append('Visual Studio was found, but the MSVC C++ toolchain is missing. Install the MSVC build tools component.')
+
+    if not sdk_root:
+        errors.append('Windows Kits 10 was not found. Install the Windows 10 SDK component.')
+    elif not sdk_version:
+        errors.append(f"Windows Kits 10 was found at '{sdk_root}', but no usable SDK version was found under Include/Lib/bin.")
+
+    if errors:
+        windows_info_error = '\n'.join(errors)
+        return None, windows_info_error
+
+    windows_info = get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform, llvm_bin_dir)
+    return windows_info, None
+
+def win_locale_vswhere(platform='x86_64-win32'):
+    info, _ = _detect_windows_local_sdk(platform)
+    return info
+
+def get_windows_include_dirs(vs_root, sdk_includes_root):
+    includes = [os.path.join(vs_root,'include'),
+                os.path.join(vs_root,'atlmfc','include'),
+                os.path.join(sdk_includes_root,'ucrt'),
+                os.path.join(sdk_includes_root,'winrt'),
+                os.path.join(sdk_includes_root,'um'),
+                os.path.join(sdk_includes_root,'shared')]
+
+    for x in includes:
+        if not os.path.exists(x):
+            _fatal("Path does not exist: %s" % x)
+
+    return ','.join(includes)
+
+def get_windows_lib_dirs(vs_root, sdk_libs_root, arch):
+    libdirs = [ os.path.join(vs_root,'lib',arch),
+                os.path.join(vs_root,'atlmfc','lib',arch),
+                os.path.join(sdk_libs_root,'ucrt',arch),
+                os.path.join(sdk_libs_root,'um',arch)]
+
+    for x in libdirs:
+        if not os.path.exists(x):
+            _fatal("Path does not exist: %s" % x)
+
+    return ','.join(libdirs)
+
+def get_windows_bin_dirs(vs_root, sdk_bin_root, arch, extra_bin_dirs=None):
+    bindirs = [ os.path.join(vs_root,'bin', 'Host%s'%arch, arch),
+                os.path.join(sdk_bin_root, arch)]
+
+    if extra_bin_dirs:
+        bindirs.extend(extra_bin_dirs)
+
+    for x in bindirs:
+        if not os.path.exists(x):
+            _fatal("Path does not exist: %s" % x)
+
+    return ','.join(bindirs)
+
+def get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform, llvm_bin_dir=None):
+    arch = 'x64'
     if platform == 'win32':
-        arch64 = 'x64'
-        arch32 = 'x86'
-        bin_paths = bin_paths.replace(arch64, arch32)
-        lib_paths = lib_paths.replace(arch64, arch32)
+        arch = 'x86'
+
+    sdk_includes_root = os.path.join(sdk_root, 'Include', sdk_version)
+    sdk_libs_root = os.path.join(sdk_root, 'Lib', sdk_version)
+    sdk_bin_root = os.path.join(sdk_root, 'bin', sdk_version)
+
+    includes = get_windows_include_dirs(vs_root, sdk_includes_root)
+    lib_paths = get_windows_lib_dirs(vs_root, sdk_libs_root, arch)
+    extra_bin_dirs = []
+    if llvm_bin_dir:
+        extra_bin_dirs.append(llvm_bin_dir)
+    bin_paths = get_windows_bin_dirs(vs_root, sdk_bin_root, arch, extra_bin_dirs)
 
     info = {}
     info['sdk_root'] = sdk_root
@@ -293,10 +758,16 @@ def get_windows_local_sdk_info(platform):
     info['includes'] = includes
     info['lib_paths'] = lib_paths
     info['bin_paths'] = bin_paths
+    info['llvm_bin_dir'] = llvm_bin_dir
     info['vs_root'] = vs_root
     info['vs_version'] = vs_version
-    windows_info = info
-    return windows_info
+    return info
+
+
+def get_windows_local_sdk_info(platform):
+    info, _ = _detect_windows_local_sdk(platform)
+    return info
+
 
 def get_windows_packaged_sdk_info(sdkdir, platform):
     global windows_info
@@ -329,27 +800,10 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
     msvc_path = (os.path.join(msvcdir,'VC', 'Tools', 'MSVC', msvc_version, 'bin', 'Host'+arch, arch),
                 os.path.join(windowskitsdir,'10','bin',ucrt_version,arch))
 
-    includes = [os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'include'),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','include'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'winrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'um'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'shared')]
+    vs_root = os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version)
+    sdk_root = os.path.join(windowskitsdir,'10')
 
-    libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib',arch),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'um',arch)]
-
-    info = {}
-    info['sdk_root'] = os.path.join(windowskitsdir,'10')
-    info['sdk_version'] = ucrt_version
-    info['includes'] = ','.join(includes)
-    info['lib_paths'] = ','.join(libdirs)
-    info['bin_paths'] = ','.join(msvc_path)
-    info['vs_root'] = msvcdir
-    info['vs_version'] = msvc_version
-    windows_info = info
+    windows_info = get_windows_info(vs_root, msvc_version, sdk_root, ucrt_version, platform)
     return windows_info
 
 def _setup_info_from_windowsinfo(windowsinfo, platform):
@@ -379,16 +833,69 @@ def _setup_info_from_windowsinfo(windowsinfo, platform):
 
 
 ## **********************************************************************************************
+# Emscripten
+
+def get_defold_emsdk():
+    emsdk = os.path.join(SDK_ROOT, 'emsdk-' + EMSCRIPTEN_VERSION_STR)
+    if emsdk is None:
+        raise SDKException(f"Failed to installed EMSDK installation")
+    return emsdk
+
+def get_defold_emsdk_cache():
+    emsdk = get_defold_emsdk()
+    return os.path.join(emsdk, '.defold_cache')
+
+def get_defold_emsdk_config():
+    emsdk = get_defold_emsdk()
+    return os.path.join(emsdk, '.emscripten')
+
+def _find_node_in_emsdk(emsdk):
+    node_dir = _get_latest_version_from_folders(os.path.join(emsdk, 'node'), [('_64bit', '')])
+    node = os.path.join(emsdk, 'node', node_dir, 'bin', 'node' + _get_host_exe_suffix())
+    if os.path.exists(node):
+        return os.path.normpath(node).replace('\\', '/')
+    raise SDKException(f"Failed to find local EMSDK_NODE installation: {node}")
+
+def get_defold_emsdk_node():
+    return _find_node_in_emsdk(get_defold_emsdk())
+
+# ------------------------------------------------------------
+
+def _get_local_emsdk():
+    emsdk = os.environ.get('EMSDK', None)
+    if emsdk is None:
+        raise SDKException(f"Failed to find local EMSDK installation")
+    return emsdk
+
+# https://emscripten.org/docs/tools_reference/emcc.html?highlight=em_cache
+def _get_local_emsdk_cache():
+    emsdk = _get_local_emsdk()
+    return os.path.join(emsdk, '.defold_cache')
+
+# https://emscripten.org/docs/tools_reference/emcc.html?highlight=em_config
+def _get_local_emsdk_config():
+    emsdk = _get_local_emsdk()
+    return os.path.join(emsdk, '.emscripten')
+
+def _get_local_emsdk_node():
+    node = os.environ.get('EMSDK_NODE', None)
+    if node is not None:
+        return node
+    return _find_node_in_emsdk(_get_local_emsdk())
+
+## **********************************************************************************************
 
 def _get_defold_path(sdkfolder, platform):
     return os.path.join(sdkfolder, defold_info[platform]['pattern'])
 
-def check_defold_sdk(sdkfolder, platform, verbose=False):
+def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
     folders = []
-    if verbose:
-        log.log("check_defold_sdk: %s %s" % (sdkfolder, platform))
+    log_verbose(verbose, f"check_defold_sdk: {platform} {sdkfolder}")
 
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    if sdk_vendor is not None and sdk_vendor.supports_platform(platform):
+        folders = sdk_vendor.get_defold_sdk_folders(platform)
+
+    elif platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
@@ -397,54 +904,65 @@ def check_defold_sdk(sdkfolder, platform, verbose=False):
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
     elif platform in ('armv7-android', 'arm64-android'):
-        folders.append(os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION))
-        folders.append(os.path.join(sdkfolder, "android-sdk"))
+        folders.append(get_android_sdk_path(sdkfolder))
+        folders.append(get_android_ndk_path(sdkfolder))
 
-    elif platform in ('x86_64-linux',):
-        folders.append(os.path.join(sdkfolder, "linux"))
+    elif platform in ('x86_64-linux','arm64-linux'):
+        folders.append(os.path.join(sdkfolder, host_platform))
+
+    elif platform in ('wasm-web','wasm_pthread-web'):
+        folders.append(get_defold_emsdk())
 
     if not folders:
-        log.log("sdk.py: No SDK folders specified for %s" %platform)
+        log.log("sdk.py: No SDK folders specified for %s" % platform)
         return False
 
     count = 0
+    msg = ''
     for f in folders:
         if not os.path.exists(f):
-            if verbose:
-                log.log("  Missing SDK in %s" % f)
+            msg += f"  Missing SDK in {f}\n"
         else:
             count = count + 1
     result = count == len(folders)
 
-    if verbose:
-        if not result:
-            log.log("  No prepackaged sdk found.")
-        else:
-            log.log("  Found prepackaged sdk folders:")
-            for f in folders:
-                log.log("    %s" % f)
+    if not result:
+        raise SDKException(msg + "  No prepackaged sdk found.")
+    else:
+        log_verbose(verbose, "  Found prepackaged sdk folders:")
+        for f in folders:
+            log_verbose(verbose, "    %s" % f)
 
     return result
 
 def check_local_sdk(platform, verbose=False):
+    log_verbose(verbose, f"check_local_sdk: {platform}")
+
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         xcode_version = get_local_darwin_toolchain_version()
         if not xcode_version:
-            return False
+            raise SDKException(f"Failed to find XCode version")
+
     elif platform in ('win32', 'x86_64-win32'):
-        info = get_windows_local_sdk_info(platform)
-        return info is not None
+        info, error = _detect_windows_local_sdk(platform, verbose)
+        if info is None:
+            raise SDKException(error)
 
     elif platform in ('armv7-android', 'arm64-android'):
         path = get_android_local_sdk_path()
-        return path is not None
+        ndkpath = get_android_local_ndk_path(platform, verbose)
+        return path is not None and ndkpath is not None
 
     return True
 
 
-def _get_defold_sdk_info(sdkfolder, platform):
+def _get_defold_sdk_info(sdkfolder, host_platform, platform):
     info = {}
-    if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
+
+    if sdk_vendor is not None and sdk_vendor.supports_platform(platform):
+        return sdk_vendor.get_sdk_info(platform)
+
+    elif platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
@@ -455,28 +973,36 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, platform) # what we use for sysroot
 
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
-        info[platform]['path'] = _get_defold_path(sdkfolder, platform)
+        # We download the package for the host platform, and rely on its ability cross compile
+        info[platform]['path'] = _get_defold_path(sdkfolder, host_platform)
 
     elif platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
     elif platform in ('armv7-android', 'arm64-android'):
-        info['version'] = ANDROID_BUILD_TOOLS_VERSION
-        info['sdk'] = os.path.join(sdkfolder, "android-sdk")
-        info['ndk'] = os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION)
-        info['build_tools'] = os.path.join(info['sdk'], "build-tools" , ANDROID_BUILD_TOOLS_VERSION)
-        if platform == 'arm64-android':
-            info['api'] = ANDROID_64_NDK_API_VERSION
-        else:
-            info['api'] = ANDROID_NDK_API_VERSION
+        info['version']     = ANDROID_BUILD_TOOLS_VERSION
+        info['sdk']         = get_android_sdk_path(sdkfolder)
+        info['ndk']         = get_android_ndk_path(sdkfolder)
+        info['build_tools'] = get_android_build_tools_path(sdkfolder)
+        info['jar']         = get_android_jar_path(sdkfolder)
+        info['bintools']    = get_android_bintools_path(info['ndk'], platform)
+        info['api']         = get_android_api_version(platform)
+        info['clangname']   = get_android_clang_name(platform, info['api'])
+
+    elif platform in ('wasm-web', 'wasm_pthread-web'):
+        info['emsdk'] = {}
+        info['emsdk']['path'] = get_defold_emsdk()
+        info['emsdk']['cache'] = get_defold_emsdk_cache()
+        info['emsdk']['config'] = get_defold_emsdk_config()
+        info['emsdk']['node'] = get_defold_emsdk_node()
 
     return info
 
-def _get_local_sdk_info(platform):
+def _get_local_sdk_info(platform, verbose=False):
     info = {}
     if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
@@ -492,7 +1018,7 @@ def _get_local_sdk_info(platform):
         if not os.path.exists(info['asan']['path']):
             print("sdk.py: Couldn't find '%s'" % info['asan']['path'], file=sys.stderr)
 
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = get_local_compiler_version()
         info[platform]['path'] = get_local_compiler_path()
@@ -502,42 +1028,56 @@ def _get_local_sdk_info(platform):
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
     elif platform in ('armv7-android', 'arm64-android'):
-        info['version'] = get_android_local_sdk_version(platform)
-        info['sdk'] = get_android_local_sdk_path()
-        info['ndk'] = get_android_local_ndk_path(platform)
+        ndk_os = 'linux'
+        if sys.platform == 'darwin':
+            ndk_os = 'darwin'
+        elif sys.platform == 'win32':
+            ndk_os = 'windows'
+
+        info['version']     = get_android_local_sdk_version(platform)
+        info['sdk']         = get_android_local_sdk_path(verbose)
+        info['ndk']         = get_android_local_ndk_path(platform, verbose)
+        info['jar']         = get_android_local_jar_path(verbose)
         info['build_tools'] = get_android_local_build_tools_path(platform)
-        if platform == 'arm64-android':
-            info['api'] = ANDROID_64_NDK_API_VERSION
-        else:
-            info['api'] = ANDROID_NDK_API_VERSION
+        info['bintools']    = get_android_bintools_path(info['ndk'], platform)
+        info['api']         = get_android_api_version(platform)
+        info['clangname']   = get_android_clang_name(platform, info['api'])
+
+    elif platform in ('wasm-web', 'wasm_pthread-web'):
+        info['emsdk'] = {}
+        info['emsdk']['path'] = _get_local_emsdk()
+        info['emsdk']['cache'] = _get_local_emsdk_cache()
+        info['emsdk']['config'] = _get_local_emsdk_config()
+        info['emsdk']['node'] = _get_local_emsdk_node()
 
     return info
 
-# It's only cached for the duration of one build
-cached_platforms = defaultdict(defaultdict)
+# ********************************************************************
+# vendor
 
-def get_sdk_info(sdkfolder, platform, verbose=False):
-    if platform in cached_platforms:
-        return cached_platforms[platform]
+def dummy_check_vendor_sdk(sdkfolder, platform, verbose):
+    pass
 
-    if check_defold_sdk(sdkfolder, platform, verbose):
-        result = _get_defold_sdk_info(sdkfolder, platform)
-        cached_platforms[platform] = result
-        return result
+check_vendor_sdk = dummy_check_vendor_sdk
 
-    if check_local_sdk(platform, verbose):
-        result = _get_local_sdk_info(platform)
-        cached_platforms[platform] = result
-        return result
+try:
+    import sdk_vendor
+    sdk_vendor.SDKException = SDKException # give access to the esception
+    check_vendor_sdk = sdk_vendor.check_vendor_sdk
+except ModuleNotFoundError as e:
+    # Currently, the output is parsed by other scripts
+    if "No module named 'sdk_vendor'" in str(e):
+        pass
+    else:
+        raise e
+except Exception as e:
+    print("Failed to import sdk_vendor.py:")
+    raise e
 
-    return None
+if 'sdk_vendor' not in sys.modules:
+    sdk_vendor = None
 
-def get_toolchain_root(sdkinfo, platform):
-    if platform in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
-        return sdkinfo['xcode']['path']
-    if platform in ('x86_64-linux',):
-        return sdkinfo['x86_64-linux']['path']
-    return None
+# ********************************************************************
 
 def get_host_platform():
     machine = platform.machine().lower()
@@ -546,10 +1086,168 @@ def get_host_platform():
     is64bit = machine.endswith('64')
 
     if sys.platform == 'linux':
+        if machine == 'aarch64':
+            machine = 'arm64'
         return '%s-linux' % machine
     elif sys.platform == 'win32':
+        if machine == 'arm64':
+            machine = 'x86_64' # we don't support arm64 windows targets yet
         return '%s-win32' % machine
     elif sys.platform == 'darwin':
         return '%s-macos' % machine
 
     raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))
+
+# It's only cached for the duration of one build
+cached_platforms = defaultdict(defaultdict)
+
+
+def get_sdk_info(sdkfolder, platform, verbose=False):
+    if platform in cached_platforms:
+        return cached_platforms[platform]
+
+    host_platform = get_host_platform()
+    try:
+        if check_vendor_sdk(sdkfolder, platform, verbose):
+            result = _get_defold_sdk_info(sdkfolder, host_platform, platform)
+            cached_platforms[platform] = result
+            return result
+    except SDKException as e:
+        log_verbose(verbose, e)
+
+    try:
+        if check_defold_sdk(sdkfolder, host_platform, platform, verbose):
+            result = _get_defold_sdk_info(sdkfolder, host_platform, platform)
+            cached_platforms[platform] = result
+            return result
+    except SDKException as e:
+        log_verbose(verbose, e)
+
+    try:
+        if check_local_sdk(platform, verbose):
+            result = _get_local_sdk_info(platform, verbose)
+            cached_platforms[platform] = result
+            return result
+    except SDKException as e:
+        log_verbose(verbose, e)
+
+    return None
+
+def _create_hello_world(path):
+    parent = os.path.dirname(path)
+    if not os.path.exists(parent):
+        os.makedirs(parent)
+    with open(path, 'w', encoding='utf-8') as f:
+        s  = "#include <stdio.h>\n"
+        s += "int main(int argc, char** argv)\n"
+        s += "{\n"
+        s += "    printf(\"hello world!\\n\");\n"
+        s += "    return 0;\n"
+        s += "}\n"
+        s += ""
+        f.write(s)
+
+def _get_clang_arch_from_platform(platform):
+    if platform == 'x86_64-linux':  return 'x86_64-unknown-linux-gnu'
+    if platform == 'arm64-linux':   return 'aarch64-unknown-linux-gnu'
+    if platform == 'x86_64-macos':  return 'x86_64-apple-darwin19'
+    if platform == 'arm64-macos':   return 'arm64-apple-darwin19'
+    return None
+
+class TestSdkException(Exception):
+    pass
+
+def _compile_file_clang(platform, info, srcfile, exefile, verbose):
+    # if we can rely on the PATH variable
+    use_local_path = False
+    if platform in ['arm64-linux', 'x86_64-linux', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
+        use_local_path = True
+
+        clang = run.shell_command(f'which clang++')
+        if verbose:
+            log.log(clang)
+
+        if not clang:
+            raise TestSdkException("Path not found for clang!")
+
+    clang = 'clang++'
+    sysroot = ''
+    arch = ''
+
+    if platform in ['arm64-android', 'armv7-android']:
+        clang = os.path.join(info['bintools'], info['clangname'])
+
+    elif platform in ['arm64-ios', 'x86_64-ios']:
+        sysroot = '-isysroot' + info[platform]['path']
+        arch = '-arch ' + platform.split('-')[0]
+
+    if not use_local_path:
+        if not os.path.exists(clang):
+            raise TestSdkException(f"Path not found for clang: '{clang}'")
+
+    target = _get_clang_arch_from_platform(platform)
+    if target is not None:
+        target = f'--target={target}'
+    else:
+        target = ''
+
+    cmd = f'{clang} {sysroot} {target} {arch} {srcfile} -o {exefile}'
+    return run.shell_command(cmd)
+
+def _test_compiler_clang(platform, info, can_run, verbose):
+    testdir = os.path.join(os.environ['DYNAMO_HOME'], 'sdktest')
+    testfile = os.path.join(testdir, 'hello.cpp')
+    exefile = os.path.join(testdir, 'a.out')
+    _create_hello_world(testfile)
+    output = _compile_file_clang(platform, info, testfile, exefile, verbose)
+
+    if verbose:
+        output = run.shell_command(f'file {exefile}')
+        log.log(output)
+
+    if can_run:
+        output = run.shell_command(f'{exefile}')
+        if verbose:
+            log.log(output)
+
+
+def test_sdk(platform, info, verbose=False):
+    host = get_host_platform()
+    use_clang = False
+
+    can_run = host == platform
+    if not can_run:
+        can_run = host == 'arm64-macos' and platform == 'x86_64-macos'
+
+    if platform in ['arm64-linux', 'x86_64-linux',
+                    'arm64-macos', 'x86_64-macos',
+                    'arm64-ios', 'x86_64-ios',
+                    'arm64-android', 'armv7-android']:
+        use_clang = True
+
+    try:
+        if use_clang:
+            _test_compiler_clang(platform, info, can_run, verbose)
+
+    except TestSdkException as e:
+        log.log(e)
+        return False
+
+    return True
+
+def get_toolchain_root(sdkinfo, platform):
+    if platform in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
+        return sdkinfo['xcode']['path']
+    if platform in ('x86_64-linux','arm64-linux'):
+        return sdkinfo[platform]['path']
+    return None
+
+
+def get_strip_executable(platform, sdkinfo):
+    if platform in ('armv7-android', 'arm64-android'):
+        return os.path.join(sdkinfo['bintools'], 'llvm-strip')
+
+    if platform in ('x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios'):
+        return os.path.join(get_toolchain_root(sdkinfo, platform), 'usr', 'bin', 'strip')
+
+    return 'strip'

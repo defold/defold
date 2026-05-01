@@ -1,0 +1,5 @@
+function init(self)
+	-- The issue is that the physics adapter is installed after the pointer has been assigned to the physics world.
+	local shape = physics.get_shape("#collisionobject", "box")
+	sys.exit(0)
+end

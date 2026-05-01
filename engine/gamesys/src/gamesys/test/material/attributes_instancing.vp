@@ -1,0 +1,15 @@
+attribute vec4 position;
+attribute vec3 normal;
+attribute vec2 texcoord0;
+attribute mat3 mtx_normal;
+attribute mat4 mtx_world;
+
+varying vec3 var_normal;
+varying vec2 var_texcoord0;
+
+void main()
+{
+    gl_Position = mtx_world * position;
+    var_normal = (mtx_normal * normal).xyz;
+    var_texcoord0 = texcoord0;
+}

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,14 +17,14 @@
 
 #include <stdint.h>
 
-/*# SDK Image API documentation
+/*# Image API documentation
  *
  * Image API functions.
  *
  * @document
  * @name Image
  * @namespace dmImage
- * @path engine/dlib/src/dmsdk/dlib/image.h
+ * @language C++
  */
 
 namespace dmImage
@@ -62,6 +62,12 @@ namespace dmImage
         TYPE_RGBA            = 1,
         TYPE_LUMINANCE       = 2,
         TYPE_LUMINANCE_ALPHA = 3,
+    };
+
+    enum CompressionType
+    {
+        COMPRESSION_TYPE_NONE = 0,
+        COMPRESSION_TYPE_ASTC = 1,
     };
 
     /**
@@ -113,6 +119,30 @@ namespace dmImage
      * @return data [type: uint32_t] the image height
      */
     const void* GetData(HImage image);
+
+    /*#
+     * Get the block size
+     * @name GetAstcBlockSize
+     * @param mem [type: void*] the .astc memory (including the header)
+     * @param memsize [type: uint32_t] the length of the memory blob
+     * @param width [type: uint32_t*] (out) the block width
+     * @param height [type: uint32_t*] (out) the block height
+     * @param depth [type: uint32_t*] (out) the block depth
+     * @return result [type: bool] true if it's an astc file
+     */
+    bool GetAstcBlockSize(const void* mem, uint32_t memsize, uint32_t* width, uint32_t* height, uint32_t* depth);
+
+    /*#
+     * Get the astc image size
+     * @name GetAstcDimensions
+     * @param mem [type: void*] the .astc memory (including the header)
+     * @param memsize [type: uint32_t] the length of the memory blob
+     * @param width [type: uint32_t*] (out) the block width
+     * @param height [type: uint32_t*] (out) the block height
+     * @param depth [type: uint32_t*] (out) the block depth
+     * @return result [type: bool] true if it's an astc file
+     */
+    bool GetAstcDimensions(const void* mem, uint32_t memsize, uint32_t* width, uint32_t* height, uint32_t* depth);
 }
 
 #endif // DMSDK_IMAGE

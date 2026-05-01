@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,10 +36,31 @@ function terminate() {
 # ----------------------------------------------------------------------------
 # arguments
 # ----------------------------------------------------------------------------
-[ "$#" -ge "2" ] || \
+PLATFORM=""
+OPTIONS=""
+SUBMODULES=""
+if [ "$#" -gt 0 ]; then
+    PLATFORM="$1"
+    shift
+fi
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = "--" ]; then
+        shift
+        OPTIONS="$OPTIONS $@"
+        break
+    elif echo $1 | grep -q '^--'; then
+        OPTIONS="$OPTIONS $1"
+    else
+        SUBMODULES="$SUBMODULES $1"
+    fi
+    shift
+done
+
+
+if [ -z "$SUBMODULES" ] || [ -z "$PLATFORM" ]; then
     terminate 1 "Usage: ${SCRIPT_NAME} <platform> <module> [, <module> .. ]"
-for i in $(seq 2 $#); do
-    _SUBMODULE="${@:$i:1}"
+fi
+for _SUBMODULE in ${SUBMODULES}; do
     if [ ! -d "${DEFOLD_PATH}/engine/${_SUBMODULE}" ]; then
         terminate 1 "Submodule '${_SUBMODULE}' does not exist."
     fi
@@ -53,12 +74,10 @@ done
     terminate 1 "DYNAMO_HOME (${DYNAMO_HOME}) is not a directory."
 
 start_time="$(date -u +%s)"
-for i in $(seq 2 $#); do
-    _SUBMODULE="${@:$i:1}"
+for _SUBMODULE in ${SUBMODULES}; do
     (
         cd "${DEFOLD_PATH}/engine/${_SUBMODULE}"
-        waf install --platform="${1}" \
-            --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests --opt-level=0
+        waf install --platform="${PLATFORM}" ${OPTIONS} --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests
     )
 done
 
@@ -67,17 +86,14 @@ done
     find "build" -type f -name "*dmengine*" | xargs -I% rm -f "%"
     find "build" -type f -name "classes.dex" | xargs -I% rm -f "%"
     find "build" -type d -name "*dmengine*" | xargs -I% rm -rf "%"
-    waf install --platform="${1}" \
-        --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests --opt-level=0
+    waf install --platform="${PLATFORM}" ${OPTIONS} --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests
 )
 
 
 # ----------------------------------------------------------------------------
 # teardown
 # ----------------------------------------------------------------------------
-platform=${1}
-shift
 end_time="$(date -u +%s)"
 elapsed="$(($end_time-$start_time))"
-echo "Built $# submodule(s) for platform '${platform}' in ${elapsed} seconds"
+echo "Built $(echo $SUBMODULES | wc -w) submodule(s) for platform '${PLATFORM}' in ${elapsed} seconds"
 terminate 0 "${SCRIPT_NAME} done."

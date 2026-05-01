@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,8 +22,8 @@
 #include <dmsdk/dlib/object_pool.h>
 #include <graphics/graphics.h>
 
-
 #include <stdio.h>
+#include <string.h>
 
 namespace dmRig
 {
@@ -32,22 +32,37 @@ namespace dmRig
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const float CURSOR_EPSILON = 0.0001f;
 
+    const float TEXTURE_TRANSFORM_2D_IDENTITY[9] = {
+        1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f,
+    };
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt);
     static bool DoPostUpdate(RigInstance* instance);
 
     struct RigContext
     {
         dmObjectPool<HRigInstance>      m_Instances;
+        PoseMatrixCache                 m_PoseMatrixCache;
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmVMath::Matrix4>       m_ScratchPoseMatrixBuffer;
         // Temporary scratch buffers used when transforming the vertex buffer,
         // used to creating primitives from indices.
-        dmArray<dmVMath::Vector3>       m_ScratchPositionBuffer;
+        dmArray<dmVMath::Vector3>       m_ScratchPositionBufferWorld;
+        dmArray<dmVMath::Vector3>       m_ScratchPositionBufferLocal;
         dmArray<dmVMath::Vector3>       m_ScratchNormalBuffer;
         dmArray<dmVMath::Vector4>       m_ScratchTangentBuffer;
     };
 
+    static void ResetPoseMatrixCache(PoseMatrixCache* cache)
+    {
+        cache->m_PoseMatrices.SetSize(0);
+        cache->m_CacheEntryOffsets.SetSize(0);
+        cache->m_TotalPoseCount = 0;
+        cache->m_MaxBoneCount = 0;
+    }
 
     Result NewContext(const NewContextParams& params, HRigContext* out)
     {
@@ -58,6 +73,9 @@ namespace dmRig
 
         context->m_Instances.SetCapacity(params.m_MaxRigInstanceCount);
         context->m_ScratchPoseMatrixBuffer.SetCapacity(0);
+
+        ResetPoseMatrixCache(&context->m_PoseMatrixCache);
+
         *out = context;
         return dmRig::RESULT_OK;
     }
@@ -65,6 +83,15 @@ namespace dmRig
     void DeleteContext(HRigContext context)
     {
         delete context;
+    }
+
+    template <typename T>
+    static inline void EnsureSize(T& array, uint32_t size)
+    {
+        if (array.Capacity() < size) {
+            array.OffsetCapacity(size - array.Capacity());
+        }
+        array.SetSize(size);
     }
 
     static const dmRigDDF::RigAnimation* FindAnimation(const dmRigDDF::AnimationSet* anim_set, dmhash_t animation_id)
@@ -387,6 +414,177 @@ namespace dmRig
         return t;
     }
 
+    static MorphWeightSlot* GetMorphWeightSlot(RigInstance* instance, uint64_t model_id)
+    {
+        for (uint32_t i = 0; i < instance->m_MorphSlots.Size(); ++i)
+        {
+            if (instance->m_MorphSlots[i].m_ModelId == model_id)
+            {
+                return &instance->m_MorphSlots[i];
+            }
+        }
+        return 0x0;
+    }
+
+    static void ResetMorphWeights(RigInstance* instance)
+    {
+        if (instance->m_MorphSlots.Empty())
+        {
+            return;
+        }
+
+        for (uint32_t si = 0; si < instance->m_MorphSlots.Size(); ++si)
+        {
+            MorphWeightSlot& slot = instance->m_MorphSlots[si];
+            float* dest = instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
+            memset(dest, 0, slot.m_MorphCount * sizeof(float));
+        }
+    }
+
+    static uint32_t GetModelMaxMorphTargetCount(const dmRigDDF::Model* model)
+    {
+        uint32_t mcount = 0;
+        for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
+        {
+            mcount = dmMath::Max(mcount, model->m_Meshes[m].m_MorphTargets.m_Count);
+        }
+        return mcount;
+    }
+
+    static void InitMorphSlots(RigInstance* instance)
+    {
+        const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
+        if (!mesh_set)
+        {
+            return;
+        }
+
+        uint32_t slot_count = 0;
+        uint32_t total_floats = 0;
+        uint32_t max_morph = 0;
+
+        // Pass 1: count the number of morph slots and total number of floats
+        for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
+        {
+            const dmRigDDF::Model* model = &mesh_set->m_Models[mi];
+            uint32_t mcount = GetModelMaxMorphTargetCount(model);
+            if (mcount == 0)
+            {
+                continue;
+            }
+            slot_count++;
+            total_floats += mcount;
+            max_morph = dmMath::Max(max_morph, mcount);
+        }
+
+        if (slot_count == 0 || total_floats == 0)
+        {
+            return;
+        }
+
+        // Pass 2: create the morph weight slots
+        instance->m_MorphSlots.SetCapacity(slot_count);
+        uint32_t buffer_offset = 0;
+        for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
+        {
+            const dmRigDDF::Model* model = &mesh_set->m_Models[mi];
+            uint32_t mcount = GetModelMaxMorphTargetCount(model);
+            if (mcount == 0)
+            {
+                continue;
+            }
+
+            MorphWeightSlot slot;
+            slot.m_ModelId = model->m_Id;
+            slot.m_MorphCount = mcount;
+            slot.m_BufferOffset = buffer_offset;
+            instance->m_MorphSlots.Push(slot);
+            buffer_offset += mcount;
+        }
+
+        instance->m_MorphWeightsBuffer.SetCapacity(total_floats);
+        instance->m_MorphWeightsBuffer.SetSize(total_floats);
+        instance->m_MorphScratch.SetCapacity(max_morph);
+        instance->m_MorphScratch.SetSize(max_morph);
+        ResetMorphWeights(instance);
+    }
+
+    static void SampleMorphWeightTrack(const dmRigDDF::MorphWeightTrack* track, float t, float sample_rate, float* out_weights)
+    {
+        uint32_t dim = track->m_MorphCount;
+        uint32_t total_floats = track->m_Weights.m_Count;
+        if (dim == 0 || total_floats == 0)
+            return;
+        uint32_t num_poses = total_floats / dim;
+        if (num_poses == 0)
+            return;
+
+        float fraction = t * sample_rate;
+        uint32_t sample = (uint32_t)fraction;
+        fraction -= sample;
+        if (sample >= num_poses - 1)
+        {
+            sample = num_poses - 1;
+            fraction = 0.0f;
+        }
+
+        const float* data = track->m_Weights.m_Data;
+        for (uint32_t d = 0; d < dim; ++d)
+        {
+            uint32_t i0 = sample * dim + d;
+            if (sample + 1 < num_poses)
+            {
+                uint32_t i1 = i0 + dim;
+                out_weights[d] = data[i0] + fraction * (data[i1] - data[i0]);
+            }
+            else
+            {
+                out_weights[d] = data[i0];
+            }
+        }
+    }
+
+    static void ApplyMorphAnimation(RigInstance* instance, RigPlayer* player, float blend_weight)
+    {
+        const dmRigDDF::RigAnimation* animation = player->m_Animation;
+        // No m_Playing check: UpdatePlayer may clear it when a ONCE clip ends in the same DoAnimate pass;
+        // morph weights must still be sampled for that final frame (same as bone tracks).
+        if (!animation || instance->m_MorphSlots.Empty())
+        {
+            return;
+        }
+
+        uint32_t mw_count = animation->m_MorphWeightTracks.m_Count;
+        const dmRigDDF::MorphWeightTrack* mw_tracks = animation->m_MorphWeightTracks.m_Data;
+
+        float duration    = GetCursorDuration(player, animation);
+        float t           = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
+        float sample_rate = animation->m_SampleRate;
+
+        for (uint32_t ti = 0; ti < mw_count; ++ti)
+        {
+            const dmRigDDF::MorphWeightTrack* track = &mw_tracks[ti];
+            MorphWeightSlot* slot = GetMorphWeightSlot(instance, track->m_ModelId);
+            if (!slot)
+            {
+                continue;
+            }
+
+            if (track->m_MorphCount != slot->m_MorphCount)
+            {
+                continue;
+            }
+
+            SampleMorphWeightTrack(track, t, sample_rate, instance->m_MorphScratch.Begin());
+            float* dest = instance->m_MorphWeightsBuffer.Begin() + slot->m_BufferOffset;
+            const float* sampled = instance->m_MorphScratch.Begin();
+            for (uint32_t d = 0; d < slot->m_MorphCount; ++d)
+            {
+                dest[d] = dest[d] + blend_weight * (sampled[d] - dest[d]);
+            }
+        }
+    }
+
     static void ApplyAnimation(RigInstance* instance, RigPlayer* player, dmArray<BonePose>& pose, dmArray<IKAnimation>& ik_animation, float blend_weight)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
@@ -398,48 +596,51 @@ namespace dmRig
         float fraction = t * animation->m_SampleRate;
         uint32_t sample = (uint32_t)fraction;
         fraction -= sample;
-        // Sample animation tracks
+        // Sample skeletal tracks (skip when there is no skeleton / bone map, e.g. morph-only rigs)
         const dmHashTable64<uint32_t>* bone_indices = instance->m_BoneIndices;
         uint32_t track_count = animation->m_Tracks.m_Count;
-        for (uint32_t ti = 0; ti < track_count; ++ti)
+        if (bone_indices)
         {
-            const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[ti];
-
-            const uint32_t* bone_index = bone_indices->Get(track->m_BoneId);
-            if (!bone_index || *bone_index >= pose.Size()) {
-                continue;
-            }
-            dmTransform::Transform& transform = pose[*bone_index].m_Local;
-
-            if (track->m_Positions.m_Count > 0)
+            for (uint32_t ti = 0; ti < track_count; ++ti)
             {
-                Vector3 v;
-                if (track->m_Positions.m_Count == 3)
-                    v = Vector3(track->m_Positions.m_Data[0], track->m_Positions.m_Data[1], track->m_Positions.m_Data[2]);
-                else
-                    v = SampleVec3(sample, fraction, track->m_Positions.m_Data);
+                const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[ti];
 
-                transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), v));
-            }
-            if (track->m_Rotations.m_Count > 0)
-            {
-                Quat q;
-                if (track->m_Rotations.m_Count == 4)
-                    q = Quat(track->m_Rotations.m_Data[0], track->m_Rotations.m_Data[1], track->m_Rotations.m_Data[2], track->m_Rotations.m_Data[3]);
-                else
-                    q = SampleQuat(sample, fraction, track->m_Rotations.m_Data);
+                const uint32_t* bone_index = bone_indices->Get(track->m_BoneId);
+                if (!bone_index || *bone_index >= pose.Size()) {
+                    continue;
+                }
+                dmTransform::Transform& transform = pose[*bone_index].m_Local;
 
-                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), q));
-            }
-            if (track->m_Scale.m_Count > 0)
-            {
-                Vector3 s;
-                if (track->m_Scale.m_Count == 3)
-                    s = Vector3(track->m_Scale.m_Data[0], track->m_Scale.m_Data[1], track->m_Scale.m_Data[2]);
-                else
-                    s = SampleVec3(sample, fraction, track->m_Scale.m_Data);
+                if (track->m_Positions.m_Count > 0)
+                {
+                    Vector3 v;
+                    if (track->m_Positions.m_Count == 3)
+                        v = Vector3(track->m_Positions.m_Data[0], track->m_Positions.m_Data[1], track->m_Positions.m_Data[2]);
+                    else
+                        v = SampleVec3(sample, fraction, track->m_Positions.m_Data);
 
-                transform.SetScale(lerp(blend_weight, transform.GetScale(), s));
+                    transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), v));
+                }
+                if (track->m_Rotations.m_Count > 0)
+                {
+                    Quat q;
+                    if (track->m_Rotations.m_Count == 4)
+                        q = Quat(track->m_Rotations.m_Data[0], track->m_Rotations.m_Data[1], track->m_Rotations.m_Data[2], track->m_Rotations.m_Data[3]);
+                    else
+                        q = SampleQuat(sample, fraction, track->m_Rotations.m_Data);
+
+                    transform.SetRotation(slerp(blend_weight, transform.GetRotation(), q));
+                }
+                if (track->m_Scale.m_Count > 0)
+                {
+                    Vector3 s;
+                    if (track->m_Scale.m_Count == 3)
+                        s = Vector3(track->m_Scale.m_Data[0], track->m_Scale.m_Data[1], track->m_Scale.m_Data[2]);
+                    else
+                        s = SampleVec3(sample, fraction, track->m_Scale.m_Data);
+
+                    transform.SetScale(lerp(blend_weight, transform.GetScale(), s));
+                }
             }
         }
     }
@@ -448,6 +649,19 @@ namespace dmRig
     {
         DM_PROFILE("RigAnimate");
 
+        // set the size of pose matrix cache once per frame - resize if needed
+        // size is based on the total number of bones in rig instances which
+        // have acquired a pose matrix cache entry prior to the call to
+        // Animate()
+        // See AcquirePoseMatrixCacheEntry
+        dmArray<Matrix4>& cache_pose_matrices = context->m_PoseMatrixCache.m_PoseMatrices;
+        uint32_t size = context->m_PoseMatrixCache.m_TotalPoseCount;
+        cache_pose_matrices.SetCapacity(size);
+        cache_pose_matrices.SetSize(size);
+
+        // animate each rig instance
+        // the final step of DoAnimate will commit the bone poses to the pose
+        // matrix cache which is resized above
         const dmArray<RigInstance*>& instances = context->m_Instances.GetRawObjects();
         uint32_t n = instances.Size();
         for (uint32_t i = 0; i < n; ++i)
@@ -482,7 +696,7 @@ namespace dmRig
         }
     }
 
-    static void PoseToMatrix(const dmArray<BonePose>& pose, dmArray<Matrix4>& out_matrices)
+    static void PoseToMatrix(const dmArray<BonePose>& pose, Matrix4* out_matrices)
     {
         uint32_t bone_count = pose.Size();
         for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -491,14 +705,62 @@ namespace dmRig
         }
     }
 
+    static void CommitPoseMatrixToCache(HRigContext context, HRigInstance instance)
+    {
+        uint32_t bone_count = GetBoneCount(instance);
+        if (bone_count == 0 || instance->m_PoseMatrixCacheIndex == INVALID_POSE_MATRIX_CACHE_ENTRY)
+        {
+            return;
+        }
+
+        PoseMatrixCache* cache = &context->m_PoseMatrixCache;
+        uint32_t cache_entry_offset = cache->m_CacheEntryOffsets[instance->m_PoseMatrixCacheIndex];
+
+        Matrix4* pose_matrix_write_ptr = cache->m_PoseMatrices.Begin() + cache_entry_offset;
+        PoseToMatrix(instance->m_Pose, pose_matrix_write_ptr);
+
+        // Premultiply pose matrices with the bind pose inverse so they
+        // can be directly be used to transform each vertex.
+        const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        {
+            Matrix4& pose_matrix = pose_matrix_write_ptr[bi];
+            pose_matrix = pose_matrix * bind_pose[bi].m_ModelToLocal;
+        }
+
+        cache->m_MaxBoneCount = dmMath::Max(cache->m_MaxBoneCount, (uint32_t) instance->m_MaxBoneCount);
+    }
+
+    bool IsAnimating(HRigInstance instance)
+    {
+        RigPlayer* player = GetPlayer(instance);
+        return player->m_Playing && player->m_Animation && instance->m_Enabled;
+    }
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
         // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
-        RigPlayer* player = GetPlayer(instance);
+        if (!instance->m_MorphSlots.Empty())
+        {
+            ResetMorphWeights(instance);
+        }
 
-        if (!player->m_Playing || !instance->m_Enabled || !player->m_Animation)
+        if (!IsAnimating(instance))
+        {
+            // Skinned meshes sample the pose matrix cache every frame. If we skip the cache write while
+            // idle, the vertex shader falls back to non-skinned positions which can cause a disparity
+            // between authoring tools and animated result. Instead, we write the non-animated
+            // skeleton bind pose whenever this instance owns cache space.
+            if (instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
+            {
+                dmArray<BonePose>& pose = instance->m_Pose;
+                UpdatePoseTransforms(pose);
+                CommitPoseMatrixToCache(context, instance);
+            }
             return;
+        }
 
+        RigPlayer* player = GetPlayer(instance);
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
 
         dmArray<BonePose>& pose = instance->m_Pose;
@@ -532,6 +794,7 @@ namespace dmRig
 
                 UpdatePlayer(instance, p, dt, blend_weight);
                 ApplyAnimation(instance, p, pose, ik_animation, alpha);
+                ApplyMorphAnimation(instance, p, alpha);
                 if (player == p)
                 {
                     alpha = 1.0f - fade_rate;
@@ -546,6 +809,7 @@ namespace dmRig
         {
             UpdatePlayer(instance, player, dt, 1.0f);
             ApplyAnimation(instance, player, pose, ik_animation, 1.0f);
+            ApplyMorphAnimation(instance, player, 1.0f);
         }
 
         // Normalize quaternions while we blend
@@ -565,6 +829,8 @@ namespace dmRig
         }
 
         UpdatePoseTransforms(pose);
+
+        CommitPoseMatrixToCache(context, instance);
     }
 
     static Result PostUpdate(HRigContext context)
@@ -585,16 +851,16 @@ namespace dmRig
 
     static bool DoPostUpdate(RigInstance* instance)
     {
-            // If pose is empty, there are no bones to update
-            dmArray<BonePose>& pose = instance->m_Pose;
-            if (pose.Empty())
-                return false;
+        // If pose is empty, there are no bones to update
+        dmArray<BonePose>& pose = instance->m_Pose;
+        if (pose.Empty())
+            return false;
 
-            // Notify any listener that the pose has been recalculated
-            if (instance->m_PoseCallback) {
-                instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
-                return true;
-            }
+        // Notify any listener that the pose has been recalculated
+        if (instance->m_PoseCallback) {
+            instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
+            return true;
+        }
 
         return false;
     }
@@ -875,7 +1141,7 @@ namespace dmRig
         }
     }
 
-    static float* GeneratePositionData(const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer)
+    static void GeneratePositionData(const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer_world, float* out_buffer_local)
     {
         const float* positions = mesh->m_Positions.m_Data;
         const uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
@@ -889,12 +1155,22 @@ namespace dmRig
                 in_p[0] = *positions++;
                 in_p[1] = *positions++;
                 in_p[2] = *positions++;
-                v = model_matrix * in_p;
-                *out_buffer++ = v[0];
-                *out_buffer++ = v[1];
-                *out_buffer++ = v[2];
+
+                if (out_buffer_world)
+                {
+                    v = model_matrix * in_p;
+                    *out_buffer_world++ = v[0];
+                    *out_buffer_world++ = v[1];
+                    *out_buffer_world++ = v[2];
+                }
+                if (out_buffer_local)
+                {
+                    *out_buffer_local++ = in_p[0];
+                    *out_buffer_local++ = in_p[1];
+                    *out_buffer_local++ = in_p[2];
+                }
             }
-            return out_buffer;
+            return;
         }
 
         const uint32_t* indices = mesh->m_BoneIndices.m_Data;
@@ -929,69 +1205,56 @@ namespace dmRig
                 }
             }
 
-            v = model_matrix * Point3(out_p.getX(), out_p.getY(), out_p.getZ());
-            *out_buffer++ = v[0];
-            *out_buffer++ = v[1];
-            *out_buffer++ = v[2];
-        }
-        return out_buffer;
-    }
-
-    uint8_t* WriteSingleVertexDataByAttributes(uint8_t* write_ptr, uint32_t idx, const dmGraphics::VertexAttributeInfos* attribute_infos, const float* positions, const float* normals, const float* tangents, const float* uv0, const float* uv1, const float* colors)
-    {
-        uint32_t num_texcoords = 0;
-        for (int a = 0; a < attribute_infos->m_NumInfos; ++a)
-        {
-            const dmGraphics::VertexAttributeInfo& info = attribute_infos->m_Infos[a];
-            const size_t data_size                      = info.m_ValueByteSize;
-
-            switch(info.m_SemanticType)
+            if (out_buffer_world)
             {
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
-                {
-                    memcpy(write_ptr, &positions[idx*3], dmMath::Min(3 * sizeof(float), data_size));
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                {
-                    uint32_t src_copy_size = dmMath::Min(2 * sizeof(float), data_size);
-                    const float* uv = num_texcoords == 0 ? uv0 :
-                                      num_texcoords == 1 ? uv1 :
-                                      0;
-                    if (uv)
-                        memcpy(write_ptr, &uv[idx*2], src_copy_size);
-                    else
-                        memcpy(write_ptr, info.m_ValuePtr, data_size);
-
-                    num_texcoords++;
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
-                {
-                    uint32_t src_copy_size = dmMath::Min(4 * sizeof(float), data_size);
-                    if (colors)
-                        memcpy(write_ptr, &colors[idx*4], src_copy_size);
-                    else
-                        memcpy(write_ptr, info.m_ValuePtr, data_size);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL:
-                {
-                    memcpy(write_ptr, &normals[idx*3], dmMath::Min(3 * sizeof(float), data_size));
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
-                {
-                    memcpy(write_ptr, &tangents[idx*4], dmMath::Min(4 * sizeof(float), data_size));
-                } break;
-                default:
-                {
-                    memcpy(write_ptr, info.m_ValuePtr, data_size);
-                } break;
+                v = model_matrix * Point3(out_p.getX(), out_p.getY(), out_p.getZ());
+                *out_buffer_world++ = v[0];
+                *out_buffer_world++ = v[1];
+                *out_buffer_world++ = v[2];
             }
-
-            write_ptr += data_size;
+            if (out_buffer_local)
+            {
+                *out_buffer_local++ = out_p.getX();
+                *out_buffer_local++ = out_p.getY();
+                *out_buffer_local++ = out_p.getZ();
+            }
         }
-        return write_ptr;
+        return;
     }
 
-    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* out_write_ptr)
+    void SetMeshWriteAttributeParams(dmGraphics::WriteAttributeParams* params,
+        const dmGraphics::VertexAttributeInfos* attribute_infos,
+        dmGraphics::VertexStepFunction step_function,
+        const float** world_matrix,
+        const float** normal_matrix,
+        const float** positions_world_space,
+        const float** positions_local_space,
+        const float** normals,
+        const float** tangents,
+        const float** colors,
+        const float** texture_transform_2d,
+        const float** uv_channels,
+        uint32_t uv_channels_count)
+    {
+        memset(params, 0, sizeof(dmGraphics::WriteAttributeParams));
+        params->m_VertexAttributeInfos = attribute_infos;
+        params->m_StepFunction         = step_function;
+
+        // Per-primitive channels
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_WorldMatrix, world_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_NormalMatrix, normal_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_TextureTransform2D, texture_transform_2d, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, 1, true);
+
+        // Per-vertex channels
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsWorldSpace, positions_world_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsLocalSpace, positions_local_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_Normals, normals, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_Tangents, tangents, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_Colors, colors, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_TexCoords, uv_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, uv_channels_count, false);
+    }
+
+    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions_world, const float* positions_local, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, uint8_t* out_write_ptr)
     {
         const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
         const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
@@ -1013,13 +1276,38 @@ namespace dmRig
             num_indices = mesh->m_Indices.m_Count / 2;
         }
 
+        const float* uv_channels[] = { uv0, uv1 };
+        uint32_t uv_channels_count = (uv0 ? 1 : 0) + (uv1 ? 1 : 0);
+
+        const float* world_matrix_channels[] = { (float*) &world_matrix };
+        const float* normal_matrix_channels[] = { (float*) &normal_matrix };
+        const float* position_world_channels[] = { positions_world };
+        const float* position_local_channels[] = { positions_local };
+        const float* normals_channels[] = { normals };
+        const float* tangents_channels[] = { tangents };
+        const float* colors_channels[] = { colors };
+        const float* texture_transform_2d_channels[] = { TEXTURE_TRANSFORM_2D_IDENTITY };
+
+        dmGraphics::WriteAttributeParams params = {};
+        SetMeshWriteAttributeParams(&params,
+            attribute_infos,
+            dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+            world_matrix_channels,
+            normal_matrix_channels,
+            position_world_channels,
+            position_local_channels,
+            normals_channels,
+            tangents_channels,
+            colors_channels,
+            texture_transform_2d_channels,
+            uv_channels,
+            uv_channels_count);
+
         for (uint32_t i = 0; i < num_indices; ++i)
         {
-            uint32_t idx = indices32?indices32[i]:indices16[i];
-            // TODO: Use the shared dmGraphics function instead of this
-            out_write_ptr = WriteSingleVertexDataByAttributes(out_write_ptr, idx, attribute_infos, positions, normals, tangents, uv0, uv1, colors);
+            uint32_t idx   = indices32?indices32[i]:indices16[i];
+            out_write_ptr  = dmGraphics::WriteAttributes(out_write_ptr, idx, 1, params);
         }
-
         return out_write_ptr;
     }
 
@@ -1100,16 +1388,69 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    template <typename T>
-    static void EnsureSize(T& array, uint32_t size)
+    void ResetPoseMatrixCache(HRigContext context)
     {
-        if (array.Capacity() < size) {
-            array.OffsetCapacity(size - array.Capacity());
+        ResetPoseMatrixCache(&context->m_PoseMatrixCache);
+
+        const dmArray<RigInstance*>& instances = context->m_Instances.GetRawObjects();
+        uint32_t n = context->m_Instances.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            instances[i]->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
         }
-        array.SetSize(size);
     }
 
-    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
+    void GetPoseMatrixCacheData(HRigContext context, const dmVMath::Matrix4** pose_matrices, uint32_t* pose_matrices_count)
+    {
+        *pose_matrices = context->m_PoseMatrixCache.m_PoseMatrices.Begin();
+        *pose_matrices_count = context->m_PoseMatrixCache.m_PoseMatrices.Size();
+    }
+
+    // These should typically not be stored across multiple frames, since dispatch order might differ.
+    HCachePoseMatrixEntry AcquirePoseMatrixCacheEntry(HRigContext context, HRigInstance instance)
+    {
+        if (instance == 0)
+        {
+            return INVALID_POSE_MATRIX_CACHE_ENTRY;
+        }
+        else if (instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
+        {
+            return instance->m_PoseMatrixCacheIndex;
+        }
+
+        PoseMatrixCache* cache = &context->m_PoseMatrixCache;
+
+        uint16_t next_index = cache->m_CacheEntryOffsets.Size();
+        if (cache->m_CacheEntryOffsets.Full())
+        {
+            cache->m_CacheEntryOffsets.OffsetCapacity(32);
+        }
+
+        cache->m_CacheEntryOffsets.SetSize(next_index + 1);
+
+        instance->m_PoseMatrixCacheIndex = next_index;
+
+        cache->m_CacheEntryOffsets[next_index] = cache->m_TotalPoseCount;
+        cache->m_TotalPoseCount += instance->m_BindPose->Size();
+        return next_index;
+    }
+
+    uint32_t GetPoseMatrixCacheDataOffset(HRigContext context, HRigInstance instance)
+    {
+        if (instance->m_PoseMatrixCacheIndex == INVALID_POSE_MATRIX_CACHE_ENTRY)
+        {
+            return INVALID_POSE_MATRIX_CACHE_ENTRY;
+        }
+        return context->m_PoseMatrixCache.m_CacheEntryOffsets[instance->m_PoseMatrixCacheIndex];
+    }
+
+    // For tests
+    PoseMatrixCache* GetPoseMatrixCache(HRigContext context)
+    {
+        return &context->m_PoseMatrixCache;
+    }
+
+    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
     {
         const dmRigDDF::Model* model = instance->m_Model;
 
@@ -1118,42 +1459,30 @@ namespace dmRig
             return vertex_data_out;
         }
 
-        dmArray<Matrix4>& pose_matrices = context->m_ScratchPoseMatrixBuffer;
-        dmArray<Vector3>& positions     = context->m_ScratchPositionBuffer;
-        dmArray<Vector3>& normals       = context->m_ScratchNormalBuffer;
-        dmArray<Vector4>& tangents      = context->m_ScratchTangentBuffer;
+        dmArray<Matrix4>& pose_matrices   = context->m_ScratchPoseMatrixBuffer;
+        dmArray<Vector3>& positions_world = context->m_ScratchPositionBufferWorld;
+        dmArray<Vector3>& positions_local = context->m_ScratchPositionBufferLocal;
+        dmArray<Vector3>& normals         = context->m_ScratchNormalBuffer;
+        dmArray<Vector4>& tangents        = context->m_ScratchTangentBuffer;
 
         uint32_t bone_count   = GetBoneCount(instance);
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
-        bool stream_position = false;
-        bool stream_normal = false;
-
-        for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
-        {
-            stream_position |= attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
-            stream_normal   |= attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
-        }
+        dmGraphics::VertexAttributeInfoMetadata meta_datas = dmGraphics::GetVertexAttributeInfosMetaData(*attribute_infos);
 
         pose_matrices.SetSize(0);
 
-        float* positions_buffer = 0;
-        float* normals_buffer   = 0;
-        float* tangents_buffer  = 0;
+        float* positions_buffer_world = 0;
+        float* positions_buffer_local = 0;
+        float* normals_buffer         = 0;
+        float* tangents_buffer        = 0;
 
-        if (stream_position)
+        if (meta_datas.m_HasAttributeWorldPosition || meta_datas.m_HasAttributeLocalPosition)
         {
             if (bone_count)
             {
-                // Make sure pose scratch buffers have enough space
-                if (pose_matrices.Capacity() < bone_count)
-                {
-                    uint32_t size_offset = bone_count - pose_matrices.Capacity();
-                    pose_matrices.OffsetCapacity(size_offset);
-                }
-                pose_matrices.SetSize(bone_count);
-
-                PoseToMatrix(instance->m_Pose, pose_matrices);
+                EnsureSize(pose_matrices, bone_count);
+                PoseToMatrix(instance->m_Pose, pose_matrices.Begin());
 
                 // Premultiply pose matrices with the bind pose inverse so they
                 // can be directly be used to transform each vertex.
@@ -1165,12 +1494,20 @@ namespace dmRig
                 }
             }
 
-            EnsureSize(positions, vertex_count);
-            positions_buffer = (float*) positions.Begin();
+            if (meta_datas.m_HasAttributeWorldPosition)
+            {
+                EnsureSize(positions_world, vertex_count);
+                positions_buffer_world = (float*) positions_world.Begin();
+            }
+            if (meta_datas.m_HasAttributeLocalPosition)
+            {
+                EnsureSize(positions_local, vertex_count);
+                positions_buffer_local = (float*) positions_local.Begin();
+            }
 
-            dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer);
+            dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer_world, positions_buffer_local);
         }
-        if (stream_normal && mesh->m_Normals.m_Count)
+        if (meta_datas.m_HasAttributeNormal && mesh->m_Normals.m_Count)
         {
             EnsureSize(normals, vertex_count);
             EnsureSize(tangents, vertex_count);
@@ -1182,7 +1519,7 @@ namespace dmRig
             dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        return WriteVertexDataByAttributes(mesh, positions_buffer, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, vertex_data_out);
+        return WriteVertexDataByAttributes(mesh, positions_buffer_world, positions_buffer_local, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, world_matrix, normal_matrix, vertex_data_out);
     }
 
     RigModelVertex* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const Matrix4& world_matrix, RigModelVertex* vertex_data_out)
@@ -1195,23 +1532,17 @@ namespace dmRig
             return vertex_data_out;
         }
 
-        dmArray<Matrix4>& pose_matrices      = context->m_ScratchPoseMatrixBuffer;
-        dmArray<Vector3>& positions          = context->m_ScratchPositionBuffer;
-        dmArray<Vector3>& normals            = context->m_ScratchNormalBuffer;
-        dmArray<Vector4>& tangents           = context->m_ScratchTangentBuffer;
+        dmArray<Matrix4>& pose_matrices   = context->m_ScratchPoseMatrixBuffer;
+        dmArray<Vector3>& positions_world = context->m_ScratchPositionBufferWorld;
+        dmArray<Vector3>& normals         = context->m_ScratchNormalBuffer;
+        dmArray<Vector4>& tangents        = context->m_ScratchTangentBuffer;
 
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
         if (bone_count)
         {
-            // Make sure pose scratch buffers have enough space
-            if (pose_matrices.Capacity() < bone_count) {
-                uint32_t size_offset = bone_count - pose_matrices.Capacity();
-                pose_matrices.OffsetCapacity(size_offset);
-            }
-            pose_matrices.SetSize(bone_count);
-
-            PoseToMatrix(instance->m_Pose, pose_matrices);
+            EnsureSize(pose_matrices, bone_count);
+            PoseToMatrix(instance->m_Pose, pose_matrices.Begin());
 
             // Premultiply pose matrices with the bind pose inverse so they
             // can be directly be used to transform each vertex.
@@ -1221,7 +1552,9 @@ namespace dmRig
                 Matrix4& pose_matrix = pose_matrices[bi];
                 pose_matrix = pose_matrix * bind_pose[bi].m_ModelToLocal;
             }
-        } else {
+        }
+        else
+        {
             pose_matrices.SetSize(0);
         }
 
@@ -1232,21 +1565,23 @@ namespace dmRig
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
         // Bump scratch buffers capacity to handle current vertex count
-        EnsureSize(positions, vertex_count);
+        EnsureSize(positions_world, vertex_count);
         EnsureSize(normals, vertex_count);
         EnsureSize(tangents, vertex_count);
 
-        float* positions_buffer = (float*)positions.Begin();
+        float* positions_world_buffer = (float*)positions_world.Begin();
         float* normals_buffer = (float*)normals.Begin();
         float* tangents_buffer = (float*)tangents.Begin();
 
         // Transform the mesh data into world space
-        dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer);
-        if (mesh->m_Normals.m_Count) {
+        dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_world_buffer, 0);
+
+        if (mesh->m_Normals.m_Count)
+        {
             dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        return WriteVertexData(mesh, positions_buffer, normals_buffer, tangents_buffer, vertex_data_out);
+        return WriteVertexData(mesh, positions_world_buffer, normals_buffer, tangents_buffer, vertex_data_out);
     }
 
     static uint32_t FindIKIndex(HRigInstance instance, dmhash_t ik_constraint_id)
@@ -1295,6 +1630,35 @@ namespace dmRig
             return 0;
         }
         return instance->m_MaxBoneCount;
+    }
+
+    const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count)
+    {
+        if (instance == 0x0)
+        {
+            return 0x0;
+        }
+        MorphWeightSlot* slot = GetMorphWeightSlot(instance, model_id);
+        if (!slot)
+        {
+            return 0x0;
+        }
+        *out_count = slot->m_MorphCount;
+        return instance->m_MorphWeightsBuffer.Begin() + slot->m_BufferOffset;
+    }
+
+    void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count)
+    {
+        MorphWeightSlot* slot = GetMorphWeightSlot(instance, model_id);
+        if (!slot)
+        {
+            return;
+        }
+        float* dest = instance->m_MorphWeightsBuffer.Begin() + slot->m_BufferOffset;
+        uint32_t n = dmMath::Min(count, slot->m_MorphCount);
+        memcpy(dest, weights, n * sizeof(float));
+        if (n < slot->m_MorphCount)
+            memset(dest + n, 0, (slot->m_MorphCount - n) * sizeof(float));
     }
 
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2)
@@ -1352,6 +1716,9 @@ namespace dmRig
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
         instance->m_IKTargets.SetCapacity(0);
+        instance->m_MorphSlots.SetCapacity(0);
+        instance->m_MorphWeightsBuffer.SetCapacity(0);
+        instance->m_MorphScratch.SetCapacity(0);
         delete instance;
         context->m_Instances.Free(index, true);
     }
@@ -1384,6 +1751,10 @@ namespace dmRig
         instance->m_Skeleton           = params.m_Skeleton;
         instance->m_MeshSet            = params.m_MeshSet;
         instance->m_AnimationSet       = params.m_AnimationSet;
+
+        InitMorphSlots(instance);
+
+        instance->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
 
         instance->m_Enabled = 1;
 

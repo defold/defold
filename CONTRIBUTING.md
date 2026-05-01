@@ -2,6 +2,7 @@
 Thank you for visiting the Defold open source contribution guidelines. We invite you to help make Defold an even better product! You don't even have to be a coder to contribute! You can contribute in the following ways:
 
 * Improve the documentation
+* Localize the editor
 * Suggest new features
 * Fix bugs
 * Implement new features
@@ -20,10 +21,18 @@ The Defold manuals and examples are hosted in a [separate repository](https://gi
 
 Note that the API reference is generated from the source code of the Defold engine. If you wish to submit improvements to the API reference it should be done as Pull Requests (see below).
 
+## Editor localization
+
+We have a [localization project](https://crowdin.com/project/defold) on Crowdin. Join the project, pick the language you wish to help with and start translating the editor strings directly in Crowdin. All UI text lives in the `en.editor_localization` source file and Crowdin takes care of exporting the translated `.editor_localization` files back into the repository.
+
+If your language is missing, use the *Request language* action in Crowdin and we will add it for you. When translating, preserve placeholders such as `{template}` exactly as in the source string — we use [ICU message format](https://unicode-org.github.io/icu/userguide/format_parse/messages/) for variable interpolation.
+
+Once translations are approved in Crowdin they will be automatically incorporated in the editor.
+
 ## Feature requests
 We value your ideas on how to improve Defold! You can submit feature requests to our public issue tracker using the [Feature Request template](https://github.com/defold/defold/issues/new?assignees=&labels=feature+request&template=feature_request.md&title=). Some guidelines:
 
-* Please [search already submitted feature requests](https://github.com/defold/defold/labels/feature_request) before submitting your feature request. Maybe someone has already suggested the same thing or something only slightly different?
+* Please [search already submitted feature requests](https://github.com/defold/defold/labels/feature%20request) before submitting your feature request. Maybe someone has already suggested the same thing or something only slightly different?
   * If there is an already submitted feature request we appreciate if you add additional information instead of creating a new feature request.
   * We will close any duplicate feature requests.
 * If you do submit a new Feature Request it is important that you fill in all fields marked as required.
@@ -59,7 +68,7 @@ Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor sour
     * Use the .clang_format file for engine code.
   * Should if possible be tested on all target platforms (preferably on physical hardware).
     * Please note in the PR on which platforms the change has been tested.
-* All pull requests should be made to `defold:dev` by default. However, if your pull request *only* touches the editor and you want it to reach users as quickly as possible, it can be made towards the `defold:editor-dev` branch instead. Users will receive an editor update as soon as a change is merged into `defold:editor-dev`, so this should be done with care. The editor uses the latest stable release of the runtime, so any change that touches the runtime, the Bob command-line build tool, or makes a change to the file formats *must* be made towards the `defold:dev` branch, even if it contains mostly editor changes.
+* All pull requests should be made to `defold:dev` by default.
 * Pull requests should be given descriptive names: Issue-1234-Changed-the-flux-capacitor-to-use-uranium
   * Make sure to [link the issue to the pull request](https://help.github.com/en/github/managing-your-work-on-github/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
 

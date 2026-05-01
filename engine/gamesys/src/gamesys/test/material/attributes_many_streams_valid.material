@@ -1,0 +1,74 @@
+name: "custom_attributes_many_streams"
+vertex_program: "/material/attributes_many_streams.vp"
+fragment_program: "/fragment_program/valid.fp"
+
+attributes {
+  name: "position"
+  semantic_type: SEMANTIC_TYPE_POSITION
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  data_type: TYPE_FLOAT
+  element_count: 2
+}
+
+attributes {
+  name: "stream0"
+  data_type: TYPE_FLOAT
+  element_count: 1
+  double_values { v: 0.0 }
+}
+
+attributes {
+  name: "stream1"
+  data_type: TYPE_FLOAT
+  element_count: 1
+  double_values { v: 1.0 }
+}
+
+attributes {
+  name: "stream2"
+  data_type: TYPE_FLOAT
+  element_count: 1
+  double_values { v: 2.0 }
+}
+
+attributes {
+  name: "stream3"
+  data_type: TYPE_FLOAT
+  element_count: 1
+  double_values { v: 3.0 }
+}
+
+attributes {
+  name: "stream4"
+  data_type: TYPE_FLOAT
+  element_count: 1
+  double_values { v: 4.0 }
+}
+
+attributes {
+  name: "stream5"
+  data_type: TYPE_FLOAT
+  element_count: 1
+  double_values { v: 5.0 }
+}
+
+attributes {
+  name: "stream6"
+  data_type: TYPE_FLOAT
+  element_count: 1
+  double_values { v: 6.0 }
+}
+
+attributes {
+  name: "stream7"
+  data_type: TYPE_FLOAT
+  element_count: 1
+  double_values { v: 7.0 }
+}
+
+attributes {
+  name: "stream8"
+  data_type: TYPE_FLOAT
+  element_count: 1
+  double_values { v: 8.0 }
+}

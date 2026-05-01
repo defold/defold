@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,9 +19,7 @@
 #include "profiler_proc_utils.h"
 
 DM_PROPERTY_EXTERN(rmtp_Profiler);
-DM_PROPERTY_BOOL(rmtp_AttachedToJVM, false, FrameReset, "Thread attached to JVM", &rmtp_Profiler);
-
-extern struct android_app* __attribute__((weak)) g_AndroidApp;
+DM_PROPERTY_BOOL(rmtp_AttachedToJVM, false, PROFILE_PROPERTY_FRAME_RESET, "Thread attached to JVM", &rmtp_Profiler);
 
 void dmProfilerExt::SampleCpuUsage()
 {
@@ -48,7 +46,10 @@ double dmProfilerExt::GetCpuUsage()
 
 void dmProfilerExt::UpdatePlatformProfiler()
 {
+    struct android_app* app = dmAndroid::GetAndroidApp();
+    assert(app);
+
     // Shows if thread was attached to JVM and wasn't detached
     JNIEnv* env = 0;
-    DM_PROPERTY_SET_BOOL(rmtp_AttachedToJVM, g_AndroidApp->activity->vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK);
+    DM_PROPERTY_SET_BOOL(rmtp_AttachedToJVM, app->activity->vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK);
 }

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -131,7 +131,7 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (g/transact (it/update-property name1 :scalar (constantly "John") []))
+                          (g/transact (it/update-property name1 :scalar (constantly "John") [] nil))
                           (is (= "John Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "cached values are distinct"
@@ -145,10 +145,10 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane" (g/node-value combiner :nickname)))
         (expect-call-when combiner 'passthrough-first-name
-                          (g/transact (it/update-property name1 :scalar (constantly "Mark") []))
+                          (g/transact (it/update-property name1 :scalar (constantly "Mark") [] nil))
                           (is (= "Mark" (g/node-value combiner :nickname))))
         (expect-no-call-when combiner 'passthrough-first-name
-                             (g/transact (it/update-property name2 :scalar (constantly "Brandenburg") []))
+                             (g/transact (it/update-property name2 :scalar (constantly "Brandenburg") [] nil))
                              (is (= "Mark" (g/node-value combiner :nickname)))
                              (is (= "Mark Brandenburg" (g/node-value combiner :derived-value))))))))
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,40 +27,49 @@ import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
-@BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc")
+@BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc", paramsForSignature = {"sound-stream-enabled"})
 public class OggBuilder extends CopyBuilder{
+    private static String oggzValidateExePath;
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Platform curr_platform = Platform.getHostPlatform();
-        List<String> deps = List.of("libogg", "liboggz");
-        Bob.unpackSharedLibraries(curr_platform, deps);
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        oggzValidateExePath = Bob.getHostExeOnce("oggz-validate", oggzValidateExePath);
+        return super.create(input);
+    }
+
+    @Override
+    public void build(Task task) throws IOException, CompileExceptionError {
+        super.build(task);
         File tmpOggFile = null;
         try {
             tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
             BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpOggFile));
             try {
-                os.write(input.getContent());
+                os.write(task.firstInput().getContent());
             } finally {
                 os.close();
             }
         } catch (IOException exc) {
-            throw new CompileExceptionError(input, 0, 
-                String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
+            throw new CompileExceptionError(task.firstInput(), 0,
+                    String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
         }
-        Result result = Exec.execResult(Bob.getExe(curr_platform, "oggz-validate"),
-            tmpOggFile.getAbsolutePath()
-        );
+        Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
         if (result.ret != 0) {
-            throw new CompileExceptionError(input, 0, 
-                String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
+            throw new CompileExceptionError(task.firstInput(), 0,
+                    String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
         }
 
-        return super.create(input);
+        boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)
+        boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
+        for(IResource res : task.getOutputs()) {
+            if (!compressSounds) {
+                project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
+            }
+        }
     }
-
 }

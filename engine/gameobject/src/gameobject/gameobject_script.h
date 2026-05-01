@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -47,6 +47,7 @@ namespace dmGameObject
         SCRIPT_FUNCTION_INIT,
         SCRIPT_FUNCTION_FINAL,
         SCRIPT_FUNCTION_UPDATE,
+        SCRIPT_FUNCTION_LATE_UPDATE,
         SCRIPT_FUNCTION_FIXED_UPDATE,
         SCRIPT_FUNCTION_ONMESSAGE,
         SCRIPT_FUNCTION_ONINPUT,
@@ -74,11 +75,14 @@ namespace dmGameObject
         HScript     m_Script;
         Instance*   m_Instance;
         dmScript::HScriptWorld m_ScriptWorld;
+        HProperties m_Properties;
+
         int         m_InstanceReference;
         int         m_ScriptDataReference;
         int         m_ContextTableReference;
+        uint32_t    m_UniqueScriptId;
+
         uint16_t    m_ComponentIndex;
-        HProperties m_Properties;
         uint8_t    m_Update       : 1;
         uint8_t    m_Initialized  : 1;
         uint8_t    m_Padding      : 6;

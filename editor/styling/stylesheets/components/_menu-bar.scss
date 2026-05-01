@@ -1,7 +1,12 @@
 .menu-bar {
     -fx-background-color: -df-background;
 
-    .menu {
+    .menu-button {
+        -fx-background-radius: 0;
+        -fx-background-color: transparent;
+        -fx-border-radius: 0;
+        -fx-border-width: 0;
+
         >.label {
             -fx-text-fill: -df-text-dark;
         }
@@ -11,8 +16,10 @@
                 -fx-text-fill: -df-text-selected;
             }
         }
+
         &:showing {
             -fx-background-color: -df-component-dark;
+
             >.label {
                 -fx-text-fill: -df-text-selected;
             }

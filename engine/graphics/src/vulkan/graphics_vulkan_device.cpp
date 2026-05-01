@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,7 @@
 
 #include <dlib/math.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/atomic.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
@@ -22,17 +23,14 @@ namespace dmGraphics
 {
     void InitializeVulkanTexture(VulkanTexture* t)
     {
-        t->m_Type                = TEXTURE_TYPE_2D;
-        t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
-        t->m_DeviceBuffer        = 0;
-        t->m_Format              = VK_FORMAT_UNDEFINED;
-        t->m_Width               = 0;
-        t->m_Height              = 0;
-        t->m_OriginalWidth       = 0;
-        t->m_OriginalHeight      = 0;
-        t->m_MipMapCount         = 0;
-        t->m_TextureSamplerIndex = 0;
-        t->m_Destroyed           = 0;
+        memset(&t->m_Base, 0, sizeof(t->m_Base));
+        t->m_Base.m_Type                = TEXTURE_TYPE_2D;
+        t->m_Base.m_Format              = TEXTURE_FORMAT_RGBA;
+        dmAtomicStore32(&t->m_Base.m_DataState, 0);
+        t->m_DeviceBuffer               = 0;
+        t->m_Format                     = VK_FORMAT_UNDEFINED;
+        t->m_TextureSamplerIndex        = 0;
+        t->m_Destroyed                  = 0;
         memset(&t->m_Handle, 0, sizeof(t->m_Handle));
     }
 
@@ -41,6 +39,7 @@ namespace dmGraphics
         , m_TextureDepthStencil(0)
         , m_Id(rtId)
         , m_IsBound(0)
+        , m_HasPendingClearColor(0)
         , m_SubPassCount(0)
         , m_SubPassIndex(0)
     {
@@ -50,21 +49,18 @@ namespace dmGraphics
         memset(&m_Handle, 0, sizeof(m_Handle));
     }
 
-    Program::Program()
-    {
-        memset(this, 0, sizeof(*this));
-    }
-
     static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
     {
         if (type == TYPE_FLOAT)
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R32_SFLOAT;
-                case 2: return VK_FORMAT_R32G32_SFLOAT;
-                case 3: return VK_FORMAT_R32G32B32_SFLOAT;
-                case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+                case 1:  return VK_FORMAT_R32_SFLOAT;
+                case 2:  return VK_FORMAT_R32G32_SFLOAT;
+                case 3:  return VK_FORMAT_R32G32B32_SFLOAT;
+                case 4:  return VK_FORMAT_R32G32B32A32_SFLOAT;
+                case 9:  return VK_FORMAT_R32G32B32_SFLOAT;
+                case 16: return VK_FORMAT_R32G32B32A32_SFLOAT;
                 default:break;
             }
         }
@@ -76,6 +72,8 @@ namespace dmGraphics
                 case 2: return VK_FORMAT_R32G32_SINT;
                 case 3: return VK_FORMAT_R32G32B32_SINT;
                 case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                case 9: return VK_FORMAT_R32G32B32_SINT;
+                case 16: return VK_FORMAT_R32G32B32A32_SINT;
                 default:break;
             }
         }
@@ -87,6 +85,8 @@ namespace dmGraphics
                 case 2: return VK_FORMAT_R32G32_UINT;
                 case 3: return VK_FORMAT_R32G32B32_UINT;
                 case 4: return VK_FORMAT_R32G32B32A32_UINT;
+                case 9: return VK_FORMAT_R32G32B32_UINT;
+                case 16: return VK_FORMAT_R32G32B32A32_UINT;
                 default:break;
             }
         }
@@ -98,6 +98,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
                 case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
                 case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
                 default:break;
             }
         }
@@ -109,6 +111,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
                 case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
                 case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
                 default:break;
             }
         }
@@ -120,6 +124,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
                 case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
                 case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
                 default:break;
             }
         }
@@ -131,10 +137,12 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
                 case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
                 case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
                 default:break;
             }
         }
-        else if (type == TYPE_FLOAT_MAT4)
+        else if (type == TYPE_FLOAT_MAT4 || type == TYPE_FLOAT_MAT3 || type == TYPE_FLOAT_MAT2)
         {
             return VK_FORMAT_R32_SFLOAT;
         }
@@ -145,28 +153,6 @@ namespace dmGraphics
 
         assert(0 && "Unable to deduce type from dmGraphics::Type");
         return VK_FORMAT_UNDEFINED;
-    }
-
-    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs, uint32_t binding)
-    {
-        uint16_t num_attributes = 0;
-        for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
-        {
-            if (vertexDeclaration->m_Streams[i].m_Location == -1)
-            {
-                continue;
-            }
-
-            VertexDeclaration::Stream& stream              = vertexDeclaration->m_Streams[i];
-            vk_vertex_input_descs[num_attributes].binding  = binding;
-            vk_vertex_input_descs[num_attributes].location = stream.m_Location;
-            vk_vertex_input_descs[num_attributes].format   = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
-            vk_vertex_input_descs[num_attributes].offset   = stream.m_Offset;
-
-            num_attributes++;
-        }
-
-        return num_attributes;
     }
 
     static VkResult AllocateDescriptorPool(DescriptorAllocator* allocator, VkDevice vk_device)
@@ -260,40 +246,6 @@ namespace dmGraphics
         }
     }
 
-    VkResult OneTimeCommandBuffer::Begin()
-    {
-        assert(m_Context != 0);
-
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-        m_CmdBuffer = vk_command_buffer;
-        return res;
-    }
-
-    VkResult OneTimeCommandBuffer::End()
-    {
-        vkEndCommandBuffer(m_CmdBuffer);
-
-        VkSubmitInfo vk_submit_info = {};
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &m_CmdBuffer;
-
-        VkResult res = vkQueueSubmit(m_Context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        vkQueueWaitIdle(m_Context->m_LogicalDevice.m_GraphicsQueue);
-        vkFreeCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &m_CmdBuffer);
-
-        m_Context   = 0;
-        m_CmdBuffer = VK_NULL_HANDLE;
-        return res;
-    }
-
     VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
     {
         if (m_MappedDataPtr)
@@ -323,7 +275,7 @@ namespace dmGraphics
         return RESOURCE_TYPE_TEXTURE;
     }
 
-    const VulkanResourceType Program::GetType()
+    const VulkanResourceType VulkanProgram::GetType()
     {
         return RESOURCE_TYPE_PROGRAM;
     }
@@ -466,132 +418,119 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
-        uint32_t baseMipLevel, uint32_t layer_count)
+    struct LayoutTransitionInfo
     {
-        VkImageLayout vk_from_layout = texture->m_ImageLayout[baseMipLevel];
+        VkAccessFlags        m_AccessMask;
+        VkPipelineStageFlags m_StageMask;
+    };
 
-        if (vk_from_layout == vk_to_layout)
+    static LayoutTransitionInfo GetAccessMaskAndStage(VkImageLayout layout)
+    {
+        switch (layout)
         {
-            return VK_SUCCESS;
+            case VK_IMAGE_LAYOUT_UNDEFINED:
+                return { 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+
+            case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                return { VK_ACCESS_SHADER_READ_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
+
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+                return { VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+            case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+                return { VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                return { VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+            case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+                return { VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT };
+
+            case VK_IMAGE_LAYOUT_GENERAL:
+                return { VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // conservative
+
+            case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+                // Presentation happens outside the graphics pipeline, so there is no matching
+                // access mask to wait on. BOTTOM_OF_PIPE is a conservative stage for transitions
+                // to and from the present engine.
+                return { 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT };
+
+            default:
+                assert(false && "Unsupported VkImageLayout in GetAccessMaskAndStage");
+                // Fallback: allow everything, conservative but safe
+                return { 0, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
         }
+    }
 
-        VkImageMemoryBarrier vk_memory_barrier            = {};
-        vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        vk_memory_barrier.oldLayout                       = vk_from_layout;
-        vk_memory_barrier.newLayout                       = vk_to_layout;
-        vk_memory_barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.image                           = texture->m_Handle.m_Image;
-        vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
-        vk_memory_barrier.subresourceRange.baseMipLevel   = baseMipLevel;
-        vk_memory_barrier.subresourceRange.levelCount     = 1;
-        vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
-        vk_memory_barrier.subresourceRange.layerCount     = layer_count;
+    void TransitionImageLayoutWithCmdBuffer(
+            VkCommandBuffer vk_command_buffer,
+            VulkanTexture* texture,
+            VkImageAspectFlags vk_image_aspect,
+            VkImageLayout new_layout,
+            uint32_t base_mip_level,
+            uint32_t layer_count)
+    {
+        VkImageLayout old_layout = texture->m_ImageLayout[base_mip_level];
+        if (old_layout == new_layout)
+            return;
 
-        VkPipelineStageFlags vk_source_stage      = VK_IMAGE_LAYOUT_UNDEFINED;
-        VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
+        LayoutTransitionInfo src = GetAccessMaskAndStage(old_layout);
+        LayoutTransitionInfo dst = GetAccessMaskAndStage(new_layout);
 
-        // These stage changes are explicit in our case:
-        //   1) undefined -> shader read. This transition is used when uploading texture without a stage buffer.
-        //   2) undefined -> transfer. This transition is used for staging buffers when uploading texture data
-        //   3) transfer  -> shader read. This transition is used when the staging transfer is complete.
-        //   4) undefined -> depth stencil. This transition is used when creating a depth buffer attachment.
-        //   5) undefined -> color attachment. This transition is used when creating a color buffer attachment.
-        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_HOST_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        }
-        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else
-        {
-            // Transition not supported, so we early out.
-            return VK_SUCCESS;
-        }
-
-        // Create a one-time-execute command buffer that will only be used for the transition
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
-
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info = {};
-        vk_command_buffer_begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
+        VkImageMemoryBarrier barrier{};
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout                       = old_layout;
+        barrier.newLayout                       = new_layout;
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image                           = texture->m_Handle.m_Image;
+        barrier.subresourceRange.aspectMask     = vk_image_aspect;
+        barrier.subresourceRange.baseMipLevel   = base_mip_level;
+        barrier.subresourceRange.levelCount     = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount     = layer_count;
+        barrier.srcAccessMask                   = src.m_AccessMask;
+        barrier.dstAccessMask                   = dst.m_AccessMask;
 
         vkCmdPipelineBarrier(
             vk_command_buffer,
-            vk_source_stage,
-            vk_destination_stage,
-            0, 0, 0, 0, 0, 1,
-            &vk_memory_barrier);
+            src.m_StageMask,
+            dst.m_StageMask,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
+        );
 
-        vkEndCommandBuffer(vk_command_buffer);
+        texture->m_ImageLayout[base_mip_level] = new_layout;
+    }
 
-        VkSubmitInfo vk_submit_info;
-        memset(&vk_submit_info, 0, sizeof(VkSubmitInfo));
+    VkResult TransitionImageLayout(VkDevice vk_device,
+        VkCommandPool vk_command_pool,
+        VkQueue vk_queue,
+        VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect,
+        VkImageLayout vk_to_layout,
+        uint32_t base_mip_level,
+        uint32_t layer_count)
+    {
+        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(vk_device, vk_command_pool);
 
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &vk_command_buffer;
+        TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
-        vkQueueSubmit(vk_graphics_queue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        vkQueueWaitIdle(vk_graphics_queue);
+        VkFence fence;
+        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
+
+        // Wait for the copy command to finish
+        vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
+        vkDestroyFence(vk_device, fence, NULL);
         vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
-
-        texture->m_ImageLayout[baseMipLevel] = vk_to_layout;
 
         return VK_SUCCESS;
     }
@@ -632,6 +571,7 @@ namespace dmGraphics
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, max_descriptors},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          max_descriptors},
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         max_descriptors},
+            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          max_descriptors},
         };
 
         VkDescriptorPoolCreateInfo vk_pool_create_info;
@@ -681,6 +621,54 @@ namespace dmGraphics
         vk_buffers_allocate_info.commandBufferCount = numBuffersToCreate;
 
         return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
+    }
+
+    VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool)
+    {
+        VkCommandBufferAllocateInfo alloc_info = {};
+        alloc_info.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandPool                 = cmd_pool;
+        alloc_info.commandBufferCount          = 1;
+
+        VkCommandBuffer cmd_buffer;
+        vkAllocateCommandBuffers(device, &alloc_info, &cmd_buffer);
+
+        VkCommandBufferBeginInfo begin_info = {};
+        begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(cmd_buffer, &begin_info);
+
+        return cmd_buffer;
+    }
+
+    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
+    {
+        VkResult res = vkEndCommandBuffer(cmd);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        VkFenceCreateInfo fence_info = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+        VkFence fence = VK_NULL_HANDLE;
+        res = vkCreateFence(vk_device, &fence_info, NULL, &fence);
+
+        VkSubmitInfo submit_info = {};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &cmd;
+
+        res = vkQueueSubmit(queue, 1, &submit_info, fence);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        *fence_out = fence;
+
+        return res;
     }
 
     VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut)
@@ -820,11 +808,12 @@ bail:
         return VK_SUCCESS;
     }
 
-    VkResult CreateTexture2D(
+    VkResult CreateTexture(
         VkPhysicalDevice      vk_physical_device,
         VkDevice              vk_device,
         uint32_t              imageWidth,
         uint32_t              imageHeight,
+        uint32_t              imageDepth,
         uint32_t              imageLayers,
         uint16_t              imageMips,
         VkSampleCountFlagBits vk_sample_count,
@@ -836,16 +825,16 @@ bail:
         VulkanTexture*        textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
-        TextureType tex_type = textureOut->m_Type;
+        TextureType tex_type = textureOut->m_Base.m_Type;
 
-        VkImageCreateInfo vk_image_create_info = {};
         VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
 
+        VkImageCreateInfo vk_image_create_info = {};
         vk_image_create_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
         vk_image_create_info.extent.width  = imageWidth;
         vk_image_create_info.extent.height = imageHeight;
-        vk_image_create_info.extent.depth  = 1;
+        vk_image_create_info.extent.depth  = imageDepth;
         vk_image_create_info.mipLevels     = imageMips;
         vk_image_create_info.arrayLayers   = imageLayers;
         vk_image_create_info.format        = vk_format;
@@ -865,8 +854,12 @@ bail:
         else if (tex_type == TEXTURE_TYPE_2D_ARRAY)
         {
             assert(imageLayers > 0);
-            vk_image_create_info.flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
             vk_view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        }
+        else if (tex_type == TEXTURE_TYPE_3D || tex_type == TEXTURE_TYPE_IMAGE_3D || tex_type == TEXTURE_TYPE_TEXTURE_3D)
+        {
+            vk_image_create_info.imageType = VK_IMAGE_TYPE_3D;
+            vk_view_type = VK_IMAGE_VIEW_TYPE_3D;
         }
 
         VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
@@ -935,8 +928,9 @@ bail:
 
         if (imageMips == 0)
         {
-            textureOut->m_Width  = imageWidth;
-            textureOut->m_Height = imageHeight;
+            textureOut->m_Base.m_Width  = imageWidth;
+            textureOut->m_Base.m_Height = imageHeight;
+            textureOut->m_Base.m_Depth  = imageDepth;
         }
 
         return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
@@ -1100,6 +1094,55 @@ bail:
         }
     }
 
+    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs, uint32_t binding)
+    {
+        uint16_t num_attributes = 0;
+        for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
+        {
+            if (vertexDeclaration->m_Streams[i].m_Location == -1)
+            {
+                continue;
+            }
+
+            VertexDeclaration::Stream& stream = vertexDeclaration->m_Streams[i];
+            VkFormat fmt = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+
+            #define PUT_ATTRIBUTE(ix, loc, ofs, fmt) \
+                vk_vertex_input_descs[ix].binding = binding; \
+                vk_vertex_input_descs[ix].location = loc; \
+                vk_vertex_input_descs[ix].offset = ofs; \
+                vk_vertex_input_descs[ix].format = fmt;
+
+            uint32_t stream_data_size = GetGraphicsTypeDataSize(stream.m_Type);
+
+            // TODO: This doesn't support 2x2 matrices - we can't distinguish between a vec4 and a 2x2 matrix here currently
+            switch(stream.m_Size)
+            {
+            case 9: // 3x3 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 3), fmt);
+                num_attributes += 3;
+                break;
+            case 16: // 4x4 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 3, (stream.m_Location + 3), (stream.m_Offset + 3 * stream_data_size * 4), fmt);
+                num_attributes += 4;
+                break;
+            default:
+                PUT_ATTRIBUTE(num_attributes, stream.m_Location, stream.m_Offset, fmt);
+                num_attributes++;
+                break;
+            }
+
+            #undef PUT_ATTRIBUTE
+        }
+
+        return num_attributes;
+    }
+
     // These lookup values should match the ones in graphics_vulkan_constants.cpp
     static const VkPrimitiveTopology g_vk_primitive_types[] = {
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
@@ -1128,6 +1171,14 @@ bail:
         VK_BLEND_FACTOR_SRC_ALPHA_SATURATE
     };
 
+    static const VkBlendOp g_vk_blend_equations[] = {
+        VK_BLEND_OP_ADD,
+        VK_BLEND_OP_SUBTRACT,
+        VK_BLEND_OP_REVERSE_SUBTRACT,
+        VK_BLEND_OP_MIN,
+        VK_BLEND_OP_MAX
+    };
+
     static const VkStencilOp g_vk_stencil_ops[] = {
         VK_STENCIL_OP_KEEP,
         VK_STENCIL_OP_ZERO,
@@ -1150,7 +1201,7 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreateComputePipeline(VkDevice vk_device, Program* program, Pipeline* pipelineOut)
+    VkResult CreateComputePipeline(VkDevice vk_device, VulkanProgram* program, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1166,13 +1217,16 @@ bail:
     }
 
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        PipelineState pipelineState, Program* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
+        PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
         RenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
+        // This differs from MAX_VERTEX_STREAM_COUNT, since mat4 exhausts 4 desc slots
+        const uint32_t MAX_VERTEX_INPUT_DESCS_COUNT = 32;
+
         uint16_t active_attributes = 0;
-        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_STREAM_COUNT] = {};
+        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_INPUT_DESCS_COUNT] = {};
         VkVertexInputBindingDescription vk_vx_input_descriptions[MAX_VERTEX_BUFFERS] = {};
 
         for (int i = 0; i < vertexDeclarationCount; ++i)
@@ -1202,7 +1256,10 @@ bail:
 
         vk_input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         vk_input_assembly.topology               = vk_primitive_type;
-        vk_input_assembly.primitiveRestartEnable = VK_FALSE;
+        // Only enable restart for strip topologies
+        vk_input_assembly.primitiveRestartEnable =
+            (vk_primitive_type == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP ||
+             vk_primitive_type == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP) ? VK_TRUE : VK_FALSE;
 
         VkViewport vk_viewport;
         memset(&vk_viewport, 0, sizeof(vk_viewport));
@@ -1275,10 +1332,10 @@ bail:
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
             blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+            blend_attachment.colorBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationColor];
+            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactorAlpha];
+            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactorAlpha];
+            blend_attachment.alphaBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationAlpha];
         }
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;
@@ -1364,6 +1421,7 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
+
         vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
         vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
@@ -1379,7 +1437,7 @@ bail:
         scratchBuffer->m_MappedDataCursor = 0;
     }
 
-    void DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle)
+    void DestroyProgram(VkDevice vk_device, VulkanProgram::VulkanHandle* handle)
     {
         assert(handle);
         if (handle->m_PipelineLayout != VK_NULL_HANDLE)
@@ -1418,7 +1476,7 @@ bail:
     void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator)
     {
         assert(allocator);
-        delete[] allocator->m_DescriptorSets;
+        free(allocator->m_DescriptorSets);
         allocator->m_DescriptorSets = 0x0;
 
         for (int i = 0; i < allocator->m_DescriptorPools.Size(); ++i)
@@ -1457,8 +1515,15 @@ bail:
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
         DestroyRenderPass(vk_device, handle->m_RenderPass);
-        handle->m_Framebuffer = VK_NULL_HANDLE;
-        handle->m_RenderPass = VK_NULL_HANDLE;
+        // Only destroy the CLEAR variant if it's a distinct object. For the main RT it aliases
+        // context->m_MainRenderPass, which is destroyed by the context teardown instead.
+        if (handle->m_RenderPassClear != VK_NULL_HANDLE && handle->m_RenderPassClear != handle->m_RenderPass)
+        {
+            DestroyRenderPass(vk_device, handle->m_RenderPassClear);
+        }
+        handle->m_Framebuffer     = VK_NULL_HANDLE;
+        handle->m_RenderPass      = VK_NULL_HANDLE;
+        handle->m_RenderPassClear = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)
@@ -1492,6 +1557,7 @@ bail:
     void DestroyLogicalDevice(LogicalDevice* device)
     {
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
+        vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
         memset(device, 0, sizeof(*device));
     }
@@ -1627,6 +1693,16 @@ bail:
             vk_create_pool_info.queueFamilyIndex = (uint32_t) queueFamily.m_GraphicsQueueIx;
             vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
             res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPool);
+
+            if (res == VK_SUCCESS)
+            {
+                memset(&vk_create_pool_info, 0, sizeof(vk_create_pool_info));
+                vk_create_pool_info.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+                vk_create_pool_info.queueFamilyIndex = (uint32_t) queueFamily.m_GraphicsQueueIx; // Use the same queue for now (use a transfer queue at some point)
+                vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+
+                res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPoolWorker);
+            }
         }
 
         return res;

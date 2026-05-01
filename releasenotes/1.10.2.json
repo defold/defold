@@ -1,0 +1,741 @@
+{
+    "issues": [
+        {
+            "author": "JCash",
+            "body": "This introduces a new web target platform `wasm_pthread-web`\r\nWhen bundling, you can select to include supoprt for this platform.\r\nNote that distribution sites using ADS don't generally support threads, as it requires CORS setup.\r\n\r\nWe've also updated to Emscripten 4.0.6.\r\nThis also updates our minimum supported browser versions:\r\n\r\nNo Threads:\r\n* MIN_FIREFOX_VERSION=40\r\n* MIN_SAFARI_VERSION=101000\r\n* MIN_CHROME_VERSION=45\r\n\r\nWith pthreads:\r\n* MIN_FIREFOX_VERSION=79\r\n* MIN_SAFARI_VERSION=150000\r\n* MIN_CHROME_VERSION=75",
+            "labels": [
+                "task",
+                "html5"
+            ],
+            "mergecommit": "091548af6a3946097b1ad281fc0b7950fc4e6045",
+            "number": 10568,
+            "referencecommits": [],
+            "title": "Added thread support to HTML5",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10575"
+        },
+        {
+            "author": "AGulev",
+            "body": "There is no reason to check all the files and remove specifically `*.fp` and `*.vp` files from the files which end up in bundle. We don't add any `*.fp` or `*.vp` files into outputs",
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "bb58a0e14f6a6a3b69f266ce6f7aa4c8dda3f07d",
+            "number": 10744,
+            "referencecommits": [
+                "75ed855ba87a7b136068bb91f05cb7e20b88d60b",
+                "f9f536aedae6cb90932b2f59561e034e054331c4"
+            ],
+            "title": "Remove logic that clenup archive from `*.fp` and `*.vp` files ",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10758"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixes the issue where logs in the Editor's console don't work when Simulated Resolution is used (Windows only).",
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "b733265512bbc5af6cdf4587f9ad32b10823016b",
+            "number": 10226,
+            "referencecommits": [],
+            "title": "Fixed an issue with editor logs",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10685"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Add game objects, collections and components on drop to scenes.\r\n![collection-dnd](https://github.com/user-attachments/assets/d6fb4374-52b2-41c1-8821-e24580810380)",
+            "labels": [
+                "bug",
+                "editor",
+                "feature request"
+            ],
+            "mergecommit": "cb5b0dfe11f8adb4f6bcc3cf49af989061a8c52b",
+            "number": 6568,
+            "referencecommits": [],
+            "title": "Add game objects, collections and components on drop",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10611"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Add game objects, collections and components on drop to scenes.\r\n![collection-dnd](https://github.com/user-attachments/assets/d6fb4374-52b2-41c1-8821-e24580810380)",
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "cb5b0dfe11f8adb4f6bcc3cf49af989061a8c52b",
+            "number": 10604,
+            "referencecommits": [],
+            "title": "Add game objects, collections and components on drop",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10611"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Add game objects, collections and components on drop to scenes.\r\n![collection-dnd](https://github.com/user-attachments/assets/d6fb4374-52b2-41c1-8821-e24580810380)",
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "cb5b0dfe11f8adb4f6bcc3cf49af989061a8c52b",
+            "number": 10605,
+            "referencecommits": [],
+            "title": "Add game objects, collections and components on drop",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10611"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Increased minimum scrollbar thumb size.\r\n\r\nBefore (600 nodes) -> After (600 nodes)\r\n<img src=\"https://github.com/user-attachments/assets/51cd413b-362d-46d8-aec5-c2fc86074ed4\" width=\"50%\"><img src=\"https://github.com/user-attachments/assets/0a584ba6-25eb-44f6-9cd0-d7881d62fc74\" width=\"50%\">",
+            "labels": [
+                "bug",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "b69b3c47d38116ce267558dda7f327b533c26a63",
+            "number": 10597,
+            "referencecommits": [],
+            "title": "Fix minimum scrollbar thumb size",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10612"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes a regression from 1.10.0",
+            "labels": [
+                "bug",
+                "html5",
+                "box2d",
+                "engine",
+                "sound"
+            ],
+            "mergecommit": "5f4bae95ecdc1d897dd3c363a749e4a700576a52",
+            "number": 10440,
+            "referencecommits": [
+                "4ae1d98321934b8327d5b456a86831d5aef0a463"
+            ],
+            "title": "Default to no wasm simd on HTML5",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10592"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Previously, some properties couldn't be get/set by editor scripts. Now, it's possible to do so! We added support for getting and setting:\r\n- Color properties\r\n- Multiline text properties\r\n- Choice box properties \r\n- Slider properties\r\n\r\nRemaining unsettable properties are curve and curve spread (in particle fx).",
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "07ca4d6daff5988bcf7448fb2e99ee1c842250a4",
+            "number": 5371,
+            "referencecommits": [],
+            "title": "Allow getting/setting more properties using editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10587"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Now all resources from Pods correctly packed into .ipa.",
+            "labels": [
+                "bug",
+                "bob",
+                "ios"
+            ],
+            "mergecommit": "1def716d8a45b56dc1c4d213ff9024e45dfc25af",
+            "number": 10588,
+            "referencecommits": [],
+            "title": "Copy resources from pods",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10589"
+        },
+        {
+            "author": "thengel01",
+            "body": "* Sound panning now configured to correctly pan stereo sound instances (basically treats them as 2 mono sources for panning).\r\n\r\n  * *NOTE:* This fixes a (very old) bug where the mechanism removed ~3dB of the sounds. The fix will make the sound strength back to normal again. If this bug fix affects your game, you can lower the main `sound.gain` (default 1.0) in the `game.project` settings.\r\n\r\n* Added logic that can support exponential gain (as in: 0.5 perceptually is \"half volume\"). This is useful for a nicer fade ins/outs.\r\n  * The functionality is enabled by setting the `sound.use_linear_gain = 0` in `game.project`",
+            "labels": [
+                "engine",
+                "sound"
+            ],
+            "mergecommit": "6bf4ef342b94ea91098ad01ad18b694fc8ae5ad7",
+            "number": 10529,
+            "referencecommits": [],
+            "title": "Updating volume and panning handling for sound system",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10529"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Renders the collision polygon of `.convexshape` files.\r\n\r\n![Screenshot From 2025-04-17 12-43-07](https://github.com/user-attachments/assets/9ec2dbd8-0a26-4380-a6f2-df949b5189b0)",
+            "labels": [
+                "bug",
+                "editor",
+                "physics",
+                "quick win?",
+                "feature request"
+            ],
+            "mergecommit": "7e88f3a1d5f556cfbe3c0b8f93eec4392c444c2c",
+            "number": 10083,
+            "referencecommits": [],
+            "title": "Render convex hull collision shape",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10522"
+        },
+        {
+            "author": "matgis",
+            "body": "The editor will no longer try to apply Model material assignments that do not refer to a `.material` resource when rendering Models in the Scene View. This fixes an issue where manually deleting the path from the material resource field of a previously assigned material, that is no longer defined in the referenced Mesh, would cause an exception that locked up the editor.",
+            "labels": [
+                "bug",
+                "editor",
+                "model"
+            ],
+            "mergecommit": "045d37f38aff91d15f6b462114cf95d900be17c5",
+            "number": 10600,
+            "referencecommits": [],
+            "title": "Don\u2019t apply Model material assignments unless fully-formed",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10610"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Texture arrays can be created and updated in the runtime. Example how it can be done:\r\n```lua\r\n--- create new texture array\r\n\tlocal new_tex = resource.create_texture(\"/runtime/example_array.texturec\", {\r\n\t\ttype = graphics.TEXTURE_TYPE_2D_ARRAY,\r\n\t\twidth = 512,\r\n\t\theight = 512,\r\n\t\tpage_count = 5,\r\n\t\tformat = graphics.TEXTURE_FORMAT_RGB,\r\n\t})\r\n--- update texture array slice\r\n\tlocal tex_path = \"/bundle_resources/slice_02.png\"\r\n\tlocal data = sys.load_resource(tex_path)\r\n\tlocal buf = image.load_buffer(data)\r\n\tresource.set_texture(new_tex, {\r\n\t\ttype = graphics.TEXTURE_TYPE_2D_ARRAY,\r\n\t\twidth = buf.width,\r\n\t\theight = buf.height,\r\n\t\tpage = 1,\r\n\t\tformat = graphics.TEXTURE_FORMAT_RGB\r\n\t}, buf.buffer)\r\n\tgo.set(\"#mesh\", \"texture0\", new_tex)\r\n```\r\n\r\nAlso `resource.get_texture_info()` returns additional field `page_count` with actual slice count. For regular 2D texture value is 1, for cube map is 6.",
+            "labels": [
+                "feature request",
+                "engine",
+                "render"
+            ],
+            "mergecommit": "16195a1a8bca1579b862a60e0d69a21548f2a103",
+            "number": 10530,
+            "referencecommits": [],
+            "title": "Added support of runtime creating and updating of textures array",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10547"
+        },
+        {
+            "author": "AGulev",
+            "body": "It is now possible to set Font or Texture resources for a GUI using the `gui.set()` function from the GUI component itself, provided that `msg.url()` is used as the first argument instead of a node.\r\n\r\n```lua\r\nfunction on_message(self, message_id, message, sender)\r\n   if message_id == hash(\"set_font\") then\r\n       gui.set(msg.url(), \"fonts\", message.font, {key = \"my_font_name\"})\r\n       gui.set_font(gui.get_node(\"text\"), \"my_font_name\")\r\n   elseif message_id == hash(\"set_texture\") then\r\n       gui.set(msg.url(), \"textures\", message.texture, {key = \"my_texture\"})\r\n       gui.set_texture(gui.get_node(\"box\"), \"my_texture\")\r\n       gui.play_flipbook(gui.get_node(\"box\"), \"logo_256\")\r\n   end\r\nend\r\n```",
+            "labels": [
+                "feature request",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "1e4029d629e66e941896308249826591c9f770d7",
+            "number": 10471,
+            "referencecommits": [],
+            "title": "Make it possible to set GUI resources using `gui.set()`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10619"
+        },
+        {
+            "author": "AGulev",
+            "body": "Atlas creation is now twice as fast in `bob.jar` and about three times faster in the editor.",
+            "labels": [
+                "bob",
+                "atlas",
+                "performance"
+            ],
+            "mergecommit": "d1327fbafcc6b0f4a69d3fec625a0d2f31e99811",
+            "number": 10626,
+            "referencecommits": [],
+            "title": "Faster atlas creation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10626"
+        },
+        {
+            "author": "AGulev",
+            "body": "Make sure that GUI components spawned in different worlds (in different collection proxies) are sorted separately, and that the later-spawned world is always rendered on top unless another behavior is specified using `gui.set_render_order()`.",
+            "labels": [
+                "bug",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "311bca7805724af38355e98047b707ed6853cdd6",
+            "number": 9123,
+            "referencecommits": [],
+            "title": "Make sure that GUI components are sorted per world",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10631"
+        },
+        {
+            "author": "matgis",
+            "body": "* Render errors from Scene View objects are now presented in a more readable view and can be copied into the clipboard.\r\n* Most shader syntax errors will now cause render errors in the Scene View.",
+            "labels": [
+                "task",
+                "editor"
+            ],
+            "mergecommit": "7563fc3ce7786d28c0eacb5eb0f5fb746d831004",
+            "number": 10635,
+            "referencecommits": [],
+            "title": "Improve Scene View error experience",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10635"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, directories may be accessed as resources in editor scripts. The directories have 2 properties:\r\n- `path` - the path to the directory, same as with file resources\r\n- `children` - list of children resources\r\n\r\nFor example, here is how you can ensure that an atlas has all images from a directory:\r\n```lua\r\nlocal images = editor.get(\"/assets/images\", \"children\")\r\nlocal atlas = \"/assets/main.atlas\"\r\nlocal txs = {editor.tx.clear(atlas, \"images\")}\r\nfor i = 1, #images do\r\n    local resource_path = editor.get(images[i], \"path\")\r\n    if resource_path:match(\".png$\") ~= nil then\r\n        txs[#txs + 1] = editor.tx.add(atlas, \"images\", {image = resource_path})\r\n    end\r\nend\r\neditor.transact(txs)\r\n```",
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "b50a0702b57cb93a5798ae1879ea677bdb2ab8be",
+            "number": 5372,
+            "referencecommits": [],
+            "title": "Directories are now treated as resources in editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10651"
+        },
+        {
+            "author": "britzl",
+            "body": "Like all other functions in the go.* namespace the `go.exists(url)` function will now throw a Lua error if specifying a url referencing a game object from a different collection than the one from which `go.exists()` was called.",
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "00eb091023c79b6e0af1f2a89c65797656b8c7a4",
+            "number": 10652,
+            "referencecommits": [],
+            "title": "go.exist() will now throw a Lua error if referencing another collection",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10653"
+        },
+        {
+            "author": "selimanac",
+            "body": "Include reference should be `<dmsdk/dlib/memory.h>` not `<dmsdk/dlib/dalloca.h>`\nDoc: https://defold.com/ref/stable/dmMemory/",
+            "labels": [
+                "task",
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": null,
+            "number": 10539,
+            "referencecommits": [],
+            "title": "Wrong include reference for dmMemory",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/issues/10539"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "labels": [
+                "bug",
+                "engine",
+                "html5",
+                "profiler"
+            ],
+            "mergecommit": "fa71110907089580be6ef4090bba18b5da9cc1f4",
+            "number": 10613,
+            "referencecommits": [],
+            "title": "Fixes memory leak in profiler on web platforms",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10656"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, it's possible to edit (add/remove) atlas images and animations using editor scripts. This is achieved using the following additions to the editor script API:\r\n- atlas resources now define `images` and `animations` properties, which are lists of image and animation nodes, respectively\r\n- atlas animations now define an `images` property, which is a list of image nodes\r\n- `editor.get` can be used to get the list of images and animations in an atlas, and then to look up the properties of the returned nodes\r\n- new transaction functions `editor.tx.add`, `editor.tx.remove`, and `editor.tx.clear` can be used to edit these node lists\r\n- `editor.can_add` can be used to check if a node property is a list of nodes\r\n\r\nSome examples:\r\n1. Add an image to an atlas:\r\n   ```lua\r\n   editor.transact({\r\n       editor.tx.add(\"/main.atlas\", \"images\", {image=\"/assets/hero.png\"})\r\n   })\r\n   ```\r\n2. Find a set of all images used in an atlas:\r\n   ```lua\r\n   local all_images = {} ---@type table<string, true>\r\n   -- first, collect all \"bare\" images\r\n   local image_nodes = editor.get(\"/main.atlas\", \"images\")\r\n   for i = 1, #image_nodes do\r\n       all_images[editor.get(image_nodes[i], \"image\")] = true\r\n   end\r\n   -- second, collect all images used in animations\r\n   local animation_nodes = editor.get(\"/main.atlas\", \"animations\")\r\n   for i = 1, #animation_nodes do\r\n       local animation_image_nodes = editor.get(animation_nodes[i], \"images\")\r\n       for j = 1, #animation_image_nodes do\r\n           all_images[editor.get(animation_image_nodes[j], \"image\")] = true\r\n       end\r\n   end\r\n   pprint(all_images)\r\n   -- {\r\n   --     [\"/assets/hero.png\"] = true,\r\n   --     [\"/assets/enemy.png\"] = true,\r\n   -- }}\r\n   ```\r\n3. Replace all animations in an atlas:\r\n   ```lua\r\n   editor.transact({\r\n       editor.tx.clear(\"/main.atlas\", \"animations\"),\r\n       editor.tx.add(\"/main.atlas\", \"animations\", {\r\n           id = \"hero_run\",\r\n           images = {\r\n               {image = \"/assets/hero_run_1.png\"},\r\n               {image = \"/assets/hero_run_2.png\"},\r\n               {image = \"/assets/hero_run_3.png\"},\r\n               {image = \"/assets/hero_run_4.png\"}\r\n           }\r\n       })\r\n   })\r\n   ```\r\n\r\nRelated to https://github.com/defold/defold/issues/8504",
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "2d34ae2b68a323959bbf207c67270eacce3e59df",
+            "number": 10644,
+            "referencecommits": [],
+            "title": "Allow editing atlas images and animations from scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10644"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "labels": [
+                "bug",
+                "bob",
+                "html5"
+            ],
+            "mergecommit": "d3a2bea292c7119614a553f076b1857e13c036a6",
+            "number": 10657,
+            "referencecommits": [],
+            "title": "Make sure that changes in shaders are always taken into account during rebuild",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10661"
+        },
+        {
+            "author": "JCash",
+            "body": "There is also the corresponding `dmGameSys::ResFontGetLineHeight()`",
+            "labels": [
+                "engine",
+                "font"
+            ],
+            "mergecommit": "14b97381fe83d85ac7f3a9f962961b45079ae8e8",
+            "number": 10663,
+            "referencecommits": [
+                "6e0f592de0272d07ad9dbeea7d73f56a5ca663fd",
+                "c600e1effb6b41037755a95ca0c2f97682f9cd2d"
+            ],
+            "title": "Added function dmGameSys::ResFontSetLineHeight() to set font line height for dynamic fonts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10663"
+        },
+        {
+            "author": "JCash",
+            "body": "",
+            "labels": [
+                "engine",
+                "font"
+            ],
+            "mergecommit": "f4d14f6b6d18bca8ff0090ffb659fd03f4cd636c",
+            "number": 10678,
+            "referencecommits": [
+                "00a40236370e80e19e72c149a4f86a653dec694b",
+                "ba99d5527f69933c8f4fb62328dde0d9c402da03"
+            ],
+            "title": "Added mutex to font.cpp to protect when adding and removing glyphs dynamically",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10678"
+        },
+        {
+            "author": "JCash",
+            "body": "https://github.com/konoui/lipo/releases/tag/v0.10.0",
+            "labels": [
+                "bug",
+                "bob",
+                "windows"
+            ],
+            "mergecommit": "12f648e819fe5622f84f6303c1ab2183b1abc3e9",
+            "number": 10673,
+            "referencecommits": [],
+            "title": "Updated to lipo 0.10 (4c7c275) to fix a Windows renaming issue",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10695"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Fixed pivot point handle position on paged atlases.",
+            "labels": [
+                "bug",
+                "editor",
+                "atlas"
+            ],
+            "mergecommit": "2b15b5901b8202468ec3a9175e88a61687467325",
+            "number": 10687,
+            "referencecommits": [],
+            "title": "Take page offset into account when calculating the absolute position of the pivot handle",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10696"
+        },
+        {
+            "author": "sprocketc",
+            "body": "![drag-handle](https://github.com/user-attachments/assets/e36dd616-acf9-4ddf-baee-5f471475662f)\r\nDraggable properties now display a dedicated drag controller on mouse over input, instead of using the label as a handle.",
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "b8c14054621ada9c398ba5947837dce8bc2449c3",
+            "number": 10701,
+            "referencecommits": [],
+            "title": "Introduce property drag handle",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10701"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed issue where cached resources loaded remotely from the editor return the wrong file size, resulting in a `string length overflow` error",
+            "labels": [
+                "bug",
+                "engine",
+                "reboot"
+            ],
+            "mergecommit": "d33be43fb26898ef0a61c3ade424bbacc4cd3fc7",
+            "number": 10669,
+            "referencecommits": [],
+            "title": "Fixed issue where build to remote target can't load a file more than once",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10713"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixes an issue where, after removing a game object, its ID isn't equal to a hash with the same value.",
+            "labels": [
+                "bug",
+                "more info",
+                "engine"
+            ],
+            "mergecommit": "7ccb8e895f807614044d0faca9beda3fdac4675f",
+            "number": 9374,
+            "referencecommits": [
+                "1e3c9ed0a35e90e98cc23a452187c0beeb6884ef"
+            ],
+            "title": "Make sure hashes are comparable even after the game object is removed",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10654"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Fixed wrong data size used when updating a compressed paged texture in OpenGL.",
+            "labels": [
+                "bug",
+                "engine",
+                "graphics"
+            ],
+            "mergecommit": "1b813b18f233840680fe5aff9a2f2acdbf2cd010",
+            "number": 10659,
+            "referencecommits": [],
+            "title": "Fixed data size when uploads compressed paged texture",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10686"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now editor scripts can access and edit animations and collision groups of tilesources using these 3 new tilesource properties:\r\n- `animations` - a list of animation nodes of the tilesource\r\n- `collision_groups` - a list of collision group nodes of the tilesource\r\n- `tile_collision_groups` - a table of collision group assignments for tiles in the tilesource\r\n\r\nFor example, here is how you can setup a tilesource:\r\n```lua\r\nlocal tilesource = \"/game/world.tilesource\"\r\neditor.transact({\r\n    editor.tx.add(tilesource, \"animations\", {id = \"idle\", start_tile = 1, end_tile = 1}),\r\n    editor.tx.add(tilesource, \"animations\", {id = \"walk\", start_tile = 2, end_tile = 6, fps = 10}),\r\n    editor.tx.add(tilesource, \"collision_groups\", {id = \"player\"}),\r\n    editor.tx.add(tilesource, \"collision_groups\", {id = \"obstacle\"}),\r\n    editor.tx.set(tilesource, \"tile_collision_groups\", {\r\n        [1] = \"player\",\r\n        [7] = \"obstacle\",\r\n        [8] = \"obstacle\"\r\n    })\r\n})\r\n```",
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "d21fc58699923570a1d5042f765af87bd5f6feb1",
+            "number": 10662,
+            "referencecommits": [],
+            "title": "Expose tilesource animations and collision groups to editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10662"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now you can edit tilemaps using editor scripts! To support this feature, we introduce the following additions to the editor script API:\r\n- `editor.get(tilemap_layer, \"tiles\")` to get tiles from a tilemap layer\r\n- `editor.tx.set(tilemap_layer, \"tiles\", tiles)` to create a transaction step that sets tiles in a tilemap layer\r\n- `tilemap.tiles.new()` to create a fresh data structure that holds an unbounded 2d tile grid (in the editor, contrary to the engine, the tilemap is unbounded, and coordinates may be negative)\r\n- `tilemap.tiles.get_tile(tiles, x, y)` to get a tile index at a specific coordinate\r\n- `tilemap.tiles.get_info(tiles, x, y)` to get full tile information at a specific coordinate (the data shape is the same as in the engine's `tilemap.get_tile_info` function)\r\n- `tilemap.tiles.iterator(tiles)` to create an iterator over all tiles in the tilemap\r\n- `tilemap.tiles.clear(tiles)` to remove all tiles from the tilemap\r\n- `tilemap.tiles.set(tiles, x, y, tile_or_info)` to set a tile at a specific coordinate\r\n- `tilemap.tiles.remove(tiles, x, y)` to remove a tile at a specific coordinate\r\n\r\nFor example, here is how you can print the contents of the whole tilemap:\r\n```lua\r\nlocal layers = editor.get(\"/level.tilemap\", \"layers\")\r\nfor i = 1, #layers do\r\n    local layer = layers[i]\r\n    local id = editor.get(layer, \"id\")\r\n    local tiles = editor.get(layer, \"tiles\")\r\n    print(\"layer \" .. id .. \": {\")\r\n    for x, y, tile in tilemap.tiles.iterator(tiles) do\r\n        print(\"  [\" .. x .. \", \" .. y .. \"] = \" .. tile)\r\n    end\r\n    print(\"}\")\r\nend\r\n```\r\n\r\nHere is how you can add a layer with tiles to a tilemap:\r\n```lua\r\nlocal tiles = tilemap.tiles.new()\r\ntilemap.tiles.set(tiles, 1, 1, 2)\r\neditor.transact({\r\n    editor.tx.add(\"/level.tilemap\", \"layers\", {\r\n        id = \"new_layer\",\r\n        tiles = tiles\r\n    })\r\n})\r\n```",
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "af70a8015d186030645f5f711d70354d5034804b",
+            "number": 10714,
+            "referencecommits": [],
+            "title": "Edit tilemaps using editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10714"
+        },
+        {
+            "author": "thengel01",
+            "body": "This fixes a recently introduced issue with sound instances \"hanging around\" forever if they are played back with group volume down to zero.",
+            "labels": [
+                "bug",
+                "sound"
+            ],
+            "mergecommit": "240d3be0dc41276f788d6b198dfbd92cefc6b1fd",
+            "number": 10703,
+            "referencecommits": [],
+            "title": "Fixing EOS behavior of tremolo decoder when skipping data",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10712"
+        },
+        {
+            "author": "thengel01",
+            "body": "This change fixes a recently introduced issue where the engine would crash if a sound was played with a very low speed.",
+            "labels": [
+                "bug",
+                "engine",
+                "sound"
+            ],
+            "mergecommit": "7e256eb0d09383f274e1d41d8f192e753a804656",
+            "number": 10700,
+            "referencecommits": [],
+            "title": "Adding check to avoid zero delta values in sound mixer",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10705"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue where the engine wouldn't start for some users, when their app directory contained unicode characters.",
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "84430f2fd06eb228fd08c282d2bd8dd4fcd505ab",
+            "number": 10722,
+            "referencecommits": [
+                "be255e3cd6b1e05e69bebd94356d422c91ea15e6"
+            ],
+            "title": "Fix for getting win32 user directories containing unicode characters",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10727"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fix issue where `hash` can be removed while it's in use",
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "d2fc07d6c24f1694f4ea944e4390f5de6d3b8aef",
+            "number": 10704,
+            "referencecommits": [
+                "e0252436dd25d4d6da5ab902882a21448964f7e3"
+            ],
+            "title": "Improve `hash` management when creating objects using collectionfactory",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10730"
+        },
+        {
+            "author": "Gert-Jan",
+            "body": "It is now possible to use `sys.save()` and `sys.load()` to save and load tables with hashes as keys. This allows for example to (de)serialize tables that are produced and used by collectionfactory. This change also means that `sys.serialize()` and `sys.deserialize()` can serialize and deserialize tables with hashes as keys.\r\n\r\n\u26a0\ufe0f Using a hash as a key in a serialized table makes the binary format incompatible with older versions of the engine.",
+            "labels": [
+                "feature request",
+                "engine",
+                "lua"
+            ],
+            "mergecommit": "9dec0c31125b65c715a81034a2543ca8cae7a5ea",
+            "number": 3208,
+            "referencecommits": [],
+            "title": "Added support for hash userdata type keys in lua table (de)serialization.",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10715"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Editing collision groups or other properties of a tilesource which do not affect the tilesource layout will no longer regenerate the texture.",
+            "labels": [
+                "bug",
+                "editor",
+                "tilemap",
+                "performance"
+            ],
+            "mergecommit": "49002c2bde613618cfc703771f231f63f6b97146",
+            "number": 5919,
+            "referencecommits": [],
+            "title": "Improve performance when editing a large tilesource",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10697"
+        },
+        {
+            "author": "vlaaad",
+            "body": "With this change, it's now possible to edit particlefx emitters and modifiers using editor scripts. We added:\r\n- `\"emitters\"` and `\"modifiers\"` properties on particlefx component\r\n- `\"modifiers\"` property on particlefx emitter component\r\n- ability to read and write particlefx curve properties in editor scripts\r\n\r\nNew `emitters` and `modifiers` properties are node lists, where each node may be accessed using `editor.get()` and modified using `editor.tx.set()`. For example, adding a new circle emitter works like this:\r\n```lua\r\neditor.transact({\r\n    editor.tx.add(\"/fire.particlefx\", \"emitters\", {\r\n        type = \"emitter-type-circle\"\r\n    })\r\n})\r\n```\r\n\r\nCurves are represented as a table with a non-empty list of `points`, where each point is a table with the following properties:\r\n- `x` - the x coordinate of the point, should start at 0 and end at 1\r\n- `y` - the value of the point\r\n- `tx` (0 to 1) and `ty` (-1 to 1) - tangents of the point. E.g., for an 80-degree angle, `tx` should be `math.cos(math.rad(80))` and `ty` should be `math.sin(math.rad(80))`.\r\nCurve spreads additionally have a `spread` number property.\r\n\r\nFor example, setting a particle lifetime alpha curve might look like this:\r\n```lua\r\neditor.transact({\r\n    editor.tx.set(emitter, \"particle_key_alpha\", { points = {\r\n        {x = 0,   y = 0, tx = 0.1, ty = 1}, -- start at 0, go up quickly\r\n        {x = 0.2, y = 1, tx = 1,   ty = 0}, -- reach 1 at 20% of a lifetime\r\n        {x = 1,   y = 0, tx = 1,   ty = 0}  -- slowly go down to 0\r\n    }})\r\n})\r\n```",
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "646a1acb3537f1c42c33da22f73f3fe04808f5dd",
+            "number": 10723,
+            "referencecommits": [],
+            "title": "Edit particlefx emitters and modifiers using editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10723"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "labels": [],
+            "mergecommit": "ffba3dd82eadb411be473aa0bbe98c7216e98496",
+            "number": 10734,
+            "referencecommits": [],
+            "title": "Remove all dynamically created hashes (from factories) when they aren't used anymore",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10734"
+        },
+        {
+            "author": "aglitchman",
+            "body": "The function `camera.set_orthographic_zoom()` now accepts the value as number (before it was boolean) and works the same as setting this value via go.set.",
+            "labels": [
+                "bug",
+                "engine",
+                "camera"
+            ],
+            "mergecommit": "af6e0efd01c79794ae3d2a105a0b4696468aad7e",
+            "number": 10623,
+            "referencecommits": [],
+            "title": "Update `camera.set_orthographic_zoom` to accept numeric zoom value",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10624"
+        },
+        {
+            "author": "JCash",
+            "body": "",
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "959a7b491fd8f55cea5954cebeabcb8036ac24e7",
+            "number": 10763,
+            "referencecommits": [
+                "d25cf0c8638959f23b2562c62c4d83c13c7cebc8"
+            ],
+            "title": "Fix for OpenGL backend using non async mode",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10764"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes a regression from 1.10.1.\r\n\r\n###",
+            "labels": [],
+            "mergecommit": "beecb11c84cd64d17eb7b5ddde7f33730cee3d65",
+            "number": 10766,
+            "referencecommits": [
+                "8c9e1095483878b3271030f2b1478d6158c9333b"
+            ],
+            "title": "HTML5: Rebuilt Box2d v2 and Glfw 2.7 without Wasm Simd support",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10766"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed issue where `sys.reboot()` of the engine on Android may crash the game.",
+            "labels": [
+                "bug",
+                "android",
+                "reboot"
+            ],
+            "mergecommit": "81e8ab39b06a373b3743b80399313675d0ef7051",
+            "number": 10677,
+            "referencecommits": [
+                "b44556202d8e306acc2acbe12808410f08dac961",
+                "d0f3c8ff280e561888f841c6e57c39cb7c1456ba"
+            ],
+            "title": "Fixed crash on Android when rebooting the engine",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10769"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed issue where the cache stayed invalidated after updating to a newer version of Defold where the font or glyph bank output format was changed.  \r\nUsually, it appeared as a `Unable to create resource: /_generated_font_f8188ecab1e82fcc.glyph_bankc: FORMAT_ERROR` and could only be fixed by removing the `build` folder, which is no longer necessary.",
+            "labels": [],
+            "mergecommit": "bed6b56d2da7adf252cd8fc8fa72de7c40a94399",
+            "number": 10786,
+            "referencecommits": [
+                "242cb7a45f1824fbd9289f0fcc394aee99e1f8a6"
+            ],
+            "title": "Fixed issue with font cache invalidation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10789"
+        },
+        {
+            "author": "thengel01",
+            "body": "Logic flagged EOS with tremolo decoder even if some data was still decoded before reaching EOS condition, hence triggering an assert() in general mixer code",
+            "labels": [
+                "bug",
+                "sound"
+            ],
+            "mergecommit": "165a90e69fdddad0a8969e37aef856cbec578646",
+            "number": 10732,
+            "referencecommits": [
+                "50f13c284b9e36ec253e040f46ef72255e5fc51d"
+            ],
+            "title": "Correcting EOS logic for tremolo decoder",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10750"
+        },
+        {
+            "author": "aglitchman",
+            "body": "In version 1.10.1, the AudioContext start call was moved from the mouse up/touch end events to the mouse down/touch start events to improve the user experience. It turned out that on iOS the audio might not start at mouse down / touch end, so now the engine will try to start the audio in all mentioned input events.",
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "20ebf8ce6d189da5f29cb5a7faba47dc67d4919c",
+            "number": 10792,
+            "referencecommits": [
+                "649461cefadd80bf064965b70b4eedfc65c5ed96"
+            ],
+            "title": "Try resume AudioContext on mouse up and touch end",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10814"
+        }
+    ],
+    "timestamp": 1749560712.972965,
+    "version": "1.10.2"
+}

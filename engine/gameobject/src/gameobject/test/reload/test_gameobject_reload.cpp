@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -60,7 +60,7 @@ static void ResetWorldCounters(ReloadTargetWorld* world) {
 class ReloadTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_NewResource = 0x0;
 
@@ -119,7 +119,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);

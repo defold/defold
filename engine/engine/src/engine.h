@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,12 +23,12 @@ namespace dmEngine
 
     uint16_t GetHttpPort(HEngine engine);
 
-	enum UpdateResult
-	{
-	    RESULT_OK       =  0,
-	    RESULT_REBOOT   =  1,
-	    RESULT_EXIT     = -1,
-	};
+    enum UpdateResult
+    {
+        RESULT_OK       =  0,
+        RESULT_REBOOT   =  1,
+        RESULT_EXIT     = -1,
+    };
 };
 
 // called once per process: init -> (create -> update -> destroy -> if reboot: goto create) -> finalize

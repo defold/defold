@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,7 @@
 
 #include "profiler.h"
 
+#include <dlib/array.h>
 #include <dlib/dlib.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -24,16 +25,17 @@
 #include <script/script.h>
 
 #include "profiler_private.h"
-#include "profile_render.h"
+#include "profiler_render.h"
 
 #include <algorithm> // std::sort
+#include <string.h>
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/extension/extension.h>
 
-DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
-DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);
-DM_PROPERTY_U32(rmtp_Memory, 0, FrameReset, "Memory usage in kb", &rmtp_Profiler);
+DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler", 0);
+DM_PROPERTY_U32(rmtp_CpuUsage, 0, PROFILE_PROPERTY_FRAME_RESET, "%% Cpu Usage", &rmtp_Profiler);
+DM_PROPERTY_U32(rmtp_Memory, 0, PROFILE_PROPERTY_FRAME_RESET, "Memory usage in kb", &rmtp_Profiler);
 
 namespace dmProfiler
 {
@@ -46,9 +48,11 @@ namespace dmProfiler
  * @document
  * @name Profiler
  * @namespace profiler
+ * @language Lua
  */
 
 static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library
+static bool g_ProfilerEnabled = false;
 static bool g_TrackCpuUsage = false;
 static dmProfileRender::HRenderProfile gRenderProfile = 0;
 static uint32_t gUpdateFrequency = 60;
@@ -56,19 +60,223 @@ static uint32_t gUpdateFrequency = 60;
 static dmProfileRender::ProfilerFrame*  g_ProfilerCurrentFrame = 0;
 static dmMutex::HMutex                  g_ProfilerMutex = 0;
 static dmHashTable64<int>               g_ProfilerThreadSortOrder;
+static bool                             g_ProfilerDumpNextFrame = false;
 
+struct LuaProfilerScope
+{
+    uint64_t    m_NameHash;
+    uint32_t    m_NameOffset;
+};
+
+struct LuaProfilerScopeState
+{
+    lua_State*                   m_L;
+    bool                         m_IsMainThread;
+    dmArray<LuaProfilerScope>    m_Scopes;
+    dmArray<char>                m_Names;
+    LuaProfilerScopeState*       m_Next;
+};
+
+static LuaProfilerScopeState*            g_LuaProfilerScopeStates = 0;
+
+static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfiler::HSample root);
+static void PropertyTreeCallback(void* _ctx, dmProfiler::HProperty root);
+static ExtensionResult PreRenderProfiler(dmExtension::Params* params);
+
+static void DeleteProfilerUI()
+{
+    if (gRenderProfile)
+    {
+        dmProfileRender::DeleteRenderProfile(gRenderProfile);
+        gRenderProfile = 0;
+    }
+}
+
+static LuaProfilerScopeState* FindLuaProfilerScopeState(lua_State* L)
+{
+    for (LuaProfilerScopeState* state = g_LuaProfilerScopeStates; state != 0; state = state->m_Next)
+    {
+        if (state->m_L == L)
+        {
+            return state;
+        }
+    }
+    return 0;
+}
+
+static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(lua_State* L)
+{
+    LuaProfilerScopeState* state = FindLuaProfilerScopeState(L);
+    if (state != 0)
+    {
+        return state;
+    }
+
+    state = new LuaProfilerScopeState;
+    state->m_L = L;
+    state->m_IsMainThread = L == dmScript::GetMainThread(L);
+    state->m_Scopes.SetCapacity(4);
+    state->m_Names.SetCapacity(64);
+    state->m_Next = g_LuaProfilerScopeStates;
+    g_LuaProfilerScopeStates = state;
+    return state;
+}
+
+static void DeleteLuaProfilerScopeState(LuaProfilerScopeState* delete_state)
+{
+    LuaProfilerScopeState** state_ptr = &g_LuaProfilerScopeStates;
+    while (*state_ptr != 0)
+    {
+        LuaProfilerScopeState* state = *state_ptr;
+        if (state == delete_state)
+        {
+            *state_ptr = state->m_Next;
+            delete state;
+            return;
+        }
+        state_ptr = &state->m_Next;
+    }
+}
+
+static void DeleteLuaProfilerScopeStates()
+{
+    while (g_LuaProfilerScopeStates != 0)
+    {
+        DeleteLuaProfilerScopeState(g_LuaProfilerScopeStates);
+    }
+}
+
+static bool ShouldRetainLuaProfilerScopeState(LuaProfilerScopeState* state)
+{
+    return !state->m_Scopes.Empty() || state->m_IsMainThread;
+}
+
+static void DeleteEmptyLuaProfilerScopeStates()
+{
+    LuaProfilerScopeState** state_ptr = &g_LuaProfilerScopeStates;
+    while (*state_ptr != 0)
+    {
+        LuaProfilerScopeState* state = *state_ptr;
+        if (!ShouldRetainLuaProfilerScopeState(state))
+        {
+            *state_ptr = state->m_Next;
+            delete state;
+        }
+        else
+        {
+            state_ptr = &state->m_Next;
+        }
+    }
+}
+
+template <typename T>
+static void EnsureLuaProfilerCapacity(dmArray<T>* array, uint32_t additional_count, uint32_t min_capacity)
+{
+    if (array->Remaining() >= additional_count)
+    {
+        return;
+    }
+
+    uint32_t new_capacity = array->Capacity() == 0 ? min_capacity : array->Capacity() * 2;
+    uint32_t required_capacity = array->Size() + additional_count;
+    if (new_capacity < required_capacity)
+    {
+        new_capacity = required_capacity;
+    }
+
+    array->SetCapacity(new_capacity);
+}
+
+static const char* GetLuaProfilerScopeName(LuaProfilerScopeState* state, const LuaProfilerScope* scope)
+{
+    return state->m_Names.Begin() + scope->m_NameOffset;
+}
+
+static void PushLuaProfilerScope(lua_State* L, const char* name, uint32_t name_length)
+{
+    LuaProfilerScopeState* state = GetOrCreateLuaProfilerScopeState(L);
+    EnsureLuaProfilerCapacity(&state->m_Scopes, 1, 4);
+    EnsureLuaProfilerCapacity(&state->m_Names, name_length + 1, 64);
+
+    LuaProfilerScope scope;
+    scope.m_NameOffset = state->m_Names.Size();
+    uint64_t name_hash = 0;
+    ProfileResult result = ProfileScopeBegin(name, &name_hash);
+    scope.m_NameHash = name_hash;
+
+    if (result == PROFILE_RESULT_OUT_OF_SAMPLES)
+    {
+        dmLogWarning("Lua profiler scope '%s' exceeded the profiler sample limit for the current thread/frame. Additional Lua profiler scopes will be dropped until the stack unwinds.", name);
+    }
+
+    uint32_t name_size = name_length + 1;
+    uint32_t names_size = state->m_Names.Size();
+    state->m_Names.SetSize(names_size + name_size);
+    memcpy(state->m_Names.Begin() + scope.m_NameOffset, name, name_length);
+    state->m_Names[scope.m_NameOffset + name_length] = 0;
+    state->m_Scopes.Push(scope);
+}
+
+static LuaProfilerScopeState* PopLuaProfilerScope(lua_State* L, LuaProfilerScope* out_scope)
+{
+    LuaProfilerScopeState* state = FindLuaProfilerScopeState(L);
+    if (state == 0 || state->m_Scopes.Empty())
+    {
+        return 0;
+    }
+
+    *out_scope = state->m_Scopes.Back();
+    state->m_Scopes.Pop();
+    return state;
+}
+
+static void AutoCloseLuaProfilerScopes()
+{
+    for (LuaProfilerScopeState* state = g_LuaProfilerScopeStates; state != 0; state = state->m_Next)
+    {
+        LuaProfilerScope scope = {0};
+        while (!state->m_Scopes.Empty())
+        {
+            scope = state->m_Scopes.Back();
+            state->m_Scopes.Pop();
+            const char* name = GetLuaProfilerScopeName(state, &scope);
+            dmLogError("Lua profiler scope '%s' was not closed before the end of the frame. Auto-closing it.", name);
+            ProfileScopeEnd(name, scope.m_NameHash);
+            state->m_Names.SetSize(scope.m_NameOffset);
+        }
+    }
+
+    DeleteEmptyLuaProfilerScopeStates();
+}
 
 void SetUpdateFrequency(uint32_t update_frequency)
 {
     gUpdateFrequency = update_frequency;
 }
 
+void SetEnabled(bool enabled)
+{
+    if(g_ProfilerEnabled == enabled)
+        return;
+    g_ProfilerEnabled = enabled;
+
+    if (enabled)
+    {
+        dmProfiler::SetSampleTreeCallback(g_ProfilerCurrentFrame, SampleTreeCallback);
+        dmProfiler::SetPropertyTreeCallback(g_ProfilerCurrentFrame, PropertyTreeCallback);
+    }
+    else
+    {
+        dmProfiler::SetSampleTreeCallback(0, 0);
+        dmProfiler::SetPropertyTreeCallback(0, 0);
+    }
+}
+
 void ToggleProfiler()
 {
     if (gRenderProfile)
     {
-        dmProfileRender::DeleteRenderProfile(gRenderProfile);
-        gRenderProfile = 0;
+        DeleteProfilerUI();
     }
     else
     {
@@ -92,31 +300,59 @@ struct ThreadSortPred
 };
 
 
-void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map)
+void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map)
 {
     if(gRenderProfile && g_ProfilerCurrentFrame)
     {
-        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
-
         DM_PROFILE("RenderProfiler");
+
+        {
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
         // Make sure the main thread is at the front so it's picked by default
         std::sort(g_ProfilerCurrentFrame->m_Threads.Begin(), g_ProfilerCurrentFrame->m_Threads.End(), ThreadSortPred(&g_ProfilerThreadSortOrder));
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
+        }
+
+        // Enable alpha blending
+        dmGraphics::PipelineState ps_before = dmGraphics::GetPipelineState(graphics_context);
+        dmGraphics::EnableState(graphics_context, dmGraphics::STATE_BLEND);
+        dmGraphics::SetBlendFunc(graphics_context, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
 
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
         dmRender::SetViewMatrix(render_context, dmVMath::Matrix4::identity());
         dmRender::SetProjectionMatrix(render_context, dmVMath::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
-        dmRender::DrawRenderList(render_context, 0, 0, 0);
+        dmRender::DrawRenderList(render_context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
         dmRender::ClearRenderObjects(render_context);
+        dmProfileRender::ClearTransientTextLayouts(gRenderProfile);
+
+        // Restore blend state
+        if (!ps_before.m_BlendEnabled)
+        {
+            dmGraphics::DisableState(graphics_context, dmGraphics::STATE_BLEND);
+        }
+        dmGraphics::SetBlendFunc(graphics_context, (dmGraphics::BlendFactor) ps_before.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_before.m_BlendDstFactor);
     }
 
+    dmProfileRender::ProfilerFrame* dump_frame = 0;
     if (g_ProfilerCurrentFrame)
     {
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+
+        if (g_ProfilerDumpNextFrame)
+            dump_frame = dmProfileRender::DuplicateProfilerFrame(g_ProfilerCurrentFrame);
+        g_ProfilerDumpNextFrame = false;
+
         g_ProfilerCurrentFrame->m_Properties.SetSize(0);
+    }
+
+    if (dump_frame)
+    {
+        dmProfileRender::DumpFrame(dump_frame);
+        dmProfileRender::DeleteProfilerFrame(dump_frame);
     }
 }
 
@@ -181,6 +417,34 @@ static int GetLuaRefCount(lua_State* L)
     return 1;
 }
 
+/*# enables or disables the in-game profiler data collection
+ *
+ * The profiler is a real-time tool that shows the numbers of milliseconds spent
+ * in each scope per frame as well as counters. The profiler is very useful for
+ * tracking down performance and resource problems.
+ *
+ * @name profiler.enable
+ * @param enabled [type:boolean] true to enable, false to disable
+ *
+ * @examples
+ * ```lua
+ * -- Show the profiler UI
+ * profiler.enable(true)
+ * ```
+ */
+static int EnableProfiler(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    if (!lua_isboolean(L, 1))
+    {
+        return DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", lua_typename(L, lua_type(L, 1)))
+    }
+
+    dmProfiler::SetEnabled(lua_toboolean(L, 1));
+    return 0;
+}
+
 /*# enables or disables the on-screen profiler ui
  * Creates and shows or hides and destroys the on-sceen profiler ui
  *
@@ -212,10 +476,9 @@ static int EnableProfilerUI(lua_State* L)
     {
         gRenderProfile = dmProfileRender::NewRenderProfile(gUpdateFrequency);
     }
-    else if (!enabled && gRenderProfile)
+    else if (!enabled)
     {
-        dmProfileRender::DeleteRenderProfile(gRenderProfile);
-        gRenderProfile = 0;
+        DeleteProfilerUI();
     }
 
     return 0;
@@ -236,7 +499,6 @@ static int EnableProfilerUI(lua_State* L)
  * You can also use the `view_recorded_frame` function to display a recorded frame. Doing so stops the recording as well.
  *
  * Every time you switch to recording mode the recording buffer is cleared.
- * The recording buffer is also cleared when setting the `MODE_SHOW_PEAK_FRAME` mode.
  *
  * @examples
  * ```lua
@@ -433,11 +695,11 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
     return 0;
 }
 
-/*# send a text to the profiler
- * Send a text to the profiler
+/*# send a text to the connected profiler
+ * Send a text to the connected profiler
  *
  * @name profiler.log_text
- * @param text [type:string] the string to send to the profiler
+ * @param text [type:string] the string to send to the connected profiler
  *
  * @examples
  * ```lua
@@ -454,8 +716,25 @@ static int ProfilerLogText(lua_State* L)
         return DM_LUA_ERROR("Expected string as second argument");
     }
 
-    dmProfile::LogText(text);
+    ProfileLogText("%s", text);
+    return 0;
+}
 
+/*# logs the current frame to the console
+ * logs the current frame to the console
+ *
+ * @name profiler.dump_frame
+ *
+ * @examples
+ * ```lua
+ * profiler.dump_frame()
+ * ```
+ */
+static int ProfilerDumpFrame(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    // Schedule the next frame for output to console log
+    g_ProfilerDumpNextFrame = true;
     return 0;
 }
 
@@ -463,7 +742,8 @@ static int ProfilerLogText(lua_State* L)
 /*# start a profile scope
  *
  * Starts a profile scope.
- * @note Must be correctly matched with a corresponding call to `profiler.scope_end()`
+ * @note Must be correctly matched with a corresponding call to `profiler.scope_end()` in the same frame.
+ * Any scopes left open at the end of the frame are reported as errors and auto-closed.
  *
  * @name profiler.scope_begin
  * @param name [type:string] The name of the scope
@@ -491,20 +771,34 @@ static int ProfilerScopeBegin(lua_State* L)
         return DM_LUA_ERROR("Expected non-empty string");
     }
 
-    dmProfile::ScopeBegin(name, 0);
+    PushLuaProfilerScope(L, name, len);
     return 0;
 }
 
 /*# end the current profile scope
  *
  * End the current profile scope.
+ * @note Calling this without a matching `profiler.scope_begin()` raises a Lua error.
  * @name profiler.scope_end
  *
  */
 static int ProfilerScopeEnd(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
-    dmProfile::ScopeEnd();
+    LuaProfilerScope scope = {0};
+    LuaProfilerScopeState* state = PopLuaProfilerScope(L, &scope);
+    if (state == 0)
+    {
+        return DM_LUA_ERROR("profiler.scope_end() called without a matching profiler.scope_begin()");
+    }
+
+    const char* name = GetLuaProfilerScopeName(state, &scope);
+    ProfileScopeEnd(name, scope.m_NameHash);
+    state->m_Names.SetSize(scope.m_NameOffset);
+    if (state->m_Scopes.Empty() && !state->m_IsMainThread)
+    {
+        DeleteLuaProfilerScopeState(state);
+    }
     return 0;
 }
 
@@ -512,80 +806,114 @@ static int ProfilerScopeEnd(lua_State* L)
 /*# continously show latest frame
 *
 * @name profiler.MODE_RUN
-* @variable
+* @constant
 */
 /*# pause on current frame
 *
 * @name profiler.MODE_PAUSE
-* @variable
+* @constant
 */
 /*# pause at peak frame
 *
 * @name profiler.MODE_SHOW_PEAK_FRAME
-* @variable
+* @constant
 */
 /*# start recording
 *
 * @name profiler.MODE_RECORD
-* @variable
+* @constant
 */
 /*# show full profiler ui
 *
 * @name profiler.VIEW_MODE_FULL
-* @variable
+* @constant
 */
 /*# show mimimal profiler ui
 *
 * @name profiler.VIEW_MODE_MINIMIZED
-* @variable
+* @constant
 */
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
+static inline uint32_t MakeColorFromHash(uint32_t hash)
+{
+    // Borrowed from Remotery.c
+
+    // Hash integer line position to full hue
+    float h = (float)hash / (float)0xFFFFFFFF;
+    float r = dmMath::Clamp(fabsf(fmodf(h * 6 + 0, 6) - 3) - 1, 0.0f, 1.0f);
+    float g = dmMath::Clamp(fabsf(fmodf(h * 6 + 4, 6) - 3) - 1, 0.0f, 1.0f);
+    float b = dmMath::Clamp(fabsf(fmodf(h * 6 + 2, 6) - 3) - 1, 0.0f, 1.0f);
+
+    // Cubic smooth
+    r = r * r * (3 - 2 * r);
+    g = g * g * (3 - 2 * g);
+    b = b * b * (3 - 2 * b);
+
+    // Lerp to HSV lightness a little
+    float k = 0.4;
+    r = r * k + (1 - k);
+    g = g * k + (1 - k);
+    b = b * k + (1 - k);
+
+    uint8_t br = (uint8_t)255*dmMath::Clamp(r, 0.0f, 1.0f);
+    uint8_t bg = (uint8_t)255*dmMath::Clamp(g, 0.0f, 1.0f);
+    uint8_t bb = (uint8_t)255*dmMath::Clamp(b, 0.0f, 1.0f);
+    uint8_t ba = 0xFF;
+
+    return (ba<<24) | (br << 16) | (bg << 8) | (bb << 0);
+}
+
+static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample)
 {
     dmProfileRender::ProfilerSample out;
 
-    out.m_StartTime = dmProfile::SampleGetStart(sample);
-    out.m_Time = dmProfile::SampleGetTime(sample);
-    out.m_SelfTime = dmProfile::SampleGetSelfTime(sample);
-    out.m_Count = dmProfile::SampleGetCallCount(sample);
-    out.m_Color = dmProfile::SampleGetColor(sample);
+    out.m_StartTime = dmProfiler::SampleGetStart(sample);
+    out.m_Time = dmProfiler::SampleGetTime(sample);
+    out.m_SelfTime = dmProfiler::SampleGetSelfTime(sample);
+    out.m_Count = dmProfiler::SampleGetCallCount(sample);
+    out.m_Color = dmProfiler::SampleGetColor(sample);
     out.m_Indent = (uint8_t)indent;
-    const char* name = dmProfile::SampleGetName(sample);
+    const char* name = dmProfiler::SampleGetName(sample);
     out.m_NameHash = dmHashString32(name?name:"<empty_sample_name>");
+    if (!out.m_Color)
+        out.m_Color = MakeColorFromHash(out.m_NameHash);
 
     if (thread->m_Samples.Full())
         thread->m_Samples.OffsetCapacity(32);
     thread->m_Samples.Push(out);
 }
 
-static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
+static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample)
 {
     ProcessSample(thread, indent, sample);
 
-    dmProfile::SampleIterator iter;
-    dmProfile::SampleIterateChildren(sample, &iter);
-    while (dmProfile::SampleIterateNext(&iter))
+    dmProfiler::SampleIterator iter;
+    dmProfiler::SampleIterateChildren(sample, &iter);
+    while (dmProfiler::SampleIterateNext(&iter))
     {
         TraverseSampleTree(thread, indent + 1, iter.m_Sample);
     }
 }
 
-static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::HSample root)
+static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfiler::HSample root)
 {
     if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
         return;
 
     // TODO: Make a better selection scheme, letting the user step through the threads one by one
-    if (strcmp(thread_name, "Main") != 0)
+    bool valid = strcmp(thread_name, "Main") == 0 || strcmp(thread_name, "sound") == 0;
+    if (!valid)
+    {
         return;
+    }
 
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
     dmProfileRender::ProfilerFrame* frame = (dmProfileRender::ProfilerFrame*)_ctx;
-    frame->m_Time = dmTime::GetTime();
+    frame->m_Time = dmTime::GetMonotonicTime();
 
     // Prune old profiler threads
     dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 150000);
@@ -596,7 +924,7 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
 
     thread->m_Time = frame->m_Time;
 
-    thread->m_SamplesTotalTime = dmProfile::SampleGetTime(root);
+    thread->m_SamplesTotalTime = dmProfiler::SampleGetTime(root);
 
     //printf("Thread: %s\n", thread_name);
     TraverseSampleTree(thread, 0, root);
@@ -605,39 +933,39 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
+static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property)
 {
-    const char* name = dmProfile::PropertyGetName(property);
+    const char* name = dmProfiler::PropertyGetName(property);
     uint32_t name_hash = dmHashString32(name?name:"<empty_property_name>");
 
-    dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
-    dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
+    ProfilePropertyType type = dmProfiler::PropertyGetType(property);
+    ProfilePropertyValue value = dmProfiler::PropertyGetValue(property);
 
     dmProfileRender::AddProperty(frame, name_hash, type, value, indent);
 }
 
-static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
+static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property)
 {
     ProcessProperty(frame, indent, property);
 
-    dmProfile::PropertyIterator iter;
-    dmProfile::PropertyIterateChildren(property, &iter);
-    while (dmProfile::PropertyIterateNext(&iter))
+    dmProfiler::PropertyIterator iter;
+    dmProfiler::PropertyIterateChildren(property, &iter);
+    while (dmProfiler::PropertyIterateNext(&iter))
     {
         TraversePropertyTree(frame, indent + 1, iter.m_Property);
     }
 }
 
-static void PropertyTreeCallback(void* _ctx, dmProfile::HProperty root)
+static void PropertyTreeCallback(void* _ctx, dmProfiler::HProperty root)
 {
     if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
         return;
 
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
-    dmProfile::PropertyIterator iter;
-    dmProfile::PropertyIterateChildren(root, &iter);
-    while (dmProfile::PropertyIterateNext(&iter))
+    dmProfiler::PropertyIterator iter;
+    dmProfiler::PropertyIterateChildren(root, &iter);
+    while (dmProfiler::PropertyIterateNext(&iter))
     {
         TraversePropertyTree(g_ProfilerCurrentFrame, 0, iter.m_Property);
     }
@@ -660,6 +988,7 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
         {"get_memory_usage",            MemoryUsage},
         {"get_cpu_usage",               CPUUsage},
         {"get_lua_ref_count",           GetLuaRefCount},
+        {"enable",                      EnableProfiler},
         {"enable_ui",                   EnableProfilerUI},
         {"set_ui_mode",                 SetProfileUIMode},
         {"set_ui_view_mode",            SetProfilerUIViewMode},
@@ -667,6 +996,7 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
         {"recorded_frame_count",        ProfilerUIRecordedFrameCount},
         {"view_recorded_frame",         ProfilerUIViewRecordedFrame},
         {"log_text",                    ProfilerLogText},
+        {"dump_frame",                  ProfilerDumpFrame},
 
         {"scope_begin",                 ProfilerScopeBegin},
         {"scope_end",                   ProfilerScopeEnd},
@@ -712,57 +1042,71 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
+static ExtensionResult PreRenderProfiler(dmExtension::Params* params)
+{
+    (void) params;
+    AutoCloseLuaProfilerScopes();
+    return EXTENSION_RESULT_OK;
+}
+
 static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 {
-    if (gRenderProfile)
-    {
-        dmProfileRender::DeleteRenderProfile(gRenderProfile);
-        gRenderProfile = 0;
-    }
+    AutoCloseLuaProfilerScopes();
+    DeleteLuaProfilerScopeStates();
+    DeleteProfilerUI();
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 {
+    // Note that the callback might come from a different thread!
+    g_ProfilerMutex = dmMutex::New();
+
     g_ProfilerPort = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.port", 0);
 
     g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
-    dmProfile::SetSampleTreeCallback(g_ProfilerCurrentFrame, SampleTreeCallback);
-    dmProfile::SetPropertyTreeCallback(g_ProfilerCurrentFrame, PropertyTreeCallback);
+    dmProfiler::SetEnabled(dmConfigFile::GetInt(params->m_ConfigFile, "profiler.enabled", 1) != 0);
 
-    dmProfile::Options options;
-    options.m_Port = g_ProfilerPort;
-    options.m_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.sleep_between_server_updates", 0);
-    dmProfile::Initialize(&options);
+    if (!ProfileIsInitialized())
+    {
+        ProfileInitialize();
+    }
 
-    if (!dmProfile::IsInitialized()) // We might use the null implementation
+    if (!ProfileIsInitialized()) // We might use the null implementation
     {
         delete g_ProfilerCurrentFrame;
         g_ProfilerCurrentFrame = 0;
+        dmMutex::Delete(g_ProfilerMutex);
+        g_ProfilerMutex = 0;
         return dmExtension::RESULT_OK;
     }
-
-    // Note that the callback might come from a different thread!
-    g_ProfilerMutex = dmMutex::New();
 
     g_ProfilerThreadSortOrder.SetCapacity(7, 8);
     g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);
     g_ProfilerThreadSortOrder.Put(dmHashString64("sound"), 1);
     g_ProfilerThreadSortOrder.Put(dmHashString64("liveupdate"), 2);
 
+    dmExtension::RegisterCallback(dmExtension::CALLBACK_PRE_RENDER, PreRenderProfiler);
+
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 {
-    if (!dmProfile::IsInitialized()) // We might use the null implementation
+    if (!ProfileIsInitialized()) // We might use the null implementation
     {
         return dmExtension::RESULT_OK;
     }
 
-    dmProfile::SetSampleTreeCallback(0, 0);
-    dmProfile::SetPropertyTreeCallback(0, 0);
-    dmProfile::Finalize();
+    dmProfiler::SetEnabled(false);
+    // The profiler UI is process-static, so app-finalize must also tear it
+    // down to avoid carrying prepared text layouts across engine reboots.
+    DeleteProfilerUI();
+
+    if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
+    {
+        ProfileFinalize();
+    }
 
     if (g_ProfilerCurrentFrame)
     {
@@ -772,6 +1116,7 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
     }
     dmMutex::Delete(g_ProfilerMutex);
     g_ProfilerMutex = 0;
+    DeleteLuaProfilerScopeStates();
 
     return dmExtension::RESULT_OK;
 }

@@ -1,0 +1,4 @@
+image: "/particle_blob.png"
+tile_width: 16
+tile_height: 16
+extrude_borders: 2

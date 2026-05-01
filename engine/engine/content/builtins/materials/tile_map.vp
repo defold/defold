@@ -1,10 +1,15 @@
-uniform highp mat4 view_proj;
+#version 140
 
 // positions are in world space
-attribute highp vec4 position;
-attribute mediump vec2 texcoord0;
+in highp vec4 position;
+in mediump vec2 texcoord0;
 
-varying mediump vec2 var_texcoord0;
+out mediump vec2 var_texcoord0;
+
+uniform vs_uniforms
+{
+    highp mat4 view_proj;
+};
 
 void main()
 {

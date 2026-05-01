@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,8 +29,8 @@ namespace dmCrash
         {
             DWORD written;
             AppStateHeader header;
-            header.version = AppState::VERSION;
-            header.struct_size = sizeof(AppState);
+            header.m_Version = AppState::VERSION;
+            header.m_StructSize = sizeof(AppState);
 
             if (WriteFile(fhandle, &header, sizeof(AppStateHeader), &written, 0))
             {

@@ -1,25 +1,30 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code-completion
-  (:require [clj-antlr.core :as antlr]
-            [clojure.java.io :as io]
-            [clojure.spec.alpha :as s]
+  (:require [clojure.spec.alpha :as s]
             [editor.code.data]
-            [internal.util :as util])
-  (:import [editor.code.data CursorRange]
-           [java.net URI]))
+            [internal.util :as util]
+            [util.fn :as fn])
+  (:import [com.defold.editor LSPSnippetLexer LSPSnippetParser]
+           [editor.code.data CursorRange]
+           [java.net URI]
+           [org.antlr.v4.runtime CharStreams CommonTokenStream ParserRuleContext]
+           [org.antlr.v4.runtime.tree ParseTree]))
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 ;; Completion spec
 (s/def ::name string?) ;; used for filtering
@@ -33,7 +38,7 @@
           :opt-un [:editor.code-completion.insert/cursor-range]))
 (s/def ::type
   #{;; defold-specific
-    :message
+    :message :typedef
     ;; shared with vscode
     :text :method :function :constructor :field :variable :class :interface
     :module :property :unit :value :enum :keyword :snippet :color :file
@@ -80,7 +85,7 @@
     :additional-edits     vector of additional plaintext changes to apply when
                           accepting the completion, e.g. adding a require/import
                           statement at the top of the file. a vector of maps
-                          with following keys (all required):
+                          with the following keys (all required):
                             :value           replacement string
                             :cursor-range    document replacement range
     :display-string       code completion label shown in the completion popup
@@ -123,19 +128,16 @@
                         {:type :markdown :value doc}
                         doc))))
 
-(def ^:private snippet-parser
-  (antlr/parser (slurp (io/resource "lsp-snippet.g4"))))
-
 ;; Insertion spec
 (defn- monotonously-increasing-range? [{:keys [from to]}]
-  (<= from to))
+  (<= (long from) (long to)))
 (s/def ::insert-string string?)
 (s/def ::range (s/and (s/cat :from int? :to int?) monotonously-increasing-range?))
 (defn- non-intersecting-sorted-ranges? [conformed-ranges]
   (->> conformed-ranges
        (partition 2 1)
        (every? (fn [[a b]]
-                 (<= (:to a) (:from b))))))
+                 (<= (long (:to a)) (long (:from b)))))))
 (s/def ::ranges (s/and (s/coll-of ::range :kind vector?) non-intersecting-sorted-ranges?))
 (s/def ::exit-ranges ::ranges)
 (s/def ::choices (s/coll-of string? :kind vector?))
@@ -145,6 +147,19 @@
 (s/def ::insertion
   (s/keys :req-un [::insert-string]
           :opt-un [::tab-triggers ::exit-ranges :editor.code-completion.insert/cursor-range ::additional-edits]))
+
+(defn- ->ast [^ParseTree ctx rule-names]
+  (if (instance? ParserRuleContext ctx)
+    (let [^ParserRuleContext ctx ctx
+          node (cons (keyword (aget ^Object/1 rule-names (.getRuleIndex ctx)))
+                     (into []
+                           (map (fn [^long i]
+                                  (->ast (.getChild ctx i) rule-names)))
+                           (range (.getChildCount ctx))))]
+      (if (.-exception ctx)
+        (list ::error node)
+        node))
+    (.getText ctx)))
 
 (defn evaluate-snippet
   "Convert LSP-style snippet string to an editor snippet
@@ -168,7 +183,13 @@
   See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#snippet_syntax"
   [snippet-string]
-  (let [ast (antlr/parse snippet-parser snippet-string)]
+  (let [ast (-> snippet-string
+                (CharStreams/fromString)
+                (LSPSnippetLexer.)
+                (CommonTokenStream.)
+                (LSPSnippetParser.)
+                (.snippet)
+                (->ast LSPSnippetParser/ruleNames))]
     ;; Parsing notes
     ;; Consider these 2 snippets: $1$1 and $1${1:fo}, what should the evaluated
     ;; snippet be? In vscode, the former snippet evaluates to a string "" with
@@ -196,7 +217,7 @@
                  ;; :snippet, :text, :text_esc and :err are unreachable because
                  ;; they only exist on the top level, while content-string is
                  ;; used to build string for choices, variables and placeholders
-                 :rule (content-string sb (first children))
+                 :syntax_rule (content-string sb (first children))
                  :newline (.append sb \newline)
                  ;; tab stop is LSP term, so we use it in the snippet
                  :tab_stop sb
@@ -222,10 +243,10 @@
             (prepare-tab-triggers [tab-triggers [token & children]]
               (case token
                 :snippet (reduce prepare-tab-triggers tab-triggers children)
-                :rule (prepare-tab-triggers tab-triggers (first children))
+                :syntax_rule (prepare-tab-triggers tab-triggers (first children))
                 :tab_stop (reduce prepare-tab-triggers tab-triggers children)
-                :naked_tab_stop (update tab-triggers (nth children 1) #(or % {}))
-                :curly_tab_stop (update tab-triggers (nth children 2) #(or % {}))
+                :naked_tab_stop (update tab-triggers (nth children 1) fn/or {})
+                :curly_tab_stop (update tab-triggers (nth children 2) fn/or {})
                 :placeholder (update tab-triggers (nth children 2) assoc
                                      :placeholder (content-string (nth children 4)))
                 :choice (update tab-triggers (nth children 2) assoc
@@ -251,7 +272,7 @@
                     :text_esc (do (.append sb (second children)) tab-triggers)
                     :err (do (.append sb (first children)) tab-triggers)
                     :newline (do (.append sb \newline) tab-triggers)
-                    :rule (complete-snippet tab-triggers (first children))
+                    :syntax_rule (complete-snippet tab-triggers (first children))
                     :tab_stop (complete-snippet tab-triggers (first children))
                     :naked_tab_stop (content-with-ranges tab-triggers (second children))
                     :curly_tab_stop (content-with-ranges tab-triggers (nth children 2))
@@ -299,7 +320,7 @@
 (defn insertion
   "Convert completion item to insertion item
 
-  Returns a map with following keys:
+  Returns a map with the following keys:
     :insert-string       required, the string to insert
     :exit-ranges         optional, non-empty sorted vector of non-intersecting
                          from+to index pairs in the range [0, string-length]
@@ -320,7 +341,7 @@
     :additional-edits    optional, vector of additional plaintext changes to
                          apply when accepting the completion, e.g. adding a
                          require/import statement at the top of the file. a
-                         vector of maps with following keys (all required):
+                         vector of maps with the following keys (all required):
                            :value           replacement string
                            :cursor-range    document replacement range"
   [completion]

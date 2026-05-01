@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -80,49 +80,64 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
 class ResourceTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
+        JobSystemCreateParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount    = 1;
+        m_JobContext = JobSystemCreate(&job_thread_create_param);
+
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        params.m_JobThreadContext = m_JobContext;
 
         factory = dmResource::NewFactory(&params, MOUNT_DIR);
         ASSERT_NE((void*) 0, factory);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (factory != NULL)
         {
             dmResource::DeleteFactory(factory);
         }
+        JobSystemDestroy(m_JobContext);
     }
 
     dmResource::HFactory factory;
+    HJobContext m_JobContext;
 };
 
 class DynamicResourceTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
+        JobSystemCreateParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount    = 1;
+        m_JobContext = JobSystemCreate(&job_thread_create_param);
+
         const char* test_dir = "build/src/test";
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        params.m_JobThreadContext = m_JobContext;
+
         factory = dmResource::NewFactory(&params, test_dir);
         ASSERT_NE((void*) 0, factory);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (factory != NULL)
         {
             dmResource::DeleteFactory(factory);
         }
+        JobSystemDestroy(m_JobContext);
     }
 
     dmResource::HFactory factory;
+    HJobContext m_JobContext;
 };
 
 
@@ -219,7 +234,7 @@ dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams* p
 class GetResourceTest : public jc_test_params_class<const char*>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_ResourceContainerCreateCallCount = 0;
         m_ResourceContainerDestroyCallCount = 0;
@@ -253,7 +268,7 @@ protected:
         ASSERT_EQ(dmResource::RESULT_OK, e);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Factory != NULL)
         {
@@ -563,6 +578,33 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
 
     e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &CONT_EXT_HASH, 1, &descriptor);
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
+}
+
+TEST_P(GetResourceTest, GetWithExt)
+{
+    void* resource = 0;
+    dmResource::Result e = dmResource::GetWithExt(m_Factory, m_ResourceName, "cont", &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*)0, resource);
+
+    void* sentinel = (void*)0xdeadbeef;
+    e = dmResource::GetWithExt(m_Factory, m_ResourceName, "foo", &sentinel);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+    ASSERT_EQ((void*)0, sentinel);
+
+    void* hashed_resource = 0;
+    dmhash_t name_hash = dmHashString64(m_ResourceName);
+    e = dmResource::GetWithExt(m_Factory, name_hash, CONT_EXT_HASH, &hashed_resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*)0, hashed_resource);
+
+    void* hashed_sentinel = (void*)0xdeadbeef;
+    e = dmResource::GetWithExt(m_Factory, name_hash, FOO_EXT_HASH, &hashed_sentinel);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+    ASSERT_EQ((void*)0xdeadbeef, hashed_sentinel);
+
+    dmResource::Release(m_Factory, hashed_resource);
+    dmResource::Release(m_Factory, resource);
 }
 
 const char* params_resource_paths[] = {
@@ -1165,13 +1207,13 @@ TEST(RecreateTest, RecreateTestHttp)
 
     dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
 
-    uint64_t t_start = dmTime::GetTime();
+    uint64_t t_start = dmTime::GetMonotonicTime();
     do
     {
         dmTime::Sleep(1000 * 10);
         dmResource::UpdateFactory(factory);
 
-        uint64_t t = dmTime::GetTime();
+        uint64_t t = dmTime::GetMonotonicTime();
         if ((t - t_start) >= 2 * 1000000)
         {
             ASSERT_TRUE(false && "Test timed out");
@@ -1581,6 +1623,154 @@ TEST(ResourceUtil, BytesToHexString)
     ASSERT_STREQ("000102030405060708090a0b0c0d0e0f", buffer_long);
 }
 
+// *********************************************************************************************************
+// Streaming support
+
+struct StreamTestResource
+{
+    uint32_t m_BufferSize;
+    uint32_t m_ResourceSize;
+    bool     m_IsBufferPartial;
+    uint8_t* m_Data;
+
+    const char* m_Path;
+    uint32_t    m_Offset;
+    uint32_t    m_ChunkSize;
+};
+
+static int StreamingPreloadCallback(dmResource::HFactory factory, void* cbk_ctx, HResourceDescriptor rd, uint32_t offset, uint32_t nread, uint8_t* buffer)
+{
+    StreamTestResource* resource = (StreamTestResource*)cbk_ctx;
+    uint32_t newsize = offset + nread;
+    resource->m_Data = (uint8_t*)realloc(resource->m_Data, newsize);
+
+    memcpy(resource->m_Data + offset, buffer, nread);
+    resource->m_Offset = newsize;
+
+    if (resource->m_Offset < resource->m_ResourceSize)
+    {
+        dmResource::PreloadData(factory, resource->m_Path, resource->m_Offset, resource->m_ChunkSize, StreamingPreloadCallback, (void*)resource);
+    }
+    return 1;
+}
+
+static dmResource::Result StreamResourceCreate(const dmResource::ResourceCreateParams* params)
+{
+    StreamTestResource* resource = new StreamTestResource;
+    resource->m_BufferSize = params->m_BufferSize;
+    resource->m_ResourceSize = params->m_FileSize;
+    resource->m_IsBufferPartial = params->m_IsBufferPartial;
+    resource->m_Data = (uint8_t*)malloc(resource->m_BufferSize);
+    resource->m_Path = strdup(params->m_Filename);
+    memcpy(resource->m_Data, params->m_Buffer, resource->m_BufferSize);
+
+    dmResource::SetResource(params->m_Resource, resource);
+    dmResource::SetResourceSize(params->m_Resource, params->m_FileSize);
+
+    if (params->m_IsBufferPartial)
+    {
+        resource->m_Offset    = resource->m_BufferSize;
+        resource->m_ChunkSize = resource->m_BufferSize;
+        dmResource::PreloadData(params->m_Factory, resource->m_Path, resource->m_Offset, resource->m_ChunkSize, StreamingPreloadCallback, (void*)resource);
+    }
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result StreamResourceDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    StreamTestResource* resource = (StreamTestResource*)dmResource::GetResource(params->m_Resource);
+    free((void*)resource->m_Data);
+    free((void*)resource->m_Path);
+    delete resource;
+    return dmResource::RESULT_OK;
+}
+
+
+TEST_F(ResourceTest, PartialReadTest)
+{
+    dmResource::Result e;
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &StreamResourceCreate, 0, &StreamResourceDestroy, 0);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    dmResource::HResourceType type;
+    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    const char* resource_name = "/__teststreaming__.foo";
+    const char* path = dmTestUtil::MakeHostPathf(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", TMP_DIR, resource_name);
+
+    // Write test data
+    uint8_t expected_data[256];
+    uint32_t expected_data_len = sizeof(expected_data);
+    for (uint32_t i = 0; i < expected_data_len; ++i)
+    {
+        expected_data[i] = uint8_t(i % 0xFF);
+    }
+
+    {
+        FILE* f = fopen(path, "wb");
+        ASSERT_NE((FILE*) 0, f);
+        fwrite(expected_data, 1, expected_data_len, f);
+        fclose(f);
+    }
+
+    // Currently no streaming enabled
+    {
+        StreamTestResource* resource;
+        dmResource::Result fr = dmResource::Get(factory, resource_name, (void**) &resource);
+        ASSERT_EQ(dmResource::RESULT_OK, fr);
+        ASSERT_EQ(expected_data_len, resource->m_ResourceSize);
+        ASSERT_EQ(expected_data_len, resource->m_BufferSize);
+        ASSERT_EQ(false, resource->m_IsBufferPartial);
+        ASSERT_ARRAY_EQ_LEN(expected_data, resource->m_Data, expected_data_len);
+
+        dmResource::Release(factory, resource);
+    }
+
+    // Enable streaming
+    uint32_t preload_size = 14;
+    ResourceTypeSetStreaming(type, preload_size);
+
+    {
+        // Get the first preload data chunk
+        StreamTestResource* resource;
+        dmResource::Result fr = dmResource::Get(factory, resource_name, (void**) &resource);
+
+        ASSERT_EQ(dmResource::RESULT_OK, fr);
+        ASSERT_EQ(expected_data_len, resource->m_ResourceSize);
+        ASSERT_EQ(preload_size, resource->m_BufferSize);
+        ASSERT_EQ(true, resource->m_IsBufferPartial);
+        ASSERT_ARRAY_EQ_LEN(expected_data, resource->m_Data, preload_size);
+
+        uint64_t tstart = dmTime::GetMonotonicTime();
+        uint32_t total_size = preload_size;
+        while (total_size < expected_data_len)
+        {
+            uint64_t tend = dmTime::GetMonotonicTime();
+            if ((tend - tstart) > 2 * 1000000)
+            {
+                dmLogError("Timeout!");
+                ASSERT_TRUE(false);
+            }
+
+            JobSystemUpdate(m_JobContext, 2000); // pump the results from the job thread to the main thread
+
+            ASSERT_ARRAY_EQ_LEN(expected_data, resource->m_Data, resource->m_Offset);
+
+            total_size = resource->m_Offset;
+        }
+
+        dmResource::Release(factory, resource);
+    }
+
+    dmSys::Unlink(path);
+}
+
+
+
+
+// *********************************************************************************************************
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
@@ -1627,5 +1817,6 @@ int main(int argc, char **argv)
 #if defined(DM_TEST_HTTP_SUPPORTED)
     dmSocket::Finalize();
 #endif
+    dmLog::LogFinalize();
     return ret;
 }

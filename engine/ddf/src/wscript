@@ -17,6 +17,7 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'ddfc_cxx.bat')
     bld.install_files('${PREFIX}/share/proto/ddf', 'ddf/ddf_extensions.proto')
     bld.install_files('${PREFIX}/share/proto/ddf', 'ddf/ddf_math.proto')
+    bld.install_files('${PREFIX}/share/proto/ddf', 'ddf/ddf_struct.proto')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,4 +22,16 @@ namespace dmSys {
      * @return Result as string
      */
     const char* ResultToString(Result result);
+
+    // For testing
+
+#if defined(_WIN32)
+    // Internal Windows helper used to test the path handling logic separately
+    // from the SHGetFolderPathW lookup.
+    Result GetApplicationSupportPath(const wchar_t* application_support_path, const char* application_name, char* path, uint32_t path_len);
+
+    // Internal Windows helper used to test the narrow path handling logic
+    // separately from the SHGetFolderPathW lookup and wchar_t-to-char conversion.
+    Result GetApplicationSupportPath(const char* application_support_path, const char* application_name, char* path, uint32_t path_len);
+#endif
 }

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,14 +17,14 @@
 
 #include <stdint.h>
 
-/*# SDK Time API documentation
+/*# Time API documentation
  *
  * Time functions.
  *
  * @document
  * @name Time
  * @namespace dmTime
- * @path engine/dlib/src/dmsdk/dlib/time.h
+ * @language C++
  */
 
 namespace dmTime
@@ -37,11 +37,29 @@ namespace dmTime
      */
     uint64_t GetTime();
 
+    /*# get monotonic time in microseconds
+     *
+     * Get monotonic time in microseconds since some unspecified starting point.
+     * @name dmTime::GetMonotonicTime
+     * @return result [type:uint64_t] Monotonic time in microseconds
+     */
+    
+    /*
+        +------------------+------------------+----------------------------------+------------------------------------+
+        | Platform         | Precision        | Resolution                       | Behavior                           |
+        +------------------+------------------+----------------------------------+------------------------------------+
+        | Windows          | Sub-microsecond  | ~100 nanoseconds or better       | Monotonic (QueryPerformanceCounter)|
+        | POSIX (Linux)    | Nanoseconds      | ~10 nanoseconds to 1 microsecond | Monotonic (CLOCK_MONOTONIC)        |
+        | macOS            | Nanoseconds      | ~10 nanoseconds to 1 microsecond | Monotonic (CLOCK_UPTIME_RAW)       |
+        +------------------+------------------+----------------------------------+------------------------------------+
+    */
+    uint64_t GetMonotonicTime();
+
     /*# sleep thread with low precision (~10 milliseconds).
      *
      * Sleep thread with low precision (~10 milliseconds).
      * @name dmTime::Sleep
-     * @param useconds Time to sleep in microseconds
+     * @param useconds [type:uint32_t] Time to sleep in microseconds
      */
     void Sleep(uint32_t useconds);
 

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -196,22 +196,22 @@
         capsule-cap-longs 32
         sphere-faces (geom/unit-sphere-pos-nrm capsule-cap-lats capsule-cap-longs)
         hemisphere-face-count (/ (* capsule-cap-lats capsule-cap-longs) 2)]
-    (concat
-      ;; Top cap
-      (sequence (comp (take hemisphere-face-count)
-                      (map #(pos-nrm-face->quad % 1.0)))
-                sphere-faces)
+    (vec (concat
+           ;; Top cap
+           (sequence (comp (take hemisphere-face-count)
+                           (map #(pos-nrm-face->quad % 1.0)))
+                     sphere-faces)
 
-      ;; Waist
-      (sequence (comp (drop hemisphere-face-count)
-                      (take capsule-cap-longs)
-                      (map pos-nrm-face->waist-quad))
-                sphere-faces)
+           ;; Waist
+           (sequence (comp (drop hemisphere-face-count)
+                           (take capsule-cap-longs)
+                           (map pos-nrm-face->waist-quad))
+                     sphere-faces)
 
-      ;; Bottom cap
-      (sequence (comp (drop hemisphere-face-count)
-                      (map #(pos-nrm-face->quad % -1.0)))
-                sphere-faces))))
+           ;; Bottom cap
+           (sequence (comp (drop hemisphere-face-count)
+                           (map #(pos-nrm-face->quad % -1.0)))
+                     sphere-faces)))))
 
 (defn- pos-vtx-put-point! [vbuf ^Point4d point]
   (pos-vtx-put! vbuf (.x point) (.y point) (.z point) (.w point)))
@@ -260,7 +260,7 @@
         color (float-array (or (colors/selection-color selected)
                                (colors/alpha color 1.0)))
         render-args (merge render-args
-                           (math/derive-render-transforms
+                           (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                              world-transform
                              (:view render-args)
                              (:projection render-args)
@@ -295,7 +295,7 @@
                   :else
                   (colors/alpha color shape-alpha)))
         render-args (merge render-args
-                           (math/derive-render-transforms
+                           (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                              world-transform
                              (:view render-args)
                              (:projection render-args)
@@ -315,3 +315,28 @@
       (gl/gl-draw-arrays gl primitive-type 0 point-count)
       (when-not double-sided
         (gl/gl-disable gl GL2/GL_CULL_FACE)))))
+
+(defn render-points [^GL2 gl render-args renderables _num-renderables]
+  (let [{:keys [selected user-data world-transform]} (first renderables)
+        {:keys [color geometry ^double point-size]} user-data
+        {:keys [primitive-type vbuf]} geometry
+        color (float-array (or (colors/selection-color selected)
+                               (colors/alpha color 1.0)))
+        render-args (merge render-args
+                           (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
+                            world-transform
+                            (:view render-args)
+                            (:projection render-args)
+                            (:texture render-args)))
+        point-count (:point-count user-data (count vbuf))
+        point-scale (:point-scale user-data no-point-scale)
+        point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
+        request-id (System/identityHashCode vbuf)
+        vertex-binding (vtx/use-with request-id vbuf shader)]
+    (gl/with-gl-bindings gl render-args [shader vertex-binding]
+      (.glPointSize gl point-size)
+      (shader/set-uniform shader gl "point_scale" point-scale)
+      (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
+      (shader/set-uniform shader gl "color" color)
+      (gl/gl-draw-arrays gl primitive-type 0 point-count)
+      (.glPointSize gl 1.0))))

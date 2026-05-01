@@ -1,0 +1,774 @@
+{
+    "issues": [
+        {
+            "author": "AGulev",
+            "body": "The 1 GB limitation for compressed files was doubled to make it possible to work with 16k x 16k atlases.",
+            "closed_issues": [
+                10404
+            ],
+            "duplicate": false,
+            "issue_number": 10404,
+            "labels": [
+                "bug",
+                "engine",
+                "windows"
+            ],
+            "mergecommit": "d269367befe7516e016a08d33ffa2b961c8b3e29",
+            "pr_number": 11058,
+            "referencecommits": [],
+            "title": "Fixed an issue where a 16k x 16k atlas couldn\u2019t be unpacked if the file size was bigger than 1 GB",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11058"
+        },
+        {
+            "author": "AGulev",
+            "body": "This fix creates a separate material constant buffer for cloned nodes. This not only fixes the crash when the prototype node is removed, but also makes it possible to use independent values per cloned node.",
+            "closed_issues": [
+                11011
+            ],
+            "duplicate": false,
+            "issue_number": 11011,
+            "labels": [
+                "bug",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "c25956dd9ffdcc3b1bf89dc8922391a9d30180dc",
+            "pr_number": 11033,
+            "referencecommits": [],
+            "title": "Fixed crash when a material constant was used in a cloned node but the prototype node had been removed",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11033"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed a couple of leaks in the `sys.*` module, and freed memory allocated for a mount name upon unmount.",
+            "closed_issues": [
+                11010
+            ],
+            "duplicate": false,
+            "issue_number": 11010,
+            "labels": [],
+            "mergecommit": "d80ef0c20ad81b332e333f24907e801cd971a17a",
+            "pr_number": 11010,
+            "referencecommits": [],
+            "title": "Fix leaks in `sys.*` module on iOS and macOS",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11010"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                11017
+            ],
+            "duplicate": false,
+            "issue_number": 11017,
+            "labels": [
+                "bug",
+                "engine",
+                "physics",
+                "quick win?"
+            ],
+            "mergecommit": "2e9622a12ac80aa7e70ff85e2be1c9bd8c36017a",
+            "pr_number": 11021,
+            "referencecommits": [],
+            "title": "Fix few `b2d.body` functions that always throw `vector3 expected, got userdata`.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11021"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where multipage atlas can't be transcoded and used in HTML5 on Chrome on Android. In such cases, the ASTC format will be marked as unsupported, and the next suitable format will be used (ETC2 in most cases).",
+            "closed_issues": [
+                11009
+            ],
+            "duplicate": false,
+            "issue_number": 11009,
+            "labels": [
+                "bug",
+                "engine",
+                "html5"
+            ],
+            "mergecommit": "dcfa9faa6efd901a8df001883f94e7b467c1db16",
+            "pr_number": 11023,
+            "referencecommits": [],
+            "title": "Fix multipage atlas issue on HTML5 target running on Chrome on Android",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11023"
+        },
+        {
+            "author": "AGulev",
+            "body": "Most modern GPUs don't support textures larger than 16384x16384. Defold doesn't support it either, and this fix simply adds a proper error to notify the user about the issue if they try to create such a texture.",
+            "closed_issues": [
+                11034
+            ],
+            "duplicate": false,
+            "issue_number": 11034,
+            "labels": [],
+            "mergecommit": "b0a6403d45138a2ba8d2201bcf3bf1fe4e61ddc8",
+            "pr_number": 11034,
+            "referencecommits": [],
+            "title": "An attempt to create an atlas bigger than 16384x16384 throws an error",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11034"
+        },
+        {
+            "author": "AGulev",
+            "body": "With this fix, `resource.get_atlas()` returns the `rotated` flag for geometries, and it's now necessary to add the `rotated` flag for geometries in `resource.set_atlas()`.  \r\nThis resolves issues with rotated images in some GUI cases.",
+            "closed_issues": [
+                10840,
+                8784
+            ],
+            "duplicate": false,
+            "issue_number": 10840,
+            "labels": [
+                "bug",
+                "engine",
+                "gui",
+                "atlas"
+            ],
+            "mergecommit": "5cd0fd2315dc3a65ee8d8e7247475c4e8877018e",
+            "pr_number": 11038,
+            "referencecommits": [],
+            "title": "Make it possible to work with rotated images in runtime-created atlases",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11038"
+        },
+        {
+            "author": "AGulev",
+            "body": "With this fix, `resource.get_atlas()` returns the `rotated` flag for geometries, and it's now necessary to add the `rotated` flag for geometries in `resource.set_atlas()`.  \r\nThis resolves issues with rotated images in some GUI cases.",
+            "closed_issues": [
+                8784
+            ],
+            "duplicate": true,
+            "issue_number": 8784,
+            "labels": [
+                "bug",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "5cd0fd2315dc3a65ee8d8e7247475c4e8877018e",
+            "pr_number": 11038,
+            "referencecommits": [],
+            "title": "Make it possible to work with rotated images in runtime-created atlases",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11038"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where, in a paged atlas, textures were taken from the wrong page. This occurred in rare cases on devices using the WebGL1/OpenGL ES 2.0 graphics backend.",
+            "closed_issues": [
+                8728
+            ],
+            "duplicate": false,
+            "issue_number": 8728,
+            "labels": [
+                "bug",
+                "engine",
+                "render"
+            ],
+            "mergecommit": "052196df0ee4d457f0c57c8d1eb2b693f84da9ae",
+            "pr_number": 11039,
+            "referencecommits": [],
+            "title": "Fix precision issue with multipage atlas",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11039"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed `PANIC: unprotected error...` that occurs in cases like `assert(nil, nil)` or `error(hash(\"something\"))`.",
+            "closed_issues": [
+                9392,
+                8540,
+                10453
+            ],
+            "duplicate": false,
+            "issue_number": 9392,
+            "labels": [
+                "bug",
+                "engine",
+                "lua"
+            ],
+            "mergecommit": "7a5665d0a51de0f40715147ae9c6c3dc9e4bc56b",
+            "pr_number": 11041,
+            "referencecommits": [],
+            "title": "Fix `PANIC: unprotected error...` in some rare cases in Lua",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11041"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed `PANIC: unprotected error...` that occurs in cases like `assert(nil, nil)` or `error(hash(\"something\"))`.",
+            "closed_issues": [
+                8540
+            ],
+            "duplicate": true,
+            "issue_number": 8540,
+            "labels": [
+                "bug",
+                "engine",
+                "lua"
+            ],
+            "mergecommit": "7a5665d0a51de0f40715147ae9c6c3dc9e4bc56b",
+            "pr_number": 11041,
+            "referencecommits": [],
+            "title": "Fix `PANIC: unprotected error...` in some rare cases in Lua",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11041"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed `PANIC: unprotected error...` that occurs in cases like `assert(nil, nil)` or `error(hash(\"something\"))`.",
+            "closed_issues": [
+                10453
+            ],
+            "duplicate": true,
+            "issue_number": 10453,
+            "labels": [
+                "bug",
+                "more info",
+                "engine"
+            ],
+            "mergecommit": "7a5665d0a51de0f40715147ae9c6c3dc9e4bc56b",
+            "pr_number": 11041,
+            "referencecommits": [],
+            "title": "Fix `PANIC: unprotected error...` in some rare cases in Lua",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11041"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                5549
+            ],
+            "duplicate": false,
+            "issue_number": 5549,
+            "labels": [
+                "bug",
+                "engine",
+                "windows",
+                "good first issue"
+            ],
+            "mergecommit": "0d672c5fc041ac951e2bb41c3e28707418873dca",
+            "pr_number": 11046,
+            "referencecommits": [],
+            "title": "Fixed issue when `sys.open_url()` reports false when a url is opened on Windows",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11046"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Set a minimum width for the center panel.",
+            "closed_issues": [
+                11020,
+                11020
+            ],
+            "duplicate": false,
+            "issue_number": 11020,
+            "labels": [
+                "bug",
+                "editor",
+                "javafx"
+            ],
+            "mergecommit": "7c4eb6ae042de5b9c4a281ffc9ce035d569e0538",
+            "pr_number": 11049,
+            "referencecommits": [],
+            "title": "Set center panel minimum width",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11049"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Set a minimum width for the center panel.",
+            "closed_issues": [
+                11020
+            ],
+            "duplicate": true,
+            "issue_number": 11020,
+            "labels": [
+                "bug",
+                "editor",
+                "javafx"
+            ],
+            "mergecommit": "7c4eb6ae042de5b9c4a281ffc9ce035d569e0538",
+            "pr_number": 11049,
+            "referencecommits": [],
+            "title": "Set center panel minimum width",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11049"
+        },
+        {
+            "author": "AGulev",
+            "body": "`scale_along_z` has been fully removed from the engine. Read the following information to understand how to migrate your projects.\r\n\r\n### \u26a0\ufe0f\u26a0\ufe0f\u26a0\ufe0f Action Needed (Breaking Change)\r\n\r\n#### What is `scale_along_z`?\r\n`scale_along_z` was a hidden option in `*.collection` files, set to `0` by default.  \r\nWhen set to `0`, scaling on objects and collections did **not** affect their z-position.  \r\n\r\nFor example, if your sprite has a position `x: 0.0, y: 0.0, z: 0.1`, and its GameObject has a scale `x: 1.0, y: 1.0, z: 2.0`:\r\n- With `scale_along_z = 0`, the transform of the sprite remains `x: 0.0, y: 0.0, z: 0.1`\r\n- With `scale_along_z = 1`, the transform becomes `x: 0.0, y: 0.0, z: 0.2`\r\n\r\n#### Why Was It Removed?\r\nThis was a legacy feature that introduced special-case logic and added complexity to the engine. While it had utility in some 2D projects, it was often a source of confusion in 3D projects. To unify 2D and 3D workflows, we\u2019ve made the difficult decision to remove it, even though it\u2019s a breaking change.\r\n\r\n#### Who Needs to Take Action?\r\nIf you are unfamiliar with `scale_along_z`, or you never explicitly set it to `1`, **you need to update your project**. If your project consistently used `scale_along_z: 1` across all collections, **no action is required**.\r\n\r\n#### What Should Be Done in Lua Code?\r\nTo avoid unexpected behavior now that scaling affects Z-position:\r\n\r\n- Replace all usages of `go.set_scale(number|vector3)` with `go.set_scale_xy(number|vector3)`\r\n- When accessing the `scale` property via `go.get()`, `go.set()`, or `go.animate()`, use the `scale.xy` property instead\r\n\r\n#### What Should Be Done in Project Files?\r\nReview your GameObjects and Collections and check for use of the Z component in the `scale` property.  \r\nIf you find a non 1.0 Z scale in your project, investigate why it's there. In most of 2D cases, the Z scale should always be 1.0 because it doesn't affect anything. However, in some cases\u2014such as pseudo-3D effects, perspective cameras, particles, 3D models, etc. Z-scaling may be intentional. These situations require manual review.\r\n\r\nIf all children of such an object have `position.z == 0`, then behavior will not change.  \r\nBut if `position.z` is non-zero, then the scale will now affect it, and you'll need to decide case by case how to proceed based on your game\u2019s requirements.  \r\nFor example:\r\n- You might need to adjust object positions to compensate for `scale.z` now affecting the children's positions.\r\n- Or, set the parent object's `scale.z` to 1.0 and instead scale all children individually (adjusting positions accordingly).\r\n\r\nAutomatic migration is not possible due to the variety of use cases.  \r\nPlease review and adjust your project accordingly.  \r\n\r\nWe apologize for the inconvenience and hope that this change leads to a more consistent and understandable workflow for all users.",
+            "closed_issues": [
+                9529,
+                7441,
+                6165,
+                5679,
+                5631
+            ],
+            "duplicate": false,
+            "issue_number": 9529,
+            "labels": [
+                "task",
+                "engine",
+                "editor",
+                "bob",
+                "breaking change",
+                "scale along z"
+            ],
+            "mergecommit": "b2aad427b25982a9ab172f734581b15aa51b333f",
+            "pr_number": 10483,
+            "referencecommits": [],
+            "title": "\u26a0\ufe0f Removed `scale_along_z` from the engine",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/10483"
+        },
+        {
+            "author": "AGulev",
+            "body": "`scale_along_z` has been fully removed from the engine. Read the following information to understand how to migrate your projects.\r\n\r\n### \u26a0\ufe0f\u26a0\ufe0f\u26a0\ufe0f Action Needed (Breaking Change)\r\n\r\n#### What is `scale_along_z`?\r\n`scale_along_z` was a hidden option in `*.collection` files, set to `0` by default.  \r\nWhen set to `0`, scaling on objects and collections did **not** affect their z-position.  \r\n\r\nFor example, if your sprite has a position `x: 0.0, y: 0.0, z: 0.1`, and its GameObject has a scale `x: 1.0, y: 1.0, z: 2.0`:\r\n- With `scale_along_z = 0`, the transform of the sprite remains `x: 0.0, y: 0.0, z: 0.1`\r\n- With `scale_along_z = 1`, the transform becomes `x: 0.0, y: 0.0, z: 0.2`\r\n\r\n#### Why Was It Removed?\r\nThis was a legacy feature that introduced special-case logic and added complexity to the engine. While it had utility in some 2D projects, it was often a source of confusion in 3D projects. To unify 2D and 3D workflows, we\u2019ve made the difficult decision to remove it, even though it\u2019s a breaking change.\r\n\r\n#### Who Needs to Take Action?\r\nIf you are unfamiliar with `scale_along_z`, or you never explicitly set it to `1`, **you need to update your project**. If your project consistently used `scale_along_z: 1` across all collections, **no action is required**.\r\n\r\n#### What Should Be Done in Lua Code?\r\nTo avoid unexpected behavior now that scaling affects Z-position:\r\n\r\n- Replace all usages of `go.set_scale(number|vector3)` with `go.set_scale_xy(number|vector3)`\r\n- When accessing the `scale` property via `go.get()`, `go.set()`, or `go.animate()`, use the `scale.xy` property instead\r\n\r\n#### What Should Be Done in Project Files?\r\nReview your GameObjects and Collections and check for use of the Z component in the `scale` property.  \r\nIf you find a non 1.0 Z scale in your project, investigate why it's there. In most of 2D cases, the Z scale should always be 1.0 because it doesn't affect anything. However, in some cases\u2014such as pseudo-3D effects, perspective cameras, particles, 3D models, etc. Z-scaling may be intentional. These situations require manual review.\r\n\r\nIf all children of such an object have `position.z == 0`, then behavior will not change.  \r\nBut if `position.z` is non-zero, then the scale will now affect it, and you'll need to decide case by case how to proceed based on your game\u2019s requirements.  \r\nFor example:\r\n- You might need to adjust object positions to compensate for `scale.z` now affecting the children's positions.\r\n- Or, set the parent object's `scale.z` to 1.0 and instead scale all children individually (adjusting positions accordingly).\r\n\r\nAutomatic migration is not possible due to the variety of use cases.  \r\nPlease review and adjust your project accordingly.  \r\n\r\nWe apologize for the inconvenience and hope that this change leads to a more consistent and understandable workflow for all users.",
+            "closed_issues": [
+                7441
+            ],
+            "duplicate": true,
+            "issue_number": 7441,
+            "labels": [
+                "bug",
+                "engine",
+                "model",
+                "scale along z",
+                "breaking change"
+            ],
+            "mergecommit": "b2aad427b25982a9ab172f734581b15aa51b333f",
+            "pr_number": 10483,
+            "referencecommits": [],
+            "title": "\u26a0\ufe0f Removed `scale_along_z` from the engine",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/10483"
+        },
+        {
+            "author": "AGulev",
+            "body": "`scale_along_z` has been fully removed from the engine. Read the following information to understand how to migrate your projects.\r\n\r\n### \u26a0\ufe0f\u26a0\ufe0f\u26a0\ufe0f Action Needed (Breaking Change)\r\n\r\n#### What is `scale_along_z`?\r\n`scale_along_z` was a hidden option in `*.collection` files, set to `0` by default.  \r\nWhen set to `0`, scaling on objects and collections did **not** affect their z-position.  \r\n\r\nFor example, if your sprite has a position `x: 0.0, y: 0.0, z: 0.1`, and its GameObject has a scale `x: 1.0, y: 1.0, z: 2.0`:\r\n- With `scale_along_z = 0`, the transform of the sprite remains `x: 0.0, y: 0.0, z: 0.1`\r\n- With `scale_along_z = 1`, the transform becomes `x: 0.0, y: 0.0, z: 0.2`\r\n\r\n#### Why Was It Removed?\r\nThis was a legacy feature that introduced special-case logic and added complexity to the engine. While it had utility in some 2D projects, it was often a source of confusion in 3D projects. To unify 2D and 3D workflows, we\u2019ve made the difficult decision to remove it, even though it\u2019s a breaking change.\r\n\r\n#### Who Needs to Take Action?\r\nIf you are unfamiliar with `scale_along_z`, or you never explicitly set it to `1`, **you need to update your project**. If your project consistently used `scale_along_z: 1` across all collections, **no action is required**.\r\n\r\n#### What Should Be Done in Lua Code?\r\nTo avoid unexpected behavior now that scaling affects Z-position:\r\n\r\n- Replace all usages of `go.set_scale(number|vector3)` with `go.set_scale_xy(number|vector3)`\r\n- When accessing the `scale` property via `go.get()`, `go.set()`, or `go.animate()`, use the `scale.xy` property instead\r\n\r\n#### What Should Be Done in Project Files?\r\nReview your GameObjects and Collections and check for use of the Z component in the `scale` property.  \r\nIf you find a non 1.0 Z scale in your project, investigate why it's there. In most of 2D cases, the Z scale should always be 1.0 because it doesn't affect anything. However, in some cases\u2014such as pseudo-3D effects, perspective cameras, particles, 3D models, etc. Z-scaling may be intentional. These situations require manual review.\r\n\r\nIf all children of such an object have `position.z == 0`, then behavior will not change.  \r\nBut if `position.z` is non-zero, then the scale will now affect it, and you'll need to decide case by case how to proceed based on your game\u2019s requirements.  \r\nFor example:\r\n- You might need to adjust object positions to compensate for `scale.z` now affecting the children's positions.\r\n- Or, set the parent object's `scale.z` to 1.0 and instead scale all children individually (adjusting positions accordingly).\r\n\r\nAutomatic migration is not possible due to the variety of use cases.  \r\nPlease review and adjust your project accordingly.  \r\n\r\nWe apologize for the inconvenience and hope that this change leads to a more consistent and understandable workflow for all users.",
+            "closed_issues": [
+                6165
+            ],
+            "duplicate": true,
+            "issue_number": 6165,
+            "labels": [
+                "engine",
+                "editor",
+                "model",
+                "scale along z",
+                "breaking change"
+            ],
+            "mergecommit": "b2aad427b25982a9ab172f734581b15aa51b333f",
+            "pr_number": 10483,
+            "referencecommits": [],
+            "title": "\u26a0\ufe0f Removed `scale_along_z` from the engine",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/10483"
+        },
+        {
+            "author": "AGulev",
+            "body": "`scale_along_z` has been fully removed from the engine. Read the following information to understand how to migrate your projects.\r\n\r\n### \u26a0\ufe0f\u26a0\ufe0f\u26a0\ufe0f Action Needed (Breaking Change)\r\n\r\n#### What is `scale_along_z`?\r\n`scale_along_z` was a hidden option in `*.collection` files, set to `0` by default.  \r\nWhen set to `0`, scaling on objects and collections did **not** affect their z-position.  \r\n\r\nFor example, if your sprite has a position `x: 0.0, y: 0.0, z: 0.1`, and its GameObject has a scale `x: 1.0, y: 1.0, z: 2.0`:\r\n- With `scale_along_z = 0`, the transform of the sprite remains `x: 0.0, y: 0.0, z: 0.1`\r\n- With `scale_along_z = 1`, the transform becomes `x: 0.0, y: 0.0, z: 0.2`\r\n\r\n#### Why Was It Removed?\r\nThis was a legacy feature that introduced special-case logic and added complexity to the engine. While it had utility in some 2D projects, it was often a source of confusion in 3D projects. To unify 2D and 3D workflows, we\u2019ve made the difficult decision to remove it, even though it\u2019s a breaking change.\r\n\r\n#### Who Needs to Take Action?\r\nIf you are unfamiliar with `scale_along_z`, or you never explicitly set it to `1`, **you need to update your project**. If your project consistently used `scale_along_z: 1` across all collections, **no action is required**.\r\n\r\n#### What Should Be Done in Lua Code?\r\nTo avoid unexpected behavior now that scaling affects Z-position:\r\n\r\n- Replace all usages of `go.set_scale(number|vector3)` with `go.set_scale_xy(number|vector3)`\r\n- When accessing the `scale` property via `go.get()`, `go.set()`, or `go.animate()`, use the `scale.xy` property instead\r\n\r\n#### What Should Be Done in Project Files?\r\nReview your GameObjects and Collections and check for use of the Z component in the `scale` property.  \r\nIf you find a non 1.0 Z scale in your project, investigate why it's there. In most of 2D cases, the Z scale should always be 1.0 because it doesn't affect anything. However, in some cases\u2014such as pseudo-3D effects, perspective cameras, particles, 3D models, etc. Z-scaling may be intentional. These situations require manual review.\r\n\r\nIf all children of such an object have `position.z == 0`, then behavior will not change.  \r\nBut if `position.z` is non-zero, then the scale will now affect it, and you'll need to decide case by case how to proceed based on your game\u2019s requirements.  \r\nFor example:\r\n- You might need to adjust object positions to compensate for `scale.z` now affecting the children's positions.\r\n- Or, set the parent object's `scale.z` to 1.0 and instead scale all children individually (adjusting positions accordingly).\r\n\r\nAutomatic migration is not possible due to the variety of use cases.  \r\nPlease review and adjust your project accordingly.  \r\n\r\nWe apologize for the inconvenience and hope that this change leads to a more consistent and understandable workflow for all users.",
+            "closed_issues": [
+                5679
+            ],
+            "duplicate": true,
+            "issue_number": 5679,
+            "labels": [
+                "bug",
+                "engine",
+                "mesh",
+                "scale along z",
+                "breaking change"
+            ],
+            "mergecommit": "b2aad427b25982a9ab172f734581b15aa51b333f",
+            "pr_number": 10483,
+            "referencecommits": [],
+            "title": "\u26a0\ufe0f Removed `scale_along_z` from the engine",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/10483"
+        },
+        {
+            "author": "AGulev",
+            "body": "`scale_along_z` has been fully removed from the engine. Read the following information to understand how to migrate your projects.\r\n\r\n### \u26a0\ufe0f\u26a0\ufe0f\u26a0\ufe0f Action Needed (Breaking Change)\r\n\r\n#### What is `scale_along_z`?\r\n`scale_along_z` was a hidden option in `*.collection` files, set to `0` by default.  \r\nWhen set to `0`, scaling on objects and collections did **not** affect their z-position.  \r\n\r\nFor example, if your sprite has a position `x: 0.0, y: 0.0, z: 0.1`, and its GameObject has a scale `x: 1.0, y: 1.0, z: 2.0`:\r\n- With `scale_along_z = 0`, the transform of the sprite remains `x: 0.0, y: 0.0, z: 0.1`\r\n- With `scale_along_z = 1`, the transform becomes `x: 0.0, y: 0.0, z: 0.2`\r\n\r\n#### Why Was It Removed?\r\nThis was a legacy feature that introduced special-case logic and added complexity to the engine. While it had utility in some 2D projects, it was often a source of confusion in 3D projects. To unify 2D and 3D workflows, we\u2019ve made the difficult decision to remove it, even though it\u2019s a breaking change.\r\n\r\n#### Who Needs to Take Action?\r\nIf you are unfamiliar with `scale_along_z`, or you never explicitly set it to `1`, **you need to update your project**. If your project consistently used `scale_along_z: 1` across all collections, **no action is required**.\r\n\r\n#### What Should Be Done in Lua Code?\r\nTo avoid unexpected behavior now that scaling affects Z-position:\r\n\r\n- Replace all usages of `go.set_scale(number|vector3)` with `go.set_scale_xy(number|vector3)`\r\n- When accessing the `scale` property via `go.get()`, `go.set()`, or `go.animate()`, use the `scale.xy` property instead\r\n\r\n#### What Should Be Done in Project Files?\r\nReview your GameObjects and Collections and check for use of the Z component in the `scale` property.  \r\nIf you find a non 1.0 Z scale in your project, investigate why it's there. In most of 2D cases, the Z scale should always be 1.0 because it doesn't affect anything. However, in some cases\u2014such as pseudo-3D effects, perspective cameras, particles, 3D models, etc. Z-scaling may be intentional. These situations require manual review.\r\n\r\nIf all children of such an object have `position.z == 0`, then behavior will not change.  \r\nBut if `position.z` is non-zero, then the scale will now affect it, and you'll need to decide case by case how to proceed based on your game\u2019s requirements.  \r\nFor example:\r\n- You might need to adjust object positions to compensate for `scale.z` now affecting the children's positions.\r\n- Or, set the parent object's `scale.z` to 1.0 and instead scale all children individually (adjusting positions accordingly).\r\n\r\nAutomatic migration is not possible due to the variety of use cases.  \r\nPlease review and adjust your project accordingly.  \r\n\r\nWe apologize for the inconvenience and hope that this change leads to a more consistent and understandable workflow for all users.",
+            "closed_issues": [
+                5631
+            ],
+            "duplicate": true,
+            "issue_number": 5631,
+            "labels": [
+                "bug",
+                "engine",
+                "editor",
+                "render",
+                "scale along z",
+                "breaking change"
+            ],
+            "mergecommit": "b2aad427b25982a9ab172f734581b15aa51b333f",
+            "pr_number": 10483,
+            "referencecommits": [],
+            "title": "\u26a0\ufe0f Removed `scale_along_z` from the engine",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/10483"
+        },
+        {
+            "author": "AGulev",
+            "body": "This PR fixes the issue where having an `arcd` archive larger than 2 GB on Windows results in a runtime error:\r\n```\r\nERROR:RESOURCE: Path to small to fit into buffer: game.arcd\r\nERROR:RESOURCE: Failed to mount base archive: -1000 for mount archive://game.dmanifest\r\nWARNING:RESOURCE: No resource loaders mounted that could match uri archive:game.dmanifest\r\n```",
+            "closed_issues": [
+                11060
+            ],
+            "duplicate": false,
+            "issue_number": 11060,
+            "labels": [
+                "bug",
+                "engine",
+                "windows"
+            ],
+            "mergecommit": "3f7e8019d2c69d9c9ab361629a33a6a449706b36",
+            "pr_number": 11061,
+            "referencecommits": [],
+            "title": "Fixed an issue where files larger than 2GB couldn\u2019t be read on windows",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11061"
+        },
+        {
+            "author": "vlaaad",
+            "body": "New preference **Code \u2192 Auto-insert closing parens** allows turning off the auto-closing of parens in the editor.",
+            "closed_issues": [
+                10781
+            ],
+            "duplicate": false,
+            "issue_number": 10781,
+            "labels": [
+                "feature request",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "af1300f921ab3832c5b7c2f2edb5656770f8b72f",
+            "pr_number": 11064,
+            "referencecommits": [],
+            "title": "Add a preference to disable auto-closing parens in the editor.",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11064"
+        },
+        {
+            "author": "vlaaad",
+            "body": "When the editor opens a project, it will start a web server on a random port. This port is now written to the `.internal/editor.port` file.\r\n\r\nAdditionally, we added a command line option `--port` (or `-p`) to the editor executable, which allows specifying the port during launch.\r\n\r\nExample use:\r\n```shell\r\n# on Windows\r\n.\\Defold.exe --port 8181\r\n\r\n# on Linux:\r\n./Defold --port 8181\r\n\r\n# on macOS:\r\n./Defold.app/Contents/MacOS/Defold --port 8181\r\n```",
+            "closed_issues": [
+                8737
+            ],
+            "duplicate": false,
+            "issue_number": 8737,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "7e51b46eb90405f90456811259b943c007a6c2b3",
+            "pr_number": 11065,
+            "referencecommits": [],
+            "title": "Make editor server port more accessible",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11065"
+        },
+        {
+            "author": "JCash",
+            "body": "This will help when new contributors setup their environment, to see if their compiler can build and possibly run a test executable.",
+            "closed_issues": [
+                11066
+            ],
+            "duplicate": false,
+            "issue_number": 11066,
+            "labels": [],
+            "mergecommit": "412217fecfe81f3476295e5d32f8f73e2f1d922c",
+            "pr_number": 11066,
+            "referencecommits": [],
+            "title": "Added sdk test for macos, ios, linux and android when running check_sdk",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11066"
+        },
+        {
+            "author": "sprocketc",
+            "body": "",
+            "closed_issues": [
+                11067
+            ],
+            "duplicate": false,
+            "issue_number": 11067,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "18a38da32ed460d7adfb816e296289e9e69c8878",
+            "pr_number": 11068,
+            "referencecommits": [],
+            "title": "Fix drag and drop NullPointerException",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11068"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed DF font artifacts that occur in some fonts with vector shapes overlapping each other:\r\n![](https://forum.defold.com/uploads/default/original/3X/a/e/ae42187237af0d7f75ecce47e55ac5dff1629677.png)<img width=\"296\" height=\"293\" alt=\"CleanShot 2025-08-09 at 18 40 18@2x\" src=\"https://github.com/user-attachments/assets/4bf77e6a-aa0b-4fae-a1c1-947bf08b2b56\" />",
+            "closed_issues": [
+                6577
+            ],
+            "duplicate": false,
+            "issue_number": 6577,
+            "labels": [
+                "bug",
+                "engine",
+                "font"
+            ],
+            "mergecommit": "500cc0ca78466fae0758ee1e0161a38e9075f702",
+            "pr_number": 11073,
+            "referencecommits": [],
+            "title": "Fix multi-contour artifacts in DF font generator",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11073"
+        },
+        {
+            "author": "AGulev",
+            "body": "Changes in APIs:  \r\n`camera.get_aspect_ratio()` \u2013 Now returns the effective aspect ratio (auto-calculated if auto is enabled, manual value if disabled)  \r\n`camera.set_aspect_ratio()` \u2013 Sets the manual aspect ratio value, which is used only if auto is disabled  \r\n`camera.get_auto_aspect_ratio()` \u2013 Returns whether auto-calculation is enabled  \r\n`camera.set_auto_aspect_ratio()` \u2013  Controls whether to use auto-calculation or the manual value",
+            "closed_issues": [
+                10632
+            ],
+            "duplicate": false,
+            "issue_number": 10632,
+            "labels": [
+                "feature request",
+                "engine",
+                "camera"
+            ],
+            "mergecommit": "d6cf8a884d91501d1c72dbf5c626224ed9445b06",
+            "pr_number": 11077,
+            "referencecommits": [],
+            "title": "Make aspect ratio\u2013related function in the `camera.*` module useful",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11077"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixes an issue where the engine crashes if an `opus` file is used without including the OPUS decoder in the App Manifest. Now the engine shows an error to help figure out what's going on.",
+            "closed_issues": [
+                11069
+            ],
+            "duplicate": false,
+            "issue_number": 11069,
+            "labels": [
+                "bug",
+                "engine",
+                "sound"
+            ],
+            "mergecommit": "08cb38ecb3095ce897f7816c3c291734501f1f3e",
+            "pr_number": 11078,
+            "referencecommits": [],
+            "title": "Show an error message if the decoder for a used sound isn't included in the App Manifest",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11078"
+        },
+        {
+            "author": "sprocketc",
+            "body": "",
+            "closed_issues": [
+                11074,
+                11076
+            ],
+            "duplicate": false,
+            "issue_number": 11074,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "cb41830e409027be4a62b3bb442162021740078d",
+            "pr_number": 11075,
+            "referencecommits": [],
+            "title": "Fix selection context on outline label double click, and no selection npe",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11075"
+        },
+        {
+            "author": "sprocketc",
+            "body": "",
+            "closed_issues": [
+                11076
+            ],
+            "duplicate": true,
+            "issue_number": 11076,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "cb41830e409027be4a62b3bb442162021740078d",
+            "pr_number": 11075,
+            "referencecommits": [],
+            "title": "Fix selection context on outline label double click, and no selection npe",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11075"
+        },
+        {
+            "author": "AGulev",
+            "body": "Added new `[box2d]` section in game.project:\r\n  - `velocity_iterations` (default: 10) - Box2D 2.2 velocity solver iterations\r\n  - `position_iterations` (default: 10) - Box2D 2.2 position solver iterations\r\n  - `sub_step_count` (default: 4) - Box2D 3.x sub-stepping count\r\n  \r\nUsing these new parameters, users can reduce iterations for better performance or increase for higher precision.",
+            "closed_issues": [
+                10692
+            ],
+            "duplicate": false,
+            "issue_number": 10692,
+            "labels": [
+                "feature request",
+                "engine",
+                "physics",
+                "quick win?",
+                "box2d"
+            ],
+            "mergecommit": "ab386c974e24de13ab9d4e65c850585a9f4771f6",
+            "pr_number": 11081,
+            "referencecommits": [],
+            "title": "Added physics solver parameters into `game.project` -> `Box2D`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11081"
+        },
+        {
+            "author": "AGulev",
+            "body": "With this fix, it will be possible to use the `go.exists()` function to check if a game object exists in another collection.",
+            "closed_issues": [
+                10795
+            ],
+            "duplicate": false,
+            "issue_number": 10795,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "mergecommit": "e43b6475e39d60489567639bad7d53d938211151",
+            "pr_number": 11083,
+            "referencecommits": [],
+            "title": "Enable `go.exists()` to query the existence of game objects across collections",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11083"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now it's possible to unpack ZIP files using editor scripts, e.g.:\r\n```lua\r\n-- simply unpack\r\nzip.unpack(\"build/dev/archive.zip\")\r\n-- unpack to another directory\r\nzip.unpack(\"build/dev/archive.zip\", \"build/dev/tmp\")\r\n-- overwrite on conflict\r\nzip.unpack(\"build/dev/archive.zip\", {on_conflict = zip.ON_CONFLICT.OVERWRITE})\r\n-- unpack a subset of files\r\nzip.unpack(\"build/dev/archive.zip\", {\"config.json\", \"src\"})\r\n```",
+            "closed_issues": [
+                10407
+            ],
+            "duplicate": false,
+            "issue_number": 10407,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "569a87d6b1f83d999941811fae7d542a8530479b",
+            "pr_number": 11089,
+            "referencecommits": [],
+            "title": "Add `zip.unpack` editor script function",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11089"
+        },
+        {
+            "author": "jixingcn",
+            "body": "Make sure the final mesh set doesn\u2019t contain duplicated meshes.",
+            "closed_issues": [
+                11099
+            ],
+            "duplicate": false,
+            "issue_number": 11099,
+            "labels": [
+                "bug",
+                "model"
+            ],
+            "mergecommit": "122f0f174add4fa12dab4576a4a33d6514552a9f",
+            "pr_number": 11099,
+            "referencecommits": [],
+            "title": "Fix issue with duplicated meshes in models with hierarchies",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11099"
+        },
+        {
+            "author": "jixingcn",
+            "body": "Fixed an issue where flattening of the GLTF/GLB model didn\u2019t take the model hierarchy into account.",
+            "closed_issues": [
+                9603
+            ],
+            "duplicate": false,
+            "issue_number": 9603,
+            "labels": [
+                "bug",
+                "bob",
+                "model",
+                "pipeline",
+                "gltf"
+            ],
+            "mergecommit": "838795fee6ddfd791f3307ed24bf2bbda0657d60",
+            "pr_number": 11097,
+            "referencecommits": [],
+            "title": "Fix issue where some non-skinned GLTF/GLB models were rendered incorrectly",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11097"
+        },
+        {
+            "author": "sprocketc",
+            "body": "",
+            "closed_issues": [
+                11117
+            ],
+            "duplicate": false,
+            "issue_number": 11117,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "9e3d6e88ed08367ec9fbced00dfa2cc9548709b4",
+            "pr_number": 11116,
+            "referencecommits": [],
+            "title": "Cancel outline rename on drag",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11116"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Improvements:\r\n- smaller editor size (got 30MB lighter)\r\n- faster to open markdown/html files\r\n- now opens relative file links like `See [setup.md](setup.md)`\r\n- now scrolls to header links like `See [license](#license) section`\r\n\r\nRegressions:\r\n- no longer shows SVGs (e.g., shields, contributors' avatars)\r\n- not a full-blown HTML viewer anymore (e.g., no div align, no CSS, no JS)",
+            "closed_issues": [
+                11112
+            ],
+            "duplicate": false,
+            "issue_number": 11112,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "baeeef22ff3b4e25bed904d7d3009a36f0ad4f0a",
+            "pr_number": 11112,
+            "referencecommits": [],
+            "title": "Use custom markdown/HTML viewer instead of a web view",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11112"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, `/game.project` form will show settings from `/game.properties`, as well as from `ext.properties` files coming from extensions.",
+            "closed_issues": [
+                3157
+            ],
+            "duplicate": false,
+            "issue_number": 3157,
+            "labels": [
+                "feature request",
+                "editor",
+                "extension"
+            ],
+            "mergecommit": "7126ffa684b282fac68a5db0323aaffd98df32eb",
+            "pr_number": 11125,
+            "referencecommits": [],
+            "title": "Show settings from `/game.properties` and `ext.properties`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11125"
+        }
+    ],
+    "timestamp": 1756121781.522232,
+    "version": "1.11.0"
+}

@@ -68,3 +68,6 @@ linear_damping: 0.1
 angular_damping: 0.1
 locked_rotation: true
 bullet: true
+event_collision: false
+event_contact: false
+event_trigger: false

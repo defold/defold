@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -136,6 +136,7 @@ PFN_vkQueuePresentKHR vkQueuePresentKHR;
 PFN_vkResetCommandBuffer vkResetCommandBuffer;
 PFN_vkResetDescriptorPool vkResetDescriptorPool;
 PFN_vkCmdCopyImageToBuffer vkCmdCopyImageToBuffer;
+PFN_vkGetFenceStatus vkGetFenceStatus;
 
 namespace dmGraphics
 {
@@ -286,6 +287,7 @@ namespace dmGraphics
         vkResetCommandBuffer = (PFN_vkResetCommandBuffer) vkGetInstanceProcAddr(vk_instance, "vkResetCommandBuffer");
         vkResetDescriptorPool = (PFN_vkResetDescriptorPool) vkGetInstanceProcAddr(vk_instance, "vkResetDescriptorPool");
         vkCmdCopyImageToBuffer = (PFN_vkCmdCopyImageToBuffer) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyImageToBuffer");
+        vkGetFenceStatus = (PFN_vkGetFenceStatus) vkGetInstanceProcAddr(vk_instance, "vkGetFenceStatus");
         g_functions_loaded = 1;
     }
 }

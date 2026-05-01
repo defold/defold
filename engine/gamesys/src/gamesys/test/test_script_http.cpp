@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,6 +27,8 @@
 #include <dlib/testutil.h>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
+#include <extension/extension.hpp>
+#include <platform/window.hpp>
 
 static int g_HttpPort = 9001;
 char g_HttpAddress[128] = "localhost";
@@ -93,12 +95,18 @@ public:
     dmScript::HContext m_ScriptContext;
     lua_State* L;
     dmMessage::URL m_DefaultURL;
+    HWindow m_Window;
+    dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_ConfigFile;
+    dmGraphics::HContext m_GraphicsContext;
+    dmRender::HRenderContext m_RenderContext;
+    ExtensionAppParams  m_AppParams;
+    ExtensionParams     m_Params;
     int m_NumberOfFails;
 
 protected:
 
-    virtual void SetUp()
+    void SetUp() override
     {
         char path[1024];
         dmTestUtil::MakeHostPath(path, sizeof(path), "src/gamesys/test/http/test_http.config.raw");
@@ -108,10 +116,52 @@ protected:
 
         m_HttpResponseCount = 0;
 
+        WindowCreateParams win_params;
+        WindowCreateParamsInitialize(&win_params);
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 64;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+
+        m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
+        ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
+
         dmScript::ContextParams script_context_params = {};
         script_context_params.m_ConfigFile = m_ConfigFile;
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
+
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Window = m_Window;
+        // graphics_context_params.m_JobContext = m_JobContext;
+
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+
+        dmRender::RenderContextParams render_params;
+        render_params.m_MaxRenderTypes = 10;
+        render_params.m_MaxInstances = 1000;
+        render_params.m_MaxRenderTargets = 10;
+        render_params.m_ScriptContext = m_ScriptContext;
+        render_params.m_MaxCharacters = 256;
+        render_params.m_MaxBatches = 128;
+        m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
+
+        ExtensionAppParamsInitialize(&m_AppParams);
+        ExtensionParamsInitialize(&m_Params);
+
+        m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
+        m_Params.m_ConfigFile = m_ConfigFile;
+        m_Params.m_ResourceFactory = m_Factory;
+        ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
+        ExtensionParamsSetContext(&m_Params, "config", m_ConfigFile);
+        ExtensionParamsSetContext(&m_Params, "render", m_RenderContext);
+
+        dmExtension::AppInitialize(&m_AppParams);
+        dmExtension::Initialize(&m_Params);
+
         L = dmScript::GetLuaState(m_ScriptContext);
 
         dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -140,9 +190,11 @@ protected:
         dmScript::SetInstance(L);
         assert(top == lua_gettop(L));
         m_NumberOfFails = 0;
+
+        dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmScript::GetInstance(L);
         ScriptInstance* script_instance = (ScriptInstance*)lua_touserdata(L, -1);
@@ -156,8 +208,25 @@ protected:
         if (m_DefaultURL.m_Socket) {
             dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
         }
+
+        dmExtension::Finalize(&m_Params);
+        dmExtension::AppFinalize(&m_AppParams);
+
+        ExtensionParamsFinalize(&m_Params);
+        ExtensionAppParamsFinalize(&m_AppParams);
+
+        dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
+        dmGraphics::CloseWindow(m_GraphicsContext);
+        dmGraphics::DeleteContext(m_GraphicsContext);
+
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+
+        dmResource::DeleteFactory(m_Factory);
+
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
+
         dmConfigFile::Delete(m_ConfigFile);
     }
 
@@ -215,7 +284,7 @@ TEST_F(ScriptHttpTest, TestGetPost)
     }
     lua_pop(L, 1);
 
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
 
     while (1) {
         dmSys::PumpMessageQueue();
@@ -239,7 +308,7 @@ TEST_F(ScriptHttpTest, TestGetPost)
 
         dmTime::Sleep(10 * 1000);
 
-        uint64_t now = dmTime::GetTime();
+        uint64_t now = dmTime::GetMonotonicTime();
         uint64_t elapsed = now - start;
 
         if (elapsed / 1000000 > 8) {
@@ -287,7 +356,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
     }
     lua_pop(L, 1);
 
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
     while (1) {
         dmSys::PumpMessageQueue();
         dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
@@ -307,7 +376,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
 
         dmTime::Sleep(10 * 1000);
 
-        uint64_t now = dmTime::GetTime();
+        uint64_t now = dmTime::GetMonotonicTime();
         uint64_t elapsed = now - start;
         if (elapsed / 1000000 > 4) {
             dmLogError("The test timed out\n");
@@ -358,8 +427,11 @@ static void Destroy()
     dmLog::LogFinalize();
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
@@ -397,5 +469,6 @@ int main(int argc, char **argv)
     int ret = jc_test_run_all();
 
     Destroy();
+    dmLog::LogFinalize();
     return ret;
 }

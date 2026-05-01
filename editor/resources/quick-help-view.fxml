@@ -16,5 +16,5 @@
             </Insets>
         </VBox.margin>
     </ImageView>
-    <GridPane id="quick-help-items" alignment="CENTER" vgap="15"/>
+    <GridPane id="quick-help-items" alignment="CENTER" vgap="15" hgap="15"/>
 </VBox>

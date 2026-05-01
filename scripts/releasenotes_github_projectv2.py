@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,6 +21,9 @@ sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "
 import optparse
 import github
 import json
+import time
+import subprocess
+import math
 
 token = None
 
@@ -28,22 +31,39 @@ TYPE_BREAKING_CHANGE = "BREAKING CHANGE"
 TYPE_FIX = "FIX"
 TYPE_NEW = "NEW"
 
-# https://docs.github.com/en/graphql/overview/explorer
-QUERY_CLOSED_ISSUES = r"""
+
+QUERY_ISSUE = r"""
 {
   organization(login: "defold") {
-    id
-    projectV2(number: %s) {
-      id
-      title
-      items(first: 100) {
-        nodes {
-          content {
-            ... on Issue {
-              id
-              closed
-              title
-              bodyText
+    repository(name: "%s") {
+      issue(number: %s) {
+        id
+        closed
+        title
+        number
+        body
+        url
+        author {
+          login
+        }
+        repository {
+          name
+        }
+        labels(first: 10) {
+          nodes {
+            name
+          }
+        }
+        timelineItems(first: 250) {
+          nodes {
+            __typename
+            ... on CrossReferencedEvent {
+              source {
+                ... on PullRequest {
+                  number
+                  merged
+                }
+              }
             }
           }
         }
@@ -53,10 +73,100 @@ QUERY_CLOSED_ISSUES = r"""
 }
 """
 
+
+QUERY_PULLREQUEST = r"""
+{
+  organization(login: "defold") {
+    repository(name: "%s") {
+      pullRequest(number: %s) {
+        id
+        merged
+        title
+        number
+        body
+        url
+        baseRefName
+        headRefName
+        author {
+          login
+        }
+        repository {
+          name
+        }
+        labels(first: 10) {
+          nodes {
+            name
+          }
+        }
+        closingIssuesReferences(first: 10) {
+            nodes {
+                number,
+                repository {
+                    name,
+                    url
+                }
+            }
+        }
+        timelineItems(first: 250) {
+          nodes {
+            __typename
+            ... on MergedEvent {
+              commit {
+                  oid
+              }
+              mergeRefName
+            }
+            ... on ReferencedEvent {
+              commit {
+                  oid
+              }
+            }
+            ... on CrossReferencedEvent {
+              source {
+                ... on Issue {
+                  number
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+QUERY_PULLREQUEST_TIMELINE_EVENTS = r"""
+{
+  organization(login: "defold") {
+    repository(name: "%s") {
+      pullRequest(number: %s) {
+        timelineItems(first: 250, itemTypes: [MERGED_EVENT, REFERENCED_EVENT]) {
+          nodes {
+            __typename
+            ... on MergedEvent {
+              commit {
+                  oid
+              }
+              mergeRefName
+            }
+            ... on ReferencedEvent {
+              commit {
+                  oid
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+# https://docs.github.com/en/graphql/overview/explorer
 QUERY_PROJECT_ISSUES_AND_PRS = r"""
 {
   organization(login: "defold") {
-    id
     projectV2(number: %s) {
       id
       title
@@ -65,71 +175,17 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
           type
           content {
             ... on Issue {
-              id
               closed
-              title
               number
-              body
-              url
-              labels(first: 10) {
-                nodes {
-                  name
-                }
-              }
-              timelineItems(first: 100) {
-                nodes {
-                  ... on CrossReferencedEvent {
-                    source {
-                      ... on PullRequest {
-                        id
-                        body
-                        number
-                        merged
-                        title
-                        url
-                        labels(first: 10) {
-                          nodes {
-                            name
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
+              repository {
+                name
               }
             }
             ... on PullRequest {
-              id
               merged
-              title
               number
-              body
-              url
-              labels(first: 10) {
-                nodes {
-                  name
-                }
-              }
-              timelineItems(first: 100) {
-                nodes {
-                  ... on CrossReferencedEvent {
-                    source {
-                      ... on Issue {
-                        id
-                        body
-                        number
-                        closed
-                        title
-                        url
-                        labels(first: 10) {
-                          nodes {
-                            name
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
+              repository {
+                name
               }
             }
           }
@@ -157,31 +213,48 @@ QUERY_PROJECT_NUMBER = r"""
 def pprint(d):
     print(json.dumps(d, indent=4, sort_keys=True))
 
+def red(s, **kwargs): print("\033[31m{}\033[00m" .format(s), **kwargs)
+def green(s, **kwargs): print("\033[32m{}\033[00m" .format(s), **kwargs)
+def yellow(s, **kwargs): print("\033[33m{}\033[00m" .format(s), **kwargs)
+
 def _print_errors(response):
     for error in response['errors']:
         print(error['message'])
 
-def get_project(name):
-    query = QUERY_PROJECT_NUMBER % name
+def github_query(query):
     response = github.query(query, token)
     if 'errors' in response:
+        print(response)
         _print_errors(response)
         sys.exit(1)
-    return response["data"]["organization"]["projectsV2"]["nodes"][0]
+    return response["data"]
+
+def get_project(name):
+    data = github_query(QUERY_PROJECT_NUMBER % name)
+    return data["organization"]["projectsV2"]["nodes"][0]
+
+def get_issue(number, repository = "defold"):
+    data = github_query(QUERY_ISSUE % (repository, number))
+    return data["organization"]["repository"]["issue"]
+
+def get_pullrequest(number, repository = "defold"):
+    data = github_query(QUERY_PULLREQUEST % (repository, number))
+    pr = data["organization"]["repository"]["pullRequest"]
+    if find_merge_commit(pr) is None and len(find_reference_commits(pr)) == 0:
+        timeline_data = github_query(QUERY_PULLREQUEST_TIMELINE_EVENTS % (repository, number))
+        pr["timelineItems"] = timeline_data["organization"]["repository"]["pullRequest"]["timelineItems"]
+    return pr
 
 def get_issues_and_prs(project):
-    query = QUERY_PROJECT_ISSUES_AND_PRS % project.get("number")
-    response = github.query(query, token)
-    if 'errors' in response:
-        _print_errors(response)
-        sys.exit(1)
-    response = response["data"]["organization"]["projectV2"]["items"]["nodes"]
-    return response
+    data = github_query(QUERY_PROJECT_ISSUES_AND_PRS % project.get("number"))
+    return data["organization"]["projectV2"]["items"]["nodes"]
 
-def get_labels(issue_or_pr):
+def get_labels(*args):
     labels = []
-    for l in issue_or_pr["labels"]["nodes"]:
-        labels.append(l["name"])
+    for item in args:
+        for label in item["labels"]["nodes"]:
+            if not label["name"] in labels:
+                labels.append(label["name"])
     return labels
 
 def get_issue_type_from_labels(labels):
@@ -195,19 +268,77 @@ def get_issue_type_from_labels(labels):
         return TYPE_NEW
     return TYPE_FIX
 
+def get_closing_issue(pr):
+    for node in reversed(pr["closingIssuesReferences"]["nodes"]):
+        issue_number = node["number"]
+        repository = node["repository"]["name"]
+        return get_issue(issue_number, repository)
+    return pr
+
 def get_closing_pr(issue):
-    for t in issue["timelineItems"]["nodes"]:
-        if t and "source" in t and t["source"]:
-            if t["source"].get("merged") == True:
-                return t["source"]
+    repository = issue.get("repository").get("name")
+    # an issue may reference multiple merged items on the
+    # timeline - pick the last one! (ie newest)
+    for node in reversed(issue["timelineItems"]["nodes"]):
+        if not node["__typename"] == "CrossReferencedEvent":
+            continue
+        if node["source"].get("merged") == True:
+            closing_number = node["source"]["number"]
+            return get_pullrequest(closing_number, repository)
     return issue
 
+def find_merge_commit(pr):
+    commit = None
+    for node in pr["timelineItems"]["nodes"]:
+        if not node:
+            continue
+        if not node["__typename"] == "MergedEvent":
+            continue
+        if "commit" in node:
+            commit = node["commit"]["oid"]
+            break
+    return commit
+
+def find_reference_commits(pr):
+    commits = []
+    for node in pr["timelineItems"]["nodes"]:
+        if not node:
+            continue
+        if not node["__typename"] == "ReferencedEvent":
+            continue
+        if "commit" in node:
+            commits.append(node["commit"]["oid"])
+    return commits
+
+def get_commit_branches(commit):
+    # print("git branch --contains %s" % commit)
+    result = subprocess.run(["git", "branch", "--contains", commit], capture_output = True)
+    out = result.stdout.decode('utf-8')
+    if result.returncode == 0:
+        return [line.replace("*", "").strip() for line in out.splitlines()]
+    red(result.stderr.decode('utf-8'))
+    sys.exit(result.returncode)
+
+def check_commit_branches(commit, branches):
+    result = get_commit_branches(commit)
+    for branch in branches:
+        if not branch in result:
+            return False
+    return True
+
 def issue_to_markdown(issue, hide_details = True, title_only = False):
+    closed_issues = []
+    for x in issue["closed_issues"]:
+        if issue.get("repository") == "defold":
+            closed_issues.append("#" + str(x))
+        else:
+            closed_issues.append(issue.get("repository") + "#" + str(x))
+
     if title_only:
-        md = ("* __%s__: ([#%s](%s)) %s \n" % (issue["type"], issue["number"], issue["url"], issue["title"]))
+        md = ("* __%s__: ([%s](%s)) %s (by %s)\n" % (issue["type"], ",".join(closed_issues), issue["url"], issue["title"], issue["author"]))
 
     else:    
-        md = ("__%s__: ([#%s](%s)) __%s__ \n" % (issue["type"], issue["number"], issue["url"], issue["title"]))
+        md = ("__%s__: ([%s](%s)) __'%s'__ by %s\n" % (issue["type"], ",".join(closed_issues), issue["url"], issue["title"], issue["author"]))
         if hide_details: md += ("[details=\"Details\"]\n")
         md += ("%s\n" % issue["body"])
         if hide_details: md += ("\n---\n[/details]\n")
@@ -215,103 +346,271 @@ def issue_to_markdown(issue, hide_details = True, title_only = False):
 
     return md
 
-def generate(version, hide_details = False):
-    print("Generating release notes for %s" % version)
+
+def parse_github_project(version):
     project = get_project(version)
     if not project:
         print("Unable to find GitHub project for version %s" % version)
         return None
 
-    output = []
-    merged = get_issues_and_prs(project)
-    for m in merged:
-        content = m.get("content")
+
+    print("Parsing GitHub project for version %s" % version)
+    issues = []
+    items = get_issues_and_prs(project)
+    for item in items:
+        content = item.get("content")
         if not content:
             continue
-        is_issue = m.get("type") == "ISSUE"
-        is_pr = m.get("type") == "PULL_REQUEST"
-        if is_issue and content.get("closed") == False:
+
+        # if content.get("number") not in [11377,11412]: continue
+        # pprint(content)
+        # pprint(item)
+
+        repository = content.get("repository").get("name")
+        print("  %12s %-12s #%-8s - " % (item.get("type"), repository, content.get("number")), end = "")
+        if content.get("merged", False) == False and content.get("closed", False) == False:
+            yellow("IGNORED (not closed/merged)")
             continue
-        if is_pr and content.get("merged") == False:
+
+        issue = None
+        pr = None
+        if item.get("type") == "ISSUE":
+            issue = get_issue(content.get("number"), repository = repository)
+            pr = get_closing_pr(issue)
+        elif item.get("type") == "PULL_REQUEST":
+            pr = get_pullrequest(content.get("number"), repository = repository)
+            issue = get_closing_issue(pr)
+            issue_number_matching = pr.get("number") == issue.get("number")
+            repository_matching = pr.get("repository").get("name") == issue.get("repository").get("name")
+            if repository_matching and not issue_number_matching:
+                yellow("IGNORED (both PR and issue #%s added to the project)" % issue.get("number"))
+                continue
+
+        labels = get_labels(issue, pr)
+
+        # skip release notes if label is set
+        if "skip release notes" in labels:
+            yellow("IGNORED (skip release notes)")
             continue
 
-        issue_labels = get_labels(content)
-        if "skip release notes" in issue_labels:
-            continue
-
-        if is_issue:
-            content = get_closing_pr(content)
-            # merge labels skipping duplicates
-            for label in get_labels(content):
-                if not label in issue_labels:
-                    issue_labels.append(label)
-
-        issue_type = get_issue_type_from_labels(issue_labels)
-
-        entry = {
-            "title": content.get("title"),
-            "body": content.get("body"),
-            "url": content.get("url"),
-            "number": content.get("number"),
-            "labels": issue_labels,
-            "is_pr": is_pr,
-            "is_issue": is_issue,
-            "type": issue_type
-        }
-        # strip from match to end of file
-        entry["body"] = re.sub("## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("# Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Technical notes:.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("## Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
-
-        # Remove closing keywords
-        entry["body"] = re.sub("Fixes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixes #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-
-        # Remove "user facing changes" header
-        entry["body"] = re.sub("User-facing changes:", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=re.IGNORECASE).strip()
-
+        # Make sure to ignore duplicates
         duplicate = False
-        for o in output:
-            if o.get("number") == entry.get("number"):
+        for existing_issue in issues:
+            if existing_issue.get("number") == issue.get("number") and existing_issue.get("repository") == issue.get("repository"):
                 duplicate = True
                 break
-        if not duplicate:
-            output.append(entry)
 
+        # Multiple issues closed by the same PR
+        for existing_issue in issues:
+            if existing_issue["pr_number"] == pr.get("number"):
+                existing_issue["closed_issues"].append(issue.get("number"))
+                duplicate = True
+                break
+
+        entry = {
+            "title": pr.get("title"),
+            "body": pr.get("body"),
+            "url": pr.get("url"),
+            "issue_number": issue.get("number"),
+            "pr_number": pr.get("number"),
+            "closed_issues": [ issue.get("number") ],
+            "author": pr.get("author").get("login"),
+            "labels": labels,
+            "type": get_issue_type_from_labels(labels),
+            "mergecommit": find_merge_commit(pr),
+            "referencecommits": find_reference_commits(pr),
+            "duplicate": duplicate,
+            "repository": issue.get("repository").get("name")
+        }
+        # strip from match to end of file
+        flags = re.DOTALL|re.IGNORECASE
+        entry["body"] = re.sub(r"## PR checklist.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"#* Technical changes.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Technical changes.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"#* Technical notes.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Technical notes.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"#* Technical details.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Technical details.*", "", entry["body"], flags=flags).strip()
+
+        # Remove closing keywords
+        flags = re.IGNORECASE
+        entry["body"] = re.sub(r"Resolves https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolves #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolved https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolved #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolve https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolve #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closes https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closes #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closed https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closed #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Close https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Close #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixes https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixes #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixed https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixed #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fix https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fix #\d*.*", "", entry["body"], flags=flags).strip()
+
+        # Remove other common ways to reference issues
+        flags = re.IGNORECASE
+        entry["body"] = re.sub(r"Also related to #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Related to #\d*.*", "", entry["body"], flags=flags).strip()
+
+        # Remove "user facing changes" header
+        flags = re.IGNORECASE
+        entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=flags).strip()
+
+        issues.append(entry)
+        green("OK")
+
+    return issues
+
+def check_issue_commits(issues):
+    print("\nChecking issue commits for dev and beta presence")
+    merge_dev_count = 0
+    merge_beta_count = 0
+    merge_dev_beta_count = 0
+    reference_dev_count = 0
+    reference_beta_count = 0
+    reference_dev_beta_count = 0
+    ignored_count = 0
+    missing_dev_count = 0
+    missing_beta_count = 0
+    missing_dev_beta_count = 0
+    for issue in issues:
+        dev_ok = False
+        beta_ok = False
+        print("  Checking #%s '%s' (%s)" % (issue["issue_number"], issue["title"], issue["url"]))
+        if issue.get("repository") != "defold":
+            yellow("    Ignored since issue is not from the defold repository")
+            ignored_count = ignored_count + 1
+            continue
+
+        if issue.get("mergecommit") != None:
+            branches = get_commit_branches(issue["mergecommit"])
+            if "dev" in branches and "beta" in branches:
+                merge_dev_beta_count = merge_dev_beta_count + 1
+            if "dev" in branches:
+                green("    dev  OK via merge commit (%s)" % (issue["mergecommit"]))
+                dev_ok = True
+                merge_dev_count = merge_dev_count + 1
+            if "beta" in branches:
+                green("    beta OK via merge commit (%s)" % (issue["mergecommit"]))
+                beta_ok = True
+                merge_beta_count = merge_beta_count + 1
+
+        for referencecommit in issue.get("referencecommits"):
+            if dev_ok and beta_ok: break
+            branches = get_commit_branches(referencecommit)
+            if "dev" in branches and "beta" in branches:
+                reference_dev_beta_count = reference_dev_beta_count + 1
+            if not dev_ok and "dev" in branches:
+                yellow("    dev  OK via reference commit (%s)" % referencecommit)
+                dev_ok = True
+                reference_dev_count = reference_dev_count + 1
+            if not beta_ok and "beta" in branches:
+                yellow("    beta OK via reference commit (%s)" % referencecommit)
+                beta_ok = True
+                reference_beta_count = reference_beta_count + 1
+
+        if not dev_ok and not beta_ok:
+            red("    Missing from dev+beta")
+            missing_dev_beta_count = missing_dev_beta_count + 1
+        else:
+            if not dev_ok:
+                red("    Missing from dev")
+                missing_dev_count = missing_dev_count + 1
+            if not beta_ok:
+                red("    Missing from beta")
+                missing_beta_count = missing_beta_count + 1
+
+    print("\nSummary (%d issues)" % len(issues))
+    print("  %d issue(s) from external repositories not checked" % ignored_count)
+    green("  %d issue(s) present on dev+beta via merge commits" % merge_dev_beta_count)
+    green("  %d issue(s) present on dev+beta via reference commits" % merge_dev_beta_count)
+    yellow("  %d issue(s) present on dev via merge commits" % merge_dev_count)
+    yellow("  %d issue(s) present on beta via merge commits" % merge_beta_count)
+    yellow("  %d issue(s) present on dev via reference commits" % merge_dev_count)
+    yellow("  %d issue(s) present on beta via reference commits" % merge_beta_count)
+    red("  %d issue(s) not present on dev" % missing_dev_count)
+    red("  %d issue(s) not present on beta" % missing_beta_count)
+    red("  %d issue(s) not present on dev+beta" % missing_dev_beta_count)
+
+
+
+def generate_markdown(version, issues, hide_details = False):
     engine = []
     editor = []
-    for o in output:
-        if "editor" in o["labels"]:
-            editor.append(o)
+    other = []
+    for issue in issues:
+        if issue.get("repository") != "defold":
+            other.append(issue)
+        elif "editor" in issue["labels"]:
+            editor.append(issue)
         else:
-            engine.append(o)
+            engine.append(issue)
  
     types = [ TYPE_BREAKING_CHANGE, TYPE_NEW, TYPE_FIX ]
-    summary = ("\n## Summary\n")
-    details_engine = ("\n## Engine\n")
-    details_editor = ("\n## Editor\n")
+    summary = ""
+    details_engine = ""
+    details_editor = ""
+    details_other = ""
     for issue_type in types:
         for issue in engine:
-            if issue["type"] == issue_type:
+            if issue["type"] == issue_type and issue["duplicate"] == False:
                 summary += issue_to_markdown(issue, title_only = True)
                 details_engine += issue_to_markdown(issue, hide_details = hide_details)
         for issue in editor:
-            if issue["type"] == issue_type:
+            if issue["type"] == issue_type and issue["duplicate"] == False:
                 summary += issue_to_markdown(issue, title_only = True)
                 details_editor += issue_to_markdown(issue, hide_details = hide_details)
+        for issue in other:
+            if issue["type"] == issue_type and issue["duplicate"] == False:
+                summary += issue_to_markdown(issue, title_only = True)
+                details_other += issue_to_markdown(issue, hide_details = hide_details)
 
-    content = ("# Defold %s\n" % version) + summary + details_engine + details_editor
-    with io.open("releasenotes-forum-%s.md" % version, "wb") as f:
-        f.write(content.encode('utf-8'))
+    output = ("# Defold %s\n" % version)
+    output = output + "\n## Summary\n" + summary
+    if engine:
+        output = output + "\n## Engine\n" + details_engine
+    if editor:
+        output = output + "\n## Editor\n" + details_editor
+    if other:
+        output = output + "\n## Other\n" + details_other
+
+    file = "releasenotes/%s.md" % version
+    with io.open(file, "wb") as f:
+        f.write(output.encode('utf-8'))
+        print("Wrote %s" % file)
+
+
+def generate_json(version, issues):
+    output = {
+        "version": version,
+        "timestamp": time.time(),
+        "issues": issues
+    }
+
+    file = "releasenotes/%s.json" % version
+    with io.open(file, "w") as f:
+        json.dump(output, f, indent=4, sort_keys=True)
+        print("Wrote %s" % file)
+
+
+def generate(version, hide_details = False):
+    print("Generating release notes for %s" % version)
+
+    issues = parse_github_project(version)
+    if issues is None:
+        return
+    
+    check_issue_commits(issues)
+    generate_markdown(version, issues, hide_details)
+    generate_json(version, issues)
+
 
 
 if __name__ == '__main__':

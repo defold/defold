@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.lsp :as lsp]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -29,21 +30,10 @@
   (:import [clojure.lang IHashEq ILookup Util]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto GameSystem$FactoryDesc Gui$NodeDesc ModelProto$ModelDesc Physics$CollisionObjectDesc]
-           [java.io File Writer]
-           [org.apache.commons.io FilenameUtils]))
+           [java.io File Writer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-;; String urls that will be added as library dependencies to our test project.
-;; These extensions register additional protobuf resource types that we want to
-;; cover in our tests.
-(def ^:private sanctioned-extension-urls
-  (mapv #(System/getProperty %)
-        ["defold.extension.rive.url"
-         "defold.extension.simpledata.url"
-         "defold.extension.spine.url"
-         "defold.extension.texturepacker.url"]))
 
 (def ^:private supplemental-save-values-by-proj-path
   {"/referenced/empty.particlefx"
@@ -278,7 +268,8 @@
                   :attributes vertex-attribute}}
 
      "particlefx"
-     {:emitters {:modifiers {:properties (required {:points {:y 0.0}})}}
+     {:emitters {:modifiers {:properties (required {:points {:y 0.0}})}
+                 :attributes vertex-attribute}
       :modifiers {:properties (required {:points (required {:y 0.0})})}}
 
      "sprite"
@@ -313,58 +304,48 @@
        (class? (resource-type->pb-class resource-type))))
 
 (defn- sparse-pb-map [^Class pb-class pb-path ^long depth-limit]
-  (->> pb-class
-       (protobuf/field-infos)
-       (into {}
-             (keep
-               (fn [[field-key {:keys [default field-rule field-type-key options type]}]]
-                 (let [pb-path (conj pb-path field-key)
+  (let [required-field-defaults (protobuf/required-field-defaults pb-class)
+        field-infos (protobuf/field-infos pb-class)]
+    (coll/into-> field-infos {}
+      (keep
+        (fn [[field-key field-info]]
+          (let [pb-path (conj pb-path field-key)
+                field-kind (:field-kind field-info)
 
-                       [specific-value is-required]
-                       (unwrap-pb-field-value (get-in pb-field-values pb-path))
+                [specific-value is-required]
+                (unwrap-pb-field-value (get-in pb-field-values pb-path))
 
-                       value
-                       (cond
-                         (exactly? specific-value)
-                         (unwrap-exactly specific-value)
+                value
+                (cond
+                  (exactly? specific-value)
+                  (unwrap-exactly specific-value)
 
-                         (or is-required
-                             (= :required field-rule)
-                             (and (pos? depth-limit)
-                                  (not (:runtime-only options))))
-                         (cond
-                           (= :message field-type-key)
-                           (sparse-pb-map type pb-path (dec depth-limit))
+                  (or is-required
+                      (= :pb-field-kind/required field-kind)
+                      (and (pos? depth-limit)
+                           (not (:runtime-only (:options field-info)))))
+                  (cond
+                    (= :message (:value-type-kw field-info))
+                    (sparse-pb-map (:value-class field-info) pb-path (dec depth-limit))
 
-                           (some? specific-value)
-                           specific-value
+                    (some? specific-value)
+                    specific-value
 
-                           (= :required field-rule)
-                           default))]
+                    (= :pb-field-kind/required field-kind)
+                    (required-field-defaults field-key)))]
 
-                   (when (some? value)
-                     (pair field-key
-                           (case field-rule
-                             :repeated (vector value)
-                             value)))))))))
+            (when (some? value)
+              (pair field-key
+                    (case field-kind
+                      (:pb-field-kind/list)
+                      [value]
 
-(defn- protobuf-resource-types-by-editability [workspace]
-  (let [editable-protobuf-resource-types
-        (into (sorted-map)
-              (filter (fn [[_ext editable-resource-type]]
-                        (relevant-protobuf-resource-type? editable-resource-type)))
-              (workspace/get-resource-type-map workspace :editable))
+                      (:pb-field-kind/map)
+                      (let [key (protobuf/field-type-default (:key-type-kw field-info))]
+                        {key value})
 
-        distinctly-non-editable-protobuf-resource-types
-        (into (sorted-map)
-              (filter (fn [[ext non-editable-resource-type]]
-                        (and (relevant-protobuf-resource-type? non-editable-resource-type)
-                             (not (identical? non-editable-resource-type
-                                              (editable-protobuf-resource-types ext))))))
-              (workspace/get-resource-type-map workspace :non-editable))]
-
-    {:editable (into [] (map val) editable-protobuf-resource-types)
-     :non-editable (into [] (map val) distinctly-non-editable-protobuf-resource-types)}))
+                      (:pb-field-kind/optional :pb-field-kind/required)
+                      value)))))))))
 
 (defn- sparse-protobuf-content-by-proj-path [workspace]
   (into (sorted-map)
@@ -385,13 +366,13 @@
                                            (pair proj-path content))))
                                   (range max-pb-map-depth)))))
                     resource-types)))
-        (protobuf-resource-types-by-editability workspace)))
+        (test-util/distinct-resource-types-by-editability workspace relevant-protobuf-resource-type?)))
 
-(defn- with-absolute-file-keys [^File project-root-directory values-by-proj-path]
+(defn- with-absolute-file-keys [^File project-directory values-by-proj-path]
   (into (sorted-map)
         (map (fn [[proj-path content]]
                (let [relative-path (subs proj-path 1) ; Strip leading slash.
-                     absolute-file (io/file project-root-directory relative-path)]
+                     absolute-file (io/file project-directory relative-path)]
                  (pair absolute-file content))))
         values-by-proj-path))
 
@@ -554,13 +535,13 @@
         (let [workspace (test-util/setup-workspace! world project-path)]
 
           ;; Add dependencies to all sanctioned extensions to game.project.
-          (test-util/set-libraries! workspace sanctioned-extension-urls)
+          (test-util/set-libraries! workspace test-util/sanctioned-extension-urls)
 
           ;; With the extensions added, we can populate the workspace.
-          (let [project-root-directory (workspace/project-path workspace)
+          (let [project-directory (workspace/project-directory workspace)
                 sparse-protobuf-content-by-proj-path (sparse-protobuf-content-by-proj-path workspace)
-                sparse-protobuf-content-by-absolute-file (with-absolute-file-keys project-root-directory sparse-protobuf-content-by-proj-path)
-                supplemental-save-values-by-absolute-file (with-absolute-file-keys project-root-directory supplemental-save-values-by-proj-path)]
+                sparse-protobuf-content-by-absolute-file (with-absolute-file-keys project-directory sparse-protobuf-content-by-proj-path)
+                supplemental-save-values-by-absolute-file (with-absolute-file-keys project-directory supplemental-save-values-by-proj-path)]
 
             ;; Ensure we have the parent directories in place for our content.
             (create-parent-directories! sparse-protobuf-content-by-absolute-file)
@@ -580,7 +561,7 @@
 
             (let [project (test-util/setup-project! workspace)
                   proj-paths (sort-by (fn [^String proj-path]
-                                        (pair (FilenameUtils/getExtension proj-path)
+                                        (pair (resource/filename->type-ext proj-path)
                                               proj-path))
                                       (keys sparse-protobuf-content-by-proj-path))]
               (test-util/clear-cached-save-data! project)
@@ -605,4 +586,5 @@
                                   read-text (slurp resource)
                                   written-read-text (write-fn read-value)]
                               (test-util/check-value-equivalence! read-value save-value read-text)
-                              (test-util/check-text-equivalence! written-read-text save-text read-text))))))))))))))))
+                              (test-util/check-text-equivalence! written-read-text save-text read-text)))))))))
+              (lsp/await (lsp/get-node-lsp project)))))))))

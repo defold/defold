@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,7 @@
 
 #include "component.h"
 #include "gameobject_script.h"
+#include "gameobject_props.h"
 #include "gameobject_props_lua.h"
 
 extern "C"
@@ -31,7 +32,7 @@ extern "C"
 }
 
 DM_PROPERTY_EXTERN(rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, FrameReset, "#", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, PROFILE_PROPERTY_FRAME_RESET, "#", &rmtp_GameObject);
 
 namespace dmGameObject
 {
@@ -211,7 +212,8 @@ namespace dmGameObject
                     {
                         PropertyDesc desc;
                         PropertyOptions property_opt;
-                        property_opt.m_Index = 0;
+                        AddPropertyOptionsIndex(&property_opt, 0);
+
                         GetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, desc);
                         anim.m_From = (float)desc.m_Variant.m_Number;
                     }
@@ -317,7 +319,7 @@ namespace dmGameObject
                 else
                 {
                     PropertyOptions property_opt;
-                    property_opt.m_Index = 0;
+                    AddPropertyOptionsIndex(&property_opt, 0);
                     SetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, PropertyVar(v));
                 }
             }
@@ -514,14 +516,18 @@ namespace dmGameObject
                 duration, delay, animation_stopped, userdata1, userdata2, true);
     }
 
-    static uint32_t GetElementCount(PropertyType type)
+    static uint32_t GetElementCount(PropertyType type, dmhash_t* element_ids)
     {
         switch (type)
         {
         case PROPERTY_TYPE_NUMBER:
             return 1;
         case PROPERTY_TYPE_VECTOR3:
+        {
+            if (element_ids[2] == 0)
+                return 2;
             return 3;
+        }
         case PROPERTY_TYPE_VECTOR4:
         case PROPERTY_TYPE_QUAT:
             return 4;
@@ -544,7 +550,8 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
         PropertyDesc prop_desc;
         PropertyOptions property_opt;
-        property_opt.m_Index = 0;
+        AddPropertyOptionsIndex(&property_opt, 0);
+
         PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)
         {
@@ -568,7 +575,7 @@ namespace dmGameObject
                 return PROPERTY_RESULT_TYPE_MISMATCH;
             }
         }
-        uint32_t element_count = GetElementCount(prop_desc.m_Variant.m_Type);
+        uint32_t element_count = GetElementCount(prop_desc.m_Variant.m_Type, prop_desc.m_ElementIds);
         if (element_count == 0)
         {
             return PROPERTY_RESULT_UNSUPPORTED_TYPE;
@@ -619,13 +626,13 @@ namespace dmGameObject
         }
         PropertyDesc prop_desc;
         PropertyOptions property_opt;
-        property_opt.m_Index = 0;
+        AddPropertyOptionsIndex(&property_opt, 0);
         PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)
         {
             return prop_result;
         }
-        uint32_t element_count = GetElementCount(prop_desc.m_Variant.m_Type);
+        uint32_t element_count = GetElementCount(prop_desc.m_Variant.m_Type, prop_desc.m_ElementIds);
         if (element_count == 0)
         {
             return PROPERTY_RESULT_UNSUPPORTED_TYPE;
@@ -707,7 +714,9 @@ namespace dmGameObject
         {
             if (INVALID_INDEX == next)
             {
-                world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
+                uint16_t* p = world->m_ListenerInstanceToIndex.Get((uintptr_t)anim->m_Userdata1);
+                if (p != 0)
+                    world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
             }
             else
             {

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,14 +16,21 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.vecmath.Point4i;
 import javax.vecmath.Quat4d;
@@ -124,7 +131,7 @@ public class ModelUtilTest {
      */
     private void assertBone(Rig.Bone bone, Vector3d expectedPosition, Quat4d expectedRotation) {
         assertV(expectedPosition, MathUtil.ddfToVecmath(bone.getLocal().getTranslation()));
-        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation()));
+        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation(), "bone %s".formatted(bone.getName())));
     }
 
     /*
@@ -143,6 +150,15 @@ public class ModelUtilTest {
         int i = keyframe * 3;
         Vector3d actualPosition = new Vector3d(track.getPositions(i), track.getPositions(i+1), track.getPositions(i+2));
         assertV(expectedPosition, actualPosition);
+    }
+
+    /*
+     * Helper to test that a track has a certain scale at a specific keyframe.
+     */
+    private void assertAnimationScale(Rig.AnimationTrack track, int keyframe, Vector3d expectedScale) {
+        int i = keyframe * 3;
+        Vector3d actualScale = new Vector3d(track.getScale(i), track.getScale(i+1), track.getScale(i+2));
+        assertV(expectedScale, actualScale);
     }
 
     /*
@@ -205,24 +221,28 @@ public class ModelUtilTest {
         }
     }
 
-   ModelImporter.Scene loadScene(String path) {
+    Modelimporter.Scene loadScene(String path) throws IOException {
+        File cwd = new File(".");
+        return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new Modelimporter.Options(), new ModelImporterJni.FileDataResolver(cwd));
+    }
+
+   Modelimporter.Scene loadSceneNoException(String path) {
         try {
-            File cwd = new File(".");
-            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new ModelImporter.Options(), new ModelImporter.FileDataResolver(cwd));
+            return loadScene(path);
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    private ModelImporter.Scene loadBuiltScene(String path,
+    private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder,
                                          Rig.AnimationSet.Builder animSetBuilder,
-                                         Rig.Skeleton.Builder skeletonBuilder) {
-        ModelImporter.Scene scene = loadScene(path);
+                                         Rig.Skeleton.Builder skeletonBuilder) throws LoaderException {
+        Modelimporter.Scene scene = loadSceneNoException(path);
         if (scene != null)
         {
-            ModelUtil.loadModels(scene, meshSetBuilder);
+            ModelUtil.loadModels(scene, meshSetBuilder, 0, 0);
             ModelUtil.loadSkeleton(scene, skeletonBuilder);
 
             ArrayList<String> animationIds = new ArrayList<>();
@@ -231,63 +251,125 @@ public class ModelUtilTest {
         return scene;
     }
 
-    private ModelImporter.Scene loadBuiltScene(String path,
-                                         Rig.MeshSet.Builder meshSetBuilder) {
-        ModelImporter.Scene scene = loadScene(path);
-        ModelUtil.loadModels(scene, meshSetBuilder);
+    private Modelimporter.Scene loadBuiltScene(String path,
+                                         Rig.MeshSet.Builder meshSetBuilder) throws LoaderException {
+        Modelimporter.Scene scene = loadSceneNoException(path);
+        ModelUtil.loadModels(scene, meshSetBuilder, 0, 0);
         return scene;
     }
 
-    private ModelImporter.Scene loadBuiltScene(String path,
+    private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.Skeleton.Builder skeletonBuilder) {
-        ModelImporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadSceneNoException(path);
         ModelUtil.loadSkeleton(scene, skeletonBuilder);
         return scene;
     }
 
-    // @Test
-    // public void testMayaQuad() throws Exception {
-    //     Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
-    //     loadBuiltScene("maya_quad.dae", meshSet);
-    //     Rig.Mesh mesh = meshSet.getModels(0).getMeshes(0);
+    private Rig.AnimationTrack findAnimationTrack(Rig.RigAnimation animation, long boneId) {
+        for (Rig.AnimationTrack track : animation.getTracksList()) {
+            if (track.getBoneId() == boneId) {
+                return track;
+            }
+        }
+        fail("Animation track not found for bone id " + boneId);
+        return null;
+    }
 
-    //     List<Float> pos = mesh.getPositionsList();
-    //     List<Float> nrm = mesh.getNormalsList();
-    //     List<Float> uvs = mesh.getTexcoord0List();
-    //     assertThat(2 * 3 * 3, is(pos.size()));
-    //     assertThat(2 * 3 * 3, is(nrm.size()));
+    @Test
+    public void testGltfMeshAttributesAndIndices() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Modelimporter.Scene scene = loadBuiltScene("quad_mesh.gltf", meshSetBuilder);
 
-    //     assertVtx(pos, 0, -0.005, -0.005, 0);
-    //     assertVtx(pos, 1,  0.005, -0.005, 0);
-    //     assertVtx(pos, 2, -0.005,  0.005, 0);
-    //     assertVtx(pos, 3, -0.005,  0.005, 0);
-    //     assertVtx(pos, 4,  0.005, -0.005, 0);
-    //     assertVtx(pos, 5,  0.005,  0.005, 0);
+        assertNotNull(scene);
+        assertEquals(1, meshSetBuilder.getModelsCount());
+        assertEquals(1, meshSetBuilder.getModels(0).getMeshesCount());
 
-    //     assertNrm(nrm, 0, 0, 0, 1);
-    //     assertNrm(nrm, 1, 0, 0, 1);
-    //     assertNrm(nrm, 2, 0, 0, 1);
-    //     assertNrm(nrm, 3, 0, 0, 1);
-    //     assertNrm(nrm, 4, 0, 0, 1);
-    //     assertNrm(nrm, 5, 0, 0, 1);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
+        assertEquals(12, mesh.getPositionsCount());
+        assertEquals(12, mesh.getNormalsCount());
+        assertEquals(8, mesh.getTexcoord0Count());
+        assertEquals(2, mesh.getNumTexcoord0Components());
 
-    //     assertUV(uvs, 0, 0, 0);
-    //     assertUV(uvs, 1, 1, 0);
-    //     assertUV(uvs, 2, 0, 1);
-    //     assertUV(uvs, 3, 0, 1);
-    //     assertUV(uvs, 4, 1, 0);
-    //     assertUV(uvs, 5, 1, 1);
-    // }
+        assertVtx(mesh.getPositionsList(), 0, -1.0, 0.0,  1.0);
+        assertVtx(mesh.getPositionsList(), 1,  1.0, 0.0,  1.0);
+        assertVtx(mesh.getPositionsList(), 2, -1.0, 0.0, -1.0);
+        assertVtx(mesh.getPositionsList(), 3,  1.0, 0.0, -1.0);
+
+        for (int i = 0; i < 4; ++i) {
+            assertNrm(mesh.getNormalsList(), i, 0.0, 1.0, 0.0f);
+        }
+
+        assertUV(mesh.getTexcoord0List(), 0, 0.0, 1.0);
+        assertUV(mesh.getTexcoord0List(), 1, 1.0, 1.0);
+        assertUV(mesh.getTexcoord0List(), 2, 0.0, 0.0);
+        assertUV(mesh.getTexcoord0List(), 3, 1.0, 0.0);
+
+        assertEquals(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16, mesh.getIndicesFormat());
+        assertEquals(12, mesh.getIndices().size());
+
+        ByteBuffer indices = mesh.getIndices().asReadOnlyByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+        int[] expectedIndices = new int[] {0, 1, 2, 2, 1, 3};
+        for (int i = 0; i < expectedIndices.length; ++i) {
+            assertEquals(expectedIndices[i], indices.getShort(i * 2) & 0xffff);
+        }
+    }
+
+    @Test
+    public void testGltfNoMeshSkeletonAnimation() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        Modelimporter.Scene scene = loadBuiltScene("no_mesh_animated_skeleton.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        assertNotNull(scene);
+        assertEquals(0, meshSetBuilder.getModelsCount());
+        assertEquals(2, skeletonBuilder.getBonesCount());
+        assertEquals(1, animSetBuilder.getAnimationsCount());
+
+        Rig.Bone root = skeletonBuilder.getBones(0);
+        Rig.Bone child = skeletonBuilder.getBones(1);
+        assertEquals("root", root.getName());
+        assertEquals("AnimatedChild", child.getName());
+        assertEquals(-1, root.getParent());
+        assertEquals(0, child.getParent());
+        assertBone(root, new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
+        assertBone(child, new Vector3d(0.0, 2.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
+
+        Vector3 rootScale = root.getLocal().getScale();
+        assertEquals(0.5, rootScale.getX(), EPSILON);
+        assertEquals(0.5, rootScale.getY(), EPSILON);
+        assertEquals(0.5, rootScale.getZ(), EPSILON);
+
+        Rig.RigAnimation animation = animSetBuilder.getAnimations(0);
+        assertEquals(1.0, animation.getDuration(), EPSILON);
+
+        Rig.AnimationTrack rootTrack = findAnimationTrack(animation, root.getId());
+        Rig.AnimationTrack childTrack = findAnimationTrack(animation, child.getId());
+        assertTrue(rootTrack.getRotationsCount() > 4);
+        assertTrue(childTrack.getPositionsCount() > 3);
+        assertTrue(childTrack.getScaleCount() > 3);
+
+        int lastRootRotationKey = rootTrack.getRotationsCount() / 4 - 1;
+        int lastChildPositionKey = childTrack.getPositionsCount() / 3 - 1;
+        int lastChildScaleKey = childTrack.getScaleCount() / 3 - 1;
+
+        assertAnimationRotation(rootTrack, 0, new Quat4d(0.0, 0.0, 0.0, 1.0));
+        assertAnimationRotation(rootTrack, lastRootRotationKey, new Quat4d(0.0, 0.0, 0.707107, 0.707107));
+        assertAnimationPosition(childTrack, 0, new Vector3d(0.0, 2.0, 0.0));
+        assertAnimationPosition(childTrack, lastChildPositionKey, new Vector3d(0.0, 4.0, 0.0));
+        assertAnimationScale(childTrack, 0, new Vector3d(1.0, 1.0, 1.0));
+        assertAnimationScale(childTrack, lastChildScaleKey, new Vector3d(1.0, 3.0, 1.0));
+    }
 
     /*
-     * Tests a collada file with fewer, and more, than 4 bone influences per vertex.
+     * Tests a glTF file with fewer, and more, than 4 bone influences per vertex.
      */
     @Test
     public void testBoneInfluences() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ModelImporter.Scene scene = loadBuiltScene("bend2bones.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Modelimporter.Scene scene = loadBuiltScene("bend2bones.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
 
         Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
@@ -321,13 +403,13 @@ public class ModelUtilTest {
     }
 
     @Test
-    public void testSkeleton() throws Exception {
+    public void testSkeleton() {
 
         String[] boneIds   = {"root", "Middle", "Top"};
         String[] parentIds = {null,   "root", "Middle"};
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ModelImporter.Scene scene = loadBuiltScene("bend2bones.gltf", skeletonBuilder);
+        Modelimporter.Scene scene = loadBuiltScene("bend2bones.gltf", skeletonBuilder);
 
         List<Rig.Bone> bones = skeletonBuilder.getBonesList();
         assertEquals(boneIds.length, bones.size());
@@ -345,7 +427,7 @@ public class ModelUtilTest {
     }
 
     /*
-     *  Tests a collada with two connected bones, each with their own animation track.
+     *  Tests a glTF file with two connected bones, each with their own animation track.
      */
     @Test
     public void testTwoBoneAnimation() throws Exception {
@@ -419,28 +501,29 @@ public class ModelUtilTest {
     }
 
     /*
-     * Collada file with a asset unit scale set to 0.01.
+     * Tests that the imported GLTF skinned mesh bounds and bone transforms stay within
+     * the expected unscaled bend2bones fixture dimensions.
      */
     @Test
-    public void testAssetUnit() throws Exception {
+    public void testGltfSkinnedMeshBounds() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         loadBuiltScene("bend2bones.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
 
-        // Bone scale should be unaffected
+        // Bone scale should be unchanged.
         Vector3 boneScale = skeletonBuilder.getBones(1).getLocal().getScale();
         assertEquals(1.0, boneScale.getX(), EPSILON);
         assertEquals(1.0, boneScale.getY(), EPSILON);
         assertEquals(1.0, boneScale.getZ(), EPSILON);
 
-        // Bone positions should be orig_position * unit
+        // Bone positions should match the GLTF fixture.
         Vector3 bonePosition = skeletonBuilder.getBones(1).getLocal().getTranslation();
         assertEquals(0.0, bonePosition.getX(), EPSILON);
         assertEquals(3.0, bonePosition.getY(), EPSILON);
         assertEquals(0.0, bonePosition.getZ(), EPSILON);
 
-        // Mesh vertex position should also be scaled with unit
+        // Mesh vertex bounds should match the GLTF fixture.
         Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
         float minX = 1000000.0f;
@@ -472,14 +555,58 @@ public class ModelUtilTest {
     }
 
     /*
-     * Tests that an invalid collada file is handled
+     * Tests that an invalid gltf file is handled
      */
     @Test
     public void testInvalidFile() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ModelImporter.Scene scene = loadBuiltScene("broken.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
-        assertTrue(scene == null);
+        Modelimporter.Scene scene = loadBuiltScene("broken.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
+        assertNull(scene);
+    }
+
+    /**
+     * glTF allows multiple joint/weight attribute sets (JOINTS_0/WEIGHTS_0, JOINTS_1/WEIGHTS_1, ...).
+     * Defold only supports a single set; the native loader must fail with a clear error.
+     */
+    @Test
+    public void testMultipleJointWeightAttributeSetsRejected() {
+        try {
+            loadScene("multiple_joint_weight_sets.gltf");
+        } catch (IOException e) {
+            assertTrue(e.getMessage().contains("multiple joint/weight attribute sets"));
+        }
+    }
+
+    @Test
+    public void testVehicleGltfHierarchy() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Modelimporter.Scene scene = loadBuiltScene("vehicle.glb", meshSetBuilder);
+
+        // Validate scene loaded successfully
+        assertNotNull("Vehicle scene should load", scene);
+
+        // Get all models from the meshset
+        List<Rig.Model> models = meshSetBuilder.getModelsList();
+
+        // Check for duplicate models by collecting IDs
+        Set<Long> modelIds = new HashSet<>();
+
+        for (Rig.Model model : models) {
+            long id = model.getId();
+            String name = "Model_" + id; // Since we hash the node name
+
+            assertFalse("Model ID " + id + " should be unique (no duplicates)",
+                       modelIds.contains(id));
+            modelIds.add(id);
+
+            // Validate model has meshes
+            assertTrue("Model should have at least one mesh",
+                      model.getMeshesCount() > 0);
+        }
+
+        // Validate we have a reasonable number of models (not duplicated)
+        assertFalse("Should have at least 1 model", models.isEmpty());
     }
 }

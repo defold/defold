@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,7 +18,9 @@
             [internal.graph.types :as gt]
             [internal.history :as h]
             [internal.node :as in]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.coll :as coll]
+            [util.defonce :as defonce])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
@@ -40,7 +42,7 @@
 (defn- new-history []
   {:tape (conj (h/paper-tape history-size-max) [])})
 
-(defrecord HistoryState [label graph sequence-label cache-keys])
+(defonce/record HistoryState [label graph sequence-label cache-keys])
 
 (defn history-state [graph outputs-modified]
   (->HistoryState (:tx-label graph) graph (:tx-sequence-label graph) outputs-modified))
@@ -202,19 +204,34 @@
     (first (drop-while used (range 0 gt/MAX-GROUP-ID)))))
 
 (defn next-node-id*
-  [id-generators graph-id]
+  ^long [id-generators ^long graph-id]
   (gt/make-node-id graph-id (.getAndIncrement ^AtomicLong (get id-generators graph-id))))
 
 (defn next-node-id
-  [system graph-id]
+  ^long [system ^long graph-id]
   (next-node-id* (id-generators system) graph-id))
 
+(defn take-node-ids*
+  [id-generators ^long graph-id ^long node-id-count]
+  (let [^AtomicLong id-generator (get id-generators graph-id)
+        node-ids (long-array node-id-count)]
+    (loop [index 0]
+      (when (< index node-id-count)
+        (let [node-id (gt/make-node-id graph-id (.getAndIncrement id-generator))]
+          (aset node-ids index node-id)
+          (recur (inc index)))))
+    node-ids))
+
+(defn take-node-ids
+  [system ^long graph-id ^long node-id-count]
+  (take-node-ids* (id-generators system) graph-id node-id-count))
+
 (defn next-override-id*
-  [override-id-generator graph-id]
-  (gt/make-override-id graph-id (.getAndIncrement ^AtomicLong override-id-generator)))
+  ^long [^AtomicLong override-id-generator ^long graph-id]
+  (gt/make-override-id graph-id (.getAndIncrement override-id-generator)))
 
 (defn next-override-id
-  [system graph-id]
+  ^long [system ^long graph-id]
   (next-override-id* (override-id-generator system) graph-id))
 
 (defn- attach-graph*
@@ -351,6 +368,7 @@
 
 (defn update-cache-from-evaluation-context
   [system evaluation-context]
+  {:pre [(some? system)]}
   ;; We assume here that the evaluation context was created from
   ;; the system but they may have diverged, making some cache
   ;; hits/misses invalid.
@@ -369,30 +387,21 @@
           evaluation-context-misses @(:local evaluation-context)]
       (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
         (cond-> system
-                (seq evaluation-context-hits)
+                (coll/not-empty evaluation-context-hits)
                 (update :cache c/cache-hit evaluation-context-hits)
 
-                (seq evaluation-context-misses)
+                (coll/not-empty evaluation-context-misses)
                 (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
         (let [invalidated-during-node-value? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
               safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
               safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
           (cond-> system
-                  (seq safe-cache-hits)
+                  (coll/not-empty safe-cache-hits)
                   (update :cache c/cache-hit safe-cache-hits)
 
-                  (seq safe-cache-misses)
+                  (coll/not-empty safe-cache-misses)
                   (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))
     system))
-
-(defn node-value
-  "Get a value, possibly cached, from a node. This is the entry point
-  to the \"plumbing\". If the value is cacheable and exists in the
-  cache, then return that value. Otherwise, produce the value by
-  gathering inputs to call a production function, invoke the function,
-  maybe cache the value that was produced, and return it."
-  [system node-id label evaluation-context]
-  (in/node-value node-id label evaluation-context))
 
 (defn user-data [system node-id key]
   (let [graph-id (gt/node-id->graph-id node-id)]
@@ -411,7 +420,7 @@
     :user-data (reduce (fn [user-data [graph-id values-by-key-by-node-id]]
                          (assoc user-data
                            graph-id (reduce (fn [graph-user-data [node-id values-by-key]]
-                                              (update graph-user-data node-id merge values-by-key))
+                                              (update graph-user-data node-id coll/merge values-by-key))
                                             (get user-data graph-id)
                                             values-by-key-by-node-id)))
                        (:user-data system)
@@ -431,15 +440,3 @@
    :user-data (:user-data system)
    :invalidate-counters (:invalidate-counters system)
    :last-graph (:last-graph system)})
-
-(defn system= [s1 s2]
-  (and (= (:graphs s1) (:graphs s2))
-       (= (:history s1) (:history s2))
-       (= (map (fn [[graph-id ^AtomicLong gen]] [graph-id (.longValue gen)]) (:id-generators s1))
-          (map (fn [[graph-id ^AtomicLong gen]] [graph-id (.longValue gen)]) (:id-generators s2)))
-       (= (.longValue ^AtomicLong (:override-id-generator s1))
-          (.longValue ^AtomicLong (:override-id-generator s2)))
-       (= (:cache s1) (:cache s2))
-       (= (:user-data s1) (:user-data s2))
-       (= (:invalidate-counters s1) (:invalidate-counters s2))
-       (= (:last-graph s1) (:last-graph s2))))

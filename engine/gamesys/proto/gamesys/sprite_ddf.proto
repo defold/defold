@@ -51,6 +51,7 @@ message SpriteDesc
  * @document
  * @name Sprite
  * @namespace sprite
+ * @language Lua
  */
 
 /*# play a sprite animation
@@ -60,6 +61,8 @@ message SpriteDesc
  * @message
  * @name play_animation
  * @param id [type:hash] the id of the animation to play
+ * @param offset [type:number] the normalized initial value of the animation cursor when the animation starts playing
+ * @param playback_rate [type:number] the rate with which the animation will be played. Must be positive
  * @examples
  *
  * In the example, it is assumed that the instance of the script has a sprite-component with id "sprite". The sprite itself is assumed to be bound to a tile set with animations "walk" and "jump".

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -53,7 +53,7 @@ static const luaL_reg META_TABLE[] =
 class ScriptMsgTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -77,7 +77,7 @@ protected:
         assert(top == lua_gettop(L));
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         lua_pushnil(L);
         dmScript::SetInstance(L);
@@ -750,7 +750,7 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
 
 TEST_F(ScriptMsgTest, TestPerf)
 {
-    uint64_t time = dmTime::GetTime();
+    uint64_t time = dmTime::GetMonotonicTime();
     uint32_t count = 10000;
     char program[256];
     dmSnPrintf(program, 256,
@@ -760,7 +760,7 @@ TEST_F(ScriptMsgTest, TestPerf)
         "end\n",
         count);
     ASSERT_TRUE(dmScriptTest::RunString(L, program));
-    time = dmTime::GetTime() - time;
+    time = dmTime::GetMonotonicTime() - time;
     printf("Time per post: %.4f\n", time / (double)count);
 }
 
@@ -781,6 +781,8 @@ TEST_F(ScriptMsgTest, TestPostDeletedSocket)
 
 int main(int argc, char **argv)
 {
+    dmHashEnableReverseHash(true);
+
     TestMainPlatformInit();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);

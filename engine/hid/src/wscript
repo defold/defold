@@ -13,7 +13,7 @@ def build(bld):
     platform_defines = []
     platform_drivers = []
 
-    if build_util.get_target_os() in ('nx64','ps4','ps5'):
+    if build_util.get_target_os() in ('nx64','ps4','ps5','xbone'):
         platform_folder = build_util.get_target_os()
     else:
         platform_drivers = ['%s/hid_gamepad_driver_glfw.cpp' % platform_folder]
@@ -22,7 +22,7 @@ def build(bld):
                     includes = [platform_folder,'.'],
                     target   = 'hid',
                     defines  = platform_defines,
-                    source   = bld.path.ant_glob(['hid.cpp', '%s/hid_native.cpp' % platform_folder] + platform_drivers))
+                    source   = bld.path.ant_glob(['hid.cpp', '%s/**/*.cpp' % platform_folder] + platform_drivers))
 
     hid_null = bld.stlib(features = 'cxx',
                          includes = [platform_folder, '.', 'null'],

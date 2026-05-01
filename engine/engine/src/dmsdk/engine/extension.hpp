@@ -28,7 +28,7 @@ namespace dmEngine
      * @document
      * @name Engine
      * @namespace dmEngine
-     * @path engine/dlib/src/dmsdk/engine/extension.h
+     * @language C++
      */
 
     /*# define for debug builds
@@ -81,7 +81,7 @@ namespace dmEngine
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
      * @return config [type:dmConfigFile::HConfig] The game project config file
      */
-    dmConfigFile::HConfig   GetConfigFile(dmExtension::AppParams* app_params);
+    dmConfigFile::HConfig GetConfigFile(dmExtension::AppParams* app_params);
 
     /*# get the web server handle
      * @note Only valid in debug builds
@@ -89,7 +89,7 @@ namespace dmEngine
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
      * @return server [type:dmWebServer::HServer] The web server handle
      */
-    dmWebServer::HServer    GetWebServer(dmExtension::AppParams* app_params);
+    dmWebServer::HServer GetWebServer(dmExtension::AppParams* app_params);
 
     /*# get the game object register
      * @name GetGameObjectRegister

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,8 +14,7 @@
 
 #include <stdio.h>
 
-#include <Box2D/Dynamics/b2Body.h>
-#include <Box2D/Dynamics/Joints/b2Joint.h>
+#include <box2d/box2d.h>
 
 #include <dlib/log.h>
 #include <gameobject/script.h>
@@ -23,9 +22,9 @@
 #include "gamesys.h"
 #include "gamesys_private.h"
 
-#include "components/comp_collision_object.h"
+#include "components/box2d/comp_collision_object_box2d.h"
 
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 
 #include "script_box2d.h"
 
@@ -42,21 +41,7 @@ namespace dmGameSystem
     static float g_PhysicsScale = 1.0f;
     static float g_InvPhysicsScale = 1.0f / g_PhysicsScale;
 
-    //////////////////////////////////////////////////////////////////////////////
-    // b2Vec2
-
-    b2Vec2 CheckVec2(lua_State* L, int index, float scale)
-    {
-        dmVMath::Vector3* v = dmScript::CheckVector3(L, index);
-        return b2Vec2(v->getX() * scale, v->getY() * scale);
-    }
-
-    dmVMath::Vector3 FromB2(const b2Vec2& p, float inv_scale)
-    {
-        return dmVMath::Vector3(p.x * inv_scale, p.y * inv_scale, 0);
-    }
-
-    void PushWorld(struct lua_State* L, class b2World* world)
+    void PushWorld(struct lua_State* L, void* world)
     {
         lua_pushlightuserdata(L, world);
     }
@@ -91,7 +76,7 @@ namespace dmGameSystem
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
         uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(collection, COLLISION_OBJECT_EXT_HASH);
         void* comp_world = dmGameObject::GetWorld(collection, component_type_index);
-        b2World* world = dmGameSystem::CompCollisionObjectGetBox2DWorld(comp_world);
+        void* world = dmGameSystem::CompCollisionObjectGetBox2DWorld(comp_world);
 
         if (world)
             PushWorld(L, world);
@@ -109,12 +94,21 @@ namespace dmGameSystem
         dmGameObject::HComponent component = 0;
         GetCollisionObject(L, 1, collection, &url, &component, 0);
 
-        b2Body* body = dmGameSystem::CompCollisionObjectGetBox2DBody(component);
+        void* body = dmGameSystem::CompCollisionObjectGetBox2DBody(component);
 
         if (body)
+        {
             PushBody(L, body, collection, url.m_Path);
+        }
         else
             lua_pushnil(L);
+        return 1;
+    }
+
+    static int B2D_GetVersion(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        PushBox2DVersion(L);
         return 1;
     }
 
@@ -122,6 +116,7 @@ namespace dmGameSystem
     {
         {"get_world", B2D_GetWorld},
         {"get_body", B2D_GetBody},
+        {"get_version", B2D_GetVersion},
 
         {0, 0}
     };
@@ -135,7 +130,8 @@ namespace dmGameSystem
         lua_State* L = params->m_L;
         luaL_register(L, "b2d", dmGameSystem::BOX2D_FUNCTIONS);
 
-            dmGameSystem::ScriptBox2DInitializeBody(L);
+        dmGameSystem::ScriptBox2DInitializeBody(L);
+        dmGameSystem::CompCollisionObjectSetBox2DInvalidateBodyCallback(dmGameSystem::ScriptBox2DInvalidateBody);
 
         lua_pop(L, 1); // pop the lua module
         return dmExtension::RESULT_OK;
@@ -144,6 +140,8 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptBox2DFinalize(dmExtension::Params* params)
     {
+        dmGameSystem::CompCollisionObjectSetBox2DInvalidateBodyCallback(0);
+        dmGameSystem::ScriptBox2DFinalizeBody();
         return dmExtension::RESULT_OK;
     }
 
@@ -159,6 +157,20 @@ namespace dmGameSystem
  * @document
  * @name b2d
  * @namespace b2d
+ * @language Lua
+ */
+
+
+/*# Box2D world
+ * @typedef
+ * @name b2World
+ * @param value [type:userdata]
+ */
+
+/*# Box2D body
+ * @typedef
+ * @name b2Body
+ * @param value [type:userdata]
  */
 
 /*# Get the Box2D world from the current collection
@@ -172,3 +184,7 @@ namespace dmGameSystem
  * @return body [type: b2Body] the body if successful. Otherwise `nil`.
  */
 
+/*# Get the Box2D version information for the active backend.
+ * @name b2d.get_version
+ * @return info [type: table] version info with fields `version`, `major`, `middle`, and `minor`
+ */

@@ -12,6 +12,7 @@
  * @document
  * @name Debug
  * @namespace debug
+ * @language Lua
  */
 
 /*# enters interactive debugging
@@ -36,7 +37,7 @@
  * 
  * 
  * @name debug.getfenv
- * @param o
+ * @param o [type:any]
  */
 
 /*# returns the current hook settings
@@ -48,7 +49,7 @@
  * 
  * 
  * @name debug.gethook
- * @param [thread]
+ * @param [thread] [type:thread]
  */
 
 /*# returns a table with information about a function
@@ -85,9 +86,9 @@
  * 
  * 
  * @name debug.getinfo
- * @param [thread]
- * @param function
- * @param [what]
+ * @param [thread] [type:thread]
+ * @param function [type:function]
+ * @param [what] [type:string]
  */
 
 /*# returns name and value of a local variable
@@ -107,9 +108,9 @@
  * 
  * 
  * @name debug.getlocal
- * @param [thread]
- * @param level
- * @param local
+ * @param [thread] [type:thread]
+ * @param level [type:number]
+ * @param local [type:number]
  */
 
 /*# returns the metatable of the given object
@@ -119,7 +120,7 @@
  * 
  * 
  * @name debug.getmetatable
- * @param object
+ * @param object [type:any]
  */
 
 /*# returns the registry table
@@ -138,8 +139,8 @@
  * 
  * 
  * @name debug.getupvalue
- * @param func
- * @param up
+ * @param func [type:function]
+ * @param up [type:number]
  */
 
 /*# sets the environment of an object
@@ -149,8 +150,8 @@
  * 
  * 
  * @name debug.setfenv
- * @param object
- * @param table
+ * @param object [type:any]
+ * @param table [type:table]
  */
 
 /*# sets a debug hook function
@@ -197,10 +198,10 @@
  * 
  * 
  * @name debug.sethook
- * @param [thread]
- * @param hook
- * @param mask
- * @param [count]
+ * @param [thread] [type:thread]
+ * @param hook [type:function]
+ * @param mask [type:string]
+ * @param [count] [type:number]
  */
 
 /*# sets the value of the local variable
@@ -215,10 +216,10 @@
  * 
  * 
  * @name debug.setlocal
- * @param [thread]
- * @param level
- * @param local
- * @param value
+ * @param [thread] [type:thread]
+ * @param level [type:number]
+ * @param local [type:number]
+ * @param value [type:any]
  */
 
 /*# sets the metatable for an object
@@ -228,8 +229,8 @@
  * 
  * 
  * @name debug.setmetatable
- * @param object
- * @param table
+ * @param object [type:any]
+ * @param table [type:table]
  */
 
 /*# sets an upvalue for a function
@@ -242,9 +243,9 @@
  * 
  * 
  * @name debug.setupvalue
- * @param func
- * @param up
- * @param value
+ * @param func [type:function]
+ * @param up [type:number]
+ * @param value [type:any]
  */
 
 /*# returns a string with a traceback of the stack call
@@ -258,8 +259,8 @@
  * 
  * 
  * @name debug.traceback
- * @param [thread]
- * @param [message]
- * @param [level]
+ * @param [thread] [type:thread]
+ * @param [message] [type:string]
+ * @param [level] [type:number]
  */
 

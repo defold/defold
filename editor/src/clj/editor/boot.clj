@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,6 +21,8 @@
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.gl :as gl]
+            [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -39,52 +41,62 @@
 (def namespace-counter (atom 0))
 (def namespace-progress-reporter (atom nil))
 
-(alter-var-root (var clojure.core/load-lib)
-                (fn [f]
-                  (fn [prefix lib & options]
-                    (swap! namespace-counter inc)
-                    (when @namespace-progress-reporter
-                      (@namespace-progress-reporter
-                       #(progress/jump %
-                                       @namespace-counter
-                                       (str "Initializing editor " (if prefix
-                                                                     (str prefix "." lib)
-                                                                     (str lib))))))
-                    (apply f prefix lib options))))
+(alter-var-root
+  (var clojure.core/load-lib)
+  (fn [core-load-lib-fn]
+    (fn [prefix lib & options]
+      (when-let [progress-reporter @namespace-progress-reporter]
+        (let [pos (swap! namespace-counter inc)
+              msg (localization/message
+                    "progress.initializing-editor"
+                    {"lib" (if prefix
+                             (str prefix "." lib)
+                             (str lib))})]
+          (progress-reporter
+            #(progress/jump % pos msg))))
+      (apply core-load-lib-fn prefix lib options))))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader prefs project updater newly-created?]
+  [namespace-loader user-prefs localization cli-options project updater newly-created?]
   (dialogs/make-load-project-dialog
+    localization
     (fn [render-progress!]
-      (let [namespace-progress (progress/make "Loading editor" 1471) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
-            render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
-            render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
-            project-file (io/file project)]
-        (welcome/add-recent-project! prefs project-file)
+      (let [namespace-progress (progress/make (localization/message "progress.loading-editor") 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
+            render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 0) 1)
+            render-project-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 1) 4)
+            project-file (io/file project)
+            project-dir (.getParentFile project-file)
+            project-prefs (doto (prefs/project project-dir user-prefs) prefs/migrate-project-prefs!)]
+        (welcome/add-recent-project! project-prefs project-file)
         (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
 
         ;; Ensure that namespace loading has completed.
         @namespace-loader
 
+        ;; Disable namespace progress reporting after the built-in namespaces
+        ;; have finished loading. We don't want to report progress from plugin
+        ;; namespaces, since that would "roll back" the progress bar.
+        (reset! namespace-progress-reporter nil)
+        (log/info :message "Finished loading editor namespaces." :namespace-counter @namespace-counter)
+
         ;; Initialize the system and load the project.
-        (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [(.getParentFile project-file)])]
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [prefs])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project!)) [system-config])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file prefs render-project-progress! updater newly-created?])
-          (reset! namespace-progress-reporter nil))))))
+        (let [system-config ((resolve `editor.shared-editor-settings/load-project-system-config) project-dir localization)]
+          ((resolve `editor.boot-open-project/initialize-systems!) project-prefs)
+          ((resolve `editor.boot-open-project/initialize-project!) system-config)
+          ((resolve `editor.boot-open-project/open-project!) project-file project-prefs localization cli-options render-project-progress! updater newly-created?))))))
 
 (defn- select-project-from-welcome
-  [namespace-loader prefs updater]
+  [namespace-loader prefs localization cli-options updater]
   (ui/run-later
-    (welcome/show-welcome-dialog! prefs updater
+    (welcome/show-welcome-dialog! prefs localization updater
                                   (fn [project newly-created?]
-                                    (open-project-with-progress-dialog namespace-loader prefs project updater newly-created?)))))
+                                    (open-project-with-progress-dialog namespace-loader prefs localization cli-options project updater newly-created?)))))
 
 (defn notify-user
-  [ex-map sentry-id-promise]
+  [localization ex-map sentry-id-promise]
   (when (.isShowing (ui/main-stage))
     (ui/run-now
-      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise))))
+      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise localization))))
 
 (defn- set-sha1-revisions-from-repo! []
   ;; Use the sha1 of the HEAD commit as the editor revision.
@@ -103,44 +115,50 @@
 
 (def cli-options
   ;; Path to preference file, mainly used for testing
-  [["-prefs" "--preferences PATH" "Path to preferences file"]])
+  [["-prefs" "--preferences PATH" "Path to preferences file"]
+   ["-p" "--port PORT" "Editor server port" :default 0 :parse-fn ^[String] Long/valueOf]])
 
 ;; Entry point from java EditorApplication is in editor.bootloader/main, which calls this function.
 (defn main [args namespace-loader]
   (when (system/defold-dev?)
     (set-sha1-revisions-from-repo!))
-  (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
-                                           :sentry (get connection-properties :sentry)})
-  (disable-imageio-cache!)
-
-  (when-let [support-error (gl/gl-support-error)]
-    (when (= (dialogs/make-gl-support-error-dialog support-error) :quit)
-      (System/exit -1)))
-
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
-        prefs (if-let [prefs-path (get-in opts [:options :preferences])]
-                (prefs/load-prefs prefs-path)
-                (prefs/make-prefs "defold"))
-        updater (updater/start!)
-        analytics-url (get connection-properties :analytics-url)
-        analytics-send-interval 300]
-    (when (some? updater)
-      (updater/delete-backup-files! updater))
-    (analytics/start! analytics-url analytics-send-interval)
+        cli-options (:options opts)
+        prefs (doto
+                (if-let [prefs-path (:preferences cli-options)]
+                  (prefs/global prefs-path)
+                  (doto (prefs/global) prefs/migrate-global-prefs!))
+                keymap/migrate-from-file!)
+        localization (localization/make-editor prefs error-reporting/report-exception!)
+        analytics-url (:analytics-url connection-properties)
+        analytics-send-interval 300
+        cid (analytics/start! analytics-url localization analytics-send-interval)]
     (Shutdown/addShutdownAction analytics/shutdown!)
-    (try
-      (let [game-project-path (get-in opts [:arguments 0])]
-        (if (and game-project-path
-                 (.exists (io/file game-project-path)))
-          (open-project-with-progress-dialog namespace-loader prefs game-project-path updater false)
-          (select-project-from-welcome namespace-loader prefs updater)))
-      (catch Throwable t
-        (log/error :exception t)
-        (stack/print-stack-trace t)
-        (.flush *out*)
-        ;; note - i'm not sure System/exit is a good idea here. it
-        ;; means that failing to open one project causes the whole
-        ;; editor to quit, maybe losing unsaved work in other open
-        ;; projects.
-        (System/exit -1)))))
+    (error-reporting/setup-error-reporting! {:notifier {:notify-fn (partial notify-user localization)}
+                                             :sentry (-> connection-properties
+                                                         :sentry
+                                                         (assoc :user {:id cid}))})
+    (disable-imageio-cache!)
+    (when-let [support-error (gl/gl-support-error)]
+      (when (= (dialogs/make-gl-support-error-dialog support-error localization) :quit)
+        (System/exit -1)))
+    (let [updater (updater/start!)]
+      (when (some? updater)
+        (updater/delete-backup-files! updater))
+      (try
+        (let [game-project-path (get-in opts [:arguments 0])
+              game-project-file (io/file game-project-path)]
+          (if (and game-project-path
+                   (.exists game-project-file))
+            (open-project-with-progress-dialog namespace-loader prefs localization cli-options (.getAbsolutePath game-project-file) updater false)
+            (select-project-from-welcome namespace-loader prefs localization cli-options updater)))
+        (catch Throwable t
+          (log/error :exception t)
+          (stack/print-stack-trace t)
+          (.flush *out*)
+          ;; note - i'm not sure System/exit is a good idea here. it
+          ;; means that failing to open one project causes the whole
+          ;; editor to quit, maybe losing unsaved work in other open
+          ;; projects.
+          (System/exit -1))))))

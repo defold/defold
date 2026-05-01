@@ -118,7 +118,7 @@ namespace dmGameSystem
 
         MaterialResource* material_res = CheckMaterialResource(L, 1);
 
-        const dmGraphics::VertexAttribute* attributes;
+        const dmGraphics::VertexAttributeInfo* attributes;
         uint32_t attribute_count;
         dmRender::GetMaterialProgramAttributes(material_res->m_Material, &attributes, &attribute_count);
 
@@ -461,7 +461,14 @@ namespace dmGameSystem
         }
 
         dmGraphics::VertexAttribute attribute = {};
-        memcpy(&attribute, info.m_Attribute, sizeof(dmGraphics::VertexAttribute));
+        attribute.m_NameHash        = info.m_Attribute->m_NameHash;
+        attribute.m_DataType        = info.m_Attribute->m_DataType;
+        attribute.m_VectorType      = info.m_Attribute->m_VectorType;
+        attribute.m_StepFunction    = info.m_Attribute->m_StepFunction;
+        attribute.m_CoordinateSpace = info.m_Attribute->m_CoordinateSpace;
+        attribute.m_SemanticType    = info.m_Attribute->m_SemanticType;
+        attribute.m_ElementCount    = info.m_Attribute->m_ElementCount;
+        attribute.m_Normalize       = info.m_Attribute->m_Normalize;
 
         uint8_t values_bytes[sizeof(dmVMath::Matrix4)] = {};
         uint32_t values_size = 0;
@@ -546,13 +553,14 @@ namespace dmGameSystem
 
         if (values_size > 0)
         {
+            uint32_t bytes_per_element = dmGraphics::DataTypeToByteWidth(attribute.m_DataType);
             for (int i = 0; i < attribute.m_ElementCount; ++i)
             {
-                FloatToVertexAttributeDataType(values_float[i], attribute.m_DataType, values_bytes + i * sizeof(float));
+                FloatToVertexAttributeDataType(values_float[i], attribute.m_DataType, values_bytes + i * bytes_per_element);
             }
 
             attribute.m_Values.m_BinaryValues.m_Data = values_bytes;
-            attribute.m_Values.m_BinaryValues.m_Count = values_size;
+            attribute.m_Values.m_BinaryValues.m_Count = bytes_per_element * attribute.m_ElementCount;
         }
 
         dmRender::SetMaterialProgramAttributes(material_res->m_Material, &attribute, 1);

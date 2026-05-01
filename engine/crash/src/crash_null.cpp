@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,12 +18,6 @@
 
 namespace dmCrash
 {
-    // A bit silly that we need these for a null implementation...
-    AppState g_AppState;
-    AppState g_PreviousAppState;
-    char g_FilePath[AppState::FILEPATH_MAX];
-
-
     bool IsInitialized()
     {
         return false;
@@ -56,6 +50,16 @@ namespace dmCrash
         (void)filepath;
     }
 
+    const char* GetFilePath()
+    {
+        return 0;
+    }
+
+    AppState* GetAppState()
+    {
+        return 0;
+    }
+
     Result SetUserField(uint32_t index, const char* value)
     {
         (void)index;
@@ -77,12 +81,6 @@ namespace dmCrash
     void Release(HDump dump)
     {
         (void)dump;
-    }
-
-    AppState* Check(HDump dump)
-    {
-        (void)dump;
-        return 0;
     }
 
     bool IsValidHandle(HDump dump)

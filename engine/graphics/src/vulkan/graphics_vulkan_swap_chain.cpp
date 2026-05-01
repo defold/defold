@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,7 @@
 
 #include <dlib/math.h>
 #include <dlib/array.h>
+#include <dlib/log.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
@@ -67,14 +68,31 @@ namespace dmGraphics
     }
 
     SwapChain::SwapChain(const VkSurfaceKHR surface, VkSampleCountFlagBits vk_sample_flag,
-        const SwapChainCapabilities& capabilities, const QueueFamily queueFamily, VulkanTexture* resolveTexture)
+        const SwapChainCapabilities& capabilities, const QueueFamily queueFamily, VulkanTexture* resolveTexture,
+        PFN_vkWaitForPresentKHR wait_for_present)
         : m_ResolveTexture(resolveTexture)
         , m_Surface(surface)
         , m_QueueFamily(queueFamily)
         , m_SurfaceFormat(SwapChainFindSurfaceFormat(capabilities))
         , m_SwapChain(VK_NULL_HANDLE)
         , m_SampleCountFlag(vk_sample_flag)
+        , m_WaitForPresent(wait_for_present)
+        , m_LastPresentId(0)
     {
+    }
+
+    static void WaitForLastPresent(const VkDevice vk_device, PFN_vkWaitForPresentKHR wait_for_present, VkSwapchainKHR vk_swap_chain, uint64_t last_present_id)
+    {
+        if (wait_for_present == 0 || vk_swap_chain == VK_NULL_HANDLE || last_present_id == 0)
+        {
+            return;
+        }
+
+        VkResult res = wait_for_present(vk_device, vk_swap_chain, last_present_id, UINT64_MAX);
+        if (res != VK_SUCCESS)
+        {
+            dmLogWarning("vkWaitForPresentKHR failed while waiting for swapchain present completion: %d", res);
+        }
     }
 
     VkResult SwapChain::Advance(VkDevice vk_device, VkSemaphore vk_image_available)
@@ -96,6 +114,7 @@ namespace dmGraphics
         bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
     {
         VkSwapchainKHR vk_old_swap_chain    = swapChain->m_SwapChain;
+        uint64_t old_last_present_id        = swapChain->m_LastPresentId;
         VkDevice vk_device                  = logicalDevice->m_Device;
         VkPhysicalDevice vk_physical_device = physicalDevice->m_Device;
         VkPresentModeKHR vk_present_mode    = VK_PRESENT_MODE_FIFO_KHR;
@@ -152,8 +171,6 @@ namespace dmGraphics
                 capabilities.m_SurfaceCapabilities.minImageCount,
                 capabilities.m_SurfaceCapabilities.maxImageCount);
         }
-
-        swap_chain_image_count = dmMath::Min(swap_chain_image_count, (uint32_t) DM_MAX_FRAMES_IN_FLIGHT);
 
         VkSwapchainCreateInfoKHR vk_swap_chain_create_info;
         memset((void*)&vk_swap_chain_create_info, 0, sizeof(vk_swap_chain_create_info));
@@ -222,7 +239,13 @@ namespace dmGraphics
 
         if (vk_old_swap_chain != VK_NULL_HANDLE)
         {
+            WaitForLastPresent(vk_device, swapChain->m_WaitForPresent, vk_old_swap_chain, old_last_present_id);
             DestroyVkSwapChain(vk_device, vk_old_swap_chain, swapChain->m_ImageViews);
+            for (uint32_t i = 0; i < swapChain->m_RenderFinishedSemaphores.Size(); ++i)
+            {
+                vkDestroySemaphore(vk_device, swapChain->m_RenderFinishedSemaphores[i], 0);
+            }
+            swapChain->m_RenderFinishedSemaphores.SetSize(0);
             DestroyTexture(vk_device, &swapChain->m_ResolveTexture->m_Handle);
         }
 
@@ -235,14 +258,17 @@ namespace dmGraphics
 
         swapChain->m_ImageExtent = vk_extent;
         swapChain->m_ImageIndex  = 0;
+        swapChain->m_LastPresentId = 0;
 
         swapChain->m_ImageViews.SetCapacity(swap_chain_image_count);
         swapChain->m_ImageViews.SetSize(swap_chain_image_count);
+        swapChain->m_RenderFinishedSemaphores.SetCapacity(swap_chain_image_count);
+        swapChain->m_RenderFinishedSemaphores.SetSize(swap_chain_image_count);
 
         if (swapChain->HasMultiSampling())
         {
-            VkResult res = CreateTexture2D(vk_physical_device, vk_device,
-                vk_extent.width, vk_extent.height, 1, 1,
+            VkResult res = CreateTexture(vk_physical_device, vk_device,
+                vk_extent.width, vk_extent.height, 1, 1, 1,
                 swapChain->m_SampleCountFlag,
                 swapChain->m_SurfaceFormat.format,
                 VK_IMAGE_TILING_OPTIMAL,
@@ -289,6 +315,15 @@ namespace dmGraphics
             vk_create_info_image_view.subresourceRange.layerCount     = 1;
 
             res = vkCreateImageView(vk_device, &vk_create_info_image_view, 0, &swapChain->m_ImageViews[i]);
+
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+
+            VkSemaphoreCreateInfo semaphore_create_info = {};
+            semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+            res = vkCreateSemaphore(vk_device, &semaphore_create_info, 0, &swapChain->m_RenderFinishedSemaphores[i]);
             if (res != VK_SUCCESS)
             {
                 return res;
@@ -301,10 +336,17 @@ namespace dmGraphics
     void DestroySwapChain(VkDevice vk_device, SwapChain* swapChain)
     {
         assert(swapChain);
+        WaitForLastPresent(vk_device, swapChain->m_WaitForPresent, swapChain->m_SwapChain, swapChain->m_LastPresentId);
         DestroyVkSwapChain(vk_device, swapChain->m_SwapChain, swapChain->m_ImageViews);
+        for (uint32_t i = 0; i < swapChain->m_RenderFinishedSemaphores.Size(); ++i)
+        {
+            vkDestroySemaphore(vk_device, swapChain->m_RenderFinishedSemaphores[i], 0);
+        }
+        swapChain->m_RenderFinishedSemaphores.SetSize(0);
         DestroyTexture(vk_device, &swapChain->m_ResolveTexture->m_Handle);
 
         swapChain->m_SwapChain = VK_NULL_HANDLE;
+        swapChain->m_LastPresentId = 0;
     }
 
     void GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
@@ -316,7 +358,9 @@ namespace dmGraphics
         vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, 0);
         vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, 0);
 
+#if defined(ANDROID)
         capabilities.m_SurfaceCapabilities.currentTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+#endif
 
         if (format_count > 0)
         {

@@ -1,25 +1,29 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.ui-test
-  (:require [clojure.test :refer :all]
+  (:require [cljfx.api :as fx]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.ui :as ui]
+            [integration.test-util :as test-util]
             [support.test-support :as test-support])
   (:import [javafx.scene Scene]
-           [javafx.scene.control ComboBox ListView Menu MenuBar MenuItem SelectionMode TreeItem TreeView]
+           [javafx.scene.control ComboBox ListView Menu MenuBar MenuItem SelectionMode Tab TabPane TreeItem TreeView]
+           [javafx.scene.control.skin TabPaneSkin]
            [javafx.scene.layout Pane VBox]))
 
 (defn- make-fake-stage []
@@ -30,7 +34,7 @@
     stage))
 
 (defn fixture [f]
-  (with-redefs [handler/state-atom (atom {})
+  (with-redefs [handler/state-atom (atom handler/empty-state)
                 ui/*main-stage* (atom (ui/run-now (make-fake-stage)))]
     (f)))
 
@@ -38,44 +42,44 @@
 
 (deftest extend-menu-test
   (handler/register-menu! ::menubar
-    [{:label "File"
-      :children [{:label "New"
+    [{:label (localization/message "command.file")
+      :children [{:label (localization/message "command.file.new")
                   :id ::new}]}])
   (handler/register-menu! ::save-menu ::new
-    [{:label "Save"}])
+    [{:label (localization/message "command.file.save-all")}])
   (handler/register-menu! ::quit-menu ::new
-    [{:label "Quit"}])
-  (is (= (handler/realize-menu ::menubar) [{:label "File"
-                                            :children [{:label "New"
+    [{:label (localization/message "command.app.quit")}])
+  (is (= (handler/realize-menu ::menubar) [{:label (localization/message "command.file")
+                                            :children [{:label (localization/message "command.file.new")
                                                         :id ::new}
-                                                       {:label "Save"}
-                                                       {:label "Quit"}]}])))
+                                                       {:label (localization/message "command.file.save-all")}
+                                                       {:label (localization/message "command.app.quit")}]}])))
 
 (defrecord TestSelectionProvider [selection]
   handler/SelectionProvider
-  (selection [this] selection)
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
+  (selection [_this _evaluation-context] selection)
+  (succeeding-selection [_this _evaluation-context] [])
+  (alt-selection [_this _evaluation-context] []))
 
 (defn- make-menu-items [scene menu-id command-context]
   (g/with-auto-evaluation-context evaluation-context
-    (#'ui/make-menu-items scene (handler/realize-menu menu-id) [command-context] {} evaluation-context)))
+    (#'ui/make-menu-items scene (handler/realize-menu menu-id) [command-context] {} test-util/localization evaluation-context)))
 
 (deftest menu-test
   (test-support/with-clean-system
     (handler/register-menu! ::my-menu
-      [{:label "File"
-        :children [{:label "Open"
+      [{:label (localization/message "command.file")
+        :children [{:label (localization/message "command.file.open")
                     :id ::open
-                    :command :open}
-                   {:label "Save"
-                    :command :save}]}])
+                    :command :file.open}
+                   {:label (localization/message "command.file.save-all")
+                    :command :file.save}]}])
 
-    (handler/defhandler :open :global
+    (handler/defhandler :file.open :global
         (enabled? [selection] true)
         (run [selection] 123))
 
-    (handler/defhandler :save :global
+    (handler/defhandler :file.save :global
       (enabled? [selection] true)
       (run [selection] 124))
 
@@ -92,17 +96,17 @@
 (deftest options-menu-test
   (test-support/with-clean-system
     (handler/register-menu! ::my-menu
-      [{:label "Add"
-        :command :add}])
+      [{:label (localization/message "command.edit.add-embedded-component")
+        :command :edit.add-embedded-component}])
 
-    (handler/defhandler :add :global
+    (handler/defhandler :edit.add-embedded-component :global
       (run [user-data] user-data)
       (active? [user-data] (or (not user-data) (= user-data 1)))
-      (options [user-data] (when-not user-data [{:label "first"
-                                                 :command :add
+      (options [user-data] (when-not user-data [{:label (localization/message "command.file.new")
+                                                 :command :edit.add-embedded-component
                                                  :user-data 1}
-                                                {:label "second"
-                                                 :command :add
+                                                {:label (localization/message "command.file.open")
+                                                 :command :edit.add-embedded-component
                                                  :user-data 2}])))
 
     (let [command-context {:name :global :env {}}]
@@ -110,81 +114,91 @@
         (is (= 1 (count menu-items)))
         (is (= 1 (count (.getItems (first menu-items)))))))))
 
+(g/defnode FakeAppView
+  (property active-tab g/Any))
+
 (deftest toolbar-test
-  (ui/run-now
-    (test-support/with-clean-system
-      (handler/register-menu! ::my-menu
-        [{:label "Open"
-          :command :open
-          :id ::open}])
+  @(fx/on-fx-thread
+     (test-support/with-clean-system
+       (handler/register-menu! ::my-menu
+         [{:label (localization/message "command.file.open")
+           :command :file.open
+           :id ::open}])
 
-      (handler/defhandler :open :global
-        (enabled? [selection] true)
-        (run [selection] 123)
-        (state [] false))
+       (handler/defhandler :file.open :global
+         (enabled? [selection] true)
+         (run [selection] 123)
+         (state [] false))
 
-      (handler/defhandler :save :global
-        (enabled? [selection] true)
-        (run [selection] 124)
-        (state [] false))
+       (handler/defhandler :file.save :global
+         (enabled? [selection] true)
+         (run [selection] 124)
+         (state [] false))
 
-      (let [root (Pane.)
-            scene (Scene. root)
-            selection-provider (TestSelectionProvider. [])]
-        (.setId root "toolbar")
-        (ui/context! root :global {} selection-provider)
-        (ui/register-toolbar scene root "#toolbar" ::my-menu)
-        (ui/refresh scene)
-        (let [c1 (do (ui/refresh scene) (.getChildren root))
-              c2 (do (ui/refresh scene) (.getChildren root))]
-          (is (= 1 (count c1) (count c2)))
-          (is (= (.get c1 0) (.get c2 0))))
+       (let [root (Pane.)
+             tab (Tab. "tab" root)
+             tab-pane (TabPane.)
+             app-view (g/make-node! world FakeAppView :active-tab tab)
+             scene (Scene. tab-pane)
+             selection-provider (TestSelectionProvider. [])]
+         (ui/user-data! scene :localization test-util/localization)
+         (.add (.getTabs tab-pane) tab)
+         (.setSkin tab-pane (TabPaneSkin. tab-pane)) ;;
+         (.setId root "toolbar")
+         (ui/context! root :global {:app-view app-view} selection-provider)
+         (ui/register-toolbar scene root "#toolbar" ::my-menu)
+         (ui/refresh scene)
+         (let [c1 (do (ui/refresh scene) (.getChildren root))
+               c2 (do (ui/refresh scene) (.getChildren root))]
+           (is (= 1 (count c1) (count c2)))
+           (is (= (.get c1 0) (.get c2 0))))
 
-        (handler/register-menu! ::extra ::open
-          [{:label "Save"
-            :command :save}])
-        (ui/refresh scene)
-        (is (= 2 (count (.getChildren root))))))))
+         (handler/register-menu! ::extra ::open
+           [{:label (localization/message "command.file.save-all")
+             :command :file.save}])
+         (ui/refresh scene)
+         (is (= 2 (count (.getChildren root))))))))
 
 (deftest menubar-test
-  (ui/run-now
-    (test-support/with-clean-system
-      (handler/register-menu! ::my-menu
-        [{:label "File"
-          :children
-          [{:label "Open"
-            :id ::open
-            :command :open}]}])
+  @(fx/on-fx-thread
+     (test-support/with-clean-system
+       (handler/register-menu! ::my-menu
+         [{:label (localization/message "command.file")
+           :children
+           [{:label (localization/message "command.file.open")
+             :id ::open
+             :command :file.open}]}])
 
-      (handler/defhandler :open :global
-        (enabled? [selection] true)
-        (run [selection] 123))
+       (handler/defhandler :file.open :global
+         (enabled? [selection] true)
+         (run [selection] 123))
 
-      (handler/defhandler :save :global
-        (enabled? [selection] true)
-        (run [selection] 124))
+       (handler/defhandler :file.save :global
+         (enabled? [selection] true)
+         (run [selection] 124))
 
-      (let [root (Pane.)
-            scene (Scene. root)
-            selection-provider (TestSelectionProvider. [])
-            menubar (MenuBar.)]
-        (ui/context! root :global {} selection-provider)
-        (.add (.getChildren root) menubar)
-        (.setId menubar "menubar")
-        (ui/register-menubar scene menubar ::my-menu)
-        (ui/refresh scene)
-        (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))
-              c2 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
-          (is (= 1 (count c1) (count c2)))
-          (is (= (.get c1 0) (.get c2 0))))
-        (handler/register-menu! ::extra ::open
-          [{:label "Save"
-            :command :save}])
-        (ui/refresh scene)
-        (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))
-              c2 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
-          (is (= 2 (count c1) (count c2)))
-          (is (= (.get c1 0) (.get c2 0))))))))
+       (let [root (Pane.)
+             scene (Scene. root)
+             selection-provider (TestSelectionProvider. [])
+             menubar (MenuBar.)]
+         (ui/user-data! scene :localization test-util/localization)
+         (ui/context! root :global {} selection-provider)
+         (.add (.getChildren root) menubar)
+         (.setId menubar "menubar")
+         (ui/register-menubar scene menubar ::my-menu)
+         (ui/refresh scene)
+         (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))
+               c2 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
+           (is (= 1 (count c1) (count c2)))
+           (is (= (.get c1 0) (.get c2 0))))
+         (handler/register-menu! ::extra ::open
+           [{:label (localization/message "command.file.save-all")
+             :command :file.save}])
+         (ui/refresh scene)
+         (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))
+               c2 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
+           (is (= 2 (count c1) (count c2)))
+           (is (= (.get c1 0) (.get c2 0))))))))
 
 (deftest list-view-test
   (let [selected-items (atom nil)]

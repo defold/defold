@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,9 +15,11 @@
 #if defined(ANDROID)
 #include <android_native_app_glue.h>
 
+#include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/thread.h>
 #include <glfw/glfw.h>
+#include <dmsdk/dlib/android.h>
 #endif
 
 #include "engine.h"
@@ -57,8 +59,6 @@ static int EngineMain(int argc, char *argv[])
 
 #if defined(ANDROID)
 
-extern struct android_app* __attribute__((weak)) g_AndroidApp;
-
 struct EngineMainThreadArgs
 {
     char** m_Argv;
@@ -79,20 +79,23 @@ static int WaitForWindow()
 {
     while (glfwAndroidWindowOpened() == 0)
     {
-        int ident;
-        int events;
-        struct android_poll_source* source;
+        void* data = NULL;
+        int ident = ALooper_pollOnce(300, NULL, NULL, &data);
 
-        if ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
-        {
-            // Process this event.
-            if (source != NULL) {
-                source->process(g_AndroidApp, source);
-            }
+        struct android_app* app = dmAndroid::GetAndroidApp();
+        assert(app);
+
+        if (ident >= 0 && data != NULL) {
+            struct android_poll_source* source = (struct android_poll_source*)data;
+            source->process(app, source);
+        }
+        if (ident == ALOOPER_POLL_ERROR) {
+            dmLogFatal("ALooper_pollOnce returned an error");
+            return 0;
         }
 
         glfwAndroidFlushEvents();
-        if (g_AndroidApp->destroyRequested) {
+        if (app->destroyRequested) {
             return 0;
         }
         dmTime::Sleep(300);
@@ -110,8 +113,11 @@ int engine_main(int argc, char *argv[])
     pthread_getattr_np(pthread_self(), &attr);
     pthread_attr_getstacksize(&attr, &stacksize);
 
-    g_AndroidApp->onAppCmd = glfwAndroidHandleCommand;
-    g_AndroidApp->onInputEvent = glfwAndroidHandleInput;
+    struct android_app* app = dmAndroid::GetAndroidApp();
+    assert(app);
+
+    app->onAppCmd = glfwAndroidHandleCommand;
+    app->onInputEvent = glfwAndroidHandleInput;
 
     // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
     if (!WaitForWindow())
@@ -132,7 +138,7 @@ int engine_main(int argc, char *argv[])
     {
         glfwAndroidPollEvents();
         dmTime::Sleep(0);
-        if (g_AndroidApp->destroyRequested) {
+        if (app->destroyRequested) {
             // App requested exit. It doesn't wait when thread work finished because app is in background already.
             // App will never end up here from within the app itself, only using OS functions.
             return 0;

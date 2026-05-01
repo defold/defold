@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,9 +15,13 @@
 (ns editor.texture-set
   (:require [editor.camera :as camera]
             [editor.colors :as colors]
+            [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
-            [editor.gl.vertex2 :as vtx])
+            [editor.gl.vertex2 :as vtx]
+            [editor.shaders :as shaders]
+            [editor.slice9 :as slice9]
+            [util.coll :refer [pair]])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -25,70 +29,105 @@
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
-(def ^:const tex-coord-orders
-  [[0 1 2 3]   ; no flip
-   [1 0 3 2]   ; flip v
-   [3 2 1 0]   ; flip h
-   [2 3 0 1]]) ; flip vh
+(def ^:private flip-strategy->tex-coord-order
+  [(vector-of :long 0 1 2 3)   ; no flip
+   (vector-of :long 1 0 3 2)   ; flip v
+   (vector-of :long 3 2 1 0)   ; flip h
+   (vector-of :long 2 3 0 1)]) ; flip vh
 
-(defn- tex-coord-lookup
-  [flip-horizontal flip-vertical]
-  (nth tex-coord-orders (bit-xor flip-vertical
-                                 (bit-shift-left flip-horizontal 1))))
+(def ^:private flip-strategy->scale-factors
+  [(vector-of :double 1.0 1.0)     ; no flip
+   (vector-of :double 1.0 -1.0)    ; flip v
+   (vector-of :double -1.0 1.0)    ; flip h
+   (vector-of :double -1.0 -1.0)]) ; flip vh
 
 (defn- ->uv-vertex
   [^long vert-index ^FloatBuffer tex-coords]
   (let [index (int (* vert-index 2))]
     (vector-of :double (.get tex-coords index) (.get tex-coords (inc index)))))
 
-(defn- ->uv-quad
+(defn- ->quad-tex-coords
   [^long quad-index tex-coords tex-coord-order]
   (let [offset (* quad-index 4)]
-    (mapv #(->uv-vertex (+ offset %) tex-coords) tex-coord-order)))
+    (mapv (fn [^long tex-coord-index]
+            (->uv-vertex (+ offset tex-coord-index) tex-coords))
+          tex-coord-order)))
 
 (defn- ->tex-dim
-  [frame-index ^FloatBuffer tex-dims]
-  (let [offset (* frame-index 2)
-        width (.get tex-dims ^int (+ offset 0))
-        height (.get tex-dims ^int (+ offset 1))]
+  [^long frame-index ^FloatBuffer tex-dims]
+  (let [offset (int (* frame-index 2))
+        width (.get tex-dims offset)
+        height (.get tex-dims (inc offset))]
     {:width width :height height}))
 
 ;; anim data
 
 (defn- ->anim-frame
-  [frame-index page-index tex-coords tex-dims tex-coord-order]
-  (let [tex-coords-data (->uv-quad frame-index tex-coords tex-coord-order)
-        {:keys [width height]} (->tex-dim frame-index tex-dims)]
-    {:page-index page-index
-     :tex-coords tex-coords-data
-     :width width
-     :height height}))
+  [page-index quad-tex-coords quad-tex-coords-raw tex-dim frame-geometry]
+  {:page-index page-index
+   :tex-coords quad-tex-coords
+   :tex-coords-raw quad-tex-coords-raw
+   :atlas-rotated (true? (:rotated frame-geometry))
+   :width (:width tex-dim)
+   :height (:height tex-dim)
+   :pivot [(or (:pivot-x frame-geometry) 0.0) (or (:pivot-y frame-geometry) 0.0)]})
 
-(defn- flat-array->2d-points [flat-array]
-  (into []
-        (partition-all 2)
-        flat-array))
+(defn- double-vector->2d-points
+  ([double-vector reverse]
+   (double-vector->2d-points double-vector reverse 1.0 1.0))
+  ([double-vector reverse ^double scale-x ^double scale-y]
+   (mapv (fn [^long index]
+           (let [^double x (double-vector index)
+                 ^double y (double-vector (inc index))]
+             (vector-of :double (* x scale-x) (* y scale-y))))
+         (if reverse
+           (range (- (count double-vector) 2) -2 -2)
+           (range 0 (count double-vector) 2)))))
 
 (defn- ->anim-frame-from-geometry
-  [page-index frame-geometry]
-  {:page-index page-index
-   :tex-coords (flat-array->2d-points (:uvs frame-geometry))
-   :vertex-coords (flat-array->2d-points (:vertices frame-geometry))
-   :indices (:indices frame-geometry)
-   :use-geometries true
-   :width (:width frame-geometry)
-   :height (:height frame-geometry)})
+  [page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse]
+  (let [^double scale-x (scale-factors 0)
+        ^double scale-y (scale-factors 1)
+        ^double pivot-x (or (:pivot-x frame-geometry) 0.0)
+        ^double pivot-y (or (:pivot-y frame-geometry) 0.0)
+        vertex-coords (double-vector->2d-points (:vertices frame-geometry) reverse scale-x scale-y)
+        vertex-tex-coords (double-vector->2d-points (:uvs frame-geometry) reverse)]
+    {:page-index page-index
+     :tex-coords quad-tex-coords
+     :tex-coords-raw quad-tex-coords-raw
+     :atlas-rotated (true? (:rotated frame-geometry))
+     :vertex-coords vertex-coords
+     :pivot [pivot-x pivot-y]
+     :vertex-tex-coords vertex-tex-coords
+     :indices (:indices frame-geometry)
+     :use-geometries true
+     :width (:width frame-geometry)
+     :height (:height frame-geometry)}))
 
 (defn- ->anim-data
   [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries]
-  (let [frames (mapv (fn [i]
+  {:pre [(contains? #{nil 0 1} flip-horizontal)
+         (contains? #{nil 0 1} flip-vertical)]}
+  (let [^long flip-horizontal (or flip-horizontal 0)
+        ^long flip-vertical (or flip-vertical 0)
+        flip-strategy (bit-or flip-vertical (bit-shift-left flip-horizontal 1))
+        tex-coord-order (flip-strategy->tex-coord-order flip-strategy)
+        scale-factors (flip-strategy->scale-factors flip-strategy)
+        reverse (not (zero? (bit-xor flip-horizontal flip-vertical)))
+        tex-coord-order-unflipped (flip-strategy->tex-coord-order 0)
+        frames (mapv (fn [i]
                        (let [frame-index (frame-indices i)
                              page-index (page-indices frame-index)
-                             frame-geometry (get geometries frame-index)]
-                         (if use-geometries
-                           (->anim-frame-from-geometry page-index frame-geometry)
-                           (->anim-frame frame-index page-index tex-coords tex-dims (tex-coord-lookup flip-horizontal flip-vertical)))))
+                             frame-geometry (geometries frame-index)
+                             quad-tex-coords (->quad-tex-coords frame-index tex-coords tex-coord-order)
+                             quad-tex-coords-raw (->quad-tex-coords frame-index tex-coords tex-coord-order-unflipped)]
+                         (if (and use-geometries
+                                  (not= :sprite-trim-mode-off
+                                        (:trim-mode frame-geometry)))
+                           (->anim-frame-from-geometry page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse)
+                           (->anim-frame page-index quad-tex-coords quad-tex-coords-raw (->tex-dim frame-index tex-dims) frame-geometry))))
                      (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
@@ -114,76 +153,171 @@
         frame-indices (:frame-indices texture-set)
         page-indices (:page-indices texture-set)]
     (into {}
-          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries)))
+          (map #(pair (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries)))
           animations)))
 
 
 ;; vertex data
 
+(def ^:private animation-overlay-shader shaders/basic-texture-paged-local-space)
+
 (defn- gen-vertex
   [^Matrix4d world-transform x y u v page-index]
   (let [p (Point3d. x y 0.0)]
     (.transform world-transform p)
-    (vector-of :double (.x p) (.y p) (.z p) 1.0 u v page-index)))
+    (vector-of :double (.x p) (.y p) (.z p) u v page-index)))
 
-(defn- animation-frame-corners [animation-frame]
-  (let [^double width (:width animation-frame)
-        ^double height (:height animation-frame)
-        x1 (* 0.5 width)
-        y1 (* 0.5 height)
-        x0 (- x1)
-        y0 (- y1)
+(defn- corner-points [[^double width ^double height :as size] pivot]
+  (let [[^double offset-x ^double offset-y] (geom/gui-pivot-offset pivot size)
+        half-width (* 0.5 width)
+        half-height (* 0.5 height)
+        x0 (+ (- half-width) offset-x)
+        y0 (+ (- half-height) offset-y)
+        x1 (+ half-width offset-x)
+        y1 (+ half-height offset-y)
         xynw (vector-of :double x0 y0 0.0 1.0)
         xyne (vector-of :double x1 y0 0.0 1.0)
         xysw (vector-of :double x0 y1 0.0 1.0)
         xyse (vector-of :double x1 y1 0.0 1.0)]
     [xynw xyne xysw xyse]))
 
-(defn position-data [animation-frame]
-  (if (:use-geometries animation-frame)
-    (let [^double width (:width animation-frame)
-          ^double height (:height animation-frame)
-          vertex-coords (:vertex-coords animation-frame)
-          indices (:indices animation-frame)]
-      (mapv (fn [i]
-              (let [p (get vertex-coords i)
-                    x (* width (get p 0))
-                    y (* height (get p 1))]
-                (vector-of :double x y 0.0 1.0)))
-            indices))
-    (let [corner-points (animation-frame-corners animation-frame)
-          xynw (get corner-points 0)
-          xyne (get corner-points 1)
-          xysw (get corner-points 2)
-          xyse (get corner-points 3)]
-      [xynw xyne xysw xyne xyse xysw])))
+(defn- corner-points->position-data [[xynw xyne xysw xyse]]
+  [xynw xyne xysw xyne xyse xysw])
 
-(defn uv-data [animation-frame]
-  (if (:use-geometries animation-frame)
-    (let [tex-coords (:tex-coords animation-frame)
-          indices (:indices animation-frame)]
-      (mapv (fn [i] (get tex-coords i)) indices))
-    (let [[uvnw uvsw uvse uvne] (:tex-coords animation-frame)]
-      [uvnw uvne uvsw uvne uvse uvsw])))
+(defn- corner-points->line-data [[xynw xyne xysw xyse]]
+  [xynw xyne xyne xyse xyse xysw xysw xynw])
 
-(defn- line-data [animation-frame]
-  (let [corner-points (animation-frame-corners animation-frame)
-        xynw (get corner-points 0)
-        xyne (get corner-points 1)
-        xysw (get corner-points 2)
-        xyse (get corner-points 3)]
-    [xynw xyne xyne xyse xyse xysw xysw xynw]))
+(defn- offset-vertices [^double offset-x ^double offset-y vertices]
+  ; Vertices is an array with arrays: [[x0 y0 u0 v0 ...] [x1 y1 u1 v1 ...] ...]
+  (mapv (fn [vtx]
+          (let [^double px (first vtx)
+                ^double py (second vtx)
+                x (- px offset-x)
+                y (- py offset-y)]
+            (assoc vtx 0 x 1 y)))
+        vertices))
 
-(defn vertex-data [animation-frame]
-  {:position-data (position-data animation-frame)
-   :uv-data (uv-data animation-frame)
-   :line-data (line-data animation-frame)})
+;; Affine from unit square (s,t) to atlas UV — same packing as engine ResolveAnimationData (mat3 column-major).
+;; quad-unflipped must match Bob's tex_coord order for the quad: unrotated BL,TL,TR,BR; rotated TL,TR,BR,BL.
+;; Animation flip is applied only to vertex UVs at runtime, not to this transform.
+(defn- tex-coords->texture-transform-2d [quad-unflipped atlas-rotated]
+  (if atlas-rotated
+    (let [[tl tr br bl] quad-unflipped
+          u-bl (double (nth bl 0))
+          v-bl (double (nth bl 1))
+          u-br (double (nth br 0))
+          v-br (double (nth br 1))
+          u-tl (double (nth tl 0))
+          v-tl (double (nth tl 1))]
+      (vector-of :double
+                 (- u-br u-bl) (- v-br v-bl) 0.0
+                 (- u-tl u-bl) (- v-tl v-bl) 0.0
+                 u-bl v-bl 1.0))
+    (let [[bl tl tr br] quad-unflipped
+          u-bl (double (nth bl 0))
+          v-bl (double (nth bl 1))
+          u-br (double (nth br 0))
+          v-br (double (nth br 1))
+          u-tl (double (nth tl 0))
+          v-tl (double (nth tl 1))]
+      (vector-of :double
+                 (- u-br u-bl) (- v-br v-bl) 0.0
+                 (- u-tl u-bl) (- v-tl v-bl) 0.0
+                 u-bl v-bl 1.0))))
+
+(def ^:private texture-transform-identity
+  (vector-of :double 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0))
+
+(defn- frame-vertex-data [animation-frame size pivot]
+  (let [use-geometries (:use-geometries animation-frame)
+        corner-points (corner-points size pivot)
+        line-data (corner-points->line-data corner-points)
+        tex-coords (:tex-coords animation-frame)
+
+        position-data
+        (if use-geometries
+          (let [[^double width ^double height] size
+                [^double offset-x ^double offset-y] (geom/gui-pivot-offset pivot size)
+                vertex-coords (:vertex-coords animation-frame)
+                indices (:indices animation-frame)]
+            (mapv (fn [i]
+                    (let [[^double px ^double py] (vertex-coords i)
+                          x (+ (* width px) offset-x)
+                          y (+ (* height py) offset-y)]
+                      (vector-of :double x y 0.0 1.0)))
+                  indices))
+          (corner-points->position-data corner-points))
+
+        uv-data
+        (if use-geometries
+          (let [vertex-tex-coords (:vertex-tex-coords animation-frame)
+                indices (:indices animation-frame)]
+            (mapv vertex-tex-coords indices))
+          (let [[uvnw uvsw uvse uvne] tex-coords]
+            [uvnw uvne uvsw uvne uvse uvsw]))
+
+        ;; Prefer :tex-coords-raw (Bob order) so the transform matches runtime; legacy frames may only have :tex-coords.
+        texture-transform
+        (let [raw (or (:tex-coords-raw animation-frame) (:tex-coords animation-frame))]
+          (tex-coords->texture-transform-2d raw (true? (:atlas-rotated animation-frame))))]
+
+    {:position-data position-data
+     :uv-data uv-data
+     :line-data line-data
+     :texture-transform texture-transform}))
+
+(def ^:private default-quad-uv-data
+  [(vector-of :double 0.0 0.0)
+   (vector-of :double 1.0 0.0)
+   (vector-of :double 0.0 1.0)
+   (vector-of :double 1.0 0.0)
+   (vector-of :double 1.0 1.0)
+   (vector-of :double 0.0 1.0)])
+
+(defn- quad-vertex-data [size pivot]
+  (let [corner-points (corner-points size pivot)
+        position-data (corner-points->position-data corner-points)
+        line-data (corner-points->line-data corner-points)]
+    {:position-data position-data
+     :uv-data default-quad-uv-data
+     :line-data line-data
+     :texture-transform texture-transform-identity}))
+
+(defn vertex-data [animation-frame size-mode size slice9 pivot]
+  (let [out (-> (cond
+                  (nil? animation-frame)
+                  (quad-vertex-data size pivot)
+
+                  (and (= :size-mode-manual size-mode)
+                       (slice9/sliced? slice9))
+                  (-> (slice9/vertex-data animation-frame size slice9 pivot)
+                      (assoc :texture-transform
+                             (if-some [raw (or (:tex-coords-raw animation-frame)
+                                               (:tex-coords animation-frame))]
+                               (tex-coords->texture-transform-2d raw (true? (:atlas-rotated animation-frame)))
+                               texture-transform-identity)))
+
+                  :else
+                  (frame-vertex-data animation-frame size pivot))
+                (assoc :page-index (:page-index animation-frame 0)))
+
+        ; Pivot point comes from the SpriteGeometry, where (0,0) is center of the image and +Y is up.
+        [^double image-pivot-x ^double image-pivot-y] (or (:pivot animation-frame) [0.0 0.0])
+        [^double width ^double height] (if (or (and (= :size-mode-manual size-mode)) (nil? animation-frame)) size [(:width animation-frame) (:height animation-frame)])
+        image-pivot-x (* width image-pivot-x)
+        image-pivot-y (* height image-pivot-y)
+
+        position-data (:position-data out)
+        line-data (:line-data out)
+        offset-positions (offset-vertices image-pivot-x image-pivot-y position-data)
+        offset-lines (offset-vertices image-pivot-x image-pivot-y line-data)]
+    (assoc out :position-data offset-positions :line-data offset-lines)))
 
 
 ;; animation
 
 (defn- next-frame
-  [frame playback frame-time frame-count]
+  [frame playback frame-time ^long frame-count]
   (case playback
     :playback-none frame
 
@@ -191,20 +325,20 @@
     (mod frame-time frame-count)
 
     (:playback-once-backward :playback-loop-backward)
-    (- (dec frame-count) (mod frame-time frame-count))
+    (- (dec frame-count) (long (mod frame-time frame-count)))
 
     (:playback-once-pingpong :playback-loop-pingpong)
     ;; Unwrap to frame-count + (frame-count - 2)
     (let [pingpong-frame-count (max (- (* frame-count 2) 2) 1)
-          next-frame (mod frame-time pingpong-frame-count)]
+          next-frame (long (mod frame-time pingpong-frame-count))]
       (if (< next-frame frame-count)
         next-frame
         (- (dec frame-count) (- next-frame frame-count) 1)))))
 
 (defn step-animation
-  [{:keys [t frame] :as state} dt anim-data]
+  [{:keys [^double t frame] :as state} ^double dt anim-data]
   (let [t' (+ t dt)
-        time-per-frame (/ 1.0 (:fps anim-data))
+        time-per-frame (/ 1.0 (double (:fps anim-data)))
         frame-time (long (+ 0.5 (/ t' time-per-frame)))
         frame' (next-frame frame (:playback anim-data) frame-time (count (:frames anim-data)))]
     (assoc state :t t' :frame frame')))
@@ -222,12 +356,14 @@
 
 ;; rendering
 
-(def ^:const animation-preview-offset 40)
+(def ^:const animation-preview-offset 40.0)
 
-(defn animation-frame->vertex-pos-uv
+(defn- animation-frame->vertex-floats
   [animation-frame world-transform]
-  (let [frame-vertex-data (vertex-data animation-frame)
-        page-index (:page-index animation-frame)]
+  (let [size [(:width animation-frame)
+              (:height animation-frame)]
+        frame-vertex-data (frame-vertex-data animation-frame size :pivot-center)
+        page-index (:page-index animation-frame 0)]
     (mapv (fn [positions uvs]
             (let [x (get positions 0)
                   y (get positions 1)
@@ -238,10 +374,11 @@
           (:uv-data frame-vertex-data))))
 
 (defn- anim-data->vbuf
-  [anim-data frame-index world-transform make-vbuf-fn]
+  [anim-data frame-index world-transform]
   (let [animation-data (get-in anim-data [:frames frame-index])
-        animation-vertices (animation-frame->vertex-pos-uv animation-data world-transform)
-        ^VertexBuffer vbuf (make-vbuf-fn (count animation-vertices))
+        animation-vertices (animation-frame->vertex-floats animation-data world-transform)
+        vertex-description (shaders/vertex-description animation-overlay-shader)
+        ^VertexBuffer vbuf (vtx/make-vertex-buffer vertex-description :stream (count animation-vertices))
         ^ByteBuffer buf (.buf vbuf)]
     (doseq [vertex animation-vertices]
       (vtx/buf-push-floats! buf vertex))
@@ -255,36 +392,38 @@
       6)))
 
 (defn render-animation-overlay
-  [^GL2 gl render-args renderables n make-vbuf-fn shader]
-  (let [{:keys [pass camera viewport]} render-args
-        [sx sy sz] (camera/scale-factor camera viewport)
+  [^GL2 gl render-args renderables]
+  (let [{:keys [camera viewport]} render-args
+        [^double sx ^double sy ^double sz] (camera/scale-factor camera viewport)
         scale-m (doto (Matrix4d.)
                   (.setIdentity)
-                  (.setM00 (/ 1 sx))
-                  (.setM11 (- (/ 1 sy))) ; flip
-                  (.setM22 (/ 1 sz))
-                  (.setM33 1))
-        world-pos (Vector3d. animation-preview-offset (- (:bottom viewport) animation-preview-offset) 0)]
+                  (.setM00 (/ 1.0 sx))
+                  (.setM11 (- (/ 1.0 sy))) ; flip
+                  (.setM22 (/ 1.0 sz))
+                  (.setM33 1.0))
+        world-pos (Vector3d. animation-preview-offset (- (double (:bottom viewport)) animation-preview-offset) 0.0)]
     (doseq [renderable renderables]
       (let [state (-> renderable :updatable :state)]
         (when-let [frame (:frame state)]
           (let [user-data (:user-data renderable)
                 anim-data (:anim-data user-data)
+                image-width (double (:width anim-data))
+                image-height (double (:height anim-data))
                 world-transform (doto (Matrix4d.)
                                   (.setIdentity)
-                                  (.setTranslation (Vector3d. (+ (.x world-pos)  (* 0.5 (/ 1 sx) (:width anim-data)))
-                                                              (- (.y world-pos) (* 0.5 (/ 1 sy) (:height anim-data)))
-                                                              0))
+                                  (.setTranslation (Vector3d. (+ (.x world-pos) (* 0.5 (/ 1.0 sx) image-width))
+                                                              (- (.y world-pos) (* 0.5 (/ 1.0 sy) image-height))
+                                                              0.0))
                                   (.mul scale-m))
                 vertex-count (anim-data->vertex-count anim-data frame)
-                vbuf (anim-data->vbuf anim-data frame world-transform make-vbuf-fn)]
+                vbuf (anim-data->vbuf anim-data frame world-transform)]
             (when vbuf
-              (let [vertex-binding (vtx/use-with ::animation vbuf shader)
+              (let [vertex-binding (vtx/use-with ::animation vbuf animation-overlay-shader)
                     gpu-texture (:gpu-texture user-data)
                     x0 (.x world-pos)
                     y0 (.y world-pos)
-                    x1 (+ x0 (* (/ 1 sx) (:width anim-data)))
-                    y1 (- y0 (* (/ 1 sy) (:height anim-data)))
+                    x1 (+ x0 (* (/ 1.0 sx) image-width))
+                    y1 (- y0 (* (/ 1.0 sy) image-height))
                     [cr cg cb ca] colors/outline-color
                     [xr xg xb xa] colors/scene-background]
                 (.glColor4d gl xr xg xb xa)
@@ -301,6 +440,6 @@
                 (.glVertex3d gl x1 y1 0)
                 (.glVertex3d gl x1 y0 0)
                 (.glEnd gl)
-                (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-                  (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+                (gl/with-gl-bindings gl render-args [animation-overlay-shader vertex-binding gpu-texture]
+                  (shader/set-samplers-by-index animation-overlay-shader gl 0 (:texture-units gpu-texture))
                   (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 vertex-count))))))))))

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,12 +22,12 @@
 
 namespace dmDDF
 {
-    /*# SDK DDF (Defold Data Format) API documentation
-     * [file:<dmsdk/ddf/ddf.h>]
+    /*# DDF (Defold Data Format) API documentation
      *
      * @document
      * @name Ddf
      * @namespace dmDDF
+     * @language C++
      */
 
     /*# descriptor handle
@@ -113,6 +113,7 @@ namespace dmDDF
     /*#
      * Load/decode a DDF message from buffer. Template variant
      * @name LoadMessage<T>
+     * @tparam T
      * @param buffer [type:const void*] Input buffer
      * @param buffer_size [type:uint32_t] Input buffer size in bytes
      * @param message [type:T**] (out) Destination pointer to message

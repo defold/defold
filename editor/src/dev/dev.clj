@@ -1,19 +1,23 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns dev
-  (:require [clojure.pprint :as pprint]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.progress-bar :as fx.progress-bar]
+            [cljfx.fx.v-box :as fx.v-box]
+            [clojure.pprint :as pprint]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -25,9 +29,14 @@
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
+            [editor.fxui :as fxui]
             [editor.game-object :as game-object]
-            [editor.gl.vertex2 :as vtx]
+            [editor.graphics.types :as graphics.types]
+            [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.math :as math]
+            [editor.node-util :as node-util]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -37,6 +46,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene-cache :as scene-cache]
+            [editor.ui :as ui]
             [editor.util :as eutil]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -47,28 +57,42 @@
             [jfx :as jfx]
             [lambdaisland.deep-diff2 :as deep-diff]
             [lambdaisland.deep-diff2.minimize-impl :as deep-diff.minimize-impl]
+            [lambdaisland.deep-diff2.printer-impl :as deep-diff.printer-impl]
             [lambdaisland.deep-diff2.puget.color :as puget.color]
             [lambdaisland.deep-diff2.puget.printer :as puget.printer]
+            [macro]
+            [potemkin.namespaces :as namespaces]
+            [service.log :as log]
             [util.coll :as coll :refer [pair]]
+            [util.debug-util]
             [util.diff :as diff]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.defold.util WeakInterner]
-           [com.google.protobuf Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
+           [com.dynamo.bob Platform]
+           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
+           [com.google.protobuf Descriptors$Descriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
            [editor.code.data Cursor CursorRange]
            [editor.gl.pass RenderPass]
            [editor.gl.vertex2 VertexBuffer]
            [editor.resource FileResource MemoryResource ZipResource]
            [editor.types AABB]
+           [editor.workspace BuildResource]
            [internal.graph.types Arc Endpoint]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
-           [java.io ByteArrayOutputStream]
            [java.lang.reflect Modifier]
            [java.nio ByteBuffer]
+           [javafx.scene Node]
            [javafx.stage Window]
-           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]))
+           [javax.vecmath Matrix3d Matrix3f Matrix4d Matrix4f Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(namespaces/import-vars
+  [util.debug-util stack-trace]
+  [integration.test-util outline-node-id outline-node-info resource-outline-node-id resource-outline-node-info]
+  [macro pprint-code pprint-macroexpanded simplify-expression])
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))
@@ -77,7 +101,7 @@
   0)
 
 (defn project []
-  (ffirst (g/targets-of (workspace) :resource-map)))
+  (ffirst (g/targets-of (workspace) :resource-list)))
 
 (defn app-view []
   (ffirst (g/targets-of (project) :selected-node-ids-by-resource-node)))
@@ -96,7 +120,11 @@
           (g/node-value :active-view)))
 
 (defn resource-node [path-or-resource]
-  (project/get-resource-node (project) path-or-resource))
+  (let [resource-node (project/get-resource-node (project) path-or-resource)]
+    (if (some? resource-node)
+      resource-node
+      (throw (ex-info (str "Resource not found: '" path-or-resource "'")
+                      {:path-or-resource path-or-resource})))))
 
 (defn selection []
   (->> (g/node-value (project) :selected-node-ids-by-resource-node)
@@ -108,6 +136,32 @@
        first))
 
 (def sel (comp first selection))
+
+(defn node-info
+  ([node-id]
+   {:pre [(some? node-id)
+          (g/node-id? node-id)]}
+   (g/with-auto-evaluation-context evaluation-context
+     (node-info node-id evaluation-context)))
+  ([node-id evaluation-context]
+   {:pre [(some? node-id)
+          (g/node-id? node-id)]}
+   (let [basis (:basis evaluation-context)
+         original-node-id (g/override-original basis node-id)
+         override-node-ids (g/overrides basis node-id)]
+     (cond-> (into (array-map :node-id node-id)
+                   (node-util/node-debug-info node-id evaluation-context))
+
+             (some? original-node-id)
+             (assoc :original-node-id original-node-id)
+
+             (coll/not-empty override-node-ids)
+             (assoc :override-node-ids override-node-ids)))))
+
+(defn outline-labels [node-id & outline-labels]
+  (into (sorted-set)
+        (map :label)
+        (:children (apply outline-node-info node-id outline-labels))))
 
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
@@ -140,7 +194,6 @@
      game-object/ReferencedComponent
      (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
 
-     :else
      (throw-invalid-component-resource-node-id-exception basis node-id))))
 
 (defn to-game-object-node-id
@@ -155,7 +208,6 @@
      collection/GameObjectInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
@@ -172,13 +224,18 @@
      collection/CollectionInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
 
 (defn prefs []
-  (prefs/make-prefs "defold"))
+  (prefs/project (workspace/project-directory (workspace))))
+
+(defn localization []
+  (some #(-> % :env :localization) (ui/contexts (ui/main-scene) true)))
+
+(defn web-server []
+  (some #(-> % :env :web-server) (ui/contexts (ui/main-scene) true)))
 
 (declare ^:private exclude-keys-deep-helper)
 
@@ -188,9 +245,8 @@
     (exclude-keys-deep-helper excluded-map-entry? value)
 
     (coll? value)
-    (into (empty value)
-          (map (partial exclude-keys-deep-value-helper excluded-map-entry?))
-          value)
+    (coll/transform-> value
+      (map (partial exclude-keys-deep-value-helper excluded-map-entry?)))
 
     :else
     value))
@@ -232,13 +288,17 @@
   (letfn [(wrapped-value-fn [key value]
             (if-not (record? value)
               (value-fn key value)
-              (deep-keep-finalize-coll-value-fn
-                (into (with-meta (sorted-map)
-                                 (meta value))
-                      (keep (fn [[k v]]
-                              (when-some [v' (util/deep-keep-kv-helper deep-keep-finalize-coll-value-fn wrapped-value-fn k v)]
-                                (pair k v'))))
-                      value))))]
+              (letfn [(finalize-into [target-map value]
+                        (into (with-meta target-map
+                                         (meta value))
+                              (keep (fn [[k v]]
+                                      (when-some [v' (util/deep-keep-kv-helper deep-keep-finalize-coll-value-fn wrapped-value-fn k v)]
+                                        (pair k v'))))
+                              value))]
+                (try
+                  (finalize-into (sorted-map) value)
+                  (catch ClassCastException _
+                    (finalize-into {} value))))))]
     wrapped-value-fn))
 
 (defn deep-keep [value-fn value]
@@ -248,6 +308,18 @@
 (defn deep-keep-kv [value-fn value]
   (let [wrapped-value-fn (deep-keep-kv-wrapped-value-fn value-fn)]
     (util/deep-keep-kv deep-keep-finalize-coll-value-fn wrapped-value-fn value)))
+
+(defn nodes-of-type
+  ([node-type]
+   (nodes-of-type (g/now) node-type))
+  ([basis node-type]
+   (sequence
+     (comp (map val)
+           (mapcat :nodes)
+           (map val)
+           (filter #(g/node-instance*? node-type %))
+           (map gt/node-id))
+     (:graphs basis))))
 
 (defn views-of-type [node-type]
   (keep (fn [node-id]
@@ -260,6 +332,28 @@
 
 (defn windows []
   (Window/getWindows))
+
+(defn focused-control
+  ^Node []
+  (some-> (ui/main-scene)
+          (ui/focus-owner)))
+
+(defn command-contexts
+  ([]
+   (when-some [focused-control (focused-control)]
+     (command-contexts focused-control)))
+  ([^Node control]
+   (g/with-auto-evaluation-context evaluation-context
+     (ui/node-contexts control true evaluation-context))))
+
+(defn command-env
+  ([command]
+   (command-env (command-contexts) command nil))
+  ([command user-data]
+   (command-env (command-contexts) command user-data))
+  ([command-contexts command user-data]
+   (let [[_handler command-context] (handler/active command command-contexts user-data)]
+     (:env command-context))))
 
 (def assets-view (partial view-of-type asset-browser/AssetBrowser))
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
@@ -279,8 +373,6 @@
                  (let [value (g/node-value node-id label evaluation-context)]
                    (pair label value))))
           labels)))
-
-(def node-type-key (comp :k g/node-type*))
 
 (defn- class-name->symbol [^String class-name]
   (-> class-name
@@ -423,7 +515,7 @@
   the specified node id and label. The result is a map of target node keys to
   affected labels, recursively. The node-key-fn takes a basis and a node-id,
   and should return the key to use for the node in the resulting map. If not
-  supplied, the node keys will be a pair of the node-type-key and the node-id."
+  supplied, the node keys will be a pair of the node-type-kw and the node-id."
   ([node-id label]
    (successor-tree (g/now) node-id label))
   ([basis node-id label]
@@ -432,7 +524,7 @@
        (sorted-map)
        (sorted-map)
        (fn key-fn [[successor-node-id]]
-         (pair (node-type-key basis successor-node-id)
+         (pair (g/node-type-kw basis successor-node-id)
                successor-node-id))
        (fn value-fn [[successor-node-id successor-label]]
          (pair successor-label
@@ -443,12 +535,12 @@
 (defn- successor-types-impl [successors-fn basis node-id-and-label-pairs]
   (let [direct-connected-successors-fn (make-direct-connected-successors-fn basis)]
     (into (sorted-map)
-          (map (fn [[node-type-key successor-labels]]
-                 (pair node-type-key
+          (map (fn [[node-type-kw successor-labels]]
+                 (pair node-type-kw
                        (into (sorted-map)
                              (frequencies successor-labels)))))
           (util/group-into {} []
-                           (comp (partial node-type-key basis) first)
+                           (comp (partial g/node-type-kw basis) first)
                            second
                            (successors-fn direct-connected-successors-fn basis node-id-and-label-pairs)))))
 
@@ -490,31 +582,45 @@
   ([basis node-id label]
    (direct-successor-types* basis [(pair node-id label)])))
 
+(defn- flipped-descending-pairs [key-num-pairs]
+  (->> key-num-pairs
+       (map coll/flip)
+       (sort (fn [[^long amount-a entry-a] [^long amount-b entry-b]]
+               (cond (< amount-a amount-b) 1
+                     (< amount-b amount-a) -1
+                     (and (instance? Comparable entry-a)
+                          (instance? Comparable entry-b)) (compare entry-a entry-b)
+                     :else 0)))
+       (vec)))
+
 (defn ordered-occurrences
   "Returns a sorted list of [occurrence-count entry]. The list is sorted by
   occurrence count in descending order."
   [coll]
-  (sort (fn [[^long occurrence-count-a entry-a] [^long occurrence-count-b entry-b]]
-          (cond (< occurrence-count-a occurrence-count-b) 1
-                (< occurrence-count-b occurrence-count-a) -1
-                (and (instance? Comparable entry-a)
-                     (instance? Comparable entry-b)) (compare entry-a entry-b)
-                :else 0))
-        (map (fn [[entry occurrence-count]]
-               (pair occurrence-count entry))
-             (frequencies coll))))
+  (flipped-descending-pairs (frequencies coll)))
+
+(defn make-report [pair-fn coll]
+  "Produce a list of [sum category] pairs from a sequence of items. The
+  resulting list will be in in descending order. The pair-fn is called for each
+  item in the sequence, and is expected to return a [category value] pair.
+  Returning nil from the pair-fn will exclude the item from the sum.
+  Otherwise, the values will be summed for each category to create the list."
+  (flipped-descending-pairs
+    (coll/aggregate-into {} + (e/keep pair-fn coll))))
 
 (defn cached-output-report
   "Returns a sorted list of what node outputs are in the system cache in the
-  format [entry-occurrence-count [node-type-key output-label]]. The list is
+  format [entry-occurrence-count [node-type-kw output-label]]. The list is
   sorted by entry occurrence count in descending order."
   []
   (let [system @g/*the-system*
         basis (is/basis system)]
     (ordered-occurrences
-      (map (fn [[[node-id output-label]]]
-             (let [node-type-key (node-type-key basis node-id)]
-               (pair node-type-key output-label)))
+      (map (fn [[endpoint]]
+             (let [node-id (g/endpoint-node-id endpoint)
+                   output-label (g/endpoint-label endpoint)
+                   node-type-kw (g/node-type-kw basis node-id)]
+               (pair node-type-kw output-label)))
            (is/system-cache system)))))
 
 (defn cached-output-name-report
@@ -523,115 +629,67 @@
   occurrence count in descending order."
   []
   (ordered-occurrences
-    (map (comp second key)
-         (is/system-cache @g/*the-system*))))
+    (e/map (comp g/endpoint-label key)
+           (is/system-cache @g/*the-system*))))
 
-(defn- ns->namespace-name
-  ^String [ns]
-  (name (ns-name ns)))
+(defn node-type-report
+  "Returns a sorted list of what node types are in the system graph in the
+  format [node-count node-type-kw]. The list is sorted by node count in
+  descending order."
+  []
+  (let [system @g/*the-system*
+        graphs (is/graphs system)]
+    (ordered-occurrences
+      (eduction
+        (mapcat (fn [[_graph-id graph]]
+                  (vals (:nodes graph))))
+        (map (comp :k g/node-type))
+        graphs))))
 
-(defn- class->canonical-symbol [^Class class]
-  (symbol (.getName class)))
+(defn println-err
+  [& more]
+  (binding [*out* *err*]
+    (apply println more)))
 
-(defn- make-alias-names-by-namespace-name [ns]
-  (into {(ns->namespace-name 'clojure.core) nil
-         (ns->namespace-name ns) nil}
-        (map (fn [[alias-symbol referenced-ns]]
-               (pair (ns->namespace-name referenced-ns)
-                     (name alias-symbol))))
-        (ns-aliases ns)))
+(defn- input-source-endpoints
+  [basis node-id input-label]
+  (e/map gt/source-endpoint
+         (gt/arcs-by-target basis node-id input-label)))
 
-(defn- make-simple-symbols-by-canonical-symbol [ns]
-  (into {}
-        (map (fn [[alias-symbol imported-class]]
-               (pair (class->canonical-symbol imported-class)
-                     alias-symbol)))
-        (ns-imports ns)))
+(defn immediate-predecessor-endpoints
+  [basis node-id label]
+  (let [node-type (g/node-type* basis node-id)
+        output-info (get (in/declared-outputs node-type) label)]
+    (cond
+      (some? output-info)
+      (e/mapcat
+        (fn [dep-label]
+          (if (= label dep-label)
+            (when (g/has-input? node-type dep-label)
+              (input-source-endpoints basis node-id dep-label))
+            [(gt/endpoint node-id dep-label)]))
+        (:dependencies output-info))
 
-(defn- simplify-namespace-name [namespace-name alias-names-by-namespace-name]
-  {:pre [(or (nil? namespace-name) (string? namespace-name))
-         (map? alias-names-by-namespace-name)]}
-  (let [alias-name (get alias-names-by-namespace-name namespace-name ::not-found)]
-    (case alias-name
-      ::not-found namespace-name
-      alias-name)))
+      (g/has-input? node-type label)
+      (input-source-endpoints basis node-id label))))
 
-(defn- simplify-symbol-name [symbol-name]
-  (string/replace symbol-name
-                  #"__(\d+)__auto__$"
-                  "#"))
-
-(defn- simplify-symbol [expression alias-names-by-namespace-name]
-  (-> expression
-      (namespace)
-      (simplify-namespace-name alias-names-by-namespace-name)
-      (symbol (-> expression name simplify-symbol-name))
-      (with-meta (meta expression))))
-
-(defn- simplify-keyword [expression alias-names-by-namespace-name]
-  (-> expression
-      (namespace)
-      (simplify-namespace-name alias-names-by-namespace-name)
-      (keyword (name expression))))
-
-(defn- simplify-expression-impl [expression alias-names-by-namespace-name simple-symbols-by-canonical-symbol]
-  (cond
-    (record? expression)
-    expression
-
-    (map? expression)
-    (into (coll/empty-with-meta expression)
-          (map (fn [[key value]]
-                 (pair (simplify-expression-impl key alias-names-by-namespace-name simple-symbols-by-canonical-symbol)
-                       (simplify-expression-impl value alias-names-by-namespace-name simple-symbols-by-canonical-symbol))))
-          expression)
-
-    (or (vector? expression)
-        (set? expression))
-    (into (coll/empty-with-meta expression)
-          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol))
-          expression)
-
-    (coll/list-or-cons? expression)
-    (into (coll/empty-with-meta expression)
-          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol))
-          (reverse expression))
-
-    (symbol? expression)
-    (or (get simple-symbols-by-canonical-symbol expression)
-        (simplify-symbol expression alias-names-by-namespace-name))
-
-    (keyword? expression)
-    (simplify-keyword expression alias-names-by-namespace-name)
-
-    :else
-    expression))
-
-(defmacro simplify-expression
-  ([expression]
-   `(simplify-expression *ns* ~expression))
-  ([ns expression]
-   `(let [ns# ~ns]
-      (#'simplify-expression-impl
-        ~expression
-        (#'make-alias-names-by-namespace-name ns#)
-        (#'make-simple-symbols-by-canonical-symbol ns#)))))
-
-(defn- pprint-code-impl [expression]
-  (binding [pprint/*print-suppress-namespaces* false
-            pprint/*print-right-margin* 100
-            pprint/*print-miser-width* 60]
-    (pprint/with-pprint-dispatch
-      pprint/code-dispatch
-      (pprint/pprint expression))))
-
-(defmacro pprint-code
-  "Pretty-print the supplied code expression while attempting to retain readable
-  formatting. Useful when developing macros."
-  ([expression]
-   `(#'pprint-code-impl (simplify-expression ~expression)))
-  ([ns expression]
-   `(#'pprint-code-impl (simplify-expression ~ns ~expression))))
+(defn recursive-predecessor-endpoints
+  [basis node-id label]
+  (let [*endpoint->predecessors-ref (volatile! {})]
+    (letfn [(endpoint->predecessors-ref [endpoint]
+              (if-some [predecessors-ref (get (deref *endpoint->predecessors-ref) endpoint)]
+                predecessors-ref
+                (let [predecessors-ref (volatile! nil)]
+                  (vswap! *endpoint->predecessors-ref assoc endpoint predecessors-ref)
+                  (vreset! predecessors-ref
+                           (let [node-id (gt/endpoint-node-id endpoint)
+                                 label (gt/endpoint-label endpoint)
+                                 immediate-predecessors (set (immediate-predecessor-endpoints basis node-id label))]
+                             (coll/into-> immediate-predecessors immediate-predecessors
+                               (mapcat (comp deref endpoint->predecessors-ref)))))
+                  predecessors-ref)))]
+      (let [endpoint (gt/endpoint node-id label)]
+        (deref (endpoint->predecessors-ref endpoint))))))
 
 ;; Utilities for investigating successors performance
 
@@ -651,9 +709,8 @@
                                identity
                                (fn [endpoint]
                                  (let [node-id (gt/endpoint-node-id endpoint)
-                                       label (gt/endpoint-label endpoint)
-                                       graph-id (gt/node-id->graph-id node-id)]
-                                   (cond->> (get-in basis [:graphs graph-id :successors node-id label])
+                                       label (gt/endpoint-label endpoint)]
+                                   (cond->> (g/successors basis node-id label)
                                             successor-filter
                                             (into [] (filter #(successor-filter [endpoint %])))))))))
                          endpoints)]
@@ -718,11 +775,11 @@
                     (->> kind-pairs
                          (map (case kind
                                 :external (fn [[source target]]
-                                            (str (name (node-type-key basis (gt/endpoint-node-id source)))
+                                            (str (name (g/node-type-kw basis (gt/endpoint-node-id source)))
                                                  " -> "
-                                                 (name (node-type-key basis (gt/endpoint-node-id target)))))
+                                                 (name (g/node-type-kw basis (gt/endpoint-node-id target)))))
                                 (:override :internal) (fn [[source]]
-                                                        (name (node-type-key basis (gt/endpoint-node-id source))))))
+                                                        (name (g/node-type-kw basis (gt/endpoint-node-id source))))))
                          frequencies
                          (sort-by (comp - val))
                          (run! (fn [[label group-count]]
@@ -732,9 +789,9 @@
                                                   group-count))))))))))))
 
 (defn- successor-pair-class [basis source-endpoint target-endoint]
-  [(node-type-key basis (gt/endpoint-node-id source-endpoint))
+  [(g/node-type-kw basis (gt/endpoint-node-id source-endpoint))
    (gt/endpoint-label source-endpoint)
-   (node-type-key basis (gt/endpoint-node-id target-endoint))
+   (g/node-type-kw basis (gt/endpoint-node-id target-endoint))
    (gt/endpoint-label target-endoint)])
 
 (defn successor-pair-stats-by-external-connection-influence
@@ -849,6 +906,9 @@
                          value)))))
         (.getDebugInfo weak-interner)))
 
+(definline weak-interner-values [^WeakInterner weak-interner]
+  `(.getValues ~(with-meta weak-interner {:tag `WeakInterner})))
+
 (defn weak-interner-stats [^WeakInterner weak-interner]
   (let [info (weak-interner-info weak-interner)
         hash-table (:hash-table info)
@@ -857,7 +917,7 @@
         occupancy-factor (/ (double entry-count) (double capacity))
 
         next-capacity
-        (util/first-where
+        (coll/first-where
           (fn [^long num]
             (< capacity num))
           (:growth-sequence info))
@@ -931,14 +991,36 @@
       (pair context-id entry-count))
     (scene-cache/cache-stats)))
 
+(defn clear-caches!
+  "Clears the various caches used to enhance the performance of the editor and
+  the tests. You can specify which caches to clear. When called with no
+  arguments, clears all caches except the downloaded library dependency cache.
+
+  Optional args:
+    :library  Clear the downloaded library dependency cache.
+    :project  Clear the loaded project cache used by tests.
+    :scene    Clear the scene cache used to render Scene Views.
+    :system   Clear the system cache used to cache node outputs."
+  ([]
+   (clear-caches! :project :scene :system))
+  ([& cache-kws]
+   (let [clear-cache? (set cache-kws)]
+     (when (clear-cache? :project)
+       (test-util/clear-cached-projects!))
+     (when (clear-cache? :scene)
+       (scene-cache/clear-all!))
+     (when (and (g/cache)
+                (clear-cache? :system))
+       (g/clear-system-cache!)))))
+
 (set! *warn-on-reflection* false)
 
-(defn- buf-clj-attribute-data [^ByteBuffer buf ^long buf-vertex-attribute-offset ^long attribute-byte-size component-data-type]
-  (let [primitive-type-kw (buffers/primitive-type-kw component-data-type)
+(defn- buf-clj-attribute-data [^ByteBuffer buf ^long buf-vertex-attribute-offset ^long attribute-byte-size buffer-data-type]
+  (let [primitive-type-kw (buffers/primitive-type-kw buffer-data-type)
         read-buf (-> buf
                      (.slice buf-vertex-attribute-offset attribute-byte-size)
                      (.order (.order buf))
-                     (buffers/as-typed-buffer component-data-type))]
+                     (buffers/as-typed-buffer buffer-data-type))]
     (loop [clj-vector (vector-of primitive-type-kw)]
       (if (.hasRemaining read-buf)
         (let [attribute-component (.get read-buf) ; Return type differs by Buffer subclass.
@@ -956,9 +1038,9 @@
               (val
                 (reduce (fn [[^long buf-vertex-attribute-offset clj-vertex] vertex-attribute]
                           (let [attribute-key (:name-key vertex-attribute)
-                                attribute-byte-size (vtx/attribute-size vertex-attribute)
-                                component-data-type (:type vertex-attribute)
-                                clj-vertex-attribute-data (buf-clj-attribute-data buf buf-vertex-attribute-offset attribute-byte-size component-data-type)
+                                attribute-byte-size (graphics.types/attribute-info-byte-size vertex-attribute)
+                                buffer-data-type (graphics.types/data-type-buffer-data-type (:data-type vertex-attribute))
+                                clj-vertex-attribute-data (buf-clj-attribute-data buf buf-vertex-attribute-offset attribute-byte-size buffer-data-type)
                                 clj-vertex-attribute (pair attribute-key clj-vertex-attribute-data)
                                 clj-vertex (conj! clj-vertex clj-vertex-attribute)
                                 buf-vertex-attribute-offset (+ buf-vertex-attribute-offset attribute-byte-size)]
@@ -983,20 +1065,6 @@
                        (conj (subvec verts 0 (min 3 (count verts)))
                              '...)))))
 
-(defmulti matrix-row (fn [matrix ^long _row-index] (class matrix)))
-
-(defmethod matrix-row Matrix3d
-  [^Matrix3d matrix ^long row-index]
-  (let [row (double-array 3)]
-    (.getRow matrix row-index row)
-    row))
-
-(defmethod matrix-row Matrix4d
-  [^Matrix4d matrix ^long row-index]
-  (let [row (double-array 4)]
-    (.getRow matrix row-index row)
-    row))
-
 (def pretty-printer
   (let [fmt-doc puget.printer/format-doc
         col-doc puget.color/document
@@ -1010,10 +1078,11 @@
                document])
 
             (object-data-pprint-handler [printer-opts object->value printer object]
-              (cls-tag-doc
-                (cond-> pretty-printer printer-opts (merge printer-opts))
-                (class object)
-                (fmt-doc printer (object->value object))))]
+              (let [printer (cond-> printer printer-opts (merge printer-opts))]
+                (cls-tag-doc
+                  printer
+                  (class object)
+                  (fmt-doc printer (object->value object)))))]
 
       (let [editor-pprint-handlers
             {(namespaced-class-symbol AABB)
@@ -1030,7 +1099,7 @@
 
              (namespaced-class-symbol RenderPass)
              (fn render-pass-pprint-handler [printer ^RenderPass render-pass]
-               (fmt-doc printer (symbol "pass" (.nm render-pass))))
+               (fmt-doc printer (symbol "pass" (.name render-pass))))
 
              (namespaced-class-symbol VertexBuffer)
              (partial object-data-pprint-handler nil vertex-buffer-print-data)}
@@ -1054,7 +1123,10 @@
                     (project-resource-pprint-handler [printer resource]
                       (object-data-pprint-handler nil project-resource->value printer resource))]
 
-              {(namespaced-class-symbol FileResource)
+              {(namespaced-class-symbol BuildResource)
+               project-resource-pprint-handler
+
+               (namespaced-class-symbol FileResource)
                project-resource-pprint-handler
 
                (namespaced-class-symbol MemoryResource)
@@ -1065,41 +1137,21 @@
                project-resource-pprint-handler})
 
             vecmath-pprint-handlers
-            (letfn [(vecmath-tuple-pprint-handler [printer vecmath-value]
-                      (object-data-pprint-handler nil math/vecmath->clj printer vecmath-value))
+            (letfn [(vecmath-tuple-pprint-handler [printer tuple]
+                      (object-data-pprint-handler nil math/vecmath->clj printer tuple))
 
-                    (vecmath-matrix-pprint-handler [^long dim printer matrix]
-                      (let [fmt-num #(eutil/format* "%.3f" %)
-                            num-strs (into []
-                                           (mapcat (fn [^long row-index]
-                                                     (let [row (matrix-row matrix row-index)]
-                                                       (map fmt-num row))))
-                                           (range dim))
-                            first-col-width (transduce (comp (take-nth 4)
-                                                             (map count))
-                                                       max
-                                                       0
-                                                       num-strs)
-                            rest-col-width (transduce (map count)
-                                                      max
-                                                      0
-                                                      num-strs)
-                            first-col-width-fmt (str \% first-col-width \s)
-                            rest-col-width-fmt (str \% rest-col-width \s)
-                            fmt-col (fn [^long index num-str]
-                                      (let [element (case num-str
-                                                      ("-0.000" "0.000") :number
-                                                      :string)
-                                            fmt (if (zero? (rem index 4))
-                                                  first-col-width-fmt
-                                                  rest-col-width-fmt)]
-                                        (col-txt printer element (format fmt num-str))))
-                            data (into [:align]
-                                       (comp (partition-all dim)
-                                             (map (fn [row-num-strs]
-                                                    (interpose " " (map-indexed fmt-col row-num-strs))))
-                                             (interpose :break))
-                                       num-strs)]
+                    (vecmath-matrix-pprint-handler [printer matrix]
+                      (let [row-col-strs (math/vecmath-matrix-pprint-strings matrix)
+                            fmt-col (fn [^String num-str]
+                                      ;; Colorize zero values differently.
+                                      (let [element (if (math/zero-vecmath-matrix-col-str? num-str)
+                                                      :number
+                                                      :string)]
+                                        (col-txt printer element num-str)))
+                            data (coll/into-> row-col-strs [:align]
+                                   (map (fn [col-strs]
+                                          (interpose " " (map fmt-col col-strs))))
+                                   (interpose :break))]
                         [:group
                          (cls-tag printer (class matrix))
                          (col-doc printer :delimiter "[")
@@ -1107,10 +1159,16 @@
                          (col-doc printer :delimiter "]")]))]
 
               {(namespaced-class-symbol Matrix3d)
-               (partial vecmath-matrix-pprint-handler 3)
+               vecmath-matrix-pprint-handler
+
+               (namespaced-class-symbol Matrix3f)
+               vecmath-matrix-pprint-handler
 
                (namespaced-class-symbol Matrix4d)
-               (partial vecmath-matrix-pprint-handler 4)
+               vecmath-matrix-pprint-handler
+
+               (namespaced-class-symbol Matrix4f)
+               vecmath-matrix-pprint-handler
 
                (namespaced-class-symbol Point2d)
                vecmath-tuple-pprint-handler
@@ -1131,15 +1189,47 @@
                vecmath-tuple-pprint-handler
 
                (namespaced-class-symbol Vector4d)
-               vecmath-tuple-pprint-handler})]
+               vecmath-tuple-pprint-handler})
+
+            protobuf-pprint-handlers
+            {(namespaced-class-symbol Graphics$TextureImage)
+             (partial object-data-pprint-handler {:sort-keys false}
+                      (fn [^Graphics$TextureImage texture-image]
+                        (let [alternatives (.getAlternativesList texture-image)
+                              alternatives-count (count alternatives)
+                              ^Graphics$TextureImage$Image image (first alternatives)]
+                          (cond-> {:type (protobuf/pb-enum->val (.getType texture-image))}
+
+                                  image
+                                  (assoc :format (protobuf/pb-enum->val (.getFormat image))
+                                         :width (.getWidth image)
+                                         :height (.getHeight image))
+
+                                  (> alternatives-count 1)
+                                  (assoc :alternatives alternatives-count)
+
+                                  :always
+                                  (assoc :bytes (transduce (map (fn [^Graphics$TextureImage$Image image]
+                                                                  (.getDataSize image)))
+                                                           +
+                                                           alternatives))))))}]
 
         (deep-diff/printer
-          {:extra-handlers
+          {:color-scheme
+           {::deep-diff.printer-impl/deletion [:red]
+            ::deep-diff.printer-impl/insertion [:green]
+            ::deep-diff.printer-impl/other [:yellow]
+            :boolean [:bold :cyan]
+            :nil [:bold :cyan]
+            :tag [:magenta]}
+
+           :extra-handlers
            (merge editor-pprint-handlers
                   graph-pprint-handlers
                   java-pprint-handlers
                   resource-pprint-handlers
-                  vecmath-pprint-handlers)})))))
+                  vecmath-pprint-handlers
+                  protobuf-pprint-handlers)})))))
 
 (defonce last-pprint-value-atom (atom nil))
 
@@ -1206,12 +1296,8 @@
 (defn bob-build-output-infos [project proj-path]
   (test-util/save-project! project)
   (let [bob-commands ["build"]
-        bob-args {"" ""}
-        build-server-headers ""
-        log-output-stream (ByteArrayOutputStream.)
-        task-cancelled? (constantly false)
-        result (g/with-auto-evaluation-context evaluation-context
-                 (bob/bob-build! project evaluation-context bob-commands bob-args build-server-headers progress/null-render-progress! log-output-stream task-cancelled?))]
+        bob-args {"platform" (.getPair (Platform/getHostPlatform))}
+        result (bob/invoke! project bob-args bob-commands)]
     (when-let [exception (:exception result)]
       (throw exception))
     (if-let [error (:error result)]
@@ -1238,26 +1324,48 @@
                    (build-output-infos->diff-data bob-build-output-infos)
                    opts))))
 
-(defn pb-class-info
-  ([^Class pb-class]
-   (pb-class-info pb-class fn/constantly-true))
-  ([^Class pb-class field-info-predicate]
-   (into (sorted-map)
-         (keep (fn [^Descriptors$FieldDescriptor field-desc]
-                 (let [field-name (.getName field-desc)
-                       field-value-class (protobuf/field-value-class pb-class field-desc)
-                       field-rule (cond (.isRepeated field-desc) :repeated
-                                        (.isRequired field-desc) :required
-                                        (.isOptional field-desc) :optional
-                                        :else (assert false))
-                       field-info (cond-> {:value-type field-value-class
-                                           :field-rule field-rule}
+(defn- pb-desc-info-impl
+  [^Descriptors$Descriptor desc seen-descs field-info-predicate]
+  (letfn [(recurse [^Descriptors$FieldDescriptor field-desc]
+            (when (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
+              (let [value-desc (.getMessageType field-desc)]
+                (when-not (contains? seen-descs value-desc)
+                  (let [seen-descs (conj seen-descs value-desc)]
+                    (pb-desc-info-impl value-desc seen-descs field-info-predicate))))))]
+    (into (sorted-map)
+          (keep (fn [^Descriptors$FieldDescriptor field-desc]
+                  (let [{:keys [key-info value-info]}
+                        (if (.isMapField field-desc)
+                          (let [map-entry-desc (.getMessageType field-desc)
+                                key-field-desc (.findFieldByName map-entry-desc "key")
+                                value-field-desc (.findFieldByName map-entry-desc "value")
+                                key-class (protobuf/pb-field-desc-class key-field-desc)
+                                value-class (protobuf/pb-field-desc-class value-field-desc)
+                                value-message (recurse value-field-desc)]
+                            {:key-info {:key-class key-class}
+                             :value-info (cond-> {:value-class value-class}
+                                                 value-message (assoc :value-message value-message))})
+                          (let [value-class (protobuf/pb-field-desc-class field-desc)
+                                value-message (recurse field-desc)]
+                            {:value-info (cond-> {:value-class value-class}
+                                                 value-message (assoc :value-message value-message))}))
 
-                                          (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
-                                          (assoc :message (pb-class-info field-value-class field-info-predicate)))]
-                   (when (field-info-predicate field-info)
-                     (pair field-name field-info)))))
-         (.getFields (protobuf/pb-class->descriptor pb-class)))))
+                        field-name (.getName field-desc)
+                        field-kind (protobuf/pb-field-desc-field-kind field-desc)
+                        field-info (coll/merge {:field-kind field-kind}
+                                               key-info
+                                               value-info)]
+                    (when (field-info-predicate field-info)
+                      (pair field-name field-info)))))
+          (.getFields desc))))
+
+(defn pb-desc-info
+  ([^Descriptors$Descriptor desc]
+   (pb-desc-info-impl desc #{} fn/constantly-true))
+  ([^Descriptors$Descriptor desc field-info-predicate]
+   (pb-desc-info-impl desc #{} field-info-predicate)))
+
+(def pb-class-info (comp pb-desc-info protobuf/pb-class->descriptor))
 
 (defn pb-resource-type-info
   ([workspace]
@@ -1269,8 +1377,8 @@
                    (let [read-defaults (:read-defaults test-info)
                          pb-class-info (pb-class-info pb-class field-info-predicate)]
                      (pair ext {:read-defaults read-defaults
-                                :value-type pb-class
-                                :message pb-class-info})))))
+                                :value-class pb-class
+                                :value-message pb-class-info})))))
          (workspace/get-resource-type-map workspace))))
 
 (defn pb-resource-exts-that-read-defaults [workspace]
@@ -1279,11 +1387,11 @@
 (def class-name-comparator #(compare (.getName ^Class %1) (.getName ^Class %2)))
 
 (defn resource-pb-classes [workspace]
-  (letfn [(info->value-types [{:keys [message value-type]}]
-            (cond->> (mapcat info->value-types (vals message))
-                     (and message value-type) (cons value-type)))]
+  (letfn [(info->value-classes [{:keys [value-class value-message]}]
+            (cond->> (mapcat info->value-classes (vals value-message))
+                     (and value-message value-class) (cons value-class)))]
     (into (sorted-set-by class-name-comparator)
-          (mapcat info->value-types)
+          (mapcat info->value-classes)
           (vals (pb-resource-type-info workspace)))))
 
 (defn resource-pb-class-field-types
@@ -1293,10 +1401,245 @@
    (into (sorted-map-by class-name-comparator)
          (keep (fn [^Class pb-class]
                  (some->> (into (sorted-map)
-                                (keep (fn [[field-name {:keys [^Class value-type] :as field-info}]]
+                                (keep (fn [[field-name {:keys [^Class value-class] :as field-info}]]
                                         (when (field-info-predicate field-info)
-                                          (pair field-name value-type))))
+                                          (pair field-name value-class))))
                                 (pb-class-info pb-class))
                           (not-empty)
                           (pair pb-class))))
          (resource-pb-classes workspace))))
+
+(defn- progress-dialog-ui [{:keys [header-text progress localization] :as props}]
+  {:pre [(string? header-text)
+         (map? progress)
+         (localization/message-pattern? (progress/message progress))]}
+  {:fx/type dialogs/dialog-stage
+   :on-close-request {:event-type :cancel}
+   :showing (fxui/dialog-showing? props)
+   :header {:fx/type fx.h-box/lifecycle
+            :style-class "spacing-default"
+            :alignment :center-left
+            :children [{:fx/type fxui/legacy-label
+                        :variant :header
+                        :text header-text}]}
+   :content {:fx/type fx.v-box/lifecycle
+             :style-class ["dialog-content-padding" "spacing-smaller"]
+             :children [{:fx/type fxui/legacy-label
+                         :wrap-text false
+                         :text (localization (progress/message progress))}
+                        {:fx/type fx.progress-bar/lifecycle
+                         :max-width Double/MAX_VALUE
+                         :progress (or (progress/fraction progress)
+                                       -1.0)}]} ; Indeterminate.
+   :footer {:fx/type dialogs/dialog-buttons
+            :children [{:fx/type fxui/legacy-button
+                        :text "Cancel"
+                        :cancel-button true
+                        :on-action {:event-type :cancel}}]}})
+
+(defn run-with-progress
+  ([^String header-text worker-fn]
+   (run-with-progress header-text nil worker-fn))
+  ([^String header-text cancel-result worker-fn]
+   (ui/run-now
+     (let [state-atom (atom {:progress (progress/make (localization/message "progress.waiting") 0 0)})
+           localization (g/with-auto-evaluation-context evaluation-context
+                          (workspace/localization (workspace) evaluation-context))
+           middleware (fx/wrap-map-desc assoc :fx/type progress-dialog-ui :header-text header-text :localization localization)
+           opts {:fx.opt/map-event-handler
+                 (fn [event]
+                   (case (:event-type event)
+                     :cancel (swap! state-atom assoc ::fxui/result cancel-result)))}
+           renderer (fx/create-renderer :middleware middleware :opts opts)
+           render-progress! #(swap! state-atom assoc :progress %)]
+       (future
+         (try
+           (swap! state-atom assoc ::fxui/result (worker-fn render-progress!))
+           (catch Throwable e
+             (log/error :exception e)
+             (swap! state-atom assoc ::fxui/result e))))
+       (let [result (fxui/mount-renderer-and-await-result! state-atom renderer)]
+         (if (instance? Throwable result)
+           (throw result)
+           result))))))
+
+(defn run-with-terminal-progress [^String header-text worker-fn]
+  (let [localization test-util/localization
+        done-progress (progress/make (localization/message nil nil "Done") 1 1)
+        prev-progress-volatile (volatile! nil)]
+    (letfn [(render-progress! [progress]
+              (let [prev-progress @prev-progress-volatile
+                    preamble (if prev-progress "\033[F\033[K" "")
+                    message (localization (progress/message progress))
+                    ^long pos (:pos progress)
+                    ^long size (:size progress)]
+                (vreset! prev-progress-volatile progress)
+                (when (nil? prev-progress)
+                  (println-err header-text))
+                (println-err
+                  (if (pos? size)
+                    (let [size-str (str size)
+                          size-len (.length size-str)
+                          fmt (format "%s  [%%%dd/%s] %%s"
+                                      preamble
+                                      size-len
+                                      size-str)]
+                      (format fmt pos message))
+                    (format "%s  [0/1] %s"
+                            preamble
+                            message)))))]
+      (let [result (worker-fn render-progress!)]
+        (render-progress! (if-some [{:keys [size]} @prev-progress-volatile]
+                            (assoc done-progress :pos size :size size)
+                            done-progress))
+        result))))
+
+(defn node-load-infos-by-proj-path [node-load-infos]
+  (coll/pair-map-by
+    #(resource/proj-path (:resource %))
+    node-load-infos))
+
+(defn ext-resource-predicate [& type-exts]
+  (let [type-ext-set (set type-exts)]
+    (fn resource-matches-type-exts? [resource]
+      (contains? type-ext-set (resource/type-ext resource)))))
+
+(defn proj-path-resource-predicate [proj-path]
+  (fn resource-matches-proj-path? [resource]
+    (= proj-path (resource/proj-path resource))))
+
+(defn referencing-proj-path-sets-by-proj-path
+  ([node-load-infos-by-proj-path]
+   (referencing-proj-path-sets-by-proj-path node-load-infos-by-proj-path resource/stateful?))
+  ([node-load-infos-by-proj-path scan-resource?]
+   (util/group-into
+     (sorted-map) (sorted-set) key val
+     (eduction
+       (mapcat
+         (fn [[referencing-proj-path referencing-node-load-info]]
+           (when (scan-resource? (:resource referencing-node-load-info))
+             (e/map #(pair % referencing-proj-path)
+                    (:dependency-proj-paths referencing-node-load-info)))))
+       (distinct)
+       node-load-infos-by-proj-path))))
+
+(defn dependency-proj-path-sets-by-proj-path
+  ([node-load-infos-by-proj-path recursive]
+   (dependency-proj-path-sets-by-proj-path node-load-infos-by-proj-path recursive fn/constantly-true))
+  ([node-load-infos-by-proj-path recursive include-dependency-resource?]
+   {:pre [(map? node-load-infos-by-proj-path)
+          (ifn? include-dependency-resource?)]}
+   (let [basis (g/now)
+
+         workspace
+         (some (fn [[_proj-path node-load-info]]
+                 (some-> (:resource node-load-info)
+                         (resource/workspace)))
+               node-load-infos-by-proj-path)
+
+         include-dependency-proj-path?
+         (fn include-dependency-proj-path? [dependency-proj-path]
+           (include-dependency-resource?
+             (if-some [dependency-node-info (node-load-infos-by-proj-path dependency-proj-path)]
+               (:resource dependency-node-info)
+               (workspace/file-resource basis workspace dependency-proj-path))))] ; Referencing a missing resource.
+
+     (if recursive
+       (let [referencing-proj-path-sets-by-proj-path (referencing-proj-path-sets-by-proj-path node-load-infos-by-proj-path)]
+         (letfn [(recursive-referencing-entries [dependency-proj-path]
+                   (e/mapcat
+                     (fn [referencing-proj-path]
+                       (cons (pair referencing-proj-path dependency-proj-path)
+                             (recursive-referencing-entries referencing-proj-path)))
+                     (referencing-proj-path-sets-by-proj-path dependency-proj-path)))]
+           (util/group-into
+             (sorted-map) (sorted-set) key val
+             (e/mapcat
+               (fn [[dependency-proj-path]]
+                 (when (include-dependency-proj-path? dependency-proj-path)
+                   (recursive-referencing-entries dependency-proj-path)))
+               referencing-proj-path-sets-by-proj-path))))
+       (into (sorted-map)
+             (keep
+               (fn [[proj-path node-load-info]]
+                 (some->> (:dependency-proj-paths node-load-info)
+                          (into (sorted-set)
+                                (filter include-dependency-proj-path?))
+                          (coll/not-empty)
+                          (pair proj-path))))
+             node-load-infos-by-proj-path)))))
+
+(defn dependency-proj-path-tree
+  ([dependency-proj-path-sets-by-proj-path]
+   (dependency-proj-path-tree dependency-proj-path-sets-by-proj-path (keys dependency-proj-path-sets-by-proj-path)))
+  ([dependency-proj-path-sets-by-proj-path proj-paths]
+   (->> proj-paths
+        (into (empty dependency-proj-path-sets-by-proj-path)
+              (map (fn [proj-path]
+                     (pair proj-path
+                           (dependency-proj-path-tree
+                             dependency-proj-path-sets-by-proj-path
+                             (dependency-proj-path-sets-by-proj-path proj-path))))))
+        (coll/not-empty))))
+
+(defn tree-depth
+  ^long [tree]
+  (transduce
+    (map (fn [entry]
+           (inc (tree-depth (val entry)))))
+    max
+    0
+    tree))
+
+(defn dependency-proj-path-report
+  [dependency-proj-path-sets-by-proj-path]
+  (->> dependency-proj-path-sets-by-proj-path
+       (dependency-proj-path-tree)
+       (sort-by #(tree-depth (val %))
+                coll/descending-order)
+       (take 30)))
+
+(defn scene-view-batches
+  ([scene-view pass]
+   (scene-view-batches scene-view pass :batch-key))
+  ([scene-view pass key-fn]
+   {:pre [(g/node-id? scene-view)
+          (instance? RenderPass pass)
+          (ifn? key-fn)]}
+   ;; Based on the scene/batch-render function.
+   (let [flat-renderables (g/node-value scene-view :all-renderables)]
+     (loop [renderables (get flat-renderables pass)
+            offset 0
+            batch-index 0
+            batches (transient [])]
+       (if-let [renderable (first renderables)]
+         (let [first-key (key-fn renderable)
+               first-render-fn (:render-fn renderable)
+               batch-count (long
+                             (loop [renderables (rest renderables)
+                                    batch-count 1]
+                               (let [renderable (first renderables)
+                                     key (key-fn renderable)
+                                     render-fn (:render-fn renderable)
+                                     break (or (not= first-render-fn render-fn)
+                                               (nil? first-key)
+                                               (nil? key)
+                                               (not= first-key key))]
+                                 (if break
+                                   batch-count
+                                   (recur (rest renderables) (inc batch-count))))))]
+           (when (> batch-count 0)
+             (let [batch (subvec renderables 0 batch-count)]
+               (recur (subvec renderables batch-count)
+                      (+ offset batch-count)
+                      (inc batch-index)
+                      (conj! batches batch)))))
+         (persistent! batches))))))
+
+(defn clear-enable-all! []
+  (g/forget-logged-evaluation-context-scope-violations!)
+  (clear-caches!)
+  (handler/enable-disabled-handlers!)
+  (ui/enable-stopped-timers!)
+  (println "Re-enabled all disabled handlers and timers")
+  nil)

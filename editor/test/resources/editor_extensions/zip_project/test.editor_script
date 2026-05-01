@@ -1,0 +1,148 @@
+local M = {}
+
+
+local function stringify(x)
+    if type(x) == "string" then
+        return string.format("'%s'", x)
+    elseif type(x) == "function" then
+        return "function() end"
+    elseif type(x) == "table" then
+        local entries = {}
+        local n = #x
+        for i = 1, n do
+            entries[#entries+1] = stringify(x[i])
+        end
+        for k, v in pairs(x) do
+            if type(k) == "number" and k >= 1 and k <= n then
+                -- do nothing: we have already written the array part!
+            elseif type(k) == "string" and k:match("^[%a_][%w_]*$") ~= nil then
+                entries[#entries+1] = tostring(k) .. " = " .. stringify(v)
+            else
+                entries[#entries+1] = "[" .. stringify(k) .. "]" .. " = " .. stringify(v)
+            end 
+        end
+        return "{" .. table.concat(entries, ", ") .. "}"
+    else
+        return tostring(x)
+    end
+end
+
+local function pack(...)
+    local args = {...}
+    local s = "zip.pack("
+    for i = 1, #args do
+        s = s .. stringify(args[i])
+        if i < #args then
+            s = s .. ", "
+        end
+    end
+    s = s .. ")"
+    local success, error = pcall(zip.pack, ...)
+    if success then
+        print(("%s => ok"):format(s))
+    else
+        print(("%s => error: %s"):format(s, error))
+    end
+end
+
+local function unpack(...)
+    local args = {...}
+    local s = "zip.unpack("
+    for i = 1, #args do
+        s = s .. stringify(args[i])
+        if i < #args then
+            s = s .. ", "
+        end
+    end
+    s = s .. ")"
+    local success, error = pcall(zip.unpack, ...)
+    if success then
+        print(("%s => ok"):format(s))
+    else
+        print(("%s => error: %s"):format(s, error))
+    end
+end
+
+local function print_exists(path)
+    print(("%s exists: %s"):format(path, tostring(editor.external_file_attributes(path).exists)))
+end
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        id = "defold.test",
+        locations = {"Edit"},
+        run = function()
+            print("Testing zip.pack...")
+            print("A file:")
+            pack("gitignore.zip", {".gitignore"})
+            print("A directory:")
+            pack("foo.zip", {"foo"})
+            print("Multiple:")
+            pack("multiple.zip", {"foo", {"foo", "bar"}, ".gitignore", {"game.project", "settings.ini"}})
+            print("Outside:")
+            pack("outside.zip", {{os.getenv("PWD") .. "/project.clj", "project.clj"}})
+            print("Stored method:")
+            pack("stored.zip", {method = zip.METHOD.STORED}, {"foo"})
+            for i = 0, 9 do
+                print("Compression level " .. i .. ":")
+                pack("level_" .. i .. ".zip", {level = i}, {"foo", {"foo", "bar"}, ".gitignore", "game.project"})
+            end
+            print("Unix:")
+            pack("script.zip", {"script.sh"})
+            print("Mixed compression settings:")
+            pack("mixed.zip", {
+                {"foo", "9", level = 9},
+                {"foo", "1", level = 1},
+                {"foo", "0", level = 0},
+                {"foo", "stored", method = zip.METHOD.STORED},
+            })
+            print("Archive path is a directory:")
+            pack("foo", {"game.project"})
+            print("Source path does not exist:")
+            pack("error.zip", {"does-not-exist.txt"})
+            print("Target path is absolute:")
+            pack("error.zip", {os.getenv("HOME")})
+            print("Target path is a relative path above root:")
+            pack("error.zip", {{"game.project", "../../game.project"}})
+            pack("error.zip", {{"game.project", "foo/bar/../../../../game.project"}})
+
+            print("Testing zip.unpack...")
+            
+            editor.delete_directory("/build")
+            unpack("script.zip", "build", {"script.sh"})
+            print("Default conflict resolution is error:")
+            unpack("script.zip", "build", {"script.sh"})
+            print("Overwrite option:")
+            unpack("script.zip", "build", {on_conflict = zip.ON_CONFLICT.OVERWRITE}, {"script.sh"})
+            print("Skip:")
+            unpack("foo.zip", "build/skip")
+            print_exists("build/skip/foo")
+            print_exists("build/skip/bar")
+            unpack("multiple.zip", "build/skip", {on_conflict = zip.ON_CONFLICT.SKIP})
+            print_exists("build/skip/foo")
+            print_exists("build/skip/bar")
+            editor.create_directory("/build/dir_conflict/script.sh")
+            print("Overwrite can't replace directory with a file:")
+            unpack("script.zip", "build/dir_conflict", {on_conflict = zip.ON_CONFLICT.OVERWRITE})
+            print("Partial unpack:")
+            unpack("multiple.zip", "build/subset", {"settings.ini"})
+            print_exists("build/subset/settings.ini")
+            print_exists("build/subset/bar")
+            print_exists("build/subset/foo")
+            print("Archive validation:")
+            unpack("does-not-exist.zip")
+            unpack("foo")
+            print("Paths validation:")
+            unpack("script.zip", "build", {on_conflict = zip.ON_CONFLICT.SKIP}, {"foo/../../../bar"})
+            unpack("script.zip", "build", {on_conflict = zip.ON_CONFLICT.SKIP}, {"/tmp"})
+            unpack("script.zip", "build", {on_conflict = zip.ON_CONFLICT.SKIP}, {"tmp/.."})
+            print("Extract to parent:")
+            pack("build/nested/archive.zip", {"game.project"})
+            unpack("build/nested/archive.zip")
+            print_exists("build/nested/game.project")
+        end
+    }}
+end
+
+return M

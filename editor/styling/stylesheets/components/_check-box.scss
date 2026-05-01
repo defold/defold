@@ -1,21 +1,37 @@
 .check-box {
-  &:hover > .box {
-    -fx-background-color: -df-background-light;
-    -fx-border-color: -df-component-light;
+  &:hover {
+    -fx-text-fill: -df-text-selected;
+    & > .box {
+      -fx-background-color: -df-background-input;
+      -fx-border-color: -df-component-light;
+    }
   }
   &:selected {
-    .mark {
+    & > .box > .mark {
       -fx-background-color: -df-text;
     }
     &:hover {
-      .mark {
+      & > .box > .mark {
          -fx-background-color: -df-text-selected;
       }
     }
   }
+  &:focused {
+      -fx-text-fill: -df-text-selected;
+      & > .box {
+          -fx-background-color: -df-background;
+          -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+          -fx-border-width: 1px 1px 2px 1px;
+          -fx-alignment: top-left;
+          & > .mark {
+              -fx-background-insets: 1.5px 0 -1.5px 0; // somehow this is very important for mark alignment...
+              -fx-padding: 5px 5px 5px 6px;
+          }
+      }
+  }
 
   & > .box {
-    -fx-background-color: -df-background-light;
+    -fx-background-color: -df-background-input;
     -fx-background-insets: 0;
     -fx-background-radius: 0;
     -fx-border-width: 1px;
@@ -23,10 +39,13 @@
     & > .mark {
       -fx-shape: "M 4.5 9.1 L 0 4.7 L 1.4 3.3 L 4.5 6.3 L 10.8 0 L 12.2 1.4 L 4.5 9.1 L 4.5 9.1";
       -fx-scale-shape: false;
+      -fx-padding: 5px 5px 6px 6px;
     }
   }
   &:indeterminate > .box > .mark {
     -fx-shape: "M0,0H10V2H0Z";
     -fx-scale-shape: false;
+    -fx-padding: 8.5px 8.5px;
+    -fx-background-color: -df-text;
   }
 }

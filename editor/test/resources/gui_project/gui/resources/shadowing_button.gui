@@ -1,0 +1,116 @@
+fonts {
+  name: "shadowing_font"
+  font: "/assets/vera_mo_bd.font"
+}
+textures {
+  name: "shadowing_texture"
+  texture: "/assets/button.atlas"
+}
+nodes {
+  type: TYPE_BOX
+  texture: "shadowing_texture/button_striped"
+  id: "box"
+  layer: "shadowing_layer"
+  material: "shadowing_material"
+}
+nodes {
+  type: TYPE_PIE
+  texture: "shadowing_texture/button_striped"
+  id: "pie"
+  layer: "shadowing_layer"
+  material: "shadowing_material"
+}
+nodes {
+  type: TYPE_TEXT
+  font: "shadowing_font"
+  id: "text"
+  layer: "shadowing_layer"
+  material: "shadowing_material"
+}
+nodes {
+  type: TYPE_PARTICLEFX
+  id: "particlefx"
+  layer: "shadowing_layer"
+  size_mode: SIZE_MODE_AUTO
+  particlefx: "shadowing_particlefx"
+  material: "shadowing_material"
+}
+nodes {
+  type: TYPE_CUSTOM
+  id: "spine"
+  layer: "shadowing_layer"
+  size_mode: SIZE_MODE_AUTO
+  spine_scene: "shadowing_spinescene"
+  custom_type: 405028931
+  material: "shadowing_material"
+}
+layers {
+  name: "shadowing_layer"
+}
+material: "/builtins/materials/gui.material"
+layouts {
+  name: "Landscape"
+  nodes {
+    type: TYPE_BOX
+    texture: "shadowing_texture/button_striped"
+    id: "box"
+    layer: "shadowing_layer"
+    overridden_fields: 9
+    overridden_fields: 20
+    overridden_fields: 47
+    material: "shadowing_material"
+  }
+  nodes {
+    type: TYPE_PIE
+    texture: "shadowing_texture/button_striped"
+    id: "pie"
+    layer: "shadowing_layer"
+    overridden_fields: 9
+    overridden_fields: 20
+    overridden_fields: 47
+    material: "shadowing_material"
+  }
+  nodes {
+    type: TYPE_TEXT
+    font: "shadowing_font"
+    id: "text"
+    layer: "shadowing_layer"
+    overridden_fields: 10
+    overridden_fields: 20
+    overridden_fields: 47
+    material: "shadowing_material"
+  }
+  nodes {
+    type: TYPE_PARTICLEFX
+    id: "particlefx"
+    layer: "shadowing_layer"
+    overridden_fields: 20
+    overridden_fields: 43
+    overridden_fields: 47
+    particlefx: "shadowing_particlefx"
+    material: "shadowing_material"
+  }
+  nodes {
+    type: TYPE_CUSTOM
+    id: "spine"
+    layer: "shadowing_layer"
+    overridden_fields: 20
+    overridden_fields: 39
+    overridden_fields: 47
+    spine_scene: "shadowing_spinescene"
+    custom_type: 405028931
+    material: "shadowing_material"
+  }
+}
+particlefxs {
+  name: "shadowing_particlefx"
+  particlefx: "/assets/spray.particlefx"
+}
+resources {
+  name: "shadowing_spinescene"
+  path: "/defold-spine/assets/template/template.spinescene"
+}
+materials {
+  name: "shadowing_material"
+  material: "/builtins/materials/gui.material"
+}

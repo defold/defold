@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -200,6 +200,26 @@ public class FontTest {
     }
 
     @Test
+    public void testBMFontUnsortedGlyphs() throws Exception {
+
+        InputStream input = getClass().getResourceAsStream("bmfont_unsorted.fnt");
+        BMFont bmfont = new BMFont();
+        bmfont.parse(input);
+
+        assertEquals(96, bmfont.chars);
+        assertEquals(96, bmfont.charArray.size());
+
+        // verify that the characters have been sorted
+        int previousId = -1;
+        for (int i = 0; i < bmfont.chars; i++)
+        {
+            Char c = bmfont.charArray.get(i);
+            assertTrue( c.id > previousId);
+            previousId = c.id;
+        }
+    }
+
+    @Test
     public void testTTF() throws Exception {
 
         // create "font file"
@@ -247,6 +267,53 @@ public class FontTest {
     }
 
     @Test
+    public void testTTFUnsortedCharacters() throws Exception {
+
+        // create "font file"
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("szktg6TDJ0eN$SM1ZGaIldyRjCxQWv42B7mUOV3Kfhb9cXEu5r8PYFALqHnwo!ip")
+            .build();
+
+        // temp output file
+        File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
+        FileUtil.deleteOnExit(outfile);
+
+        // compile font
+        Fontc fontc = new Fontc();
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
+        FileOutputStream fontOutputStream = new FileOutputStream(outfile);
+        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
+
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+                @Override
+                public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                }
+            });
+
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        glyphBank.writeTo(fontOutputStream);
+
+        fontInputStream.close();
+        fontOutputStream.close();
+
+        // verify output
+        BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
+        glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
+
+        String actual = "";
+        for (int i=0; i < glyphBank.getGlyphsCount(); i++)
+        {
+            actual += new String(Character.toChars(glyphBank.getGlyphs(i).getCharacter()));
+        }
+        assertEquals(actual, "!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+    }
+
+    @Test
     public void testTTFJapaneseAllChars() throws Exception {
 
         // create "font file"
@@ -285,7 +352,10 @@ public class FontTest {
         glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
         // glyph count
-        int expectedCharCount = 6639; // Taken from font information of DroidSansJapanese.ttf
+        // DroidSansJapanese contains 12585 glyphs in total
+        // JDK 21 can display 6639 glyphs
+        // JDK 25 can display 10792 glyphs, but many of them are zero-width, so we filter them out
+        int expectedCharCount = 6662;
         assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
     }
 
@@ -327,8 +397,8 @@ public class FontTest {
         BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
         glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
-        // glyph count
-        int expectedCharCount = 1519; // Taken from font information of Tuffy.ttf
+        // glyph count in font: 1502, but we show a bit more zero-width chars
+        int expectedCharCount = 1541; // Taken from font information of Tuffy.ttf
         assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
     }
 

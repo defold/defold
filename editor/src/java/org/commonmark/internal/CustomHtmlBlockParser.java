@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,21 @@ import java.util.regex.Pattern;
 
 // See editor/markdown.clj
 public class CustomHtmlBlockParser extends AbstractBlockParser {
+
+    private static final String TAGNAME = "[A-Za-z][A-Za-z0-9-]*";
+    private static final String ATTRIBUTENAME = "[a-zA-Z_:][a-zA-Z0-9:._-]*";
+    private static final String UNQUOTEDVALUE = "[^\"'=<>`\\x00-\\x20]+";
+    private static final String SINGLEQUOTEDVALUE = "'[^']*'";
+    private static final String DOUBLEQUOTEDVALUE = "\"[^\"]*\"";
+    private static final String ATTRIBUTEVALUE = "(?:" + UNQUOTEDVALUE + "|" + SINGLEQUOTEDVALUE
+            + "|" + DOUBLEQUOTEDVALUE + ")";
+    private static final String ATTRIBUTEVALUESPEC = "(?:" + "\\s*=" + "\\s*" + ATTRIBUTEVALUE
+            + ")";
+    private static final String ATTRIBUTE = "(?:" + "\\s+" + ATTRIBUTENAME + ATTRIBUTEVALUESPEC
+            + "?)";
+
+    private static final String OPENTAG = "<" + TAGNAME + ATTRIBUTE + "*" + "\\s*/?>";
+    private static final String CLOSETAG = "</" + TAGNAME + "\\s*[>]";
 
     private static final Pattern[][] BLOCK_PATTERNS = new Pattern[][]{
             {null, null}, // not used (no type 0)
@@ -66,14 +81,14 @@ public class CustomHtmlBlockParser extends AbstractBlockParser {
                             "nav|noframes|" +
                             "ol|optgroup|option|" +
                             "p|param|" +
-                            "section|source|summary|" +
+                            "search|section|summary|" +
                             "table|tbody|td|tfoot|th|thead|title|tr|track|" +
                             "ul" +
                             ")(?:\\s|[/]?[>]|$)", Pattern.CASE_INSENSITIVE),
                     null // terminated by blank line
             },
             {
-                    Pattern.compile("^(?:" + Parsing.OPENTAG + '|' + Parsing.CLOSETAG + ")\\s*$", Pattern.CASE_INSENSITIVE),
+                    Pattern.compile("^(?:" + OPENTAG + '|' + CLOSETAG + ")\\s*$", Pattern.CASE_INSENSITIVE),
                     null // terminated by blank line
             }
     };

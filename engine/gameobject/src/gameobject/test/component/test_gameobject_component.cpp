@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,7 +32,7 @@
 class ComponentTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateCount = 0;
         m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -135,7 +135,7 @@ protected:
         m_MaxComponentCreateCountMap[TestGameObjectDDF::AResource::m_DDFHash] = 1000000;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
@@ -717,6 +717,7 @@ TEST(ComponentApi, CreateDestroyType)
 
     free((void*)g_ComponentApiTestContext.m_CreateContext);
     dmGameObject::DeleteRegister(regist);
+    dmScript::Finalize(script_context);
     dmScript::DeleteContext(script_context);
     dmResource::DeleteFactory(factory);
 }

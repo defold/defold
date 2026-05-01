@@ -7,7 +7,7 @@ from waflib.TaskGen import extension
 from waflib.Options import options
 from waf_dynamo import platform_supports_feature
 
-waflib.Task.task_factory('proto_encode', "protoc -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}",
+waflib.Task.task_factory('proto_encode', "${PROTOC} -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}",
                       color='PINK',
                       before='c cxx')
 
@@ -32,7 +32,7 @@ def build(bld):
         return
 
     bld(features = 'cxx cprogram ddf test',
-        source = 'test_ddf.cpp test_ddf_proto.proto test_ddf_import.proto',
+        source = 'test_ddf.cpp test_ddf_struct.cpp test_ddf_proto.proto test_ddf_import.proto',
         use = 'TESTMAIN PROTOBUF DLIB PROFILE_NULL PTHREAD SOCKET ddf',
         web_libs = ['library_sys.js'],
         ddf_namespace = 'DUMMY',

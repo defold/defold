@@ -1,0 +1,31 @@
+textures {
+  name: "button_texture"
+  texture: "/assets/button.atlas"
+}
+nodes {
+  size {
+    x: 256.0
+    y: 128.0
+  }
+  color {
+    y: 0.0
+    z: 0.0
+  }
+  type: TYPE_BOX
+  texture: "button_texture/button_striped"
+  id: "box"
+  layer: "button_layer"
+  inherit_alpha: true
+  slice9 {
+    x: 32.0
+    y: 32.0
+    z: 32.0
+    w: 32.0
+  }
+}
+layers {
+  name: "button_layer"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 123

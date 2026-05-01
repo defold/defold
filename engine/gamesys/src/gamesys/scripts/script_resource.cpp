@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,13 +18,15 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <font/text_layout.h>
+#include <gameobject/gameobject.h>
 #include <gamesys/mesh_ddf.h>
 #include <gamesys/texture_set_ddf.h>
 #include <graphics/graphics_ddf.h>
-#include <render/font_renderer.h>
+#include <graphics/graphics.h>
+#include <render/font/font_renderer.h>
 #include <resource/resource.h>
 #include <resource/resource_util.h>
-#include <gameobject/gameobject.h>
 
 #include "script_resource.h"
 #include "script_buffer.h"
@@ -32,6 +34,7 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_buffer.h"
+#include "../resources/res_font.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
 #include "../resources/res_render_target.h"
@@ -50,6 +53,7 @@ namespace dmGameSystem
  * @document
  * @name Resource
  * @namespace resource
+ * @language Lua
  */
 
 /*# reference to material resource
@@ -254,10 +258,10 @@ struct SetTextureAsyncRequest
     lua_State*                 m_LuaState;
     dmScript::LuaCallbackInfo* m_CallbackInfo;
     TextureResource*           m_TextureResource;
+    uint8_t*                   m_RawData;
     dmBuffer::HBuffer          m_Buffer;
     int32_t                    m_BufferRef;
     HOpaqueHandle              m_Handle;
-    bool                       m_UseUploadBuffer;
 };
 
 struct ResourceModule
@@ -270,17 +274,36 @@ struct ResourceModule
 static dmhash_t GetCanonicalPathHash(const char* path)
 {
     char canonical_path[dmResource::RESOURCE_PATH_MAX];
-    uint32_t path_len  = dmResource::GetCanonicalPath(path, canonical_path);
+    uint32_t path_len  = dmResource::GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
     return dmHashBuffer64(canonical_path, path_len);
 }
 
-static void PreCreateResource(lua_State* L, const char* path_str, const char* path_ext_wanted, dmhash_t* canonical_path_hash_out)
+static void PreCreateResources(lua_State* L, const char* path_str, const char** supported_exts, uint32_t num_supported_exts, dmhash_t* canonical_path_hash_out)
 {
     const char* path_ext = dmResource::GetExtFromPath(path_str);
-
-    if (path_ext == 0x0 || dmStrCaseCmp(path_ext, path_ext_wanted) != 0)
+    bool path_ok = false;
+    if (path_ext)
     {
-        luaL_error(L, "Unable to create resource, path '%s' must have the %s extension", path_str, path_ext_wanted);
+        for (uint32_t i = 0; i < num_supported_exts; ++i)
+        {
+            const char* ext = supported_exts[i];
+            if (dmStrCaseCmp(path_ext, ext) == 0)
+            {
+                path_ok = true;
+                break;
+            }
+        }
+    }
+
+    if (!path_ok)
+    {
+        char message[1024];
+        dmSnPrintf(message, sizeof(message), "Unable to create resource, path '%s' must have any of the following extensions: ", path_str);
+        for (uint32_t i = 0; i < num_supported_exts; ++i)
+        {
+            dmStrlCat(message, supported_exts[i], sizeof(message));
+        }
+        luaL_error(L, "%s", message);
     }
 
     dmhash_t canonical_path_hash = GetCanonicalPathHash(path_str);
@@ -290,6 +313,11 @@ static void PreCreateResource(lua_State* L, const char* path_str, const char* pa
     }
 
     *canonical_path_hash_out = canonical_path_hash;
+}
+
+static void PreCreateResource(lua_State* L, const char* path_str, const char* path_ext_wanted, dmhash_t* canonical_path_hash_out)
+{
+    PreCreateResources(L, path_str, &path_ext_wanted, 1, canonical_path_hash_out);
 }
 
 /*# Set a resource
@@ -504,6 +532,16 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
     return CheckTableValue<float>(L, index, name, default_value);
 }
 
+static inline bool IsTextureFormatSupported(dmGraphics::TextureType type)
+{
+    return type == dmGraphics::TEXTURE_TYPE_2D ||
+           type == dmGraphics::TEXTURE_TYPE_2D_ARRAY ||
+           type == dmGraphics::TEXTURE_TYPE_3D ||
+           type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ||
+           type == dmGraphics::TEXTURE_TYPE_IMAGE_2D ||
+           type == dmGraphics::TEXTURE_TYPE_IMAGE_3D;
+}
+
 static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
 {
     lua_getfield(L, i, field_name);
@@ -519,25 +557,31 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     const char* path = luaL_checkstring(L, 1);
 
     dmhash_t path_hash;
-    PreCreateResource(L, path, ".texturec", &path_hash);
+    PreCreateResource(L, path, "texturec", &path_hash);
 
     luaL_checktype(L, 2, LUA_TTABLE);
     dmGraphics::TextureType type     = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
     dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) CheckTableInteger(L, 2, "format");
     int width                        = CheckTableInteger(L, 2, "width");
     int height                       = CheckTableInteger(L, 2, "height");
+    int depth                        = CheckTableInteger(L, 2, "depth", 1);
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
     uint32_t usage_flags             = (uint32_t) CheckTableInteger(L, 2, "flags", dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE);
+    uint8_t page_count               = (uint8_t) CheckTableInteger(L, 2, "page_count", 1);
 
-    if (width < 1 || height < 1)
+    if (width < 1 || height < 1 || depth < 1 || page_count < 1)
     {
-        return luaL_error(L, "Unable to create texture, width and height must be larger than 0");
+        return luaL_error(L, "Unable to create texture, width, height, depth and page count must be larger than 0");
     }
 
-    // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
+    if (!IsTextureFormatSupported(type))
     {
         return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
+    }
+
+    if (dmGraphics::IsTextureType3D(type) && !dmGraphics::IsContextFeatureSupported(g_ResourceModule.m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
+    {
+        return luaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
     }
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
@@ -571,7 +615,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     dmGraphics::TextureImage::Type tex_type            = GraphicsTextureTypeToImageType(type);
     dmGraphics::TextureImage::TextureFormat tex_format = GraphicsTextureFormatToImageFormat(format);
 
-    if (!dmGraphics::IsTextureFormatSupported(g_ResourceModule.m_GraphicsContext, format))
+    if (!dmGraphics::IsTextureFormatSupportedForType(g_ResourceModule.m_GraphicsContext, type, format))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
     }
@@ -589,6 +633,8 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_PathHash        = path_hash;
     params->m_Width           = width;
     params->m_Height          = height;
+    params->m_Depth           = depth;
+    params->m_LayerCount      = page_count;
     params->m_MaxMipMaps      = max_mipmaps;
     params->m_Type            = type;
     params->m_Format          = format;
@@ -600,6 +646,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_Collection      = dmGameObject::GetCollection(sender_instance);
     params->m_UsageFlags      = usage_flags;
     params->m_Data            = 0;
+    params->m_DataSize        = 0;
     return 0;
 }
 
@@ -608,7 +655,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
     SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
 
     // Swap out the texture
-    dmGraphics::DeleteTexture(request->m_TextureResource->m_Texture);
+    dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_TextureResource->m_Texture);
     request->m_TextureResource->m_Texture = texture;
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
@@ -637,12 +684,11 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
         dmScript::DestroyCallback(request->m_CallbackInfo);
     }
 
-    // If we used a temporary upload buffer, we need to delete it.
-    if (request->m_UseUploadBuffer)
+    if (request->m_RawData)
     {
-        dmBuffer::Destroy(request->m_Buffer);
+        delete[] request->m_RawData;
     }
-    else
+    if (request->m_Buffer)
     {
         dmScript::Unref(request->m_LuaState, LUA_REGISTRYINDEX, request->m_BufferRef);
     }
@@ -668,14 +714,19 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * : [type:number] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
- * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_3D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_3D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
  *
  * `height`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ *
+ * `depth`
+ * : [type:number] The depth of the texture (in pixels). Must be larger than 0. Only used when `type` is `graphics.TEXTURE_TYPE_3D` or `graphics.TEXTURE_TYPE_IMAGE_3D`.
  *
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
@@ -692,7 +743,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
  * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
- * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4`
  * - `graphics.TEXTURE_FORMAT_RGB_BC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
  * - `graphics.TEXTURE_FORMAT_R_BC4`
@@ -736,6 +787,13 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * @param buffer [type:buffer] optional buffer of precreated pixel data
  *
  * @return path [type:hash] The path to the resource.
+ *
+ * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
+ *
+ * ```lua
+ * if graphics.TEXTURE_TYPE_3D ~= nil then
+ *     -- Device and graphics adapter support 3D textures
+ * end
  *
  * @examples
  * How to create an 128x128 RGBA texture resource and assign it to a model
@@ -788,6 +846,39 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *    go.set("#model", "texture0", my_texture_id)
  * end
  * ```
+ *
+ * @examples
+ * How to create a 32x32x32 floating point 3D texture that can be used to generate volumetric data in a compute shader
+ *
+ * ```lua
+ * function init(self)
+ *     local t_volume = resource.create_texture("/my_backing_texture.texturec", {
+ *         type   = graphics.TEXTURE_TYPE_IMAGE_3D,
+ *         width  = 32,
+ *         height = 32,
+ *         depth  = 32,
+ *         format = resource.TEXTURE_FORMAT_RGBA32F,
+ *         flags  = resource.TEXTURE_USAGE_FLAG_STORAGE + resource.TEXTURE_USAGE_FLAG_SAMPLE,
+ *     })
+ * 
+ *     -- pass the backing texture to the render script
+ *     msg.post("@render:", "add_textures", { t_volume })
+ * end
+ * ```
+ *
+ *
+ * @examples
+ * How to create 512x512 texture array with 5 pages.
+ *
+ * ```lua
+ * 		local new_tex = resource.create_texture("/runtime/example_array.texturec", {
+ * 			type = graphics.TEXTURE_TYPE_2D_ARRAY,
+ * 			width = 512,
+ * 			height = 512,
+ * 			page_count = 5,
+ * 			format = graphics.TEXTURE_FORMAT_RGB,
+ * 		})
+ * ```
  */
 static int CreateTexture(lua_State* L)
 {
@@ -804,6 +895,7 @@ static int CreateTexture(lua_State* L)
         return ReportPathError(L, res, create_params.m_PathHash);
     }
 
+    dmGameObject::AddDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
     dmScript::PushHash(L, create_params.m_PathHash);
     assert((top+1) == lua_gettop(L));
     return 1;
@@ -824,12 +916,15 @@ static int CreateTexture(lua_State* L)
  *
  * @name resource.create_texture_async
  *
- * @param path [type:string] The path to the resource.
+ * @param path [type:string|hash] The path to the resource.
  * @param table [type:table] A table containing info about how to create the texture. Supported entries:
  * `type`
  * : [type:number] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_3D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_3D`
  * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
@@ -837,6 +932,9 @@ static int CreateTexture(lua_State* L)
  *
  * `height`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ *
+ * `depth`
+ * : [type:number] The depth of the texture (in pixels). Must be larger than 0. Only used when `type` is `graphics.TEXTURE_TYPE_3D` or `graphics.TEXTURE_TYPE_IMAGE_3D`.
  *
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
@@ -853,7 +951,7 @@ static int CreateTexture(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
  * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
- * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4`
  * - `graphics.TEXTURE_FORMAT_RGB_BC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
  * - `graphics.TEXTURE_FORMAT_R_BC4`
@@ -868,13 +966,6 @@ static int CreateTexture(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_R32F`
  * - `graphics.TEXTURE_FORMAT_RG32F`
  *
- * `flags`
- * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
- *
- * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
- * - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
- * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
- *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
  * ```lua
@@ -882,6 +973,13 @@ static int CreateTexture(lua_State* L)
  *     -- it is safe to use this format
  * end
  * ```
+ *
+ * `flags`
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
+ *
+ * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
@@ -894,9 +992,17 @@ static int CreateTexture(lua_State* L)
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
+ * @param callback [type:function] callback function when texture is created (self, request_id, resource)
  *
- * @return path [type:hash] The path to the resource.
- * @return request_id [type:handle] The request id for the async request.
+ * @return path [type:hash] The path to the texture resource.
+ * @return request_id [type:number] The request id for the async request.
+ *
+ * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
+ *
+ * ```lua
+ * if graphics.TEXTURE_TYPE_3D ~= nil then
+ *     -- Device and graphics adapter support 3D textures
+ * end
  *
  * @examples
  * Create a texture resource asyncronously with a buffer and a callback
@@ -983,17 +1089,13 @@ static int CreateTextureAsync(lua_State* L)
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
 
-    // Create an empty upload buffer
-    dmBuffer::HBuffer upload_buffer = create_params.m_Buffer;
-    bool use_upload_buffer = create_params.m_Buffer == 0;
-    if (use_upload_buffer)
+    // We need to create an empty upload buffer if no explicit buffer is passed
+    bool is_transcoded = dmGraphics::IsFormatTranscoded(create_params.m_CompressionType);
+    uint8_t* raw_data  = 0;
+
+    if (create_params.m_Buffer == 0)
     {
-        const dmBuffer::StreamDeclaration streams_decl = {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1};
-        dmBuffer::Result r = dmBuffer::Create(create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp, &streams_decl, 1, &upload_buffer);
-        if (r != dmBuffer::RESULT_OK)
-        {
-            return DM_LUA_ERROR("Unable to create an empty upload buffer: %s (%d)", dmBuffer::GetResultString(r), r);
-        }
+        raw_data = new uint8_t[create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp];
     }
 
     // The callback is optional, we don't have to do anything with the result if we don't need to.
@@ -1008,16 +1110,19 @@ static int CreateTextureAsync(lua_State* L)
     create_texture_resource_params.m_MaxMipMaps = 1;
     create_texture_resource_params.m_Buffer     = 0;
 
+    // We can't support a compression type here because the texture doesn't exist yet, so set it to a default.
+    create_texture_resource_params.m_CompressionType = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+
     dmGraphics::TextureImage texture_image = {};
     MakeTextureImage(create_texture_resource_params, &texture_image);
 
-    dmArray<uint8_t> ddf_buffer;
-    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
-    assert(ddf_result == dmDDF::RESULT_OK);
+    dmArray<uint8_t> texture_resource_buffer;
+    FillTextureResourceBuffer(&texture_image, texture_resource_buffer);
 
     void* resource = 0x0;
-    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
-    DestroyTextureImage(texture_image, create_params.m_Buffer == 0);
+    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, texture_resource_buffer.Begin(), texture_resource_buffer.Size(), &resource);
+
+    DestroyTextureImage(texture_image, create_texture_resource_params.m_Buffer == 0 && create_texture_resource_params.m_Data == 0);
 
     if (res != dmResource::RESULT_OK)
     {
@@ -1033,6 +1138,8 @@ static int CreateTextureAsync(lua_State* L)
 
     dmGraphics::TextureCreationParams texture_create_params;
     texture_create_params.m_Type = create_params.m_Type;
+    texture_create_params.m_Width = create_params.m_Width;
+    texture_create_params.m_Height = create_params.m_Height;
 
     dmGraphics::HTexture texture_dst = dmGraphics::NewTexture(g_ResourceModule.m_GraphicsContext, texture_create_params);
 
@@ -1042,27 +1149,56 @@ static int CreateTextureAsync(lua_State* L)
     request->m_TextureResource   = (TextureResource*) resource;
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
-    request->m_Buffer            = upload_buffer;
-    request->m_UseUploadBuffer   = use_upload_buffer;
+    request->m_Buffer            = create_params.m_Buffer;
     request->m_PathHash          = create_params.m_PathHash;
+    request->m_RawData           = raw_data;
 
     dmGraphics::TextureParams texture_params;
     texture_params.m_Width  = create_params.m_Width;
     texture_params.m_Height = create_params.m_Height;
     texture_params.m_Format = create_params.m_Format;
 
-    dmBuffer::GetBytes(request->m_Buffer, (void**)&texture_params.m_Data, &texture_params.m_DataSize);
-
     // If we are not using a specifically created upload buffer, we push the Lua object and increase its ref count,
     // this is so that we can make sure that the buffer to live during the upload.
-    if (!use_upload_buffer)
+    if (create_params.m_Buffer)
     {
         lua_pushvalue(L, 3);
         request->m_BufferRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
     }
 
+    dmBuffer::GetBytes(request->m_Buffer, (void**) &texture_params.m_Data, &texture_params.m_DataSize);
+
+    // If the data is transcoded, we need an extra pass here to unpack the data before uploading it
+    if (is_transcoded)
+    {
+        assert(create_params.m_Buffer != 0);
+
+        uint32_t num_mips = 1;
+        texture_params.m_Format = dmGraphics::GetSupportedCompressionFormatForType(g_ResourceModule.m_GraphicsContext, texture_params.m_Format, texture_params.m_Width, texture_params.m_Height, create_params.m_Type);
+
+        uint8_t* decompressed_data;
+        uint32_t decompressed_data_size;
+        uint32_t compressed_mipmap_size = texture_params.m_DataSize;
+
+        // TODO: Perhaps we should change the transcode function to not take an image? We only use these fields:
+        dmGraphics::TextureImage::Image compressed_image;
+        compressed_image.m_MipMapSize.m_Count           = 1;
+        compressed_image.m_MipMapSizeCompressed.m_Data  = &compressed_mipmap_size;
+        compressed_image.m_MipMapSizeCompressed.m_Count = 1;
+
+        if (!dmGraphics::Transcode(create_params.m_Path, &compressed_image, 1, (uint8_t*) texture_params.m_Data, texture_params.m_Format, &decompressed_data, &decompressed_data_size, &num_mips))
+        {
+            return DM_LUA_ERROR("Unable to transcode texture data");
+        }
+
+        texture_params.m_Data     = decompressed_data;
+        texture_params.m_DataSize = decompressed_data_size;
+
+        request->m_RawData = decompressed_data;
+    }
+
     // Execute the upload, the upload buffer should now be locked by this request
-    dmGraphics::SetTextureAsync(texture_dst, texture_params, HandleRequestCompleted, request);
+    dmGraphics::SetTextureAsync(g_ResourceModule.m_GraphicsContext, texture_dst, texture_params, HandleRequestCompleted, request);
 
     dmScript::PushHash(L, create_params.m_PathHash);
     lua_pushnumber(L, request_handle);
@@ -1083,14 +1219,15 @@ static int CreateTextureAsync(lua_State* L)
 static int ReleaseResource(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
-    dmhash_t path_hash                      = dmScript::CheckHashOrString(L, 1);
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+    if (!rd) {
+        return luaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));
+    }
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
-
-    if (ReleaseDynamicResource(g_ResourceModule.m_Factory, collection, path_hash) != dmResource::RESULT_OK)
-    {
-        return DM_LUA_ERROR("Could not release resource: %s", dmHashReverseSafe64(path_hash));
-    }
+    dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
+    dmResource::Release(g_ResourceModule.m_Factory, dmResource::GetResource(rd));
     return 0;
 }
 
@@ -1106,6 +1243,9 @@ static int ReleaseResource(lua_State* L)
  * : [type:number] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_3D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_3D`
  * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
@@ -1128,7 +1268,7 @@ static int ReleaseResource(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
  * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
- * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4`
  * - `graphics.TEXTURE_FORMAT_RGB_BC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
  * - `graphics.TEXTURE_FORMAT_R_BC4`
@@ -1157,6 +1297,12 @@ static int ReleaseResource(lua_State* L)
  * `y`
  * : [type:number] optional y offset of the texture (in pixels)
  *
+ * `z`
+ * : [type:number] optional z offset of the texture (in pixels). Only applies to 3D textures
+ *
+ * `page`
+ * : [type:number] optional slice of the array texture. Only applies to 2D texture arrays. Zero-based
+ *
  * `mipmap`
  * : [type:number] optional mipmap to upload the data to
  *
@@ -1169,6 +1315,13 @@ static int ReleaseResource(lua_State* L)
  * @param buffer [type:buffer] The buffer of precreated pixel data
  *
  * [icon:attention] To update a cube map texture you need to pass in six times the amount of data via the buffer, since a cube map has six sides!
+ * 
+ * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
+ *
+ * ```lua
+ * if graphics.TEXTURE_TYPE_3D ~= nil then
+ *     -- Device and graphics adapter support 3D textures
+ * end
  *
  * @examples
  * How to set all pixels of an atlas
@@ -1242,6 +1395,63 @@ static int ReleaseResource(lua_State* L)
  *     resource.set_texture(resource_path, args, resource.get_buffer(self.my_buffer))
  * end
  * ```
+ *
+ * @examples
+ * Update an existing 3D texture from a lua buffer
+ * 
+ * ```lua
+ *
+ * function init(self)
+ *     -- create a buffer that can hold the data of a 8x8x8 texture
+ *     local tbuffer = buffer.create(8 * 8 * 8, { {name=hash("rgba"), type=buffer.VALUE_TYPE_FLOAT32, count=4} } )
+ *     local tstream = buffer.get_stream(tbuffer, hash("rgba"))
+ *     
+ *     -- populate the buffer with some data
+ *     local index = 1
+ *     for z=1,8 do
+ *         for y=1,8 do
+ *             for x=1,8 do
+ *                 tstream[index + 0] = x
+ *                 tstream[index + 1] = y
+ *                 tstream[index + 2] = z
+ *                 tstream[index + 3] = 1.0
+ *                 index = index + 4
+ *             end
+ *         end
+ *     end
+ *     
+ *     local t_args = {
+ *         type   = graphics.TEXTURE_TYPE_IMAGE_3D,
+ *         width  = 8,
+ *         height = 8,
+ *         depth  = 8,
+ *         format = resource.TEXTURE_FORMAT_RGBA32F
+ *     }
+ *      
+ *     -- This expects that the texture resource "/my_3d_texture.texturec" already exists
+ *     -- and is a 3D texture resource. To create a dynamic 3D texture resource
+ *     -- use the "resource.create_texture" function.
+ *     resource.set_texture("/my_3d_texture.texturec", t_args, tbuffer)
+ * end
+ *
+ *
+ * @examples
+ * Update texture 2nd array page with loaded texture from png
+ *
+ * ```lua
+ * 	-- new_tex is resource handle of texture which was created via resource.create_resource
+ *	local tex_path = "/bundle_resources/page_02.png"
+ *	local data = sys.load_resource(tex_path)
+ *	local buf = image.load_buffer(data)
+ *	resource.set_texture(new_tex, {
+ *		type = graphics.TEXTURE_TYPE_2D_ARRAY,
+ *		width = buf.width,
+ *		height = buf.height,
+ *		page = 1,
+ *		format = graphics.TEXTURE_FORMAT_RGB
+ *	}, buf.buffer)
+ *	go.set("#mesh", "texture0", new_tex)
+ * ```
  */
 static int SetTexture(lua_State* L)
 {
@@ -1256,26 +1466,35 @@ static int SetTexture(lua_State* L)
     dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) CheckTableInteger(L, 2, "format");
     uint32_t width                   = (uint32_t) CheckTableInteger(L, 2, "width");
     uint32_t height                  = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t depth                   = (uint32_t) CheckTableInteger(L, 2, "depth", 1);
     uint32_t mipmap                  = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
+    int32_t page                     = (int32_t)  CheckTableInteger(L, 2, "page", DEFAULT_INT_NOT_SET);
     int32_t x                        = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
     int32_t y                        = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
+    int32_t z                        = (int32_t)  CheckTableInteger(L, 2, "z", DEFAULT_INT_NOT_SET);
 
-    if (!dmGraphics::IsTextureFormatSupported(g_ResourceModule.m_GraphicsContext, format))
+    if (!dmGraphics::IsTextureFormatSupportedForType(g_ResourceModule.m_GraphicsContext, type, format))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
     }
 
-    // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
+    if (!IsTextureFormatSupported(type))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
 
+    if (dmGraphics::IsTextureType3D(type) && !dmGraphics::IsContextFeatureSupported(g_ResourceModule.m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
+    {
+        return luaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
+    }
+
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
-    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET;
+    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET || z != DEFAULT_INT_NOT_SET || page != DEFAULT_INT_NOT_SET;
     x               = dmMath::Max(0, x);
     y               = dmMath::Max(0, y);
+    z               = dmMath::Max(0, z);
+    page            = dmMath::Max(0, page);
 
     dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
     dmBuffer::HBuffer buffer_handle  = dmGameSystem::UnpackLuaBuffer(lua_buffer);
@@ -1293,8 +1512,11 @@ static int SetTexture(lua_State* L)
     params.m_DataSize               = datasize;
     params.m_Width                  = width;
     params.m_Height                 = height;
+    params.m_Depth                  = depth;
     params.m_X                      = x;
     params.m_Y                      = y;
+    params.m_Z                      = z;
+    params.m_Slice                  = page;
     params.m_MipMap                 = mipmap;
     params.m_SubUpdate              = sub_update;
 
@@ -1315,34 +1537,39 @@ static int SetTexture(lua_State* L)
  *
  * @name resource.get_texture_info
  *
- * @param path [type:hash|string|handle] The path to the resource or a texture handle
+ * @param path [type:hash|string|number] The path to the resource or a texture handle
  * @return table [type:table] A table containing info about the texture:
  *
  * `handle`
- * : [type:handle] the opaque handle to the texture resource
+ * : [type:number] the opaque handle to the texture resource
  *
  * `width`
- * : [type:integer] width of the texture
+ * : [type:number] width of the texture
  *
  * `height`
- * : [type:integer] height of the texture
+ * : [type:number] height of the texture
  *
  * `depth`
- * : [type:integer] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ * : [type:number] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, the actual depth of a 3D texture)
+ *
+ * `page_count`
+ * : [type:number] number of pages of the texture array. For 2D texture value is 1. For cube map - 6
  *
  * `mipmaps`
- * : [type:integer] number of mipmaps of the texture
+ * : [type:number] number of mipmaps of the texture
  *
  * `flags`
- * : [type:integer] usage hints of the texture.
+ * : [type:number] usage hints of the texture.
  *
  * `type`
  * : [type:number] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
- * - `graphics.TEXTURE_TYPE_IMAGE_2D`
- * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  * - `graphics.TEXTURE_TYPE_2D_ARRAY`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_3D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_3D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * @examples
  * Create a new texture and get the metadata from it
@@ -1367,6 +1594,7 @@ static int SetTexture(lua_State* L)
  *     --      height = 128,
  *     --      depth = 1
  *     --      mipmaps = 1,
+ *     --      page_count = 1,
  *     --      type = graphics.TEXTURE_TYPE_2D,
  *     --      flags = graphics.TEXTURE_USAGE_FLAG_SAMPLE
  *     -- }
@@ -1427,29 +1655,26 @@ static int GetTextureInfo(lua_State* L)
  *
  * @name resource.get_render_target_info
  *
- * @param path [type:hash|string|handle] The path to the resource or a render target handle
+ * @param path [type:hash|string|number] The path to the resource or a render target handle
  * @return table [type:table] A table containing info about the render target:
  *
  * `handle`
- * : [type:handle] the opaque handle to the texture resource
+ * : [type:number] the opaque handle to the texture resource
  *
  * 'attachments'
  * : [type:table] a table of attachments, where each attachment contains the following entries:
  *
- * `handle`
- * : [type:handle] the opaque handle to the texture resource
- *
  * `width`
- * : [type:integer] width of the texture
+ * : [type:number] width of the texture
  *
  * `height`
- * : [type:integer] height of the texture
+ * : [type:number] height of the texture
  *
  * `depth`
- * : [type:integer] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ * : [type:number] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
  *
  * `mipmaps`
- * : [type:integer] number of mipmaps of the texture
+ * : [type:number] number of mipmaps of the texture
  *
  * `type`
  * : [type:number] The texture type. Supported values:
@@ -1549,7 +1774,7 @@ static int GetRenderTargetInfo(lua_State* L)
     for (int i = 0; i < DM_ARRAY_SIZE(color_buffer_flags); ++i)
     {
         dmGraphics::BufferType buffer_type = color_buffer_flags[i];
-        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, buffer_type);
+        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(g_ResourceModule.m_GraphicsContext, rt_handle, buffer_type);
         if (t)
         {
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
@@ -1610,6 +1835,14 @@ static void MakeNumberArrayFromLuaTable(lua_State* L, const char* field, void** 
 
 static void DestroyTextureSet(dmGameSystemDDF::TextureSet& texture_set)
 {
+    for (uint32_t i = 0; i < texture_set.m_Geometries.m_Count; ++i)
+    {
+        dmGameSystemDDF::SpriteGeometry& geometry = texture_set.m_Geometries[i];
+        delete[] geometry.m_Vertices.m_Data;
+        delete[] geometry.m_Uvs.m_Data;
+        delete[] geometry.m_Indices.m_Data;
+    }
+
     delete[] texture_set.m_Animations.m_Data;
     delete[] texture_set.m_Geometries.m_Data;
     delete[] texture_set.m_FrameIndices.m_Data;
@@ -1692,6 +1925,14 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             VALIDATE_GEOMETRY_STREAM("indices",  3);
             #undef VALIDATE_GEOMETRY_STREAM
 
+            // these _should_ be required, but were added late after the api was introduced.
+            CheckFieldValue<int>(L, -1, "width", 0);
+            CheckFieldValue<int>(L, -1, "height",  0);
+
+            // Non-required fields
+            CheckFieldValue<float>(L,  -1, "pivot_x", 0);
+            CheckFieldValue<float>(L,  -1, "pivot_y", 0);
+
             lua_pop(L, 1);
 
             num_geometries++;
@@ -1722,8 +1963,6 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             // Required fields
             CheckFieldValue<int>(L, -1, "width");
             CheckFieldValue<int>(L, -1, "height");
-            int frame_start = CheckFieldValue<int>(L, -1, "frame_start");
-            int frame_end   = CheckFieldValue<int>(L, -1, "frame_end");
 
             // Non-required fields
             CheckFieldValue<int>(L,  -1, "playback", 0);
@@ -1731,30 +1970,67 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             CheckFieldValue<bool>(L, -1, "flip_vertical", false );
             CheckFieldValue<bool>(L, -1, "flip_horizontal", false );
 
-            // Validate frame indices
-            int frame_interval = frame_end - frame_start;
-            if (frame_start < 1 || frame_start > (num_geometries+1)) // +1 for lua indexing
+            int frame_interval = 0;
+            lua_getfield(L, -1, "frames");
+            if (!lua_isnil(L, -1))
             {
-                luaL_error(L, "Invalid frame_start in animation [%d], index %d is outside of geometry bounds 0..%d",
-                        animation_index, frame_start, num_geometries);
-            }
+                luaL_checktype(L, -1, LUA_TTABLE);
+                size_t frame_count = lua_objlen(L, -1);
+                frame_interval = frame_count;
 
-            if (frame_end < 1 || frame_end > (num_geometries+1)) // +1 for lua indexing
+                // verify that list of animation frames exist in the geometry
+                for (int j=0; j < frame_count; ++j)
+                {
+                    lua_pushinteger(L, j + 1);
+                    lua_gettable(L, -2); // pop frames index and get animation frame index
+                    uint32_t animation_frame_index = luaL_checknumber(L, -1);
+                    if (animation_frame_index < 1 || animation_frame_index > (num_geometries+1))
+                    {
+                        luaL_error(L, "Invalid frame in animation [%d], index %d is outside of geometry bounds 1..%d",
+                            animation_index, animation_frame_index, num_geometries);
+                    }
+                    lua_pop(L, 1); // pop animation frame index
+                }
+
+                if (frame_interval <= 0)
+                {
+                    luaL_error(L, "Invalid frame interval in animation [%d], animation is empty", animation_index);
+                }
+
+                lua_pop(L, 1); // frames
+            }
+            else
             {
-                luaL_error(L, "Invalid frame_end in animation [%d], index %d is outside of geometry bounds 0..%d",
-                    animation_index, frame_end, num_geometries);
-            }
+                lua_pop(L, 1); // frames
+                int frame_start = CheckFieldValue<int>(L, -1, "frame_start");
+                int frame_end   = CheckFieldValue<int>(L, -1, "frame_end");
 
-            if (frame_interval <= 0)
-            {
-                luaL_error(L, "Invalid frame interval in animation [%d], start - end = %d", animation_index, frame_interval);
-            }
+                // Validate frame indices
+                frame_interval = frame_end - frame_start;
+                if (frame_start < 1 || frame_start > (num_geometries+1)) // +1 for lua indexing
+                {
+                    luaL_error(L, "Invalid frame_start in animation [%d], index %d is outside of geometry bounds 1..%d",
+                            animation_index, frame_start, num_geometries);
+                }
 
-            lua_pop(L, 1);
+                if (frame_end < 1 || frame_end > (num_geometries+1)) // +1 for lua indexing
+                {
+                    luaL_error(L, "Invalid frame_end in animation [%d], index %d is outside of geometry bounds 1..%d",
+                        animation_index, frame_end, num_geometries);
+                }
+
+                if (frame_interval <= 0)
+                {
+                    luaL_error(L, "Invalid frame interval in animation [%d], start - end = %d", animation_index, frame_interval);
+                }
+
+            }
 
             num_animations++;
 
             num_animation_frames += frame_interval;
+
+            lua_pop(L, 1);
         }
     }
 
@@ -1784,9 +2060,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Texture     = 0;
     texture_set_ddf->m_TextureHash = texture_path_hash;
 
-    float tex_width            = dmGraphics::GetTextureWidth(texture);
-    float tex_height           = dmGraphics::GetTextureHeight(texture);
-    uint32_t frame_index_count = 0;
+    float tex_width            = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture);
+    float tex_height           = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture);
 
     texture_set_ddf->m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
     texture_set_ddf->m_Geometries.m_Count = num_geometries;
@@ -1799,6 +2074,11 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_ImageNameHashes.m_Data  = new dmhash_t[num_geometries];
     texture_set_ddf->m_ImageNameHashes.m_Count = num_geometries;
 
+    texture_set_ddf->m_UseGeometries        = 1;
+    texture_set_ddf->m_FrameIndices.m_Data  = new uint32_t[num_animation_frames];
+    texture_set_ddf->m_FrameIndices.m_Count = num_animation_frames;
+    memset(texture_set_ddf->m_FrameIndices.m_Data, 0, sizeof(uint32_t) * num_animation_frames);
+
     const uint32_t num_tex_coords_per_quad  = 8;
     const uint32_t num_tex_coords_byte_size = num_animation_frames * num_tex_coords_per_quad * sizeof(float);
     texture_set_ddf->m_TexCoords.m_Data     = new uint8_t[num_tex_coords_byte_size];
@@ -1810,6 +2090,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     float* geometry_scratch_cursor = geometry_scratch_ptr;
     float* texcoord_ptr            = (float*) texture_set_ddf->m_TexCoords.m_Data;
 
+    uint32_t frame_index = 0;
     if (num_geometries > 0)
     {
         float inv_tex_width  = 1.0f / tex_width;
@@ -1835,16 +2116,34 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             lua_pop(L, 1);
             texture_set_ddf->m_ImageNameHashes[i] = id_hash;
 
-            lua_pop(L, 1);
+            float geo_width = (float)CheckFieldValue<int>(L, -1, "width", 0);
+            float geo_height = (float)CheckFieldValue<int>(L, -1, "height",  0);
 
-            // Calculate extents so that we can transform to -0.5 .. 0.5 based
-            // on the middle of the sprite
-            float geo_width = 0.0f;
-            float geo_height = 0.0f;
-            for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
+            // pivot in unit space, where (0,0) is top left of image, (1,1) is bottom right
+            float pivot_x = CheckFieldValue<float>(L, -1, "pivot_x", 0.5f);
+            float pivot_y = CheckFieldValue<float>(L, -1, "pivot_y", 0.5f);
+
+            // rotation flag for atlas packing - affects UV coordinate generation
+            bool rotated = CheckFieldValue<bool>(L, -1, "rotated", false);
+
+            lua_pop(L, 1);
+            // End of lua table interaction
+
+            // default SpriteGeometry pivot is (0,0) which is middle of image.
+            geometry.m_PivotX =        pivot_x - 0.5f;
+            geometry.m_PivotY = 1.0f - pivot_y - 0.5f;
+            geometry.m_Rotated = rotated;
+
+            // Legacy, we should have required the user to specify width/height from the start
+            if (geo_width == 0 || geo_height == 0)
             {
-                geo_width  = dmMath::Max(geo_width, geometry.m_Vertices.m_Data[j]);
-                geo_height = dmMath::Max(geo_height, geometry.m_Vertices.m_Data[j+1]);
+                // Calculate extents so that we can transform to -0.5 .. 0.5 based
+                // on the middle of the sprite
+                for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
+                {
+                    geo_width  = dmMath::Max(geo_width, geometry.m_Vertices.m_Data[j]);
+                    geo_height = dmMath::Max(geo_height, geometry.m_Vertices.m_Data[j+1]);
+                }
             }
 
             geometry.m_Width  = geo_width;
@@ -1883,25 +2182,49 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
 
             // From texture_set_ddf.proto:
             // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
+            // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
             // Note that we need to invert the V coordinates here to account for the texture coordinate space
-            // NOTE: We could perhaps do it in the loop above by swapping the V min and max coordinates
-            geometry_scratch_cursor[0] = min_uv_u;
-            geometry_scratch_cursor[1] = 1.0 - max_uv_v;
+            if (rotated)
+            {
+                // Rotated quad UV pattern
+                geometry_scratch_cursor[0] = min_uv_u;
+                geometry_scratch_cursor[1] = 1.0 - min_uv_v;
 
-            geometry_scratch_cursor[2] = min_uv_u;
-            geometry_scratch_cursor[3] = 1.0 - min_uv_v;
+                geometry_scratch_cursor[2] = max_uv_u;
+                geometry_scratch_cursor[3] = 1.0 - min_uv_v;
 
-            geometry_scratch_cursor[4] = max_uv_u;
-            geometry_scratch_cursor[5] = 1.0 - min_uv_v;
+                geometry_scratch_cursor[4] = max_uv_u;
+                geometry_scratch_cursor[5] = 1.0 - max_uv_v;
 
-            geometry_scratch_cursor[6] = max_uv_u;
-            geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+                geometry_scratch_cursor[6] = min_uv_u;
+                geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+            }
+            else
+            {
+                // Unrotated quad UV pattern
+                geometry_scratch_cursor[0] = min_uv_u;
+                geometry_scratch_cursor[1] = 1.0 - max_uv_v;
+
+                geometry_scratch_cursor[2] = min_uv_u;
+                geometry_scratch_cursor[3] = 1.0 - min_uv_v;
+
+                geometry_scratch_cursor[4] = max_uv_u;
+                geometry_scratch_cursor[5] = 1.0 - min_uv_v;
+
+                geometry_scratch_cursor[6] = max_uv_u;
+                geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+            }
 
             geometry_scratch_cursor += 8;
-            frame_index_count++;
+
+            texture_set_ddf->m_FrameIndices[frame_index++] = i;
         }
         lua_pop(L, 1); // geometries
     }
+
+    // We can write all geometry UV bounds
+    memcpy(texcoord_ptr, geometry_scratch_ptr, num_geometries * sizeof(float) * 8);
+    texcoord_ptr += num_geometries * 8;
 
     if (num_animations > 0)
     {
@@ -1929,13 +2252,61 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             animation.m_Height = lua_tointeger(L, -1);
             lua_pop(L, 1);
 
-            lua_getfield(L, -1, "frame_start");
-            int frame_start = lua_tointeger(L, -1);
-            lua_pop(L, 1);
+            lua_getfield(L, -1, "frames");
+            if (!lua_isnil(L, -1))
+            {
+                luaL_checktype(L, -1, LUA_TTABLE);
+                size_t frame_count = lua_objlen(L, -1);
 
-            lua_getfield(L, -1, "frame_end");
-            int frame_end = lua_tointeger(L, -1);
-            lua_pop(L, 1);
+                animation.m_Start  = frame_index;
+                animation.m_End    = frame_index + frame_count; // non inclusive
+
+                // iterate list of animation frames
+                for (int j=0; j < frame_count; ++j)
+                {
+                    lua_pushinteger(L, j + 1);
+                    lua_gettable(L, -2); // pop frames index and get animation frame index
+
+                    // copy geometry and write frame
+                    uint32_t animation_frame_index = luaL_checknumber(L, -1) - 1;
+                    float* tc_read_ptr             = &geometry_scratch_ptr[animation_frame_index * 8];
+                    memcpy(texcoord_ptr, tc_read_ptr, sizeof(float) * 8);
+                    texcoord_ptr += 8;
+                    texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index;
+                    lua_pop(L, 1); // pop animation frame index
+                }
+
+                lua_pop(L, 1); // frames
+            }
+            else
+            {
+                lua_pop(L, 1); // frames
+
+                lua_getfield(L, -1, "frame_start");
+                int frame_start = lua_tointeger(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "frame_end"); // non-inclusive
+                int frame_end = lua_tointeger(L, -1);
+                lua_pop(L, 1);
+
+                int frame_count = (frame_end - frame_start);
+                animation.m_Start  = frame_index;
+                animation.m_End    = frame_index + frame_count;
+
+                // Values stored in the frame indices table refer to entries in the
+                // m_Geometry table of the DDF
+                for (int j = 0; j < frame_count; ++j)
+                {
+                    uint32_t animation_frame_index = frame_start + j - 1;
+                    float* tc_read_ptr             = &geometry_scratch_ptr[animation_frame_index * 8];
+                    memcpy(texcoord_ptr, tc_read_ptr, sizeof(float) * 8);
+
+                    texcoord_ptr += 8;
+                    texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index;
+                }
+
+            }
 
             // Get optional arguments
             lua_getfield(L, -1, "playback");
@@ -1968,47 +2339,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
 
             lua_pop(L, 1);
 
-            // Correct frame start/end
-            animation.m_Start  = frame_start + num_geometries - 1;
-            animation.m_End    = frame_end + num_geometries - 1;
-            frame_index_count += frame_end - frame_start;
         }
         lua_pop(L, 1); // animations
-    }
-
-    texture_set_ddf->m_UseGeometries        = 1;
-    texture_set_ddf->m_FrameIndices.m_Data  = new uint32_t[frame_index_count];
-    texture_set_ddf->m_FrameIndices.m_Count = frame_index_count;
-    memset(texture_set_ddf->m_FrameIndices.m_Data, 0, sizeof(uint32_t) * frame_index_count);
-
-    // We can write all geometry UV bounds
-    memcpy(texcoord_ptr, geometry_scratch_ptr, num_geometries * sizeof(float) * 8);
-    texcoord_ptr += num_geometries * 8;
-
-    uint32_t frame_index = 0;
-    for (int i = 0; i < num_geometries; ++i)
-    {
-        texture_set_ddf->m_FrameIndices[frame_index++] = i;
-    }
-
-    for (int i = 0; i < texture_set_ddf->m_Animations.m_Count; ++i)
-    {
-        uint32_t frame_start = texture_set_ddf->m_Animations[i].m_Start;
-        uint32_t frame_count = texture_set_ddf->m_Animations[i].m_End - frame_start;
-
-        // Values stored in the frame indices table refer to entries in the
-        // m_Geometry table of the DDF, so we need to adjust the values so
-        // that the start and end values are based from zero because that is how
-        // the indirection works when getting animations in e.g comp_sprite
-        for (int j = 0; j < frame_count; ++j)
-        {
-            uint32_t animation_frame_index = frame_start + j - num_geometries;
-            float* tc_read_ptr             = &geometry_scratch_ptr[animation_frame_index * 8];
-            memcpy(texcoord_ptr, tc_read_ptr, sizeof(float) * 8);
-
-            texcoord_ptr += 8;
-            texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index;
-        }
     }
 
     delete[] geometry_scratch_ptr;
@@ -2044,22 +2376,22 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * : [type:string] the id of the animation, used in e.g sprite.play_animation
  *
  * * `width`
- * : [type:integer] the width of the animation
+ * : [type:number] the width of the animation
  *
  * * `height`
- * : [type:integer] the height of the animation
+ * : [type:number] the height of the animation
  *
  * * `frame_start`
- * : [type:integer] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `frame_end`
- * : [type:integer] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `playback`
  * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
  *
  * * `fps`
- * : [type:integer] optional fps of the animation, the default value is 30
+ * : [type:number] optional fps of the animation, the default value is 30
  *
  * * `flip_vertical`
  * : [type:boolean] optional flip the animation vertically, the default value is false
@@ -2073,11 +2405,26 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * * `id`
  * : [type:string] The name of the geometry. Used when matching animations between multiple atlases
  *
+ * * `width`
+ * : [type:number] The width of the image the sprite geometry represents
+ *
+ * * `height`
+ * : [type:number] The height of the image the sprite geometry represents
+ *
+ * * `pivot_x`
+ * : [type:number] The pivot x value of the image in unit coords. (0,0) is upper left corner, (1,1) is bottom right. Default is 0.5.
+ *
+ * * `pivot_y`
+ * : [type:number] The pivot y value of the image in unit coords. (0,0) is upper left corner, (1,1) is bottom right. Default is 0.5.
+ *
+ * * `rotated`
+ * : [type:boolean] Whether the image is rotated 90 degrees counter-clockwise in the atlas. This affects UV coordinate generation for proper rendering. Default is false.
+ *
  * * `vertices`
- * : [type:table] a list of the vertices in texture space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
+ * : [type:table] a list of the vertices in image space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
  *
  * * `uvs`
- * : [type:table] a list of the uv coordinates in texture space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}
+ * : [type:table] a list of the uv coordinates in image space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}.
  *
  * * `indices`
  * : [type:table] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
@@ -2112,13 +2459,16 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *                 id          = "my_animation",
  *                 width       = 128,
  *                 height      = 128,
- *                 frame_start = 1,
- *                 frame_end   = 2,
+ *                 frames      = { 1 }
  *             }
  *         },
  *         geometries = {
  *             {
  *                 id = 'idle0',
+ *                 width = 128,
+ *                 height = 128,
+ *                 pivot_x = 0.5,
+ *                 pivot_y = 0.5,
  *                 vertices  = {
  *                     0,   0,
  *                     0,   128,
@@ -2147,7 +2497,7 @@ static int CreateAtlas(lua_State* L)
     DM_LUA_STACK_CHECK(L, 1);
 
     const char* path_str           = luaL_checkstring(L, 1);
-    const char* texturec_ext       = ".texturesetc";
+    const char* texturec_ext       = "texturesetc";
     const char* texture_field_name = "texture";
 
     dmhash_t canonical_path_hash = 0;
@@ -2183,6 +2533,8 @@ static int CreateAtlas(lua_State* L)
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
     assert(ddf_result == dmDDF::RESULT_OK);
+
+    DestroyTextureSet(texture_set_ddf);
 
     void* resource = 0x0;
     dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
@@ -2230,22 +2582,22 @@ static int CreateAtlas(lua_State* L)
  * : [type:string] the id of the animation, used in e.g sprite.play_animation
  *
  * * `width`
- * : [type:integer] the width of the animation
+ * : [type:number] the width of the animation
  *
  * * `height`
- * : [type:integer] the height of the animation
+ * : [type:number] the height of the animation
  *
  * * `frame_start`
- * : [type:integer] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `frame_end`
- * : [type:integer] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `playback`
  * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
  *
  * * `fps`
- * : [type:integer] optional fps of the animation, the default value is 30
+ * : [type:number] optional fps of the animation, the default value is 30
  *
  * * `flip_vertical`
  * : [type:boolean] optional flip the animation vertically, the default value is false
@@ -2299,8 +2651,7 @@ static int CreateAtlas(lua_State* L)
  *                 id          = "my_animation",
  *                 width       = 256,
  *                 height      = 256,
- *                 frame_start = 1,
- *                 frame_end   = 2,
+ *                 frames      = { 1 }
  *             }
  *         },
  *         geometries = {
@@ -2369,6 +2720,69 @@ static int SetAtlas(lua_State* L)
     return 0;
 }
 
+
+static void PushGeometry(lua_State* L, int index, dmGameSystemDDF::SpriteGeometry& geom, float tex_width, float tex_height)
+{
+    #define SET_LUA_TABLE_FIELD(set_fn, key, val) \
+        set_fn(L, val); \
+        lua_setfield(L, -2, key);
+
+    #define SET_LUA_TABLE_RAW(set_fn, key, val) \
+        set_fn(L, val); \
+        lua_rawseti(L, -2, key);
+
+    lua_pushinteger(L, (lua_Integer) (index + 1));
+    lua_newtable(L);
+    {
+        assert(geom.m_Vertices.m_Count % 2 == 0);
+        assert(geom.m_Uvs.m_Count      % 2 == 0);
+        assert(geom.m_Indices.m_Count  % 3 == 0);
+
+        SET_LUA_TABLE_FIELD(lua_pushnumber, "width",    geom.m_Width);
+        SET_LUA_TABLE_FIELD(lua_pushnumber, "height",   geom.m_Height);
+        // Transform back to image space (0,0) is top left corner, (1,1) is bottom right
+        SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_x",          geom.m_PivotX + 0.5);
+        SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_y",  1.0f - (geom.m_PivotY + 0.5f));
+        SET_LUA_TABLE_FIELD(lua_pushboolean, "rotated",  geom.m_Rotated);
+
+        lua_pushliteral(L, "vertices");
+        lua_newtable(L);
+        for (int j = 0; j < geom.m_Vertices.m_Count; j += 2)
+        {
+            float x = (geom.m_Vertices[j] + 0.5) * geom.m_Width;
+            float y = (0.5 - geom.m_Vertices[j+1]) * geom.m_Height;
+
+            SET_LUA_TABLE_RAW(lua_pushnumber, j + 1, x);
+            SET_LUA_TABLE_RAW(lua_pushnumber, j + 2, y);
+        }
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "uvs");
+        lua_newtable(L);
+        for (int j = 0; j < geom.m_Uvs.m_Count; j += 2)
+        {
+            float s = geom.m_Uvs[j] * tex_width;
+            float t = (1.0 - geom.m_Uvs[j + 1]) * tex_height;
+
+            SET_LUA_TABLE_RAW(lua_pushnumber, j + 1, s);
+            SET_LUA_TABLE_RAW(lua_pushnumber, j + 2, t);
+        }
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "indices");
+        lua_newtable(L);
+        for (int j = 0; j < geom.m_Indices.m_Count; ++j)
+        {
+            SET_LUA_TABLE_RAW(lua_pushinteger, j + 1, geom.m_Indices[j]);
+        }
+        lua_rawset(L, -3);
+    }
+    lua_rawset(L, -3);
+
+    #undef SET_LUA_TABLE_RAW
+    #undef SET_LUA_TABLE_FIELD
+}
+
 /*# Get atlas data
  * Returns the atlas data for an atlas
  *
@@ -2382,6 +2796,9 @@ static int SetAtlas(lua_State* L)
  * - geometries
  * - animations
  *
+ * Each animation entry also contains a `frames` table with indices into
+ * `geometries`, preserving the frame-to-geometry mapping used by the atlas.
+ *
  * See [ref:resource.set_atlas] for a detailed description of each field
  *
  */
@@ -2394,9 +2811,6 @@ static int GetAtlas(lua_State* L)
     TextureSetResource* texture_set_res      = (TextureSetResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturesetc");
     dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
     assert(texture_set);
-
-    float tex_width  = (float) dmGraphics::GetTextureWidth(texture_set_res->m_Texture->m_Texture);
-    float tex_height = (float) dmGraphics::GetTextureHeight(texture_set_res->m_Texture->m_Texture);
 
     #define SET_LUA_TABLE_FIELD(set_fn, key, val) \
         set_fn(L, val); \
@@ -2415,108 +2829,61 @@ static int GetAtlas(lua_State* L)
 
     lua_pushliteral(L, "animations");
     lua_newtable(L);
-
-    uint32_t num_geometries = texture_set->m_Geometries.m_Count;
-
-    for (int i = 0; i < texture_set->m_Animations.m_Count; ++i)
     {
-        dmGameSystemDDF::TextureSetAnimation& anim = texture_set->m_Animations[i];
-
-        // Note:
-        // frame_start and frame_end is not necessarily the same thing as an animations m_Start/m_End,
-        // since we generate the geometry based on input textures. But now with the
-        // resource.set_atlas function we allow creating arbitrary geometry and mapping
-        // that to animations and have no concept of input textures.
-        // So we need this indirection to be able to support both creating custom animations in runtime
-        // and the way we have created the DDF in the build pipeline.
-        uint32_t index_start = texture_set->m_FrameIndices[anim.m_Start];
-        uint32_t index_end   = index_start + (anim.m_End - anim.m_Start);
-
-        lua_pushinteger(L, (lua_Integer) (i+1));
-        lua_newtable(L);
-
-        SET_LUA_TABLE_FIELD(lua_pushstring, "id", anim.m_Id);
-        SET_LUA_TABLE_FIELD(lua_pushinteger, "width", anim.m_Width);
-        SET_LUA_TABLE_FIELD(lua_pushinteger, "height", anim.m_Height);
-        SET_LUA_TABLE_FIELD(lua_pushinteger, "fps", anim.m_Fps);
-        SET_LUA_TABLE_FIELD(lua_pushinteger, "playback", (lua_Integer) DDFPlaybackToGameObjectPlayback(anim.m_Playback));
-        SET_LUA_TABLE_FIELD(lua_pushinteger, "frame_start", index_start + 1);
-        SET_LUA_TABLE_FIELD(lua_pushinteger, "frame_end", index_end + 1);
-        SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_horizontal", anim.m_FlipHorizontal);
-        SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_vertical", anim.m_FlipVertical);
-
-        lua_rawset(L, -3);
-    }
-
-    #undef SET_LUA_TABLE_FIELD
-
-    lua_rawset(L, -3);
-
-    {
-        lua_pushliteral(L, "geometries");
-        lua_newtable(L);
-
-        for (int i = 0; i < num_geometries; ++i)
+        for (int i = 0; i < texture_set->m_Animations.m_Count; ++i)
         {
-            dmGameSystemDDF::SpriteGeometry& geom = texture_set->m_Geometries[i];
+            dmGameSystemDDF::TextureSetAnimation& anim = texture_set->m_Animations[i];
 
             lua_pushinteger(L, (lua_Integer) (i+1));
             lua_newtable(L);
 
-            #define SET_LUA_TABLE_RAW(set_fn, key, val) \
-                set_fn(L, val); \
-                lua_rawseti(L, -2, key);
+            SET_LUA_TABLE_FIELD(lua_pushstring, "id", anim.m_Id);
+            SET_LUA_TABLE_FIELD(lua_pushinteger, "width", anim.m_Width);
+            SET_LUA_TABLE_FIELD(lua_pushinteger, "height", anim.m_Height);
+            SET_LUA_TABLE_FIELD(lua_pushinteger, "fps", anim.m_Fps);
+            SET_LUA_TABLE_FIELD(lua_pushinteger, "playback", (lua_Integer) DDFPlaybackToGameObjectPlayback(anim.m_Playback));
+            SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_horizontal", anim.m_FlipHorizontal);
+            SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_vertical", anim.m_FlipVertical);
+            lua_pushliteral(L, "frames");
+            lua_newtable(L);
 
+            for (uint32_t frame_index = anim.m_Start; frame_index < anim.m_End; ++frame_index)
             {
-                assert(geom.m_Vertices.m_Count % 2 == 0);
-                assert(geom.m_Uvs.m_Count      % 2 == 0);
-                assert(geom.m_Indices.m_Count  % 3 == 0);
-
-                lua_pushliteral(L, "vertices");
-                lua_newtable(L);
-                for (int j = 0; j < geom.m_Vertices.m_Count; j += 2)
-                {
-                    float x = (geom.m_Vertices[j] + 0.5) * geom.m_Width;
-                    float y = (0.5 - geom.m_Vertices[j+1]) * geom.m_Height;
-
-                    SET_LUA_TABLE_RAW(lua_pushnumber, j + 1, x);
-                    SET_LUA_TABLE_RAW(lua_pushnumber, j + 2, y);
-                }
-                lua_rawset(L, -3);
-
-                lua_pushliteral(L, "uvs");
-                lua_newtable(L);
-                for (int j = 0; j < geom.m_Uvs.m_Count; j += 2)
-                {
-                    float s = geom.m_Uvs[j] * tex_width;
-                    float t = (1.0 - geom.m_Uvs[j + 1]) * tex_height;
-
-                    SET_LUA_TABLE_RAW(lua_pushnumber, j + 1, s);
-                    SET_LUA_TABLE_RAW(lua_pushnumber, j + 2, t);
-                }
-                lua_rawset(L, -3);
-
-                lua_pushliteral(L, "indices");
-                lua_newtable(L);
-                for (int j = 0; j < geom.m_Indices.m_Count; ++j)
-                {
-                    SET_LUA_TABLE_RAW(lua_pushinteger, j + 1, geom.m_Indices[j]);
-                }
+                uint32_t geometry_index = texture_set->m_FrameIndices[frame_index];
+                lua_pushinteger(L, (lua_Integer) (frame_index - anim.m_Start + 1));
+                lua_pushinteger(L, (lua_Integer) (geometry_index + 1));
                 lua_rawset(L, -3);
             }
-
-            #undef SET_LUA_TABLE_RAW
+            lua_settable(L, -3);
 
             lua_rawset(L, -3);
         }
-        lua_rawset(L, -3);
     }
+    lua_rawset(L, -3);
+    #undef SET_LUA_TABLE_FIELD
+
+    float tex_width  = (float) dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
+    float tex_height = (float) dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
+
+    lua_pushliteral(L, "geometries");
+    lua_newtable(L);
+    {
+        int geometry_count = 0;
+        for (int i = 0; i < texture_set->m_Geometries.m_Count; ++i)
+        {
+            dmGameSystemDDF::SpriteGeometry& geom = texture_set->m_Geometries[i];
+            PushGeometry(L, i, geom, tex_width, tex_height);
+            geometry_count++;
+        }
+
+    }
+    lua_rawset(L, -3);
 
     return 1;
 }
 
 /*# Update internal sound resource
- * Update internal sound resource (wavc/oggc) with new data
+ * Update internal sound resource (wavc/oggc/opusc) with new data
  *
  * @name resource.set_sound
  *
@@ -2540,6 +2907,130 @@ static int SetSound(lua_State* L) {
     }
 
     return 0;
+}
+
+static uint8_t* CheckBufferOrString(lua_State* L, int index, uint32_t* data_size)
+{
+    dmScript::LuaHBuffer* lua_buffer = dmScript::ToBuffer(L, index);
+    if (lua_buffer)
+    {
+        dmBuffer::HBuffer buffer = dmGameSystem::UnpackLuaBuffer(lua_buffer);
+
+        uint8_t* data = 0;
+        dmBuffer::GetBytes(buffer, (void**)&data, data_size);
+        return data;
+    }
+    else if (lua_isstring(L, index))
+    {
+        size_t string_len;
+        uint8_t* data = (uint8_t*)luaL_checklstring(L, -1, &string_len);
+        *data_size = (uint32_t)string_len;
+        return data;
+    }
+    luaL_error(L, "The field must be using either a buffer or a string.");
+    return 0;
+}
+
+
+/*#  Creates a sound data resource (.oggc/.opusc/.wavc)
+ *
+ * Creates a sound data resource
+ * Supported formats are .oggc, .opusc and .wavc
+ *
+ * @name resource.create_sound_data
+ * @param path [type:string] the path to the resource. Must not already exist.
+ * @param [options] [type:table] A table containing parameters for the text. Supported entries:
+ *
+ * `data`
+ * : [type:string] The raw data of the file. May be partial, but must include the header of the file
+ *
+ * `filesize`
+ * : [type:number] If the file is partial, it must also specify the full size of the complete file.
+ *
+ * `partial`
+ * : [type:boolean] Is the data not representing the full file, but just the initial chunk?
+ *
+ * @return path_hash [type:hash] the resulting path hash to the resource
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *     -- create a new sound resource, given the initial chunk of the file
+ *     local relative_path = "/a/unique/resource/name.oggc"
+ *     local hash = resource.create_sound_data(relative_path, { data = data, filesize = filesize, partial = true })
+ *     go.set("#music", "sound", hash) -- override the previous sound resource
+ *     sound.play("#music") -- start the playing
+ * end
+ * ```
+ */
+static int CreateSoundData(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const char* path = luaL_checkstring(L, 1);
+    const char* path_ext = dmResource::GetExtFromPath(path);
+
+    const char* exts[]  = {"wav", "ogg", "opus", "wavc", "oggc", "opusc"};
+
+    dmhash_t canonical_path_hash = 0;
+    PreCreateResources(L, path, exts, DM_ARRAY_SIZE(exts), &canonical_path_hash);
+
+    // Find the correct type, as the resource types are registered as .wavc / .oggc / .opusc
+    char type_suffix[32];
+    {
+        int len = dmStrlCpy(type_suffix, path_ext, sizeof(type_suffix));
+        if (type_suffix[len-1] != 'c')
+        {
+            type_suffix[len++] = 'c';
+            type_suffix[len] = 0;
+        }
+    }
+
+    dmResource::HResourceType resource_type;
+    dmResource::Result r = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, type_suffix, &resource_type);
+    if (dmResource::RESULT_OK != r)
+    {
+        return luaL_error(L, "Failed to find resource type '%s': %s %d", type_suffix, dmResource::ResultToString(r), r);
+    }
+
+    //////////////////////////////////////////////////
+    // Options table
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_pushvalue(L, 2);
+
+    uint32_t data_size = 0;
+    uint8_t* data = 0;
+
+    lua_getfield(L, -1, "data");
+    data = CheckBufferOrString(L, -1, &data_size);
+    lua_pop(L, 1); // "data"
+
+    uint32_t file_size = data_size;
+    bool partial = CheckFieldValue<bool>(L, -1, "partial", false);
+    if (partial)
+    {
+        file_size = CheckFieldValue<int>(L, -1, "filesize");
+    }
+
+    lua_pop(L, 1); // args table
+    // End options table
+    //////////////////////////////////////////////////
+
+    void* resource = 0x0;
+    dmResource::Result res = dmResource::CreateResourcePartial(g_ResourceModule.m_Factory, resource_type, path, data, data_size, file_size, &resource);
+
+    if (res != dmResource::RESULT_OK)
+    {
+        return ReportPathError(L, res, canonical_path_hash);
+    }
+
+    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
+    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+    dmScript::PushHash(L, canonical_path_hash);
+
+    return 1;
 }
 
 #if 0 // debug print a buffer
@@ -2639,7 +3130,7 @@ static int CreateBuffer(lua_State* L)
     DM_LUA_STACK_CHECK(L, 1);
 
     const char* path_str     = luaL_checkstring(L, 1);
-    const char* resource_ext = ".bufferc";
+    const char* resource_ext = "bufferc";
 
     dmhash_t canonical_path_hash = 0;
     PreCreateResource(L, path_str, resource_ext, &canonical_path_hash);
@@ -2704,6 +3195,11 @@ static int CreateBuffer(lua_State* L)
         buffer = dst_buffer;
     }
 
+    // before overwriting the resource buffer we just created, we need to garbage collect it
+    dmBuffer::Destroy(resource->m_Buffer);
+
+    if (resource->m_BufferDDF != 0x0)
+        dmDDF::FreeMessage(resource->m_BufferDDF);
     resource->m_BufferDDF = 0;
     resource->m_Buffer    = buffer;
     resource->m_Stride    = dmBuffer::GetStructSize(buffer);
@@ -2973,7 +3469,7 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  * @param [options] [type:table] A table containing parameters for the text. Supported entries:
  *
  * `width`
- * : [type:integer] The width of the text field. Not used if `line_break` is false.
+ * : [type:number] The width of the text field. Not used if `line_break` is false.
  *
  * `leading`
  * : [type:number] The leading (default 1.0)
@@ -3010,7 +3506,7 @@ static int GetTextMetrics(lua_State* L)
     size_t len = 0;
     const char* text = luaL_checklstring(L, 2, &len);
 
-    dmRender::HFontMap font_map = (dmRender::HFontMap)CheckResource(L, g_ResourceModule.m_Factory, path_hash, "fontc");;
+    dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)CheckResource(L, g_ResourceModule.m_Factory, path_hash, "fontc");;
 
     bool line_break = false;
     float leading = 1.0f;
@@ -3026,8 +3522,19 @@ static int GetTextMetrics(lua_State* L)
         line_break = CheckTableBoolean(L, table_index, "line_break", line_break);
     }
 
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+
+    TextLayoutSettings settings = {0};
+    settings.m_Width = width;
+    settings.m_LineBreak = line_break;
+    settings.m_Leading = leading;
+    settings.m_Tracking = tracking;
+    // legacy options for glyph bank fonts
+    settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+    settings.m_Padding = dmRender::GetFontMapPadding(font_map);
+
     dmRender::TextMetrics metrics;
-    dmRender::GetTextMetrics(font_map, text, width, line_break, leading, tracking, &metrics);
+    dmRender::GetTextMetrics(font_map, text, &settings, &metrics);
     PushTextMetricsTable(L, &metrics);
     return 1;
 }
@@ -3040,6 +3547,7 @@ static const luaL_reg Module_methods[] =
     {"create_buffer",           CreateBuffer},
     {"create_texture",          CreateTexture},
     {"create_texture_async",    CreateTextureAsync},
+    {"create_sound_data",       CreateSoundData},
     {"release",                 ReleaseResource},
     {"set_atlas",               SetAtlas},
     {"get_atlas",               GetAtlas},
@@ -3106,7 +3614,7 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_ETC1);
 
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ETC2);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ASTC_4X4);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_BC1);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_BC3);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R_BC4);

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,28 +14,20 @@
 
 (ns editor.util
   (:require [clojure.string :as string])
-  (:import [com.dynamo.bob Platform]
-           [java.util Locale Comparator]))
+  (:import [java.util Locale Comparator]))
 
 (set! *warn-on-reflection* true)
-
-(defmacro spy
-  [& body]
-  `(let [ret# (try ~@body (catch Throwable t# (prn t#) (throw t#)))]
-     (prn ret#)
-     ret#))
-
 
 ;; See http://mattryall.net/blog/2009/02/the-infamous-turkish-locale-bug
 
 (defn lower-case*
   "Like clojure.string/lower-case but using root locale."
-  [^CharSequence s]
+  ^String [^CharSequence s]
   (.. s toString (toLowerCase Locale/ROOT)))
 
 (defn upper-case*
   "Like clojure.string/upper-case but using root locale."
-  [^CharSequence s]
+  ^String [^CharSequence s]
   (.. s toString (toUpperCase Locale/ROOT)))
 
 (defn capitalize*
@@ -110,6 +102,9 @@
                   (compare a-cp b-cp))))))
         (compare a b)))))
 
+(defn natural-order-sort [coll]
+  (sort natural-order coll))
+
 (defn comparator-chain
   ([^Comparator c1 ^Comparator c2]
    (reify Comparator
@@ -138,22 +133,6 @@
    (reify Comparator
      (compare [_ a b]
        (.compare c (f a) (f b))))))
-
-(defn os-raw
-  "Returns :win32, :macos or :linux"
-  []
-  (keyword (.. Platform getHostPlatform getOs)))
-
-(def os (memoize os-raw))
-
-(defn is-mac-os? []
-  (= (os) :macos))
-
-(defn is-linux? []
-  (= (os) :linux))
-
-(defn is-win32? []
-  (= (os) :win32))
 
 (defn positions [pred coll]
   (keep-indexed (fn [idx x]
@@ -193,3 +172,18 @@
           (assoc m k new-child)))
       m)
     (dissoc m k)))
+
+(defmacro provide-single-default [m k v]
+  `(let [m# ~m
+         k# ~k]
+     (if (contains? m# k#)
+       m#
+       (assoc m# k# ~v))))
+
+;; SDK api
+(defmacro provide-defaults
+  "Like assoc, but does nothing if key is already in this map. Evaluates values
+  only when key is not present"
+  [m & kvs]
+  `(-> ~m
+       ~@(map #(cons `provide-single-default %) (partition 2 kvs))))

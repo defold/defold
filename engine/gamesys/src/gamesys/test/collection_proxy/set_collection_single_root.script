@@ -1,0 +1,36 @@
+local function append_status(message)
+    print(message)
+    cp_status_log = cp_status_log or {}
+    table.insert(cp_status_log, message)
+end
+
+function init(self)
+    local collection = "/collection_proxy/set_collection_single_target.collectionc"
+
+    append_status("collectionproxy single root init")
+    cp_single_root_initialized = true
+
+    append_status("collectionproxy single root set_collection " .. collection)
+    local ok, result = collectionproxy.set_collection("#collectionproxy", collection)
+    cp_single_root_set_ok = ok
+    cp_single_root_set_result = result
+    assert(ok)
+
+    msg.post("#collectionproxy", "load")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("proxy_loaded") then
+        append_status("collectionproxy single root proxy_loaded")
+        cp_single_root_proxy_loaded = true
+        msg.post("#collectionproxy", "init")
+        msg.post("#collectionproxy", "enable")
+    elseif message_id == hash("proxy_unloaded") then
+        append_status("collectionproxy single root proxy_unloaded")
+    end
+end
+
+function final(self)
+    append_status("collectionproxy single root final")
+    cp_single_root_finalized = true
+end

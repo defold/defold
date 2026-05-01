@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -57,13 +57,19 @@ namespace dmParticle
      * Invalid instance handle
      */
     const HInstance INVALID_INSTANCE = 0;
+    /**
+     * Invalid emitter id
+     */
+    const uint32_t INVALID_EMITTER_INDEX = -1;
 
     /// Config key to use for tweaking maximum number of instances in a context.
     extern const char* MAX_INSTANCE_COUNT_KEY;
     /// Config key to use for tweaking maximum number of emitters in a context.
     extern const char* MAX_EMITTER_COUNT_KEY;
-    /// Config key to use for tweaking the total maximum number of particles in a context.
-    extern const char* MAX_PARTICLE_COUNT_KEY;
+    /// Config key to use for tweaking the total maximum number of particles in a context in GPU buffer.
+    extern const char* MAX_PARTICLE_GPU_COUNT_KEY;
+    /// Config key to use for tweaking the total maximum number of particles in a context in CPU buffer.
+    extern const char* MAX_PARTICLE_CPU_COUNT_KEY;
 
     /**
      * Render constants supplied to the render callback.
@@ -95,6 +101,13 @@ namespace dmParticle
         ANIM_PLAYBACK_ONCE_PINGPONG = 6,
     };
 
+    enum FetchResourcesResult
+    {
+        FETCH_RESOURCES_OK = 0,
+        FETCH_RESOURCES_NOT_FOUND = -1,
+        FETCH_RESOURCES_UNKNOWN_ERROR = -1000
+    };
+
     struct AnimationData
     {
         AnimationData();
@@ -116,11 +129,20 @@ namespace dmParticle
         uint32_t m_StructSize;
     };
 
-    enum FetchAnimationResult
+    struct FetchResourcesParams
     {
-        FETCH_ANIMATION_OK = 0,
-        FETCH_ANIMATION_NOT_FOUND = -1,
-        FETCH_ANIMATION_UNKNOWN_ERROR = -1000
+        HParticleContext m_ParticleContext;
+        HInstance        m_Instance;
+        dmhash_t         m_Animation;
+        uint32_t         m_EmitterIndex;
+        void*            m_MaterialResource;
+        void*            m_TextureSetResource;
+    };
+
+    struct FetchResourcesData
+    {
+        AnimationData m_AnimationData;
+        void*         m_Material;
     };
 
     enum EmitterState
@@ -146,17 +168,19 @@ namespace dmParticle
         }
 
         dmVMath::Matrix4             m_Transform;
-        void*                        m_Material; // dmRender::HMaterial
-        dmParticleDDF::BlendMode     m_BlendMode;
-        void*                        m_Texture; // dmGraphics::HTexture
-        dmGraphics::VertexAttribute* m_Attributes;
-        uint32_t                     m_AttributeCount;
+        dmVMath::Point3              m_FrustumCullingCenter;
         RenderConstant*              m_RenderConstants;
-        uint32_t                     m_RenderConstantsSize;
+        dmGraphics::VertexAttribute* m_Attributes;
+        void*                        m_Material; // dmRender::HMaterial
+        void*                        m_Texture; // dmGraphics::HTexture
         HInstance                    m_Instance; // Particle instance handle
         uint32_t                     m_EmitterIndex;
         uint32_t                     m_MixedHash;
         uint32_t                     m_MixedHashNoMaterial;
+        uint32_t                     m_RenderConstantsSize;
+        uint32_t                     m_AttributeCount;
+        float                        m_FrustumCullingRadiusSq;
+        dmParticleDDF::BlendMode     m_BlendMode;
     };
 
     /**
@@ -179,9 +203,9 @@ namespace dmParticle
     };
 
     /**
-     * Callback to fetch the animation from a tile source
+     * Callback to fetch the resources from either engine or editor
      */
-    typedef FetchAnimationResult (*FetchAnimationCallback)(void* tile_source, dmhash_t animation, AnimationData* out_data);
+    typedef FetchResourcesResult (*FetchResourcesCallback)(const FetchResourcesParams* params, FetchResourcesData* out_data);
 
     /**
      * Particle statistics
@@ -211,6 +235,14 @@ namespace dmParticle
         float m_Time;
         uint32_t m_StructSize;
     };
+
+    // Runtime only
+    uint32_t GetEmitterIndexFromId(HPrototype prototype, dmhash_t id);
+    dmhash_t GetAnimation(HPrototype prototype, uint32_t emitter_index);
+    void     SetInstanceUserData(HParticleContext context, HInstance instance, void* user_data);
+    void*    GetInstanceUserData(HParticleContext context, HInstance instance);
+    // Refresh cached render state after external transform changes.
+    void     UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index, float dt);
 
     // For tests
     dmVMath::Vector3 GetPosition(HParticleContext context, HInstance instance);
@@ -320,13 +352,6 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, SetScale, HParticleContext context, HInstance instance, float scale);
     /**
-     * Set if the scale should be used along Z or not.
-     * @param context Context in which the instance exists.
-     * @param instance Instance to set the property for.
-     * @param scale_along_z Whether the scale should be used along Z.
-     */
-    DM_PARTICLE_PROTO(void, SetScaleAlongZ, HParticleContext context, HInstance instance, bool scale_along_z);
-    /**
      * Returns if the specified instance is spawning particles or not.
      * Instances are sleeping when they are not spawning and have no remaining living particles.
      */
@@ -337,7 +362,7 @@ namespace dmParticle
      * @param context Context of the instances to update.
      * @param dt Time step.
      */
-    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback);
+    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, FetchResourcesCallback fetch_resources_callback);
 
     /**
      * Gets the vertex count for rendering the emitter at a given emitter index
@@ -351,7 +376,6 @@ namespace dmParticle
     /**
      * Generates vertex data for an emitter
      * @param context Particle context
-     * @param dt Time step.
      * @param instance Particle instance handle
      * @param emitter_index Emitter index for which to generate vertex data for
      * @param attribute_infos Attribute information on the streams to write
@@ -361,7 +385,40 @@ namespace dmParticle
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
      * @return Result enum value
      */
-    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+
+    /**
+     * Gets the particle count for an emitter
+     * @param context Particle context
+     * @param dt Time step.
+     * @param instance Particle instance handle
+     * @param emitter_index Emitter index for which to generate vertex data for
+     * @param attribute_infos Attribute information on the streams to write
+     * @param color The particle color to (potentially) write
+     * @param offset The particle index to start from
+     * @param count The number of particles to update
+     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no data will be generated.
+     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
+     * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
+     * @return Result enum value
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetParticleCount, HParticleContext context, HInstance instance, uint32_t emitter_index);
+
+    /**
+     * Generates partial vertex data for an emitter
+     * @param context Particle context
+     * @param instance Particle instance handle
+     * @param emitter_index Emitter index for which to generate vertex data for
+     * @param particle_start The particle index to start from
+     * @param particle_count The number of particles to update
+     * @param attribute_infos Attribute information on the streams to write
+     * @param color The particle color to (potentially) write
+     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no data will be generated.
+     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
+     * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
+     * @return Result enum value
+     */
+    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexDataPartial, HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
      * Debug render the status of the instances within the specified context.

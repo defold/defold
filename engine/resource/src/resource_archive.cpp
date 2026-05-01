@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,7 @@
 #include "resource_private.h"
 #include "resource_util.h"
 #include "resource_archive_private.h"
-#include <dlib/crypt.h>
+#include <dlib/crypt/crypt.h>
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
 #include <dlib/log.h>
@@ -605,12 +605,65 @@ namespace dmResourceArchive
             dmLZ4::Result r = dmLZ4::DecompressBuffer(source_data, source_data_size, buffer, size, &decompressed_size);
             if (dmLZ4::RESULT_OK != r)
             {
+                dmLogError("LZ4 decompression failed: result=%d, expected size=%u, actual size=%d", r, size, decompressed_size);
+                if (r == dmLZ4::RESULT_OUTPUT_SIZE_TOO_LARGE) {
+                    dmLogError("Resource too large for LZ4 decompression: %u bytes exceeds maximum limit", size);
+                }
                 delete[] temp_data;
                 return dmResourceArchive::RESULT_OUTBUFFER_TOO_SMALL;
             }
         }
 
         delete[] temp_data;
+        return dmResourceArchive::RESULT_OK;
+    }
+
+    Result ReadEntryPartial(HArchiveIndexContainer archive, const EntryData* entry, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread)
+    {
+        // We always assume it's in Host format, since it may arrive from memory mapped data
+        const uint32_t resource_size    = dmEndian::ToNetwork(entry->m_ResourceSize);
+        const uint32_t resource_offset  = dmEndian::ToNetwork(entry->m_ResourceDataOffset);
+
+        if (offset >= resource_size)
+        {
+            *nread = 0;
+            return RESULT_OK;
+        }
+
+        if ((offset+size) > resource_size)
+        {
+            size = resource_size - offset;
+        }
+
+        Result result = dmResourceArchive::RESULT_OK;
+
+        const ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
+
+        if (!afi->m_IsMemMapped)
+        {
+            // we need to read from the file on disc
+            FILE* resource_file = afi->m_FileResourceData;
+            fseek(resource_file, resource_offset+offset, SEEK_SET);
+
+            // we can read directly to the output buffer
+            size_t nmemb = fread(buffer, 1, size, resource_file);
+            if (!ferror(resource_file))
+            {
+                *nread = (uint32_t)nmemb;
+            }
+            else {
+                result = RESULT_IO_ERROR;
+            }
+
+            return result;
+        }
+        else
+        {
+            const uint8_t* archive_data = (uint8_t*) (((uintptr_t)afi->m_ResourceData + resource_offset));
+            memcpy(buffer, archive_data + offset, size);
+            *nread = size;
+        }
+
         return dmResourceArchive::RESULT_OK;
     }
 

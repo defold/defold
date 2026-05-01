@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,9 +23,14 @@
 #elif defined(_WIN32)
     #include <dlib/win32/mutex.h>
 
-#elif defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#elif defined(__linux__) || defined(__MACH__)
     #include <dlib/mutex_posix.h>
-
+#elif defined (__EMSCRIPTEN__)
+    #if defined(DM_NO_THREAD_SUPPORT)
+        #include <dlib/mutex_empty.h>
+    #else
+        #include <dlib/mutex_posix.h>
+    #endif
 #else
     #error "Unsupported platform"
 #endif

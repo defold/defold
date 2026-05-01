@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,6 +23,7 @@
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/graphics/graphics.h>
 
 #include <ddf/ddf.h>
 #include <rig/rig_ddf.h>
@@ -30,6 +31,8 @@
 namespace dmGraphics
 {
     struct VertexAttributeInfos;
+    struct VertexAttributeInfo;
+    struct WriteAttributeParams;
 }
 
 namespace dmRig
@@ -172,11 +175,24 @@ namespace dmRig
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
 
+    void SetMeshWriteAttributeParams(dmGraphics::WriteAttributeParams* params,
+        const dmGraphics::VertexAttributeInfos* attribute_infos,
+        dmGraphics::VertexStepFunction step_function,
+        const float** world_matrix,
+        const float** normal_matrix,
+        const float** positions_world_space,
+        const float** positions_local_space,
+        const float** normals,
+        const float** tangents,
+        const float** colors,
+        const float** texture_transform_2d,
+        const float** uv_channels,
+        uint32_t uv_channels_count);
+
     // Returns the new position in the array
-    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out);
-    uint8_t* WriteSingleVertexDataByAttributes(uint8_t* write_ptr, uint32_t idx, const dmGraphics::VertexAttributeInfos* attribute_infos, const float* position, const float* normal, const float* tangent, const float* uv0, const float* uv1, const float* color);
+    uint8_t*        GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out);
     RigModelVertex* GenerateVertexData(HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, RigModelVertex* vertex_data_out);
-    uint32_t GetVertexCount(HRigInstance instance);
+    uint32_t        GetVertexCount(HRigInstance instance);
 
     Result SetModel(HRigInstance instance, dmhash_t model_id);
     dmhash_t GetModel(HRigInstance instance);
@@ -193,6 +209,10 @@ namespace dmRig
     bool IsValid(HRigInstance instance);
     uint32_t GetBoneCount(HRigInstance instance);
     uint32_t GetMaxBoneCount(HRigInstance instance);
+    /** Live morph weights for \a model_id (MeshSet Model id). Pointer valid until the next rig update. */
+    const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count);
+    /** Copy up to slot_count weights into the morph buffer for \a model_id; remaining slots are zeroed. */
+    void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count);
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2);
 
     // Util function used to fill a bind pose array from skeleton data

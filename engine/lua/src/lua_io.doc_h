@@ -12,6 +12,7 @@
  * @document
  * @name Io
  * @namespace io
+ * @language Lua
  */
 
 /*# closes a file
@@ -21,7 +22,7 @@
  * 
  * 
  * @name io.close
- * @param [file]
+ * @param [file] [type:file|nil]
  */
 
 /*# flushes outstanding data to disk for the default output file
@@ -46,7 +47,7 @@
  * 
  * 
  * @name io.input
- * @param [file]
+ * @param [file] [type:string|file]
  */
 
 /*# returns an iterator function for reading a named file line-by-line
@@ -73,7 +74,7 @@
  * 
  * 
  * @name io.lines
- * @param [filename]
+ * @param [filename] [type:string]
  */
 
 /*# opens a file
@@ -114,8 +115,8 @@
  * 
  * 
  * @name io.open
- * @param filename
- * @param [mode]
+ * @param filename [type:string]
+ * @param [mode] [type:string]
  */
 
 /*# opens a file for output
@@ -124,7 +125,7 @@
  * 
  * 
  * @name io.output
- * @param [file]
+ * @param [file] [type:file]
  */
 
 /*# creates a pipe and executes a command
@@ -140,8 +141,8 @@
  * 
  * 
  * @name io.popen
- * @param prog
- * @param [mode]
+ * @param prog [type:string]
+ * @param [mode] [type:string]
  */
 
 /*# reads from the default input file
@@ -172,7 +173,7 @@
  * 
  * 
  * @name io.type
- * @param obj
+ * @param obj [type:file]
  */
 
 /*# writes to the default output file
@@ -310,8 +311,8 @@
  * 
  * 
  * @name file:seek
- * @param [whence]
- * @param [offset]
+ * @param [whence] [type:string]
+ * @param [offset] [type:number]
  */
 
 /*# sets the buffering mode for an output file
@@ -348,8 +349,8 @@
  * 
  * 
  * @name file:setvbuf
- * @param mode
- * @param [size]
+ * @param mode [type:string]
+ * @param [size] [type:number]
  */
 
 /*# writes to a file

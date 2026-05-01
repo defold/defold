@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>BuildMachineOSBuild</key>
-	<string>11E53</string>
+	<string>25B78</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>{{osx.default_language}}</string>
 	<key>CFBundleDisplayName</key>
@@ -16,6 +16,10 @@
 	<string>{{osx.bundle_identifier}}</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>MacOSX</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>{{bundle-name}}</string>
 	<key>CFBundlePackageType</key>
@@ -30,8 +34,24 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>{{osx.bundle_version}}</string>
+	<key>DTCompiler</key>
+	<string>com.apple.compilers.llvm.clang.1_0</string>
+	<key>DTPlatformBuild</key>
+	<string>25C57</string>
+	<key>DTPlatformName</key>
+	<string>macosx</string>
+	<key>DTPlatformVersion</key>
+	<string>26.2</string>
+	<key>DTSDKBuild</key>
+	<string>25C57</string>
+	<key>DTSDKName</key>
+	<string>macosx26.2</string>
+	<key>DTXcode</key>
+	<string>2620</string>
+	<key>DTXcodeBuild</key>
+	<string>17C52</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>10.13</string>
+	<string>11.5</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

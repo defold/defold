@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [integration.test-util :as test-util]
             [service.log :as log]
@@ -41,7 +42,7 @@
                                     "/test2.go"
                                     "/test.font"
                                     "/test.material"
-                                    "/test.dae"
+                                    "/test.gltf"
                                     "/builtins/materials/model.material"
                                     "/test.wav"
                                     "/test.atlas"
@@ -64,7 +65,7 @@
    "/test.collectionproxy" ["/test.collection"]   
    "/test.collisionobject" ["/test.tilemap"]
    "/test.cubemap" ["/builtins/graphics/particle_blob.png"]
-   "/test.dae" []
+   "/test.gltf" []
    "/test.display_profiles" []
    "/test.factory" ["/test2.go"]
    "/test.font" ["/builtins/fonts/vera_mo_bd.ttf"
@@ -92,7 +93,7 @@
                                    "/test2.go"
                                    "/test.font"
                                    "/test.material"
-                                   "/test.dae"
+                                   "/test.gltf"
                                    "/builtins/materials/model.material"
                                    "/test.wav"
                                    "/test.atlas"
@@ -111,7 +112,7 @@
    "/test.lua" []
    "/test.material" ["/test.vp"
                      "/test.fp"]
-   "/test.model" ["/test.dae"
+   "/test.model" ["/test.gltf"
                   "/test.material"
                   "/test.animationset"]
    "/test.particlefx" ["/test.tilesource"
@@ -133,7 +134,7 @@
    "/test2.gui" ["/test.material"]})
 
 (defn fallback-dependencies-fn [resource-type]
-  (when (#{"vp" "fp" "lua" "script" "gui_script" "wav" "json" "render_script" "dae"} (:ext resource-type))
+  (when (#{"vp" "fp" "lua" "script" "gui_script" "wav" "json" "render_script" "gltf" "glb"} (:ext resource-type))
     (constantly [])))
 
 (deftest dependencies
@@ -158,11 +159,11 @@
           proj-graph (g/make-graph! :history true :volatility 1)
           extensions (extensions/make proj-graph)
           project (project/make-project proj-graph workspace extensions)]
-      (let [node-load-infos
-            (-> project
-                (#'project/make-nodes! (g/node-value project :resources))
-                (#'project/read-node-load-infos (constantly nil) nil)
-                (#'project/sort-node-load-infos-for-loading {} {}))
+      (let [node-id+resource-pairs
+            (project/make-node-id+resource-pairs proj-graph (g/node-value project :resources))
+
+            node-load-infos
+            (project/read-nodes node-id+resource-pairs)
 
             load-order
             (into {}
@@ -181,7 +182,7 @@
                                      "/test2.go"
                                      "/test.font"
                                      "/test.material"
-                                     "/test.dae"
+                                     "/builtins/assets/gltf/cube.gltf"
                                      "/builtins/materials/model.material"
                                      "/test.wav"
                                      "/test.atlas"

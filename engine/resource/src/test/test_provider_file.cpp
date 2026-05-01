@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -65,19 +65,26 @@ TEST(FileProviderBasic, CanMount)
 class FileProviderArchive : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("file"));
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
 
         dmURI::Parts uri;
+#if defined(__EMSCRIPTEN__)
+        // Trigger the vsf init for emscripten (hidden in MakeHostPath)
+        char path[1024];
+        dmTestUtil::MakeHostPath(path, sizeof(path), "src");
+        dmURI::Parse(DM_HOSTFS, &uri);
+#else
         dmURI::Parse(".", &uri);
+#endif
 
         dmResourceProvider::Result result = dmResourceProvider::CreateMount(m_Loader, &uri, 0, &m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmResourceProvider::Result result = dmResourceProvider::Unmount(m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
@@ -110,9 +117,6 @@ TEST_F(FileProviderArchive, GetSize)
 
 TEST_F(FileProviderArchive, ReadFile)
 {
-    char path[1024];
-    dmTestUtil::MakeHostPath(path, sizeof(path), "somedata");
-
     dmResourceProvider::Result result;
     uint8_t short_buffer[4];
     uint8_t long_buffer[64];
@@ -125,6 +129,36 @@ TEST_F(FileProviderArchive, ReadFile)
     ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
 }
 
+TEST_F(FileProviderArchive, ReadFilePartial)
+{
+    dmResourceProvider::Result result;
+    uint8_t long_buffer[64];
+
+    uint32_t file_size;
+    result = dmResourceProvider::GetFileSize(m_Archive, 0, "/src/test/files/somedata", &file_size);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    ASSERT_LE(file_size, (uint32_t)sizeof(long_buffer));
+
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/src/test/files/somedata", long_buffer, sizeof(long_buffer));
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
+
+    const uint32_t chunk_size = 5;
+    uint8_t short_buffer[chunk_size];
+
+    uint32_t offset = 0;
+    while (offset < file_size)
+    {
+        uint32_t nread;
+        result = dmResourceProvider::ReadFilePartial(m_Archive, 0, "/src/test/files/somedata", offset, chunk_size, short_buffer, &nread);
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+        ASSERT_GE(chunk_size, nread);
+
+        ASSERT_ARRAY_EQ_LEN(&long_buffer[offset], short_buffer, nread);
+        offset += nread;
+    }
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
@@ -135,5 +169,8 @@ int main(int argc, char **argv)
     dmLog::LogInitialize(&logparams);
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+
+    dmLog::LogFinalize();
+    return result;
 }

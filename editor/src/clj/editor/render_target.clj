@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,14 +15,16 @@
 (ns editor.render-target
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
+            [editor.texture-util :as texture-util]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.fn :as fn])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [com.dynamo.render.proto RenderTarget$RenderTargetDesc RenderTarget$RenderTargetDesc$ColorAttachment RenderTarget$RenderTargetDesc$DepthStencilAttachment]))
 
@@ -31,34 +33,38 @@
 ; This must match 'MAX_BUFFER_COLOR_ATTACHMENTS' in engine/graphics/src/graphics.h
 (def ^:private max-color-attachment-count 4)
 
+(def ^:private color-attachments-message (localization/message "form.label.render-target.color-attachments"))
+(def ^:private depth-stencil-attachment-width-message (localization/message "form.label.render-target.depth-stencil-attachment-width"))
+(def ^:private depth-stencil-attachment-height-message (localization/message "form.label.render-target.depth-stencil-attachment-height"))
+
 (def form-data
   {:navigation false
    :sections
-   [{:title "Render Target"
+   [{:localization-key "render-target"
      :fields [{:path [:color-attachments]
-               :label "Color Attachments"
+               :localization-key "render-target.color-attachments"
                :type :table
                :columns [{:path [:width]
-                          :label "width"
+                          :localization-key "render-target.color-attachments.width"
                           :type :integer
                           :default 128}
                          {:path [:height]
-                          :label "height"
+                          :localization-key "render-target.color-attachments.height"
                           :type :integer
                           :default 128}
                          {:path [:format]
-                          :label "format"
+                          :localization-key "render-target.color-attachments.format"
                           :type :choicebox
-                          :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$TextureFormat))
+                          :options (protobuf-forms/make-enum-options Graphics$TextureImage$TextureFormat)
                           :default :texture-format-rgba}]}
               {:path [:depth-stencil-attachment-width]
-               :label "Depth/Stencil Width"
+               :localization-key "render-target.depth-stencil-attachment-width"
                :type :integer}
               {:path [:depth-stencil-attachment-height]
-               :label "Depth/Stencil Height"
+               :localization-key "render-target.depth-stencil-attachment-height"
                :type :integer}
               {:path [:depth-stencil-attachment-texture-storage]
-               :label "Depth Texture Storage"
+               :localization-key "render-target.depth-stencil-attachment-texture-storage"
                :type :boolean}]}]})
 
 (g/defnk produce-form-data [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
@@ -101,24 +107,22 @@
         :build-fn build-render-target
         :user-data {:pb-msg save-value}})]))
 
-(defn- generate-gpu-texture [_args request-id _params _unit]
-  (texture/image-texture request-id nil))
-
 (defn- validate-color-attachment-count [v name]
   (when (> (count v) max-color-attachment-count)
-    (format "'%s' render targets cannot have more than %d color attachments"
-            name max-color-attachment-count)))
+    (localization/message "error.render-target.color-attachments-cannot-exceed"
+                          {"property" name
+                           "max" max-color-attachment-count})))
 
 (defn- color-attachment->error-values [color-attachment-index {:keys [width height]} node-id label]
   (filterv some?
            [(when (< width 1)
               (g/->error node-id label :fatal width
-                         (format "'Color attachment %d' must have a greater than zero width"
-                                 color-attachment-index)))
+                         (localization/message "error.render-target.color-attachment-width-must-be-greater-than-zero"
+                                               {"index" color-attachment-index})))
             (when (< height 1)
               (g/->error node-id label :fatal height
-                         (format "'Color attachment %d' must have a greater than zero height"
-                                 color-attachment-index)))]))
+                         (localization/message "error.render-target.color-attachment-height-must-be-greater-than-zero"
+                                               {"index" color-attachment-index})))]))
 
 (g/defnode RenderTargetNode
   (inherits resource-node/ResourceNode)
@@ -136,23 +140,23 @@
 
   (output save-value g/Any :cached produce-save-value)
   (output form-data g/Any produce-form-data)
-  (output gpu-texture-generator g/Any {:f generate-gpu-texture})
+  (output gpu-texture-generator g/Any (g/constantly texture-util/placeholder-gpu-texture-generator))
   (output build-targets g/Any :cached produce-build-targets)
   (output build-errors g/Any (g/fnk [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
                                (g/package-errors _node-id
-                                                 (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments "Color Attachments")
+                                                 (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments color-attachments-message)
                                                  (into [] (map-indexed
                                                             (fn [i color-attachment]
                                                               (color-attachment->error-values i color-attachment _node-id :color-attachments))
                                                             color-attachments))
-                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width "Depth/Stencil Width")
-                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-height validation/prop-negative? depth-stencil-attachment-height "Depth/Stencil Height")
+                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width depth-stencil-attachment-width-message)
+                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-height validation/prop-negative? depth-stencil-attachment-height depth-stencil-attachment-height-message)
                                                  (when (and (> depth-stencil-attachment-width 0) (= 0 depth-stencil-attachment-height))
                                                    (g/->error _node-id :depth-stencil-attachment-width :fatal depth-stencil-attachment-width
-                                                              (format "Incorrect Depth/Stencil attachment: The width is greater than zero, but the height is zero")))
+                                                              (localization/message "error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is")))
                                                  (when (and (> depth-stencil-attachment-height 0) (= 0 depth-stencil-attachment-width))
                                                    (g/->error _node-id :depth-stencil-attachment-height :fatal depth-stencil-attachment-height
-                                                              (format "Incorrect Depth/Stencil attachment: The height is greater than zero, but the width is zero")))))))
+                                                              (localization/message "error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is")))))))
 
 (defn load-render-target [_project self _resource render-target-desc]
   {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.
@@ -168,12 +172,12 @@
         depth-stencil-attachment-format :format
         depth-stencil-attachment-texture-storage :texture-storage))))
 
-(def ^:private default-pb-depth-stencil-attachment (protobuf/default-message RenderTarget$RenderTargetDesc$DepthStencilAttachment #{:required}))
+(def ^:private default-pb-depth-stencil-attachment (protobuf/required-field-defaults RenderTarget$RenderTargetDesc$DepthStencilAttachment))
 
 (defn- sanitize-render-target [render-target-desc]
   {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.
   (-> render-target-desc
-      (update :depth-stencil-attachment #(or % default-pb-depth-stencil-attachment))))
+      (update :depth-stencil-attachment fn/or default-pb-depth-stencil-attachment)))
 
 (defn register-resource-types
   [workspace]
@@ -185,6 +189,7 @@
     :sanitize-fn sanitize-render-target
     :icon texture-icon
     :icon-class :design
+    :category (localization/message "resource.category.resources")
     :view-types [:cljfx-form-view :text]
     :view-opts {}
-    :label "Render Target"))
+    :label (localization/message "resource.type.render-target")))

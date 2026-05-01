@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,14 +14,14 @@
 
 (ns editor.sentry
   (:require
-   [clojure.data.json :as json]
-   [clojure.java.io :as io]
-   [clojure.string :as string]
-   [editor.gl :as gl]
-   [editor.system :as system]
-   [schema.utils :as su]
-   [service.log :as log]
-   [util.http-client :as http])
+    [clojure.data.json :as json]
+    [clojure.java.io :as io]
+    [clojure.string :as string]
+    [editor.gl :as gl]
+    [editor.system :as system]
+    [schema.utils :as su]
+    [service.log :as log]
+    [util.http-client :as http])
   (:import
    (java.util.concurrent LinkedBlockingQueue TimeUnit)
    (java.time LocalDateTime ZoneOffset)))
@@ -93,11 +93,13 @@
     value))
 
 (defn make-event
-  [^Exception ex ^Thread thread]
+  [^Exception ex ^Thread thread user]
+  {:pre [(map? user) (= 1 (count user)) (contains? user :id)]}
   (let [id (string/replace (str (java.util.UUID/randomUUID)) "-" "")
         environment (if (system/defold-version) "release" "dev")
         gl-info (gl/info)
         event {:event_id    id
+               :user        user
                :message     (.getMessage ex)
                :timestamp   (LocalDateTime/now ZoneOffset/UTC)
                :level       "error"
@@ -136,36 +138,34 @@
 
 (extend-protocol json/JSONWriter
   java.time.LocalDateTime
-  (-write [object out] (json/-write (str object) out)))
+  (-write [object out options] (json/-write (str object) out options)))
 
 (defn make-request-data
-  [{:keys [project-id key secret]} event]
-  {:request-method :post
-   :scheme         "https"
-   :server-name    "sentry.io"
-   :uri            (format "/api/%s/store/" project-id)
-   :content-type   "application/json"
-   :headers        {"X-Sentry-Auth" (x-sentry-auth (:timestamp event) key secret)
-                    "User-Agent"    user-agent
-                    "Accept"        "application/json"}
-   :body           (try
-                     (json/write-str event)
-                     (catch Exception e
-                       ;; The :extra field in the event data returned by make-event can potentially
-                       ;; contain anything, since it includes ex-data from the exception.
-                       ;; We attempt to convert unrepresentable values into an appropriate json value
-                       ;; using the to-safe-json-value function above, but new types might appear.
-                       ;; In case conversion fails, we replace the :extra data with safe data that
-                       ;; will convert successfully, and include info about the conversion failure
-                       ;; so we can add conversions to the to-safe-json-value function as needed.
-                       (json/write-str (assoc event :extra {:java-home (system/java-home)
-                                                            :conversion-failure (exception-data e (Thread/currentThread))}))))})
+  [{:keys [key secret]} event]
+  {:method "POST"
+   :headers {"X-Sentry-Auth" (x-sentry-auth (:timestamp event) key secret)
+             "Content-Type" "application/json"
+             "User-Agent" user-agent
+             "Accept" "application/json"}
+   :body (try
+           (json/write-str event)
+           (catch Exception e
+             ;; The :extra field in the event data returned by make-event can potentially
+             ;; contain anything, since it includes ex-data from the exception.
+             ;; We attempt to convert unrepresentable values into an appropriate json value
+             ;; using the to-safe-json-value function above, but new types might appear.
+             ;; In case conversion fails, we replace the :extra data with safe data that
+             ;; will convert successfully, and include info about the conversion failure
+             ;; so we can add conversions to the to-safe-json-value function as needed.
+             (json/write-str (assoc event :extra {:java-home (system/java-home)
+                                                  :conversion-failure (exception-data e (Thread/currentThread))}))))
+   :as :input-stream})
 
 (defn report-exception
-  [options exception thread]
-  (let [event (make-event exception thread)
+  [{:keys [project-id user] :as options} exception thread]
+  (let [event (make-event exception thread user)
         request (make-request-data options event)
-        response (http/request request)]
+        response @(http/request (format "https://sentry.io/api/%s/store/" project-id) request)]
     (when (= 200 (:status response))
       (with-open [reader (io/reader (:body response))]
         (-> reader (json/read :key-fn keyword) :id)))))
@@ -177,7 +177,7 @@
 ;; - limit rate of reporting
 
 (defn make-exception-reporter
-  [{:keys [project-id key secret] :as options}]
+  [{:keys [project-id key secret user] :as options}]
   (let [queue (LinkedBlockingQueue. 1000)
         run? (volatile! true)
         reporter-fn (fn []
@@ -194,7 +194,7 @@
                                   (catch Exception e
                                     (log/error :exception e :msg (format "Error reporting exception to sentry: %s" (.getMessage e)))))
                                 (recur (System/currentTimeMillis))))
-                            (recur last-report))))) ]
+                            (recur last-report)))))]
     (doto (Thread. reporter-fn)
       (.setDaemon true)
       (.setName "sentry-reporter-thread")

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,9 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "resource_util.h"
-#include "resource_manifest_private.h"
 
-#include <dlib/crypt.h>
+#include <dlib/crypt/crypt.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 
@@ -47,17 +46,6 @@ static dmResource::Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
 dmResource::Result DecryptBuffer(void* buffer, uint32_t buffer_len)
 {
     return g_ResourceDecryption(buffer, buffer_len);
-}
-
-Result DecryptSignatureHash(const dmResource::HManifest manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
-{
-    const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-    uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-    dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
-    if (r != dmCrypt::RESULT_OK) {
-        return RESULT_INVALID_DATA;
-    }
-    return RESULT_OK;
 }
 
 uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
@@ -142,9 +130,9 @@ Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_d
 }
 
 // TODO: Test this...
-uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
+uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf, uint32_t buf_len)
 {
-    dmSnPrintf(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
+    dmSnPrintf(buf, buf_len, "%s/%s", base_dir, relative_dir);
 
     char* source = buf;
     char* dest = buf;
@@ -162,9 +150,9 @@ uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir
     return (uint32_t)(dest - buf);
 }
 
-uint32_t GetCanonicalPath(const char* relative_dir, char* buf)
+uint32_t GetCanonicalPath(const char* relative_dir, char* buf, uint32_t buf_len)
 {
-    return GetCanonicalPathFromBase("", relative_dir, buf);
+    return GetCanonicalPathFromBase("", relative_dir, buf, buf_len);
 }
 
 

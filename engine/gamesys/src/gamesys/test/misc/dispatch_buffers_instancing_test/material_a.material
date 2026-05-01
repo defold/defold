@@ -1,0 +1,24 @@
+name: "dispatch_material"
+vertex_program: "/misc/dispatch_buffers_instancing_test/vs_format_a.vp"
+fragment_program: "/fragment_program/valid.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+
+attributes {
+  name: "mtx_world_custom"
+  semantic_type: SEMANTIC_TYPE_WORLD_MATRIX
+  vector_type: VECTOR_TYPE_MAT4
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  double_values {
+    v: 1.0
+    v: 2.0
+    v: 3.0
+    v: 4.0
+  }
+}
+

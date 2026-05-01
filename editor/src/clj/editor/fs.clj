@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,43 +15,24 @@
 (ns editor.fs
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.path :as path])
   (:import [clojure.lang IReduceInit]
+           [java.awt Desktop Desktop$Action]
            [java.io File FileNotFoundException IOException RandomAccessFile]
+           [java.net URI URL URLDecoder]
            [java.nio.channels OverlappingFileLockException]
-           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
+           [java.nio.charset StandardCharsets]
+           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileSystems FileVisitResult Files LinkOption NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute]
-           [java.util UUID]))
+           [java.util Map UUID]))
 
 (set! *warn-on-reflection* true)
 
 ;; util
 
-(defonce empty-link-option-array (make-array LinkOption 0))
-(defonce ^:private empty-string-array (make-array String 0))
-
-(defprotocol PathCoercions
-  "Convert to Path objects."
-  (^Path as-path [this] "Coerce argument to a Path."))
-
-(extend-protocol PathCoercions
-  nil
-  (as-path [_this] nil)
-
-  File
-  (as-path [this] (.toPath this))
-
-  Path
-  (as-path [this] this)
-
-  String
-  (as-path [this] (Path/of this empty-string-array)))
-
-(defn to-real-path
-  "Returns the canonical, real path to an existing file system entry. Throws an
-  IOException if there was no matching entry in the file system."
-  ^Path [^Path path]
-  (.toRealPath path empty-link-option-array))
+(defonce ^:private ^String/1 empty-string-array (make-array String 0))
+(defonce ^:private ^OpenOption/1 overwrite-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/TRUNCATE_EXISTING]))
 
 (defn with-leading-slash
   ^String [^String path]
@@ -67,14 +48,6 @@
 
 (defn to-folder ^File [^File file]
   (if (.isFile file) (.getParentFile file) file))
-
-(defn- same-path? [^Path src ^Path tgt]
-  (try (Files/isSameFile src tgt)
-       (catch NoSuchFileException _
-         false)))
-
-(defn same-file? [^File file1 ^File file2]
-  (same-path? (.toPath file1) (.toPath file2)))
 
 (defn set-executable! [^File target executable]
   (.setExecutable target executable))
@@ -246,6 +219,25 @@
     (.. Runtime getRuntime (addShutdownHook (Thread. #(delete-directory! file {:fail :silently}))))
     (.deleteOnExit file)))
 
+(defn move-to-trash!
+  "Moves a file or directory to the system recycle bin or deletes if unsupported
+
+  Returns the trashed file if successful
+
+  Options:
+  :fail :silently will not throw an exception on failure, and instead return nil.
+  :missing :fail will fail if the file or directory is missing.
+  :missing :ignore will treat a missing file or directory as success."
+  (^File [^File file]
+   (move-to-trash! file {}))
+  (^File [^File file opts]
+   (maybe-silently (fail-silently? opts) nil
+     (if (and (Desktop/isDesktopSupported)
+              (.isSupported (Desktop/getDesktop) Desktop$Action/MOVE_TO_TRASH)
+              (.moveToTrash (Desktop/getDesktop) file))
+       file
+       (delete! file opts)))))
+
 ;; temp
 
 (def ^:private empty-file-attrs (into-array FileAttribute []))
@@ -256,7 +248,7 @@
   (^File [] (create-temp-file! nil nil))
   (^File [prefix] (create-temp-file! prefix nil))
   (^File [prefix suffix]
-   (doto (.toFile (Files/createTempFile prefix suffix empty-file-attrs))
+   (doto (.getCanonicalFile (.toFile (Files/createTempFile prefix suffix empty-file-attrs)))
      (delete-on-exit!))))
 
 (defn create-temp-directory!
@@ -264,33 +256,26 @@
   The directory will be deleted on exit."
   (^File [] (create-temp-directory! nil))
   (^File [hint]
-   (doto (.toFile (Files/createTempDirectory hint empty-file-attrs))
+   (doto (.getCanonicalFile (.toFile (Files/createTempDirectory hint empty-file-attrs)))
      (delete-on-exit!))))
 
 ;; create directories, files
 
-(defn create-path-directories!
-  "Creates the directory path up to and including directory. Returns the directory as Path."
-  ^Path [^Path path]
-  (Files/createDirectories path empty-file-attrs))
-
 (defn create-directories!
   "Creates the directory path up to and including directory. Returns the directory as File."
-  ^File [^File directory]
-  (.toFile (create-path-directories! (.toPath directory))))
+  ^File [directory]
+  (.toFile (path/create-directories! directory)))
 
 (defn create-parent-directories!
-  "Creates the directory path (if any) up to the parent directory of file. Returns the parent directory."
-  ^File [^File file]
-  (when-let [parent (.getParentFile file)]
-    (create-directories! parent)))
+  "Creates the directory path (if any) up to the parent directory of file. Returns nil."
+  [file]
+  (path/create-parent-directories! file)
+  nil)
 
 (defn create-directory!
   "Creates a directory assuming all parent directories are in place. Returns the directory."
-  ^File [^File directory]
-  (.toFile (Files/createDirectory (.toPath directory) empty-file-attrs)))
-
-(def ^:private ^"[Ljava.nio.file.OpenOption;" overwrite-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/TRUNCATE_EXISTING]))
+  ^File [directory]
+  (.toFile (path/create-directory! directory)))
 
 (def ^:private ^"[Ljava.nio.file.LinkOption;" no-follow-link-options (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
 
@@ -328,17 +313,17 @@
 
 (def ^:private fs-temp-dir (create-temp-directory! "moved"))
 
-(def case-sensitive?
+(def is-case-sensitive
   "Whether we're running on a case sensitive file system or not."
   (let [lower-file (io/file (io/file fs-temp-dir "casetest"))
         upper-file (io/file (io/file fs-temp-dir "CASETEST"))]
     (touch-file! lower-file)
-    (not (same-path? (.toPath lower-file) (.toPath upper-file)))))
+    (not (path/same? lower-file upper-file))))
 
 (defn- comparable-path
   ^String [entry]
   (cond-> (-> entry io/as-file .toPath .normalize .toAbsolutePath .toString)
-          (not case-sensitive?) .toLowerCase))
+          (not is-case-sensitive) .toLowerCase))
 
 (def separator-char File/separatorChar)
 
@@ -409,7 +394,7 @@
   (let [src-path (.toPath src)
         tgt-path (.toPath tgt)
         copy-options (if (= target :replace) replace-move-options keep-move-options)]
-    (if-not (same-path? src-path tgt-path)
+    (if-not (path/same? src-path tgt-path)
       (do (when-not (= target :keep)
             (delete! tgt))
           (create-parent-directories! tgt)
@@ -462,7 +447,7 @@
   (let [src-path (.toPath src)
         tgt-path (.toPath tgt)
         copy-options (if (= target :replace) replace-copy-options keep-copy-options)]
-    (if (same-path? src-path tgt-path)
+    (if (path/same? src-path tgt-path)
       [[src src]] ; nop - NB [src src] because no case-change is performed on a fs that determines (same-path? src tgt)
       (do (when-not (= target :keep)
             (delete! tgt))
@@ -507,13 +492,13 @@
       FileVisitResult/CONTINUE)))
 
 (defn- copy-tree! [^Path source-path ^Path target-path]
-  (create-parent-directories! (.toFile target-path))
+  (path/create-parent-directories! target-path)
   (Files/walkFileTree source-path (make-tree-copier source-path target-path)))
 
 (defn- do-copy-directory! [^File src ^File tgt {:keys [target]}]
   (let [src-path (.toPath src)
         tgt-path (.toPath tgt)]
-    (if (same-path? src-path tgt-path)
+    (if (path/same? src-path tgt-path)
       [[src src]]
       (do
         (case target
@@ -602,67 +587,48 @@
   ^bytes [^File src]
   (Files/readAllBytes (.toPath src)))
 
-(defn path-walker
-  "Given a directory Path, returns a reducible that walks over all file Paths in
-  the dir, recursively. The optional dir-path-pred should take a directory Path,
-  and return true if the walk should recurse into the directory."
-  ([^Path dir-path]
-   (path-walker dir-path nil))
-  ([^Path dir-path dir-path-pred]
-   {:pre [(instance? Path dir-path)
-          (or (nil? dir-path-pred) (ifn? dir-path-pred))]}
-   (reify IReduceInit
-     (reduce [_ f init]
-       (let [acc-vol (volatile! init)]
-         (Files/walkFileTree
-           dir-path
-           (reify FileVisitor
-             (preVisitDirectory [_ path _]
-               (cond
-                 (nil? dir-path-pred)
-                 FileVisitResult/CONTINUE
+(defn class-path-walker [^ClassLoader class-loader dir-path]
+  (reify IReduceInit
+    (reduce [_ f init]
+      (let [enumeration (.getResources class-loader dir-path)]
+        (loop [acc init]
+          (if (.hasMoreElements enumeration)
+            (let [^URL url (.nextElement enumeration)
+                  url-str (str url)
+                  acc (cond
+                        (.startsWith url-str "file:")
+                        (reduce (coll/preserving-reduced f) acc (path/tree-walker url))
 
-                 (dir-path-pred path)
-                 FileVisitResult/CONTINUE
+                        (.startsWith url-str "jar:")
+                        (let [[file-uri-str entry-path] (string/split (URLDecoder/decode (.getPath url) StandardCharsets/UTF_8) #"!" 2)
+                              [file-scheme file-path] (string/split file-uri-str #":" 2)]
+                          (with-open [fs (^[Path Map] FileSystems/newFileSystem (path/of (URI. file-scheme nil file-path nil)) {})]
+                            (reduce (coll/preserving-reduced f) acc (path/tree-walker (.getPath fs entry-path empty-string-array)))))
 
-                 :else
-                 FileVisitResult/SKIP_SUBTREE))
-
-             (visitFile [_ path _]
-               (let [acc (vswap! acc-vol f path)]
-                 (if (reduced? acc)
-                   FileVisitResult/TERMINATE
-                   FileVisitResult/CONTINUE)))
-
-             (visitFileFailed [_ _ exception]
-               (throw exception))
-
-             (postVisitDirectory [_ _ exception]
-               (if exception
-                 (throw exception)
-                 FileVisitResult/CONTINUE))))
-
-         (unreduced @acc-vol))))))
+                        :else
+                        (throw (IllegalArgumentException. (str "Unsupported URL scheme: " url))))]
+              (if (reduced? acc)
+                @acc
+                (recur acc)))
+            acc))))))
 
 (defn file-walker
-  "Given a directory File, returns a reducible that walks over all Files in
-  the dir, recursively."
-  ([^File dir-file include-hidden]
-   (file-walker dir-file include-hidden nil))
-  ([^File dir-file include-hidden ignored-dirnames]
-   {:pre [(instance? File dir-file)
-          (every? string? ignored-dirnames)]}
+  "Given a value that can be coerced into a directory path, returns a reducible
+  that walks over all java.io.Files in the directory, recursively."
+  ([root-dir include-hidden]
+   (file-walker root-dir include-hidden nil))
+  ([root-dir include-hidden ignored-dirnames]
+   {:pre [(every? string? ignored-dirnames)]}
    (->Eduction
-     (cond->> (map #(.toFile ^Path %))
+     (cond->> (map io/as-file)
               (not include-hidden)
-              (comp (remove #(Files/isHidden %))))
+              (comp (remove path/hidden?)))
      (if (and include-hidden
               (coll/empty? ignored-dirnames))
-       (path-walker (.toPath dir-file))
-       (path-walker (.toPath dir-file)
-                    (fn dir-path-pred [^Path dir-path]
-                      (and (not-any? (fn [^String ignored-dirname]
-                                       (.endsWith dir-path ignored-dirname))
-                                     ignored-dirnames)
-                           (or include-hidden
-                               (not (Files/isHidden dir-path))))))))))
+       (path/tree-walker root-dir)
+       (path/tree-walker root-dir
+                         (fn dir-path-pred [^Path dir-path]
+                           (and (not-any? #(path/ends-with? dir-path %)
+                                          ignored-dirnames)
+                                (or include-hidden
+                                    (not (path/hidden? dir-path))))))))))

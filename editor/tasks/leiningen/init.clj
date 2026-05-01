@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -55,19 +55,20 @@
       "dynamo-home"     nil ; for symmetry
       "archived-stable" (sha-from-version-file)
       "archived"        (sha-from-ref "HEAD")
-      version)))
+      (sha-from-ref version))))
 
 (defn- resolve-archive-domain
   [user_domain]
   (let [default_domain "d.defold.com"
         env_domain (System/getenv "DM_ARCHIVE_DOMAIN")]
-        (or user_domain env_domain default_domain)))
+    (or user_domain env_domain default_domain)))
 
 (def init-tasks
   [["clean"]
    ["local-jars"]
-   ["builtins"]
+   ; ["builtins"] builtins is in bob which we install in `local-jars` step
    ["ref-doc"]
+   ["project-templates"]
    ["protobuf"]
    ["sass" "once"]
    ["pack"]])
@@ -78,11 +79,13 @@
 
   Arguments:
     - version: dynamo-home, archived, archived-stable or a sha.
-    - archive-domain: domain where engine artifacts are stored"
-  [project & [version archive-domain]]
+    - archive-domain: domain where engine artifacts are stored
+    - target-platform: optional platform to pack into resources/_unpack"
+  [project & [version archive-domain target-platform]]
   (let [git-sha (resolve-version version)
         archive-domain (resolve-archive-domain archive-domain)
-        project (assoc project :archive-domain archive-domain :engine git-sha)]
+        project (assoc-in (assoc project :archive-domain archive-domain :engine git-sha)
+                          [:packing :target-platform] target-platform)]
     (println (format "Initializing editor with version '%s', resolved to '%s'. Using archive domain '%s'." version (get project :engine) (get project :archive-domain)))
     (doseq [task+args init-tasks]
       (main/resolve-and-apply project task+args))))

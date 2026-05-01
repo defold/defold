@@ -12,6 +12,7 @@
  * @document
  * @name Math
  * @namespace math
+ * @language Lua
  */
 
 /*# absolute value
@@ -20,7 +21,7 @@
  * 
  * 
  * @name math.abs
- * @param x
+ * @param x [type:number]
  */
 
 /*# arc cosine
@@ -29,7 +30,7 @@
  * 
  * 
  * @name math.acos
- * @param x
+ * @param x [type:number]
  */
 
 /*# arc sine
@@ -38,7 +39,7 @@
  * 
  * 
  * @name math.asin
- * @param x
+ * @param x [type:number]
  */
 
 /*# arc tangent
@@ -47,7 +48,7 @@
  * 
  * 
  * @name math.atan
- * @param x
+ * @param x [type:number]
  */
 
 /*# arc tangent of v1/v2
@@ -59,8 +60,8 @@
  * 
  * 
  * @name math.atan2
- * @param y
- * @param x
+ * @param y [type:number]
+ * @param x [type:number]
  */
 
 /*# next higher integer value
@@ -69,7 +70,7 @@
  * 
  * 
  * @name math.ceil
- * @param x
+ * @param x [type:number]
  */
 
 /*# cosine
@@ -78,7 +79,7 @@
  * 
  * 
  * @name math.cos
- * @param x
+ * @param x [type:number]
  */
 
 /*# hyperbolic cosine
@@ -87,7 +88,7 @@
  * 
  * 
  * @name math.cosh
- * @param x
+ * @param x [type:number]
  */
 
 /*# convert from radians to degrees
@@ -96,7 +97,7 @@
  * 
  * 
  * @name math.deg
- * @param x
+ * @param x [type:number]
  */
 
 /*# raises e to a power
@@ -105,7 +106,7 @@
  * 
  * 
  * @name math.exp
- * @param x
+ * @param x [type:number]
  */
 
 /*# next smaller integer value
@@ -114,7 +115,7 @@
  * 
  * 
  * @name math.floor
- * @param x
+ * @param x [type:number]
  */
 
 /*# the modulus (remainder) of doing: v1 / v2
@@ -124,8 +125,8 @@
  * 
  * 
  * @name math.fmod
- * @param x
- * @param y
+ * @param x [type:number]
+ * @param y [type:number]
  */
 
 /*# break number into mantissa and exponent
@@ -137,7 +138,7 @@
  * 
  * 
  * @name math.frexp
- * @param x
+ * @param x [type:number]
  */
 
 /*# a huge value
@@ -156,8 +157,8 @@
  * 
  * 
  * @name math.ldexp
- * @param m
- * @param e
+ * @param m [type:number]
+ * @param e [type:number]
  */
 
 /*# natural log
@@ -166,7 +167,7 @@
  * 
  * 
  * @name math.log
- * @param x
+ * @param x [type:number]
  */
 
 /*# log to the base 10
@@ -175,7 +176,7 @@
  * 
  * 
  * @name math.log10
- * @param x
+ * @param x [type:number]
  */
 
 /*# the highest of one or more numbers
@@ -184,7 +185,7 @@
  * 
  * 
  * @name math.max
- * @param x
+ * @param x [type:number]
  * @param ...
  */
 
@@ -194,7 +195,7 @@
  * 
  * 
  * @name math.min
- * @param x
+ * @param x [type:number]
  * @param ...
  */
 
@@ -205,7 +206,7 @@
  * 
  * 
  * @name math.modf
- * @param x
+ * @param x [type:number]
  */
 
 /*# the value of pi
@@ -223,8 +224,8 @@
  * 
  * 
  * @name math.pow
- * @param x
- * @param y
+ * @param x [type:number]
+ * @param y [type:number]
  */
 
 /*# convert degrees to radians
@@ -233,7 +234,7 @@
  * 
  * 
  * @name math.rad
- * @param x
+ * @param x [type:number]
  */
 
 /*# generate a random number
@@ -254,8 +255,8 @@
  * 
  * 
  * @name math.random
- * @param [m]
- * @param [n]
+ * @param [m] [type:number]
+ * @param [n] [type:number]
  */
 
 /*# seeds the random number generator
@@ -266,7 +267,7 @@
  * 
  * 
  * @name math.randomseed
- * @param x
+ * @param x [type:number]
  */
 
 /*# sine
@@ -275,7 +276,7 @@
  * 
  * 
  * @name math.sin
- * @param x
+ * @param x [type:number]
  */
 
 /*# hyperbolic sine
@@ -284,7 +285,7 @@
  * 
  * 
  * @name math.sinh
- * @param x
+ * @param x [type:number]
  */
 
 /*# square root
@@ -294,7 +295,7 @@
  * 
  * 
  * @name math.sqrt
- * @param x
+ * @param x [type:number]
  */
 
 /*# tangent
@@ -303,7 +304,7 @@
  * 
  * 
  * @name math.tan
- * @param x
+ * @param x [type:number]
  */
 
 /*# hyperbolic tangent
@@ -312,6 +313,6 @@
  * 
  * 
  * @name math.tanh
- * @param x
+ * @param x [type:number]
  */
 

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,17 +18,43 @@
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [internal.node :as in]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def ^:dynamic *check-pb-field-names* in/*check-schemas*)
 
 (defmacro passthrough [field]
   `(g/fnk [~field] ~field))
 
+(defn- make-immutable-property-set-fn-raw [prop-kw]
+  {:pre [(keyword? prop-kw)]}
+  (fn immutable-property-set-fn [evaluation-context node-id old-value new-value]
+    (when (some? old-value)
+      (let [basis (:basis evaluation-context)
+            node-type-kw (g/node-type-kw basis node-id)]
+        (throw (ex-info (format "Unable to reassign immutable property %s on %s %d."
+                                prop-kw
+                                node-type-kw
+                                node-id)
+                        {:node-id node-id
+                         :node-type-kw node-type-kw
+                         :prop-kw prop-kw
+                         :old-value old-value
+                         :new-value new-value}))))))
+
+(def make-immutable-property-set-fn (fn/memoize make-immutable-property-set-fn-raw))
+
+(defmacro immutable-property-setter [prop-sym]
+  {:pre [(symbol? prop-sym)
+         (not (qualified-symbol? prop-sym))]}
+  (let [prop-kw (keyword prop-sym)]
+    `(make-immutable-property-set-fn ~prop-kw)))
+
 (defn array-subst-remove-errors [arr]
-  (vec (remove g/error? arr)))
+  (filterv (complement g/error?) arr))
 
 (defn explicit-outputs
   ([node-id]
@@ -44,7 +70,6 @@
     (for [[source-output-label target-output-label] connections
           :when (contains? existing-source-output-labels source-output-label)]
       (g/connect source-node-id source-output-label target-node-id target-output-label))))
-
 
 ;; -----------------------------------------------------------------------------
 ;; set-properties-from-pb-map macro

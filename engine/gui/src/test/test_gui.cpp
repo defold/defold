@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -77,13 +77,13 @@ void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
 
 uintptr_t GetUserDataCallback(dmGui::HScene scene);
 
-dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
+dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path);
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
-static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source);
-static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
 static const float EPSILON = 0.000001f;
 static const float TEXT_GLYPH_WIDTH = 1.0f;
@@ -132,7 +132,7 @@ public:
 
     DynamicTextureContainer m_DynamicTextures;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -194,7 +194,7 @@ public:
         }
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmParticle::DestroyContext(m_Scene->m_ParticlefxContext);
         dmGui::DeleteScript(m_Script);
@@ -208,7 +208,7 @@ public:
 private:
 };
 
-static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
 {
     dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
     return (dmGui::HTextureSource) self->m_DynamicTextures.New(path_hash, width, height, type, buffer);
@@ -220,7 +220,7 @@ static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui:
     self->m_DynamicTextures.Delete(texture_source);
 }
 
-static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
 {
     dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
     self->m_DynamicTextures.Set(path_hash, width, height, type, buffer);
@@ -237,9 +237,9 @@ uintptr_t GetUserDataCallback(dmGui::HScene scene)
     return (uintptr_t)dmGui::GetSceneUserData(scene);
 }
 
-dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
+dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path)
 {
-    return dmHashBuffer64(path, path_size);
+    return dmHashBuffer64(path, strlen(path));
 }
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
@@ -679,16 +679,16 @@ TEST_F(dmGuiTest, DynamicTexture)
 
     // Test creation/deletion in the same frame (case 2355)
     dmGui::Result r;
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
     r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
     ASSERT_EQ(r, dmGui::RESULT_OK);
     dmGui::RenderScene(m_Scene, rp, &count);
 
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
@@ -707,15 +707,25 @@ TEST_F(dmGuiTest, DynamicTexture)
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Recreate the texture again (without RenderScene)
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Set data on deleted texture
-    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
+
+    // test create same texture twice
+    // https://github.com/defold/defold/issues/9893
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_TEXTURE_ALREADY_EXISTS);
+    r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
 
     dmGui::DeleteNode(m_Scene, node, true);
 
@@ -761,7 +771,7 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
 
     // Create and upload RGB image + flip
     dmGui::Result r;
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, true, data_rgb, sizeof(data_rgb));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, true, data_rgb, sizeof(data_rgb));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Get buffer, verify same as input but flipped
@@ -774,7 +784,7 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
     ASSERT_BUFFER(data_rgb_flip, (uint8_t*) t1->m_Buffer, width*height*3);
 
     // Upload RGBA data and flip
-    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGBA, true, data_rgba, sizeof(data_rgba));
+    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGBA, dmImage::COMPRESSION_TYPE_NONE, true, data_rgba, sizeof(data_rgba));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Verify flipped result
@@ -784,7 +794,7 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
     ASSERT_BUFFER(data_rgba_flip, (uint8_t*) t1->m_Buffer, width*height*4);
 
     // Upload luminance data and flip
-    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_LUMINANCE, true, data_lum, sizeof(data_lum));
+    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_LUMINANCE, dmImage::COMPRESSION_TYPE_NONE, true, data_lum, sizeof(data_lum));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Verify flipped result
@@ -1562,7 +1572,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel1)
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
                     "    gui.animate(self.node, gui.PROP_COLOR, vmath.vector4(1,0,0,0), gui.EASING_NONE, 0.2)\n"
-                    "    gui.cancel_animation(self.node, gui.PROP_COLOR)\n"
+                    "    gui.cancel_animations(self.node, gui.PROP_COLOR)\n"
                     "end\n"
                     "function update(self, dt)\n"
                     "end\n"
@@ -1604,7 +1614,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel2)
                     "function update(self, dt)\n"
                     "    self.nframes = self.nframes + 1\n"
                     "    if self.nframes > 30 then\n"
-                    "        gui.cancel_animation(self.node, gui.PROP_POSITION)\n"
+                    "        gui.cancel_animations(self.node, gui.PROP_POSITION)\n"
                     "    end\n"
                     "end\n"
                     "function final(self)\n"
@@ -2754,6 +2764,32 @@ TEST_F(dmGuiTest, PickingDisabledAdjust)
     // 50% of their original positions/sizes since we have disabled adjustments.
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, tmin.getX(), tmax.getY()));
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmin.getX()*ref_scale, tmax.getY()*ref_scale));
+}
+
+TEST_F(dmGuiTest, PickingSafeAreaAdjust)
+{
+    uint32_t physical_width = 100;
+    uint32_t physical_height = 200;
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetDefaultResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, physical_width, physical_height);
+
+    dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_BOTH, physical_width, physical_height, 0, 40, 0, 20);
+
+    Vector3 size(20, 20, 0);
+    Point3 pos(size * 0.5f);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+
+    Matrix4 transform;
+    dmGui::InternalNode* nn = dmGui::GetNode(m_Scene, n1);
+    dmGui::CalculateNodeTransform(m_Scene, nn, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
+
+    Vector4 screen_pos_bottom = transform * Vector4(0.5f, 0.05f, 0.0f, 1.0f);
+    Vector4 screen_pos_top = transform * Vector4(0.5f, 0.95f, 0.0f, 1.0f);
+    Vector4 screen_pos_out = transform * Vector4(0.5f, 1.05f, 0.0f, 1.0f);
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, screen_pos_bottom.getX(), screen_pos_bottom.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, screen_pos_top.getX(), screen_pos_top.getY()));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, screen_pos_out.getX(), screen_pos_out.getY()));
 }
 
 TEST_F(dmGuiTest, ScriptPicking)
@@ -4876,7 +4912,8 @@ TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
 
     dmParticle::HPrototype prototype;
     const char* particlefx_name = "once.particlefxc";
-    LoadParticlefxPrototype(particlefx_name, &prototype);
+    bool result = LoadParticlefxPrototype(particlefx_name, &prototype);
+    ASSERT_TRUE(result);
 
     dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
     ASSERT_EQ(res, dmGui::RESULT_OK);
@@ -5401,7 +5438,7 @@ TEST_F(dmGuiTest, CloneNodeAndAnim)
     dmGui::RemoveTexture(m_Scene, dmHashString64("t1"));
 }
 
-// Check consistancy of get_screen_position/set_screen_position functions 
+// Check consistancy of get_screen_position/set_screen_position functions
 TEST_F(dmGuiTest, SetGetScreenPosition)
 {
     const char* s = "function init(self)\n"
@@ -5441,6 +5478,94 @@ TEST_F(dmGuiTest, SetGetScreenPosition)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, SetGetScreenPositionSafeArea)
+{
+    dmGui::SetPhysicalResolution(m_Context, 100, 200);
+    dmGui::SetDefaultResolution(m_Context, 100, 200);
+    dmGui::SetSceneResolution(m_Scene, 100, 200);
+    dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_BOTH, 100, 200, 0, 40, 0, 20);
+
+    dmGui::HNode root = dmGui::NewNode(m_Scene, Point3(20, 30, 0), Vector3(20, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeId(m_Scene, root, "root_safe");
+
+    Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, root);
+    Point3 local_before = dmGui::GetNodePosition(m_Scene, root);
+    Point3 local_from_screen = dmGui::ScreenToLocalPosition(m_Scene, root, Point3(before_set.getXYZ()));
+    ASSERT_NEAR(local_before.getX(), local_from_screen.getX(), EPSILON);
+    ASSERT_NEAR(local_before.getY(), local_from_screen.getY(), EPSILON);
+
+    Point3 target_screen(before_set.getX() + 7.0f, before_set.getY() + 11.0f, 0.0f);
+    dmGui::SetScreenPosition(m_Scene, root, target_screen);
+
+    Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, root);
+    ASSERT_NEAR(target_screen.getX(), after_set.getX(), EPSILON);
+    ASSERT_NEAR(target_screen.getY(), after_set.getY(), EPSILON);
+
+    Point3 local_after = dmGui::GetNodePosition(m_Scene, root);
+    Point3 local_from_after = dmGui::ScreenToLocalPosition(m_Scene, root, Point3(after_set.getXYZ()));
+    ASSERT_NEAR(local_after.getX(), local_from_after.getX(), EPSILON);
+    ASSERT_NEAR(local_after.getY(), local_from_after.getY(), EPSILON);
+}
+
+TEST_F(dmGuiTest, SetGetScreenPositionAdjustDisabledRoot)
+{
+    dmGui::SetPhysicalResolution(m_Context, 200, 100);
+    dmGui::SetDefaultResolution(m_Context, 100, 50);
+    dmGui::SetSceneResolution(m_Scene, 100, 50);
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
+
+    dmGui::HNode root = dmGui::NewNode(m_Scene, Point3(20, 15, 0), Vector3(20, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+
+    Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, root);
+    Point3 local_before = dmGui::GetNodePosition(m_Scene, root);
+    Point3 local_from_screen = dmGui::ScreenToLocalPosition(m_Scene, root, Point3(before_set.getXYZ()));
+    ASSERT_NEAR(local_before.getX(), local_from_screen.getX(), EPSILON);
+    ASSERT_NEAR(local_before.getY(), local_from_screen.getY(), EPSILON);
+
+    Point3 target_screen(before_set.getX() + 13.0f, before_set.getY() + 9.0f, 0.0f);
+    dmGui::SetScreenPosition(m_Scene, root, target_screen);
+
+    Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, root);
+    ASSERT_NEAR(target_screen.getX(), after_set.getX(), EPSILON);
+    ASSERT_NEAR(target_screen.getY(), after_set.getY(), EPSILON);
+}
+
+TEST_F(dmGuiTest, SetGetScreenPositionAdjustDisabledScaledParent)
+{
+    dmGui::SetPhysicalResolution(m_Context, 100, 100);
+    dmGui::SetDefaultResolution(m_Context, 100, 100);
+    dmGui::SetSceneResolution(m_Scene, 100, 100);
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
+
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(30, 20, 0), Vector3(40, 40, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeProperty(m_Scene, parent, dmGui::PROPERTY_SCALE, Vector4(2.0f, 0.5f, 1.0f, 1.0f));
+
+    dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(10, 8, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeParent(m_Scene, child, parent, false);
+
+    Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, child);
+    Point3 target_screen(before_set.getX() + 14.0f, before_set.getY() - 6.0f, 0.0f);
+    dmGui::SetScreenPosition(m_Scene, child, target_screen);
+
+    Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, child);
+    ASSERT_NEAR(target_screen.getX(), after_set.getX(), EPSILON);
+    ASSERT_NEAR(target_screen.getY(), after_set.getY(), EPSILON);
+
+    Point3 local_after = dmGui::GetNodePosition(m_Scene, child);
+    Point3 local_from_after = dmGui::ScreenToLocalPosition(m_Scene, child, Point3(after_set.getXYZ()));
+    ASSERT_NEAR(local_after.getX(), local_from_after.getX(), EPSILON);
+    ASSERT_NEAR(local_after.getY(), local_from_after.getY(), EPSILON);
+}
+
+TEST_F(dmGuiTest, ZeroMaxDynamicTextures)
+{
+    dmGui::NewSceneParams params;
+    params.m_UserData = (void*)this;
+    params.m_MaxDynamicTextures = 0;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    ASSERT_NE((void*)scene, (void*)0x0);
+    dmGui::DeleteScene(scene);
+}
 
 int main(int argc, char **argv)
 {

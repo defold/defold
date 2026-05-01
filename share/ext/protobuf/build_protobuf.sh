@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,7 +23,7 @@ readonly PLATFORM=$1
 
 readonly SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-cmi_setup_cc $PLATFORM
+cmi_setup_cc ${HOST_PLATFORM}
 
 echo off
 set -e
@@ -84,10 +84,15 @@ echo "**************************************************"
 echo "BUILD TARGET LIB for ${PLATFORM}"
 echo "**************************************************"
 
+unset CFLAGS
+unset CXXFLAGS
+
+cmi_setup_cc ${PLATFORM}
+
 export SOURCE_TARGET=${SCRIPTDIR}/${TMP_TARGET}/${PACKAGEDIR}
 export INSTALL_TARGET=${SCRIPTDIR}/install
 
-mkdir -p ${INSTALL_TARGET}\${PLATFORM}
+mkdir -p ${INSTALL_TARGET}/${PLATFORM}
 
 echo "Unpack to ${TMP_TARGET}"
 
@@ -110,7 +115,7 @@ pushd _build
 
     cmake -G "Unix Makefiles" \
         -DCMAKE_INSTALL_PREFIX=${INSTALL_TARGET} \
-        -DCMAKE_INSTALL_LIBDIR="${INSTALL_TARGET}\${PLATFORM}" \
+        -DCMAKE_INSTALL_LIBDIR="${INSTALL_TARGET}/${PLATFORM}" \
         -DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCHS} \
         -DCMAKE_C_COMPILER=${CC} \
         -DCMAKE_CXX_COMPILER=${CXX} \
@@ -118,6 +123,7 @@ pushd _build
         -DCMAKE_CXX_COMPILER_WORKS=1 \
         -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
         -DCMAKE_CXX_FLAGS="${FLAGS} ${CXXFLAGS}" \
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} \
         -Dprotobuf_BUILD_PROTOC_BINARIES=OFF \
         -Dprotobuf_BUILD_EXAMPLES=OFF \
         -Dprotobuf_BUILD_TESTS=OFF \
@@ -125,7 +131,7 @@ pushd _build
         -Dprotobuf_BUILD_LIBPROTOC=OFF \
         -Dprotobuf_BUILD_SHARED_LIBS=OFF \
         -Dprotobuf_DISABLE_RTTI=OFF \
-        -DWITH_PROTOC=${SOURCE_HOST}\_build\Release\protoc \
+        -DWITH_PROTOC=${SOURCE_HOST}/_build/Release/protoc \
         ../cmake
 
     cmake --build . --config Release --target libprotobuf -- -j8
@@ -145,7 +151,7 @@ echo "**************************************************"
 PACKAGE_NAME=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz
 
 case ${PLATFORM} in
-    x86_64-macos|arm64-macos|x86_64-linux|x86_64-win32)
+    x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|x86_64-win32)
         IS_DESKTOP=1
         ;;
 esac
@@ -155,7 +161,7 @@ case ${PLATFORM} in
         SUFFIX=.exe
         ;;
 
-    x86_64-macos|arm64-macos|x86_64-linux)
+    x86_64-macos|arm64-macos|x86_64-linux|arm64-linux)
         echo "Stripping executable"
         strip "${SOURCE_HOST}/_build/protoc"
         ;;
@@ -172,6 +178,7 @@ pushd package
         cp -v "${SOURCE_HOST}/_build/protoc${SUFFIX}" bin/${PLATFORM}/
     fi
 
+    echo "Packaging '${PACKAGE_NAME}'..."
     tar cfvz ${PACKAGE_NAME} lib bin
 
     rm -rf lib bin

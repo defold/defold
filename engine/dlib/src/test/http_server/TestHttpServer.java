@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,12 +15,22 @@
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.ServletException;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 
 import java.net.*;
+import java.lang.reflect.Method;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.regex.*;
 import java.util.Enumeration;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -63,24 +73,405 @@ class TestSslSocketConnector extends ServerConnector
     }
 }
 
+class Tls12SslContextFactory extends SslContextFactory.Server
+{
+    private static final String[] TLS12_SIGNATURE_SCHEMES = {
+        "rsa_pkcs1_sha512",
+        "rsa_pkcs1_sha384",
+        "rsa_pkcs1_sha256",
+        "rsa_pkcs1_sha1"
+    };
+
+    private static final Method SET_SIGNATURE_SCHEMES = GetSetSignatureSchemesMethod();
+
+    @Override
+    public void customize(SSLEngine engine)
+    {
+        super.customize(engine);
+
+        if (SET_SIGNATURE_SCHEMES == null)
+        {
+            return;
+        }
+
+        SSLParameters parameters = engine.getSSLParameters();
+        try
+        {
+            SET_SIGNATURE_SCHEMES.invoke(parameters, (Object)TLS12_SIGNATURE_SCHEMES);
+            engine.setSSLParameters(parameters);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Method GetSetSignatureSchemesMethod()
+    {
+        try
+        {
+            return SSLParameters.class.getMethod("setSignatureSchemes", String[].class);
+        }
+        catch (NoSuchMethodException e)
+        {
+            return null;
+        }
+    }
+}
+
+class Range
+{
+    public long start;
+    public long end;
+    public long length;
+    public Range(long start, long end, long length) {
+        this.start = start;
+        this.end = end;
+        this.length = length;
+    }
+}
+
+class TestConnectProxyServer
+{
+    private ServerSocket m_ServerSocket;
+
+    public TestConnectProxyServer() throws IOException
+    {
+        m_ServerSocket = new ServerSocket();
+        m_ServerSocket.setReuseAddress(true);
+        m_ServerSocket.bind(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0));
+    }
+
+    public int getLocalPort()
+    {
+        return m_ServerSocket.getLocalPort();
+    }
+
+    public void start()
+    {
+        Thread acceptThread = new Thread(new Runnable() {
+            @Override
+            public void run()
+            {
+                acceptLoop();
+            }
+        }, "TestConnectProxyAccept");
+        acceptThread.setDaemon(true);
+        acceptThread.start();
+    }
+
+    private void acceptLoop()
+    {
+        while (!m_ServerSocket.isClosed())
+        {
+            try
+            {
+                final Socket clientSocket = m_ServerSocket.accept();
+                Thread worker = new Thread(new Runnable() {
+                    @Override
+                    public void run()
+                    {
+                        handleClient(clientSocket);
+                    }
+                }, "TestConnectProxyWorker");
+                worker.setDaemon(true);
+                worker.start();
+            }
+            catch (SocketException e)
+            {
+                if (m_ServerSocket.isClosed())
+                    return;
+                throw new RuntimeException(e);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private static void closeQuietly(Socket socket)
+    {
+        if (socket != null)
+        {
+            try
+            {
+                socket.close();
+            }
+            catch (IOException e)
+            {
+            }
+        }
+    }
+
+    private static void writeResponse(OutputStream output, String response) throws IOException
+    {
+        output.write(response.getBytes("ISO-8859-1"));
+        output.flush();
+    }
+
+    private static String readLine(InputStream input) throws IOException
+    {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int c = input.read();
+        while (c != -1)
+        {
+            if (c == '\n')
+                break;
+            if (c != '\r')
+                buffer.write(c);
+            c = input.read();
+        }
+
+        if (c == -1 && buffer.size() == 0)
+            return null;
+
+        return buffer.toString("ISO-8859-1");
+    }
+
+    private static int findPortSeparator(String hostAndPort)
+    {
+        if (hostAndPort.startsWith("["))
+        {
+            int closingBracket = hostAndPort.indexOf(']');
+            if (closingBracket != -1 && closingBracket + 1 < hostAndPort.length() && hostAndPort.charAt(closingBracket + 1) == ':')
+                return closingBracket + 1;
+        }
+        return hostAndPort.lastIndexOf(':');
+    }
+
+    private static Socket connectTargetSocket(String host, int port) throws IOException
+    {
+        IOException lastException = null;
+        InetAddress[] addresses = InetAddress.getAllByName(host);
+        for (InetAddress address : addresses)
+        {
+            Socket socket = new Socket();
+            try
+            {
+                socket.setTcpNoDelay(true);
+                socket.connect(new InetSocketAddress(address, port), 5000);
+                return socket;
+            }
+            catch (IOException e)
+            {
+                lastException = e;
+                closeQuietly(socket);
+            }
+        }
+
+        if (lastException != null)
+            throw lastException;
+
+        throw new UnknownHostException(host);
+    }
+
+    private static void tunnel(Socket inputSocket, Socket outputSocket, Socket clientSocket, Socket targetSocket)
+    {
+        try
+        {
+            InputStream input = inputSocket.getInputStream();
+            OutputStream output = outputSocket.getOutputStream();
+            byte[] buffer = new byte[8192];
+            int read = input.read(buffer);
+            while (read != -1)
+            {
+                output.write(buffer, 0, read);
+                output.flush();
+                read = input.read(buffer);
+            }
+        }
+        catch (IOException e)
+        {
+        }
+        finally
+        {
+            closeQuietly(clientSocket);
+            closeQuietly(targetSocket);
+        }
+    }
+
+    private void handleClient(Socket clientSocket)
+    {
+        Socket targetSocket = null;
+        try
+        {
+            clientSocket.setTcpNoDelay(true);
+
+            InputStream clientInput = clientSocket.getInputStream();
+            OutputStream clientOutput = clientSocket.getOutputStream();
+
+            String requestLine = readLine(clientInput);
+            if (requestLine == null)
+                return;
+
+            String headerLine = readLine(clientInput);
+            while (headerLine != null && headerLine.length() > 0)
+            {
+                headerLine = readLine(clientInput);
+            }
+
+            String[] requestParts = requestLine.split(" ");
+            if (requestParts.length != 3 || !"CONNECT".equals(requestParts[0]))
+            {
+                writeResponse(clientOutput, "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+                return;
+            }
+
+            String hostAndPort = requestParts[1];
+            int separator = findPortSeparator(hostAndPort);
+            if (separator <= 0)
+            {
+                writeResponse(clientOutput, "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+                return;
+            }
+
+            String host = hostAndPort.substring(0, separator);
+            if (host.startsWith("[") && host.endsWith("]"))
+                host = host.substring(1, host.length() - 1);
+
+            int port = Integer.parseInt(hostAndPort.substring(separator + 1));
+
+            try
+            {
+                targetSocket = connectTargetSocket(host, port);
+            }
+            catch (IOException e)
+            {
+                writeResponse(clientOutput, "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n");
+                return;
+            }
+
+            writeResponse(clientOutput, "HTTP/1.1 200 Connection established\r\n\r\n");
+
+            final Socket clientSocketFinal = clientSocket;
+            final Socket targetSocketFinal = targetSocket;
+
+            Thread clientToTarget = new Thread(new Runnable() {
+                @Override
+                public void run()
+                {
+                    tunnel(clientSocketFinal, targetSocketFinal, clientSocketFinal, targetSocketFinal);
+                }
+            }, "TestConnectProxyClientToTarget");
+            Thread targetToClient = new Thread(new Runnable() {
+                @Override
+                public void run()
+                {
+                    tunnel(targetSocketFinal, clientSocketFinal, clientSocketFinal, targetSocketFinal);
+                }
+            }, "TestConnectProxyTargetToClient");
+
+            clientToTarget.setDaemon(true);
+            targetToClient.setDaemon(true);
+
+            clientToTarget.start();
+            targetToClient.start();
+
+            clientToTarget.join();
+            targetToClient.join();
+        }
+        catch (NumberFormatException e)
+        {
+            try
+            {
+                OutputStream clientOutput = clientSocket.getOutputStream();
+                writeResponse(clientOutput, "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+            }
+            catch (IOException ioe)
+            {
+            }
+        }
+        catch (IOException e)
+        {
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+        }
+        finally
+        {
+            closeQuietly(targetSocket);
+            closeQuietly(clientSocket);
+        }
+    }
+}
+
 public class TestHttpServer extends AbstractHandler
 {
     // Max number of retries when starting the server.
     static int maxRetries = 3;
+
+    boolean proxyConnectMode = false;
 
     Pattern m_AddPattern = Pattern.compile("/add/(\\d+)/(\\d+)");
     Pattern m_ArbPattern = Pattern.compile("/arb/(\\d+)");
     Pattern m_CachedPattern = Pattern.compile("/cached/(\\d+)");
     Pattern m_EchoPattern = Pattern.compile("/echo/(.*)");
     Pattern m_ClosePattern = Pattern.compile("/close");
+    Pattern m_CloseReusedPattern = Pattern.compile("/close-reused");
     Pattern m_SleepPattern = Pattern.compile("/sleep/(\\d+)");
+    Map<Object, Integer> m_CloseReusedConnections = Collections.synchronizedMap(new IdentityHashMap<Object, Integer>());
+
+    static final String SSL_SESSION_ATTRIBUTE = "defold.tsl.session";
+
     public TestHttpServer()
     {
         super();
     }
 
+    static SslContextFactory.Server NewSslContextFactory(String... protocols)
+    {
+        return NewSslContextFactory(new SslContextFactory.Server(), protocols);
+    }
+
+    static SslContextFactory.Server NewSslContextFactory(SslContextFactory.Server sslContextFactory, String... protocols)
+    {
+        sslContextFactory.setSniRequired(false);
+        sslContextFactory.setSslSessionTimeout(5); // seconds
+        sslContextFactory.setKeyStorePath("src/test/data/keystore");
+        sslContextFactory.setKeyStorePassword("defold");
+        if (protocols.length > 0)
+        {
+            sslContextFactory.setIncludeProtocols(protocols);
+        }
+        return sslContextFactory;
+    }
+
+    public static void digestStreamRange(MessageDigest md, InputStream input, long start, long size) throws IOException
+    {
+        input.skip(start);
+        byte[] buffer = new byte[1024];
+        int bytesRead;
+        long toCopy = size;
+        while ((bytesRead = input.read(buffer)) != -1)
+        {
+            if (toCopy < bytesRead)
+                bytesRead = (int)toCopy;
+
+            md.update(buffer, 0, bytesRead);
+            toCopy -= bytesRead;
+        }
+    }
+
+    public static void copyStream(InputStream input, OutputStream output, long start, long size) throws IOException
+    {
+        input.skip(start);
+        byte[] buffer = new byte[1024];
+        int bytesRead;
+        long toCopy = size;
+        while ((bytesRead = input.read(buffer)) != -1)
+        {
+            if (toCopy < bytesRead)
+                bytesRead = (int)toCopy;
+
+            output.write(buffer, 0, bytesRead);
+            toCopy -= bytesRead;
+        }
+    }
+
     private void sendFile(String target, HttpServletResponse response) throws IOException {
-        Reader r = new FileReader(target.substring(1));
+        Reader r = new FileReader(target);
         char[] buf = new char[1024 * 128];
         int n = r.read(buf);
         if (n > 0) {
@@ -89,6 +480,14 @@ public class TestHttpServer extends AbstractHandler
         // NOTE: We flush here to force chunked encoding
         response.getWriter().flush();
         r.close();
+    }
+
+    private void sendFile(File file, Range range, HttpServletResponse response) throws IOException {
+        long size = range.end - range.start + 1;
+        InputStream is = new BufferedInputStream(new FileInputStream(file));
+        OutputStream os = response.getOutputStream();
+        copyStream(is, os, range.start, size);
+        os.flush();
     }
 
     private static char convertDigit(int value) {
@@ -109,18 +508,21 @@ public class TestHttpServer extends AbstractHandler
         return (sb.toString());
     }
 
-    private static String calculateSHA1(File file) throws IOException {
+    private static String calculateSHA1(File file, List<Range> ranges) throws IOException {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-1");
-            BufferedInputStream is = new BufferedInputStream(
-                    new FileInputStream(file));
-            byte[] buffer = new byte[1024];
-            int n = is.read(buffer);
-            while (n != -1) {
-                md.update(buffer, 0, n);
-                n = is.read(buffer);
+
+            BufferedInputStream is = new BufferedInputStream(new FileInputStream(file));
+
+            Range first_range = ranges.get(0);
+            long size = first_range.end - first_range.start + 1;
+
+            for (Range range : ranges) {
+                digestStreamRange(md, is, range.start, range.end - range.start + 1);
             }
+
             is.close();
+
             return toHex(md.digest());
 
         } catch (IOException e) {
@@ -130,15 +532,89 @@ public class TestHttpServer extends AbstractHandler
         }
     }
 
-    // private void debugHeaders(HttpServletRequest request) {
-    //     System.out.printf("HEADERS:\n");
-    //     Enumeration headerNames = request.getHeaderNames();
-    //     while (headerNames.hasMoreElements()) {
-    //         String key = (String) headerNames.nextElement();
-    //         String value = request.getHeader(key);
-    //         System.out.printf("HEADER:  %s: %s\n", key, value);
-    //     }
-    // }
+    private static String calculateSHA1(File file) throws IOException {
+        List<Range> ranges = new ArrayList<>();
+        ranges.add(new Range(0, file.length()-1,file.length()));
+        return calculateSHA1(file, ranges);
+    }
+
+    private void debugHeaders(HttpServletRequest request) {
+        System.out.printf("HEADERS:\n");
+        Enumeration headerNames = request.getHeaderNames();
+        while (headerNames.hasMoreElements()) {
+            String key = (String) headerNames.nextElement();
+            String value = request.getHeader(key);
+            System.out.printf("HEADER:  '%s: %s'\n", key, value);
+        }
+    }
+
+    static private String dumpResponse(HttpServletResponse resp){
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("Response Status = [" + resp.getStatus() + "], ");
+        String headers = resp.getHeaderNames().stream()
+                        .map(headerName -> headerName + " : " + resp.getHeaders(headerName) )
+                        .collect(Collectors.joining(", "));
+
+        if (headers.isEmpty()) {
+            sb.append("Response headers: NONE,");
+        } else {
+            sb.append("Response headers: "+headers+",");
+        }
+
+        return sb.toString();
+    }
+
+    // https://gist.github.com/jneira/cf33844230f1ae4c22bf4a82d28d12c0
+    List<Range> parseRanges(HttpServletRequest request, long length, HttpServletResponse response) throws IOException {
+        Range full = new Range(0, length - 1, length);
+        List<Range> ranges = new ArrayList<>();
+
+        // Validate and process Range and If-Range headers.
+        String range = request.getHeader("Range");
+        if (range == null)
+        {
+            ranges.add(full);
+            return ranges;
+        }
+
+        // Range header should match format "bytes=n-n,n-n,n-n...". If not, then return 416.
+        if (!range.matches("^bytes=\\d*-\\d*(,\\d*-\\d*)*$")) {
+            response.setHeader("Content-Range", "bytes */" + length); // Required in 416.
+            response.sendError(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+            return null;
+        }
+
+        if (ranges.isEmpty()) {
+            for (String part : range.substring(6).split(",")) {
+                // Assuming a file with length of 100, the following examples returns bytes at:
+                // 50-80 (50 to 80), 40- (40 to length=100), -20 (length-20=80 to length=100).
+
+                String startStr = part.substring(0, part.indexOf("-"));
+                String endStr = part.substring(part.indexOf("-")+1);
+                long start = Integer.parseInt(startStr);
+                long end = endStr.length() > 0 ? Integer.parseInt(endStr) : length;
+
+                if (start == -1) {
+                    start = length - end;
+                    end = length - 1;
+                } else if (end == -1 || end > length - 1) {
+                    end = length - 1;
+                }
+
+                // Check if Range is syntactically valid. If not, then return 416.
+                if (start > end) {
+                    response.setHeader("Content-Range", "bytes */" + length); // Required in 416.
+                    response.sendError(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+                    return ranges;
+                }
+
+                ranges.add(new Range(start, end, length));
+            }
+            return ranges;
+        }
+        return null;
+    }
 
     public void handle(String target,
                        Request baseRequest,
@@ -153,10 +629,56 @@ public class TestHttpServer extends AbstractHandler
         Matcher closem = m_ClosePattern.matcher(target);
         Matcher sleepm = m_SleepPattern.matcher(target);
 
+        // for HTTP proxy connections using CONNECT method
+        // this toggles the server to proxy connect mode by
+        // responding with a 200 OK with no content
+        if (request.getMethod().equals("CONNECT")) {
+            boolean ok = (proxyConnectMode == false) && target.equals("/");
+            response.setStatus(ok ? HttpServletResponse.SC_OK : HttpServletResponse.SC_BAD_REQUEST);
+            baseRequest.setHandled(true);
+            proxyConnectMode = true;
+            return;
+        }
+
+        if (target.equals("/proxy/to/www.google.com")) {
+            // only accept a request to this target if we are in proxy connect mode
+            // the host header is www.google.com and the request method is a GET
+            String host = request.getHeader("Host");
+            boolean ok = (proxyConnectMode == true)
+                && "www.google.com".equals(host)
+                && request.getMethod().equals("GET");
+            response.setStatus(ok ? HttpServletResponse.SC_OK : HttpServletResponse.SC_BAD_REQUEST);
+            baseRequest.setHandled(true);
+            proxyConnectMode = false;
+            return;
+        }
+        else if (proxyConnectMode) {
+            // requesting some other target while in proxy connect mode
+            // should fail
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            baseRequest.setHandled(true);
+            proxyConnectMode = false;
+            return;
+        }
+
         if (target.equals("/"))
         {
             response.getWriter().print("TestHttpServer running!");
             response.setStatus(HttpServletResponse.SC_OK);
+            baseRequest.setHandled(true);
+        }
+        else if (target.equals("/tls-info"))
+        {
+            Object sslSession = request.getAttribute(SSL_SESSION_ATTRIBUTE);
+            if (sslSession instanceof SSLSession)
+            {
+                response.getWriter().print(((SSLSession)sslSession).getProtocol());
+                response.setStatus(HttpServletResponse.SC_OK);
+            }
+            else
+            {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            }
             baseRequest.setHandled(true);
         }
         else if (target.equals("/__verify_etags__")) {
@@ -224,22 +746,49 @@ public class TestHttpServer extends AbstractHandler
         }
         else if (target.startsWith("/tmp/http_files"))
         {
-            String tag = String.format("W/\"" + calculateSHA1(new File(target.substring(1))) + "\"");
+            //debugHeaders(request);
+
+            File contentFile = new File(target.substring(1));
+            List<Range> ranges = parseRanges(request, contentFile.length(), response);
+
+            Range first_range = ranges.get(0);
+            long size = first_range.end - first_range.start + 1;
+            boolean partial = size != first_range.length;
+
+            String tag = String.format("W/\"" + calculateSHA1(contentFile, ranges) + "\"");
             response.setHeader(HttpHeader.ETAG.asString(), tag);
-            int status = HttpServletResponse.SC_OK;
+            int status = partial ? HttpServletResponse.SC_PARTIAL_CONTENT : HttpServletResponse.SC_OK;
 
             String ifNoneMatch = request.getHeader(HttpHeader.IF_NONE_MATCH.asString());
             if (ifNoneMatch != null) {
+                Range range = ranges.get(0);
                 if (ifNoneMatch.equals(tag)) {
                     baseRequest.setHandled(true);
                     status = HttpStatus.NOT_MODIFIED_304;
                 }
             }
 
+            if (status != HttpStatus.NOT_MODIFIED_304)
+            {
+                if (partial) {
+                    response.setHeader("Content-Range", String.format("bytes %d-%d/%d", first_range.start, first_range.end, first_range.length));
+                    response.setHeader("Content-Length", String.format("%d", size));
+                } else {
+                    response.setHeader("Content-Length", String.valueOf(first_range.length));
+                }
+            }
+
             response.setStatus(status);
             baseRequest.setHandled(true);
-            if (status == HttpServletResponse.SC_OK) {
-                sendFile(target, response);
+
+            // String s = dumpResponse(response);
+            // System.out.printf("RESPONSE: '%s'\n", s);
+
+            if (status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_PARTIAL_CONTENT) {
+                if (ranges != null && ranges.size() > 0) {
+                    Range range = ranges.get(0); // Currently we only support one range request
+                    sendFile(contentFile, range, response);
+                }
             }
         }
 
@@ -275,7 +824,7 @@ public class TestHttpServer extends AbstractHandler
             // For dmConfigFile test
             response.setStatus(HttpServletResponse.SC_OK);
             baseRequest.setHandled(true);
-            sendFile(target, response);
+            sendFile(target.substring(1), response);
         }
         else if (target.equals("/post")) {
             baseRequest.setHandled(true);
@@ -309,6 +858,22 @@ public class TestHttpServer extends AbstractHandler
             baseRequest.setHandled(true);
             response.getWriter().print("will close connection now.");
             response.setStatus(HttpServletResponse.SC_OK);
+        } else if (m_CloseReusedPattern.matcher(target).matches()) {
+            Object connection = baseRequest.getHttpChannel().getConnection();
+            int reuse_count;
+            synchronized (m_CloseReusedConnections) {
+                Integer count = m_CloseReusedConnections.get(connection);
+                reuse_count = count == null ? 0 : count.intValue();
+                m_CloseReusedConnections.put(connection, reuse_count + 1);
+            }
+
+            if (reuse_count == 0) {
+                baseRequest.setHandled(true);
+                response.getWriter().print("reused connection is healthy.");
+                response.setStatus(HttpServletResponse.SC_OK);
+            } else {
+                HttpConnection.getCurrentConnection().getHttpChannel().getConnection().close();
+            }
         } else if (closem.matches()) {
             HttpConnection.getCurrentConnection().getHttpChannel().getConnection().close();
         } else if (sleepm.matches()) {
@@ -329,6 +894,8 @@ public class TestHttpServer extends AbstractHandler
         try
         {
             Server server = new Server();
+            TestConnectProxyServer proxyServer = new TestConnectProxyServer();
+            proxyServer.start();
             
             ServerConnector connector = new ServerConnector(server);
             connector.setIdleTimeout(10000); // millis
@@ -336,23 +903,30 @@ public class TestHttpServer extends AbstractHandler
 
             SecureRequestCustomizer src = new SecureRequestCustomizer();
             src.setSniHostCheck(false);
+            src.setSslSessionAttribute(SSL_SESSION_ATTRIBUTE);
             HttpConfiguration httpConfig = new HttpConfiguration();
             httpConfig.addCustomizer(src);
             HttpConnectionFactory connectionFactory = new HttpConnectionFactory(httpConfig);
 
-            SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
-            sslContextFactory.setSniRequired(false);
-            sslContextFactory.setSslSessionTimeout(5); // seconds
-            sslContextFactory.setKeyStorePath("src/test/data/keystore");
-            sslContextFactory.setKeyStorePassword("defold");
+            SslContextFactory.Server defaultSslContextFactory = NewSslContextFactory();
+            SslContextFactory.Server tls12SslContextFactory = NewSslContextFactory(new Tls12SslContextFactory(), "TLSv1.2");
+            SslContextFactory.Server tls13SslContextFactory = NewSslContextFactory("TLSv1.3");
 
-            ServerConnector sslConnector = new ServerConnector(server, sslContextFactory, connectionFactory);
-            sslConnector.setIdleTimeout(10000); // millis
-            server.addConnector(sslConnector);
+            ServerConnector tlsConnector = new ServerConnector(server, defaultSslContextFactory, connectionFactory);
+            tlsConnector.setIdleTimeout(10000); // millis
+            server.addConnector(tlsConnector);
 
-            TestSslSocketConnector testsslConnector = new TestSslSocketConnector(server, sslContextFactory, connectionFactory);
-            testsslConnector.setIdleTimeout(10000); // millis
-            server.addConnector(testsslConnector);
+            ServerConnector tls12Connector = new ServerConnector(server, tls12SslContextFactory, connectionFactory);
+            tls12Connector.setIdleTimeout(10000); // millis
+            server.addConnector(tls12Connector);
+
+            ServerConnector tls13Connector = new ServerConnector(server, tls13SslContextFactory, connectionFactory);
+            tls13Connector.setIdleTimeout(10000); // millis
+            server.addConnector(tls13Connector);
+
+            TestSslSocketConnector testtlsConnector = new TestSslSocketConnector(server, defaultSslContextFactory, connectionFactory);
+            testtlsConnector.setIdleTimeout(10000); // millis
+            server.addConnector(testtlsConnector);
 
             HandlerList handlerList = new HandlerList();
             handlerList.addHandler(new TestHttpServer());
@@ -400,6 +974,7 @@ public class TestHttpServer extends AbstractHandler
             //     }
             };
             resourceHandler.setResourceBase(".");
+            resourceHandler.setAcceptRanges(true);
             handlerList.addHandler(resourceHandler);
             server.setHandler(handlerList);
 
@@ -407,20 +982,35 @@ public class TestHttpServer extends AbstractHandler
 
             final Connector[] connectors = server.getConnectors();
             int port = ((ServerConnector)connectors[0]).getLocalPort();
-            int port_ssl = ((ServerConnector)connectors[1]).getLocalPort();
-            int port_ssl_test = ((ServerConnector)connectors[2]).getLocalPort();
+            int port_tls = ((ServerConnector)connectors[1]).getLocalPort();
+            int port_tls12 = ((ServerConnector)connectors[2]).getLocalPort();
+            int port_tls13 = ((ServerConnector)connectors[3]).getLocalPort();
+            int port_tls_test = ((ServerConnector)connectors[4]).getLocalPort();
+            int port_proxy = proxyServer.getLocalPort();
 
             // Early exit if any of the connectors is not opened or closed.
             if ((port == -1) || (port == -2)) {
                 System.out.println("ERROR: Connector 0 is not opened or closed!");
                 return;
             }
-            if ((port_ssl == -1) || (port_ssl == -2)) {
+            if ((port_tls == -1) || (port_tls == -2)) {
                 System.out.println("ERROR: Connector 1 is not opened or closed!");
                 return;
             }
-            if ((port_ssl_test == -1) || (port_ssl_test == -2)) {
+            if ((port_tls12 == -1) || (port_tls12 == -2)) {
                 System.out.println("ERROR: Connector 2 is not opened or closed!");
+                return;
+            }
+            if ((port_tls13 == -1) || (port_tls13 == -2)) {
+                System.out.println("ERROR: Connector 3 is not opened or closed!");
+                return;
+            }
+            if ((port_tls_test == -1) || (port_tls_test == -2)) {
+                System.out.println("ERROR: Connector 4 is not opened or closed!");
+                return;
+            }
+            if ((port_proxy == -1) || (port_proxy == -2)) {
+                System.out.println("ERROR: Proxy connector is not opened or closed!");
                 return;
             }
 
@@ -432,8 +1022,11 @@ public class TestHttpServer extends AbstractHandler
                 writer.println("# These are the sockets the test server currently listens to");
                 writer.println("[server]");
                 writer.println(String.format("socket=%d", port));
-                writer.println(String.format("socket_ssl=%d", port_ssl));
-                writer.println(String.format("socket_ssl_test=%d", port_ssl_test));
+                writer.println(String.format("socket_tls=%d", port_tls));
+                writer.println(String.format("socket_tls12=%d", port_tls12));
+                writer.println(String.format("socket_tls13=%d", port_tls13));
+                writer.println(String.format("socket_tls_test=%d", port_tls_test));
+                writer.println(String.format("socket_proxy=%d", port_proxy));
                 writer.close();
 
                 File tempfile = new File(tempname);

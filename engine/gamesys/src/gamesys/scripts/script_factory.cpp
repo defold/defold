@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -50,6 +50,7 @@ namespace dmGameSystem
      * @document
      * @name Factory
      * @namespace factory
+     * @language Lua
      */
 
     /*# Get factory status
@@ -71,17 +72,17 @@ namespace dmGameSystem
     /*# unloaded
      *
      * @name factory.STATUS_UNLOADED
-     * @variable
+     * @constant
      */
     /*# loading
      *
      * @name factory.STATUS_LOADING
-     * @variable
+     * @constant
      */
     /*# loaded
      *
      * @name factory.STATUS_LOADED
-     * @variable
+     * @constant
      */
     static int FactoryComp_GetStatus(lua_State* L)
     {
@@ -237,15 +238,14 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int FactoryComp_CreateWithMessage(lua_State* L, dmGameObject::HCollection collection, dmGameObject::HInstance sender_instance, dmMessage::URL* receiver,
-                                            uint32_t index, dmhash_t id, dmGameObject::HPropertyContainer properties,
+    static int FactoryComp_CreateWithMessage(lua_State* L, dmGameObject::HCollection collection, dmMessage::URL* receiver,
+                                            dmhash_t id, dmGameObject::HPropertyContainer properties,
                                             const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
     {
         uint8_t DM_ALIGNED(16) buffer[512];
 
         dmGameSystemDDF::Create* create_msg = (dmGameSystemDDF::Create*)buffer;
         create_msg->m_Id = id;
-        create_msg->m_Index = index;
         create_msg->m_Position = position;
         create_msg->m_Rotation = rotation;
         create_msg->m_Scale3 = scale;
@@ -264,11 +264,10 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            dmGameObject::ReleaseInstanceIndex(index, collection);
             return luaL_error(L, "factory.create can not be called from this script type");
         }
 
-        dmMessage::Post(&sender, receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance,
+        dmMessage::Post(&sender, receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, 0,
                         (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + properties_size, 0);
 
         return 0;
@@ -331,46 +330,38 @@ namespace dmGameSystem
             scale = dmGameObject::GetWorldScale(sender_instance);
         }
 
-        uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
-        if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+        dmhash_t id = dmGameObject::CreateInstanceId();
+
+        // When calling factory.create() from a .gui_script (see engine/src/test/factory/factory.gui_script)
+        bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0;
+        if (msg_passing)
         {
-            dmLogError("factory.create can not create gameobject since the buffer is full. See `collection.max_instances` in game.project");
-            lua_pushnil(L);
+            FactoryComp_CreateWithMessage(L, collection, &receiver, id, properties, position, rotation, scale);
+            // We currently don't know if the creation succeeds
+            dmScript::PushHash(L, id);
         }
         else
         {
-            dmhash_t id = dmGameObject::ConstructInstanceId(index);
+            // Since the spawning will invoke any scripts on that new instance,
+            // we need a way to restore the state
+            dmScript::GetInstance(L);
+            int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-            // TODO: When does this actually happen? In render scripts? Or unit tests only?
-            bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0;
-            if (msg_passing)
+            dmGameObject::HInstance instance;
+            dmGameObject::Result result = CompFactorySpawn(world, component, collection,
+                                                            id, position, rotation, scale, properties, &instance);
+
+            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+            dmScript::SetInstance(L);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
+
+            if (result == dmGameObject::RESULT_OK)
             {
-                FactoryComp_CreateWithMessage(L, collection, sender_instance, &receiver, index, id, properties, position, rotation, scale);
-                // We currently don't know if the creation succeeds
                 dmScript::PushHash(L, id);
             }
             else
             {
-                // Since the spawning will invoke any scripts on that new instance,
-                // we need a way to restore the state
-                dmScript::GetInstance(L);
-                int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-
-                dmGameObject::HInstance instance = CompFactorySpawn(world, component, collection,
-                                                                index, id, position, rotation, scale, properties);
-
-                lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-                dmScript::SetInstance(L);
-                dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
-
-                if (instance != 0)
-                {
-                    dmScript::PushHash(L, id);
-                }
-                else
-                {
-                    lua_pushnil(L);
-                }
+                lua_pushnil(L);
             }
         }
 
@@ -432,7 +423,7 @@ namespace dmGameSystem
 
             // check that the path is a .goc
             const char* ext = dmResource::GetExtFromPath(path);
-            if (!ext || strcmp(ext, ".goc") != 0)
+            if (!ext || strcmp(ext, "goc") != 0)
             {
                 return luaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .goc resources are allowed",
                                         path,

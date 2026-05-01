@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -42,13 +42,8 @@
      (.flush writer)
      (.toString writer))))
 
-(defn- make-lua-memory-resource [workspace source]
-  (assert (string? source))
-  (let [resource-type (workspace/get-resource-type workspace "lua")]
-    (resource/make-memory-resource workspace resource-type source)))
-
 (defn- make-fake-file-resource [workspace path text]
-  (let [root-dir (workspace/project-path workspace)]
+  (let [root-dir (workspace/project-directory workspace)]
     (test-util/make-fake-file-resource workspace
                                        (.getPath root-dir)
                                        (io/file root-dir path)
@@ -67,7 +62,7 @@
           file-resource-node (project/get-resource-node project file-resource)
           zip-resource (workspace/find-resource workspace  "/builtins/graphics/particle_blob.png")
           zip-resource-node (project/get-resource-node project zip-resource)
-          memory-resource (make-lua-memory-resource workspace "return {key = 123}")
+          memory-resource (workspace/make-memory-resource workspace :editable "lua" "return {key = 123}")
           build-resource (workspace/make-build-resource memory-resource)
           fake-file-resource (make-fake-file-resource workspace "docs/readme.txt" "Defold")
           custom-resource (game-project/->CustomResource fake-file-resource)]

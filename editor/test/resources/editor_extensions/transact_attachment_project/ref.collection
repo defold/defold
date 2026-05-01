@@ -1,0 +1,22 @@
+name: "ref"
+instances {
+  id: "ref"
+  prototype: "/ref.go"
+}
+scale_along_z: 0
+embedded_instances {
+  id: "go"
+  children: "ref"
+  data: "embedded_components {\n"
+  "  id: \"sprite\"\n"
+  "  type: \"sprite\"\n"
+  "  data: \"default_animation: \\\"anim\\\"\\n"
+  "material: \\\"/builtins/materials/sprite.material\\\"\\n"
+  "textures {\\n"
+  "  sampler: \\\"texture_sampler\\\"\\n"
+  "  texture: \\\"/builtins/graphics/particle_blob.tilesource\\\"\\n"
+  "}\\n"
+  "\"\n"
+  "}\n"
+  ""
+}

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,7 +31,7 @@
 #include "comp_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Camera, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_Camera, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -156,6 +156,7 @@ namespace dmGameSystem
         camera.m_RenderCamera   = dmRender::NewRenderCamera(render_context);
 
         dmRender::RenderCameraData camera_data = {};
+        camera_data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
         camera_data.m_AspectRatio              = cam_resource->m_DDF->m_AspectRatio;
         camera_data.m_Fov                      = cam_resource->m_DDF->m_Fov;
         camera_data.m_NearZ                    = cam_resource->m_DDF->m_NearZ;
@@ -163,6 +164,7 @@ namespace dmGameSystem
         camera_data.m_AutoAspectRatio          = cam_resource->m_DDF->m_AutoAspectRatio != 0;
         camera_data.m_OrthographicProjection   = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
+        camera_data.m_OrthographicMode         = (uint8_t)cam_resource->m_DDF->m_OrthographicMode;
 
         dmMessage::URL camera_url = CameraToURL(&camera);
         SetRenderCameraURL(render_context, camera.m_RenderCamera, &camera_url);
@@ -175,6 +177,7 @@ namespace dmGameSystem
         *params.m_UserData = (uintptr_t) new_camera;
 
         CameraStackPush(w, new_camera);
+        dmRender::SetRenderCameraEnabled(render_context, camera.m_RenderCamera, true);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -238,7 +241,7 @@ namespace dmGameSystem
         return true;
     }
 
-    dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    dmGameObject::UpdateResult CompCameraLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         CameraWorld* camera_world = (CameraWorld*) params.m_World;
         DM_PROPERTY_ADD_U32(rmtp_Camera, camera_world->m_Cameras.Size());
@@ -282,6 +285,7 @@ namespace dmGameSystem
             camera_data.m_FarZ                   = ddf->m_FarZ;
             camera_data.m_OrthographicProjection = ddf->m_OrthographicProjection;
             camera_data.m_OrthographicZoom       = ddf->m_OrthographicZoom;
+            camera_data.m_OrthographicMode   = (uint8_t) ddf->m_OrthographicMode;
 
             dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         }
@@ -289,11 +293,13 @@ namespace dmGameSystem
             (dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
         {
             CameraStackPush(camera->m_World, camera);
+            dmRender::SetRenderCameraEnabled((dmRender::RenderContext*)params.m_Context, camera->m_RenderCamera, true);
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash ||
             (dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
         {
             CameraStackRemove(camera->m_World, camera);
+            dmRender::SetRenderCameraEnabled((dmRender::RenderContext*)params.m_Context, camera->m_RenderCamera, false);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -314,6 +320,7 @@ namespace dmGameSystem
         camera_data.m_AutoAspectRatio          = cam_resource->m_DDF->m_AutoAspectRatio != 0;
         camera_data.m_OrthographicProjection   = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
+        camera_data.m_OrthographicMode     = (uint8_t) cam_resource->m_DDF->m_OrthographicMode;
 
         dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         CompCameraUpdateViewProjection(camera, render_context);
@@ -359,7 +366,8 @@ namespace dmGameSystem
         }
         else if (CAMERA_PROP_ASPECT_RATIO == get_property)
         {
-            out_value.m_Variant = dmGameObject::PropertyVar(camera_data.m_AspectRatio);
+            float aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(render_context, camera->m_RenderCamera);
+            out_value.m_Variant = dmGameObject::PropertyVar(aspect_ratio);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;

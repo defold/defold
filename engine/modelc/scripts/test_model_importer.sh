@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
 
-
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+eval $(python $SCRIPT_DIR/../../../build_tools/set_sdk_vars.py VERSION_XCODE)
 pushd $SCRIPT_DIR/..
-BUILD_DIR=$(realpath ./build/src)
+BUILD_DIR=$(realpath ${DYNAMO_HOME}/../../engine/modelc/build/src)
 
 set -e
 
-CLASS_NAME=com.dynamo.bob.pipeline.ModelImporter
+CLASS_NAME=com.dynamo.bob.pipeline.ModelImporterJni
 LIBNAME=modelc_shared
 SUFFIX=.so
 if [ "Darwin" == "$(uname)" ]; then
@@ -59,7 +59,7 @@ if [ "Darwin" == "$(uname)" ]; then
     set -e
 
     PACKAGED_XCODE=${DYNAMO_HOME}/ext/SDKs/
-    PACKAGED_XCODE_TOOLCHAIN=${PACKAGED_XCODE}/Toolchains/XcodeDefault.xctoolchain
+    PACKAGED_XCODE_TOOLCHAIN=${PACKAGED_XCODE}/XcodeDefault${VERSION_XCODE}.xctoolchain
     LOCAL_XCODE=$(xcode-select -print-path)
     LOCAL_XCODE_TOOLCHAIN=${LOCAL_XCODE}/Toolchains/XcodeDefault.xctoolchain
 fi
@@ -95,7 +95,10 @@ if [ "${USING_UBSAN}" != "" ]; then
 fi
 
 #JNI_DEBUG_FLAGS="-Xcheck:jni"
+#export DYLD_INSERT_LIBRARIES=${JAVA_HOME}/lib/libjsig.dylib
 
 export DM_MODELIMPORTER_LOG_LEVEL=DEBUG
 
-java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djni.library.path=${BUILD_DIR} ${JNA_DEBUG_FLAGS} -cp ${JAR} ${CLASS_NAME} $*
+MODELINPUT=$1
+shift
+java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djni.library.path=${BUILD_DIR} ${JNA_DEBUG_FLAGS} -cp ${JAR} ${CLASS_NAME} "${MODELINPUT}" $*

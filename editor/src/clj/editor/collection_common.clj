@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,8 +28,7 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]
-           [javax.vecmath Matrix4d]))
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -128,12 +127,12 @@
                             nil))))
               (:embedded-instances source-value))))))
 
-(defn game-object-instance-build-target [build-resource instance-desc-with-go-props pose game-object-build-target proj-path->resource-property-build-target]
-  {:pre [(workspace/build-resource? build-resource)
+(defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
+  {:pre [(map? game-object-build-target)
+         (workspace/build-resource? (:resource game-object-build-target))
          (map? instance-desc-with-go-props) ; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format, but GameObject$PropertyDescs must have a :clj-value.
          (not (contains? instance-desc-with-go-props :data)) ; We don't need the :data from GameObject$EmbeddedInstanceDescs.
          (pose/pose? pose)
-         (map? game-object-build-target)
          (ifn? proj-path->resource-property-build-target)]}
   ;; Create a build-target for the referenced or embedded game object. Also tag
   ;; on :game-object-instance-data with the overrides for this instance. This
@@ -149,25 +148,24 @@
   ;; for more info.
   (let [build-target-go-props (partial properties/build-target-go-props
                                        proj-path->resource-property-build-target)
-        component-property-infos (map (comp build-target-go-props :properties)
-                                      (:component-properties instance-desc-with-go-props))
-        component-go-props (map first component-property-infos)
-        component-property-descs (map #(protobuf/assign-repeated %1 :properties %2)
-                                      (:component-properties instance-desc-with-go-props)
-                                      component-go-props)
+        component-property-infos (mapv (comp build-target-go-props :properties)
+                                       (:component-properties instance-desc-with-go-props))
+        component-go-props (mapv first component-property-infos)
+        component-property-descs (mapv #(protobuf/assign-repeated %1 :properties %2)
+                                       (:component-properties instance-desc-with-go-props)
+                                       component-go-props)
         go-prop-dep-build-targets (into []
                                         (comp (mapcat second)
                                               (util/distinct-by (comp resource/proj-path :resource)))
                                         component-property-infos)
-        game-object-instance-data {:resource build-resource
+        game-object-build-resource (:resource game-object-build-target)
+        game-object-instance-data {:resource game-object-build-resource
                                    :pose pose
                                    :property-deps go-prop-dep-build-targets
                                    :instance-msg (protobuf/assign-repeated instance-desc-with-go-props
-                                                   :component-properties component-property-descs)}
-        build-target (assoc game-object-build-target
-                       :resource build-resource
-                       :game-object-instance-data game-object-instance-data)]
-    (bt/with-content-hash build-target)))
+                                                   :component-properties component-property-descs)}]
+    (assoc game-object-build-target
+      :game-object-instance-data game-object-instance-data)))
 
 (defn- source-resource-component-property-desc [component-property-desc]
   (protobuf/sanitize-repeated component-property-desc :properties properties/source-resource-go-prop))
@@ -285,7 +283,7 @@
   ;; equivalent. We must update any references to these BuildResources
   ;; to instead point to the resulting fused BuildResource. The same goes for
   ;; resource property overrides inside the InstanceDescs.
-  (let [{:keys [name game-object-instance-datas scale-along-z]} user-data
+  (let [{:keys [name game-object-instance-datas]} user-data
         build-go-props (partial properties/build-go-props dep-resources)
         go-instance-msgs (map :instance-msg game-object-instance-datas)
         go-instance-transform-properties (map (comp pose->transform-properties :pose) game-object-instance-datas)
@@ -316,16 +314,14 @@
                                       go-instance-component-go-props)
         collection-desc {:name name
                          :instances (sort-instance-descs-for-build-output instance-descs)
-                         :scale-along-z (protobuf/boolean->int scale-along-z)
                          :property-resources property-resource-paths}]
     {:resource build-resource
      :content (protobuf/map->bytes GameObject$CollectionDesc collection-desc)}))
 
-(defn collection-build-target [build-resource node-id name scale-along-z game-object-instance-build-targets collection-instance-build-targets]
+(defn collection-build-target [build-resource node-id name game-object-instance-build-targets collection-instance-build-targets]
   {:pre [(workspace/build-resource? build-resource)
          (g/node-id? node-id)
-         (string? name)
-         (boolean? scale-along-z)
+         (or (nil? name) (string? name))
          (seqable? game-object-instance-build-targets)
          (seqable? collection-instance-build-targets)]}
   ;; Extract the :game-object-instance-datas from the game object instance build
@@ -345,8 +341,7 @@
       {:node-id node-id
        :resource build-resource
        :build-fn build-collection
-       :user-data {:name name
-                   :scale-along-z scale-along-z
+       :user-data {:name (or name "")
                    :game-object-instance-datas (mapv #(dissoc % :property-deps)
                                                      game-object-instance-datas)}
        :deps (into (vec (concat game-object-instance-build-targets property-deps))
@@ -354,13 +349,13 @@
                    collection-instance-build-targets)
        :game-object-instance-datas game-object-instance-datas})))
 
-(defn any-instance-scene [node-id node-outline-key ^Matrix4d transform-matrix source-scene]
+(defn any-instance-scene [node-id node-outline-key instance-pose source-scene]
   {:pre [(g/node-id? node-id)
-         (instance? Matrix4d transform-matrix)
+         (pose/pose? instance-pose)
          (or (nil? source-scene) (map? source-scene))]}
   (-> source-scene
       (scene/claim-scene node-id node-outline-key)
-      (assoc :transform transform-matrix
+      (assoc :pose instance-pose
              :aabb geom/empty-bounding-box
              :renderable {:passes [pass/selection]})))
 

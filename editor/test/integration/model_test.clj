@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,7 +31,7 @@
           aabb (:aabb scene)
           min ^Point3d (types/min-p aabb)
           max ^Point3d (types/max-p aabb)]
-      (is (< 10 (.distance max min))))))
+      (is (< 1 (.distance max min) 2)))))
 
 (deftest textures
   (test-util/with-loaded-project
@@ -69,10 +69,12 @@
 (deftest animations
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/test.model")]
-      (testing "can assign single dae file as animations"
-        (let [dae-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.dae")]
-          (test-util/with-prop [node-id :animations dae-resource]
-            (is (= #{(murmur/hash64 "treasure_chest")} (set (map :id (:animations (g/node-value node-id :animation-set)))))))))
+      (testing "can assign single glTF file as animations"
+        (let [gltf-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.gltf")]
+          (test-util/with-prop [node-id :animations gltf-resource]
+            (is (= #{(murmur/hash64 "Bend2bones")
+                     (murmur/hash64 "Bend90")}
+                   (set (map :id (:animations (g/node-value node-id :animation-set)))))))))
       (testing "can assign animation set as animations"
         (let [animation-set-resource (workspace/resolve-workspace-resource workspace "/model/treasure_chest.animationset")]
           (test-util/with-prop [node-id :animations animation-set-resource]
@@ -87,16 +89,17 @@
       
       (testing "mesh is required"
         (is (nil? (test-util/prop-error node-id :mesh)))
-        (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.dae")]]
+        (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.gltf")]]
           (test-util/with-prop [node-id :mesh v]
-            (is (g/error? (test-util/prop-error node-id :mesh))))))
+            (is (g/error? (test-util/prop-error node-id :mesh)))
+            (is (g/error-value? (g/node-value node-id :build-targets))))))
 
-      (testing "at least 1 material is required"
+      (testing "material must be assigned and exist"
         (is (not (g/error-value? (g/node-value node-id :build-targets))))
-        (let [material-binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
-          (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
-            (test-util/with-prop [material-binding-id :material v]
-              (is (g/error-value? (g/node-value node-id :build-targets)))))))
+        (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+          (test-util/with-prop [node-id :__material__0 v]
+            (is (g/error? (test-util/prop-error node-id :__material__0)))
+            (is (g/error-value? (g/node-value node-id :build-targets))))))
 
       (testing "default-animation should be empty string or a valid animation"
         (is (nil? (test-util/prop-error node-id :animations)))
@@ -107,4 +110,5 @@
           (test-util/with-prop [node-id :default-animation "treasure_chest"]
             (is (not (g/error? (test-util/prop-error node-id :default-animation)))))
           (test-util/with-prop [node-id :default-animation "gurka"]
-            (is (g/error? (test-util/prop-error node-id :default-animation)))))))))
+            (is (g/error? (test-util/prop-error node-id :default-animation)))
+            (is (g/error-value? (g/node-value node-id :build-targets)))))))))

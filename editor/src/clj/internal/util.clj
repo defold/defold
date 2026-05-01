@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,8 +18,7 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [schema.core :as s]
-            [util.coll :as coll :refer [pair]])
-  (:import [clojure.lang IEditableCollection]))
+            [util.coll :as coll :refer [pair]]))
 
 (set! *warn-on-reflection* true)
 
@@ -97,7 +96,7 @@
   ([groups-container empty-group key-fn value-fn coll]
    (assert (associative? groups-container))
    (assert (coll? empty-group))
-   (let [group-transient? (instance? IEditableCollection empty-group)
+   (let [group-transient? (coll/supports-transient? empty-group)
          group-prepare (if group-transient? transient identity)
          group-conj (if group-transient? conj! conj)
          group-finish (if-not group-transient?
@@ -105,7 +104,7 @@
                         (fn [transient-group]
                           (with-meta (persistent! transient-group)
                                      (meta empty-group))))
-         groups-container-transient? (instance? IEditableCollection groups-container)
+         groups-container-transient? (coll/supports-transient? groups-container)
          groups-container-prepare (if groups-container-transient? transient identity)
          groups-container-assoc (if groups-container-transient? assoc! assoc)
          groups-container-finish (cond
@@ -147,17 +146,21 @@
   [pred m]
   (into {} (filter pred m)))
 
-(defn key-set
+(defmacro key-set
+  "DEPRECATED. Use coll/key-set."
   [m]
-  (set (keys m)))
+  ;; TODO: Replace all calls so we can get rid of this macro.
+  `(coll/key-set ~m))
 
 (defn map-keys
   [f m]
   (reduce-kv (fn [m k v] (assoc m (f k) v)) (empty m) m))
 
-(defn map-vals
+(defmacro map-vals
+  "DEPRECATED. Use coll/map-vals."
   [f m]
-  (reduce-kv (fn [m k v] (assoc m k (f v))) m m))
+  ;; TODO: Replace all calls so we can get rid of this macro.
+  `(coll/map-vals ~f ~m))
 
 (defn map-first
   [f pairs]
@@ -361,28 +364,24 @@
            0
            coll)))
 
-(defn first-where
-  "Returns the first element in coll where pred returns true, or nil if there was
+(defmacro first-where
+  "DEPRECATED. Use coll/first-where.
+
+  Returns the first element in coll where pred returns true, or nil if there was
   no matching element. If coll is a map, key-value pairs are passed to pred."
   [pred coll]
-  (loop [elems coll]
-    (when (seq elems)
-      (let [elem (first elems)]
-        (if (pred elem)
-          elem
-          (recur (next elems)))))))
+  ;; TODO: Replace all calls so we can get rid of this macro.
+  `(coll/first-where ~pred ~coll))
 
-(defn first-index-where
-  "Returns the index of the first element in coll where pred returns true,
+(defmacro first-index-where
+  "DEPRECATED. Use coll/first-index-where.
+
+  Returns the index of the first element in coll where pred returns true,
   or nil if there was no matching element. If coll is a map, key-value
   pairs are passed to pred."
   [pred coll]
-  (loop [index 0
-         elems coll]
-    (cond
-      (empty? elems) nil
-      (pred (first elems)) index
-      :else (recur (inc index) (next elems)))))
+  ;; TODO: Replace all calls so we can get rid of this macro.
+  `(coll/first-index-where ~pred ~coll))
 
 (defn only
   "Returns the only element in coll, or nil if there are more than one element."
@@ -413,14 +412,20 @@
     (map? coll)
     (if (sorted? coll)
       coll
-      (with-meta (into (sorted-map) coll)
-                 (meta coll)))
+      (try
+        (with-meta (into (sorted-map) coll)
+                   (meta coll))
+        (catch ClassCastException _
+          coll)))
 
     (set? coll)
     (if (sorted? coll)
       coll
-      (with-meta (into (sorted-set) coll)
-                 (meta coll)))
+      (try
+        (with-meta (into (sorted-set) coll)
+                   (meta coll))
+        (catch ClassCastException _
+          coll)))
 
     :else
     coll))
@@ -433,9 +438,8 @@
     (select-keys-deep value kept-keys)
 
     (coll? value)
-    (into (empty value)
-          (map (partial select-keys-deep-value-helper kept-keys))
-          value)
+    (coll/transform-> value
+      (map (partial select-keys-deep-value-helper kept-keys)))
 
     :else
     value))
@@ -468,17 +472,15 @@
 
      (map? value)
      (finalize-coll-value-fn
-       (into (coll/empty-with-meta value)
-             (map (fn [[k v]]
-                    (let [v' (deep-map finalize-coll-value-fn value-fn v)]
-                      (pair k v'))))
-             value))
+       (coll/transform-> value
+         (map (fn [[k v]]
+                (let [v' (deep-map finalize-coll-value-fn value-fn v)]
+                  (pair k v'))))))
 
      (coll? value)
      (finalize-coll-value-fn
-       (into (coll/empty-with-meta value)
-             (map #(deep-map finalize-coll-value-fn value-fn %))
-             value))
+       (coll/transform-> value
+         (map #(deep-map finalize-coll-value-fn value-fn %))))
 
      :else
      (value-fn value))))
@@ -490,17 +492,15 @@
 
     (map? value)
     (finalize-coll-value-fn
-      (into (empty value)
-            (map (fn [[k v]]
-                   (let [v' (deep-map-kv-helper finalize-coll-value-fn value-fn k v)]
-                     (pair k v'))))
-            value))
+      (coll/transform-> value
+        (map (fn [[k v]]
+               (let [v' (deep-map-kv-helper finalize-coll-value-fn value-fn k v)]
+                 (pair k v'))))))
 
     (coll? value)
     (finalize-coll-value-fn
-      (into (empty value)
-            (map-indexed #(deep-map-kv-helper finalize-coll-value-fn value-fn %1 %2))
-            value))
+      (coll/transform-> value
+        (map-indexed #(deep-map-kv-helper finalize-coll-value-fn value-fn %1 %2))))
 
     :else
     (value-fn key value)))
@@ -533,17 +533,15 @@
 
      (map? value)
      (finalize-coll-value-fn
-       (into (empty value)
-             (keep (fn [entry]
-                     (when-some [v' (deep-keep finalize-coll-value-fn value-fn (val entry))]
-                       (pair (key entry) v'))))
-             value))
+       (coll/transform-> value
+         (keep (fn [entry]
+                 (when-some [v' (deep-keep finalize-coll-value-fn value-fn (val entry))]
+                   (pair (key entry) v'))))))
 
      (coll? value)
      (finalize-coll-value-fn
-       (into (empty value)
-             (keep #(deep-keep finalize-coll-value-fn value-fn %))
-             value))
+       (coll/transform-> value
+         (keep #(deep-keep finalize-coll-value-fn value-fn %))))
 
      :else
      (value-fn value))))
@@ -555,17 +553,15 @@
 
     (map? value)
     (finalize-coll-value-fn
-      (into (empty value)
-            (keep (fn [[k v]]
-                    (when-some [v' (deep-keep-kv-helper finalize-coll-value-fn value-fn k v)]
-                      (pair k v'))))
-            value))
+      (coll/transform-> value
+        (keep (fn [[k v]]
+                (when-some [v' (deep-keep-kv-helper finalize-coll-value-fn value-fn k v)]
+                  (pair k v'))))))
 
     (coll? value)
     (finalize-coll-value-fn
-      (into (empty value)
-            (keep-indexed #(deep-keep-kv-helper finalize-coll-value-fn value-fn %1 %2))
-            value))
+      (coll/transform-> value
+        (keep-indexed #(deep-keep-kv-helper finalize-coll-value-fn value-fn %1 %2))))
 
     :else
     (value-fn key value)))

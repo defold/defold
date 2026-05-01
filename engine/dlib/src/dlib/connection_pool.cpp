@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -227,7 +227,7 @@ namespace dmConnectionPool
     static void PurgeExpired(HPool pool) {
         uint32_t n = pool->m_Connections.Size();
 
-        uint64_t now = dmTime::GetTime();
+        uint64_t now = dmTime::GetMonotonicTime();
         for (uint32_t i = 0; i < n; ++i) {
             Connection* c = &pool->m_Connections[i];
             if (c->m_State == STATE_CONNECTED && now >= c->m_Expires) {
@@ -251,24 +251,65 @@ namespace dmConnectionPool
         return false;
     }
 
-    static Result ConnectSocket(HPool pool, dmSocket::Address address, uint16_t port, int timeout, dmSocket::Socket* socket, dmSocket::Result* sr)
+    static bool PublishInProgressSocket(HPool pool, Connection* connection, dmSocket::Socket* socket)
+    {
+        DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+        if (connection->m_State == STATE_INUSE && !connection->m_WasShutdown)
+        {
+            connection->m_Socket = *socket;
+            return true;
+        }
+        return false;
+    }
+
+    static void UnpublishInProgressSocket(HPool pool, Connection* connection, dmSocket::Socket socket)
+    {
+        DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+        if (connection->m_Socket == socket)
+        {
+            connection->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+    }
+
+    static void CloseInProgressSocket(HPool pool, Connection* connection, dmSocket::Socket* socket)
+    {
+        if (*socket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            UnpublishInProgressSocket(pool, connection, *socket);
+            dmSocket::Delete(*socket);
+            *socket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+    }
+
+    static Result ConnectSocket(HPool pool, Connection* connection, dmSocket::Address address, uint16_t port, int timeout, dmSocket::Socket* socket, dmSocket::Result* sr)
     {
         *sr = dmSocket::New(address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, socket);
         if (*sr != dmSocket::RESULT_OK) {
             return RESULT_SOCKET_ERROR;
         }
 
+        // Publish the raw socket as soon as it exists so pool shutdown can interrupt both
+        // an in-flight TCP connect and a subsequent SSL handshake. If shutdown already claimed
+        // the slot before we could publish, abort immediately instead of continuing with an
+        // untracked socket.
+        if (!PublishInProgressSocket(pool, connection, socket))
+        {
+            *sr = dmSocket::RESULT_CONNABORTED;
+            CloseInProgressSocket(pool, connection, socket);
+            return RESULT_SHUT_DOWN;
+        }
+
         if( timeout > 0 )
         {
             *sr = dmSocket::SetBlocking(*socket, false);
             if (*sr != dmSocket::RESULT_OK) {
-                dmSocket::Delete(*socket);
+                CloseInProgressSocket(pool, connection, socket);
                 return RESULT_SOCKET_ERROR;
             }
 
             *sr = dmSocket::Connect(*socket, address, port);
             if (*sr != dmSocket::RESULT_OK) {
-                dmSocket::Delete(*socket);
+                CloseInProgressSocket(pool, connection, socket);
                 return RESULT_SOCKET_ERROR;
             }
 
@@ -279,13 +320,13 @@ namespace dmConnectionPool
             *sr = dmSocket::Select(&selector, timeout);
             if( *sr == dmSocket::RESULT_WOULDBLOCK )
             {
-                dmSocket::Delete(*socket);
+                CloseInProgressSocket(pool, connection, socket);
                 return RESULT_SOCKET_ERROR;
             }
 
             *sr = dmSocket::SetBlocking(*socket, true);
             if (*sr != dmSocket::RESULT_OK) {
-                dmSocket::Delete(*socket);
+                CloseInProgressSocket(pool, connection, socket);
                 return RESULT_SOCKET_ERROR;
             }
         }
@@ -293,7 +334,7 @@ namespace dmConnectionPool
         {
             *sr = dmSocket::Connect(*socket, address, port);
             if (*sr != dmSocket::RESULT_OK) {
-                dmSocket::Delete(*socket);
+                CloseInProgressSocket(pool, connection, socket);
                 return RESULT_SOCKET_ERROR;
             }
         }
@@ -301,37 +342,102 @@ namespace dmConnectionPool
         return RESULT_OK;
     }
 
-    static Result Connect(HPool pool, const char* host, dmSocket::Address address, uint16_t port, bool ssl, int timeout,
-                                    dmSocket::Socket* socket, dmSSLSocket::Socket* sslsocket, dmSocket::Result* sr)
-    {
-        uint64_t connectstart = dmTime::GetTime();
 
-        Result r = ConnectSocket(pool, address, port, timeout, socket, sr);
+    static Result CreateSSLSocket(dmSocket::Socket socket, const char* host, int timeout, dmSSLSocket::Socket* sslsocket, dmSocket::Result* sock_res)
+    {
+        dmSSLSocket::Result result = dmSSLSocket::New(socket, host, timeout, sslsocket);
+        if (dmSSLSocket::RESULT_OK != result)
+        {
+            if (dmSSLSocket::RESULT_WOULDBLOCK == result)
+            {
+                *sock_res = dmSocket::RESULT_WOULDBLOCK;
+            }
+            else if (dmSSLSocket::RESULT_CONNREFUSED == result)
+            {
+                *sock_res = dmSocket::RESULT_CONNREFUSED;
+            }
+            else
+            {
+                *sock_res = dmSocket::RESULT_UNKNOWN;
+            }
+            return RESULT_HANDSHAKE_FAILED;
+        }
+        return RESULT_OK;
+    }
+
+
+    Result CreateSSLSocket(HPool pool, HConnection connection, const char* host, int timeout, dmSocket::Result* sock_res)
+    {
+        dmSocket::Socket socket = dmSocket::INVALID_SOCKET_HANDLE;
+        dmSSLSocket::Socket sslsocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
+        bool delete_socket = false;
+
+        {
+            DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+
+            Connection* c = GetConnection(pool, connection);
+            if (!pool->m_AllowNewConnections || c->m_WasShutdown || c->m_Socket == dmSocket::INVALID_SOCKET_HANDLE)
+            {
+                *sock_res = dmSocket::RESULT_CONNABORTED;
+                return RESULT_SHUT_DOWN;
+            }
+            socket = c->m_Socket;
+        }
+
+        Result r = CreateSSLSocket(socket, host, timeout, &sslsocket, sock_res);
+
+        {
+            DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+
+            Connection* c = GetConnection(pool, connection);
+            if (r == RESULT_OK && pool->m_AllowNewConnections && !c->m_WasShutdown && c->m_Socket == socket)
+            {
+                c->m_SSLSocket = sslsocket;
+                sslsocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
+            }
+            else if (r == RESULT_OK)
+            {
+                r = RESULT_SHUT_DOWN;
+                *sock_res = dmSocket::RESULT_CONNABORTED;
+            }
+
+            if (c->m_Socket != socket)
+            {
+                // The slot no longer owns the raw socket (typically because Shutdown()
+                // interrupted the in-flight handshake), so the borrowed local handle
+                // must delete it after we leave the mutex.
+                delete_socket = true;
+            }
+        }
+
+        if (sslsocket != dmSSLSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSSLSocket::Delete(sslsocket);
+        }
+        if (delete_socket)
+        {
+            dmSocket::Delete(socket);
+        }
+        return r;
+    }
+
+    static Result Connect(HPool pool, Connection* connection, const char* host, dmSocket::Address address, uint16_t port, int timeout,
+                                    dmSocket::Socket* socket, dmSocket::Result* sr)
+    {
+        uint64_t connectstart = dmTime::GetMonotonicTime();
+
+        Result r = ConnectSocket(pool, connection, address, port, timeout, socket, sr);
         if( r != RESULT_OK )
         {
             *socket = dmSocket::INVALID_SOCKET_HANDLE;
             return r;
         }
 
-        uint64_t handshakestart = dmTime::GetTime();
-        if( timeout > 0 && (handshakestart - connectstart) > (uint64_t)timeout )
+        uint64_t now = dmTime::GetMonotonicTime();
+        if( timeout > 0 && (now - connectstart) > (uint64_t)timeout )
         {
-            dmSocket::Delete(*socket);
-            *socket = dmSocket::INVALID_SOCKET_HANDLE;
+            CloseInProgressSocket(pool, connection, socket);
             return RESULT_SOCKET_ERROR;
-        }
-
-        if (RESULT_OK == r && ssl) {
-            dmSSLSocket::Result result = dmSSLSocket::New(*socket, host, timeout, sslsocket);
-            if (dmSSLSocket::RESULT_OK != result)
-            {
-                *sslsocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
-                if (dmSSLSocket::RESULT_WOULDBLOCK == result)
-                    *sr = dmSocket::RESULT_WOULDBLOCK;
-                else
-                    *sr = dmSocket::RESULT_UNKNOWN;
-                return RESULT_HANDSHAKE_FAILED;
-            }
         }
         return r;
     }
@@ -350,11 +456,11 @@ namespace dmConnectionPool
         // that the caller can try to connect first to ipv4 and then to ipv6 if ipv4 failed.
         dmSocket::Address address;
 
-        uint64_t dial_started = dmTime::GetTime();
+        uint64_t dial_started = dmTime::GetMonotonicTime();
         bool gethost_did_succeed = dmSocket::GetHostByNameT(host, &address, timeout, cancelflag, ipv4, ipv6) == dmSocket::RESULT_OK;
         if (timeout > 0)
         {
-            timeout = timeout - (int)(dmTime::GetTime() - dial_started);
+            timeout = timeout - (int)(dmTime::GetMonotonicTime() - dial_started);
             if (timeout <= 0)
             {
                 return RESULT_SOCKET_ERROR;
@@ -370,6 +476,11 @@ namespace dmConnectionPool
             DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
 
             PurgeExpired(pool);
+
+            if (!pool->m_AllowNewConnections) {
+                *sock_res = dmSocket::RESULT_CONNABORTED;
+                return RESULT_SHUT_DOWN;
+            }
 
             if (FindConnection(pool, conn_id, address, port, ssl, connection)) {
                 return RESULT_OK;
@@ -387,26 +498,53 @@ namespace dmConnectionPool
 
         dmSocket::Socket socket = dmSocket::INVALID_SOCKET_HANDLE;
         dmSSLSocket::Socket sslsocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
-        Result r = Connect(pool, host, address, port, ssl, timeout, &socket, &sslsocket, sock_res);
+
+        Result r = Connect(pool, c, host, address, port, timeout, &socket, sock_res);
+        if ((r == RESULT_OK) && ssl)
+        {
+            r = CreateSSLSocket(socket, host, timeout, &sslsocket, sock_res);
+        }
 
         {
             DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
 
-            if (r == RESULT_OK) {
+            if (r == RESULT_OK && pool->m_AllowNewConnections && !c->m_WasShutdown)
+            {
                 *connection = MakeHandle(pool, index, c);
-                c->m_Socket = socket;
                 c->m_SSLSocket = sslsocket;
                 c->m_ID = conn_id;
                 c->m_ReuseCount = 0;
                 c->m_State = STATE_INUSE;
-                c->m_Expires = pool->m_MaxKeepAlive * 1000000U + dmTime::GetTime();
+                c->m_Expires = pool->m_MaxKeepAlive * 1000000U + dmTime::GetMonotonicTime();
                 c->m_Address = address;
                 c->m_Port = port;
                 c->m_WasShutdown = 0;
-            } else {
-                c->m_State = STATE_FREE;
-                DoClose(pool, c);
+                socket = dmSocket::INVALID_SOCKET_HANDLE;
+                sslsocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
             }
+            else
+            {
+                // The raw socket is published into the slot before connect/handshake completes
+                // so Shutdown() can interrupt it. If we never commit the connection, ownership
+                // stays with these local variables and the slot is only reset here.
+                if (r == RESULT_OK)
+                {
+                    r = RESULT_SHUT_DOWN;
+                    *sock_res = dmSocket::RESULT_CONNABORTED;
+                }
+                c->Clear();
+            }
+        }
+
+        // If commit succeeded, ownership was transferred to the pool slot and these locals were
+        // invalidated above. Otherwise they still own the uncommitted handles and must clean up.
+        if (sslsocket != dmSSLSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSSLSocket::Delete(sslsocket);
+        }
+        if (socket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Delete(socket);
         }
 
         return r;
@@ -415,8 +553,10 @@ namespace dmConnectionPool
     Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, int* cancelflag, HConnection* connection, dmSocket::Result* sock_res)
     {
         // try connecting to the host using ipv4 first
-        uint64_t dial_started = dmTime::GetTime();
-        Result r = DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, 1, 0);
+        bool ipv4 = true;
+        bool ipv6 = false;
+        uint64_t dial_started = dmTime::GetMonotonicTime();
+        Result r = DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, ipv4, ipv6);
         // Only if handshake failed NOT because of timeout
         if (r == RESULT_OK || r == RESULT_SHUT_DOWN || r == RESULT_OUT_OF_RESOURCES ||
             (r == RESULT_HANDSHAKE_FAILED && *sock_res != dmSocket::RESULT_WOULDBLOCK))
@@ -424,15 +564,17 @@ namespace dmConnectionPool
             return r;
         }
         // ipv4 connection failed - reduce timeout (if needed) and try using ipv6 instead
+        ipv4 = false;
+        ipv6 = true;
         if (timeout > 0)
         {
-            timeout = timeout - (int)(dmTime::GetTime() - dial_started);
+            timeout = timeout - (int)(dmTime::GetMonotonicTime() - dial_started);
             if (timeout <= 0)
             {
                 return RESULT_SOCKET_ERROR;
             }
         }
-        return DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, 0, 1);
+        return DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, ipv4, ipv6);
     }
 
     Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
@@ -500,7 +642,10 @@ namespace dmConnectionPool
                     // Due to threaded behavior, the connection may be in use,
                     // but the socket's haven't been assigned yet
                     if(c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
+                    {
                         dmSocket::Shutdown(c->m_Socket, how);
+                        c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+                    }
                     c->m_WasShutdown = 1;
                 }
             }
@@ -512,17 +657,16 @@ namespace dmConnectionPool
     void Reopen(HPool pool)
     {
         // This function is used by tests to restore usage of a pool
-        // We purge any live connections so the test does not run out
-        // of connection pool items
+        // We purge idle pooled connections so the test does not run out
+        // of connection pool items. In-use slots keep their handles until
+        // their owners unwind, otherwise a concurrent request can observe an
+        // invalidated connection handle during shutdown.
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
         uint32_t n = pool->m_Connections.Size();
         for (uint32_t i=0; i != n; i++) {
             Connection* c = &pool->m_Connections[i];
-            if (c->m_State == STATE_CONNECTED)
-            {
-                dmSSLSocket::Delete(c->m_SSLSocket);
-                dmSocket::Delete(c->m_Socket);
-                c->Clear();
+            if (c->m_State == STATE_CONNECTED) {
+                DoClose(pool, c);
             }
         }
         pool->m_AllowNewConnections = 1;

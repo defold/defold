@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,7 @@
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.model-scene :as model-scene]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
@@ -75,8 +76,8 @@
         animation-set-builder (Rig$AnimationSet/newBuilder)
         animation-ids (ArrayList.)
         workspace (resource/workspace resource)
-        project-path (workspace/project-path workspace)
-        data-resolver (ModelUtil/createFileDataResolver project-path)]
+        project-directory (workspace/project-directory workspace)
+        data-resolver (ModelUtil/createFileDataResolver project-directory)]
 
     (AnimationSetBuilder/buildAnimations is-animation-set paths streams data-resolver parent-ids animation-set-builder animation-ids)
     (let [animation-set (protobuf/pb->map-with-defaults (.build animation-set-builder))]
@@ -93,8 +94,9 @@
     (catch LoaderException e
       (log/error :message (str "Error loading: " (resource/resource->proj-path resource)) :exception e)
       (g/->error _node-id :animations :fatal resource
-                 (str "Failed to build " (resource/resource->proj-path resource)
-                      ": " (.getMessage e))))))
+                 (localization/message "error.animation-set-build-failed"
+                                       {"resource" (resource/resource->proj-path resource)
+                                        "error" (.getMessage e)})))))
 
 (g/defnk produce-animation-set [animation-set-info]
   (:animation-set animation-set-info))
@@ -121,10 +123,10 @@
 (def ^:private form-sections
   {:navigation false
    :sections
-   [{:title "Animation Set"
+   [{:localization-key "animationset"
      :fields [{:path [:animations]
                :type :list
-               :label "Animations"
+               :localization-key "animationset.animations"
                :element {:type :resource
                          :filter model-scene/animation-file-types
                          :default nil}}]}]})
@@ -173,7 +175,8 @@
 
 (defn- load-animation-set [_project self resource animation-set-desc]
   {:pre [(map? animation-set-desc)]} ; Rig$AnimationSetDesc in map format
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
         animation-instance-descs->animation-resources #(mapv (comp resolve-resource :animation) %)]
     (gu/set-properties-from-pb-map self Rig$AnimationSetDesc animation-set-desc
       animations (animation-instance-descs->animation-resources :animations))))
@@ -186,7 +189,8 @@
     :ext "animationset"
     :icon animation-set-icon
     :icon-class :property
-    :label "Animation Set"
+    :category (localization/message "resource.category.resources")
+    :label (localization/message "resource.type.animationset")
     :load-fn load-animation-set
     :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode

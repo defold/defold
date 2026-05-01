@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,7 +39,7 @@
       (error-reporting/report-exception! e)))
   (close-notification! event))
 
-(defn- notifications-view [{:keys [id->notification ids]} parent]
+(defn- notifications-view [{:keys [id->notification ids]} parent localization]
   (let [n (count ids)]
     {:fx/type ext-with-v-box-props
      :desc {:fx/type fxui/ext-value :value parent}
@@ -55,7 +55,7 @@
                       close-button-margin 4
                       spacing 4
                       id (peek ids)
-                      {:keys [type text actions]} (id->notification id)]
+                      {:keys [type message actions]} (id->notification id)]
                   {:fx/type fx.stack-pane/lifecycle
                    :max-width (+ (* typical-button-count 100) ;; min button width
                                  (* 2 horizontal-padding)
@@ -74,10 +74,12 @@
                                          :right (- horizontal-padding close-button-margin)}
                                :spacing spacing
                                :fill-height false
-                               :children [{:fx/type fxui/label
+                               :children [{:fx/type fxui/ext-localize
                                            :h-box/hgrow :always
-                                           :max-width Double/MAX_VALUE
-                                           :text text}
+                                           :localization localization
+                                           :message message
+                                           :desc {:fx/type fxui/legacy-label
+                                                  :max-width Double/MAX_VALUE}}
                                           {:fx/type fx.region/lifecycle
                                            :h-box/margin close-button-margin
                                            :on-mouse-clicked {:fn #'close-notification! :id id}
@@ -92,22 +94,25 @@
                                               :right horizontal-padding
                                               :bottom vertical-padding}
                                     :children (mapv
-                                                (fn [{:keys [text on-action]}]
-                                                  {:fx/type fx.button/lifecycle
-                                                   :style-class ["button" "notification-card-button"]
-                                                   :text text
-                                                   :on-action {:fn #'invoke-action!
-                                                               :id id
-                                                               :on-action on-action}})
+                                                (fn [{:keys [message on-action]}]
+                                                  {:fx/type fxui/ext-localize
+                                                   :localization localization
+                                                   :message message
+                                                   :desc
+                                                   {:fx/type fx.button/lifecycle
+                                                    :style-class ["button" "notification-card-button"]
+                                                    :on-action {:fn #'invoke-action!
+                                                                :id id
+                                                                :on-action on-action}}})
                                                 actions)}))}]})))}}))
 
-(defn init! [notifications-node parent]
+(defn init! [notifications-node parent localization]
   (let [renderer (fx/create-renderer
                    :error-handler error-reporting/report-exception!
                    :opts {:fx.opt/map-event-handler #((:fn %) (assoc % :notifications-node notifications-node))}
                    :middleware (comp
                                  fxui/wrap-dedupe-desc
-                                 (fx/wrap-map-desc #'notifications-view parent)))]
+                                 (fx/wrap-map-desc #'notifications-view parent localization)))]
     (ui/timer-start!
       (ui/->timer 30 "notifications-view-timer"
                   (fn [_timer _elapsed _dt]

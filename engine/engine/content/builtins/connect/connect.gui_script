@@ -1,12 +1,12 @@
--- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -91,7 +91,7 @@ function on_input(self, action_id, action)
 
             -- visual feedback on button pressed
             if hit then
-                gui.cancel_animation(self.node_info_btn, "color.w")
+                gui.cancel_animations(self.node_info_btn, "color.w")
                 gui.set_color(self.node_info_btn, vmath.vector4(1,1,1,0))
 
                 if action.released then

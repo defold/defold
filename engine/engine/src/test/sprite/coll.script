@@ -1,12 +1,12 @@
--- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,6 +36,16 @@ function init(self)
     go.set("#sprite", "scale.z", 6)
     assert(go.get("#sprite", "scale.z") == 6)
 
+    go.set("#sprite", "scale.xy", 7)
+    assert(go.get("#sprite", "scale.x") == 7)
+    assert(go.get("#sprite", "scale.y") == 7)
+    assert(go.get("#sprite", "scale.z") == 6)
+
+    go.set("#sprite", "scale.xy", vmath.vector3(8, 9, 10))
+    assert(go.get("#sprite", "scale.x") == 8)
+    assert(go.get("#sprite", "scale.y") == 9)
+    assert(go.get("#sprite", "scale.z") == 6)
+
     local size = go.get("#sprite", "size")
     local sx = go.get("#sprite", "size.x")
     local sy = go.get("#sprite", "size.y")
@@ -49,6 +59,8 @@ function init(self)
 
     msg.post(".", "try_set_size")
     msg.post(".", "try_animate_size")
+
+    go.animate("#sprite", "scale.xy", go.PLAYBACK_ONCE_FORWARD, 20, go.EASING_LINEAR, 1/120)
 end
 
 local function fail_set_size(self)
@@ -62,14 +74,26 @@ local function fail_animate_size(self)
     go.animate("#sprite", "size.x", go.PLAYBACK_ONCE_FORWARD, 20, go.EASING_LINEAR, 1)
 end
 
+local function check_scale_xy_animate_result()
+    local scale_x = go.get("#sprite", "scale.x")
+    local scale_y = go.get("#sprite", "scale.y")
+    local scale_z = go.get("#sprite", "scale.z")
+    assert(scale_x == 20)
+    assert(scale_y == 20)
+    assert(scale_z == 6)
+end
+
 function on_message(self, message_id, message, sender)
     if message_id == hash("animation_done") and sender == self.sprite then
         local anim_id = go.get("#sprite", "animation")
         assert(anim_id == hash("anim"))
-        msg.post("main:/main#script", "done")
+        timer.delay(0.1, false, function() msg.post("#", "delay_done") end)
     elseif message_id == hash("try_set_size") then
         fail_set_size(self)
     elseif message_id == hash("try_animate_size") then
         fail_animate_size(self)
+    elseif message_id == hash("delay_done") then
+        check_scale_xy_animate_result()
+        msg.post("main:/main#script", "done")
     end
 end

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -134,6 +134,22 @@ namespace dmRender
                     dmGraphics::SetBlendFunc(context, (dmGraphics::BlendFactor)c->m_Operands[0], (dmGraphics::BlendFactor)c->m_Operands[1]);
                     break;
                 }
+                case COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE:
+                {
+                    dmGraphics::SetBlendFuncSeparate(context,
+                        (dmGraphics::BlendFactor) c->m_Operands[0],
+                        (dmGraphics::BlendFactor) c->m_Operands[1],
+                        (dmGraphics::BlendFactor) c->m_Operands[2],
+                        (dmGraphics::BlendFactor) c->m_Operands[3]);
+                    break;
+                }
+                case COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE:
+                {
+                    dmGraphics::SetBlendEquationSeparate(context,
+                        (dmGraphics::BlendEquation) c->m_Operands[0],
+                        (dmGraphics::BlendEquation) c->m_Operands[1]);
+                    break;
+                }
                 case COMMAND_TYPE_SET_COLOR_MASK:
                 {
                     dmGraphics::SetColorMask(context, c->m_Operands[0] != 0, c->m_Operands[1] != 0, c->m_Operands[2] != 0, c->m_Operands[3] != 0);
@@ -177,9 +193,11 @@ namespace dmRender
                 case COMMAND_TYPE_DRAW:
                 {
                     FrustumOptions* frustum_options = (FrustumOptions*)c->m_Operands[2];
+                    dmRender::SortOrder sort_order = (dmRender::SortOrder)c->m_Operands[3];
                     dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0],
                                                              (dmRender::HNamedConstantBuffer)c->m_Operands[1],
-                                                             frustum_options);
+                                                             frustum_options,
+                                                             sort_order);
                     delete frustum_options;
                     break;
                 }

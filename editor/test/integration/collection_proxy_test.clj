@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,12 +15,7 @@
 (ns integration.collection-proxy-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.collection :as collection]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.types :as types]
-            [editor.properties :as properties]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [integration.test-util :as test-util]))
 
@@ -31,9 +26,11 @@
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
         (is (= nil (g/node-value node-id :collection)))
-        (is (= "Collection Proxy" (:label outline)))
+        (is (= false (g/node-value node-id :exclude)))
+        (is (= (localization/message "outline.collection-proxy") (:label outline)))
         (is (empty? (:children outline)))
-        (is (= nil (get-in form-data [:values [:collection]])))))))
+        (is (= nil (get-in form-data [:values [:collection]])))
+        (is (= false (get-in form-data [:values [:exclude]])))))))
 
 (deftest collection-proxy-with-collection
   (testing "A collection proxy with a collection set"
@@ -42,10 +39,12 @@
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
         (is (= "/collection_proxy/default.collection" (resource/resource->proj-path (g/node-value node-id :collection))))
-        (is (= "Collection Proxy" (:label outline)))
+        (is (= false (g/node-value node-id :exclude)))
+        (is (= (localization/message "outline.collection-proxy") (:label outline)))
         (is (empty? (:children outline)))
         (is (= "/collection_proxy/default.collection"
-               (resource/resource->proj-path (get-in form-data [:values [:collection]]))))))))
+               (resource/resource->proj-path (get-in form-data [:values [:collection]]))))
+        (is (= false (get-in form-data [:values [:exclude]])))))))
 
 (deftest validation
   (test-util/with-loaded-project

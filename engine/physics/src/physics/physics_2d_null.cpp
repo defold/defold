@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -88,6 +88,10 @@ namespace dmPhysics
      }
 
     void ClearGridShapeHulls(HCollisionObject2D collision_object)
+    {
+    }
+
+    void CreateGridCellShape(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t child)
     {
     }
 
@@ -234,31 +238,32 @@ namespace dmPhysics
     {
     }
 
-    uint16_t GetGroup2D(HCollisionObject2D collision_object)
+    uint16_t GetGroup2D(HWorld2D world, HCollisionObject2D collision_object)
     {
         return 0;
     }
 
-    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit)
+    void SetGroup2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
     }
 
-    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit)
+    bool GetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
         return false;
     }
 
-    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
+    void SetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
     {
     }
 
-    bool UpdateMass2D(HCollisionObject2D collision_object, float mass)
+    bool UpdateMass2D(HWorld2D world, HCollisionObject2D collision_object, float mass)
     {
         return false;
     }
 
-    void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
+    bool RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
+        return true;
     }
 
     void RayCast2D(HWorld2D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
@@ -311,11 +316,11 @@ namespace dmPhysics
         return true;
     }
 
-    void FlipH2D(HCollisionObject2D collision_object)
+    void FlipH2D(HWorld2D world, HCollisionObject2D collision_object)
     {
     }
 
-    void FlipV2D(HCollisionObject2D collision_object)
+    void FlipV2D(HWorld2D world, HCollisionObject2D collision_object)
     {
     }
 

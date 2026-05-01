@@ -3,17 +3,6 @@
     -fx-tab-min-width: 40px;
     -fx-padding: 0 0 0 0;
 
-    .tab {
-        -fx-padding: 0 10 5 10;
-        -fx-background-insets: 0;
-
-        &:selected {
-            .tab-label {
-                -fx-padding: 0;
-            }
-        }
-    }
-
     .list-view {
         -fx-background-insets: 0;
         -fx-border-width: 0;
@@ -48,11 +37,6 @@
         -fx-background-size: 17 17;
         -fx-padding: 0 10 5 32;
         -fx-spacing: 0;
-        &:selected {
-            .tab-label {
-                -fx-padding: 0;
-            }
-        }
     }
 }
 
@@ -160,4 +144,16 @@
 
 #search-results-container {
     -fx-padding: 0;
+}
+
+#breakpoints-tab {
+    @extend .console-tab-base;
+    -fx-background-position: 10 4 !important;
+    -fx-background-image: url("icons/tabs/ic_breakpoints-grey.png");
+    &:selected {
+        -fx-background-image: url("icons/tabs/ic_breakpoints-white.png");
+    }
+    &:hover {
+        -fx-background-image: url("icons/tabs/ic_breakpoints-white.png");
+    }
 }

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,27 +14,18 @@
 
 package com.dynamo.bob;
 
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.FileSystemException;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-import java.lang.NumberFormatException;
-
+import com.dynamo.bob.archive.EngineVersion;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.LogHelper;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.Library;
+import com.dynamo.bob.util.Library.Result;
+import com.dynamo.bob.util.PackedResources;
+import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -45,19 +36,38 @@ import org.apache.commons.cli.PosixParser;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 
-import com.dynamo.bob.archive.EngineVersion;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.logging.LogHelper;
-import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.HttpUtil;
-import com.dynamo.bob.cache.ResourceCacheKey;
-import com.dynamo.bob.util.FileUtil;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.MANY;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.ONE;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.ZERO;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgType.ABS_OR_CWD_REL_PATH;
 
 public class Bob {
-    private static Logger logger = Logger.getLogger(Bob.class.getName());
+    private static final Logger logger = Logger.getLogger(Bob.class.getName());
 
     public static final String VARIANT_DEBUG = "debug";
     public static final String VARIANT_RELEASE = "release";
@@ -66,7 +76,24 @@ public class Bob {
     public static final String ARTIFACTS_URL = "http://d.defold.com/archive/";
 
     private static File rootFolder = null;
-    private static boolean luaInitialized = false;
+
+    public static class OptionValidationException extends Exception {
+        public final int exitCode;
+
+        public OptionValidationException(int exitCode) {
+            this.exitCode = exitCode;
+        }
+    }
+
+    public static class InvocationResult {
+        public final boolean success;
+        public final List<TaskResult> taskResults;
+
+        public InvocationResult(boolean success, List<TaskResult> taskResults) {
+            this.success = success;
+            this.taskResults = taskResults;
+        }
+    }
 
     public Bob() {
     }
@@ -97,7 +124,11 @@ public class Bob {
                     System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
                 }
                 finally {
-                    luaInitialized = false;
+                    try {
+                        PackedResources.reset();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }));
@@ -130,17 +161,10 @@ public class Bob {
         TimeProfiler.stop();
     }
 
-    public static void initLua() {
-        if (luaInitialized) {
-            return;
-        }
+    public static void ensureBobInitialized() {
         init();
-        try {
-            extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
-            luaInitialized = true;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
+        PackedResources.waitForuUpackAllLibsAsync();
     }
 
     public static File getRootFolder() {
@@ -148,7 +172,8 @@ public class Bob {
     }
 
     public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
-
+        TimeProfiler.start("extractToFolder %s", toFolder.toString());
+        TimeProfiler.addData("url", url.toString());
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
         try{
@@ -186,6 +211,7 @@ public class Bob {
         } finally {
             IOUtils.closeQuietly(zipStream);
         }
+        TimeProfiler.stop();
     }
 
     public static void extract(final URL url, File toFolder) throws IOException {
@@ -216,28 +242,6 @@ public class Bob {
             throw new IOException("More than one alternative when getting binary executable for platform: " + platform.toString());
         }
         return exes.get(0);
-    }
-
-    public static void unpackSharedLibraries(Platform platform, List<String> names) throws IOException {
-        init();
-
-        TimeProfiler.start("unpackSharedLibraries");
-        String libSuffix = platform.getLibSuffix();
-        for (String name : names) {
-            TimeProfiler.start(name);
-            String depName = platform.getPair() + "/" + name + libSuffix;
-            File f = new File(rootFolder, depName);
-            if (!f.exists()) {
-                URL url = Bob.class.getResource("/libexec/" + depName);
-                if (url == null) {
-                    throw new RuntimeException(String.format("/libexec/%s could not be found.", depName));
-                }
-
-                atomicCopy(url, f, true);
-            }
-            TimeProfiler.stop();
-        }
-        TimeProfiler.stop();
     }
 
     // https://stackoverflow.com/a/30755071/468516
@@ -281,7 +285,8 @@ public class Bob {
 
     private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
-        TimeProfiler.startF("getExeWithExtension %s.%s", name, extension);
+        PackedResources.waitForuUpackAllLibsAsync();
+        TimeProfiler.start("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
@@ -299,7 +304,7 @@ public class Bob {
 
     public static String getLibExecPath(String filename) throws IOException {
         init();
-        TimeProfiler.startF("getLibExecPath %s", filename);
+        TimeProfiler.start("getLibExecPath %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/libexec/" + filename);
@@ -314,109 +319,21 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getJarFile(String filename) throws IOException {
-        init();
-        TimeProfiler.startF("getJarFile %s", filename);
-        File f = new File(rootFolder, filename);
-        if (!f.exists()) {
-            URL url = Bob.class.getResource("/share/java/" + filename);
-            if (url == null) {
-                throw new RuntimeException(String.format("/share/java/%s not found", filename));
-            }
-            atomicCopy(url, f, false);
+    public static String getHostExeOnce(String exeName, String currentExe) throws IOException {
+        if (currentExe != null && Files.exists(Path.of(currentExe))) {
+            return currentExe;
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
-        return f.getAbsolutePath();
-    }
-
-    private static List<File> downloadExes(Platform platform, String variant, String artifactsURL) throws IOException {
-        init();
-        TimeProfiler.startF("DownloadExes %s for %s", platform, variant);
-        List<File> binaryFiles = new ArrayList<File>();
-        String[] exeSuffixes = platform.getExeSuffixes();
-        List<String> exes = new ArrayList<String>();
-        String downloadFolder = rootFolder + File.pathSeparator + platform.getPair() + File.separator + platform;
-        String defaultDmengineExeName = getDefaultDmengineExeName(variant);
-        for (String exeSuffix : exeSuffixes) {
-            String exeName = platform.getExePrefix() + defaultDmengineExeName + exeSuffix;
-            File f = new File(rootFolder, exeName);
-            try {
-                URL url = new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platform.getPair(), exeName));
-                logger.info("Download: %s", url);
-                File file = new File(downloadFolder, exeName);
-                HttpUtil http = new HttpUtil();
-                http.downloadToFile(url, file);
-                FileUtil.deleteOnExit(file);
-                binaryFiles.add(file);
-            }
-            catch (Exception e) {
-                throw new IOException(String.format("%s could not be found locally or downloaded, create an application manifest to build the engine remotely.", exeName));
-            }
-        }
-        TimeProfiler.stop();
-        return binaryFiles;
-    }
-
-    private static String getDefaultDmengineExeName(String variant) {
-        switch (variant)
-        {
-            case VARIANT_DEBUG:
-                return "dmengine";
-            case VARIANT_RELEASE:
-                return "dmengine_release";
-            case VARIANT_HEADLESS:
-                return "dmengine_headless";
-            default:
-                throw new RuntimeException(String.format("Invalid variant %s", variant));
-        }
-    }
-
-    private static List<String> getDefaultDmenginePaths(Platform platform, String variant) throws IOException {
-        return getExes(platform, getDefaultDmengineExeName(variant));
-    }
-
-    public static List<File> getDefaultDmengineFiles(Platform platform, String variant, String artifactsURL) throws IOException {
-        List<File> binaryFiles;
-        try {
-            List<String> binaryPaths = getDefaultDmenginePaths(platform, variant);
-            binaryFiles = new ArrayList<File>();
-            for (String path : binaryPaths) {
-                binaryFiles.add(new File(path));
-            }
-        }
-        catch (RuntimeException e) {
-            binaryFiles = downloadExes(platform, variant, artifactsURL);
-        }
-        return binaryFiles;
+        return Bob.getExe(Platform.getHostPlatform(), exeName);
     }
 
     public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
-        return getDefaultDmengineFiles(platform, variant, ARTIFACTS_URL);
+        return EngineArtifactsProvider.getDefaultDmengineFiles(platform, variant);
     }
 
-    public static String getLib(Platform platform, String name) throws IOException {
-        init();
-
-        TimeProfiler.startF("getLib %s", name);
-        String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
-        File f = new File(rootFolder, libName);
-        if (!f.exists()) {
-            URL url = Bob.class.getResource("/lib/" + libName);
-            if (url == null) {
-                throw new RuntimeException(String.format("/lib/%s not found", libName));
-            }
-
-            atomicCopy(url, f, true);
-        }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
-        return f.getAbsolutePath();
-    }
-
+    // Used by JNI tools, see ModelImporterJni.java, ShadercJni.java and TexcLibraryJni.java in engine folder
     public static File getSharedLib(String name) throws IOException {
         init();
-
+        TimeProfiler.start("getSharedLib %s", name);
         Platform platform = Platform.getHostPlatform();
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
@@ -428,6 +345,7 @@ public class Bob {
 
             atomicCopy(url, f, true);
         }
+        TimeProfiler.stop();
         return f;
     }
 
@@ -450,130 +368,176 @@ public class Bob {
         // Set the concatenated jna.library path
         System.setProperty(variable, newPath);
     }
-
+    // Used by JNI tools, see ModelImporterJni.java, ShadercJni.java and TexcLibraryJni.java in engine folder
     static public void addToPaths(String dir) {
         addToPath("jni.library.path", dir);
         addToPath("jna.library.path", dir);
         addToPath("java.library.path", dir);
     }
 
-    private static void addOption(Options options, String shortOpt, String longOpt, boolean hasArg, String description, boolean usedByResourceCacheKey) {
-        options.addOption(shortOpt, longOpt, hasArg, description);
-        if (usedByResourceCacheKey) {
-            ResourceCacheKey.includeOption(longOpt);
+    public static final class CommandLineOption {
+        public final String shortOpt;
+        public final String longOpt;
+        public final ArgCount argCount;
+        public final ArgType argType;
+        public final String description;
+
+        public CommandLineOption(String shortOpt, String longOpt, ArgCount argCount, ArgType argType, String description) {
+            this.shortOpt = shortOpt;
+            this.longOpt = longOpt;
+            this.argCount = argCount;
+            this.argType = argType;
+            this.description = description;
         }
+
+        public enum ArgCount {ZERO, ONE, MANY}
+
+        public enum ArgType {UNSPECIFIED, ABS_OR_CWD_REL_PATH}
     }
 
-    private static Options getCommandLineOptions() {
+    private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, CommandLineOption.ArgType argType, String description) {
+        if (argCount == MANY) {
+            description = description + ". More than one occurrence is allowed";
+        }
+        return new CommandLineOption(shortOpt, longOpt, argCount, argType, description);
+    };
+
+    private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, String description) {
+        return opt(shortOpt, longOpt, argCount, CommandLineOption.ArgType.UNSPECIFIED, description);
+    }
+
+    public static List<CommandLineOption> getCommandLineOptions() {
+        return List.of(
+                opt("r", "root", ONE, ABS_OR_CWD_REL_PATH, "Build root directory. Default is current directory"),
+                opt("o", "output", ONE, "Output directory. Default is \"build/default\""),
+                opt("i", "input", ONE, "DEPRECATED! Use --root instead"),
+                opt("v", "verbose", ZERO, "Verbose output"),
+                opt("h", "help", ZERO, "This help message"),
+                opt("a", "archive", ZERO, "Build archive"),
+                opt("ea", "exclude-archive", ZERO, "Exclude resource archives from application bundle. Use this to create an empty Defold application for use as a build target"),
+                opt("e", "email", ONE, "User email"),
+                opt("u", "auth", ONE, "User auth token"),
+
+                opt("p", "platform", ONE, "Platform (when building and bundling)"),
+                opt("bo", "bundle-output", ONE, ABS_OR_CWD_REL_PATH,"Bundle output directory"),
+                opt("bf", "bundle-format", ONE, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')"),
+
+                opt("mp", "mobileprovisioning", ONE, ABS_OR_CWD_REL_PATH, "mobileprovisioning profile (iOS)"),
+                opt(null, "identity", ONE, "Sign identity (iOS)"),
+
+                opt("ce", "certificate", ONE, "DEPRECATED! Use --keystore instead"),
+                opt("pk", "private-key", ONE, "DEPRECATED! Use --keystore instead"),
+
+                opt("ks", "keystore", ONE, "Deployment keystore used to sign APKs (Android)"),
+                opt("ksp", "keystore-pass", ONE, "Password of the deployment keystore (Android)"),
+                opt("ksa", "keystore-alias", ONE, "The alias of the signing key+cert you want to use (Android)"),
+                opt("kp", "key-pass", ONE, "Password of the deployment key if different from the keystore password (Android)"),
+
+                opt("d", "debug", ZERO, "DEPRECATED! Use --variant=debug instead"),
+                opt(null, "variant", ONE, "Specify debug, release or headless version of dmengine (when bundling)"),
+                opt(null, "strip-executable", ZERO, "Strip the dmengine of debug symbols (when bundling iOS or Android)"),
+                opt(null, "with-symbols", ZERO, "Generate the symbol file (if applicable)"),
+
+                opt("tp", "texture-profiles", ONE, "DEPRECATED! Use --texture-compression instead"),
+                opt("tc", "texture-compression", ZERO, "Use texture compression as specified in texture profiles"),
+
+                opt(null, "exclude-build-folder", ONE, "DEPRECATED! Use '.defignore' file instead"),
+
+                opt("br", "build-report", ONE, ABS_OR_CWD_REL_PATH, "DEPRECATED! Use --build-report-json instead"),
+                opt("brjson", "build-report-json", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as JSON"),
+                opt("brhtml", "build-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as HTML"),
+
+                opt(null, "build-server", ONE, "The build server (when using native extensions)"),
+                opt(null, "build-server-header", MANY, "Additional build server header to set"),
+                opt(null, "use-async-build-server", ZERO, "DEPRECATED! Asynchronous build is now the default"),
+                opt(null, "defoldsdk", ONE, "What version of the defold sdk (sha1) to use"),
+                opt(null, "binary-output", ONE, ABS_OR_CWD_REL_PATH, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\""),
+
+                opt(null, "use-vanilla-lua", ZERO, "DEPRECATED! Use --use-uncompressed-lua-source instead"),
+                opt(null, "use-uncompressed-lua-source", ZERO, "Use uncompressed and unencrypted Lua source code instead of byte code"),
+                opt(null, "use-lua-bytecode-delta", ZERO, "Use byte code delta compression when building for multiple architectures"),
+                opt(null, "archive-resource-padding", ONE, "The alignment of the resources in the game archive. Default is 4"),
+
+                opt("l", "liveupdate", ONE, "Yes if liveupdate content should be published"),
+
+                opt(null, "with-sha1", ZERO, "Generate (and verify) sha1 signatures from build artifacts (when bunding for web)"),
+
+                opt("ar", "architectures", ONE, "Comma separated list of architectures to include for the platform"),
+
+                opt(null, "settings", MANY, ABS_OR_CWD_REL_PATH, "Path to a game project settings file. The settings files are applied left to right"),
+
+                opt(null, "version", ZERO, "Prints the version number to the output"),
+
+                opt(null, "build-artifacts", ONE, "If left out, will default to build the engine. Choices: 'engine', 'plugins', 'library'. Comma separated list"),
+                opt(null, "ne-build-dir", MANY, ABS_OR_CWD_REL_PATH, "Specify a folder with includes or source, to build a specific library"),
+                opt(null, "ne-output-name", ONE, "Specify a library target name"),
+
+                opt(null, "resource-cache-local", ONE, ABS_OR_CWD_REL_PATH, "Path to local resource cache"),
+                opt(null, "resource-cache-remote", ONE, "URL to remote resource cache"),
+                opt(null, "resource-cache-remote-user", ONE, "Username to authenticate access to the remote resource cache"),
+                opt(null, "resource-cache-remote-pass", ONE, "Password/token to authenticate access to the remote resource cache"),
+
+                opt(null, "max-cpu-threads", ONE, "Max count of threads that bob.jar can use"),
+
+                // experimental features
+                opt(null, "experimental-path-minification", ZERO, "Minimizes resource path names in order to save bundle size."),
+
+                // debug options
+                opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip"),
+                opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders"),
+                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders"),
+                opt(null, "debug-output-hlsl", ONE, "Force build HLSL shaders"),
+                opt(null, "debug-output-msl", ONE, "Force build Metal shaders"),
+                opt(null, "debug-output-glsl", ONE, "Force build GLSL shaders")
+        );
+    }
+
+    private static String[] migrateInvalidArguments(String[] args) {
+        ArrayList<String> migratedArguments = new ArrayList<>();
+        for (String arg : args) {
+            // Migrate texture compression argument. Deprecated in 1.9.7 (https://github.com/defold/defold/pull/10000)
+            boolean argIsTextureCompression = arg.startsWith("--tc") || arg.startsWith("--texture-compression");
+            if (argIsTextureCompression && arg.contains("=false")) {
+                System.out.println("Warning: --texture-compression and --tc no longer accepts an argument. To disable texture compression, remove the argument.");
+            } else {
+                migratedArguments.add(arg);
+            }
+        }
+        return migratedArguments.toArray(new String[0]);
+    }
+
+    private static CommandLine parse(String[] args) throws OptionValidationException {
         Options options = new Options();
-        addOption(options, "r", "root", true, "Build root directory. Default is current directory", true);
-        addOption(options, "o", "output", true, "Output directory. Default is \"build/default\"", false);
-        addOption(options, "i", "input", true, "Source directory. Default is current directory", true);
-        addOption(options, "v", "verbose", false, "Verbose output", false);
-        addOption(options, "h", "help", false, "This help message", false);
-        addOption(options, "a", "archive", false, "Build archive", false);
-        addOption(options, "ea", "exclude-archive", false, "Exclude resource archives from application bundle. Use this to create an empty Defold application for use as a build target", false);
-        addOption(options, "e", "email", true, "User email", false);
-        addOption(options, "u", "auth", true, "User auth token", false);
-
-        addOption(options, "p", "platform", true, "Platform (when building and bundling)", true);
-        addOption(options, "bo", "bundle-output", true, "Bundle output directory", false);
-        addOption(options, "bf", "bundle-format", true, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')", false);
-
-        addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
-        addOption(options, null, "identity", true, "Sign identity (iOS)", false);
-
-        addOption(options, "ce", "certificate", true, "DEPRECATED! Use --keystore instead", false);
-        addOption(options, "pk", "private-key", true, "DEPRECATED! Use --keystore instead", false);
-
-        addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", false);
-        addOption(options, "ksp", "keystore-pass", true, "Password of the deployment keystore (Android)", false);
-        addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", false);
-        addOption(options, "kp", "key-pass", true, "Password of the deployment key if different from the keystore password (Android)", false);
-
-        addOption(options, "d", "debug", false, "DEPRECATED! Use --variant=debug instead", false);
-        addOption(options, null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)", false);
-        addOption(options, null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)", false);
-        addOption(options, null, "with-symbols", false, "Generate the symbol file (if applicable)", false);
-
-        addOption(options, "tp", "texture-profiles", true, "DEPRECATED! Use --texture-compression instead", true);
-        addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
-        addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
-
-        addOption(options, null, "exclude-build-folder", true, "DEPRECATED! Use '.defignore' file instead", true);
-
-        addOption(options, "br", "build-report", true, "DEPRECATED! Use --build-report-json instead", false);
-        addOption(options, "brjson", "build-report-json", true, "Filepath where to save a build report as JSON", false);
-        addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", false);
-
-        addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
-        addOption(options, null, "build-server-header", true, "Additional build server header to set", true);
-        addOption(options, null, "use-async-build-server", false, "DEPRECATED! Asynchronous build is now the default.", true);
-        addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
-        addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
-
-        addOption(options, null, "use-vanilla-lua", false, "DEPRECATED! Use --use-uncompressed-lua-source instead.", true);
-        addOption(options, null, "use-uncompressed-lua-source", false, "Use uncompressed and unencrypted Lua source code instead of byte code", true);
-        addOption(options, null, "use-lua-bytecode-delta", false, "Use byte code delta compression when building for multiple architectures", true);
-        addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
-
-        addOption(options, "l", "liveupdate", true, "Yes if liveupdate content should be published", true);
-
-        addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", true);
-
-        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance is allowed. The settings files are applied left to right.", false);
-
-        addOption(options, null, "version", false, "Prints the version number to the output", false);
-
-        addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins', 'library'. Comma separated list.", false);
-        addOption(options, null, "ne-build-dir", true, "Specify a folder with includes or source, to build a specific library. More than one occurrance is allowed. ", false);
-        addOption(options, null, "ne-output-name", true, "Specify a library target name", false);
-
-        addOption(options, null, "resource-cache-local", true, "Path to local resource cache.", false);
-        addOption(options, null, "resource-cache-remote", true, "URL to remote resource cache.", false);
-        addOption(options, null, "resource-cache-remote-user", true, "Username to authenticate access to the remote resource cache.", false);
-        addOption(options, null, "resource-cache-remote-pass", true, "Password/token to authenticate access to the remote resource cache.", false);
-
-        addOption(options, null, "manifest-private-key", true, "Private key to use when signing manifest and archive.", false);
-        addOption(options, null, "manifest-public-key", true, "Public key to use when signing manifest and archive.", false);
-
-        addOption(options, null, "max-cpu-threads", true, "Max count of threads that bob.jar can use", false);
-
-        // debug options
-        addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
-        addOption(options, null, "debug-output-spirv", true, "Force build SPIR-V shaders", false);
-
-        return options;
-    }
-
-    private static CommandLine parse(String[] args) {
-        Options options = getCommandLineOptions();
+        getCommandLineOptions().forEach(opt -> options.addOption(opt.shortOpt, opt.longOpt, opt.argCount != ZERO, opt.description));
 
         CommandLineParser parser = new PosixParser();
-        CommandLine cmd = null;
+        CommandLine cmd;
+
+        args = migrateInvalidArguments(args);
+
         try {
             cmd = parser.parse(options, args);
         } catch (ParseException e) {
             System.err.println(e.getMessage());
-            System.exit(5);
+            throw new OptionValidationException(5);
         }
         if (cmd.hasOption("h")) {
-            HelpFormatter helpFormatter = new HelpFormatter( );
+            HelpFormatter helpFormatter = new HelpFormatter();
             helpFormatter.printHelp("bob [options] [commands]", options);
-            System.exit(0);
+            return null;
         }
         if (cmd.hasOption("ce") || cmd.hasOption("pk")) {
             System.out.println("Android signing using certificate and private key is no longer supported. You must use keystore signing.");
             HelpFormatter helpFormatter = new HelpFormatter( );
             helpFormatter.printHelp("bob [options] [commands]", options);
-            System.exit(1);
+            throw new OptionValidationException(1);
         }
 
         return cmd;
     }
 
-    private static Project createProject(String rootDirectory, String buildDirectory, String email, String auth) {
-        Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
+    private static Project createProject(ClassLoader classLoader, String rootDirectory, String buildDirectory, String email, String auth) {
+        Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
         project.setOption("email", email);
         project.setOption("auth", auth);
 
@@ -594,42 +558,38 @@ public class Bob {
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
     }
 
-    private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
-        BobProjectProperties projectProperties = project.getProjectProperties();
-        String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
-        List<URL> libUrls = new ArrayList<>();
-        for (String val : dependencies) {
-            libUrls.add(new URL(val));
+    private static void setupProject(Project project, boolean resolveLibraries, IProgress progress) throws IOException, LibraryException, CompileExceptionError {
+        try (progress) {
+            project.loadProjectFile(false);
+            BobProjectProperties projectProperties = project.getProjectProperties();
+            String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
+            project.setLibUrls(Arrays.stream(dependencies).map(URI::create).toList());
+            List<Result> resolvedDependencies;
+            if (resolveLibraries) {
+                TimeProfiler.start("Resolve libs");
+                resolvedDependencies = project.resolveLibUrls(progress);
+                TimeProfiler.stop();
+            } else {
+                resolvedDependencies = Library.cached(project.getLibUris(), Paths.get(project.getLibPath()));
+            }
+            project.mount(new ClassLoaderResourceScanner(), resolvedDependencies);
         }
-
-        project.setLibUrls(libUrls);
-        if (resolveLibraries) {
-            TimeProfiler.start("Resolve libs");
-            project.resolveLibUrls(new ConsoleProgress());
-            TimeProfiler.stop();
-        }
-        project.mount(new ClassLoaderResourceScanner());
-
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal", "build"));
-        TimeProfiler.start("findSources");
-        project.findSources(sourceDirectory, skipDirs);
-        TimeProfiler.stop();
     }
 
-    private static void validateChoices(String optionName, String value, List<String> validChoices) {
+    private static void validateChoices(String optionName, String value, List<String> validChoices) throws OptionValidationException {
         if (!validChoices.contains(value)) {
             System.out.printf("%s option must be one of: ", optionName);
             for (String choice : validChoices) {
                 System.out.printf("%s, ", choice);
             }
             System.out.printf("\n");
-            System.exit(1);
+            throw new OptionValidationException(1);
         }
     }
 
-    private static void validateChoicesList(Project project, String optionName, String[] validChoices) {
+    private static void validateChoicesList(Project project, String optionName, String[] validChoices) throws OptionValidationException {
         String str = project.option(optionName, "");
-        List<String> values = Arrays.asList(str.split(","));
+        String[] values = str.split(",");
         for (String value : values) {
             validateChoices(optionName, value, Arrays.asList(validChoices));
         }
@@ -647,14 +607,14 @@ public class Bob {
         errors.append("\n");
         for (MultipleCompileException.Info info : e.issues)
         {
-            errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
+            errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage())).append("\n");
         }
 
         String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
         errors.append(msg);
 
         if (verbose) {
-            errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+            errors.append("\nFull log: \n").append(e.getRawLog()).append("\n");
         }
         return errors;
     }
@@ -663,282 +623,327 @@ public class Bob {
        return expected.isInstance(exc) || (exc != null && isCause(expected, exc.getCause()));
     }
 
-    private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
-        System.setProperty("java.awt.headless", "true");
-        System.setProperty("file.encoding", "UTF-8");
+    /**
+     * Common entry point for both editor and bob
+     * @param classLoader may be null
+     */
+    public static InvocationResult invoke(ClassLoader classLoader, IProgress progress, Map<String, String> internalOptions, String[] args) throws IOException, CompileExceptionError, LibraryException, OptionValidationException {
+        try (progress) {
+            System.setProperty("java.awt.headless", "true");
+            System.setProperty("file.encoding", "UTF-8");
 
-        String cwd = new File(".").getAbsolutePath();
+            String cwd = new File(".").getAbsolutePath();
 
-        CommandLine cmd = parse(args);
-        String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
-        String rootDirectory = getOptionsValue(cmd, 'r', cwd);
-        String sourceDirectory = getOptionsValue(cmd, 'i', ".");
-
-
-        if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
-            List<File> reportFiles = new ArrayList<>();
-            String jsonReportPath = cmd.getOptionValue("build-report");
-            if (jsonReportPath != null) {
-                reportFiles.add(new File(jsonReportPath));
+            BuildInputDataCollector.setArgs(args);
+            CommandLine cmd = parse(args);
+            if (cmd == null) { // nothing to do: requested to print help
+                return new InvocationResult(true, Collections.emptyList());
             }
-            String htmlReportPath = cmd.getOptionValue("build-report-html");
-            if (htmlReportPath != null) {
-                reportFiles.add(new File(htmlReportPath));
-            }
-            TimeProfiler.init(reportFiles, false);
-        }
+            String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
+            String rootDirectory = getOptionsValue(cmd, 'r', cwd);
 
-        if (cmd.hasOption("version")) {
-            System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
-            System.exit(0);
-            return;
-        }
+            init();
+            PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
 
-        if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
-            System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
-            System.exit(1);
-            return;
-        }
-
-        if (cmd.hasOption("debug") && cmd.hasOption("strip-executable")) {
-            System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
-            System.exit(1);
-            return;
-        }
-
-        if (cmd.hasOption("exclude-build-folder")) {
-            // Deprecated in 1.5.1. Just a message for now.
-            System.out.println("--exclude-build-folder option is deprecated. Use '.defignore' file instead");
-        }
-
-        String[] commands = cmd.getArgs();
-        if (commands.length == 0) {
-            commands = new String[] { "build" };
-        }
-
-        boolean shouldResolveLibs = false;
-        for (String command : commands) {
-            if (command.equals("resolve")) {
-                shouldResolveLibs = true;
-                break;
-            }
-        }
-
-        boolean verbose = cmd.hasOption('v');
-
-        LogHelper.setVerboseLogging(verbose);  // It doesn't iterate over all loggers (including the bob logger)
-        LogHelper.configureLogger(logger);     // It was created before the log helper was set to be verbose
-
-        String email = getOptionsValue(cmd, 'e', null);
-        String auth = getOptionsValue(cmd, 'u', null);
-        Project project = createProject(rootDirectory, buildDirectory, email, auth);
-
-        if (cmd.hasOption("settings")) {
-            for (String filepath : cmd.getOptionValues("settings")) {
-                project.addPropertyFile(filepath);
-            }
-        }
-
-        if (cmd.hasOption("ne-build-dir")) {
-            for (String filepath : cmd.getOptionValues("ne-build-dir")) {
-                project.addEngineBuildDir(filepath);
-            }
-        }
-
-
-        if (cmd.hasOption("build-server-header")) {
-            for (String header : cmd.getOptionValues("build-server-header")) {
-                project.addBuildServerHeader(header);
-            }
-        }
-
-        project.loadProjectFile();
-
-        TimeProfiler.start("setupProject");
-        // resolves libraries and finds all sources
-        setupProject(project, shouldResolveLibs, sourceDirectory);
-        TimeProfiler.stop();
-
-        if (!cmd.hasOption("defoldsdk")) {
-            project.setOption("defoldsdk", EngineVersion.sha1);
-        }
-
-        if (cmd.hasOption("use-vanilla-lua")) {
-            System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
-            project.setOption("use-uncompressed-lua-source", "true");
-        }
-
-        if (cmd.hasOption("build-report")) {
-            System.out.println("--build-report option is deprecated. Use --build-report-json instead.");
-            project.setOption("build-report-json", "true");
-        }
-
-        if (cmd.hasOption("max-cpu-threads")) {
-            try {
-                Integer.parseInt(cmd.getOptionValue("max-cpu-threads"));
-            }
-            catch (NumberFormatException ex) {
-                System.out.println("`--max-cpu-threads` expects integer value.");
-                ex.printStackTrace();
-                System.exit(1);
-                return;
-            }
-        }
-
-        Option[] options = cmd.getOptions();
-        for (Option o : options) {
-            if (cmd.hasOption(o.getLongOpt())) {
-                if (o.hasArg()) {
-                    project.setOption(o.getLongOpt(), cmd.getOptionValue(o.getLongOpt()));
-                } else {
-                    project.setOption(o.getLongOpt(), "true");
+            String build_report_json = null;
+            String build_report_html = null;
+            if (cmd.hasOption("build-report")) {
+                System.out.println("--build-report option is deprecated. Use --build-report-json instead.");
+                String path = cmd.getOptionValue("build-report", "report.json");
+                if (path.endsWith(".json")) {
+                    build_report_json = path;
+                } else if (path.endsWith(".html")) {
+                    build_report_html = path;
                 }
             }
-        }
+            build_report_json = build_report_json != null ? build_report_json : cmd.getOptionValue("build-report-json");
+            build_report_html = build_report_html != null ? build_report_html : cmd.getOptionValue("build-report-html");
 
-        // Get and set architectures list.
-        Platform platform = project.getPlatform();
-        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
-        List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
-
-        if (cmd.hasOption("architectures")) {
-            architectures = cmd.getOptionValue("architectures").split(",");
-        }
-
-        if (architectures.length == 0) {
-            System.out.println(String.format("ERROR! --architectures cannot be empty. Available architectures: %s", String.join(", ", availableArchitectures)));
-            System.exit(1);
-            return;
-        }
-
-        // Remove duplicates and make sure they are all supported for
-        // selected platform.
-        Set<String> uniqueArchitectures = new HashSet<String>();
-        for (int i = 0; i < architectures.length; i++) {
-            String architecture = architectures[i];
-            if (!availableArchitectures.contains(architecture)) {
-                System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
-                System.exit(1);
-                return;
+            if (build_report_json != null || build_report_html != null) {
+                List<File> reportFiles = new ArrayList<>();
+                if (build_report_json != null) {
+                    reportFiles.add(new File(build_report_json));
+                }
+                if (build_report_html != null) {
+                    reportFiles.add(new File(build_report_html));
+                }
+                TimeProfiler.init(reportFiles);
             }
-            uniqueArchitectures.add(architecture);
-        }
 
-        project.setOption("architectures", String.join(",", uniqueArchitectures));
-
-        boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-        project.setOption("liveupdate", shouldPublish ? "true" : "false");
-
-        if (!cmd.hasOption("variant")) {
-            if (cmd.hasOption("debug")) {
-                System.out.println("WARNING option 'debug' is deprecated, use options 'variant' and 'strip-executable' instead.");
-                project.setOption("variant", VARIANT_DEBUG);
-            } else {
-                project.setOption("variant", VARIANT_RELEASE);
-                project.setOption("strip-executable", "true");
-            }
-        }
-
-        String variant = project.option("variant", VARIANT_RELEASE);
-        if (! (variant.equals(VARIANT_DEBUG) || variant.equals(VARIANT_RELEASE) || variant.equals(VARIANT_HEADLESS)) ) {
-            System.out.println(String.format("--variant option must be one of %s, %s, or %s", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS));
-            System.exit(1);
-            return;
-        }
-
-        if (cmd.hasOption("texture-profiles")) {
-            // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
-            System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
-            String texCompression = cmd.getOptionValue("texture-profiles");
-            if (cmd.hasOption("texture-compression")) {
-                texCompression = cmd.getOptionValue("texture-compression");
-            }
-            project.setOption("texture-compression", texCompression);
-        }
-
-        if (cmd.hasOption("archive-resource-padding")) {
-            String resourcePaddingStr = cmd.getOptionValue("archive-resource-padding");
-            int resourcePadding = 0;
             try {
-                resourcePadding = Integer.parseInt(resourcePaddingStr);
-            } catch (Exception e) {
-                System.out.printf("Could not parse --archive-resource-padding='%s' into a valid integer\n", resourcePaddingStr);
-                System.exit(1);
-                return;
-            }
+                TimeProfiler.start("ParseCommandLine");
+                if (cmd.hasOption("version")) {
+                    System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
+                    return new InvocationResult(true, Collections.emptyList());
+                }
 
-            if (!isPowerOfTwo(resourcePadding)) {
-                System.out.printf("Argument --archive-resource-padding='%s' isn't a power of two\n", resourcePaddingStr);
-                System.exit(1);
-                return;
-            }
+                if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
+                    System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
+                    throw new OptionValidationException(1);
+                }
 
-            project.setOption("archive-resource-padding", resourcePaddingStr);
-        }
+                if (cmd.hasOption("debug") && cmd.hasOption("strip-executable")) {
+                    System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
+                    throw new OptionValidationException(1);
+                }
 
-        if (project.hasOption("build-artifacts")) {
-            String[] validArtifacts = {"engine", "plugins", "library"};
-            validateChoicesList(project, "build-artifacts", validArtifacts);
-        }
+                if (cmd.hasOption("exclude-build-folder")) {
+                    // Deprecated in 1.5.1. Just a message for now.
+                    System.out.println("--exclude-build-folder option is deprecated. Use '.defignore' file instead");
+                }
 
-        boolean ret = true;
-        StringBuilder errors = new StringBuilder();
+                if (cmd.hasOption("input")) {
+                    System.out.println("-i (--input) option is deprecated. Use --root instead.");
+                    throw new OptionValidationException(1);
+                }
 
-        List<TaskResult> result = new ArrayList<>();
-        try {
-            result = project.build(new ConsoleProgress(), commands);
-        } catch(MultipleCompileException e) {
-            errors = parseMultipleException(e, verbose);
-            ret = false;
-        } catch(CompileExceptionError e) {
-            ret = false;
-            if (isCause(MultipleCompileException.class, e)) {
-                errors = parseMultipleException((MultipleCompileException)e.getCause(), verbose);
-            } else {
-                throw e;
-            }
-        }
-        for (TaskResult taskResult : result) {
-            if (!taskResult.isOk()) {
-                ret = false;
-                String message = taskResult.getMessage();
-                if (message == null || message.isEmpty()) {
-                    if (taskResult.getException() != null) {
-                        message = taskResult.getException().getMessage();
-                    } else {
-                        message = "undefined";
+                String[] commands = cmd.getArgs();
+                if (commands.length == 0) {
+                    commands = new String[]{"build"};
+                }
+
+                boolean shouldResolveLibs = false;
+                for (String command : commands) {
+                    if (command.equals("resolve")) {
+                        shouldResolveLibs = true;
+                        break;
                     }
                 }
-                errors.append(String.format("ERROR %s%s %s\n", taskResult.getTask().input(0),
-                        (taskResult.getLineNumber() != -1) ? String.format(":%d", taskResult.getLineNumber()) : "",
-                        message));
-                if (verbose) {
-                    if (taskResult.getException() != null) {
-                        errors.append("  ")
-                                .append(taskResult.getException().toString())
-                                .append("\n");
-                        StackTraceElement[] elements = taskResult
-                                .getException().getStackTrace();
-                        for (StackTraceElement element : elements) {
-                            errors.append("  ").append(element.toString())
-                                    .append("\n");
+
+                boolean verbose = cmd.hasOption('v');
+
+                LogHelper.setVerboseLogging(verbose);  // It doesn't iterate over all loggers (including the bob logger)
+                LogHelper.configureLogger(logger);     // It was created before the log helper was set to be verbose
+
+                String email = getOptionsValue(cmd, 'e', null);
+                String auth = getOptionsValue(cmd, 'u', null);
+                Project project = createProject(classLoader, rootDirectory, buildDirectory, email, auth);
+                EngineArtifactsProvider.setCacheBase(new File(project.getBuildCachePath()));
+
+                if (cmd.hasOption("settings")) {
+                    for (String filepath : cmd.getOptionValues("settings")) {
+                        project.addPropertyFile(filepath);
+                    }
+                }
+
+                if (cmd.hasOption("ne-build-dir")) {
+                    for (String filepath : cmd.getOptionValues("ne-build-dir")) {
+                        project.addEngineBuildDir(filepath);
+                    }
+                }
+
+
+                if (cmd.hasOption("build-server-header")) {
+                    for (String header : cmd.getOptionValues("build-server-header")) {
+                        project.addBuildServerHeader(header);
+                    }
+                }
+                TimeProfiler.stop();
+
+                var split = progress.split(commands.length + 1L); // + 1 for setup
+
+                TimeProfiler.start("setupProject");
+                // resolves libraries and finds all sources
+                setupProject(project, shouldResolveLibs, split.subtask());
+                TimeProfiler.stop();
+
+                TimeProfiler.start("setOptions");
+                if (!cmd.hasOption("defoldsdk")) {
+                    project.setOption("defoldsdk", EngineVersion.sha1);
+                }
+
+                if (cmd.hasOption("use-vanilla-lua")) {
+                    System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
+                    project.setOption("use-uncompressed-lua-source", "true");
+                }
+
+                if (cmd.hasOption("build-report")) {
+                    if (build_report_json != null) {
+                        project.setOption("build-report-json", build_report_json);
+                    } else if (build_report_html != null) {
+                        project.setOption("build-report-html", build_report_html);
+                    }
+                }
+
+                if (cmd.hasOption("max-cpu-threads")) {
+                    try {
+                        Integer.parseInt(cmd.getOptionValue("max-cpu-threads"));
+                    } catch (NumberFormatException ex) {
+                        System.out.println("`--max-cpu-threads` expects integer value.");
+                        ex.printStackTrace();
+                        throw new OptionValidationException(1);
+                    }
+                }
+
+                Option[] options = cmd.getOptions();
+                for (Option o : options) {
+                    if (cmd.hasOption(o.getLongOpt())) {
+                        if (o.hasArg()) {
+                            project.setOption(o.getLongOpt(), cmd.getOptionValue(o.getLongOpt()));
+                        } else {
+                            project.setOption(o.getLongOpt(), "true");
                         }
                     }
                 }
+                if (internalOptions != null) {
+                    internalOptions.forEach(project::setOption);
+                }
+
+                // Get and set architectures list.
+                Platform platform = project.getPlatform();
+                String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+                List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
+
+                if (cmd.hasOption("architectures")) {
+                    architectures = cmd.getOptionValue("architectures").split(",");
+                }
+
+                if (architectures.length == 0) {
+                    System.out.println(String.format("ERROR! --architectures cannot be empty. Available architectures: %s", String.join(", ", availableArchitectures)));
+                    throw new OptionValidationException(1);
+                }
+
+                // Remove duplicates and make sure they are all supported for
+                // selected platform.
+                Set<String> uniqueArchitectures = new HashSet<String>();
+                for (String architecture : architectures) {
+                    if (!availableArchitectures.contains(architecture)) {
+                        System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
+                        throw new OptionValidationException(1);
+                    }
+                    uniqueArchitectures.add(architecture);
+                }
+
+                project.setOption("architectures", String.join(",", uniqueArchitectures));
+
+                boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
+                project.setOption("liveupdate", shouldPublish ? "true" : "false");
+
+                if (!cmd.hasOption("variant")) {
+                    if (cmd.hasOption("debug")) {
+                        System.out.println("WARNING option 'debug' is deprecated, use options 'variant' and 'strip-executable' instead.");
+                        project.setOption("variant", VARIANT_DEBUG);
+                    } else {
+                        project.setOption("variant", VARIANT_RELEASE);
+                        project.setOption("strip-executable", "true");
+                    }
+                }
+
+                String variant = project.option("variant", VARIANT_RELEASE);
+                if (!(variant.equals(VARIANT_DEBUG) || variant.equals(VARIANT_RELEASE) || variant.equals(VARIANT_HEADLESS))) {
+                    System.out.println(String.format("--variant option must be one of %s, %s, or %s", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS));
+                    throw new OptionValidationException(1);
+                }
+
+                if (cmd.hasOption("texture-profiles")) {
+                    // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
+                    System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
+                    String texCompression = cmd.getOptionValue("texture-profiles");
+                    if (cmd.hasOption("texture-compression")) {
+                        texCompression = "true";
+                    }
+                    project.setOption("texture-compression", texCompression);
+                }
+
+                if (cmd.hasOption("archive-resource-padding")) {
+                    String resourcePaddingStr = cmd.getOptionValue("archive-resource-padding");
+                    int resourcePadding;
+                    try {
+                        resourcePadding = Integer.parseInt(resourcePaddingStr);
+                    } catch (Exception e) {
+                        System.out.printf("Could not parse --archive-resource-padding='%s' into a valid integer\n", resourcePaddingStr);
+                        throw new OptionValidationException(1);
+                    }
+
+                    if (!isPowerOfTwo(resourcePadding)) {
+                        System.out.printf("Argument --archive-resource-padding='%s' isn't a power of two\n", resourcePaddingStr);
+                        throw new OptionValidationException(1);
+                    }
+
+                    project.setOption("archive-resource-padding", resourcePaddingStr);
+                }
+
+                if (project.hasOption("build-artifacts")) {
+                    String[] validArtifacts = {"engine", "plugins", "library"};
+                    validateChoicesList(project, "build-artifacts", validArtifacts);
+                }
+                TimeProfiler.stop();
+
+                boolean ret = true;
+                StringBuilder errors = new StringBuilder();
+
+                List<TaskResult> result = new ArrayList<>();
+                try {
+                    result = project.build(split.subtask(commands.length), commands);
+                } catch (MultipleCompileException e) {
+                    errors = parseMultipleException(e, verbose);
+                    ret = false;
+                } catch (CompileExceptionError e) {
+                    ret = false;
+                    if (isCause(MultipleCompileException.class, e)) {
+                        errors = parseMultipleException((MultipleCompileException) e.getCause(), verbose);
+                    } else {
+                        throw e;
+                    }
+                }
+                for (TaskResult taskResult : result) {
+                    if (!taskResult.isOk()) {
+                        ret = false;
+                        String message = taskResult.getMessage();
+                        if (message == null || message.isEmpty()) {
+                            if (taskResult.getException() != null) {
+                                message = taskResult.getException().getMessage();
+                            } else {
+                                message = "undefined";
+                            }
+                        }
+                        errors.append(String.format("ERROR %s%s %s\n", taskResult.getTask().input(0),
+                                (taskResult.getLineNumber() != -1) ? String.format(":%d", taskResult.getLineNumber()) : "",
+                                message));
+                        if (verbose) {
+                            if (taskResult.getException() != null) {
+                                errors.append("  ")
+                                        .append(taskResult.getException().toString())
+                                        .append("\n");
+                                StackTraceElement[] elements = taskResult
+                                        .getException().getStackTrace();
+                                for (StackTraceElement element : elements) {
+                                    errors.append("  ").append(element.toString())
+                                            .append("\n");
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!ret) {
+                    System.out.println("\nThe build failed for the following reasons:");
+                    System.out.println(errors);
+                }
+                project.dispose();
+                return new InvocationResult(ret, result);
+            } finally {
+                TimeProfiler.createReport();
             }
         }
-        if (!ret) {
-            System.out.println("\nThe build failed for the following reasons:");
-            System.out.println(errors.toString());
-        }
-        project.dispose();
-        System.exit(ret ? 0 : 1);
     }
 
     private static void logErrorAndExit(Exception e) {
-        System.err.println(e.getMessage());
-        if (e.getCause() != null) {
-            System.err.println("Cause: " + e.getCause());
+        logger.severe(e.getMessage().toString());
+        Throwable cause = e.getCause();
+        if (cause != null) {
+            for (int i = 0; cause != null; ++i) {
+                logger.severe("Cause:%d: %s", i, cause.toString());
+                StackTraceElement[] stackTrace = cause.getStackTrace();
+                for (StackTraceElement element : stackTrace) {
+                    logger.severe(element.toString());
+                }
+                cause = cause.getCause();
+            }
+        } else {
+            StackTraceElement[] stackTrace = e.getStackTrace();
+            for (StackTraceElement element : stackTrace) {
+                logger.severe(element.toString());
+            }
         }
         logger.severe(e.getMessage(), e);
         System.exit(1);
@@ -946,9 +951,10 @@ public class Bob {
 
     public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         try {
-            mainInternal(args);
-        } catch (LibraryException|CompileExceptionError e) {
-            logErrorAndExit(e);
+            boolean success = invoke(null, Progress.console(), null, args).success;
+            System.exit(success ? 0 : 1);
+        } catch (OptionValidationException e) {
+            System.exit(e.exitCode);
         } catch (Exception e) {
             logErrorAndExit(e);
         }

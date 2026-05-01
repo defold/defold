@@ -59,30 +59,9 @@ The local server can be built and started using the **defold/extender** reposito
 
     $ git clone https://github.com/defold/extender.git
 
-### Gradle
+### Debugging
 
-To launch the server locally, via gradle:
-
-    $ cd extender
-    extender$ ./gradlew build
-    extender$ ./gradlew bootRun
-
-### Local Docker
-
-The easiest way to debug is to use the docker container.
-First, install [Docker](https://www.docker.com/)
-
-The gradle server also runs inside a docker container:
-
-    $ cd extender
-    extender$ ./scripts/build.sh
-    extender$ ./scripts/run.sh
-  
-#### Debugging inside docker
-
-It's quite easy to get access to your docker container:
-
-    extender$ ./scipts/debug.sh
+Debugging instruction can be found at https://github.com/defold/extender/blob/dev/README_DEBUGGING.md
 
 ## Editor 2
 

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.localization :as localization]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [integration.test-util :as test-util]))
@@ -26,7 +27,7 @@
       (let [node-id   (test-util/resource-node project "/sounds/new.sound")
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
-        (is (= "Sound" (:label outline)))
+        (is (= (localization/message "outline.sound") (:label outline)))
         (is (empty? (:children outline)))
         (is (= nil (get-in form-data [:values [:sound]])))))))
 
@@ -36,7 +37,7 @@
       (let [node-id   (test-util/resource-node project "/sounds/tink.sound")
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
-        (is (= "Sound" (:label outline)))
+        (is (= (localization/message "outline.sound") (:label outline)))
         (is (empty? (:children outline)))
         (is (= "/sounds/tink.wav"
                (resource/resource->proj-path (get-in form-data [:values [:sound]]))))))))
@@ -57,4 +58,5 @@
       (is (not (g/error? (g/node-value valid-id :build-targets))))
       (let [error (first (keep :message (tree-seq :causes :causes (g/node-value invalid-id :build-targets))))]
         (is (some? error))
-        (is (string/includes? error "Invalid ogg file"))))))
+        (is (= (localization/message "error.sound.invalid-ogg-file-details" {"output" "irrelevant"})
+               (localization/vary-message-variables error assoc "output" "irrelevant")))))))

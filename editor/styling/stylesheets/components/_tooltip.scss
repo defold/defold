@@ -1,5 +1,8 @@
 .tooltip {
-    -fx-background-radius: 1px;
-    -fx-border-radius: 1px;
-    -fx-background-color: -df-background;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-background-color: -df-component-dark;
+    -fx-text-fill: -df-text-selected;
+    -fx-font-size: 13px;
+    -fx-padding: 4px 8px;
 }

@@ -1,12 +1,12 @@
--- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -66,6 +66,18 @@ function update(self, dt)
         assert_near(sv.x, 2*i, epsilon)
         assert_near(sv.y, 3*i, epsilon)
         assert_near(sv.z, 4*i, epsilon)
+
+        go.set_scale_xy(vmath.vector3(5*i,6*i,7*i), v)
+        sv = go.get_scale(v)
+        assert_near(sv.x, 5*i, epsilon)
+        assert_near(sv.y, 6*i, epsilon)
+        assert_near(sv.z, 4*i, epsilon)
+
+        go.set_scale_xy(i, v)
+        local sv = go.get_scale(v)
+        assert_near(i, sv.x, epsilon)
+        assert_near(i, sv.y, epsilon)
+        assert_near(4*i, sv.z, epsilon)
     end
 
     msg.post("@system:", "factory", {prototype = "test", pos = vmath.vector3(1, 2, 3)})

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,6 +17,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.connection-properties :refer [connection-properties]]
+            [editor.localization :as localization]
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -127,7 +128,7 @@
   (net/download! url zip-file
                  :progress-callback (fn [current total]
                                       (track-download-progress!
-                                        (progress/make "Downloading update" total current)))
+                                        (progress/make (localization/message "progress.downloading-update") total current)))
                  :chunk-size (* 1024 1024)
                  :cancelled-derefable cancelled-atom
                  :read-timeout 10000
@@ -169,7 +170,7 @@
             (io/copy in target-file))
           (when (executable? (.getUnixMode e))
             (.setExecutable target-file true))
-          (track-extract-progress! (progress/make "Extracting update" entry-count (inc i)))))
+          (track-extract-progress! (progress/make (localization/message "progress.extracting-update") entry-count (inc i)))))
       (if @cancelled-atom
         (do (FileUtils/deleteQuietly update-dir)
             false)
@@ -199,12 +200,12 @@
         cancelled-atom (atom false)
         track-progress! (fn [progress]
                           (swap! state-atom assoc-in [:current-download :progress] progress))
-        track-download-progress! (progress/nest-render-progress track-progress! (progress/make "" 2 0))
-        track-extract-progress! (progress/nest-render-progress track-progress! (progress/make "" 2 1))]
+        track-download-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 0))
+        track-extract-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 1))]
     (when (some? current-download)
       (reset! (:cancelled-derefable current-download) true))
     (swap! state-atom assoc :current-download {:sha1 server-sha1
-                                               :progress (progress/make "" 2 0)
+                                               :progress (progress/make localization/empty-message 2 0)
                                                :cancelled-derefable cancelled-atom})
     (future
       (try
@@ -309,7 +310,9 @@
             (log/info :message "New version found" :sha1 update-sha1)
             (log/info :message "No update found"))))
       (catch IOException e
-        (log/warn :message "Update check failed" :exception e)))))
+        ;; Disabled during tests to minimize log spam.
+        (when-not (Boolean/getBoolean "defold.tests")
+          (log/warn :message "Update check failed" :exception e))))))
 
 (defn- make-check-for-update-task ^TimerTask [^Timer timer updater update-delay]
   (proxy [TimerTask] []
@@ -337,7 +340,7 @@
                           (or "")
                           io/file
                           .getCanonicalFile)
-        protected-dirs [(io/file resources-dir "packages" "jdk-17.0.5+8")]
+        protected-dirs [(io/file resources-dir "packages" "jdk-25+36")]
         install-dir (.getCanonicalFile
                       (if-let [path (system/defold-resourcespath)]
                         (case os

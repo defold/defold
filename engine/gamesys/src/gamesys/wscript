@@ -1,10 +1,14 @@
 #! /usr/bin/env python
-import os
-import re
-from waf_dynamo import apidoc_extract_task
+import os, sys, re
+from BuildUtility import create_build_utility
+import waflib.Options
+
+sys.path.insert(0, "src")
+import waf_gamesys
 
 def configure(conf):
-    conf.recurse('test')
+    if not waflib.Options.options.skip_build_tests:
+        conf.recurse('test')
 
 def has_ext(itm, ext):
     if type("") == type(itm):
@@ -16,10 +20,19 @@ def remove_from_node_list(lst, name):
     return [x for x in lst if not has_ext(x, name)]
 
 def build(bld):
-    sources = bld.path.ant_glob(['*.cpp', 'resources/*.cpp', 'components/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*')
+    build_util = create_build_utility(bld.env)
+
+    proto_sources = bld.path.parent.parent.ant_glob('proto/gamesys/*')
+    bld.stlib(features = 'cxx ddf',
+        includes = '. .. ../../src ../../proto',
+        proto_gen_py = True,
+        protoc_includes = '../../proto',
+        source = proto_sources,
+        target = 'gamesys_proto')
+
+    sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp'])
     sources = remove_from_node_list(sources, 'comp_model.cpp')
     sources = remove_from_node_list(sources, 'comp_model_null.cpp')
-    sources = remove_from_node_list(sources, 'model_ddf.proto')
     sources = remove_from_node_list(sources, 'res_model.cpp')
     sources = remove_from_node_list(sources, 'res_model_null.cpp')
     sources = remove_from_node_list(sources, 'script_model.cpp')
@@ -29,6 +42,8 @@ def build(bld):
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
+        use = 'gamesys_proto',
+        uselib = 'LUA',
         source = sources,
         target = 'gamesys')
 
@@ -46,28 +61,27 @@ def build(bld):
 
     bld.stlib(features = 'cxx ddf',
         includes = '. .. ../../src ../../proto',
-        proto_gen_py = True,
         protoc_includes = '../../proto',
-        source = 'resources/res_model.cpp components/comp_model.cpp scripts/script_model.cpp ../../proto/gamesys/model_ddf.proto',
+        proto_gen_py = True,
+        use = 'gamesys_proto',
+        uselib = 'LUA',
+        source = 'resources/res_model.cpp components/comp_model.cpp scripts/script_model.cpp',
         target = 'gamesys_model')
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto',
-        proto_gen_py = True,
         protoc_includes = '../../proto',
         source = 'resources/res_model_null.cpp components/comp_model_null.cpp',
         target = 'gamesys_model_null')
 
     bld.stlib(features = 'cxx ddf',
         includes = '. .. ../../src ../../proto',
-        proto_gen_py = True,
         protoc_includes = '../../proto',
         source = 'resources/res_rig_scene.cpp',
         target = 'gamesys_rig')
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto',
-        proto_gen_py = True,
         protoc_includes = '../../proto',
         source = 'resources/res_rig_scene_null.cpp',
         target = 'gamesys_rig_null')
@@ -77,8 +91,15 @@ def build(bld):
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto',
-        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body.cpp',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v3/script_box2d_body_v3.cpp scripts/box2d/v3/script_box2d_shape_v3.cpp',
+        uselib = 'LUA',
         target = 'script_box2d')
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto ' + build_util.get_dynamo_ext('include', 'box2d_defold'),
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v2/script_box2d_body_v2.cpp scripts/box2d/v2/script_box2d_fixture_v2.cpp scripts/box2d/v2/script_box2d_shape_v2.cpp',
+        uselib = 'LUA',
+        target = 'script_box2d_defold')
 
     bld.add_group()
 
@@ -110,10 +131,12 @@ def build(bld):
         'components/comp_sound.cpp',
         'components/comp_collection_proxy.cpp'] + proto_files)
 
-    bld.add_group()
-    bld.recurse('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.add_group()
+        bld.recurse('test')
 
     bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
     bld.install_files('${PREFIX}/include/gamesys/components', 'components/comp_gui.h')
+    bld.install_files('${PREFIX}/include/gamesys/fontgen', 'fontgen/fontgen.h')
     for x in proto_files:
         bld.install_files('${PREFIX}/share/proto/gamesys', x)

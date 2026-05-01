@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,10 +32,8 @@
 
 
 (defn- luajit-exec-path
-  [arch]
-  (str (system/defold-unpack-path) "/" (.getPair (Platform/getHostPlatform)) (str (case arch
-                                                                                        :32-bit "/bin/luajit-32"
-                                                                                        :64-bit "/bin/luajit-64"))))
+  []
+  (str (system/defold-unpack-path) "/" (.getPair (Platform/getHostPlatform)) "/bin/luajit-64"))
 
 (defn- luajit-lua-path
   []
@@ -69,8 +67,8 @@
     s))
 
 (defn- compile-file
-  [proj-path ^File input ^File output arch]
-  (let [{:keys [exit out err]} (shell/sh (luajit-exec-path arch)
+  [proj-path ^File input ^File output]
+  (let [{:keys [exit out err]} (shell/sh (luajit-exec-path)
                                          "-bgF"
                                          (luajit-path-to-chunk-name proj-path) ;; "@" is added by the luajit executable
                                          (.getAbsolutePath input)
@@ -87,12 +85,12 @@
                          :message message}))))))
 
 (defn bytecode
-  [source proj-path arch]
+  [source proj-path]
   (let [input (fs/create-temp-file! "script" ".lua")
         output (fs/create-temp-file! "script" ".luajitbc")]
     (try
       (io/copy source input)
-      (compile-file proj-path input output arch)
+      (compile-file proj-path input output)
       (with-open [buf (ByteArrayOutputStream.)]
         (io/copy output buf)
         (.toByteArray buf))

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,6 +36,10 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     void*                      CompParticleFXGetComponent(const dmGameObject::ComponentGetParams& params);
+
+    dmGameObject::PropertyResult CompParticleFXGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
+
+    dmGameObject::PropertyResult CompParticleFXSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
     void CompParticleFXOnReload(const dmGameObject::ComponentOnReloadParams& params);
 }

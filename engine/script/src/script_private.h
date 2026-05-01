@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -78,7 +78,20 @@ namespace dmScript
         dmArray<HScriptExtension>   m_ScriptExtensions;
         lua_State*                  m_LuaState;
         int                         m_ContextTableRef;
+        int                         m_ContextWeakTableRef;
     };
+
+    struct TableHeader
+    {
+        uint32_t m_Magic;
+        uint32_t m_Version;
+
+        TableHeader() : m_Magic(0), m_Version(0)
+        {
+        }
+    };
+
+    const char* ReadHeader(const char* buffer, TableHeader& header);
 
     HContext GetScriptContext(lua_State* L);
 

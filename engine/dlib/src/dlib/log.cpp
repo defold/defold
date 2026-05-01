@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -308,7 +308,8 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
 #ifdef __EMSCRIPTEN__
 
         //Emscripten maps stderr to console.error and stdout to console.log.
-        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
+        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
+        {
             EM_ASM_({
                 Module.printErr(UTF8ToString($0));
             }, output);
@@ -317,15 +318,18 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
                 Module.print(UTF8ToString($0));
             }, output);
         }
-#elif !defined(ANDROID)
+#elif defined(_GAMING_XBOX)
+    OutputDebugStringA(output);
+#else
+    if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
+    {
         fwrite(output, 1, output_len, stderr);
-#endif
-
-    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
-        dmLog::g_TotalBytesLogged += output_len;
-        fwrite(output, 1, output_len, dmLog::g_LogFile);
-        fflush(dmLog::g_LogFile);
     }
+    else
+    {
+        fwrite(output, 1, output_len, stdout);
+    }
+#endif
 }
 
 // Here we put logging that needs to be thread safe
@@ -340,7 +344,7 @@ static void DoLogSynchronized(LogSeverity severity, const char* domain, const ch
         g_Listeners[i]((LogSeverity)severity, domain, output);
     }
 
-    dmProfile::LogText("%s", output);
+    ProfileLogText("%s", output);
 }
 
 static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
@@ -578,6 +582,30 @@ bool SetLogFile(const char* path)
     return true;
 }
 
+#if defined(_WIN32)
+
+bool HResultToString(HRESULT hr, char* buffer, size_t buffer_size)
+{
+    buffer[0] = 0;
+    return 0 != FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
+                    NULL, hr,
+                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+                    (LPSTR) buffer, buffer_size,
+                    NULL);
+}
+
+void LogHResult(LogSeverity severity, HRESULT result, const char* str_buf)
+{
+    char msg[256];
+    char buffer[1024];
+    dmLog::HResultToString(result, msg, sizeof(msg));
+    dmSnPrintf(buffer, sizeof(buffer), "%s (hr: 0x%08x code: %d : '%s')\n", str_buf, result, HRESULT_CODE(result), msg);
+    dmLogError(buffer);
+    OutputDebugStringA(buffer);
+}
+#endif
+
+
 } //namespace dmLog
 
 void dmLogRegisterListener(FLogListener listener)
@@ -605,6 +633,16 @@ void dmLogUnregisterListener(FLogListener listener)
     dmLogWarning("dmLog listener not found");
 }
 
+void dmLogInitialize(const LogParams* params)
+{
+    dmLog::LogInitialize(params);
+}
+
+void dmLogFinalize()
+{
+    dmLog::LogFinalize();
+}
+
 void dmLogSetLevel(LogSeverity severity)
 {
     dmLog::g_LogLevel = severity;
@@ -630,9 +668,9 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
         return;
     }
 
-    // In release mode, if there are no custom listeners, we'll return here
+    // In release mode, if there are no custom listeners, and no log.txt file, we'll return here
     bool is_debug_mode = dLib::IsDebugMode();
-    if (!is_debug_mode && (dmAtomicGet32(&dmLog::g_ListenersCount) == 0))
+    if (!is_debug_mode && !dmLog::g_LogFile && (dmAtomicGet32(&dmLog::g_ListenersCount) == 0))
     {
         return;
     }
@@ -662,12 +700,17 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
     if (n < dmLog::MAX_STRING_SIZE)
     {
-        n += vsnprintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, format, lst);
+        int length = vsnprintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, format, lst);
+        if (length > 0)
+        {
+            n += length;
+        }
     }
 
     if (n < dmLog::MAX_STRING_SIZE)
     {
-        n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "\n");
+        dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "\n");
+        ++n; // Since dmSnPrintf returns -1 on truncation, don't add the return value to n, and instead increment n separately
     }
 
     if (n >= dmLog::MAX_STRING_SIZE)
@@ -685,6 +728,13 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     if (is_debug_mode)
     {
         dmLog::DoLogPlatform(severity, str_buf, actual_n);
+    }
+
+    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE)
+    {
+        dmLog::g_TotalBytesLogged += actual_n;
+        fwrite(str_buf, 1, actual_n, dmLog::g_LogFile);
+        fflush(dmLog::g_LogFile);
     }
 
     if (!dmLog::IsServerInitialized()) // in case the server lock isn't even created

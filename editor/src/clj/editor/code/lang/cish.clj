@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -291,6 +291,29 @@ U[a-fA-F0-9]{0,8} )"
    :indent {:begin #"^.*\{[^}\"\']*$|^.*\([^\)\"\']*$|^\s*\{\}$"
             :end #"^\s*(\s*/[*].*[*]/\s*)*\}|^\s*(\s*/[*].*[*]/\s*)*\)"}
    :line-comment "//"
+   :auto-insert {:characters {\[ \]
+                              \{ \}
+                              \( \)
+                              \' \'
+                              \" \"}
+                 :close-characters #{\] \} \) \' \"}
+                 :exclude-scopes #{"punctuation.definition.string.begin.c"
+                                   "punctuation.definition.string.begin.cpp"
+                                   "string.quoted.single.c"
+                                   "string.quoted.double.c"
+                                   "string.quoted.double.cpp"
+                                   "string.quoted.double.include.c"
+                                   "string.quoted.other.lt-gt.include.c"
+                                   "constant.character.escape.c"
+                                   "constant.character.escape.cpp"
+                                   "constant.character.escape.line-continuation.c"
+                                   "constant.other.placeholder.c"
+                                   "invalid.illegal.unknown-escape.c"
+                                   "invalid.illegal.placeholder.c"}
+                 :open-scopes {\" "punctuation.definition.string.begin.c"
+                               \' "punctuation.definition.string.begin.c"}
+                 :close-scopes {\" "punctuation.definition.string.end.c"
+                                \' "punctuation.definition.string.end.c"}}
    :patterns (concat c-comments-patterns
                      c-storage-types-patterns
                      c-control-keywords-patterns

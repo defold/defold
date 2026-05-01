@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,13 +15,12 @@
 #ifndef DMSDK_ALIGN_H
 #define DMSDK_ALIGN_H
 
-/*# SDK Align API documentation
+/*# Align API documentation
  * Alignment macros. Use for compiler compatibility
  *
  * @document
  * @name Align
- * @namespace dmAlign
- * @path engine/dlib/src/dmsdk/dlib/align.h
+ * @language C
  */
 
 /*# data structure alignment macro
@@ -61,7 +60,7 @@
  * int result = DM_ALIGN(24, 16);
  * ```
  */
-#define DM_ALIGN(x, a) (((uintptr_t) (x) + (a-1)) & ~(a-1))
+#define DM_ALIGN(x, a) (((uintptr_t) (x) + (a-1)) & ~(uintptr_t) (a-1))
 
 #if defined(__GNUC__)
 #define DM_ALIGNED(a) __attribute__ ((aligned (a)))

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -57,12 +57,14 @@ namespace dmRender
     struct RenderScriptInstance
     {
         dmArray<Command>              m_CommandBuffer;
+        dmArray<int>                  m_ConstantBufferLuaRefs; // Lua registry refs keeping constant buffers alive while queued in m_CommandBuffer
         dmHashTable64<RenderResource> m_RenderResources;
         Predicate*                    m_Predicates[MAX_PREDICATE_COUNT];
         RenderContext*                m_RenderContext;
         HRenderScript                 m_RenderScript;
         dmScript::ScriptWorld*        m_ScriptWorld;
         uint32_t                      m_PredicateCount;
+        uint32_t                      m_UniqueScriptId;
         int                           m_InstanceReference;
         int                           m_RenderScriptDataReference;
         int                           m_ContextTableReference;

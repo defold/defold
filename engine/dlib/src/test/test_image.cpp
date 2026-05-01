@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,6 +28,8 @@
 #include "data/gray_alpha_check_2x2.png.embed.h"
 #include "data/defold_64.jpg.embed.h"
 #include "data/defold_64_progressive.jpg.embed.h"
+#include "data/valid.astc.embed.h"
+#include "data/invalid.astc.embed.h"
 
 /*
  * Imagemagick conversion
@@ -296,6 +298,37 @@ TEST(dmImage, case2319)
     ASSERT_EQ(16U, (uint32_t) b[i++]);
 
     dmImage::Free(&image);
+}
+
+TEST(dmImage, AstcBlockSize)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t depth = 0;
+    ASSERT_TRUE(dmImage::GetAstcBlockSize(VALID_ASTC, VALID_ASTC_SIZE, &width, &height, &depth));
+    ASSERT_EQ(8U, width);
+    ASSERT_EQ(6U, height);
+    ASSERT_EQ(1U, depth);
+}
+
+TEST(dmImage, AstcDimensions)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t depth = 0;
+    ASSERT_TRUE(dmImage::GetAstcDimensions(VALID_ASTC, VALID_ASTC_SIZE, &width, &height, &depth));
+    ASSERT_EQ(128U, width);
+    ASSERT_EQ(64U, height);
+    ASSERT_EQ(1U, depth);
+}
+
+TEST(dmImage, AstcInvalidHeader)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t depth = 0;
+    ASSERT_FALSE(dmImage::GetAstcBlockSize(INVALID_ASTC, INVALID_ASTC_SIZE, &width, &height, &depth));
+    ASSERT_FALSE(dmImage::GetAstcDimensions(INVALID_ASTC, 4, &width, &height, &depth));
 }
 
 int main(int argc, char **argv)

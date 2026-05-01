@@ -2,6 +2,7 @@
 #   Generate an intermediate representation of a clang AST dump.
 #-------------------------------------------------------------------------------
 import os, sys, json, subprocess
+from log import log
 
 def is_api_decl(decl, prefix):
     if 'type' in decl and decl['type']['qualType'].startswith(prefix):
@@ -184,7 +185,8 @@ def get_type(decl):
     return decl['type']['qualType']
 
 def printtable(t):
-    print(json.dumps(t, sort_keys=True, indent=2))
+    s = json.dumps(t, sort_keys=True, indent=2)
+    print(s)
 
 def parse_inner_cpp(main_prefix, dep_prefixes, namespace, inp, outp):
     if not 'decls' in outp:
@@ -208,15 +210,19 @@ def parse_inner_cpp(main_prefix, dep_prefixes, namespace, inp, outp):
 
 
 def clang(csrc_path, includes=[]):
-    cmd = ['clang', '-Xclang', '-ast-dump=json', '-c']
+    clang = os.environ.get('CLANG', 'clang')
+    cmd = [clang, '-Xclang', '-ast-dump=json', '-c']
     cmd.extend([ '-I%s' % include for include in includes])
     cmd.append(csrc_path)
+    log('[exec] %s' % cmd)
     return subprocess.check_output(cmd)
 
 def clang_cpp(csrc_path, includes=[]):
-    cmd = ['clang++', '-Xclang', '-ast-dump=json', '-c']
+    clangpp = os.environ.get('CLANGPP', 'clang++')
+    cmd = [clangpp, '-Xclang', '-ast-dump=json', '-c']
     cmd.extend([ '-I%s' % include for include in includes])
     cmd.append(csrc_path)
+    log('[exec] %s' % cmd)
     return subprocess.check_output(cmd)
 
 def gen(source_path, includes, module, main_prefix, dep_prefixes):

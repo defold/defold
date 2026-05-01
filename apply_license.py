@@ -37,7 +37,14 @@ CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.''') % YEAR
 
 def license(comment):
-    return "\n".join([comment + line for line in LICENSE.split("\n")])
+    license = ""
+    for line in LICENSE.split("\n"):
+        if len(line.strip()) == 0:
+            license = license + comment.strip() + "\n"
+        else:
+            license = license + comment + line + "\n"
+    return license.strip()
+    # return "\n".join([comment + line for line in LICENSE.split("\n")])
 
 # map extensions to strings with the commented license
 ext_to_license = {
@@ -62,6 +69,7 @@ excluded_files = [
     "engine/ddf/src/ddfc.py",
     "engine/engine/contents/builtins/edn.lua",
     "engine/engine/contents/builtins/mobdebug.lua",
+    "engine/font/src/stb_truetype.h",
     "editor/bundle-resources/_defold/debugger/start.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_url.lua",
@@ -76,6 +84,7 @@ excluded_files = [
     "editor/resources/templates/template.gui_script",
     "editor/resources/templates/template.render_script",
     "editor/resources/templates/template.lua",
+    "editor/test/resources/transpile_teal_project/main/main.script",
     "engine/resource/src/test/empty.script",
     "engine/resource/src/test/archive_data/file5.script",
     "engine/resource/src/test/archive_data/liveupdate.file6.script",
@@ -92,7 +101,9 @@ excluded_paths = [
     "./engine/dlib/src/basis/transcoder",
     "./engine/dlib/src/dlib/jsmn",
     "./engine/dlib/src/lz4",
-    "./engine/dlib/src/mbedtls",
+    "./engine/dlib/src/mbedtls/include",
+    "./engine/dlib/src/mbedtls/library",
+    "./engine/dlib/src/mbedtls/tf-psa-crypto",
     "./engine/dlib/src/stb",
     "./engine/dlib/src/jc",
     "./engine/dlib/src/zlib",
@@ -105,7 +116,6 @@ excluded_paths = [
     "./engine/sound/src/stb_vorbis",
     "./engine/script/src/bitop",
     "./engine/script/src/luasocket",
-    "./com.dynamo.cr/com.dynamo.cr.bob/src/org/jagatoo",
 ]
 
 dryrun = False

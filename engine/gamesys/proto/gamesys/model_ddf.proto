@@ -2,7 +2,6 @@ syntax = "proto2";
 package dmModelDDF;
 
 import "ddf/ddf_extensions.proto";
-import "ddf/ddf_math.proto";
 import "graphics/graphics_ddf.proto";
 
 option java_package = "com.dynamo.gamesys.proto";
@@ -27,23 +26,25 @@ message Material
 // The source format (.model)
 message ModelDesc
 {
-    required string mesh        = 2 [(resource)=true];
-    optional string material    = 3 [(resource)=true]; // Deprecated
-    repeated string textures    = 4 [(resource)=true]; // Deprecated
-    optional string skeleton    = 5 [(resource)=true];
-    optional string animations  = 6 [(resource)=true];
+    required string mesh               = 2 [(resource)=true];
+    optional string material           = 3 [(resource)=true]; // Deprecated
+    repeated string textures           = 4 [(resource)=true]; // Deprecated
+    optional string skeleton           = 5 [(resource)=true];
+    optional string animations         = 6 [(resource)=true];
     optional string default_animation  = 7;
 
-    optional string name        = 10; // Deprecated
-    repeated Material materials = 11;
+    optional string name               = 10; // Deprecated
+    repeated Material materials        = 11;
+    optional bool create_go_bones      = 12 [default=true];
 }
 
 // The engine format (.modelc)
 message Model
 {
-    required string rig_scene   = 1 [(resource)=true];
-    optional string default_animation  = 2;
-    repeated Material materials = 3;
+    required string rig_scene         = 1 [(resource)=true];
+    optional string default_animation = 2;
+    repeated Material materials       = 3;
+    optional bool create_go_bones     = 4;
 }
 
 message ResetConstant
@@ -57,16 +58,6 @@ message SetTexture
     required uint32 texture_unit = 2;
 }
 
-message ModelPlayAnimation
-{
-    required uint64 animation_id = 1;
-    // matches dmGameObject::Playback in gameobject.h
-    required uint32 playback = 2;
-    optional float blend_duration = 3 [default = 0.0];
-    optional float offset = 4 [default = 0.0];
-    optional float playback_rate = 5 [default = 1.0];
-}
-
 message ModelCancelAnimation
 {
 }
@@ -76,6 +67,7 @@ message ModelCancelAnimation
  * @document
  * @name Model
  * @namespace model
+ * @language Lua
  */
 
 /*# reports the completion of a Model animation

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -111,10 +111,10 @@ namespace dmLiveUpdate
             dmZip::CloseEntry(zip);
         }
         free((void*)entry_data);
-        return dmResource::RESULT_OK;
+        return result;
     }
 
-    dmResource::Result VerifyZipArchive(const char* path, const char* public_key_path)
+    dmResource::Result VerifyZipArchive(const char* path)
     {
         dmLogInfo("Verifying archive '%s'", path);
 
@@ -144,7 +144,7 @@ namespace dmLiveUpdate
             return dmResource::RESULT_IO_ERROR;
         }
 
-        result = dmResource::VerifyManifest(manifest, public_key_path);
+        result = dmResource::VerifyManifestSupportedEngineVersion(manifest);
         if (dmResource::RESULT_OK != result)
         {
             dmLogError("Manifest verification failed: %s", dmResource::ResultToString(result));

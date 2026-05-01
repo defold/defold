@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,9 +25,8 @@
  *
  * @document
  * @name Log
- * @namespace dmLog
- * @path engine/dlib/src/dmsdk/dlib/log.h
-*/
+ * @language C++
+ */
 
 /*# macro for debug category logging
  *
@@ -226,18 +225,49 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 #define dmLogOnceFatal(format, args... ) dmLogOnceInternal(dmLogFatal, format, ## args )
 #endif
 
-/*# dmLog:LogListener callback typedef
+#endif // NDEBUG
+
+/*# Log listener callback typedef
  *
  * dmLog listener function type. Provides all logs from dmLog* functions and print/pprint Lua functions.
  * Used with dmLogRegisterListener() and dmLogUnregisterListener()
  *
  * @typedef
- * @name dmLog:LogListener
+ * @name FLogListener
  * @param severity [type:LogSeverity]
  * @param domain [type:const char*]
  * @param formatted_string [type:const char*] null terminated string
  */
 typedef void (*FLogListener)(LogSeverity severity, const char* domain, const char* formatted_string);
+
+/*# Log parameters.
+ *
+ * Parameters for dmLogInitialize().
+ *
+ * @struct
+ * @name LogParams
+ */
+typedef struct LogParams
+{
+    uint8_t m_Reserved; // keep non-empty and C/C++ ABI-compatible
+} LogParams;
+
+/*# initialize the logging system.
+ *
+ * Running this function is only required in order to start the log server.
+ * The function never fails even if the log server cannot be started.
+ * Any startup errors are reported to stderr.
+ *
+ * @name dmLogInitialize
+ * @param params [type:LogParams*] log parameters
+ */
+void dmLogInitialize(const LogParams* params);
+
+/*# finalize the logging system.
+ *
+ * @name dmLogFinalize
+ */
+void dmLogFinalize();
 
 /*# register a log listener.
  *
@@ -256,7 +286,7 @@ void dmLogRegisterListener(FLogListener listener);
  * Unregisters a log listener.
  *
  * @name dmLogUnregisterListener
- * @param [type:FLogListener] listener
+ * @param listener [type:FLogListener]
  */
 void dmLogUnregisterListener(FLogListener listener);
 
@@ -265,7 +295,7 @@ void dmLogUnregisterListener(FLogListener listener);
  * Set log system severity level.
  *
  * @name dmLogSetLevel
- * @param [type:LogSeverity] severity
+ * @param severity [type:LogSeverity] Log system severity level to set
  */
 void dmLogSetLevel(LogSeverity severity);
 
@@ -275,12 +305,10 @@ void dmLogSetLevel(LogSeverity severity);
  * Get log system severity level.
  *
  * @name dmLogGetLevel
- * @return [type:LogSeverity] severity
+ * @return severity [type:LogSeverity] Current log system severity level
  */
 LogSeverity dmLogGetLevel();
 
-
-#endif // NDEBUG
 
 #ifdef __cplusplus
 } // extern "C"
@@ -290,6 +318,22 @@ LogSeverity dmLogGetLevel();
 
 namespace dmLog
 {
+    typedef ::LogParams LogParams;
+
+    /**
+     * Initialize the logging system.
+     * Running this function is only required in order to start the log server.
+     * The function never fails even if the log server cannot be started.
+     * Any startup errors are reported to stderr.
+     * @param params log parameters
+     */
+    void LogInitialize(const LogParams* params);
+
+    /**
+     * Finalize the logging system.
+     */
+    void LogFinalize();
+
     void RegisterLogListener(FLogListener listener);
     void UnregisterLogListener(FLogListener listener);
     void Setlevel(LogSeverity severity);

@@ -1,0 +1,134 @@
+local M = {}
+
+function M.get_prefs_schema()
+    return {
+        ["test.array"] = editor.prefs.schema.array({item = editor.prefs.schema.string()}),
+        ["test.boolean"] = editor.prefs.schema.boolean(),
+        ["test.enum"] = editor.prefs.schema.enum({values = {1, 2, "foo"}}),
+        ["test.integer"] = editor.prefs.schema.integer(),
+        ["test.keyword"] = editor.prefs.schema.keyword(),
+        ["test.number"] = editor.prefs.schema.number(),
+        ["test.one_of"] = editor.prefs.schema.one_of({schemas = {
+            editor.prefs.schema.string(),
+            editor.prefs.schema.integer()
+        }}),
+        ["test.object"] = editor.prefs.schema.object({properties = {
+            string = editor.prefs.schema.string()
+        }}),
+        ["test.object_of"] = editor.prefs.schema.object_of({
+            key = editor.prefs.schema.keyword(),
+            val = editor.prefs.schema.boolean()
+        }),
+        ["test.set"] = editor.prefs.schema.set({item = editor.prefs.schema.string()}),
+        ["test.string"] = editor.prefs.schema.string(),
+        ["test.password"] = editor.prefs.schema.password(),
+        ["test.tuple"] = editor.prefs.schema.tuple({items = {
+            editor.prefs.schema.string(),
+            editor.prefs.schema.integer(),
+        }}),
+    }
+end
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        id = "defold.test",
+        run = function()
+            editor.prefs.set("test.array", {})
+            local array = editor.prefs.get("test.array")
+            print(("array: %s %s"):format(type(array), #array))
+            editor.prefs.set("test.array", {"foo", "bar"})
+            array = editor.prefs.get("test.array")
+            print(("array: %s %s %s %s"):format(type(array), #array, array[1], array[2]))
+
+            editor.prefs.set("test.boolean", false)
+            local boolean = editor.prefs.get("test.boolean")
+            print(("boolean: %s %s"):format(type(boolean), tostring(boolean)))
+            editor.prefs.set("test.boolean", true)
+            boolean = editor.prefs.get("test.boolean")
+            print(("boolean: %s %s"):format(type(boolean), tostring(boolean)))
+
+            editor.prefs.set("test.enum", 1)
+            local enum = editor.prefs.get("test.enum")
+            print(("enum: %s %s"):format(type(enum), tostring(enum)))
+            editor.prefs.set("test.enum", "foo")
+            enum = editor.prefs.get("test.enum")
+            print(("enum: %s %s"):format(type(enum), tostring(enum)))
+
+            editor.prefs.set("test.integer", 42)
+            local integer = editor.prefs.get("test.integer")
+            print(("integer: %s"):format(integer))
+            editor.prefs.set("test.integer", 43)
+            print(("integer: %s"):format(editor.prefs.get("test.integer")))
+
+            editor.prefs.set("test.keyword", "foo-bar")
+            local keyword = editor.prefs.get("test.keyword")
+            print(("keyword: %s %s"):format(type(keyword), keyword))
+            editor.prefs.set("test.keyword", "code-view")
+            keyword = editor.prefs.get("test.keyword")
+            print(("keyword: %s %s"):format(type(keyword), keyword))
+
+            editor.prefs.set("test.number", 12.3)
+            local number = editor.prefs.get("test.number")
+            print(("number: %s"):format(number))
+            editor.prefs.set("test.number", 0.1)
+            number = editor.prefs.get("test.number")
+            print(("number: %s"):format(number))
+
+            editor.prefs.set("test.one_of", "a string")
+            local one_of = editor.prefs.get("test.one_of")
+            print(("one_of: %s"):format(one_of))
+            editor.prefs.set("test.one_of", 17)
+            one_of = editor.prefs.get("test.one_of")
+            print(("one_of: %s"):format(one_of))
+
+            editor.prefs.set("test.object", {string = "foo"})
+            local object = editor.prefs.get("test.object")
+            print(("object: %s %s"):format(type(object), object.string))
+            editor.prefs.set("test.object", {string = "bar"})
+            object = editor.prefs.get("test.object")
+            print(("object: %s %s"):format(type(object), object.string))
+            editor.prefs.set("test.object.string", "baz")
+            object = editor.prefs.get("test.object")
+            print(("object: %s %s"):format(type(object), object.string))
+
+            editor.prefs.set("test.object_of", {foo = true, bar = false})
+            local object_of = editor.prefs.get("test.object_of")
+            print(("object of: %s foo = %s, bar = %s"):format(type(object_of), tostring(object_of.foo), tostring(object_of.bar)))
+            editor.prefs.set("test.object_of", {foo = false, bar = true})
+            object_of = editor.prefs.get("test.object_of")
+            print(("object of: %s foo = %s, bar = %s"):format(type(object_of), tostring(object_of.foo), tostring(object_of.bar)))
+
+            editor.prefs.set("test.set", {foo = true, bar = true})
+            local set = editor.prefs.get("test.set")
+            print(("set: %s foo = %s, bar = %s"):format(type(set), tostring(set.foo), tostring(set.bar)))
+            editor.prefs.set("test.set", {foo = true})
+            set = editor.prefs.get("test.set")
+            print(("set: %s foo = %s, bar = %s"):format(type(set), tostring(set.foo), tostring(set.bar)))
+            
+            editor.prefs.set("test.string", "a string")
+            local string = editor.prefs.get("test.string")
+            print(("string: %s"):format(string))
+            editor.prefs.set("test.string", "another_string")
+            string = editor.prefs.get("test.string")
+            print(("string: %s"):format(string))
+
+            editor.prefs.set("test.password", "password")
+            local password = editor.prefs.get("test.password")
+            print(("password: %s"):format(password))
+            editor.prefs.set("test.password", "another_password")
+            password = editor.prefs.get("test.password")
+            print(("password: %s"):format(password))
+            
+            editor.prefs.set("test.tuple", {"a string", 12})
+            local tuple = editor.prefs.get("test.tuple")
+            print(("tuple: %s %s"):format(tuple[1], tuple[2]))
+            editor.prefs.set("test.tuple", {"another string", 42})
+            tuple = editor.prefs.get("test.tuple")
+            print(("tuple: %s %s"):format(tuple[1], tuple[2]))
+        end
+    }}
+end
+
+return M

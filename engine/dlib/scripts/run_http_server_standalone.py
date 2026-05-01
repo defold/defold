@@ -1,13 +1,13 @@
 #! /usr/bin/env python
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,14 +17,13 @@ import urllib, urllib.request, time, atexit, os, sys, configparser, tempfile
 
 server_sockets = None
 
-os.system('scripts/start_http_server.sh')
-
 server_config_path = "test_http_server.cfg"
 if os.path.exists(server_config_path):
     os.unlink(server_config_path)
 
 start = time.time()
-timeout = 8
+timeout = 30 if sys.platform == 'win32' else 15
+os.system('scripts/start_http_server.sh')
 while True:
     if time.time() - start > timeout:
         error('HTTP server failed to start within ' + timeout + ' seconds')
@@ -54,8 +53,10 @@ config = configparser.RawConfigParser()
 
 config.add_section("server")
 config.set("server", "socket", server_sockets.getint("server", "socket"))
-config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
-config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
+config.set("server", "socket_tls", server_sockets.getint("server", "socket_tls"))
+config.set("server", "socket_tls12", server_sockets.getint("server", "socket_tls12"))
+config.set("server", "socket_tls13", server_sockets.getint("server", "socket_tls13"))
+config.set("server", "socket_tls_test", server_sockets.getint("server", "socket_tls_test"))
 
 configfilepath = os.path.basename("unittest_data.cfg")
 with open(configfilepath, 'w') as f:

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import java.util.List;
 
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.render.proto.Font.FontMap;
 
 import com.google.protobuf.Message;
@@ -67,7 +68,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("size: 16\n");
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
-        assertEquals(fontMap.getMaterial(), "/test.materialc");
+        assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
     }
 
     @Test
@@ -79,7 +80,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("size: 16\n");
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
-        assertEquals(fontMap.getMaterial(), "/test.materialc");
+        assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
     }
 
     @Test
@@ -94,7 +95,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("size: 16\n");
         FontMap fontMap = getFontMap(build("/subdir/test.font", src.toString()));
 
-        assertEquals(fontMap.getMaterial(), "/test.materialc");
+        assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
     }
 
     @Test

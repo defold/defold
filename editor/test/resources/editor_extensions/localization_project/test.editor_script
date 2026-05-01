@@ -1,0 +1,87 @@
+local M = {}
+
+local function test(label, message)
+    print(("%s => %s"):format(label, tostring(message)))
+end
+
+function M.get_commands()
+    return {editor.command({
+        label = localization.message("command.project.build"),
+        id = "defold.test",
+        locations = {"Edit"},
+        run = function()
+            
+            -- Shouldn't throw any errors:
+            local message = localization.message("command.project.build")
+            local dialog = editor.ui.dialog({
+                title = message,
+                heading = message,
+                content = editor.ui.vertical({
+                    padding = editor.ui.PADDING.LARGE,
+                    children = {
+                        editor.ui.label({ text = message, tooltip = message }),
+                        editor.ui.heading({ text = message }),
+                        editor.ui.paragraph({ text = message }),
+                        editor.ui.button({ text = message }),
+                        editor.ui.check_box({ 
+                            text = message,
+                            tooltip = message,
+                            issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = message}
+                        }),
+                        editor.ui.select_box({
+                            value = "command.project.build",
+                            options = {
+                                "command.project.build",
+                                "command.project.clean-build",
+                                "command.project.build-html5",
+                                "command.project.clean-build-html5"
+                            },
+                            to_string = localization.message,
+                            tooltip = message,
+                            issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = message}
+                        }),
+                        editor.ui.string_field({
+                            tooltip = message,
+                            issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = message}
+                        }),
+                        editor.ui.integer_field({
+                            tooltip = message,
+                            issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = message}
+                        }),
+                        editor.ui.number_field({
+                            tooltip = message,
+                            issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = message}
+                        }),
+                        editor.ui.external_file_field({
+                            title = message,
+                            filters = {{description = message, extensions = {"*.txt"}}},
+                            tooltip = message,
+                            issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = message}
+                        }),
+                        editor.ui.resource_field({
+                            title = message,
+                            tooltip = message,
+                            issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = message}
+                        })
+                    }
+                }),
+                buttons = {
+                    editor.ui.dialog_button({ text = message })
+                }
+            })
+            -- editor.ui.show_dialog(dialog)
+
+            test("message", message)
+            test("localization.and_list({1, 2, message})", localization.and_list({1, 2, message}))
+            test("localization.or_list({1, 2, message})", localization.or_list({1, 2, message}))
+            test("localization.concat({1, 2, message})", localization.concat({1, 2, message}))
+            test("localization.concat({1, 2, message}, '/')", localization.concat({1, 2, message}, '/'))
+            test("localization.concat({1, 2, message}, message)", localization.concat({1, 2, message}, message))
+            test("localization.message('progress.loading-resource')", localization.message('progress.loading-resource'))
+            test("localization.message('progress.loading-resource', {resource = 1})", localization.message('progress.loading-resource', {resource = 1}))
+            test("localization.message('progress.loading-resource', {resource = message})", localization.message('progress.loading-resource', {resource = message}))
+        end
+    })}
+end
+
+return M

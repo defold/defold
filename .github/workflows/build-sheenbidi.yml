@@ -1,0 +1,21 @@
+name: Build SheenBidi
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_changes:
+        description: 'Commit built package tarballs to ./packages on the branch'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-external-template.yml
+    with:
+      package_name: 'sheenbidi'
+      result_folder_name: 'SheenBidi'
+      result_lib_name: 'libsheenbidi'
+      package_version: '2.9.0'
+      push_changes: ${{ inputs.push_changes }}
+    secrets:
+      dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}

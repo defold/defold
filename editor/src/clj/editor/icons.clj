@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,7 +18,8 @@
             [service.log :as log]
             [util.thread-util :as thread-util])
   (:import [java.net URL]
-           [javafx.scene.image Image ImageView]))
+           [javafx.scene.image Image ImageView]
+           [javafx.scene.shape SVGPath]))
 
 (defonce cached-icons-atom (atom {}))
 (defonce workspace-atom (atom nil))
@@ -47,10 +48,10 @@
 
 (defn- find-resource
   ([workspace proj-path]
-   (g/with-auto-evaluation-context evaluation-context
-     (find-resource workspace proj-path evaluation-context)))
-  ([workspace proj-path evaluation-context]
-   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
+   (find-resource (g/now) workspace proj-path))
+  ([basis workspace proj-path]
+   (let [resources-by-proj-path (g/raw-property-value basis workspace :resource-map)]
+     (get resources-by-proj-path proj-path))))
 
 (defn- load-icon-image
   ^Image [^String name ^Double size]
@@ -82,3 +83,8 @@
    (doto (ImageView. (get-image name))
      (.setFitWidth size)
      (.setFitHeight size))))
+
+(defn make-svg-icon-graphic
+  ^SVGPath [^SVGPath icon-template]
+  (doto (SVGPath.)
+    (.setContent (.getContent icon-template))))

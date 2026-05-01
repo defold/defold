@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,8 +34,7 @@
  *
  * @document
  * @name Array
- * @namespace dmArray
- * @path engine/dlib/src/dmsdk/dlib/array.h
+ * @language C++
  */
 
 /**
@@ -60,7 +59,7 @@ char (&ArraySizeHelper(T (&a)[N]))[N];
 /*# get number of elements in C array
  * @macro
  * @name DM_ARRAY_SIZE
- * @param Array [type:]
+ * @param A [type:T] C array to count
  * @return Number of elements
  */
 #define DM_ARRAY_SIZE(A) (sizeof(ArraySizeHelper(A)))
@@ -72,7 +71,7 @@ char (&ArraySizeHelper(T (&a)[N]))[N];
  *
  * @class
  * @name dmArray
- * @tparam T [type:typename T] Contained type, must obey memcpy semantics
+ * @tparam T Contained type, must obey memcpy semantics
  */
 template <typename T>
 class dmArray
@@ -207,7 +206,7 @@ public:
      * The array is full when the size is equal to the capacity.
      *
      * @name Full
-     * @return boolean [type:boolean] true if the array is full
+     * @return boolean [type:bool] true if the array is full
      */
     bool Full() const;
 
@@ -217,7 +216,7 @@ public:
      * The array is empty when the size is zero.
      *
      * @name Empty
-     * @return boolean [type:boolean] true if the array is empty
+     * @return boolean [type:bool] true if the array is empty
      */
     bool Empty() const;
 
@@ -334,7 +333,7 @@ public:
      * Only allowed when the capacity is larger than size + count
      *
      * @name PushArray
-     * @param array [type:const T&] array of elements to add
+     * @param array [type:const T*] array of elements to add
      * @param count [type:uint32_t] amount of elements in the array
      */
     void PushArray(const T* array, uint32_t count);
@@ -354,15 +353,15 @@ public:
      * Swap the content of two arrays
      *
      * @name Swap
-     * @param rhs [type:dmArray`<T>`&] reference to array to swap content with
+     * @param rhs [type:dmArray<T>&] reference to array to swap content with
      */
     void Swap(dmArray<T>& rhs);
 
     /*# map a function on all values
      * map a function on all values
      * @name Map
-     * @param fn function that will be called for each element
-     * @param ctx user defined context that will be passed in with each callback
+     * @param fn [type:void*]function that will be called for each element
+     * @param ctx [type:void*] user defined context that will be passed in with each callback
      */
     void Map(void (*fn)(T* value, void* ctx), void* ctx);
 
@@ -554,14 +553,14 @@ T& dmArray<T>::EraseSwapRef(T& element)
 template <typename T>
 void dmArray<T>::Push(const T& element)
 {
-    assert(Capacity() - Size() > 0);
+    assert(Size() < Capacity());
     *m_End++ = element;
 }
 
 template <typename T>
 void dmArray<T>::PushArray(const T* array, uint32_t count)
 {
-    assert(Capacity() - Size() >= count);
+    assert((Size() + count) <= Capacity());
     memcpy(m_End, array, sizeof(T) * count);
     m_End += count;
 }

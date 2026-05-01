@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,8 +17,6 @@
 
 #include <stdint.h>
 #include "../physics.h"
-#include "../physics_2d.h"
-#include "../physics_3d.h"
 #include <jc_test/jc_test.h>
 
 template <typename T> class dmArray;
@@ -40,16 +38,22 @@ bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, u
 bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data);
 
 static const float PHYSICS_SCALE = 0.5f;
+static const float PRECISION_ROUNDING_PHYSICS_SCALE = 0.00999999978f;
 
 template<typename T>
 class PhysicsTest : public jc_test_base_class
 {
 protected:
 
-    virtual void SetUp()
+    void SetUp() override
+    {
+        SetupContextAndWorld(PHYSICS_SCALE);
+    }
+
+    void SetupContextAndWorld(float physics_scale)
     {
         dmPhysics::NewContextParams context_params = dmPhysics::NewContextParams();
-        context_params.m_Scale = PHYSICS_SCALE;
+        context_params.m_Scale = physics_scale;
         context_params.m_RayCastLimit2D = 64;
         context_params.m_RayCastLimit3D = 128;
         context_params.m_TriggerOverlapCapacity = 16;
@@ -67,9 +71,12 @@ protected:
         m_StepWorldContext.m_ContactPointCallback = ContactPointCallback;
         m_StepWorldContext.m_ContactPointUserData = &m_ContactPointCount;
         m_StepWorldContext.m_MaxFixedTimeSteps = 2;
+        m_StepWorldContext.m_Box2DVelocityIterations = 10;
+        m_StepWorldContext.m_Box2DPositionIterations = 10;
+        m_StepWorldContext.m_Box2DSubStepCount = 10;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         (*m_Test.m_DeleteWorldFunc)(m_Context, m_World);
         (*m_Test.m_DeleteContextFunc)(m_Context);
@@ -81,6 +88,17 @@ protected:
     dmPhysics::StepWorldContext m_StepWorldContext;
     int m_CollisionCount;
     int m_ContactPointCount;
+};
+
+template<typename T>
+class PhysicsPrecisionRoundingTest : public PhysicsTest<T>
+{
+protected:
+
+    virtual void SetUp()
+    {
+        this->SetupContextAndWorld(PRECISION_ROUNDING_PHYSICS_SCALE);
+    }
 };
 
 template<typename T>
@@ -123,7 +141,7 @@ struct Funcs
     typedef float (*GetAngularDampingFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetAngularDampingFunc)(typename T::CollisionObjectType collision_object, float angular_damping);
     typedef float (*GetMassFunc)(typename T::CollisionObjectType collision_object);
-    typedef void (*RequestRayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request);
+    typedef bool (*RequestRayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request);
     typedef void (*RayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
     typedef void (*ReplaceShapeFunc)(typename T::ContextType context, typename T::CollisionShapeType old_shape, typename T::CollisionShapeType new_shape);

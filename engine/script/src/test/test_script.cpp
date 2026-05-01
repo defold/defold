@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -124,7 +124,7 @@ void ScriptTest::AppendToLog(const char* log)
 
 bool ScriptTest::RunFile(lua_State* L, const char* filename)
 {
-    return dmScriptTest::RunFile(L, filename, "build/src/test/");
+    return dmScriptTest::RunFile(L, filename, "build/src/test/scripts");
 }
 bool ScriptTest::RunFile(lua_State* L, const char* filename, const char* base_dir)
 {

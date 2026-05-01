@@ -1,21 +1,21 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.tile-map
-  ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
-  (:require [clojure.data.int-map-fixed :as int-map]
+  (:require [clojure.data.int-map :as int-map]
             [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.core :as core]
             [editor.defold-project :as project]
@@ -26,23 +26,28 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.grid :as grid]
             [editor.handler :as handler]
+            [editor.id :as id]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
-            [editor.tile-map-grid :as tile-map-grid]
+            [editor.tile-map-common :as tile-map-common]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
+           [editor.tile_map_common Tile]
            [editor.types AABB]
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
@@ -75,21 +80,18 @@
 
 (def tile-map-icon "icons/32/Icons_48-Tilemap.png")
 (def tile-map-layer-icon "icons/32/Icons_42-Layers.png")
+(def ^:private material-message (properties/label-message :material))
+(def ^:private tile-source-message (properties/label-message :tile-map :tile-source))
+(def ^:private z-message (properties/label-message :tile-map.layer :z))
 
 
 ;; manipulating cells
 
-(defrecord Tile [^long x ^long y ^long tile ^boolean h-flip ^boolean v-flip ^boolean rotate90])
-
-(defn cell-index ^long [^long x ^long y]
-  (bit-or (bit-shift-left y Integer/SIZE)
-          (bit-and x 0xFFFFFFFF)))
-
 (defn paint-cell!
   [cell-map x y tile h-flip v-flip rotate90]
   (if tile
-    (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
-    (dissoc! cell-map (cell-index x y))))
+    (assoc! cell-map (tile-map-common/cell-index x y) (tile-map-common/->Tile x y tile h-flip v-flip rotate90))
+    (dissoc! cell-map (tile-map-common/cell-index x y))))
 
 (defn make-cell-map
   [cells]
@@ -125,7 +127,7 @@
            cell-map (transient cell-map)]
       (if (< y y1)
         (if (< x x1)
-          (recur (inc x) y (dissoc! cell-map (cell-index x y)))
+          (recur (inc x) y (dissoc! cell-map (tile-map-common/cell-index x y)))
           (recur x0 (inc y) cell-map))
         (persistent! cell-map)))))
 
@@ -149,7 +151,7 @@
      :height h
      :tiles (vec (for [y (range y0 y1)
                        x (range x0 x1)]
-                   (get cell-map (cell-index x y))))}))
+                   (get cell-map (tile-map-common/cell-index x y))))}))
 
 (defn palette-x [n tiles-per-row]
   (mod n tiles-per-row))
@@ -369,7 +371,7 @@
             {:keys [node-id vbuf shader gpu-texture blend-mode]} user-data]
         (when vbuf
           (let [render-args (merge render-args
-                                   (math/derive-render-transforms
+                                   (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                                      world-transform
                                      (:view render-args)
                                      (:projection render-args)
@@ -435,7 +437,7 @@
               u1 (aget uvs (if (.h-flip tile) 0 2))
               v1 (aget uvs (if (.v-flip tile) 1 3))]
           (recur it
-            (if (.rotate90 tile)
+                 (if (.rotate90 tile)
                    (-> vbuf
                        (pos-uv-vtx-put! x0 y1 0 u0 v1)
                        (pos-uv-vtx-put! x1 y1 0 u0 v0)
@@ -458,7 +460,7 @@
   [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)
-          transform (doto (Matrix4d.) (.set (Vector3d. 0.0 0.0 z)))
+          layer-pose (pose/translation-pose 0.0 0.0 z)
 
           ;; The visibility-aabb is used to determine the scene extents. We use
           ;; it to adjust the camera near and far clip planes to encompass the
@@ -473,7 +475,7 @@
             aabb)]
       {:node-id _node-id
        :node-outline-key id
-       :transform transform
+       :pose layer-pose
        :aabb aabb
        :visibility-aabb visibility-aabb
        :renderable {:render-fn render-layer
@@ -486,7 +488,7 @@
                     :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline
-  [_node-id id z]
+  [_node-id id z visible]
   {:node-id _node-id
    :node-outline-key id
    :label id
@@ -522,9 +524,15 @@
 
   (property id g/Str) ; Required protobuf field.
   (property z g/Num ; Required protobuf field.
-            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z)))
+            (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
+            (dynamic error (g/fnk [_node-id z]
+                             (validation/prop-error :warning _node-id :z validation/prop-1-1? z z-message)))
+            (dynamic label (properties/label-dynamic :tile-map.layer :z))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :z)))
 
-  (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible))))
+  (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible)))
+            (dynamic label (properties/label-dynamic :tile-map.layer :visible))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :visible)))
 
   (output scene g/Any :cached produce-layer-scene)
   (output node-outline outline/OutlineData :cached produce-layer-outline)
@@ -573,9 +581,8 @@
 (defn- load-tile-map
   [project self resource tile-grid]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
-  (let [tile-source (workspace/resolve-resource resource (:tile-set tile-grid))
-        material (workspace/resolve-resource resource (:material tile-grid))
-        resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (gu/set-properties-from-pb-map self Tile$TileGrid tile-grid
@@ -596,7 +603,7 @@
   [_node-id child-outlines]
   {:node-id          _node-id
    :node-outline-key "Tile Map"
-   :label            "Tile Map"
+   :label            (localization/message "outline.tile-map")
    :icon             tile-map-icon
    :children         (vec (sort-by :z child-outlines))})
 
@@ -625,12 +632,15 @@
   (validation/prop-error :fatal _node-id :tile-source
                          (fn [v name]
                            (when-not (< max-tile-index tile-count)
-                             (format "Tile map uses tiles outside the range of this tile source (%d tiles in source, but a tile with index %d is used in tile map)" tile-count max-tile-index))) tile-source "Tile Source"))
+                             (localization/message "error.tile-map.tiles-outside-tile-source-range"
+                                                   {"count" tile-count
+                                                    "index" max-tile-index})))
+                         tile-source tile-source-message))
 
 (g/defnk produce-build-targets
   [_node-id resource tile-source material save-value dep-build-targets tile-count max-tile-index]
   (g/precluding-errors
-    [(prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
+    [(prop-resource-error :fatal _node-id :tile-source tile-source tile-source-message)
      (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index)]
     (let [dep-build-targets (flatten dep-build-targets)
           deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
@@ -673,9 +683,11 @@
                                             [:texture-set-data :texture-set-data]
                                             [:gpu-texture :gpu-texture])))
             (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
-                             (or (prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
+                             (or (prop-resource-error :fatal _node-id :tile-source tile-source tile-source-message)
                                  (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"}))
+            (dynamic label (properties/label-dynamic :tile-map :tile-source))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map :tile-source)))
 
   ;; material
   (property material resource/Resource ; Default assigned in load-fn.
@@ -687,7 +699,7 @@
                                             [:shader :material-shader]
                                             [:samplers :material-samplers])))
             (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error :fatal _node-id :material material "Material")))
+                                  (prop-resource-error :fatal _node-id :material material material-message)))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"})))
 
   (property blend-mode g/Any (default (protobuf/default Tile$TileGrid :blend-mode))
@@ -725,7 +737,6 @@
   (output node-outline outline/OutlineData :cached produce-node-outline)
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
-
 
 ;;--------------------------------------------------------------------
 ;; tool
@@ -1341,10 +1352,9 @@
       :palette (handle-input-palette self action state evaluation-context)
       :editor  (handle-input-editor self action state evaluation-context))))
 
-(defn make-input-handler
-  []
+(defn make-input-handler []
   (let [state (atom nil)]
-    (fn [self action _]
+    (fn [self _input-state action _]
       (handle-input self action state))))
 
 (defn- get-current-tile
@@ -1405,6 +1415,7 @@
   (output palette-renderables pass/RenderData produce-palette-renderables)
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly (make-input-handler)))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions mode palette-tile]
                             (case mode
                               :editor (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)]
@@ -1424,26 +1435,11 @@
 
 ;; handlers/menu
 
-(defn- selection->tile-map [selection]
-  (handler/adapt-single selection TileMapNode))
+(defn- selection->tile-map [selection evaluation-context]
+  (handler/adapt-single selection TileMapNode evaluation-context))
 
-(defn- selection->layer [selection]
-  (handler/adapt-single selection LayerNode))
-
-(defn tile-map-node
-  [selection]
-  (or (selection->tile-map selection)
-      (some-> (selection->layer selection)
-        core/scope)))
-
-(defn- gen-unique-name
-  [basename existing-names]
-  (let [existing-names (set existing-names)]
-    (loop [postfix 0]
-      (let [name (if (= postfix 0) basename (str basename postfix))]
-        (if (existing-names name)
-          (recur (inc postfix))
-          name)))))
+(defn- selection->layer [selection evaluation-context]
+  (handler/adapt-single selection LayerNode evaluation-context))
 
 (defn- make-new-layer
   [id]
@@ -1451,26 +1447,27 @@
     :id id
     :z protobuf/float-zero))
 
-(defn- add-layer-handler
-  [tile-map-node]
-  (let [layer-ids (set (g/node-value tile-map-node :layer-ids))
-        layer-id (gen-unique-name "layer" layer-ids)]
-    (g/transact
-     (concat
-      (g/operation-label "Add layer")
-      (make-layer-node tile-map-node (make-new-layer layer-id))))))
+(defn- add-layer!
+  [tile-map-node layer-id]
+  (g/transact
+    (concat
+      (g/operation-label (localization/message "operation.tile-map.add-layer"))
+      (make-layer-node tile-map-node (make-new-layer layer-id)))))
 
-(handler/defhandler :add :workbench
-  (label [user-data] "Add layer")
-  (active? [selection] (selection->tile-map selection))
-  (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
+(handler/defhandler :edit.add-embedded-component :workbench
+  (label [user-data] (localization/message "command.edit.add-embedded-component.variant.tile-map"))
+  (active? [selection evaluation-context] (selection->tile-map selection evaluation-context))
+  (run [selection user-data]
+    (g/let-ec [tile-map-node (selection->tile-map selection evaluation-context)
+               layer-id (id/gen "layer" (g/node-value tile-map-node :layer-ids evaluation-context))]
+      (add-layer! tile-map-node layer-id))))
 
 (defn- erase-tool-handler [tool-controller]
   (g/set-property! tool-controller :brush empty-brush))
 
 (defn- active-tile-map [app-view evaluation-context]
   (when-let [resource-node (g/node-value app-view :active-resource-node evaluation-context)]
-    (when (g/node-instance? TileMapNode resource-node)
+    (when (g/node-instance? (:basis evaluation-context) TileMapNode resource-node)
       resource-node)))
 
 (defn- active-scene-view
@@ -1487,13 +1484,12 @@
   (let [input-handlers (map first (g/sources-of scene-view :input-handlers))]
     (first (filter (partial g/node-instance? TileMapController) input-handlers))))
 
-(handler/defhandler :erase-tool :workbench
-  (label [user-data] "Select Eraser")
+(handler/defhandler :scene.select-erase-tool :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-    (and (selection->layer selection)
+    (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (erase-tool-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
@@ -1501,14 +1497,15 @@
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
-(handler/defhandler :show-palette :workbench
+(handler/defhandler :scene.toggle-tile-palette :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-    (and (selection->layer selection)
-         (-> (active-tile-map app-view evaluation-context)
-             (g/node-value :tile-source-resource evaluation-context))))
+            (and (selection->layer selection evaluation-context)
+                 (let [active-tile (active-tile-map app-view evaluation-context)]
+                   (and (g/node-value active-tile :tile-source-resource evaluation-context)
+                        (not (g/error-value? (g/node-value active-tile :gpu-texture evaluation-context)))))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn- transform-brush! [app-view transform-brush-fn]
@@ -1516,61 +1513,85 @@
         tool-controller (scene-view->tool-controller scene-view)]
     (g/update-property! tool-controller :brush transform-brush-fn)))
 
-(handler/defhandler :flip-brush-horizontally :workbench
+(handler/defhandler :scene.flip-brush-horizontally :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-    (and (selection->layer selection)
+    (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-horizontally)))
 
-(handler/defhandler :flip-brush-vertically :workbench
+(handler/defhandler :scene.flip-brush-vertically :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-            (and (selection->layer selection)
+            (and (selection->layer selection evaluation-context)
                  (-> (active-tile-map app-view evaluation-context)
                      (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-vertically)))
 
-(handler/defhandler :rotate-brush-90-degrees :workbench
+(handler/defhandler :scene.rotate-brush-90-degrees :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-    (and (selection->layer selection)
+    (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view rotate-brush-90-degrees)))
 
 (handler/register-menu! ::menubar :editor.app-view/edit-end
-  [{:label "Select Tile..."
-    :command :show-palette}
-   {:label "Select Eraser"
-    :command :erase-tool}
-   {:label "Flip Brush Horizontally"
-    :command :flip-brush-horizontally}
-   {:label "Flip Brush Vertically"
-    :command :flip-brush-vertically}
-   {:label "Rotate Brush 90 Degrees"
-    :command :rotate-brush-90-degrees}])
+  [{:label (localization/message "command.scene.toggle-tile-palette")
+    :command :scene.toggle-tile-palette}
+   {:label (localization/message "command.scene.select-erase-tool")
+    :command :scene.select-erase-tool}
+   {:label (localization/message "command.scene.flip-brush-horizontally")
+    :command :scene.flip-brush-horizontally}
+   {:label (localization/message "command.scene.flip-brush-vertically")
+    :command :scene.flip-brush-vertically}
+   {:label (localization/message "command.scene.rotate-brush-90-degrees")
+    :command :scene.rotate-brush-90-degrees}])
+
+(g/defnode TileMapGrid
+  (inherits grid/Grid)
+  (input grid-size g/Any :substitute nil)
+  (output options g/Any (g/fnk [grid-size]
+                          {:active-plane :z
+                           :auto-scale false
+                           :size {:x (or (first grid-size) 1.0)
+                                  :y (or (second grid-size) 1.0)
+                                  :z 1.0}})))
+
+(defmethod scene/attach-grid ::TileMapGrid
+  [_ grid-node-id view-id resource-node camera]
+  (concat
+    (g/connect grid-node-id :_node-id view-id :grid)
+    (g/connect grid-node-id :renderable view-id :aux-renderables)
+    (g/connect camera :camera grid-node-id :camera)
+    (g/connect resource-node :tile-dimensions grid-node-id :grid-size)))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext ["tilemap" "tilegrid"]
-    :build-ext "tilemapc"
-    :node-type TileMapNode
-    :ddf-type Tile$TileGrid
-    :load-fn load-tile-map
-    :sanitize-fn sanitize-tile-map
-    :icon tile-map-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid tile-map-grid/TileMapGrid
-                        :tool-controller TileMapController}}
-    :tags #{:component :non-embeddable}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-    :label "Tile Map"))
+  (concat
+    (attachment/register
+      workspace TileMapNode :layers
+      :add {LayerNode attach-layer-node}
+      :get attachment/nodes-getter)
+    (resource-node/register-ddf-resource-type workspace
+      :ext ["tilemap" "tilegrid"]
+      :build-ext "tilemapc"
+      :node-type TileMapNode
+      :ddf-type Tile$TileGrid
+      :load-fn load-tile-map
+      :sanitize-fn sanitize-tile-map
+      :icon tile-map-icon
+      :icon-class :design
+      :category (localization/message "resource.category.components")
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid TileMapGrid
+                          :tool-controller TileMapController}}
+      :tags #{:component :non-embeddable}
+      :tag-opts {:component {:transform-properties #{:position :rotation}}}
+      :label (localization/message "resource.type.tilemap"))))

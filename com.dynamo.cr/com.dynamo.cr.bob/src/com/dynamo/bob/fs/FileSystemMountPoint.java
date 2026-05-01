@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,6 +81,11 @@ public class FileSystemMountPoint implements IMountPoint {
         }
 
         @Override
+        public void appendContent(byte[] content) throws IOException {
+            resource.appendContent(content);
+        }
+
+        @Override
         public byte[] sha1() throws IOException {
             return resource.sha1();
         }
@@ -144,5 +149,18 @@ public class FileSystemMountPoint implements IMountPoint {
         public boolean isCacheable() {
             return resource.isCacheable();
         }
+
+        @Override
+        public IResource disableMinifyPath() {
+            // Preserve the mounted wrapper for fluent chains like
+            // disableMinifyPath().changeExt(...), otherwise changeExt() runs on
+            // the mounted filesystem resource and loses the root-fs output mapping.
+            resource.disableMinifyPath();
+            return this;
+        }
+
+        @Override
+        public boolean isMinifyPath() { return resource.isMinifyPath(); }
+
     }
 }

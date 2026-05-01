@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,11 +34,17 @@ TEST_F(ScriptLuasocketTest, TestLuasocket)
 
     ASSERT_TRUE(RunFile(L, "test_luasocket.luac"));
 
+#if defined(__EMSCRIPTEN__)
+    const char *funcs[] = {
+        "test_html5_minimal", 0
+    };
+#else
     const char *funcs[] = {
         "test_bind", "test_getaddr",
         "test_udp", "test_tcp_clientserver",
         "test_udp_clientserver", "test_bind_error", 0
     };
+#endif
 
     for (int i=0;funcs[i];i++)
     {

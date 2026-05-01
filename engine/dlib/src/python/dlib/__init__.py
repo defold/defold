@@ -1,12 +1,12 @@
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,7 +25,10 @@ if sys.platform == "darwin":
     libdir = "lib/%s-macos" % machine
 elif sys.platform in ("linux", "linux2"): # support both python3 and python2
     libname = "libdlib_shared.so"
-    libdir = "lib/x86_64-linux"
+    if machine == 'aarch64':
+        libdir = "lib/arm64-linux"
+    else:
+        libdir = "lib/x86_64-linux"
 elif sys.platform == "win32":
     libname = "dlib_shared.dll"
     libdir = "lib/x86_64-win32"

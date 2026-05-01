@@ -1,0 +1,102 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+require "lua.test_helpers"
+require "lua.test_resource_helpers"
+
+local all_emitter_ids = {"box", "circle", "cone", "sphere"}
+
+-- material
+local test_material_path          = hash("/material/valid.materialc")
+local test_override_material_path = hash("/particlefx/particlefx_get_set_properties.materialc")
+-- image
+local test_image_path          = hash("/tile/valid.t.texturesetc")
+local test_override_image_path = hash("/test_atlas.texturesetc")
+-- animation
+local test_animation          = hash("anim")
+local test_override_animation = hash("test_anim_1")
+
+local function test_get_set_emitter_paths_by_property(prop, valid_prop_value, override_value)
+    -- test invalid paths
+    assert_error(function() go.get("#particlefx", "invalid_property") end)
+    assert_error(function() go.get("#particlefx", prop, { key = "unsupported_key" }) end)
+    assert_error(function() go.get("#particlefx", prop, { index = 1 }) end)
+    assert_error(function() go.get("#particlefx", prop, { keys = {} }) end)
+    assert_error(function() go.get("#particlefx", prop, { keys = { "invalid_emitter" } }) end)
+
+    assert_error(function() go.set("#particlefx", prop, override_value, { key = "unsupported_key" }) end)
+    assert_error(function() go.set("#particlefx", prop, override_value, { index = 1 }) end)
+    assert_error(function() go.set("#particlefx", prop, override_value, { keys = {} }) end)
+    assert_error(function() go.set("#particlefx", prop, override_value, { keys = { "invalid_emitter" } }) end)
+
+    -- test valid paths
+    for i,v in ipairs(all_emitter_ids) do
+        assert(valid_prop_value == go.get("#particlefx", prop, { keys = { v } }))
+        go.set("#particlefx", prop, valid_prop_value, { keys = { v } })
+    end
+end
+
+local function test_get_set_emitter_paths()
+    test_get_set_emitter_paths_by_property("material", test_material_path, test_override_material_path)
+    test_get_set_emitter_paths_by_property("image", test_image_path, test_override_image_path)
+    test_get_set_emitter_paths_by_property("animation", test_animation, test_override_animation)
+end
+
+local function test_get_set_material_overrides()
+    -- test overriding material
+    for i,v in ipairs(all_emitter_ids) do
+        go.set("#particlefx", "material", test_override_material_path, { keys = { v } })
+        assert(test_override_material_path == go.get("#particlefx", "material", { keys = { v } }))
+    end
+end
+
+local function test_get_set_image_overrides()
+    local t_id = resource.create_texture("/test_simple.texturec", {
+        width  = 128,
+        height = 128,
+        type   = graphics.TEXTURE_TYPE_2D,
+        format = graphics.TEXTURE_FORMAT_RGBA,
+    })
+
+    local atlas_id = resource.create_atlas("/test_atlas.texturesetc", {
+        texture = "/test_simple.texturec",
+        animations = {
+            make_anim("test_anim_1", 128, 128, { 1 }),
+            make_anim("test_anim_2", 128, 128, { 1 }),
+        },
+        geometries = {make_quad(128, 128, 0, 0)}
+    })
+
+    for i,v in ipairs(all_emitter_ids) do
+        go.set("#particlefx", "image", test_override_image_path, { keys = { v } })
+        assert(test_override_image_path == go.get("#particlefx", "image", { keys = { v } }))
+    end
+
+    resource.release(atlas_id)
+    resource.release(t_id)
+end
+
+local function test_get_set_animation_overrides()
+    for i,v in ipairs(all_emitter_ids) do
+        go.set("#particlefx", "animation", test_override_animation, { keys = { v } })
+        assert(test_override_animation == go.get("#particlefx", "animation", { keys = { v } }))
+    end
+end
+
+function init(self)
+    test_get_set_emitter_paths()
+    test_get_set_material_overrides()
+    test_get_set_image_overrides()
+    test_get_set_animation_overrides()
+end

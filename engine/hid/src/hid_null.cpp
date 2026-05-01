@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,7 +17,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/dstrings.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 #include "hid_private.h"
 #include "hid.h"
@@ -58,7 +58,7 @@ namespace dmHID
         }
     }
 
-    void Update(HContext context)
+    bool Update(HContext context)
     {
         dmPlatform::PollEvents(context->m_Window);
         context->m_Keyboards[0].m_Connected = !context->m_IgnoreKeyboard;
@@ -67,11 +67,15 @@ namespace dmHID
         context->m_Gamepads[0].m_Connected = !context->m_IgnoreGamepads;
         context->m_Gamepads[0].m_ButtonCount = MAX_GAMEPAD_BUTTON_COUNT;
         context->m_Gamepads[0].m_AxisCount = MAX_GAMEPAD_AXIS_COUNT;
+
+        dmhash_t prev_state_hash = context->m_StateHash;
+        context->m_StateHash = CalcStateHash(context);
+        return prev_state_hash != context->m_StateHash;
     }
 
-    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        dmStrlCpy(buffer, "null_device", buffer_length);
+        dmStrlCpy(name, "null_device", MAX_GAMEPAD_NAME_LENGTH);
     }
 
     // platform implementations

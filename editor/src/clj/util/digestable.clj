@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,7 +21,10 @@
             [util.digest :as digest])
   (:import [clojure.lang Named]
            [com.defold.util IDigestable]
-           [java.io OutputStreamWriter Writer]))
+           [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
+           [com.dynamo.graphics.proto Graphics$ShaderDesc]
+           [java.io BufferedWriter OutputStreamWriter Writer]
+           [java.util Arrays]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -168,6 +171,12 @@
   (let [sorted-set (to-sorted-set coll)]
     (digest-sequence! "#{" sorted-set "}" writer opts)))
 
+(defn- digest-array! [^Class component-class coll writer opts]
+  (digest-raw! "#dg/" writer)
+  (digest-raw! (.getName component-class) writer)
+  (digest-raw! "_ARRAY " writer)
+  (digest-sequence! "[" coll "]" writer opts))
+
 (let [simple-digestable-impl {:digest! (fn digest-simple-value! [value writer _opts]
                                          (print-method value writer))}
       simple-digestable-classes [nil
@@ -205,13 +214,21 @@
 
   java.util.Map
   (digest! [value writer opts]
-    (if (satisfies? resource/Resource value)
+    (if (resource/resource? value)
       (digest-resource! value writer opts)
       (digest-map! value writer opts)))
 
   java.util.List
   (digest! [value writer opts]
     (digest-sequence! "[" value "]" writer opts))
+
+  TextureSetGenerator$LayoutResult
+  (digest! [value writer opts]
+    (digest-tagged! 'LayoutResult (str value) writer opts))
+
+  Graphics$ShaderDesc
+  (digest! [value writer opts]
+    (digest-tagged! 'ShaderDesc (str value) writer opts))
 
   Class
   (digest! [value writer opts]
@@ -223,18 +240,47 @@
     (.digest value writer))
 
   Object
-  (digest! [value _writer _opts]
-    (throw (ex-info (str "Encountered undigestable value: " value)
-                    {:value value}))))
+  (digest! [value writer opts]
+    (let [value-class (class value)]
+      (if (.isArray value-class)
+        (digest-array! (.getComponentType value-class) value writer opts)
+        (throw (ex-info (str "Encountered undigestable value: " value)
+                        {:value value
+                         :class value-class}))))))
 
 (defn sha1-hash
   (^String [object]
    (sha1-hash object nil))
   (^String [object opts]
    (with-open [digest-output-stream (digest/make-digest-output-stream "SHA-1")
-               writer (OutputStreamWriter. digest-output-stream)]
+               writer (BufferedWriter. (OutputStreamWriter. digest-output-stream))]
      (digest! object writer opts)
      (.flush writer)
      (digest/completed-stream->hex digest-output-stream))))
 
 (def sha1-hash? digest/sha1-hex?)
+
+(defn sha1s->unordered-sha1-hex
+  "Takes a collection of SHA-1 byte arrays, and adds them all together
+  as 160-bit unsigned integers (mod 2^160) to produce an order-independent hash."
+  [byte-arrays]
+  (let [modulus (.shiftLeft BigInteger/ONE 160)
+        sum (reduce
+              (fn [acc ba]
+                (-> (BigInteger. 1 ^bytes ba)
+                    (.add acc)
+                    (.mod modulus)))
+              BigInteger/ZERO
+              byte-arrays)
+        result-bytes ^bytes (.toByteArray ^BigInteger sum)
+        ;; NOTE: BigInteger.toByteArray() returns variable length:
+        ;; 21 bytes if high bit set (adds sign byte), <20 if leading zeros, else 20
+        len (alength result-bytes)
+        normalized (case len
+                     20 result-bytes
+                     21 (Arrays/copyOfRange result-bytes 1 21)
+                     (let [padded (byte-array 20)]
+                       (System/arraycopy result-bytes 0 padded (- 20 len) len)
+                       padded))]
+    (util.digest/bytes->hex normalized)))
+

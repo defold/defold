@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -271,8 +271,17 @@
                   (resource-moved-case-plan case move-pairs plan-info))
                 move-cases))))
 
-(defn resource-change-plan [old-nodes-by-path old-node->old-disk-sha256 {:keys [added removed changed moved] :as changes}]
-  (let [basis (g/now)
+(defn- exclude-extension-changes [moved]
+  ;; It's possible to add an extension to file when renaming it, e.g.,
+  ;; /foo -> /foo.lua
+  ;; We should not redirect such nodes, because different resource extensions
+  ;; might imply different resource node types
+  (filterv #(= (resource/type-ext (first %)) (resource/type-ext (second %))) moved))
+
+(defn resource-change-plan [old-nodes-by-path old-node->old-disk-sha256 changes]
+  (let [changes (update changes :moved exclude-extension-changes)
+        {:keys [added removed changed moved]} changes
+        basis (g/now)
         move-sources (map first moved)
         move-targets (map second moved)
         move-source-paths (into #{} (map resource/proj-path) move-sources)

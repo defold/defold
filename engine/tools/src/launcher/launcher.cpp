@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -260,7 +260,7 @@ int Launch(int argc, char **argv) {
         p++;
       }
     }
-#else
+#endif
     // Assumption that any command line option that does not start with --config
     // is a command line argument that we should pass on.
     for(int j = 1; j < argc && i < max_args; ++j) {
@@ -268,7 +268,6 @@ int Launch(int argc, char **argv) {
         args[i++] = argv[j];
       }
     }
-#endif
     args[i++] = 0;
 
     for (int j = 0; j < i; j++) {

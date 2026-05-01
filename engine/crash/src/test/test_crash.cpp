@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,7 +40,7 @@ class dmCrashTest : public jc_test_base_class
 {
     public:
 
-        virtual void SetUp()
+        void SetUp() override
         {
 
             time_t t = time(NULL);
@@ -52,7 +52,7 @@ class dmCrashTest : public jc_test_base_class
             dmCrash::Init("TEST", m_EngineHash);
         }
 
-        virtual void TearDown()
+        void TearDown() override
         {
             dmCrash::Purge();
         }

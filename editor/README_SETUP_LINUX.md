@@ -2,15 +2,15 @@
 
 ## Required Software
 
-### Required Software - Java JDK 17
+### Required Software - Java JDK 25
 
-Download and install the latest JDK 17 (17.0.5+8 or later) release from either of these locations:
+Download and install the latest JDK 25 (25 or later) release from either of these locations:
 
-* [Adoptium/Temurin](https://github.com/adoptium/temurin17-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
-* [Microsoft OpenJDK builds](https://docs.microsoft.com/en-us/java/openjdk/download#openjdk-17) - The Microsoft Build of OpenJDK is a no-cost distribution of OpenJDK that's open source and available for free for anyone to deploy anywhere
+* [Adoptium/Temurin](https://github.com/adoptium/temurin25-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
+* [Microsoft OpenJDK builds](https://docs.microsoft.com/en-us/java/openjdk/download#openjdk-25) - The Microsoft Build of OpenJDK is a no-cost distribution of OpenJDK that's open source and available for free for anyone to deploy anywhere
 * or from apt-get:
 ```
-> sudo apt-get install openjdk-17-jdk
+> sudo apt-get install openjdk-25-jdk
 ```
 
 When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:

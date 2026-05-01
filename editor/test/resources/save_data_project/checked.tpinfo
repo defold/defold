@@ -1,5 +1,5 @@
 pages {
-  name: "checked_tpinfo_page.png"
+  name: "texturepacker/editor/resources/icons/32/icon-tpinfo.png"
   size {
     width: 128.0
     height: 128.0
@@ -44,6 +44,10 @@ pages {
     indices: 0
     indices: 1
     indices: 2
+    pivot {
+      x: 32.0
+      y: 32.0
+    }
   }
 }
 version: "1.0"

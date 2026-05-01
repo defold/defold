@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,13 +27,13 @@ namespace dmIntersection
 }
 
 /*# Render API documentation
- * [file:<dmsdk/render/render.h>]
  *
  * Api for render specific data
  *
  * @document
  * @name Render
  * @namespace dmRender
+ * @language C++
  */
 
 namespace dmRender
@@ -55,9 +55,13 @@ namespace dmRender
     /*#
      * Font map handle
      * @typedef
-     * @name HFontMap
+     * @name HFont
      */
     typedef struct FontMap* HFontMap;
+
+    // Old typedef, used internally. We want to migrate towards HFont
+    typedef struct FontMap* HFontMap;
+
 
     /*#
      * Shader constant handle
@@ -72,6 +76,20 @@ namespace dmRender
      * @name HNamedConstantBuffer
      */
     typedef struct NamedConstantBuffer* HNamedConstantBuffer;
+
+    /*#
+    * Sampler handle
+    * @typedef
+    * @name HSampler
+    */
+    typedef struct Sampler* HSampler;
+
+    /*#
+    * Light prototype handle. Used to create light instances.
+    * @typedef
+    * @name HLightPrototype
+    */
+    typedef struct LightPrototype* HLightPrototype;
 
     /*#
      * @enum
@@ -146,7 +164,7 @@ namespace dmRender
 
 
     /*#
-     * The maximum number of textures the render object can hold (currently 8)
+     * The maximum number of textures the render object can hold (16)
      * @constant
      * @name dmRender::RenderObject::MAX_TEXTURE_COUNT
      */
@@ -178,8 +196,8 @@ namespace dmRender
         RenderObject();
         void Init();
 
-        static const uint32_t MAX_TEXTURE_COUNT = 8;
-        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 2;
+        static const uint32_t MAX_TEXTURE_COUNT       = 16;
+        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
 
         HNamedConstantBuffer            m_ConstantBuffer;
         dmVMath::Matrix4                m_WorldTransform;
@@ -202,10 +220,16 @@ namespace dmRender
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
+        dmGraphics::BlendFactor         m_SourceBlendFactorAlpha;
+        dmGraphics::BlendFactor         m_DestinationBlendFactorAlpha;
+        dmGraphics::BlendEquation       m_BlendEquationColor;
+        dmGraphics::BlendEquation       m_BlendEquationAlpha;
         dmGraphics::FaceWinding         m_FaceWinding;
         StencilTestParams               m_StencilTestParams;
+        uint32_t                        m_VertexBufferOffsets[MAX_VERTEX_BUFFER_COUNT];
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
+        uint32_t                        m_InstanceCount;
         uint8_t                         m_SetBlendFactors : 1;
         uint8_t                         m_SetStencilTest : 1;
         uint8_t                         m_SetFaceWinding : 1;
@@ -219,14 +243,16 @@ namespace dmRender
      * Each callback then represents a draw call, and will register a RenderObject
      * @name RenderListEntry
      * @param m_WorldPosition [type: dmVMath::Point3] the world position of the object
+     * @param m_UserData [type: uint64_t] user data (available in the render dispatch callback)
      * @param m_Order [type: uint32_t] the order to sort on (used if m_MajorOrder != RENDER_ORDER_WORLD)
      * @param m_BatchKey [type: uint32_t] the batch key to sort on (note: only 48 bits are currently used by renderer)
      * @param m_TagListKey [type: uint32_t] the key to the list of material tags
-     * @param m_UserData [type: uint64_t] user data (available in the render dispatch callback)
+     * @param m_FrustumHash [type: uint32_t] Last combined frustum cull key (note: engine internal use only!)
      * @param m_MinorOrder [type: uint32_t:4] used to sort within a batch
      * @param m_MajorOrder [type: uint32_t:2] If RENDER_ORDER_WORLD, then sorting is done based on the world position.
                                               Otherwise the sorting uses the m_Order value directly.
      * @param m_Dispatch [type: uint32_t:8] The dispatch function callback (dmRender::HRenderListDispatch)
+     * @param m_Visibility [type: uint32_t:1] Visibility flag. Used for frustrum culling. See enum Visibility
      */
     struct RenderListEntry
     {
@@ -235,6 +261,7 @@ namespace dmRender
         uint32_t m_Order;
         uint32_t m_BatchKey;
         uint32_t m_TagListKey;
+        uint32_t m_FrustumHash;
         uint32_t m_MinorOrder : 4;
         uint32_t m_MajorOrder : 2;
         uint32_t m_Dispatch   : 8;
@@ -327,10 +354,10 @@ namespace dmRender
     };
 
     /*#
-     * Render dispatch function callback.
+     * Render visibility function callback.
      * @typedef
-     * @name RenderListDispatchFn
-     * @param params [type: dmRender::RenderListDispatchParams] the params
+     * @name RenderListVisibilityFn
+     * @param params [type: dmRender::RenderListVisibilityParams] the params
      */
     typedef void (*RenderListVisibilityFn)(RenderListVisibilityParams const &params);
 
@@ -607,14 +634,115 @@ namespace dmRender
      */
     uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer);
 
+
+    /*#
+     * @typedef
+     * @name IterateNamedConstantsFn
+     * @param name_hash [type:dmhash_t]
+     * @param ctx [type:void*]
+     */
+    typedef void (*IterateNamedConstantsFn)(dmhash_t name_hash, void* ctx);
+
     /*#
      * Iterates over the constants
      * @name IterateNamedConstants
      * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
-     * @param callback [type: void (*callback)(dmhash_t name_hash, void* ctx)] the callback function void (*callback)(dmhash_t name_hash, void* ctx)
+     * @param callback [type: IterateNamedConstantsFn] the callback function
      * @param ctx [type: void*] the callback context
      */
-    void IterateNamedConstants(HNamedConstantBuffer buffer, void (*callback)(dmhash_t name_hash, void* ctx), void* ctx);
+    void IterateNamedConstants(HNamedConstantBuffer buffer, IterateNamedConstantsFn callback, void* ctx);
+
+    /*#
+     * @name GetViewMatrix
+     * @param render_context [type:dmRender::HRenderContext] Render context
+     * @return view_matrix [type:const dmVMath::Matrix4&]
+     */
+    const dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);
+
+    /*#
+     * @name NewMaterial
+     * @param render_context [type:dmRender::HContext] Render context
+     * @param program [type:dmGraphics::HProgram]
+     * @return new_material [type:dmRender::HMaterial]
+     */
+    HMaterial NewMaterial(HRenderContext render_context, dmGraphics::HProgram program);
+
+    /*#
+     * @name DeleteMaterial
+     * @param render_context [type:dmRender::HRenderContext] Render context
+     * @param material [type:dmRender::Material]
+     */
+    void DeleteMaterial(HRenderContext render_context, HMaterial material);
+
+    /*#
+     * @name ClearMaterialTags
+     * @param material [type:dmRender::HMaterial]
+     */
+    void ClearMaterialTags(HMaterial material);
+
+    /*#
+     * @name SetMaterialTags
+     * @param material [type:dmRender::Material]
+     * @param tag_count [type:uint32_t]
+     * @param tags [type:const dmhash_t*]
+     */
+    void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
+
+    /*#
+     * @name SetMaterialSampler
+     * @param material [type:dmRender::HMaterial]
+     * @param name_hash [type:dmhash_t]
+     * @param unit [type:uint32_t]
+     * @param u_wrap [type:dmGraphics::TextureWrap]
+     * @param v_wrap [type:dmGraphics::TextureWrap]
+     * @param min_filter [type:dmGraphics::TextureFilter]
+     * @param mag_filter [type:dmGraphics::TextureFilter]
+     * @param max_anisotropy [type:float]
+     * @return is_succeed [type:bool]
+     */
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+
+    /*#
+     * @name GetMaterialSampler
+     */
+    //! TODO: not implemented
+    HSampler GetMaterialSampler(HMaterial material, uint32_t unit);
+
+    /*#
+     * @name GetMaterialSamplerNameHash
+     * @param material [type:dmRender::HMaterial]
+     * @param unit [type:uint32_t]
+     * @return name_hash [type:dmhash_t]
+     */
+    dmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
+
+    /*#
+     * @name GetMaterialSamplerUnit
+     * @param material [type:dmRender::HMaterial]
+     * @param name_hash [type:dmhash_t]
+     * @return sampler_unit [type:uint32_t]
+     */
+    uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);
+
+    /*#
+     * @name ApplyMaterialConstants
+     * @param render_context [type:dmRender::HRenderContext] Render context
+     * @param material [type:dmRender::Material]
+     * @param render_object [type:const dmRender::RenderObject*]
+     */
+    void ApplyMaterialConstants(HRenderContext render_context, HMaterial material, const RenderObject* render_object);
+
+    /*#
+     * @name ApplyMaterialSampler
+     * @param render_context [type:dmRender::HRenderContext]
+     * @param material [type:dmRender::HMaterial]
+     * @param sampler [type:dmRender::HSampler]
+     * @param value_index [type:uint8_t]
+     * @param texture [type:dmGraphics::HTexture]
+     */
+    //! TODO: not implemented
+    void ApplyMaterialSampler(HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
+
 }
 
 #endif /* DMSDK_RENDER_H */

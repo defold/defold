@@ -1,0 +1,13 @@
+#version 140
+
+in highp vec4 position;
+in highp vec4 custom_color;
+
+out mediump vec4 var_color;
+
+void main()
+{
+    gl_Position = vec4(position.xyz, 1.0);
+    var_color = custom_color;
+}
+

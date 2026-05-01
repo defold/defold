@@ -3,7 +3,7 @@
 ## Setup
 
 ### Install XCode
-* Install from AppStore (if not already installed)
+* [Install XCode](./README_BUILD.md#xcode)
 * Start XCode
 * When asked, enable “Developer mode” on your mac
 * In Preferences -> Accounts
@@ -31,6 +31,8 @@ See also: [Attaching to Process](http://stackoverflow.com/questions/9721830/atta
 
 
 ### ios-deploy
+
+*NOTE: ios-deploy seems to be outdated, and it is recommended to use xcode command line tools*
 
 Good tool for iOS deployment / debugging (lldb): [ios-deploy](https://github.com/phonegap/ios-deploy)
 
@@ -80,7 +82,7 @@ From XCode 9.+ and onwards, you'll see the added/modified/deprecated items here:
 
 ### Package SDK (iPhone, iPhone Simulator, MacOS, Xcode toolchain)
 
-See the script under `scripts/package`
+See the script [./scripts/package/package_xcode_and_sdks.sh](./scripts/package/package_xcode_and_sdks.sh)
 
 #### How to test locally on the engine build:
 

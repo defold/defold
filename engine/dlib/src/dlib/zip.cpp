@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,12 @@ Result Open(const char* path, HZip* zip)
     return *zip != 0 ? RESULT_OK : RESULT_NO_SUCH_ENTRY;
 }
 
+Result OpenStream(const char *stream, uint32_t size, HZip* zip)
+{
+    *zip = zip_stream_open(stream, size, 9, 'r');
+    return *zip != 0 ? RESULT_OK : RESULT_NO_SUCH_ENTRY;
+}
+
 void Close(HZip zip)
 {
     if (zip)
@@ -32,7 +38,7 @@ void Close(HZip zip)
 
 uint32_t GetNumEntries(HZip zip)
 {
-    return (uint32_t)zip_total_entries(zip);
+    return (uint32_t)zip_entries_total(zip);
 }
 
 Result OpenEntry(HZip zip, const char* name)
@@ -84,6 +90,15 @@ Result GetEntryData(HZip zip, void* buffer, uint32_t buffer_size)
     ssize_t nwritten = zip_entry_noallocread(zip, buffer, (size_t)buffer_size);
     if (nwritten < 0)
         return RESULT_BUFFER_NOT_LARGE_ENOUGH;
+    return RESULT_OK;
+}
+
+Result GetEntryDataOffset(HZip zip, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread)
+{
+    ssize_t nwritten = zip_entry_noallocreadwithoffset(zip, (size_t)offset, (size_t)size, buffer);
+    if (nwritten < 0)
+        return RESULT_BUFFER_NOT_LARGE_ENOUGH;
+    *nread = nwritten;
     return RESULT_OK;
 }
 

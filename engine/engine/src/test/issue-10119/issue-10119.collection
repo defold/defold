@@ -1,0 +1,16 @@
+name: "main"
+scale_along_z: 0
+embedded_instances {
+  id: "go"
+  data: "components {\n"
+  "  id: \"m\"\n"
+  "  component: \"/issue-10119/issue-10119.script\"\n"
+  "}\n"
+  "embedded_components {\n"
+  "  id: \"collectionproxy\"\n"
+  "  type: \"collectionproxy\"\n"
+  "  data: \"collection: \\\"/issue-10119/issue-10119-proxy.collection\\\"\\n"
+  "\"\n"
+  "}\n"
+  ""
+}

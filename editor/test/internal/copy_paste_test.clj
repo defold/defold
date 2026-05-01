@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +19,7 @@
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [support.test-support :as ts]
+            [util.defonce :as defonce]
             [util.fn :as fn])
   (:import [internal.graph.types Arc]))
 
@@ -78,7 +79,7 @@
           consumer        (pasted-node ConsumerNode paste-data)]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count (:nodes paste-data))))
-      (is (= [:create-node :create-node :connect]  (map :type paste-tx-data)))
+      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
       (is (= 2 (count new-nodes-added)))
       (is (every? #(contains? (into #{} (:nodes paste-data)) %) (:root-node-ids paste-data)))
       (is (g/connected? (g/now) producer :produces-value consumer :consumes-value)))))
@@ -134,8 +135,9 @@
           new-root        (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 4 (count (:nodes paste-data))))
-      (is (= [:create-node :create-node :create-node :create-node
-              :connect     :connect     :connect     :connect]  (map :type paste-tx-data)))
+      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/add-node :tx-step/add-node
+              :tx-step/connect :tx-step/connect :tx-step/connect :tx-step/connect]
+             (g/tx-data-step-types paste-tx-data)))
       (is (= 4 (count new-nodes-added)))
       (is (= (g/node-value (g/node-id new-root) :produces-value) "A string A string")))))
 
@@ -202,7 +204,7 @@
 (defn- stop-at-stoppers [basis ^Arc arc]
   (not (g/node-instance? basis StopperNode (.target-id arc))))
 
-(defrecord Standin [original-id])
+(defonce/record Standin [original-id])
 
 (defn- serialize-stopper [node]
   (Standin. (g/node-id node)))
@@ -248,11 +250,11 @@
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count new-nodes-added)))
       (is (= 3 (count (:nodes paste-data))))
-      (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
+      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/connect :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
       (is (g/connected? (g/now) original-stopper :produces-value new-leaf :consumes-value))
       (is (= "the one and only" (g/node-value (g/node-id new-root) :produces-value))))))
 
-(defrecord StructuredValue [a b c])
+(defonce/record StructuredValue [a b c])
 
 (def extra-writers (transit/record-write-handlers StructuredValue))
 
@@ -269,7 +271,7 @@
 (deftest roundtrip-serialization-deserialization
   (ts/with-clean-system
     (let [simple-fragment (simple-copy-fragment world)
-          rich-fragment   (rich-value-fragment world)]
+          rich-fragment (rich-value-fragment world)]
       (are [x] (= x (g/read-graph (g/write-graph x extra-writers) extra-readers))
         1
         [1]
@@ -282,9 +284,9 @@
 
 (g/defnode SetterNode
   (property producer g/NodeID
-    (value (g/fnk [_node-id]
-             (g/node-feeding-into _node-id :value)))
-    (set (fn [_evaluation-context self old-value new-value]
+    (value (g/fnk [^:unsafe _evaluation-context _node-id]
+             (g/node-feeding-into (:basis _evaluation-context) _node-id :value)))
+    (set (fn [_evaluation-context self _old-value new-value]
            (g/connect new-value :produces-value self :value))))
   (input value g/Str))
 

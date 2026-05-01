@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,7 +31,8 @@
 #include <script/http_ddf.h>
 
 #include "script_http.h"
-#include <script/http_service.h>
+
+#include <extension/extension.hpp>
 
 extern "C"
 {
@@ -54,6 +55,7 @@ namespace dmGameSystem
         dmMessage::URL  m_Requester;
         void*           m_RequestData;
         const char*     m_Path;
+        const char*     m_Url;  // The request url
         int             m_Callback;
     };
 
@@ -87,6 +89,8 @@ namespace dmGameSystem
         dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)message->m_Data;
         free((void*) response->m_Headers);
         free((void*) response->m_Response);
+        free((void*) response->m_Path);
+        free((void*) response->m_Url);
     }
 
     static void SendResponse(const RequestContext* ctx, int status,
@@ -100,6 +104,7 @@ namespace dmGameSystem
         resp.m_Response = (uint64_t) response;
         resp.m_ResponseLength = response_length;
         resp.m_Path = ctx->m_Path;
+        resp.m_Url = ctx->m_Url;
 
         resp.m_Headers = (uint64_t) malloc(headers_length);
         memcpy((void*) resp.m_Headers, headers, headers_length);
@@ -110,6 +115,8 @@ namespace dmGameSystem
         {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
+            free((void*) resp.m_Path);
+            free((void*) resp.m_Url);
             dmLogWarning("Failed to return http-response. Requester deleted?");
         }
     }
@@ -130,10 +137,11 @@ namespace dmGameSystem
 
     void OnHttpProgress(void* context, uint32_t loaded, uint32_t total)
     {
+        RequestContext* ctx = (RequestContext*) context;
         dmHttpDDF::HttpRequestProgress progress = {};
         progress.m_BytesReceived                = loaded;
         progress.m_BytesTotal                   = total;
-        RequestContext* ctx = (RequestContext*) context;
+        progress.m_Url                          = ctx->m_Url;
         if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(&progress, 0, &ctx->m_Requester, ctx->m_Callback, false))
         {
             dmLogWarning("Failed to return http-progress. Requester deleted?");
@@ -221,7 +229,8 @@ namespace dmGameSystem
             ctx->m_Callback = callback;
             ctx->m_Requester = sender;
             ctx->m_RequestData = request_params.m_SendData;
-            ctx->m_Path = path;
+            ctx->m_Path = path ? strdup(path) : 0;
+            ctx->m_Url = request_params.m_Url ? strdup(request_params.m_Url) : 0;
 
             request_params.m_Args = ctx;
 
@@ -241,14 +250,18 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    void ScriptHttpRegister(const ScriptLibContext& context)
+    static dmExtension::Result ScriptHttpInitialize(dmExtension::Params* params)
     {
-        lua_State* L = dmScript::GetLuaState(context.m_ScriptContext);
-        dmConfigFile::HConfig config_file = dmScript::GetConfigFile(context.m_ScriptContext);
+        lua_State* L = dmExtension::GetContextAsType<lua_State*>(params, "lua");
+        assert(L != 0);
+
+        dmConfigFile::HConfig config_file = dmExtension::GetContextAsType<dmConfigFile::HConfig>(params, "config");
+        assert(config_file != 0);
 
         int top = lua_gettop(L);
 
         dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
+        dmScript::RegisterDDFDecoder(dmHttpDDF::HttpRequestProgress::m_DDFDescriptor, &HttpRequestProgressDecoder);
 
         if (config_file) {
             float timeout = dmConfigFile::GetFloat(config_file, "network.http_timeout", 0.0f);
@@ -258,7 +271,14 @@ namespace dmGameSystem
         luaL_register(L, "http", HTTP_COMP_FUNCTIONS);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
+
+        return dmExtension::RESULT_OK;
     }
 
-    void ScriptHttpFinalize(const ScriptLibContext& context) { }
+    static dmExtension::Result ScriptHttpFinalize(dmExtension::Params* params)
+    {
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptHttp, "ScriptHttp", 0, 0, ScriptHttpInitialize, 0, 0, ScriptHttpFinalize);
 }

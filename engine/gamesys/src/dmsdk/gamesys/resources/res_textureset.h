@@ -1,5 +1,4 @@
-
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,6 +33,7 @@ namespace dmGameSystem
             m_Texture = 0;
             m_TextureSet = 0;
             m_HullSet = 0;
+            m_TexturesGeneration = 0;
         }
 
         dmArray<dmhash_t>                   m_HullCollisionGroups;
@@ -43,6 +43,7 @@ namespace dmGameSystem
         dmhash_t                            m_TexturePath;
         dmGameSystemDDF::TextureSet*        m_TextureSet;
         dmPhysics::HHullSet2D               m_HullSet;
+        uint8_t                             m_TexturesGeneration; // increase counter when reload resource data
     };
 }
 

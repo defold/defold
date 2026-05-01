@@ -1,0 +1,3 @@
+name: "uniform_buffers"
+vertex_program: "/vertex_program/valid_v140.vp"
+fragment_program: "/material/uniform_buffers.fp"

@@ -1,12 +1,12 @@
--- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -57,7 +57,101 @@ local function test_single()
     assert_near_vector4(go.get("#constant_single", "tint"), v_b)
 end
 
+local function assert_constant(expected, actual)
+    assert(type(actual) == "userdata")
+    assert(string_starts_with(tostring(actual), "vmath.vector4"))
+    assert_near_vector4(expected, actual)
+end
+
+local function assert_constant_array(expected, actual)
+    assert(type(actual) == "table")
+    assert(#actual == #expected)
+    for k,v in pairs(expected) do
+        assert_near_vector4(v, actual[k])
+    end
+end
+
+local function test_single_nested()
+    -- Test old pipeline shaders
+    assert_constant(vmath.vector4(1,0,0,1), go.get("#constant_single", "nested.tint"))
+
+    -- Test setting nested values
+    go.set("#constant_single", "nested.tint", vmath.vector4(1,2,3,4))
+    assert_constant(vmath.vector4(1,2,3,4), go.get("#constant_single", "nested.tint"))
+    go.set("#constant_single", "nested.tint.x", 9)
+    assert_constant(vmath.vector4(9,2,3,4), go.get("#constant_single", "nested.tint"))
+
+    -- Test new pipeline shader (v140+)
+    assert_constant(vmath.vector4(1,1,1,1), go.get("#constant_single_v140", "tint"))
+    assert_constant(vmath.vector4(1,0,0,1), go.get("#constant_single_v140", "nested.tint"))
+    assert_constant(vmath.vector4(0,1,0,1), go.get("#constant_single_v140", "nested.nested.tint"))
+
+    -- Test setting nested values with the new pipeline
+    go.set("#constant_single_v140", "nested.tint", vmath.vector4(1,2,3,4))
+    assert_constant(vmath.vector4(1,2,3,4), go.get("#constant_single_v140", "nested.tint"))
+    go.set("#constant_single_v140", "nested.tint.x", 9)
+    assert_constant(vmath.vector4(9,2,3,4), go.get("#constant_single_v140", "nested.tint"))
+
+    -- The value is declared as nested.nested.leaf_value in the shader via two nested structs,
+    assert_constant(vmath.vector4(1,3,3,7), go.get("#constant_single_v140", "nested.nested.leaf_value"))
+
+    -- The value is declared multiple times in the material file, but with different scope.
+    -- The first is using the "global" named scope, and the second is using the "nested" named scope.
+    -- i.e:
+    -- "overriden_value" = vmath.vector4(11,12,13,14)
+    -- "nested.overriden_value" = vmath.vector4(21,22,23,24)
+    -- The first assignment will set the first members named "override_value" to (11,12,13,14)
+    -- The second assignment will set the "nested.override_value" to the specific value (21,22,23,24)
+    assert_constant(vmath.vector4(11,12,13,14), go.get("#constant_single_v140", "overridden_value"))
+    assert_constant(vmath.vector4(21,22,23,24), go.get("#constant_single_v140", "nested.overridden_value"))
+
+    -- Note: The third value called overridden_value will NOT be set, because we always stop at the first constant
+    --       we find when setting values. We could change this, but we will keep it like this for now!
+    assert_constant(vmath.vector4(0,0,0,0), go.get("#constant_single_v140", "nested.nested.overridden_value"))
+
+    -- Test getting via element ids for nested values
+    assert(1 == go.get("#constant_single_v140", "nested.nested.leaf_value.x"))
+    assert(3 == go.get("#constant_single_v140", "nested.nested.leaf_value.y"))
+    assert(3 == go.get("#constant_single_v140", "nested.nested.leaf_value.z"))
+    assert(7 == go.get("#constant_single_v140", "nested.nested.leaf_value.w"))
+end
+
+local function test_vector_nested()
+    -- Test old pipeline shaders (tint is already covered by other tests)
+    assert_constant_array({vmath.vector4(1,0,0,1),vmath.vector4(0,1,0,1)}, go.get("#constant_array", "nested.tint"))
+    go.set("#constant_array", "nested.tint", vmath.vector4(4,3,2,1), {index = 2})
+    assert_constant_array({vmath.vector4(1,0,0,1),vmath.vector4(4,3,2,1)}, go.get("#constant_array", "nested.tint"))
+
+    -- Test new pipeline shader (v140+)
+    assert_constant_array({vmath.vector4(1,1,1,1),vmath.vector4(2,2,2,2)}, go.get("#constant_array_v140", "tint"))
+    assert_constant_array({vmath.vector4(1,0,0,1),vmath.vector4(0,1,0,1)}, go.get("#constant_array_v140", "nested.tint"))
+    assert_constant_array({vmath.vector4(1,0,0,1),vmath.vector4(0,1,0,1)}, go.get("#constant_array_v140", "nested.nested.tint"))
+
+    -- The value is declared as nested.nested.leaf_value in the shader via two nested structs
+    assert_constant(vmath.vector4(21,23,23,27), go.get("#constant_array_v140", "nested.nested.leaf_value", {index = 2}))
+
+    -- The value is declared multiple times in the material file, but with different scope.
+    -- The first is using the "global" named scope, and the second is using the "nested" named scope.
+    assert_constant(vmath.vector4(11,12,13,14), go.get("#constant_array_v140", "overridden_value", {index = 1}))
+    assert_constant(vmath.vector4(15,16,17,18), go.get("#constant_array_v140", "overridden_value", {index = 2}))
+    assert_constant(vmath.vector4(21,22,23,24), go.get("#constant_array_v140", "nested.overridden_value", {index = 1}))
+    assert_constant(vmath.vector4(25,26,27,28), go.get("#constant_array_v140", "nested.overridden_value", {index = 2}))
+
+    -- Note: The third value called overridden_value will NOT be set, because we always stop at the first constant
+    --       we find when setting values. We could change this, but we will keep it like this for now!
+    assert_constant(vmath.vector4(0,0,0,0), go.get("#constant_array_v140", "nested.nested.overridden_value", {index = 1}))
+    assert_constant(vmath.vector4(0,0,0,0), go.get("#constant_array_v140", "nested.nested.overridden_value", {index = 2}))
+
+    -- Test getting via element ids for nested values
+    assert(21 == go.get("#constant_array_v140", "nested.nested.leaf_value.x", {index = 2}))
+    assert(23 == go.get("#constant_array_v140", "nested.nested.leaf_value.y", {index = 2}))
+    assert(23 == go.get("#constant_array_v140", "nested.nested.leaf_value.z", {index = 2}))
+    assert(27 == go.get("#constant_array_v140", "nested.nested.leaf_value.w", {index = 2}))
+end
+
 function init(self)
     test_vector()
     test_single()
+    test_single_nested()
+    test_vector_nested()
 end

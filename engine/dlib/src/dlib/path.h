@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@
 #define DM_PATH_H
 
 #include <stdint.h>
+#include <stddef.h> // wchar_t
 
 /** Maximum path length convention. This size should large enough
  * such that path truncation never occurs in practice. No functions
@@ -41,6 +42,15 @@ namespace dmPath
      * @param out_size out buffer size
      */
     void Normalize(const char* path, char* out, uint32_t out_size);
+
+    /**
+     * Path normalization for wide strings. Redundant and trailing slashes are
+     * removed and backslashes are translated into backward slashes
+     * @param path path to normalize
+     * @param out out buffer
+     * @param out_size out buffer size
+     */
+    void NormalizeW(const wchar_t* wpath, wchar_t* out, uint32_t out_size);
 
     /**
      * Get directory part of path. The output path is potentially

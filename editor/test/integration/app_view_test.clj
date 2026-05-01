@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,8 +21,6 @@
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.git :as git]
-            [editor.prefs :as prefs]
-            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -132,8 +130,8 @@
           atlas-path2 "/atlas/single2.atlas"
           atlas-res2 (workspace/resolve-workspace-resource workspace atlas-path2)
           [atlas scene-view] (test-util/open-scene-view! project app-view atlas-path 64 64)
-          proj-path (.getAbsolutePath (workspace/project-path workspace))
-          git (init-git proj-path)
+          project-path (.getAbsolutePath (workspace/project-directory workspace))
+          git (init-git project-path)
           atlas-outline (fn [path] (test-util/outline (g/node-value app-view :active-resource-node) path))]
       (is (= atlas-res (g/node-value app-view :active-resource)))
       (test-util/move-file! workspace atlas-path atlas-path2)
@@ -159,16 +157,16 @@
       (is main-dir)
       (let [evaluation-context (g/make-evaluation-context)
             old-artifact-map (workspace/artifact-map workspace)
-            build-results (build/build-project! project game-project evaluation-context nil old-artifact-map progress/null-render-progress!)]
+            build-results (build/build-project! project game-project old-artifact-map nil evaluation-context)]
         (g/update-cache-from-evaluation-context! evaluation-context)
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results)))
-      (asset-browser/rename [main-dir] "blahonga")
+      (asset-browser/rename [main-dir] "blahonga" test-util/localization)
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
       (let [old-artifact-map (workspace/artifact-map workspace)
-            build-results (build/build-project! project game-project (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)]
+            build-results (build/build-project! project game-project old-artifact-map nil (g/make-evaluation-context))]
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results))))))
@@ -199,29 +197,24 @@
                                                                          ;; This is a project (i.e. not embedded) resource node.
                                                                          (when-some [source-node-id (test-util/resource-node project source-resource)]
                                                                            (node-cacheable-build-target-endpoints source-node-id))))))
-                                                           (build/resolve-node-dependencies game-project project))]
-          (test-util/run-event-loop!
-            (fn [exit-event-loop!]
+                                                           (build/resolve-node-dependencies game-project project))
+              _ (g/clear-system-cache!)
+              build-results @(app-view/async-build! project
+                                                    :debug false
+                                                    :build-engine false
+                                                    :old-artifact-map artifact-map
+                                                    :prefs (test-util/make-test-prefs))]
+          (when (is (nil? (:error build-results)))
+
+            (testing "Build targets remain in cache even though we've exceeded the cache limit."
+              (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
+
+            (testing "Build targets are always evicted from the cache after their dependencies change."
+              (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
+                (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
+                (test-util/prop! background-atlas :margin 10)
+                (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
+
+            (testing "Build targets are always evicted from the cache when it is explicitly cleared."
               (g/clear-system-cache!)
-              (app-view/async-build! project
-                                     :debug false
-                                     :build-engine false
-                                     :old-artifact-map artifact-map
-                                     :prefs (prefs/make-prefs "unit-test")
-                                     :result-fn (fn [build-results]
-                                                  (when (is (nil? (:error build-results)))
-
-                                                    (testing "Build targets remain in cache even though we've exceeded the cache limit."
-                                                      (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
-
-                                                    (testing "Build targets are always evicted from the cache after their dependencies change."
-                                                      (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
-                                                        (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
-                                                        (test-util/prop! background-atlas :margin 10)
-                                                        (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
-
-                                                    (testing "Build targets are always evicted from the cache when it is explicitly cleared."
-                                                      (g/clear-system-cache!)
-                                                      (is (empty? (g/cache)))))
-
-                                                  (exit-event-loop!))))))))))
+              (is (empty? (g/cache))))))))))

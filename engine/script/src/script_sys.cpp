@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -62,7 +62,7 @@ static int g_DebuggerLightweightHook = 0;
 
 union SaveLoadBuffer
 {
-    uint32_t m_alignment; // This alignment is required for js-web
+    uint32_t m_alignment; // This alignment is required for web targets
     char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
 } DM_ALIGNED(16) g_saveload;
 
@@ -76,6 +76,7 @@ union SaveLoadBuffer
      * @document
      * @name System
      * @namespace sys
+     * @language Lua
      */
 
     char* Sys_SetupTableSerializationBuffer(int required_size)
@@ -109,11 +110,11 @@ union SaveLoadBuffer
      * (i.e. a 16 bit range). When tables are used to represent arrays, the values of
      * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however
      * the limit on the total number of rows remains in effect.
+     * This function will raise a Lua error if an error occurs while saving the table.
      *
      * @name sys.save
      * @param filename [type:string] file to write to
      * @param table [type:table] lua table to save
-     * @return success [type:boolean] a boolean indicating if the table could be saved or not
      * @examples
      *
      * Save data:
@@ -122,9 +123,7 @@ union SaveLoadBuffer
      * local my_table = {}
      * table.insert(my_table, "my_value")
      * local my_file_path = sys.get_save_file("my_game", "my_file")
-     * if not sys.save(my_file_path, my_table) then
-     *   -- Alert user that the data could not be saved
-     * end
+     * sys.save(my_file_path, my_table)
      * ```
      */
 
@@ -223,6 +222,7 @@ union SaveLoadBuffer
 
     /*# loads a lua table from a file on disk
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
+     * This function will raise a Lua error if an error occurs while loading the file.
      *
      * @name sys.load
      * @param filename [type:string] file to read from
@@ -277,7 +277,7 @@ union SaveLoadBuffer
      *
      * @name sys.exists
      * @param path [type:string] path to check
-     * @return result [type:bool] `true` if the path exists, `false` otherwise
+     * @return result [type:boolean] `true` if the path exists, `false` otherwise
      * @examples
      *
      * Load data but return nil if path didn't exist
@@ -332,6 +332,7 @@ union SaveLoadBuffer
 
     /*# gets the save-file path
      * The save-file path is operating system specific and is typically located under the user's home directory.
+     * This function will raise a Lua error if unable to get the save file path.
      *
      * @note Setting the environment variable `DM_SAVE_HOME` overrides the default application support path.
      *
@@ -341,11 +342,28 @@ union SaveLoadBuffer
      * @return path [type:string] path to save-file
      * @examples
      *
-     * Find a path where we can store data (the example path is on the macOS platform):
+     * Find a path where we can store data:
      *
      * ```lua
      * local my_file_path = sys.get_save_file("my_game", "my_file")
-     * print(my_file_path) --> /Users/my_users/Library/Application Support/my_game/my_file
+     * -- macOS: /Users/foobar/Library/Application Support/my_game/my_file
+     * print(my_file_path) --> /Users/foobar/Library/Application Support/my_game/my_file
+     *
+     * -- Windows: C:\Users\foobar\AppData\Roaming\my_game\my_file
+     * print(my_file_path) --> C:\Users\foobar\AppData\Roaming\my_game\my_file
+     *
+     * -- Linux: $XDG_DATA_HOME/my_game/my_file or /home/foobar/.my_game/my_file
+     * -- Linux: Defaults to /home/foobar/.local/share/my_game/my_file if neither exist.
+     * print(my_file_path) --> /home/foobar/.local/share/my_game/my_file
+     *
+     * -- Android package name: com.foobar.packagename
+     * print(my_file_path) --> /data/data/0/com.foobar.packagename/files/my_file
+     *
+     * -- iOS: my_game.app
+     * print(my_file_path) --> /var/mobile/Containers/Data/Application/123456AB-78CD-90DE-12345678ABCD/my_game/my_file
+     *
+     * -- HTML5 path inside the IndexedDB: /data/.my_game/my_file or /.my_game/my_file
+     * print(my_file_path) --> /data/.my_game/my_file
      * ```
      */
     static int Sys_GetSaveFile(lua_State* L)
@@ -377,6 +395,7 @@ union SaveLoadBuffer
 
     /*# gets the application path
      * The path from which the application is run.
+     * This function will raise a Lua error if unable to get the application support path.
      *
      * @name sys.get_application_path
      * @return path [type:string] path to application executable
@@ -484,8 +503,8 @@ union SaveLoadBuffer
      *
      * @name sys.get_config_int
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @param [default_value] [type:integer] (optional) default value to return if the value does not exist
-     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
+     * @param [default_value] [type:number] (optional) default value to return if the value does not exist
+     * @return value [type:number] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *
      * Get user config value
@@ -556,6 +575,46 @@ union SaveLoadBuffer
         {
             float value = dmConfigFile::GetFloat(config_file, key, default_value);
             lua_pushnumber(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
+    /*# get boolean config value with optional default value
+     * Get boolean config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_boolean
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:boolean] (optional) default value to return if the value does not exist
+     * @return value [type:boolean] config value as a boolean. default_value if the config key does not exist. false if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local vsync = sys.get_config_boolean("display.vsync", false)
+     * ```
+     */
+    static int Sys_GetConfigBoolean(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const char* key = luaL_checkstring(L, 1);
+        bool default_value = false;
+        if (!lua_isnone(L, 2))
+        {
+            default_value = lua_toboolean(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            int32_t int_value = dmConfigFile::GetInt(config_file, key, default_value ? 1 : 0);
+            bool value = int_value != 0;
+            lua_pushboolean(L, value);
         }
         else
         {
@@ -984,11 +1043,11 @@ union SaveLoadBuffer
 
             if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
             {
-                lua_pushstring(L, "ipv4");
+                lua_pushliteral(L, "ipv4");
             }
             else if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV6)
             {
-                lua_pushstring(L, "ipv6");
+                lua_pushliteral(L, "ipv6");
             }
             else
             {
@@ -1010,7 +1069,7 @@ union SaveLoadBuffer
             }
             else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
             {
-                lua_pushstring(L, "02:00:00:00:00:00");
+                lua_pushliteral(L, "02:00:00:00:00:00");
             }
             else
             {
@@ -1326,7 +1385,8 @@ union SaveLoadBuffer
 
     /*# serializes a lua table to a buffer and returns it
      * The buffer can later deserialized by <code>sys.deserialize</code>.
-     * This method has all the same limitations as <code>sys.save</code>.
+     * This function has all the same limitations as <code>sys.save</code>.
+     * This function will raise a Lua error if an error occurs while serializing the table.
      *
      * @name sys.serialize
      * @param table [type:table] lua table to serialize
@@ -1362,6 +1422,7 @@ union SaveLoadBuffer
     }
 
     /*# deserializes buffer into a lua table
+     * This function will raise a Lua error if an error occurs while deserializing the buffer.
      *
      * @name sys.deserialize
      * @param buffer [type:string] buffer to deserialize from
@@ -1439,6 +1500,7 @@ union SaveLoadBuffer
         {"get_config_string", Sys_GetConfigString},
         {"get_config_int", Sys_GetConfigInt},
         {"get_config_number", Sys_GetConfigNumber},
+        {"get_config_boolean", Sys_GetConfigBoolean},
         {"open_url", Sys_OpenURL},
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},
@@ -1463,17 +1525,17 @@ union SaveLoadBuffer
 
     /*# no network connection found
      * @name sys.NETWORK_DISCONNECTED
-     * @variable
+     * @constant
      */
 
     /*# network connected through mobile cellular
      * @name sys.NETWORK_CONNECTED_CELLULAR
-     * @variable
+     * @constant
      */
 
     /*# network connected through other, non cellular, connection
      * @name sys.NETWORK_CONNECTED
-     * @variable
+     * @constant
      */
 
     void InitializeSys(lua_State* L)

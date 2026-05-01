@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,6 +29,25 @@
   [value]
   (throw-if-interrupted!)
   value)
+
+(defn thread-uninterrupted-predicate
+  "Returns a predicate function that takes a single value, ignores it, and
+  returns false if the specified thread has been interrupted. If no thread is
+  supplied, defaults to the calling thread."
+  ([]
+   (thread-uninterrupted-predicate (Thread/currentThread)))
+  ([^Thread thread]
+   {:pre [(instance? Thread thread)]}
+   (fn thread-uninterrupted? [_]
+     (not (.isInterrupted thread)))))
+
+(defn cancel-future!
+  "Cancels the supplied future. Does nothing if called with nil or a future that
+  was already cancelled. Always returns nil."
+  [future]
+  (when future
+    (future-cancel future)
+    nil))
 
 (defn preset!
   "Sets the value of atom to newval without regard for the current value.

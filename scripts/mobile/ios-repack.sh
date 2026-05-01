@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,8 @@ set -eu
 
 SCRIPT_NAME="$(basename "${0}")"
 SCRIPT_PATH="$(cd "$(dirname "${0}")"; pwd)"
+
+eval $(python $SCRIPT_PATH/../../build_tools/set_sdk_vars.py VERSION_XCODE VERSION_XCODE_CLANG)
 
 
 # ----------------------------------------------------------------------------
@@ -79,7 +81,7 @@ ENGINE="${DYNAMO_HOME:-}/bin/${PLATFORM:-}/dmengine"
 [ -f "${PROFILE}" ] || terminate "Profile does not exist: ${PROFILE}"
 [ -f "${ENGINE}" ] || terminate "Engine does not exist: ${ENGINE}"
 
-ASAN_PATH=${DYNAMO_HOME}/ext/SDKs/XcodeDefault14.2.xctoolchain/usr/lib/clang/14.0.0/lib/darwin
+ASAN_PATH=${DYNAMO_HOME}/ext/SDKs/XcodeDefault${VERSION_XCODE}.xctoolchain/usr/lib/clang/${VERSION_XCODE_CLANG}/lib/darwin
 # e.g. libclang_rt.asan_ios_dynamic.dylib
 
 ASAN_DEPENDENCY=$(otool -L ${ENGINE} | grep libclang_rt.asan | awk '{print $1;}')

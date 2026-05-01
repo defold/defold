@@ -30,7 +30,7 @@ Time to open the Defold Editor project. The first time you open it, you'll need 
 
 3. You need to choose the target Java SDK for the project. Choose **File > Project Structure** from the menu bar and go to the **Project Settings > Project** page.
 
-4. Under the Project SDK section, choose Java version **17.0.5+8** from the dropdown. If that's not available from the dropdown, you'll need to tell IntelliJ where to find it. In that case you must browse for the JDK folder by selecting **Add JDK...** from the dropdown.
+4. Under the Project SDK section, choose Java version **25** from the dropdown. If that's not available from the dropdown, you'll need to tell IntelliJ where to find it. In that case you must browse for the JDK folder by selecting **Add JDK...** from the dropdown.
 
 5. Go to the **Project Settings > Modules** page and navigate to the Clojure tab. Uncheck the **Create stubs if required** checkbox. This gets rid of the "Stub Generation Required" notification whenever you reopen the project. Click **OK** to close the Project settings dialog when you're done.
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,15 +15,17 @@
 #ifndef DM_GAMESYS_RES_GLYPH_BANK_H
 #define DM_GAMESYS_RES_GLYPH_BANK_H
 
+#include <dmsdk/font/font.h>
 #include <dmsdk/resource/resource.h>
 #include <render/font_ddf.h>
 
 namespace dmGameSystem
 {
-    struct GlyphBankResource
-    {
-        dmRenderDDF::GlyphBank* m_DDF;
-    };
+    struct GlyphBankResource;
+
+    HFont GetFont(GlyphBankResource* resource);
+
+    dmRenderDDF::GlyphBank* GetGlyphBank(GlyphBankResource* resource);
 
     dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams* params);
 

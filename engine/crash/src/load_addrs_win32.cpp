@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,6 +29,7 @@ namespace dmCrash
         if (EnumProcessModules(process, mods, sizeof(mods), &needed))
         {
             uint32_t count = needed / sizeof(HANDLE);
+            state->m_ModuleCount = count;
             for (uint32_t i=0;i!=count;i++)
             {
                 if (!GetModuleFileNameExA(process, mods[i], state->m_ModuleName[i], AppState::MODULE_NAME_SIZE))
@@ -39,6 +40,7 @@ namespace dmCrash
                 if (GetModuleInformation(process, mods[i], &info, sizeof(info)))
                 {
                     state->m_ModuleAddr[i] = info.lpBaseOfDll;
+                    state->m_ModuleSize[i] = info.SizeOfImage;
                 }
             }
         }

@@ -1,0 +1,274 @@
+local M = {}
+
+local function expect_error(msg, fn, ...)
+    local success, error = pcall(fn, ...)
+    if success then
+        print(("%s => unexpected success!"):format(msg))
+    else
+        print(("%s => %s"):format(msg, error))
+    end
+end
+
+function M.get_commands()
+    return {
+        {
+            label = "Test UI",
+            locations = {"Edit"},
+            id = "defold.test",
+            run = function()
+                local dialog = editor.ui.dialog({
+                    title = "Dialog title",
+                    header = editor.ui.heading({
+                        text = "Header on the Right",
+                        color = editor.ui.COLOR.HINT,
+                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                        style = editor.ui.HEADING_STYLE.DIALOG
+                    }),
+                    content = editor.ui.scroll({
+                        content = editor.ui.grid({
+                            padding = editor.ui.PADDING.LARGE,
+                            columns = {{}, {grow = true}},
+                            rows = {{}},
+                            children = {
+                                {
+                                    editor.ui.label({
+                                        text = "Text buttons", 
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                    }),
+                                    editor.ui.horizontal({
+                                        children = {
+                                            editor.ui.button({ text = "A button" }),
+                                            editor.ui.button({ text = "Disabled button", enabled = false})
+                                        }
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Icon buttons", 
+                                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                                        color = editor.ui.COLOR.HINT
+                                    }),
+                                    editor.ui.horizontal({
+                                        children = {
+                                            editor.ui.button({ icon = editor.ui.ICON.CLEAR, enabled = false }),
+                                            editor.ui.button({ icon = editor.ui.ICON.MINUS }),
+                                            editor.ui.button({ icon = editor.ui.ICON.OPEN_RESOURCE }),
+                                            editor.ui.button({ icon = editor.ui.ICON.PLUS }),
+                                        }
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Images",
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                    }),
+                                    editor.ui.grid({
+                                        spacing = editor.ui.SPACING.NONE,
+                                        children = {
+                                            {
+                                                -- resources
+                                                editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png",
+                                                    width = 16,
+                                                    alignment = editor.ui.ALIGNMENT.BOTTOM_LEFT
+                                                }),
+                                                editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png",
+                                                    width = 32,
+                                                    alignment = editor.ui.ALIGNMENT.CENTER
+                                                }),
+                                                editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png",
+                                                    width = 64
+                                                })
+                                            },
+                                            {
+                                                -- URLs
+                                                editor.ui.image({
+                                                    image = "https://avatars.githubusercontent.com/u/111111",
+                                                    width = 32
+                                                }),
+                                                editor.ui.image({
+                                                    image = "https://avatars.githubusercontent.com/u/732554",
+                                                    width = 32
+                                                }),
+                                                editor.ui.image({
+                                                    image = "https://avatars.githubusercontent.com/u/123456",
+                                                    width = 32,
+                                                    alignment = editor.ui.ALIGNMENT.RIGHT
+                                                })
+                                            },
+                                            {
+                                                -- invalid resources
+                                                editor.ui.image({
+                                                    image = "/does-not-exist.png"
+                                                }),
+                                                editor.ui.image({
+                                                    image = "/game.project"
+                                                })
+                                            },
+                                            {
+                                                -- invalid URLs
+                                                editor.ui.image({
+                                                    image = "https://defold.com/"
+                                                }),
+                                                editor.ui.image({
+                                                    image = "https://probably-does-not-exist.com/"
+                                                }),
+                                            }
+                                        }
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Button", 
+                                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                                        color = editor.ui.COLOR.OVERRIDE
+                                    }),
+                                    editor.ui.button({
+                                        text = "Open resource",
+                                        icon = editor.ui.ICON.OPEN_RESOURCE
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Select box", 
+                                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                                        color = editor.ui.COLOR.WARNING
+                                    }),
+                                    editor.ui.select_box({
+                                        value = 1,
+                                        options = {1, 'foo', true, 42}
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "String field", 
+                                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                                        color = editor.ui.COLOR.ERROR
+                                    }),
+                                    editor.ui.string_field({
+                                        value = "Error string",
+                                        on_value_changed = print,
+                                        issue = {severity = editor.ui.ISSUE_SEVERITY.ERROR, message = "error message"}
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Integer field", 
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                    }),
+                                    editor.ui.integer_field({
+                                        value = 666,
+                                        on_value_changed = print,
+                                        issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = "warning message"}
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Number field", 
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                    }),
+                                    editor.ui.number_field({
+                                        value = 666,
+                                        on_value_changed = print
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "External file field", 
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                    }),
+                                    editor.ui.external_file_field({
+                                        value = "game.project",
+                                        title = "Select Defold Project File",
+                                        filters = {
+                                            {
+                                                description = "Defold project files (game.project)",
+                                                extensions = {"game.project"}
+                                            }
+                                        }
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Resource field",
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                    }),
+                                    editor.ui.resource_field({
+                                        value = "/game.project",
+                                        on_value_changed = print,
+                                        title = "Select Editor Script Resource",
+                                        extensions = {"editor_script"},
+                                        enabled = true
+                                    })
+                                },
+                                {
+                                    editor.ui.separator({
+                                        orientation = editor.ui.ORIENTATION_HORIZONTAL,
+                                        column_span = 2
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Check boxes",
+                                        alignment = editor.ui.ALIGNMENT.TOP_RIGHT
+                                    }),
+                                    editor.ui.vertical({
+                                        children = {
+                                            editor.ui.check_box({
+                                                text = "A check box",
+                                                value = true
+                                            }),
+                                            editor.ui.check_box({
+                                                text = "Disabled check box",
+                                                enabled = false
+                                            }),
+                                            editor.ui.check_box({
+                                                text = "Warning check box",
+                                                issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = "warning message"}
+                                            }),
+                                            editor.ui.check_box({
+                                                text = "Disabled error check box",
+                                                enabled = false,
+                                                issue = {severity = editor.ui.ISSUE_SEVERITY.ERROR, message = "error message"}
+                                            }),
+                                            editor.ui.check_box({
+                                                value = true
+                                            })
+                                        }
+                                    })
+                                }
+                            }
+                        })
+                    }),
+                    buttons = {
+                        editor.ui.dialog_button({
+                            text = "Disabled",
+                            enabled = false
+                        }),
+                        editor.ui.dialog_button({
+                            text = "Cancel",
+                            cancel = true,
+                            result = false
+                        }),
+                        editor.ui.dialog_button({
+                            text = "Submit",
+                            default = true,
+                            result = true
+                        })
+                    }
+                })
+
+                expect_error("editor.ui.image({})", editor.ui.image, {})
+                expect_error("editor.ui.image({image = false})", editor.ui.image, {image = false})
+                expect_error("editor.ui.image({image = 'foo', width = false})", editor.ui.image, {image = 'foo', width = false})
+                expect_error("editor.ui.image({image = 'foo', width = -1})", editor.ui.image, {image = 'foo', width = -1})
+
+                -- editor.ui.show_dialog(dialog)
+            end
+        }
+    }
+end
+
+return M

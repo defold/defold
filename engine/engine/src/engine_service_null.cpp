@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,7 +23,7 @@ void dmEngineService::Delete(dmEngineService::HEngineService)
 {
 }
 
-void dmEngineService::Update(dmEngineService::HEngineService, dmProfile::HProfile)
+void dmEngineService::Update(dmEngineService::HEngineService, HProfile)
 {
 }
 
@@ -44,4 +44,8 @@ dmWebServer::HServer dmEngineService::GetWebServer(dmEngineService::HEngineServi
 
 void dmEngineService::InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
 {
+}
+
+void dmEngineService::InitState(HEngineService engine_service, EngineState* state)
+{	
 }

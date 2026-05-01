@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,14 +22,14 @@
 
 namespace dmBuffer
 {
-    /*# SDK Buffer API documentation
+    /*# Buffer API documentation
      *
      * Buffer API for data buffers as the main way to communicate between systems.
      *
      * @document
      * @name Buffer
      * @namespace dmBuffer
-     * @path engine/dlib/src/dmsdk/dlib/buffer.h
+     * @language C++
      */
 
     /*# HBuffer type definition

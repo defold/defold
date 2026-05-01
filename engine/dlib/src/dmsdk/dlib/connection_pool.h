@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,14 +26,14 @@ namespace dmSSLSocket
     typedef struct SSLSocket* Socket;
 }
 
-/*# SDK Connection pool API documentation
+/*# Connection pool API documentation
  *
  * Connection pool
  *
  * @document
  * @name Connection Pool
  * @namespace dmConnectionPool
- * @path engine/dlib/src/dmsdk/dlib/connection_pool.h
+ * @language C++
  */
 
 namespace dmConnectionPool
@@ -73,7 +73,7 @@ namespace dmConnectionPool
     /*#
      * Creation parameters
      * @struct
-     * @name dmConnectionPool::Params
+     * @name Params
      * @member m_MaxConnections [type:int] Max connection in pool
      * @member m_MaxKeepAlive [type:int] Default max-keep-alive time in seconds
      */
@@ -90,8 +90,8 @@ namespace dmConnectionPool
 
     /*#
      * Create a new connection pool
-     * @name dmConnectionPool::New
-     * @param params
+     * @name New
+     * @param params [type:dmConnectionPool::Params*]
      * @param pool [type:dmConnectionPool::HPool*] pool (out)
      * @return dmConnectionPool::RESULT_OK on success
      */
@@ -99,7 +99,7 @@ namespace dmConnectionPool
 
     /*#
      * Delete connnection pool
-     * @name dmConnectionPool::Delete
+     * @name Delete
      * @param pool [type:dmConnectionPool::HPool] pool
      * @return dmConnectionPool::RESULT_OK on success
      */
@@ -107,7 +107,7 @@ namespace dmConnectionPool
 
     /*#
      * Connection to a host/port
-     * @name dmConnectionPool::Dial
+     * @name Dial
      * @param pool [type:dmConnectionPool::HPool] pool
      * @param host [type:const char*] host
      * @param port [type:uint16_t] port
@@ -121,7 +121,7 @@ namespace dmConnectionPool
 
     /*#
      * Connection to a host/port
-     * @name dmConnectionPool::Dial
+     * @name Dial
      * @param pool [type:dmConnectionPool::HPool] pool
      * @param host [type:const char*] host
      * @param port [type:uint16_t] port
@@ -136,7 +136,7 @@ namespace dmConnectionPool
 
     /*#
      * Return connection to pool
-     * @name dmConnectionPool::Return
+     * @name Return
      * @param pool [type:dmConnectionPool::HPool] pool
      * @param connection [type:dmConnectionPool::HConnection]
      */
@@ -144,7 +144,7 @@ namespace dmConnectionPool
 
     /*#
      * Close connection. Use this function whenever an error occur in eg http.
-     * @name dmConnectionPool::Close
+     * @name Close
      * @param pool [type:dmConnectionPool::HPool] pool
      * @param connection [type:dmConnectionPool::HConnection]
      */
@@ -152,7 +152,7 @@ namespace dmConnectionPool
 
     /*#
      * Get socket for connection
-     * @name dmConnectionPool::GetSocket
+     * @name GetSocket
      * @param pool [type:dmConnectionPool::HPool] pool
      * @param connection [type:dmConnectionPool::HConnection]
      * @return [type:dmSocket::Socket] on success
@@ -161,7 +161,7 @@ namespace dmConnectionPool
 
     /*#
      * Get secure socket.
-     * @name dmConnectionPool::GetSSLSocket
+     * @name GetSSLSocket
      * @param pool [type:dmConnectionPool::HPool] pool
      * @param connection [type:dmConnectionPool::HConnection]
      * @return [type:dmSSLSocket::Socket] on success
@@ -170,7 +170,7 @@ namespace dmConnectionPool
 
     /**
      * Get reuse count for a connection
-     * @name dmConnectionPool::GetReuseCount
+     * @name GetReuseCount
      * @param pool [type:dmConnectionPool::HPool] pool
      * @param connection [type:dmConnectionPool::HConnection]
      * @return reuse count
@@ -181,7 +181,7 @@ namespace dmConnectionPool
      * Shuts down all open sockets in the pool and block new connection attempts. The function can be
      * called repeatedly on the same pool until it returns no more connections in use.
      *
-     * @name dmConnectionPool::Shutdown
+     * @name Shutdown
      * @param pool [type:dmConnectionPool::HPool] pool
      * @param how [type:dmSocket::ShutdownType] shutdown type to pass to socket shutdown function
      * @return current number of connections in use

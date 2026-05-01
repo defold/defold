@@ -12,6 +12,7 @@
  * @document
  * @name Package
  * @namespace package
+ * @language Lua
  */
 
 /*# search path used for loading DLLs using the ```require``` function
@@ -143,8 +144,8 @@
  * 
  * 
  * @name package.loadlib
- * @param libname
- * @param funcname
+ * @param libname [type:string]
+ * @param funcname [type:string]
  */
 
 /*# search path used for loading Lua code using the ```require``` function
@@ -181,6 +182,6 @@
  * 
  * 
  * @name package.seeall
- * @param module
+ * @param module [type:table]
  */
 

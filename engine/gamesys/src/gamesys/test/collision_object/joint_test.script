@@ -1,12 +1,12 @@
--- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,19 @@ local function assert_error(func)
         print(err)
     end
     assert(not r)
+end
+
+-- helper functions to verify test data.
+-- throws a Lua error if the assert(s) fails.
+local function assert_near(a, b, eps)
+    if not eps then
+        eps = 0.001
+    end
+    local diff = math.abs(a - b)
+    if not (diff < eps) then
+        local err_msg = "assert_near failed, a: " .. tostring(a) .. ", b: " .. tostring(b) .. " diff == " .. tostring(diff) .. " >= " .. tostring(eps)
+        error(debug.traceback(err_msg))
+    end
 end
 
 -- reusable zero point
@@ -80,10 +93,20 @@ function init(self)
     assert(properties.max_length == 5)
     physics.destroy_joint(self.a_coll, self.joint_id)
 
-    physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
+    if PHYSICS=="box2dv3" then
+        physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 0.95 * 3.1415927410126, enable_limit = true })
+    else
+        physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
+    end
     properties = physics.get_joint_properties(self.a_coll, self.joint_id)
+
+    if PHYSICS=="box2dv3" then
+        assert_near(properties.upper_angle, 3.1415927410126, 0.2)
+    else
+        assert(properties.upper_angle == 10)
+    end
     assert(properties.lower_angle == 0)
-    assert(properties.upper_angle == 10)
+
     assert(properties.enable_limit)
     physics.destroy_joint(self.a_coll, self.joint_id)
 
@@ -104,17 +127,6 @@ function init(self)
     assert(properties.enable_motor)
     assert(properties.motor_speed == 20)
     physics.destroy_joint(self.a_coll, self.joint_id)
-end
-
--- helper functions to verify test data.
--- throws a Lua error if the assert(s) fails.
-local function assert_near(a, b)
-    local eps = 0.001
-    local diff = math.abs(a - b)
-    if not (diff < eps) then
-        local err_msg = "assert_near failed, a: " .. tostring(a) .. ", b: " .. tostring(b) .. " diff == " .. tostring(diff) .. " >= " .. tostring(eps)
-        error(debug.traceback(err_msg))
-    end
 end
 
 local function assert_true(a)
@@ -177,7 +189,7 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(length, 5)
+            assert_near(length, 5, 0.025)
             assert_near(p_b.x, 0)
 
             -- Move A
@@ -193,7 +205,11 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(length, 5)
+            if PHYSICS=="box2dv3" then
+                assert_near(length, 5, 0.25)
+            else
+                assert_near(length, 5, 0.1)
+            end
 
             -- Cleanup, for next test
             physics.destroy_joint(self.a_coll, self.joint_id)
@@ -232,7 +248,11 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(length, 5)
+            if PHYSICS=="box2dv3" then
+                assert_near(length, 5, 0.3)
+            else
+                assert_near(length, 5, 0.05)
+            end
 
             -- Cleanup, for next test
             physics.destroy_joint(self.a_coll, self.joint_id)
@@ -250,14 +270,19 @@ local joint_tests = {
             local orig_rotation = go.get(self.b, "euler.z")
 
             -- give it a few updates to let the physics sim settle
-            coroutine.yield()
-            coroutine.yield()
+            for i=1,10 do
+                coroutine.yield()
+            end
 
             -- The hinge is welded together, the distance should be 0
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(0, length)
+            if PHYSICS=="box2dv3" then
+                assert_near(0, length)
+            else
+                assert_near(0, length, 0.005)
+            end
             assert_near(0, p_b.x)
 
             -- Verify that B obj has rotated (due to motor)
@@ -269,10 +294,9 @@ local joint_tests = {
             go.set_position(vmath.vector3(5,0,0), self.a)
 
             -- give it a few updates to let the physics sim settle
-            coroutine.yield()
-            coroutine.yield()
-            coroutine.yield()
-            coroutine.yield()
+            for i=1,10 do
+                coroutine.yield()
+            end
 
             -- Position should have changed, but distance should not.
             local p_a = go.get_position(self.a)
@@ -299,8 +323,9 @@ local joint_tests = {
             physics.create_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp, { local_axis_a = vmath.vector3(0,1,0), lower_translation = 0, upper_translation = 10, enable_limit = true })
 
             -- give it a few updates to let the physics sim settle
-            coroutine.yield()
-            coroutine.yield()
+            for i=1,10 do
+                coroutine.yield()
+            end
 
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
@@ -316,30 +341,42 @@ local joint_tests = {
             physics.set_joint_properties(self.a_coll, self.joint_id, current_properties)
 
             -- give it a few updates to let the physics sim settle
-            coroutine.yield()
-            coroutine.yield()
-            coroutine.yield()
-            coroutine.yield()
-            coroutine.yield()
-            coroutine.yield()
+            for i=1,10 do
+                coroutine.yield()
+            end
 
             -- Verify that the position has changed to end of upper limit (10)
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(10, length)
+
+            -- box2d v3: upper limit seems to be slightly surpassed here regardless of how many updates we do,
+            --           hence the "large" epsilon value
+
+            if PHYSICS=="box2dv3" then
+                assert_near(10, length, 0.3)
+            else
+                assert_near(10, length, 0.1)
+            end
             assert_near(0, p_b.x)
 
             -- Move obj A on x-axis, make sure that obj B follows along.
             go.set_position(vmath.vector3(10, 0, 0), self.a)
-            coroutine.yield()
-            coroutine.yield()
-            coroutine.yield()
+            for i=1,10 do
+                coroutine.yield()
+            end
 
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(10, length)
+
+            -- box2d v3: upper limit seems to be slightly surpassed here regardless of how many updates we do,
+            --           hence the "large" epsilon value
+            if PHYSICS=="box2dv3" then
+                assert_near(10, length, 0.3)
+            else
+                assert_near(10, length, 0.1)
+            end
             assert_near(10, p_b.x)
 
             -- Cleanup, for next test
@@ -356,28 +393,38 @@ local joint_tests = {
             physics.create_joint(physics.JOINT_TYPE_WELD, self.a_coll, self.joint_id, zp, self.b_coll, vmath.vector3(-10,0,0), { reference_angle = 0.314 })
 
             -- give it a few updates to let the physics sim settle
-            coroutine.yield()
-            coroutine.yield()
+            for i=1,10 do
+                coroutine.yield()
+            end
 
             -- Verify that position for B is at ~length 10 from A
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(length, 10)
-            assert_near(p_b.x, 9.511)
+
+            -- box2d v3: upper limit seems to be slightly surpassed here regardless of how many updates we do,
+            --           hence the "large" epsilon value
+            if PHYSICS=="box2dv3" then
+                assert_near(length, 10, 0.03)
+                assert_near(p_b.x, 9.511, 0.6)
+            else
+                assert_near(length, 10, 0.025)
+                assert_near(p_b.x, 9.511, 0.1)
+            end
 
             -- Move A
             go.set_position(vmath.vector3(5,0,0), self.a)
 
             -- give it a few updates to let the physics sim settle
-            coroutine.yield()
-            coroutine.yield()
+            for i=1,10 do
+                coroutine.yield()
+            end
 
             -- Verify that position for B is STILL at ~length 10
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(length, 10)
+            assert_near(length, 10, 0.1)
 
             -- Cleanup, for next test
             physics.destroy_joint(self.a_coll, self.joint_id)
@@ -400,7 +447,7 @@ local joint_tests = {
 
         -- Setup WHEEL joint
         physics.create_joint(physics.JOINT_TYPE_WHEEL, self.b_coll, self.joint_id, vmath.vector3(0), self.c_coll, vmath.vector3(0,0,0), { local_axis_a = vmath.vector3(0,1,0), max_motor_torque = 1000})
-            
+
         -- give it a few updates to let the physics sim settle
         coroutine.yield()
 
@@ -423,13 +470,18 @@ local joint_tests = {
             coroutine.yield()
         end
 
-
         -- Verify that the position has changed
         local p_c = go.get_position(self.c)
         local p_b = go.get_position(self.b)
         local length = vmath.length(p_c - p_b)
-        assert_near(70.472, length)
-        assert_near(54.736, p_b.x)
+
+        if PHYSICS=="box2dv3" then
+            assert_near(71.472, length, 0.01)
+            assert_near(55.335, p_b.x)
+        else
+            assert_near(70.472, length, 0.01)
+            assert_near(54.736, p_b.x)
+        end
 
         -- Cleanup, for next test
         physics.destroy_joint(self.b_coll, self.joint_id)

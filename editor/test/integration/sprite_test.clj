@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,17 +21,25 @@
 
 (deftest replacing-sprite-image-replaces-dep-build-targets
   (test-util/with-loaded-project
-    (let [node-id (project/get-resource-node project "/logic/session/pow.sprite")
-          old-texture-binding-info (first (g/node-value node-id :texture-binding-infos))
+    (let [sprite-id (project/get-resource-node project "/logic/session/pow.sprite")
+          old-texture-binding-info (first (g/node-value sprite-id :texture-binding-infos))
           old-texture-binding-node-id (:_node-id old-texture-binding-info)
-          old-image (:texture old-texture-binding-info)]
-      (let [old-sources (g/sources-of old-texture-binding-node-id :build-targets)]
-        (g/transact (g/set-property old-texture-binding-node-id :texture (workspace/find-resource workspace "/switcher/switcher.atlas")))
-        (is (= (count old-sources) (count (g/sources-of old-texture-binding-node-id :build-targets))))
-        (is (not= (set old-sources) (set (g/sources-of old-texture-binding-node-id :build-targets))))
-        (g/transact (g/set-property old-texture-binding-node-id :texture old-image))
-        (is (= (count old-sources) (count (g/sources-of old-texture-binding-node-id :build-targets))))
-        (is (= (set old-sources) (set (g/sources-of old-texture-binding-node-id :build-targets))))))))
+          old-image (:texture old-texture-binding-info)
+          old-default-animation (g/node-value sprite-id :default-animation)
+           _ (g/set-property! sprite-id :default-animation "test")
+          old-build-resources (mapv :resource (test-util/resolve-build-dependencies sprite-id project))]
+      (g/transact
+        [(g/set-property old-texture-binding-node-id :texture (workspace/find-resource workspace "/switcher/switcher.atlas"))
+         (g/set-property sprite-id :default-animation "blue_candy")])
+      (is (= (count old-build-resources) (count (mapv :resource (test-util/resolve-build-dependencies sprite-id project)))))
+      (is (not= (set old-build-resources) (set (mapv :resource (test-util/resolve-build-dependencies sprite-id project)))))
+      (g/transact
+        [(g/set-property old-texture-binding-node-id :texture old-image)
+         (g/set-property sprite-id :default-animation "test")])
+      (is (= (count old-build-resources) (count (mapv :resource (test-util/resolve-build-dependencies sprite-id project)))))
+      (is (= (set old-build-resources) (set (mapv :resource (test-util/resolve-build-dependencies sprite-id project)))))
+      (g/set-property! sprite-id :default-animation old-default-animation)
+      nil)))
 
 (deftest sprite-validation
   (test-util/with-loaded-project

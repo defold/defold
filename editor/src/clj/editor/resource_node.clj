@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +19,7 @@
             [dynamo.graph :as g]
             [editor.code.util :as code.util]
             [editor.core :as core]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -102,18 +103,19 @@
   (g/invalidate-outputs! [(g/endpoint node-id :source-value)]))
 
 (defn merge-source-values! [node-id+source-value-pairs]
-  (let [[invalidated-endpoints
-         user-data-values-by-key-by-node-id]
-        (util/into-multiple
-          (pair []
-                {})
-          (pair (map (fn [[node-id]]
-                       (g/endpoint node-id :source-value)))
-                (map (fn [[node-id source-value]]
-                       (pair node-id {:source-value source-value}))))
-          node-id+source-value-pairs)]
-    (g/user-data-merge! user-data-values-by-key-by-node-id)
-    (g/invalidate-outputs! invalidated-endpoints)))
+  (when-not (coll/empty? node-id+source-value-pairs)
+    (let [[invalidated-endpoints
+           user-data-values-by-key-by-node-id]
+          (util/into-multiple
+            (pair []
+                  {})
+            (pair (map (fn [[node-id]]
+                         (g/endpoint node-id :source-value)))
+                  (map (fn [[node-id source-value]]
+                         (pair node-id {:source-value source-value}))))
+            node-id+source-value-pairs)]
+      (g/user-data-merge! user-data-values-by-key-by-node-id)
+      (g/invalidate-outputs! invalidated-endpoints))))
 
 (g/defnk produce-lines [_node-id resource save-value]
   (if (nil? save-value)
@@ -132,6 +134,9 @@
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
+  (property loaded g/Bool :unjammable (default false)
+            (dynamic visible (g/constantly false)))
+
   (output save-data g/Any :cached produce-save-data)
   (output save-value g/Any (g/constantly nil))
   (output source-value g/Any :unjammable produce-source-value)
@@ -144,18 +149,14 @@
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
-           (let [rt (resource/resource-type resource)
-                 label (or (:label rt) (:ext rt) "unknown")
-                 icon (or (:icon rt) unknown-icon)
-                 children (cond-> child-outlines
-                            source-outline (into (:children source-outline)))]
-             {:node-id _node-id
-              :node-outline-key label
-              :label label
-              :icon icon
-              :children children
-              :outline-error? (g/error-fatal? own-build-errors)
-              :outline-overridden? (not (empty? _overridden-properties))})))
+      (let [rt (resource/resource-type resource)]
+        {:node-id _node-id
+         :node-outline-key (or (:ext rt) "unknown")
+         :label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
+         :icon (or (:icon rt) unknown-icon)
+         :children (cond-> child-outlines source-outline (into (:children source-outline)))
+         :outline-error? (g/error-fatal? own-build-errors)
+         :outline-overridden? (not (empty? _overridden-properties))})))
   (output sha256 g/Str :cached produce-sha256))
 
 ;; TODO(save-value-cleanup): Can we remove this now?
@@ -165,11 +166,21 @@
   (output save-data g/Any (g/constantly nil))
   (output save-value g/Any (g/constantly nil)))
 
-(definline ^:private resource-node-resource [basis resource-node]
-  ;; This is faster than g/node-value, and doesn't require creating an
-  ;; evaluation-context. The resource property is unjammable and properties
-  ;; aren't cached, so there is no need to do a full g/node-value.
-  `(gt/get-property ~resource-node ~basis :resource))
+(definline node-loaded? [basis resource-node]
+  `(g/raw-property-value* ~basis ~resource-node :loaded))
+
+(defn loaded?
+  "Returns true if the specified node-id corresponds to a resource that has been
+  loaded. The node-id must refer to an existing resource node. A resource node
+  can exist in the project graph in an unloaded state, for example if its
+  proj-path matches a pattern listed in the .defunload file."
+  ([resource-node-id]
+   (loaded? (g/now) resource-node-id))
+  ([basis resource-node-id]
+   (let [resource-node (g/node-by-id basis resource-node-id)]
+     (assert (some? resource-node) (str "Node not found: " resource-node-id))
+     (assert (g/node-instance*? ResourceNode resource-node))
+     (node-loaded? basis resource-node))))
 
 (defn resource
   ([resource-node-id]
@@ -177,7 +188,7 @@
   ([basis resource-node-id]
    (let [resource-node (g/node-by-id basis resource-node-id)]
      (assert (g/node-instance*? resource/ResourceNode resource-node))
-     (resource-node-resource basis resource-node))))
+     (resource/node-resource basis resource-node))))
 
 (defn as-resource
   ([node-id]
@@ -185,7 +196,7 @@
   ([basis node-id]
    (when-some [node (g/node-by-id basis node-id)]
      (when (g/node-instance*? resource/ResourceNode node)
-       (resource-node-resource basis node)))))
+       (resource/node-resource basis node)))))
 
 (defn as-resource-original
   ([node-id]
@@ -194,7 +205,7 @@
    (when-some [node (g/node-by-id basis node-id)]
      (when (and (nil? (gt/original node))
                 (g/node-instance*? resource/ResourceNode node))
-       (resource-node-resource basis node)))))
+       (resource/node-resource basis node)))))
 
 (defn dirty?
   ([resource-node-id]
@@ -202,14 +213,13 @@
   ([resource-node-id evaluation-context]
    (g/valid-node-value resource-node-id :dirty evaluation-context)))
 
-(defn- make-ddf-dependencies-fn-raw [ddf-type]
-  (let [get-fields (protobuf/get-fields-fn (protobuf/resource-field-path-specs ddf-type))]
-    (fn [source-value]
-      (into []
-            (comp
-              (filter seq)
-              (distinct))
-            (get-fields source-value)))))
+(defn- make-ddf-dependencies-fn-raw [^Class pb-class]
+  (fn ddf-dependencies-fn [source-value]
+    (coll/into->
+      (protobuf/resource-field-value-paths pb-class source-value) []
+      (map second) ; => proj-paths
+      (remove coll/empty?)
+      (distinct))))
 
 (def make-ddf-dependencies-fn (memoize make-ddf-dependencies-fn-raw))
 
@@ -228,7 +238,7 @@
      ;; have a valid proj-path.
      (if (and (nil? (gt/original node))
               (g/node-instance*? ResourceNode node)
-              (some? (resource/proj-path (resource-node-resource basis node))))
+              (some? (resource/proj-path (resource/node-resource basis node))))
 
        ;; We found our owner ResourceNode. Return its node-id.
        node-id

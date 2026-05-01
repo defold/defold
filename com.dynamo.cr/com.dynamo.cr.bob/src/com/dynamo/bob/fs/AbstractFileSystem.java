@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -90,7 +90,9 @@ public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResou
     private void walk(IWalker walker, String path, Collection<String> results) {
         String absolutePath = FilenameUtils.normalizeNoEndSeparator(FilenameUtils.concat(this.rootDirectory, path));
         File file = new File(absolutePath);
-
+        if (!file.exists()) {
+            return;
+        }
         if (file.isDirectory()) {
             if (walker.handleDirectory(path, results)) {
                 String[] children = file.list();

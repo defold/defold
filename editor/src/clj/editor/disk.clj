@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,6 +21,7 @@
             [editor.editor-extensions :as extensions]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
@@ -72,7 +73,7 @@
 (defonce ^:private reload-job-atom (atom nil))
 
 (defn- start-reload-job! [render-progress! workspace moved-files changes-view]
-  (let [project-path (workspace/project-path workspace)
+  (let [project-directory (workspace/project-directory workspace)
         dependencies (workspace/dependencies workspace)
         snapshot-cache (workspace/snapshot-cache workspace)
         success-promise (promise)
@@ -85,8 +86,8 @@
                 (complete! false))]
     (future
       (try
-        (render-progress! (progress/make-indeterminate "Loading external changes..."))
-        (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
+        (render-progress! (progress/make-indeterminate (localization/message "progress.loading-external-changes")))
+        (let [snapshot-info (workspace/make-snapshot-info workspace project-directory dependencies snapshot-cache)]
           (render-progress! progress/done)
           (ui/run-later
             (try
@@ -116,6 +117,11 @@
    (async-job! callback! reload-job-atom start-reload-job! render-progress! workspace moved-files changes-view)))
 
 (def ^:private blocking-reload! (partial blocking-job! reload-job-atom start-reload-job!))
+
+(defn await-current-reload
+  "If a reload is in progress, blocks until done; otherwise returns immediately"
+  []
+  (some-> @reload-job-atom deref))
 
 ;; -----------------------------------------------------------------------------
 ;; Save
@@ -155,34 +161,33 @@
   (let [endpoint-invalidated-since-snapshot? (g/endpoint-invalidated-pred (:snapshot-invalidate-counters post-save-actions))]
     (resource-node/merge-source-values! (:written-source-values-by-node-id post-save-actions))
     (g/cache-output-values!
-      (g/with-auto-evaluation-context evaluation-context
-        (into []
-              (keep (fn [{:keys [node-id] :as save-data}]
-                      ;; It's possible the user might have edited a resource
-                      ;; while we were saving on a background thread. We need to
-                      ;; make sure we don't add a stale save-data entry to the
-                      ;; cache.
-                      (let [save-data-endpoint (g/endpoint node-id :save-data)]
-                        (when-not (endpoint-invalidated-since-snapshot? save-data-endpoint)
-                          (pair save-data-endpoint
-                                (assoc save-data :dirty false))))))
-              (:written-save-datas post-save-actions))))
+      (into []
+            (keep (fn [{:keys [node-id] :as save-data}]
+                    ;; It's possible the user might have edited a resource
+                    ;; while we were saving on a background thread. We need to
+                    ;; make sure we don't add a stale save-data entry to the
+                    ;; cache.
+                    (let [save-data-endpoint (g/endpoint node-id :save-data)]
+                      (when-not (endpoint-invalidated-since-snapshot? save-data-endpoint)
+                        (pair save-data-endpoint
+                              (assoc save-data :dirty false))))))
+            (:written-save-datas post-save-actions)))
     (project/log-cache-info! (g/cache) "Cached written save data in system cache.")))
 
 (defn- write-message-fn [save-data]
   (when-let [resource (:resource save-data)]
-    (str "Writing " (resource/resource->proj-path resource))))
+    (localization/message "progress.writing" {"resource" (resource/resource->proj-path resource)})))
 
 (defn write-save-data-to-disk!
-  [save-datas snapshot-invalidate-counters {:keys [render-progress!]
-                                            :or {render-progress! progress/null-render-progress!}
-                                            :as _opts}]
+  [save-datas snapshot-invalidate-counters localization {:keys [render-progress!]
+                                                         :or {render-progress! progress/null-render-progress!}
+                                                         :as _opts}]
   "Write the supplied sequence of save-datas to disk. Returns post-save-actions
   that must later be supplied to the process-post-save-actions! function, called
   from the main thread."
-  (render-progress! (progress/make "Writing files..."))
+  (render-progress! (progress/make (localization/message "progress.writing-files")))
   (if (g/error? save-datas)
-    (throw (Exception. (g/error-message save-datas)))
+    (throw (Exception. ^String (localization (g/error-message save-datas))))
     (let [written-save-datas
           (filterv (fn [{:keys [resource]}]
                      (not (resource/read-only? resource)))
@@ -221,58 +226,62 @@
          (ifn? save-data-fn)
          (g/node-id? project)
          (or (nil? changes-view) (g/node-id? changes-view))]}
-  (let [workspace (project/workspace project)
-        success-promise (promise)
-        complete! (fn [successful?]
-                    (render-save-progress! progress/done)
-                    (reset! save-job-atom nil)
-                    (deliver success-promise successful?))
-        fail! (fn [error]
-                (error-reporting/report-exception! error)
-                (complete! false))]
-    (future
-      (try
-        ;; It is safe to save any dirty save-datas without performing a reload
-        ;; first, because files are only considered dirty if their save-value
-        ;; differs from the value we last loaded or saved ourselves. If instead,
-        ;; we considered a file dirty when its save-value differs from the value
-        ;; on disk at the time of saving, we'd have to first perform a reload to
-        ;; ensure we do not overwrite any external changes with our un-edited
-        ;; save-values.
-        (let [evaluation-context (g/make-evaluation-context)
-              snapshot-invalidate-counters (g/evaluation-context-invalidate-counters evaluation-context)
-              save-data (project/save-data-with-progress project evaluation-context save-data-fn render-save-progress!)
-              post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters {:render-progress! render-save-progress!})
-              written-resources (into #{} (map :resource) save-data)
-              reload-required (some #(= "/.defignore" (resource/proj-path %)) written-resources)]
-          (render-save-progress! (progress/make-indeterminate "Caching save results..."))
-          (ui/run-later
-            (try
-              (project/update-system-cache-save-data! evaluation-context)
-              (process-post-save-actions! workspace post-save-actions)
-              (future
-                (try
-                  (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
-                  (project/reload-plugins! project written-resources)
-                  (lsp/touch-resources! (lsp/get-node-lsp project) written-resources)
-                  (cond
-                    reload-required
-                    (complete! (blocking-reload! render-reload-progress! workspace [] changes-view))
+  (g/let-ec [workspace (project/workspace project evaluation-context)
+             localization (workspace/localization workspace evaluation-context)]
+    (let [project-directory (workspace/project-directory workspace)
+          old-defignore-patterns (resource/project-defignore-patterns project-directory)
+          success-promise (promise)
+          complete! (fn [successful?]
+                      (render-save-progress! progress/done)
+                      (reset! save-job-atom nil)
+                      (deliver success-promise successful?))
+          fail! (fn [error]
+                  (error-reporting/report-exception! error)
+                  (complete! false))]
+      (future
+        (try
+          ;; It is safe to save any dirty save-datas without performing a reload
+          ;; first, because files are only considered dirty if their save-value
+          ;; differs from the value we last loaded or saved ourselves. If instead,
+          ;; we considered a file dirty when its save-value differs from the value
+          ;; on disk at the time of saving, we'd have to first perform a reload to
+          ;; ensure we do not overwrite any external changes with our un-edited
+          ;; save-values.
+          (let [evaluation-context (g/make-evaluation-context)
+                snapshot-invalidate-counters (g/evaluation-context-invalidate-counters evaluation-context)
+                save-data (project/save-data-with-progress project evaluation-context save-data-fn render-save-progress!)
+                post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters localization {:render-progress! render-save-progress!})
+                written-resources (into #{} (map :resource) save-data)
+                new-defignore-patterns (resource/project-defignore-patterns project-directory)
+                reload-required (not= old-defignore-patterns new-defignore-patterns)]
+            (render-save-progress! (progress/make-indeterminate (localization/message "progress.caching-save-results")))
+            (ui/run-later
+              (try
+                (project/update-system-cache-save-data! evaluation-context)
+                (process-post-save-actions! workspace post-save-actions)
+                (future
+                  (try
+                    (render-save-progress! (progress/make-indeterminate (localization/message "progress.reading-timestamps")))
+                    (project/reload-plugins! project written-resources)
+                    (lsp/touch-resources! (lsp/get-node-lsp project) written-resources)
+                    (cond
+                      reload-required
+                      (complete! (blocking-reload! render-reload-progress! workspace [] changes-view))
 
-                    (and changes-view (coll/not-empty written-resources))
-                    (do
-                      (changes-view/refresh! changes-view)
+                      (and changes-view (coll/not-empty written-resources))
+                      (do
+                        (changes-view/refresh! changes-view)
+                        (complete! true))
+
+                      :else
                       (complete! true))
-
-                    :else
-                    (complete! true))
-                  (catch Throwable error
-                    (fail! error))))
-              (catch Throwable error
-                (fail! error)))))
-        (catch Throwable error
-          (fail! error))))
-    success-promise))
+                    (catch Throwable error
+                      (fail! error))))
+                (catch Throwable error
+                  (fail! error)))))
+          (catch Throwable error
+            (fail! error))))
+      success-promise)))
 
 (defn async-save!
   ([render-reload-progress! render-save-progress! save-data-fn project changes-view]
@@ -300,23 +309,28 @@
     (do (render-error! (engine-build-errors/exception->error-value exception project evaluation-context))
         true)))
 
-(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! log-output-stream task-cancelled? render-build-error! bob-commands bob-args build-server-headers project changes-view callback!]
+(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! log-output-stream task-cancelled? render-build-error! bob-commands bob-options project changes-view callback!]
   (disk-availability/push-busy!)
   (future
     (try
-      (let [hook-opts {:output-directory (get bob-args "bundle-output")
-                       :platform (get bob-args "platform")
-                       :variant (get bob-args "variant")}]
-        (render-reload-progress! (progress/make-indeterminate "Executing bundle hook..."))
-        (if-let [extension-error @(extensions/execute-hook! project
-                                                            :on_bundle_started
-                                                            hook-opts
-                                                            :exception-policy :as-error)]
+      (let [invoke-bundle-hooks (boolean (some #(= "bundle" %) bob-commands))
+            hook-opts {:output-directory (or (get bob-options "bundle-output")
+                                             (get bob-options "output")
+                                             "build/default")
+                       :platform (get bob-options "platform")
+                       :variant (get bob-options "variant" "release")}]
+        (render-reload-progress! (progress/make-indeterminate (localization/message "progress.executing-bundle-hook")))
+        (if-let [extension-error (when invoke-bundle-hooks
+                                   @(extensions/execute-hook! project
+                                                              :on_bundle_started
+                                                              hook-opts
+                                                              :exception-policy :as-error))]
           (try
-            @(extensions/execute-hook! project
-                                       :on_bundle_finished
-                                       (assoc hook-opts :success false)
-                                       :exception-policy :ignore)
+            (when invoke-bundle-hooks
+              @(extensions/execute-hook! project
+                                         :on_bundle_finished
+                                         (assoc hook-opts :success false)
+                                         :exception-policy :ignore))
             (ui/run-later
               (try
                 (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
@@ -342,7 +356,7 @@
                     (finally
                       (disk-availability/pop-busy!)))
                   (try
-                    (render-build-progress! (progress/make-cancellable-indeterminate "Building..."))
+                    (render-build-progress! (progress/make-cancellable-indeterminate (localization/message "progress.building")))
                     ;; evaluation-context below is used to map
                     ;; project paths to resource node id:s. To be
                     ;; strictly correct, we should probably re-use
@@ -352,14 +366,19 @@
                     (let [evaluation-context (g/make-evaluation-context)]
                       (future
                         (try
-                          (let [result (bob/bob-build! project evaluation-context bob-commands bob-args build-server-headers render-build-progress! log-output-stream task-cancelled?)]
-                            @(extensions/execute-hook!
-                               project
-                               :on_bundle_finished
-                               (assoc hook-opts
-                                 :success (not (or (:error result)
-                                                   (:exception result))))
-                               :exception-policy :ignore)
+                          (let [result (bob/invoke! project bob-options bob-commands
+                                                    :task-cancelled? task-cancelled?
+                                                    :render-progress! render-build-progress!
+                                                    :evaluation-context evaluation-context
+                                                    :log-output-stream log-output-stream)]
+                            (when invoke-bundle-hooks
+                              @(extensions/execute-hook!
+                                 project
+                                 :on_bundle_finished
+                                 (assoc hook-opts
+                                   :success (not (or (:error result)
+                                                     (:exception result))))
+                                 :exception-policy :ignore))
                             (render-build-progress! progress/done)
                             (ui/run-later
                               (try

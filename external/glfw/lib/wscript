@@ -17,15 +17,15 @@ def build(bld):
     elif re.match('arm.*?android', platform):
         sources  = bld.path.ant_glob(['*.c', 'android/*.c'])
         includes = '. android'
-    elif platform == 'linux' or platform == 'x86_64-linux':
+    elif platform in ['x86_64-linux', 'arm64-linux']:
         sources  = bld.path.ant_glob(['*.c', 'x11/*.c'])
         includes = '. x11'
     elif 'win32' in platform:
         sources  = bld.path.ant_glob(['*.c', 'win32/*.c'])
         includes = '. win32'
     elif 'web' in platform:
-        sources  = bld.path.ant_glob('js-web/*.c')
-        includes = '. js-web'
+        sources  = bld.path.ant_glob('web/*.c')
+        includes = '. web'
 
     dmglfw = bld.stlib(features     = 'c',
                        source       = sources,

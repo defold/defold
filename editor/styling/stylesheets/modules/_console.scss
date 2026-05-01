@@ -84,12 +84,14 @@
     -fx-background-color: -df-component-darker;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 12, 0, 0, 8);
   }
+
+  .check-box {
+    -fx-text-fill: -df-text;
+  }
+  
   &-list {
     &-cell {
       -fx-padding: 0 4px;
-      & > .console-filter-popup-list-cell-h-box > .check-box {
-        -fx-text-fill: -df-text;
-      }
       &:hover > .console-filter-popup-list-cell-h-box > .console-filter-popup-list-cell-remove-button > .cross {
         -fx-background-color: -df-component-lighter;
       }
@@ -125,17 +127,14 @@
   -fx-border-radius: 2px;
 }
 
+#prev-console-separator,
 #search-console-separator {
   @extend .console-space-separator;
   -fx-min-width: 16px;
 }
 
-#prev-console-separator {
-  @extend .console-space-separator;
-  -fx-min-width: 16px;
-}
-
-#next-console-separator {
+#next-console-separator,
+#toggle-console-filtering-separator {
   @extend .console-space-separator;
   -fx-min-width: 4px;
 }
@@ -161,6 +160,10 @@
 #step-over-separator {
   @extend .console-space-separator;
   -fx-min-width: 8px;
+}
+
+#toggle-console-filtering {
+  @extend .console-image-button-base;
 }
 
 #prev-console {
@@ -239,5 +242,15 @@
     -fx-padding: 0px;
     -fx-text-fill: -df-text;
     -fx-prompt-text-fill: transparent;
+  }
+}
+
+.console-filter-popup-separator {
+  -fx-padding: 2 0;
+  -fx-background-color: transparent;
+  > .line {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-border-color: transparent;
+    -fx-border-width: 1 0 0;
   }
 }

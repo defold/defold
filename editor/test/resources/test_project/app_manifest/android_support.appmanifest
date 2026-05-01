@@ -18,7 +18,15 @@ platforms:
             libs: []
             linkFlags: []
 
-    js-web:
+    arm64-linux:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
+    wasm-web:
         context:
             excludeLibs: []
             excludeJsLibs: []
@@ -27,7 +35,7 @@ platforms:
             libs: []
             linkFlags: []
 
-    wasm-web:
+    wasm_pthread-web:
         context:
             excludeLibs: []
             excludeJsLibs: []

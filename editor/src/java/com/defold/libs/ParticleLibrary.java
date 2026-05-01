@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import com.sun.jna.Callback;
 import com.sun.jna.Native;
+import com.sun.jna.NativeLibrary;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.FloatByReference;
@@ -40,9 +41,9 @@ public class ParticleLibrary {
     static {
         try {
             ResourceUnpacker.unpackResources();
-            Native.register("particle_shared");
+            Native.register(ParticleLibrary.class, NativeLibrary.getInstance(ResourceUnpacker.getPreloadedLibraryPath("particle_shared").toString()));
         } catch (Exception e) {
-            logger.error("Failed to extract/register particle_shared", e);
+            logger.error("Failed to register bundled particle_shared", e);
         }
     }
 
@@ -50,8 +51,8 @@ public class ParticleLibrary {
         void invoke(Pointer userContext, Pointer material, Pointer texture, Matrix4 worldTransform, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount);
     }
 
-    public interface FetchAnimationCallback extends Callback {
-        int invoke(Pointer tileSource, long hash, AnimationData outAnimationData);
+    public interface FetchResourcesCallback extends Callback {
+        int invoke(FetchResourcesParams params, FetchResourcesData outData);
     }
 
     public static native Pointer Particle_NewPrototype(Buffer buffer, int bufferSize);
@@ -88,9 +89,9 @@ public class ParticleLibrary {
 
     public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
-    public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
+    public static native void Particle_Update(Pointer context, float dt, FetchResourcesCallback callback);
 
-    public static native int Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitterIndex, VertexAttributeInfos attributeInfos, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize);
+    public static native int Particle_GenerateVertexData(Pointer context, Pointer instance, int emitterIndex, VertexAttributeInfos attributeInfos, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize);
 
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 
@@ -114,15 +115,17 @@ public class ParticleLibrary {
         public long    nameHash;
         public int     semanticType;
         public int     dataType;
+        public int     vectorType;
+        public int     stepFunction;
         public int     coordinateSpace;
         public Pointer valuePtr;
-        public int     valueByteSize;
+        public int     valueVectorType;
         public int     elementCount;
         public boolean normalize;
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("nameHash", "semanticType", "dataType", "coordinateSpace", "valuePtr", "valueByteSize", "elementCount", "normalize");
+            return Arrays.asList("nameHash", "semanticType", "dataType", "vectorType", "stepFunction", "coordinateSpace", "valuePtr", "valueVectorType", "elementCount", "normalize");
         }
     }
 
@@ -131,14 +134,15 @@ public class ParticleLibrary {
             structSize = size();
         }
 
-        public VertexAttributeInfo[] infos = new VertexAttributeInfo[8]; // ==> dmGraphics::MAX_VERTEX_STREAM_COUNT
-        public int                   vertexStride;
-        public int                   numInfos;
-        public int                   structSize;
+        // Pointer to an array of native VertexAttributeInfo structs, matching dmGraphics::VertexAttributeInfos::m_Infos.
+        public Pointer infos;
+        public int     numInfos;
+        public int     vertexStride;
+        public int     structSize;
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("infos", "vertexStride", "numInfos", "structSize");
+            return Arrays.asList("infos", "numInfos", "vertexStride", "structSize");
         }
     }
 
@@ -312,10 +316,10 @@ public class ParticleLibrary {
         public static final int ANIM_PLAYBACK_LOOP_PINGPONG = 5;
     }
 
-    public static interface FetchAnimationResult {
-        public static final int FETCH_ANIMATION_OK = 0;
-        public static final int FETCH_ANIMATION_NOT_FOUND = -1;
-        public static final int FETCH_ANIMATION_UNKNOWN_ERROR = -1000;
+    public static interface FetchResourcesResult {
+        public static final int FETCH_RESOURCES_OK = 0;
+        public static final int FETCH_RESOURCES_NOT_FOUND = -1;
+        public static final int FETCH_RESOURCES_UNKNOWN_ERROR = -1000;
     }
 
     public static class AnimationData extends Structure {
@@ -342,6 +346,38 @@ public class ParticleLibrary {
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("texture", "texCoords", "texDims", "pageIndices", "frameIndices", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip", "vFlip", "structSize");
+        }
+    }
+
+    public static class FetchResourcesParams extends Structure {
+        public FetchResourcesParams() {
+            super();
+        }
+
+        public Pointer particleContext;
+        public int     instance;
+        public long    animation;
+        public int     emitterIndex;
+        public Pointer materialResource;
+        public Pointer textureSetResource;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("particleContext", "instance", "animation", "emitterIndex", "materialResource", "textureSetResource");
+        }
+    }
+
+    public static class FetchResourcesData extends Structure {
+        public FetchResourcesData() {
+            super();
+        }
+
+        public AnimationData animationData;
+        public Pointer       material;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("animationData", "material");
         }
     }
 }

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,7 @@
 (ns editor.pipeline-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
@@ -27,7 +28,7 @@
             [support.test-support :as ts])
   (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc]
            [java.io ByteArrayOutputStream]
-           [org.apache.commons.io IOUtils]))
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (def project-path "test/resources/custom_resources_project")
 
@@ -80,7 +81,8 @@
            ~'project (test-util/setup-project! ~'workspace)]
        ~@forms)))
 
-(defn- content-bytes [artifact]
+(defn- content-bytes
+  ^bytes [artifact]
   (with-open [in (io/input-stream (:resource artifact))
               out (ByteArrayOutputStream.)]
     (IOUtils/copy in out)
@@ -92,10 +94,13 @@
     (String. "UTF-8")))
 
 (defn- pipeline-build! [project build-targets]
-  (let [workspace (project/workspace project)
-        old-artifact-map (workspace/artifact-map workspace)
-        flat-build-targets (build/resolve-dependencies build-targets project)
-        build-results (pipeline/build! flat-build-targets (workspace/build-path workspace) old-artifact-map progress/null-render-progress!)]
+  (let [[workspace build-results]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [workspace (project/workspace project evaluation-context)
+                old-artifact-map (workspace/artifact-map workspace)
+                flat-build-targets (build/resolve-dependencies build-targets project evaluation-context)
+                build-results (pipeline/build! flat-build-targets (workspace/build-path workspace) old-artifact-map evaluation-context progress/null-render-progress!)]
+            [workspace build-results]))]
     (when-not (contains? build-results :error)
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))
@@ -149,7 +154,7 @@
             (is (= "{:new-value 42}" (content (first (:artifacts build-results))))))))
       (testing "fs is pruned"
         (let [files-before (doall (file-seq (workspace/build-path workspace)))
-              build-results (pipeline-build! project [])
+              _build-results (pipeline-build! project [])
               files-after (doall (file-seq (workspace/build-path workspace)))]
           (is (> (count files-before) (count files-after))))))))
 
@@ -197,3 +202,75 @@
                   :default-animation "gurka"
                   :material (-> material-target :resource resource/proj-path)}
                 (select-keys pb-data [:tile-set :default-animation :material]))))))))
+
+(defrecord TestResource [proj-path]
+  resource/Resource
+  (children [_] [])
+  (ext [_] (FilenameUtils/getExtension proj-path))
+  (resource-type [this] {:build-ext (str (resource/ext this) "c")})
+  (source-type [_] :file)
+  (exists? [_] true)
+  (read-only? [_] true)
+  (symlink? [_] false)
+  (path [_] (subs proj-path 1))
+  (abs-path [_] proj-path)
+  (proj-path [_] proj-path)
+  (resource-name [_] (FilenameUtils/getName proj-path))
+  (workspace [_])
+  (resource-hash [_] (hash proj-path))
+  (openable? [_] false)
+  (editable? [_] false)
+  (loaded? [_] false))
+
+(defn- build-resource [proj-path]
+  (workspace/make-build-resource (->TestResource proj-path)))
+
+(defn- build! [{:keys [build-fn resource user-data]} dep-resources]
+  (build-fn resource dep-resources user-data))
+
+(defn- sprite-build-target [pb-map]
+  (pipeline/make-protobuf-build-target 12345 (->TestResource "/foo/bar.sprite") Sprite$SpriteDesc pb-map))
+
+(deftest make-protobuf-build-target-errors-test
+  (testing "missing required dep"
+    (is (thrown-with-msg?
+          Exception #"missing a referenced source-resource"
+          (build!
+            (sprite-build-target {:default-animation "required"})
+            ;; deps should include "/builtins/materials/sprite.material" for the default material
+            {})))
+    (is (thrown-with-msg?
+          Exception #"missing a referenced source-resource"
+          (build!
+            (sprite-build-target {:default-animation "required"
+                                  :textures [{:sampler "required"
+                                              ;; deps should include "/foo.png"
+                                              :texture "/foo.png"}]})
+            {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")}))))
+  (testing "Required resource is absent"
+    (testing "(nil value)"
+      (test-util/check-thrown-with-root-cause-msg!
+        #"missing required fields: texture"
+        (build!
+          (sprite-build-target {:default-animation "required"
+                                :textures [{:sampler "required"
+                                            ;; texture is a required resource
+                                            :texture nil}]})
+          {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")})))
+    (testing "(empty string value)"
+      (test-util/check-thrown-with-root-cause-msg!
+        #"missing required fields: texture"
+        (build!
+          (sprite-build-target {:default-animation "required"
+                                :textures [{:sampler "required"
+                                            ;; texture is a required resource
+                                            :texture ""}]})
+          {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")})))
+    (testing "(missing key)"
+      (test-util/check-thrown-with-root-cause-msg!
+        #"missing required fields: texture"
+        (build!
+          (sprite-build-target {:default-animation "required"
+                                ;; texture is a required resource
+                                :textures [{:sampler "required"}]})
+          {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")})))))

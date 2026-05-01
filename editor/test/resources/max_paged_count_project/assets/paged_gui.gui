@@ -1,0 +1,45 @@
+fonts {
+  name: "default"
+  font: "/builtins/fonts/default.font"
+}
+textures {
+  name: "paged_atlas"
+  texture: "/assets/paged_atlas.atlas"
+}
+nodes {
+  position {
+    x: 68.0
+    y: 606.0
+  }
+  scale {
+    x: 3.256248
+    y: 2.253484
+  }
+  type: TYPE_BOX
+  texture: "paged_atlas/07"
+  id: "paged_box"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+  material: "gui_paged_atlas"
+}
+nodes {
+  position {
+    x: 120.0
+    y: 571.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+  }
+  type: TYPE_TEXT
+  text: "PAGED"
+  font: "default"
+  id: "text"
+  inherit_alpha: true
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+materials {
+  name: "gui_paged_atlas"
+  material: "/builtins/materials/gui_paged_atlas.material"
+}

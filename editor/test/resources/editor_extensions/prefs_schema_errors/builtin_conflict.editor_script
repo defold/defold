@@ -1,0 +1,7 @@
+local M = {}
+
+function M.get_prefs_schema()
+    return {["bundle"] = editor.prefs.schema.boolean()}
+end
+
+return M

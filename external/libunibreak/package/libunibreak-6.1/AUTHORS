@@ -1,0 +1,20 @@
+Wu Yongwei.  Designed and implemented the original liblinebreak.
+Current maintainer of libunibreak.
+
+Nikolay Pultsin.  Put forward the original requirements on liblinebreak,
+performed tests, and made a lot of suggestions on the initial versions.
+
+Thomas Klausner.  Autoconfiscated and libtoolized liblinebreak.
+
+Tom Hacohen.  Added word boundaries support.
+
+Petr Filipsky.  Added incremental processing for line-breaking.
+
+Andreas Röver.  Added grapheme boundaries support.
+
+Malcolm Bechard.  Added per_code_point variants of set_linebreaks_utf8
+and set_linebreaks_utf16.
+
+Bart van der Werf.  Updated data to Unicode 14.0 and fixed some warnings.
+
+bbshelper.  Sped up line-break property lookup.

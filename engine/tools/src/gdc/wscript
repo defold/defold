@@ -6,14 +6,17 @@ def configure(conf):
     pass
 
 def build(bld):
-    graphics_lib = 'GRAPHICS'
+    graphics_lib = 'GRAPHICS OPENGL'
     graphics_adapter = 'GraphicsAdapterOpenGL'
+    if bld.env.PLATFORM in ('arm64-linux'):
+        graphics_lib = 'GRAPHICS_OPENGLES OPENGLES'
+        graphics_adapter = 'GraphicsAdapterOpenGLES'
     if waflib.Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN'
         graphics_adapter = 'GraphicsAdapterVulkan'
 
     b = bld.program(features         = 'c cprogram cxx',
-                    use              = 'SOCKET HID INPUT DDF DLIB PROFILE_NULL PLATFORM DMGLFW X ' + graphics_lib,
+                    use              = 'SOCKET HID INPUT DDF DLIB PROFILE_NULL PLATFORM DMGLFW APP ' + graphics_lib,
                     exported_symbols = [graphics_adapter],
                     source           = 'main.cpp',
                     target           = 'gdc')

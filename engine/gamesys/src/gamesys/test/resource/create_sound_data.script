@@ -1,0 +1,106 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+
+local function length(data)
+    if type(data) == 'string' then
+        return string.len(data)
+    end
+    local stream = buffer.get_stream(data, hash('data'))
+    return #stream
+end
+
+local function getfirst(data, last)
+    return string.sub(data, 0, last)
+end
+
+local function create_buffer(data)
+    local size = length(data)
+    local buf = buffer.create(size, { {name=hash("data"), type=buffer.VALUE_TYPE_UINT8, count=1 } })
+    local stream = buffer.get_stream(buf, hash("data"))
+
+    for i = 1, size-1 do
+        stream[i] = string.byte(data, i)
+    end
+    return buf
+end
+
+-- ********************************************************************************************
+
+local function test_create(ext, data, data_size, file_size)
+    local o = { data = data }
+    local partial = data_size ~= file_size
+    if partial then
+        o['partial'] = partial
+        o['filesize'] = file_size
+    end
+
+    local path = "/test_simple" .. ext
+
+    local resource_hash = resource.create_sound_data("/test_simple" .. ext, o)
+    go.set("#sound", "sound", resource_hash)
+
+    return resource_hash;
+end
+
+-- ********************************************************************************************
+
+function init(self)
+    tests_done = false
+
+    self.update_counter = 0
+    self.resource_hash = nil
+
+    self.string_ogg_full = sound_ogg
+    self.string_wav_full = sound_wav
+    self.string_ogg_partial = getfirst(sound_ogg, 1024)
+    self.string_wav_partial = getfirst(sound_wav, 1024)
+    self.buffer_ogg_full = create_buffer(self.string_ogg_full)
+    self.buffer_wav_full = create_buffer(self.string_wav_full)
+    self.buffer_ogg_partial = create_buffer(self.string_ogg_partial)
+    self.buffer_wav_partial = create_buffer(self.string_wav_partial)
+end
+
+
+function update(self)
+    self.update_counter = self.update_counter + 1
+
+    if self.resource_hash ~= nil then
+        resource.release(self.resource_hash)
+    end
+
+    local tests = {
+        -- string
+        { ".oggc", self.string_ogg_full, length(self.string_ogg_full) },
+        { ".wavc", self.string_wav_full, length(self.string_wav_full) },
+        { ".oggc", self.string_ogg_partial, length(self.string_ogg_full) },
+        { ".wavc", self.string_wav_partial, length(self.string_wav_full) },
+        -- buffer
+        { ".oggc", self.buffer_ogg_full, length(self.string_ogg_full) },
+        { ".wavc", self.buffer_wav_full, length(self.string_wav_full) },
+        { ".oggc", self.buffer_ogg_partial, length(self.string_ogg_full) },
+        { ".wavc", self.buffer_wav_partial, length(self.string_wav_full) },
+    }
+
+    local current_test = tests[self.update_counter]
+    if current_test == nil then
+        tests_done = true
+        return
+    end
+
+    local ext = current_test[1]
+    local data = current_test[2]
+    local filesize = current_test[3]
+    self.resource_hash = test_create(ext, data, length(data), filesize)
+end

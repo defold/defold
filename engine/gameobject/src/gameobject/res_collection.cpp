@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,9 +32,9 @@ namespace dmGameObject
         dmResource::Result res = dmResource::RESULT_OK;
 
         uint32_t created_instances = 0;
-        uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
+        uint32_t default_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
 
-        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, collection_capacity, collection_desc);
+        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, default_capacity, collection_desc);
         if (hcollection == 0)
         {
             dmLogError("AcquireResources NewCollection RESULT_OUT_OF_RESOURCES");
@@ -42,7 +42,6 @@ namespace dmGameObject
         }
 
         Collection* collection = hcollection->m_Collection;
-        collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
 
         res = LoadPropertyResources(factory, collection_desc->m_PropertyResources.m_Data, collection_desc->m_PropertyResources.m_Count, collection->m_PropertyResources);
         if(res != dmResource::RESULT_OK)
@@ -50,7 +49,6 @@ namespace dmGameObject
             goto bail;
         }
 
-        collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
@@ -68,8 +66,6 @@ namespace dmGameObject
             }
             if (instance != 0x0)
             {
-                instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
-
                 // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
                 Vector3 scale = instance_desc.m_Scale3;
                 if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0) {
@@ -114,7 +110,7 @@ namespace dmGameObject
 
             for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
             {
-                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j], strlen(instance_desc.m_Children[j])));
+                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j]));
                 if (child)
                 {
                     dmGameObject::Result r = dmGameObject::SetParent(child, parent);

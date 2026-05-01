@@ -9,14 +9,12 @@
 --add-modules=java.xml
 --add-modules=java.xml.crypto # needed for https to work?
 --add-modules=jdk.crypto.ec # needed for https to work
---add-modules=jdk.jsobject # needed for web view (.md files)
 --add-modules=jdk.httpserver # used by util.http-server
 --add-modules=jdk.security.jgss # needed for https to work?
 --add-modules=jdk.unsupported # javafx uses Unsafe
---add-modules=jdk.xml.dom # needed for web view (.md files)
 --add-modules=jdk.zipfs # used to extract packaged natives
 --add-modules=jdk.jartool
 --no-man-pages
 --dedup-legal-notices=error-if-not-same-content
 --no-header-files
---compress=2 # 0 - no compression, 1 - constant string sharing, 2 - zip
+--compress=zip-9 # zip-0 (no compression) to zip-9 (max compression)

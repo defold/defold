@@ -1,0 +1,215 @@
+path_settings {
+  path: "**"
+  profile: "Default"
+}
+profiles {
+  name: "Default"
+  platforms {
+    os: OS_ID_GENERIC
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE_ALPHA
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB_16BPP
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA_16BPP
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE
+      compression_level: NORMAL
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE_ALPHA
+      compression_level: NORMAL
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB
+      compression_level: NORMAL
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB_16BPP
+      compression_level: NORMAL
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compression_level: NORMAL
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA_16BPP
+      compression_level: NORMAL
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE
+      compression_level: HIGH
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE_ALPHA
+      compression_level: HIGH
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB
+      compression_level: HIGH
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB_16BPP
+      compression_level: HIGH
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compression_level: HIGH
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA_16BPP
+      compression_level: HIGH
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE
+      compression_level: BEST
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE_ALPHA
+      compression_level: BEST
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB
+      compression_level: BEST
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB_16BPP
+      compression_level: BEST
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compression_level: BEST
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA_16BPP
+      compression_level: BEST
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE_ALPHA
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB_16BPP
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA_16BPP
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE
+      compression_level: NORMAL
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE_ALPHA
+      compression_level: NORMAL
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB
+      compression_level: NORMAL
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB_16BPP
+      compression_level: NORMAL
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compression_level: NORMAL
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA_16BPP
+      compression_level: NORMAL
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE
+      compression_level: HIGH
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE_ALPHA
+      compression_level: HIGH
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB
+      compression_level: HIGH
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB_16BPP
+      compression_level: HIGH
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compression_level: HIGH
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA_16BPP
+      compression_level: HIGH
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE
+      compression_level: BEST
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_LUMINANCE_ALPHA
+      compression_level: BEST
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB
+      compression_level: BEST
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGB_16BPP
+      compression_level: BEST
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compression_level: BEST
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA_16BPP
+      compression_level: BEST
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    mipmaps: false
+  }
+}

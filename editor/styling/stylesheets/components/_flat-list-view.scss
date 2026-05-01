@@ -65,3 +65,19 @@ TextFlow.deprecated > Text {
   -fx-background-color: -df-background-light;
   -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0.0, 0, 8);
 }
+.hover-background {
+  -fx-background-color: -df-component-dark;
+  -fx-border-color: -df-component-lighter;
+  -fx-border-width: 1px;
+  -fx-border-radius: 2px;
+  -fx-background-radius: 2px;
+}
+.rename-text-field {
+    -fx-background-color: -df-background-input;
+    -fx-background-radius: 2px;
+    -fx-border-radius: 2px;
+    -fx-border-color: -df-component-lighter;
+    -fx-text-fill: -df-text-selected;
+    -fx-highlight-fill: #4E4A46;
+    -fx-padding: 4px;
+}

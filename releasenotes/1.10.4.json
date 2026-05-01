@@ -1,0 +1,865 @@
+{
+    "issues": [
+        {
+            "author": "sprocketc",
+            "body": "https://github.com/user-attachments/assets/9d3b30cb-b9ca-4c6c-b1bf-c40e39de3010\r\n\r\nThe grid toggle was moved from the visibility dropdown, at the top level of the scene toolbar. A dedicated grid options dropdown was added next to the toggle, to allow users to configure the size per axis, the visibility plane, the color, and the opacity, on a project by project basis. A default keyboard shortcut (`Ctrl+G`) that toggles the grid was also introduced.",
+            "closed_issues": [
+                8407,
+                6421,
+                6420
+            ],
+            "duplicate": false,
+            "issue_number": 8407,
+            "labels": [
+                "feature request",
+                "editor",
+                "scene editor"
+            ],
+            "mergecommit": "daddea8bd34806d9a8b9a3b7388c1378c3ced05e",
+            "pr_number": 10345,
+            "referencecommits": [],
+            "title": "Make scene grid configurable",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10345"
+        },
+        {
+            "author": "sprocketc",
+            "body": "https://github.com/user-attachments/assets/9d3b30cb-b9ca-4c6c-b1bf-c40e39de3010\r\n\r\nThe grid toggle was moved from the visibility dropdown, at the top level of the scene toolbar. A dedicated grid options dropdown was added next to the toggle, to allow users to configure the size per axis, the visibility plane, the color, and the opacity, on a project by project basis. A default keyboard shortcut (`Ctrl+G`) that toggles the grid was also introduced.",
+            "closed_issues": [
+                6421
+            ],
+            "duplicate": true,
+            "issue_number": 6421,
+            "labels": [
+                "feature request",
+                "editor",
+                "scene editor"
+            ],
+            "mergecommit": "daddea8bd34806d9a8b9a3b7388c1378c3ced05e",
+            "pr_number": 10345,
+            "referencecommits": [],
+            "title": "Make scene grid configurable",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10345"
+        },
+        {
+            "author": "AGulev",
+            "body": "Now using a directory or a resource from a library (connected as a dependency) is possible not only in the editor, but also when bundling.",
+            "closed_issues": [
+                8320,
+                4675
+            ],
+            "duplicate": false,
+            "issue_number": 8320,
+            "labels": [
+                "bug",
+                "bob"
+            ],
+            "mergecommit": "85b22a7327ce1ed2d4550fb54ea0b019fa9bd84f",
+            "pr_number": 10901,
+            "referencecommits": [],
+            "title": "Fixed issue when using a resource from a library in custom `custom_resources`",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10901"
+        },
+        {
+            "author": "matgis",
+            "body": "* The Clear Override button next to an overridden property in the Properties View has been moved into a dropdown menu available by clicking on the property label.\r\n* You can now pull up property overrides to ancestors, or push down overrides to descendants in the editor. These commands are available from the property label dropdown menu, or from the context menu when right-clicking on an overridden object in the Outline View.\r\n* Pull Up and Push Down Overrides buttons have been added to the Search Results view that appears when Show Overrides... is selected for an object or property.\r\n* Fixed various small positioning and size issues around controls used in the Properties View.",
+            "closed_issues": [
+                6685
+            ],
+            "duplicate": false,
+            "issue_number": 6685,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "30b5ee3e07358d50ef32527a9ed9f65d6b6209b8",
+            "pr_number": 10878,
+            "referencecommits": [],
+            "title": "Pull up or push down property overrides in the editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10878"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                10821
+            ],
+            "duplicate": false,
+            "issue_number": 10821,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "9651a7ebb0171cb41ac2862a00befc0f865dad16",
+            "pr_number": 10875,
+            "referencecommits": [],
+            "title": "Fix unnecessary notifications for conflicting folders",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10875"
+        },
+        {
+            "author": "sprocketc",
+            "body": "",
+            "closed_issues": [
+                10857
+            ],
+            "duplicate": false,
+            "issue_number": 10857,
+            "labels": [
+                "feature request",
+                "editor",
+                "quick win?",
+                "curve editor"
+            ],
+            "mergecommit": "0d8c53b31bb5dafba552d845b11544b0e352db0f",
+            "pr_number": 10874,
+            "referencecommits": [],
+            "title": "Enhance curve colors",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10874"
+        },
+        {
+            "author": "vlaaad",
+            "body": "New `game.project` property `shader.exclude_gles_sm100` allows skipping shader compilation to OpenGL ES 2.0 / WebGL 1.0 (GLES SM100) language.",
+            "closed_issues": [
+                10684
+            ],
+            "duplicate": false,
+            "issue_number": 10684,
+            "labels": [
+                "bug",
+                "engine",
+                "editor",
+                "bob",
+                "pipeline"
+            ],
+            "mergecommit": "f8b51ad09f8613ffdfe620dff357aee4a8f8efaa",
+            "pr_number": 10881,
+            "referencecommits": [],
+            "title": "Add option to disable OpenGL ES 2.0 shader compilation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10881"
+        },
+        {
+            "author": "AGulev",
+            "body": "Ensure that callbacks properly track whether they are still valid and avoid situations where the wrong callback could be accidentally destroyed under certain conditions.",
+            "closed_issues": [
+                8759,
+                10868
+            ],
+            "duplicate": false,
+            "issue_number": 8759,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "mergecommit": "4564e338924527c4ddfd193b5d3672ed220278a9",
+            "pr_number": 10892,
+            "referencecommits": [],
+            "title": "Improve callback invalidation",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10892"
+        },
+        {
+            "author": "AGulev",
+            "body": "Ensure that callbacks properly track whether they are still valid and avoid situations where the wrong callback could be accidentally destroyed under certain conditions.",
+            "closed_issues": [
+                10868
+            ],
+            "duplicate": true,
+            "issue_number": 10868,
+            "labels": [
+                "bug",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "4564e338924527c4ddfd193b5d3672ed220278a9",
+            "pr_number": 10892,
+            "referencecommits": [],
+            "title": "Improve callback invalidation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10892"
+        },
+        {
+            "author": "AGulev",
+            "body": "It also increases performance for GPU-skinned instanced animation by about 30\u201350%, depending on the platform and the specific case.",
+            "closed_issues": [
+                10897
+            ],
+            "duplicate": false,
+            "issue_number": 10897,
+            "labels": [
+                "engine",
+                "model",
+                "3d"
+            ],
+            "mergecommit": "cc97b4c4d56c66078cd6e18b54109ce44dd53cca",
+            "pr_number": 10897,
+            "referencecommits": [],
+            "title": "Fix glitches on the first frame of the GPU-skinned instanced animation right after spawn.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10897"
+        },
+        {
+            "author": "sprocketc",
+            "body": "",
+            "closed_issues": [
+                10865
+            ],
+            "duplicate": false,
+            "issue_number": 10865,
+            "labels": [
+                "feature request",
+                "editor",
+                "linux"
+            ],
+            "mergecommit": "45b45386b368fa676247ea6fa8485c17cdca8258",
+            "pr_number": 10900,
+            "referencecommits": [],
+            "title": "Fix layout restore on Linux",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10900"
+        },
+        {
+            "author": "britzl",
+            "body": "The model component now has an option to not create one game object per bone of a skeleton. When bone creation is disabled it is possible to have a high number of animated and skinned models in a scene (example with 15k models):\r\n\r\n![image](https://github.com/user-attachments/assets/804368a5-d5c3-4696-a3bd-d7687778c6ac)\r\n\r\n![image](https://github.com/user-attachments/assets/5106eddd-ffbb-4b2c-91b6-2d3567935b18)\r\n\r\nIn addition to the above change the engine will now also warn if the bone pose matrix texture cache is too small so that the developer can take action and increase the max size in game.project (`model.max_bone_matrix_texture_width` and `model.max_bone_matrix_texture_height`).\r\n\r\n\n\r\n##",
+            "closed_issues": [
+                10884
+            ],
+            "duplicate": false,
+            "issue_number": 10884,
+            "labels": [
+                "feature request",
+                "engine",
+                "model"
+            ],
+            "mergecommit": "0816993a4d20311f96cf7e5756cd88e886ebca1f",
+            "pr_number": 10885,
+            "referencecommits": [],
+            "title": "Added an option to not create game objects for the bones of a model",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10885"
+        },
+        {
+            "author": "AGulev",
+            "body": "Improved performance and reduced memory usage for skinned models:\r\nThe engine now uses a more efficient way to store bone matrices for animated models, reducing the required memory and GPU bandwidth by 25%. This can result in better performance (10-15%), especially when using many animated characters.",
+            "closed_issues": [
+                10910
+            ],
+            "duplicate": false,
+            "issue_number": 10910,
+            "labels": [
+                "engine",
+                "model",
+                "3d"
+            ],
+            "mergecommit": "2fac295db384bf5a4e66305aee0cb9ba0f3c4365",
+            "pr_number": 10910,
+            "referencecommits": [],
+            "title": "Optimize Bone Matrix Texture Packing for Skinned Models (4x3 Matrix Storage, Memory & Bandwidth Savings)",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10910"
+        },
+        {
+            "author": "sprocketc",
+            "body": "",
+            "closed_issues": [
+                10235
+            ],
+            "duplicate": false,
+            "issue_number": 10235,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts",
+                "quick win?"
+            ],
+            "mergecommit": "f53a5bbe0510cea7e81928f55c1e39fe4f3f6f93",
+            "pr_number": 10263,
+            "referencecommits": [],
+            "title": "Add scene context menu to editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10263"
+        },
+        {
+            "author": "britzl",
+            "body": "The pose matrix cache in rig.cpp was resized once per rig instance. This caused a big slowdown when a large number of instances were added in a single frame. The pose matrix size is now calculated once per frame and the cache itself is resized only once per frame if needed.",
+            "closed_issues": [
+                10915
+            ],
+            "duplicate": false,
+            "issue_number": 10915,
+            "labels": [
+                "feature request",
+                "engine",
+                "model",
+                "performance"
+            ],
+            "mergecommit": "4129c957947237634586a3a9bcc5bb9e063f2008",
+            "pr_number": 10915,
+            "referencecommits": [],
+            "title": "Set size of pose matrix cache only once per frame if needed",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10915"
+        },
+        {
+            "author": "vlaaad",
+            "body": "It's now possible to edit components of a game object file using editor scripts. The components come in 2 flavors: referenced and embedded. Referenced components use type `reference` and act as references to other resources, only allowing overrides of go properties defined in scripts. Embedded components use types like `sprite`, `label`, etc., and allow editing of all properties defined in the component type, as well as adding sub-components like shapes of collision objects. For example, you can use the following code to set up a game object:\r\n```lua\r\neditor.transact({\r\n    editor.tx.add(\"/npc.go\", \"components\", {\r\n        type = \"sprite\",\r\n        id = \"view\"\r\n    }),\r\n    editor.tx.add(\"/npc.go\", \"components\", {\r\n        type = \"collisionobject\",\r\n        id = \"collision\",\r\n        shapes = {\r\n            {\r\n                type = \"shape-type-box\",\r\n                dimensions = {32, 32, 32}\r\n            }\r\n        }\r\n    }),\r\n    editor.tx.add(\"/npc.go\", \"components\", {\r\n        type = \"reference\",\r\n        path = \"/npc.script\"\r\n        id = \"controller\",\r\n        __hp = 100 -- set a go property defined in the script\r\n    })\r\n})\r\n```\r\n\r\n###",
+            "closed_issues": [
+                10918
+            ],
+            "duplicate": false,
+            "issue_number": 10918,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "a332d1f2e0defcf1c6c6dffc21e72b1bc034e122",
+            "pr_number": 10918,
+            "referencecommits": [],
+            "title": "Edit go files using editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10918"
+        },
+        {
+            "author": "AGulev",
+            "body": "New token `{{build-timestamp}}` added, which can be used in manifests or the `index.html` template.",
+            "closed_issues": [
+                6090
+            ],
+            "duplicate": false,
+            "issue_number": 6090,
+            "labels": [
+                "feature request",
+                "bob",
+                "html5"
+            ],
+            "mergecommit": "40a529db07b2ad6fd7a3f69d1ecc921102da8e70",
+            "pr_number": 10924,
+            "referencecommits": [],
+            "title": "Added `{{build-timestamp}}` token",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10924"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now it's possible to edit collections using editor scripts. You can add game objects (embedded or referenced) and collections (referenced). For example:\r\n```lua\r\nlocal coll = \"/char.collection\"\r\neditor.transact({\r\n    editor.tx.add(coll, \"children\", {\r\n        -- embbedded game object\r\n        type = \"go\",\r\n        id = \"root\",\r\n        children = {\r\n            {\r\n                -- referenced game object\r\n                type = \"go-reference\",\r\n                path = \"/char-view.go\"\r\n                id = \"view\"\r\n            },\r\n            {\r\n                -- referenced collection\r\n                type = \"collection-reference\",\r\n                path = \"/body-attachments.collection\"\r\n                id = \"attachments\"\r\n            }\r\n        },\r\n        -- embedded gos can also have components\r\n        components = {\r\n            {\r\n                type = \"collisionobject\",\r\n                id = \"collision\",\r\n                shapes = {\r\n                    {type = \"shape-type-box\", dimensions = {2.5, 2.5, 2.5}}\r\n                }\r\n            },\r\n            {\r\n                type = \"component-reference\",\r\n                id = \"controller\",\r\n                path = \"/char.script\",\r\n                __hp = 100 -- set a go property defined in the script\r\n            }\r\n        }\r\n    })\r\n})\r\n```",
+            "closed_issues": [
+                10925
+            ],
+            "duplicate": false,
+            "issue_number": 10925,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "8a45ef83a57f6dc5ae687332e1d606ce9bd64c25",
+            "pr_number": 10925,
+            "referencecommits": [],
+            "title": "Edit collections using editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10925"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                10771
+            ],
+            "duplicate": false,
+            "issue_number": 10771,
+            "labels": [
+                "bug",
+                "engine",
+                "model",
+                "shader"
+            ],
+            "mergecommit": "57ec3dbb7811e61226d5771fc23f1fe946db44f2",
+            "pr_number": 10923,
+            "referencecommits": [],
+            "title": "Fix memory leak when using custom vertex attributes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10923"
+        },
+        {
+            "author": "AGulev",
+            "body": "Now using a directory or a resource from a library (connected as a dependency) is possible not only in the editor, but also when bundling.",
+            "closed_issues": [
+                4675
+            ],
+            "duplicate": true,
+            "issue_number": 4675,
+            "labels": [
+                "feature request",
+                "editor",
+                "bob",
+                "quick win?"
+            ],
+            "mergecommit": "85b22a7327ce1ed2d4550fb54ea0b019fa9bd84f",
+            "pr_number": 10901,
+            "referencecommits": [],
+            "title": "Fixed issue when using a resource from a library in custom `custom_resources`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10901"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where running a Windows project bundle on Linux via Proton would close with `Could not find gl function 'glGenPrograms'`.",
+            "closed_issues": [
+                8767
+            ],
+            "duplicate": false,
+            "issue_number": 8767,
+            "labels": [
+                "bug",
+                "engine",
+                "linux"
+            ],
+            "mergecommit": "7b4a5793162fb5193574bffa7484d88bc6a7b654",
+            "pr_number": 10933,
+            "referencecommits": [],
+            "title": "Make sure the Windows bundle works when run via Proton",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10933"
+        },
+        {
+            "author": "JCash",
+            "body": "Fixed a double crash during callstack writing that messed up the text representation of the crash.",
+            "closed_issues": [
+                10938
+            ],
+            "duplicate": false,
+            "issue_number": 10938,
+            "labels": [],
+            "mergecommit": "4a20f42b70e2efd603a90e861afed62b33da9645",
+            "pr_number": 10938,
+            "referencecommits": [],
+            "title": "Improved the callstack generation for Windows crashes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10938"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                10932
+            ],
+            "duplicate": false,
+            "issue_number": 10932,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "70d4e7d739c1e19694432b2b8793c65d8c96039c",
+            "pr_number": 10940,
+            "referencecommits": [],
+            "title": "Fix exceptions caused by changing file extensions during renames",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10940"
+        },
+        {
+            "author": "sprocketc",
+            "body": "![rename-id](https://github.com/user-attachments/assets/083dcbbc-2794-4eeb-8850-6a66f91b4d27)\r\n\r\nNode ids can be edited in place on the outline tree, by pressing `F2` or with a delayed double click. The keyboard shortcut is customizable.",
+            "closed_issues": [
+                10740,
+                9306
+            ],
+            "duplicate": false,
+            "issue_number": 10740,
+            "labels": [
+                "feature request",
+                "editor",
+                "ux"
+            ],
+            "mergecommit": "562d42e22f2edc7b318a310f54232bc5ad464b10",
+            "pr_number": 10941,
+            "referencecommits": [],
+            "title": "Edit node id in outline",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10941"
+        },
+        {
+            "author": "sprocketc",
+            "body": "![rename-id](https://github.com/user-attachments/assets/083dcbbc-2794-4eeb-8850-6a66f91b4d27)\r\n\r\nNode ids can be edited in place on the outline tree, by pressing `F2` or with a delayed double click. The keyboard shortcut is customizable.",
+            "closed_issues": [
+                9306
+            ],
+            "duplicate": true,
+            "issue_number": 9306,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "562d42e22f2edc7b318a310f54232bc5ad464b10",
+            "pr_number": 10941,
+            "referencecommits": [],
+            "title": "Edit node id in outline",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10941"
+        },
+        {
+            "author": "JCash",
+            "body": "This allows for easier checking of the GPU capabilities at runtime.",
+            "closed_issues": [
+                10953
+            ],
+            "duplicate": false,
+            "issue_number": 10953,
+            "labels": [
+                "dmsdk"
+            ],
+            "mergecommit": "9fadc17936a9f464a3451221a1144eda9b2995ab",
+            "pr_number": 10953,
+            "referencecommits": [],
+            "title": "Added WebGPUGetInstance and WebGPUGetAdapter to dmsdk/graphics/graphics_webgpu.h",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10953"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                10920
+            ],
+            "duplicate": false,
+            "issue_number": 10920,
+            "labels": [
+                "bug",
+                "engine",
+                "editor",
+                "physics"
+            ],
+            "mergecommit": "02955b700b40b7de2a12e032469b3560a7ee2be5",
+            "pr_number": 10943,
+            "referencecommits": [],
+            "title": "Split physics app manifest settings into 2D and 3D",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10943"
+        },
+        {
+            "author": "JCash",
+            "body": "In this release we've added support for runtime generation of signed distance field fonts.\r\nThe main benefits are smaller bundle size, and runtime memory footprint. The drawback is very slightly longer load times.\r\n\r\nIt is currently an opt-in, and you can enable it by setting the project variable `font.runtime_generation`.\r\nOur goal is to make this our default way of generating fonts, so we'd like our users to please test the this feature out and report any issues.\r\n\r\nFor the visual before/after comparisons, both the old and new distance field generators have artefacts, and we don't see any real difference in improvement or degradation. They're just different, which is expected for a single channel SDF implementation.\r\n\r\nThe font glyph can prewarm the glyph cache if you've deselected \"All Characters\" on your font, and specified a small subset of characters.\r\n\r\nAt runtime, you can also add/remove glyphs to the font dynamically by calling `font.add_glyphs()`/`font.remove_glyphs()`\r\n\r\nYou can read more about usage of runtime fonts in the [font documentation](https://defold.com/manuals/font/).",
+            "closed_issues": [
+                10627
+            ],
+            "duplicate": false,
+            "issue_number": 10627,
+            "labels": [
+                "engine",
+                "bob",
+                "font"
+            ],
+            "mergecommit": "878d7c76d2d0a5d6d89896a89a095bc3501da08d",
+            "pr_number": 10627,
+            "referencecommits": [],
+            "title": "Added core engine support for runtime generation of SDF fonts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10627"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where functions like `CheckVector3`, `CheckHashOrString`, etc., that use `luaL_error` or similar functions may behave differently when used in extensions and compiled on Windows.  \r\nIn combination with `DM_LUA_STACK_CHECK`, this could result in an assertion failure.",
+            "closed_issues": [
+                10958
+            ],
+            "duplicate": false,
+            "issue_number": 10958,
+            "labels": [],
+            "mergecommit": "d694404e0a110957802dfb1436da941b95b44957",
+            "pr_number": 10958,
+            "referencecommits": [],
+            "title": "Fixed a Windows-specific issue causing assertion failures with `luaL_error`-based functions",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10958"
+        },
+        {
+            "author": "sprocketc",
+            "body": "https://github.com/user-attachments/assets/9d3b30cb-b9ca-4c6c-b1bf-c40e39de3010\r\n\r\nThe grid toggle was moved from the visibility dropdown, at the top level of the scene toolbar. A dedicated grid options dropdown was added next to the toggle, to allow users to configure the size per axis, the visibility plane, the color, and the opacity, on a project by project basis. A default keyboard shortcut (`Ctrl+G`) that toggles the grid was also introduced.",
+            "closed_issues": [
+                6420
+            ],
+            "duplicate": true,
+            "issue_number": 6420,
+            "labels": [
+                "feature request",
+                "editor",
+                "3d",
+                "scene editor"
+            ],
+            "mergecommit": "daddea8bd34806d9a8b9a3b7388c1378c3ced05e",
+            "pr_number": 10345,
+            "referencecommits": [],
+            "title": "Make scene grid configurable",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10345"
+        },
+        {
+            "author": "AGulev",
+            "body": "Use multithreaded setup when creating the LiveUpdate archive to speed up the build.  \r\nIt speeds up LiveUpdate archive creation by about 50%.",
+            "closed_issues": [
+                10965
+            ],
+            "duplicate": false,
+            "issue_number": 10965,
+            "labels": [
+                "bob",
+                "live update"
+            ],
+            "mergecommit": "7e09a495d1c79e6cd349ecd632ce912f92ff705c",
+            "pr_number": 10965,
+            "referencecommits": [],
+            "title": "Faster LiveUpdate build",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10965"
+        },
+        {
+            "author": "britzl",
+            "body": "Moved `dmGameObject::GetAbsoluteIdentifier(HInstance instance, const char* identifier)` to dmSDK. The function is used to get the absolute identifier relative to a game object instance. The returned identifier is the representation of the qualified name, i.e. the path from root-collection to the sub-collection which the instance belongs to.",
+            "closed_issues": [
+                10947
+            ],
+            "duplicate": false,
+            "issue_number": 10947,
+            "labels": [
+                "feature request",
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "07c5ca3e067195af0f7242ab1372fe72fe7feafe",
+            "pr_number": 10966,
+            "referencecommits": [],
+            "title": "Moved GetAbsoluteIdentifier to dmSDK",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10966"
+        },
+        {
+            "author": "matgis",
+            "body": "You can now cancel the build process in the editor by clicking the Stop button next to the progress indicator in the status bar.",
+            "closed_issues": [
+                10725
+            ],
+            "duplicate": false,
+            "issue_number": 10725,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "57f07bcb9db8037eecd27335288c53e4b4a9496a",
+            "pr_number": 10968,
+            "referencecommits": [],
+            "title": "Allow users to cancel an ongoing build in the editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10968"
+        },
+        {
+            "author": "AGulev",
+            "body": "This fix speeds up Bob.jar initialization, which is especially useful for sequential builds without many changes (e.g. Cmd+M to Build HTML5 from the editor, or bundling).  \r\n* About 4 times faster initialization. In the test setup, it's 400 ms vs 1600 ms (for a project with a large file count, it's 3.5 s vs 20 s)  \r\n* Speed-up of the task creation stage for a small project in the test setup: 900 ms vs 2000 ms (for a large project, about 5%)",
+            "closed_issues": [
+                10854
+            ],
+            "duplicate": false,
+            "issue_number": 10854,
+            "labels": [
+                "task",
+                "bob",
+                "pipeline"
+            ],
+            "mergecommit": "badc60b310e9f1964a971830fbf4e58c4c0899a8",
+            "pr_number": 10972,
+            "referencecommits": [],
+            "title": "Bob performance optimizations for sequential builds",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10972"
+        },
+        {
+            "author": "britzl",
+            "body": "This change adds the `com.apple.security.get-task-allow` entitlement to debug versions of macOS bundles to allow debugging using Xcode Instruments.",
+            "closed_issues": [
+                10974
+            ],
+            "duplicate": false,
+            "issue_number": 10974,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "mergecommit": "ed1464891686c3c2132850080ee9fd7406c40d3c",
+            "pr_number": 10974,
+            "referencecommits": [],
+            "title": "Allow debugging of macOS builds",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10974"
+        },
+        {
+            "author": "AGulev",
+            "body": "Added new LiveUpdate publisher mode \"Folder\" and settings for this mode.  \r\nThis mode may be useful in case you need to post-process files before upload and plan to pack them into an archive yourself.",
+            "closed_issues": [
+                10949
+            ],
+            "duplicate": false,
+            "issue_number": 10949,
+            "labels": [
+                "task",
+                "editor",
+                "bob"
+            ],
+            "mergecommit": "16a695a921cd9fbb3602069279e7eb7c4fd91584",
+            "pr_number": 10978,
+            "referencecommits": [],
+            "title": "Added new LiveUpdate publisher mode \"Folder\"",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10978"
+        },
+        {
+            "author": "AGulev",
+            "body": "\u26a0\ufe0f This fix changes the default for `android.extract_native_libs` to `false`, which is a requirement for API 35.  \r\nIt will increase your AAB/APK size, but according to https://developer.android.com/studio/debug/apk-analyzer,  \r\nit doesn't affect the download size from the Play Store, because it uses its own compression:\r\n<img width=\"1788\" height=\"796\" alt=\"CleanShot 2025-07-18 at 15 26 17@2x\" src=\"https://github.com/user-attachments/assets/0d8b405d-3bde-4f58-ab67-662e866e6e9f\" />",
+            "closed_issues": [
+                10976
+            ],
+            "duplicate": false,
+            "issue_number": 10976,
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "dd99912fd39dfc856a09fbe53383ee33a7d20038",
+            "pr_number": 10982,
+            "referencecommits": [],
+            "title": "Change Android bundling process to be compatible with the new \"Support 16 KB page sizes\" requirement.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10982"
+        },
+        {
+            "author": "matgis",
+            "body": "Shortened the time it takes before you see the results when filtering in the Asset Picker.",
+            "closed_issues": [
+                10739
+            ],
+            "duplicate": false,
+            "issue_number": 10739,
+            "labels": [
+                "feature request",
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "03c9c57448c96e877a7a197459e2fbb4e5760f13",
+            "pr_number": 10986,
+            "referencecommits": [],
+            "title": "Asset Picker optimizations",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10986"
+        },
+        {
+            "author": "britzl",
+            "body": "The engine would crash with an unbalanced Lua stack if an invalid key was used when creating a render target.",
+            "closed_issues": [
+                10951
+            ],
+            "duplicate": false,
+            "issue_number": 10951,
+            "labels": [
+                "bug",
+                "engine",
+                "render"
+            ],
+            "mergecommit": "b92a4ea855f07ddddd6885d3854c863935968e11",
+            "pr_number": 10985,
+            "referencecommits": [],
+            "title": "Fix crash when using invalid render target settings key",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10985"
+        },
+        {
+            "author": "britzl",
+            "body": "If a mesh component is created and then deleted in the same frame (for instance by calling `go.delete()` in `init()`) it should not be rendered.",
+            "closed_issues": [
+                10957
+            ],
+            "duplicate": false,
+            "issue_number": 10957,
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "aaa17eea45229edfd3b689106defa6f9aa44bd40",
+            "pr_number": 10977,
+            "referencecommits": [],
+            "title": "Do not render mesh if it was deleted in the same frame as it was created",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10977"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed issue where attempting to bundle a project with a cubemap that uses the same image more than once resulted in a null pointer exception.",
+            "closed_issues": [
+                10987
+            ],
+            "duplicate": false,
+            "issue_number": 10987,
+            "labels": [
+                "bug",
+                "bob"
+            ],
+            "mergecommit": "09570b67983a9f999cd0ecc520aa1fceca27c420",
+            "pr_number": 10988,
+            "referencecommits": [],
+            "title": "Fix issue where the same image can't be used more than once in a cubemap",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10988"
+        },
+        {
+            "author": "AGulev",
+            "body": "With this change, Bob uses two threads to resolve dependencies. Two simultaneous connections to a remote server will not be treated as \"Too many requests\" but will double the speed of dependency resolution (it depends on the connection, but even when all the dependencies are in the cache, cache checking goes twice as fast).",
+            "closed_issues": [
+                10989
+            ],
+            "duplicate": false,
+            "issue_number": 10989,
+            "labels": [],
+            "mergecommit": "bddd3e0887c1cecd43d3ccebbeb8d7f19186804b",
+            "pr_number": 10989,
+            "referencecommits": [],
+            "title": "Resolve dependencies faster when bundling using Bob",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10989"
+        },
+        {
+            "author": "sprocketc",
+            "body": "",
+            "closed_issues": [
+                10970
+            ],
+            "duplicate": false,
+            "issue_number": 10970,
+            "labels": [
+                "bug",
+                "editor",
+                "javafx"
+            ],
+            "mergecommit": "a2c22b9270aed3655919ed4d84dcbdfc8dff7611",
+            "pr_number": 10991,
+            "referencecommits": [],
+            "title": "Filter out nil items from tree selection",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10991"
+        },
+        {
+            "author": "JCash",
+            "body": "We have updated our profiling backend to support multiple listeners.\r\nThe listeners are implemented using extensions, allowing users to add their own profiler (see [extension-profile-counters](https://github.com/defold/extension-profile-counters)).\r\n\r\n* The \"basic\" one, that shows in game profiling, is included on all platforms.\r\n* For desktop and mobile platforms, you also have Remotery support.\r\n* For HTML5, we've added a new profiler listener, using the web Performance api.\r\nTo minimize the overhead on HTML5, the Performance API profiler is disabled by default.\r\nEnable it with the project setting `html5.performance_timeline_enabled = 1`\r\n\r\n## How to use the HTML5 Performance profiler\r\n\r\n1. Enable the `html5.performance_timeline_enabled` option in the `game.project`\r\n1. Launch the `Developer Tools` in Chrome. (<kbd>CMD+Shift+I</kbd> on macOS)\r\n1. Under the `Performance` tab, press the `Record` button. (<kbd>CMD+E</kbd> on macOS)\r\n1. Stop the recording, and it will display the frame profile data in the view.\r\n\r\n_Start the recording..._\r\n<img width=\"1512\" height=\"815\" alt=\"Screenshot 2025-07-18 at 14 35 52\" src=\"https://github.com/user-attachments/assets/081ca866-6421-4b82-8c33-b3ca7bc29e21\" />\r\n\r\n_Stop the recording..._\r\n<img width=\"388\" height=\"161\" alt=\"Screenshot 2025-07-18 at 14 38 05\" src=\"https://github.com/user-attachments/assets/aa70d0ad-4e32-4304-b22c-de9e96b51c38\" />\r\n\r\n_The recording is displayed:_\r\n<img width=\"1512\" height=\"982\" alt=\"Screenshot 2025-07-18 at 14 38 11\" src=\"https://github.com/user-attachments/assets/ed852c7b-b54f-48ec-a39e-0cad7c610a5a\" />\r\n\r\n_Zoom into the recording, to inspect the timing values:_\r\n<img width=\"1512\" height=\"982\" alt=\"Screenshot 2025-07-18 at 14 38 54\" src=\"https://github.com/user-attachments/assets/c02917e8-73d7-404e-a35a-9741c5b6562a\" />\r\n\r\n\r\n## Migration /",
+            "closed_issues": [
+                10980
+            ],
+            "duplicate": false,
+            "issue_number": 10980,
+            "labels": [],
+            "mergecommit": "b255ec9681d4abdf63f90697b4039d2c9a6d22b7",
+            "pr_number": 10980,
+            "referencecommits": [],
+            "title": "Reworked profiler api to better support multiple imlpementations at once",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10980"
+        }
+    ],
+    "timestamp": 1753100400.3800561,
+    "version": "1.10.4"
+}

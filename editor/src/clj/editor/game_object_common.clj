@@ -1,23 +1,23 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.game-object-common
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.localization :as localization]
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -26,11 +26,9 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [service.log :as log]
-            [util.fn :as fn])
+            [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
-           [java.io StringReader]
-           [javax.vecmath Matrix4d]))
+           [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
 
@@ -38,13 +36,14 @@
 
 (def component-transform-property-keys (set (keys scene/identity-transform-properties)))
 
-(defn- template-pb-map-raw [workspace resource-type]
-  (let [template (workspace/template workspace resource-type)
-        read-fn (:read-fn resource-type)]
-    (with-open [reader (StringReader. template)]
-      (read-fn reader))))
-
-(def template-pb-map (fn/memoize template-pb-map-raw))
+(defn template-pb-map
+  ([workspace resource-type]
+   (template-pb-map (g/now) workspace resource-type))
+  ([basis workspace resource-type]
+   (let [template (workspace/template basis workspace resource-type)
+         read-fn (:read-fn resource-type)]
+     (with-open [reader (StringReader. template)]
+       (read-fn reader)))))
 
 (defn strip-default-scale-from-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
@@ -129,7 +128,7 @@
 
 (defn maybe-duplicate-id-error [node-id duplicate-ids]
   (when (not-empty duplicate-ids)
-    (g/->error node-id :build-targets :fatal nil (format "The following ids are not unique: %s" (string/join ", " duplicate-ids)))))
+    (g/->error node-id :build-targets :fatal nil (localization/message "error.non-unique-ids" {"ids" (localization/and-list (vec duplicate-ids))}))))
 
 (defn- embedded-component-desc->dependencies [{:keys [id type data] :as _embedded-component-desc} ext->embedded-component-resource-type]
   ;; If sanitation failed (due to a corrupt file), the embedded data might still
@@ -192,20 +191,30 @@
   ;; the resulting fused BuildResource. We also extract :component-instance-data
   ;; from the component build targets and embed these as ComponentDesc instances
   ;; in the PrototypeDesc that represents the game object.
-  (let [build-go-props (partial properties/build-go-props dep-resources)
+  (let [component-instance-data->fused-build-resource-proj-path
+        (fn component-instance-data->fused-build-resource-proj-path [component-instance-data]
+          (let [build-resource (:resource component-instance-data)]
+            (if-let [fused-build-resource (dep-resources build-resource)]
+              (resource/proj-path fused-build-resource)
+              (throw (ex-info (format "Failed to resolve fused build resource from '%s' referenced by component '%s'."
+                                      (resource/proj-path build-resource)
+                                      (-> component-instance-data :component-msg :id))
+                              {:resource-reference build-resource})))))
+
+        build-go-props (partial properties/build-go-props dep-resources)
         component-instance-datas (:component-instance-datas user-data)
         component-msgs (map :component-msg component-instance-datas)
         component-go-props (map (comp build-go-props :properties) component-msgs)
-        component-build-resource-paths (map (comp resource/proj-path dep-resources :resource) component-instance-datas)
-        component-descs (map (fn [component-msg fused-build-resource-path go-props]
-                               (-> component-msg
-                                   (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
-                                   (assoc :component fused-build-resource-path)
-                                   (cond-> (seq go-props)
-                                           (assoc :property-decls (properties/go-props->decls go-props false)))))
-                             component-msgs
-                             component-build-resource-paths
-                             component-go-props)
+        component-build-resource-paths (map component-instance-data->fused-build-resource-proj-path component-instance-datas)
+        component-descs (mapv (fn [component-msg fused-build-resource-path go-props]
+                                (-> component-msg
+                                    (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
+                                    (assoc :component fused-build-resource-path)
+                                    (cond-> (seq go-props)
+                                            (assoc :property-decls (properties/go-props->decls go-props false)))))
+                              component-msgs
+                              component-build-resource-paths
+                              component-go-props)
         property-resource-paths (into (sorted-set)
                                       (comp cat (keep properties/try-get-go-prop-proj-path))
                                       component-go-props)
@@ -214,10 +223,9 @@
     {:resource build-resource
      :content (protobuf/map->bytes GameObject$PrototypeDesc prototype-desc)}))
 
-(defn game-object-build-target [build-resource host-resource-node-id component-instance-datas component-build-targets]
-  {:pre [(or (nil? build-resource) (workspace/build-resource? build-resource))
+(defn game-object-build-target [source-resource host-resource-node-id component-instance-datas component-build-targets]
+  {:pre [(workspace/source-resource? source-resource)
          (g/node-id? host-resource-node-id)
-         (vector? component-instance-datas)
          (vector? component-build-targets)]}
   ;; Extract the :component-instance-datas from the component build targets so
   ;; that overrides can be embedded in the resulting game object binary. We also
@@ -225,7 +233,7 @@
   ;; script property overrides.
   (bt/with-content-hash
     {:node-id host-resource-node-id
-     :resource build-resource
+     :resource (workspace/make-build-resource source-resource)
      :build-fn build-game-object
      :user-data {:component-instance-datas (mapv #(dissoc % :property-deps)
                                                  component-instance-datas)}
@@ -234,20 +242,19 @@
                        (util/distinct-by (comp resource/proj-path :resource)))
                  component-instance-datas)}))
 
-(defn component-scene [node-id node-outline-key ^Matrix4d transform-matrix source-component-resource-scene]
+(defn component-scene [node-id node-outline-key component-pose source-component-resource-scene]
   {:pre [(g/node-id? node-id)
-         (instance? Matrix4d transform-matrix)
+         (pose/pose? component-pose)
          (or (nil? source-component-resource-scene) (map? source-component-resource-scene))]}
   (if source-component-resource-scene
 
     ;; We have a source scene. This is usually the case.
-    (let [transform (if-some [^Matrix4d source-component-resource-transform (:transform source-component-resource-scene)]
-                      (doto (Matrix4d. transform-matrix)
-                        (.mul source-component-resource-transform))
-                      transform-matrix)
+    (let [scene-pose (if-some [source-component-resource-pose (:pose source-component-resource-scene)]
+                       (pose/pre-multiply source-component-resource-pose component-pose)
+                       component-pose)
           scene (-> source-component-resource-scene
                     (scene/claim-scene node-id node-outline-key)
-                    (assoc :transform transform))
+                    (assoc :pose scene-pose))
           updatable (:updatable source-component-resource-scene)]
       (if (nil? updatable)
         scene
@@ -260,7 +267,7 @@
     ;; such as the Script component. The bad data case is covered by for
     ;; instance unknown_components.go in the test project.
     {:node-id node-id
-     :transform transform-matrix
+     :pose component-pose
      :aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 

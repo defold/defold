@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,29 +22,25 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
+            [editor.localization :as localization]
             [editor.math :as math]
-            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
-           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
-           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
-           [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.gamesys.proto Sound$SoundDesc]
-           [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
-           [com.dynamo.gamesys.proto ModelProto$Model]
-           [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
-           [com.dynamo.gamesys.proto Label$LabelDesc]
+  (:import [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+           [com.dynamo.gamesys.proto DataProto$Data GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
-           [com.dynamo.gamesys.proto Gui$SceneDesc]
+           [com.dynamo.particle.proto Particle$ParticleFX]
+           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
+           [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io IOUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
 
@@ -64,7 +60,7 @@
                         "collectionc" GameObject$CollectionDesc})
 
 (defn- target [path targets]
-  (let [ext (FilenameUtils/getExtension path)
+  (let [ext (resource/filename->type-ext path)
         pb-class (get target-pb-classes ext)]
     (when (nil? pb-class)
       (throw (ex-info (str "No target-pb-classes entry for extension \"" ext "\", path \"" path "\".")
@@ -239,7 +235,7 @@
            ~'resource-node     (test-util/resource-node ~'project ~path)
            evaluation-context# (g/make-evaluation-context)
            old-artifact-map#   (workspace/artifact-map ~'workspace)
-           ~'build-results     (build/build-project! ~'project ~'resource-node evaluation-context# nil old-artifact-map# progress/null-render-progress!)
+           ~'build-results     (build/build-project! ~'project ~'resource-node old-artifact-map# nil evaluation-context#)
            ~'build-artifacts   (:artifacts ~'build-results)
            ~'_                 (when-not (contains? ~'build-results :error)
                                  (workspace/artifact-map! ~'workspace (:artifact-map ~'build-results))
@@ -284,17 +280,39 @@
 (defn- count-exts [paths ext]
   (count (filter #(.endsWith % ext) paths)))
 
-(defn- project-build [project resource-node evaluation-context]
-  (let [workspace (project/workspace project)
+(defn- project-build-impl! [project resource-node evaluation-context]
+  (let [workspace (project/workspace project evaluation-context)
         old-artifact-map (workspace/artifact-map workspace)
-        build-results (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
+        build-results (build/build-project! project resource-node old-artifact-map nil evaluation-context)]
     (when-not (contains? build-results :error)
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))
     build-results))
 
-(defn- project-build-artifacts [project resource-node evaluation-context]
-  (:artifacts (project-build project resource-node evaluation-context)))
+(defn- project-build! [project resource-node]
+  (g/with-auto-evaluation-context evaluation-context
+    (project-build-impl! project resource-node evaluation-context)))
+
+(defn- project-build-artifacts-impl! [project resource-node evaluation-context]
+  (let [build-results (project-build-impl! project resource-node evaluation-context)
+        error-value (:error build-results)]
+    (if (nil? error-value)
+      (:artifacts build-results)
+      (let [resource (resource-node/resource resource-node)
+            proj-path (resource/proj-path resource)
+            error-message (some :message (tree-seq :causes :causes error-value))]
+        (throw
+          (ex-info
+            (format "Failed to build '%s': %s"
+                    proj-path
+                    error-message)
+            {:resource-node resource-node
+             :resource resource
+             :error-value error-value}))))))
+
+(defn- project-build-artifacts! [project resource-node]
+  (g/with-auto-evaluation-context evaluation-context
+    (project-build-artifacts-impl! project resource-node evaluation-context)))
 
 (deftest merge-gos
   (testing "Verify equivalent game objects are merged"
@@ -302,7 +320,7 @@
       (doseq [path ["/merge/merge_embed.collection"
                     "/merge/merge_refs.collection"]
               :let [resource-node (test-util/resource-node project path)
-                    build-artifacts (project-build-artifacts project resource-node (g/make-evaluation-context))
+                    build-artifacts (project-build-artifacts! project resource-node)
                     content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (content-bytes %)])
                                                     build-artifacts))
                     content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)])
@@ -324,7 +342,7 @@
 (deftest merge-textures
   (with-loaded-project "test/resources/build_resource_merging"
     (let [main-collection (test-util/resource-node project "/main/main.collection")
-          build-artifacts (project-build-artifacts project main-collection (g/make-evaluation-context))
+          build-artifacts (project-build-artifacts! project main-collection)
           textures-by-texture-set (into {}
                                         (keep (fn [{:keys [resource] :as artifact}]
                                                 (when (or (= "t.texturesetc" (resource/ext resource)) (= "a.texturesetc" (resource/ext resource)))
@@ -400,7 +418,7 @@
       (let [content    (get content-by-source path)
             desc       (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc content)
             sound-path (get-in desc [:components 0 :component])
-            ext        (FilenameUtils/getExtension sound-path)]
+            ext        (resource/filename->type-ext sound-path)]
         (is (= ext "soundc"))
         (let [sound-desc (protobuf/bytes->map-with-defaults Sound$SoundDesc (content-by-target sound-path))]
           (is (contains? content-by-target (:sound sound-desc))))))))
@@ -416,7 +434,7 @@
           comp-node (first-source go-node :child-scenes)]
       (testing "Verify equivalent game objects are not merged after being changed in memory"
         (g/transact (g/delete-node comp-node))
-        (let [build-artifacts   (project-build-artifacts project resource-node (g/make-evaluation-context))
+        (let [build-artifacts (project-build-artifacts! project resource-node)
               content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)])
                                               build-artifacts))]
           (is (= 2 (count-exts (keys content-by-target) "goc")))
@@ -424,7 +442,7 @@
       (g/undo! (g/node-id->graph-id project))
       (testing "Verify equivalent sprites are not merged after being changed in memory"
         (test-util/prop! comp-node :blend-mode :blend-mode-add)
-        (let [build-artifacts   (project-build-artifacts project resource-node (g/make-evaluation-context))
+        (let [build-artifacts (project-build-artifacts! project resource-node)
               content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)])
                                               build-artifacts))]
           (is (= 2 (count-exts (keys content-by-target) "goc")))
@@ -438,27 +456,59 @@
 (deftest build-cached
   (testing "Verify the build cache works as expected"
     (with-loaded-project project-path
-      (let [path          "/game.project"
+      (let [path "/game.project"
             resource-node (test-util/resource-node project path)
             evaluation-context (g/make-evaluation-context)
-            first-time    (measure (project-build-artifacts project resource-node evaluation-context))
+            first-time (measure (project-build-artifacts-impl! project resource-node evaluation-context))
             _ (g/update-cache-from-evaluation-context! evaluation-context)
             evaluation-context (g/make-evaluation-context)
-            second-time   (measure (project-build-artifacts project resource-node evaluation-context))]
+            second-time (measure (project-build-artifacts-impl! project resource-node evaluation-context))]
         (is (< (* 20 second-time) first-time))
         (let [atlas (test-util/resource-node project "/background/background.atlas")]
           (g/transact (g/set-property atlas :margin 10))
-          (let [third-time (measure (project-build-artifacts project resource-node (g/make-evaluation-context)))]
+          (let [third-time (measure (project-build-artifacts-impl! project resource-node (g/make-evaluation-context)))]
             (is (< (* 2 second-time) third-time))))))))
 
 (defn- build-path [workspace proj-path]
   (io/file (workspace/build-path workspace) proj-path))
 
 (defn- abs-project-path [workspace proj-path]
-  (io/file (workspace/project-path workspace) proj-path))
+  (io/file (workspace/project-directory workspace) proj-path))
 
 (defn mtime [^File f]
   (.lastModified f))
+
+(deftest build-data
+  (testing "Building data component"
+    (with-build-results "/data/data.data"
+      (let [content (get content-by-source "/data/data.data")
+            desc (protobuf/bytes->map-with-defaults DataProto$Data content)
+            expected {:tags ["tag_one" "tag_two"]
+                      :data {:struct
+                             {:fields
+                              {"test_number" {:number 3.0}
+                               "test_string" {:string "hello"}
+                               "test_bool" {:bool true}
+                               "test_empty_string" {:string ""}
+                               "test_list" {:list {:values [{:number 1.0}
+                                                            {:number 2.0}
+                                                            {:number 3.0}]}}
+                               "test_nested_struct" {:struct {:fields {"inner" {:number 42.0}}}}
+                               "test_list_in_nested_struct" {:struct {:fields {"ids" {:list {:values [{:number 10.0}
+                                                                                                      {:number 20.0}
+                                                                                                      {:number 30.0}]}}}}}
+                               "test_list_of_structs" {:list {:values [{:struct {:fields {"name" {:string "alice"}
+                                                                                          "score" {:number 100.0}}}}
+                                                                       {:struct {:fields {"name" {:string "bob"}
+                                                                                          "score" {:number 200.0}}}}]}}
+                               "test_list_in_list" {:list {:values [{:list {:values [{:number 1.0} {:number 2.0}]}}
+                                                                    {:list {:values [{:number 3.0} {:number 4.0}]}}]}}
+                               "test_empty_list" {:list {}}
+                               "test_empty_struct" {:struct {}}
+                               "test_mixed_list" {:list {:values [{:number 1.0}
+                                                                   {:string "a"}
+                                                                   {:bool true}]}}}}}}]
+        (is (= expected desc))))))
 
 (deftest build-atlas
   (testing "Building atlas"
@@ -470,11 +520,23 @@
 (deftest build-atlas-with-error
   (testing "Building atlas with error"
     (with-loaded-project project-path
-      (let [path              "/background/background.atlas"
-            resource-node     (test-util/resource-node project path)
-            _                 (g/set-property! resource-node :margin -42)
-            build-results     (project-build project resource-node (g/make-evaluation-context))]
-        (is (instance? internal.graph.error_values.ErrorValue (:error build-results)))))))
+      (let [path "/background/background.atlas"
+            resource-node (test-util/resource-node project path)
+            _ (g/set-property! resource-node :margin -42)
+            build-results (project-build! project resource-node)]
+        (is (g/error-value? (:error build-results)))))))
+
+(deftest build-cubemap
+  (testing "Building cubemap"
+    (with-build-results "/cubemap/cubemap.cubemap"
+      (let [content (get content-by-source "/cubemap/cubemap.cubemap")
+            desc (protobuf/pb->map-with-defaults (TextureUtil/textureResourceBytesToTextureImage content))
+            first-alternative (first (:alternatives desc))]
+        (is (= 6 (:count desc)))
+        (is (= :type-cubemap (:type desc)))
+        (is (= 6 (count (:mip-map-size-compressed first-alternative))))
+        ;; six sides, where each side is 2x2 RGBA
+        (is (= (* 6 2 2 4) (:data-size first-alternative)))))))
 
 (deftest build-font
   (testing "Building TTF font"
@@ -600,7 +662,7 @@
   (with-loaded-project
     (let [path              "/gui/scene.gui"
           resource-node     (test-util/resource-node project path)
-          build-artifacts   (project-build-artifacts project resource-node (g/make-evaluation-context))
+          build-artifacts   (project-build-artifacts! project resource-node)
           content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (content-bytes %)]) build-artifacts))
           content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)]) build-artifacts))
           content           (get content-by-source path)
@@ -635,7 +697,7 @@
                        "/main/blob.tilemap"
                        "/collisionobject/tile_map.collisionobject"
                        "/collisionobject/convex_shape.collisionobject"]
-          exp-exts    ["vpc" "fpc" "texturec"]]
+          exp-exts    ["spc" "texturec"]]
       (when (contains? build-results :error)
          (log-errors (:error build-results)))
       (is (not (contains? build-results :error)))
@@ -658,8 +720,8 @@
           atlas-path          "/background/background.atlas"
           atlas-resource-node (test-util/resource-node project atlas-path)
           _                   (g/set-property! atlas-resource-node :inner-padding -42)
-          build-results       (project-build project resource-node (g/make-evaluation-context))]
-      (is (instance? internal.graph.error_values.ErrorValue (:error build-results))))))
+          build-results       (project-build! project resource-node)]
+      (is (g/error-value? (:error build-results))))))
 
 (defn- check-project-setting [properties path expected-value]
   (let [value (settings-core/get-setting properties path)]
@@ -668,7 +730,7 @@
 (deftest build-game-project-with-buildtime-conversion
   (with-loaded-project "test/resources/buildtime_conversion"
     (let [game-project (test-util/resource-node project "/game.project")]
-     (let [br (project-build project game-project (g/make-evaluation-context))]
+     (let [br (project-build! project game-project)]
        (is (not (contains? br :error)))
        (with-open [r (io/reader (build-path workspace "game.projectc"))]
          (let [built-properties (settings-core/parse-settings r)]
@@ -682,7 +744,7 @@
 (deftest build-game-project-properties
   (with-loaded-project "test/resources/game_project_properties"
                        (let [game-project (test-util/resource-node project "/game.project")]
-                         (let [br (project-build project game-project (g/make-evaluation-context))]
+                         (let [br (project-build! project game-project)]
                            (is (not (contains? br :error)))
                            (with-open [r (io/reader (build-path workspace "game.projectc"))]
                              (let [built-properties (settings-core/parse-settings r)]
@@ -722,10 +784,10 @@
   (let [path-list (string/split path #"/")]
     `(let [old-value# (game-project/get-setting ~'game-project ~path-list)]
        (game-project/set-setting! ~'game-project ~path-list ~value)
-           (try
-             ~@body
-             (finally
-               (game-project/set-setting! ~'game-project ~path-list old-value#))))))
+       (try
+         ~@body
+         (finally
+           (game-project/set-setting! ~'game-project ~path-list old-value#))))))
 
 (defn- check-file-contents [workspace specs]
   (doseq [[path content] specs]
@@ -737,29 +799,29 @@
   (with-loaded-project "test/resources/custom_resources_project"
     (let [game-project (test-util/resource-node project "/game.project")]
       (with-setting "project/custom_resources" "root.stuff"
-        (project-build project game-project (g/make-evaluation-context))
+        (project-build! project game-project)
         (check-file-contents workspace [["root.stuff" "root.stuff"]])
       (with-setting "project/custom_resources" "/root.stuff"
-        (project-build project game-project (g/make-evaluation-context))
+        (project-build! project game-project)
         (check-file-contents workspace [["root.stuff" "root.stuff"]])
       (with-setting "project/custom_resources" "assets"
-        (project-build project game-project (g/make-evaluation-context))
+        (project-build! project game-project)
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]]))
       (with-setting "project/custom_resources" "/assets"
-        (project-build project game-project (g/make-evaluation-context))
+        (project-build! project game-project)
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]]))
       (with-setting "project/custom_resources" "assets, root.stuff"
-        (project-build project game-project (g/make-evaluation-context))
+        (project-build! project game-project)
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]
                               ["root.stuff" "root.stuff"]]))
       (with-setting "project/custom_resources" "assets, root.stuff, /more_assets/"
-        (project-build project game-project (g/make-evaluation-context))
+        (project-build! project game-project)
         (check-file-contents workspace
                              [["assets/some.stuff" "some.stuff"]
                               ["assets/some2.stuff" "some2.stuff"]
@@ -767,16 +829,34 @@
                               ["more_assets/some_more.stuff" "some_more.stuff"]
                               ["more_assets/some_more2.stuff" "some_more2.stuff"]]))
       (with-setting "project/custom_resources" ""
-        (project-build project game-project (g/make-evaluation-context))
+        (project-build! project game-project)
         (doseq [path ["assets/some.stuff" "assets/some2.stuff"
                       "root.stuff"
                       "more_assets/some_more.stuff" "more_assets/some_more2.stuff"]]
           (is (false? (.exists (build-path workspace path))))))
       (with-setting "project/custom_resources" "nonexistent_path"
-        (let [build-error (:error (project-build project game-project (g/make-evaluation-context)))
+        (let [build-error (:error (project-build! project game-project))
               error-message (some :message (tree-seq :causes :causes build-error))]
           (is (g/error? build-error))
-          (is (= "Custom resource not found: '/nonexistent_path'" error-message)))))))))
+          (is (= "Custom resources directory not found: '/nonexistent_path'" error-message)))))))))
+
+(deftest build-with-ssl-certificates
+  (with-loaded-project "test/resources/custom_resources_project"
+    (let [game-project (test-util/resource-node project "/game.project")]
+      (with-setting "network/ssl_certificates" nil
+        (project-build! project game-project)
+        (is (false? (.exists (build-path workspace "assets/some.stuff"))))
+        (is (false? (.exists (build-path workspace "assets/some2.stuff")))))
+      (with-setting "network/ssl_certificates" (workspace/find-resource workspace "/assets")
+        (project-build! project game-project)
+        (check-file-contents workspace
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]]))
+      (with-setting "network/ssl_certificates" (workspace/file-resource workspace "/nonexistent_path")
+        (let [build-error (:error (project-build! project game-project))
+              error-message (some :message (tree-seq :causes :causes build-error))]
+          (is (g/error? build-error))
+          (is (= "SSL certificates directory not found: '/nonexistent_path'" error-message)))))))
 
 (deftest custom-resources-cached
   (testing "Check custom resources are only rebuilt when source has changed"
@@ -785,13 +865,30 @@
             project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
         (with-setting "project/custom_resources" "assets"
-          (project-build project game-project (g/make-evaluation-context))
+          (project-build! project game-project)
           (let [initial-some-mtime (mtime (build-path workspace "assets/some.stuff"))
                 initial-some2-mtime (mtime (build-path workspace "assets/some2.stuff"))]
             (Thread/sleep 1000)
             (spit (abs-project-path workspace "assets/some.stuff") "new stuff")
             (workspace/resource-sync! workspace)
-            (project-build project game-project (g/make-evaluation-context))
+            (project-build! project game-project)
+            (is (not (= initial-some-mtime (mtime (build-path workspace "assets/some.stuff")))))
+            (is (= initial-some2-mtime (mtime (build-path workspace "assets/some2.stuff"))))))))))
+
+(deftest ssl-certificates-cached
+  (testing "Check SSL certificates are only rebuilt when source has changed"
+    (with-clean-system
+      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+            project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")]
+        (with-setting "network/ssl_certificates" (workspace/find-resource workspace "/assets")
+          (project-build! project game-project)
+          (let [initial-some-mtime (mtime (build-path workspace "assets/some.stuff"))
+                initial-some2-mtime (mtime (build-path workspace "assets/some2.stuff"))]
+            (Thread/sleep 1000)
+            (spit (abs-project-path workspace "assets/some.stuff") "new stuff")
+            (workspace/resource-sync! workspace)
+            (project-build! project game-project)
             (is (not (= initial-some-mtime (mtime (build-path workspace "assets/some.stuff")))))
             (is (= initial-some2-mtime (mtime (build-path workspace "assets/some2.stuff"))))))))))
 
@@ -801,7 +898,7 @@
           game-project   (test-util/resource-node project path)
           dependency-url "http://localhost:1234/dependency.zip"]
       (game-project/set-setting! game-project ["project" "dependencies"] dependency-url)
-      (let [build-artifacts      (project-build-artifacts project game-project (g/make-evaluation-context))
+      (let [build-artifacts      (project-build-artifacts! project game-project)
             content-by-source    (into {} (keep #(when-let [r (:resource (:resource %))]
                                                    [(resource/proj-path r) (content-bytes %)]))
                                        build-artifacts)
@@ -814,41 +911,45 @@
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/collision_project")
           project (test-util/setup-project! workspace)
           game-project (test-util/resource-node project "/game.project")]
-      (let [br (project-build project game-project (g/make-evaluation-context))]
+      (let [br (project-build! project game-project)]
         (is (not (contains? br :error))))
       (testing "Removing an unreferenced collisionobject should not break the build"
-        (let [f (File. (workspace/project-path workspace) "knight.collisionobject")]
+        (let [f (File. (workspace/project-directory workspace) "knight.collisionobject")]
           (fs/delete-file! f)
           (workspace/resource-sync! workspace))
-        (let [br (project-build project game-project (g/make-evaluation-context))]
+        (let [br (project-build! project game-project)]
           (is (not (contains? br :error))))))))
 
 (deftest inexact-path-casing-produces-build-error
-  (with-loaded-project project-path
+  (with-loaded-project "test/resources/inexact_path_casing_project"
     (let [game-project-node (test-util/resource-node project "/game.project")
-          atlas-node (test-util/resource-node project "/background/background.atlas")
-          atlas-image-node (ffirst (g/sources-of atlas-node :image-resources))
-          image-resource (g/node-value atlas-image-node :image)
-          workspace (resource/workspace image-resource)
-          uppercase-image-path (string/upper-case (resource/proj-path image-resource))
-          uppercase-image-resource (workspace/resolve-workspace-resource workspace uppercase-image-path)]
-      (g/set-property! atlas-image-node :image uppercase-image-resource)
-      (let [build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
-            error-message (some :message (tree-seq :causes :causes build-error))]
-        (is (g/error? build-error))
-        (is (= (str "The file '" uppercase-image-path "' could not be found.") error-message))))))
+          build-error (:error (project-build! project game-project-node))
+          error-message (some :message (tree-seq :causes :causes build-error))]
+      (is (g/error? build-error))
+      (is (= (localization/message "error.resource-not-found" {"resource" "/MAIN/BUTTON_CLOUDY.png"}) error-message)))))
 
 (deftest build-process-detects-cyclic-lua-dependencies
   (with-loaded-project "test/resources/build_cyclic_lua_project"
     (g/with-auto-evaluation-context evaluation-context
-      (is (= "Dependency cycle detected: /main/1.lua -> /main/2.lua -> /main/1.lua"
+      (is (= "Dependency cycle detected: '/main/1.lua' -> '/main/2.lua' -> '/main/1.lua'."
              (->> (build/build-project! project
                                         (test-util/resource-node project "/game.project")
-                                        evaluation-context
-                                        nil
                                         (workspace/artifact-map workspace)
-                                        progress/null-render-progress!)
+                                        nil
+                                        evaluation-context)
                   :error
                   (tree-seq :causes :causes)
                   (keep :message)
                   first))))))
+
+(deftest build-process-handles-exclude-gles-sm100-skips-paged-material-validation
+  (with-loaded-project "test/resources/max_paged_count_project"
+    (let [game-project (test-util/resource-node project "/game.project")]
+      (testing "paged atlas with 9 pages fails build when exclude_gles_sm100 is false"
+        (with-setting "shader/exclude_gles_sm100" false
+          (let [build-results (project-build! project game-project)]
+            (is (g/error? (:error build-results))))))
+      (testing "paged atlas with 9 pages passes build when exclude_gles_sm100 is true"
+        (with-setting "shader/exclude_gles_sm100" true
+          (let [build-results (project-build! project game-project)]
+            (is (not (g/error? (:error build-results))))))))))

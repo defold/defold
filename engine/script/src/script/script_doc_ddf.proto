@@ -9,6 +9,7 @@ message Parameter
     required string name = 1;
     required string doc = 2;
     repeated string types = 3;
+    optional bool is_optional = 4; 
 }
 
 message Member
@@ -38,6 +39,7 @@ enum Type
     ENUM = 8;
     TYPEDEF = 9;
     CLASS = 10;
+    CONSTANT = 11;
 }
 
 message Element

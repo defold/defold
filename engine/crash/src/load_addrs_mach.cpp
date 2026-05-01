@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,7 @@ namespace dmCrash
     void SetLoadAddrs(AppState* state)
     {
         // Structure is all 0 to start with, so just fill everything in.
+        state->m_ModuleCount = 0;
         for (uint32_t i=0;i!=AppState::MODULES_MAX;i++)
         {
             const struct mach_header *hdr = _dyld_get_image_header(i);
@@ -34,6 +35,8 @@ namespace dmCrash
             const char *p = strrchr(name, '/');
             dmStrlCpy(state->m_ModuleName[i], p ? (p+1) : name, sizeof(state->m_ModuleName));
             state->m_ModuleAddr[i] = (void*)hdr;
+            state->m_ModuleSize[i] = 0;
+            state->m_ModuleCount++;
         }
     }
 }

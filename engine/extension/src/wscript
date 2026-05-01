@@ -21,7 +21,7 @@ def build(bld):
 
     bld.add_group() # not sure why needed, but it won't build with '--skip-build-tests' otherwise. Use '-v -v' for more info
 
-    bld.install_files('${PREFIX}/include/extension', 'extension.h')
+    bld.install_files('${PREFIX}/include/extension', 'extension.hpp')
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
     dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')
 

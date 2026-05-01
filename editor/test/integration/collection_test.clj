@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,6 +21,7 @@
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
+            [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -39,7 +40,7 @@
         ;; Two game objects under the collection
         (is (= 2 (count (:children outline))))
         ;; One component and game object under the game object
-        (is (= 2 (count (:children (second (:children outline)))))))))
+        (is (= 2 (count (:children (first (:children outline)))))))))
   (testing "Deleting hierarchy deletes children"
     (test-util/with-loaded-project
       (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")
@@ -83,7 +84,7 @@
                ; Select the collection node
                (app-view/select! app-view [node-id])
                ; Run the add handler
-               (test-util/handler-run :add [{:name :workbench :env {:workspace workspace :project project :app-view app-view :selection [node-id]}}] {})
+               (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:workspace workspace :project project :app-view app-view :selection [node-id]}}] {})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
@@ -94,7 +95,7 @@
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)]
                ;; Verify outline labels
-               (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
+               (is (= (list (localization/message "outline.collection") "go") (map :label (tree-seq :children :children outline))))
                ;; Verify AABBs
                (is (= [geom/null-aabb geom/empty-bounding-box]
                       (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
@@ -106,7 +107,7 @@
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)]
                ;; Verify outline labels
-               (is (= (list "Collection" "my_instance" "unknown")
+               (is (= (list (localization/message "outline.collection") "my_instance" "unknown")
                       (map :label (tree-seq :children :children outline))))
                ;; Verify AABBs
                (is (= [geom/null-aabb geom/empty-bounding-box geom/empty-bounding-box]

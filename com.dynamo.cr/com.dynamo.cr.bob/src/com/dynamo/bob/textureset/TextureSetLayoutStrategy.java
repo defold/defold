@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,9 +16,10 @@ package com.dynamo.bob.textureset;
 
 import java.util.List;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 
 public interface TextureSetLayoutStrategy {
-    List<Layout> createLayout(List<Rect> srcRects);
+    List<Layout> createLayout(List<Rect> srcRects) throws CompileExceptionError;
 }

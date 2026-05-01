@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,7 +20,7 @@
 
 namespace dmRender
 {
-    HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader)
+    HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram compute_program)
     {
         if (!dmGraphics::IsContextFeatureSupported(render_context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER))
         {
@@ -30,8 +30,7 @@ namespace dmRender
 
         ComputeProgram* program        = new ComputeProgram();
         program->m_RenderContext       = render_context;
-        program->m_Shader              = shader;
-        program->m_Program             = dmGraphics::NewProgram(render_context->m_GraphicsContext, shader);
+        program->m_Program             = compute_program;
         uint32_t total_constants_count = dmGraphics::GetUniformCount(program->m_Program);
 
         uint32_t constants_count = 0;
@@ -55,6 +54,14 @@ namespace dmRender
         }
 
         SetProgramConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, program->m_Samplers);
+
+        bool has_light_buffer;
+        uint16_t light_buffer_set;
+        uint16_t light_buffer_binding;
+        GetProgramLightBufferBinding(render_context, program->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding);
+        program->m_HasLightBuffer     = has_light_buffer;
+        program->m_LightBufferSet     = light_buffer_set;
+        program->m_LightBufferBinding = light_buffer_binding;
 
         return (HComputeProgram) program;
     }
@@ -109,11 +116,6 @@ namespace dmRender
         return GetProgramSampler(program->m_Samplers, unit);
     }
 
-    dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)
-    {
-        return program->m_Shader;
-    }
-
     dmGraphics::HProgram GetComputeProgram(HComputeProgram program)
     {
         return program->m_Program;
@@ -136,23 +138,15 @@ namespace dmRender
 
     void DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program)
     {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::DeleteProgram(graphics_context, program->m_Program);
+        for (uint32_t i = 0; i < program->m_Constants.Size(); ++i)
+        {
+            dmRender::DeleteConstant(program->m_Constants[i].m_Constant);
+        }
         delete program;
     }
 
     HRenderContext GetProgramRenderContext(HComputeProgram program)
     {
         return program->m_RenderContext;
-    }
-
-    uint64_t GetProgramUserData(HComputeProgram program)
-    {
-        return program->m_UserData;
-    }
-
-    void SetProgramUserData(HComputeProgram program, uint64_t user_data)
-    {
-        program->m_UserData = user_data;
     }
 }

@@ -6,6 +6,9 @@
  * SMTP, HTTP, FTP etc are not part of the core included, but can be easily added to a project
  * and used.
  *
+ * [icon:html5] On HTML5, the non-network helpers remain available, but TCP, UDP and
+ * `socket.select()` are not supported.
+ *
  * Note the included helper module "socket.lua" in "builtins/scripts/socket.lua". Require this
  * module to add some additional functions and shortcuts to the namespace:
  *
@@ -19,6 +22,7 @@
  * @document
  * @name LuaSocket
  * @namespace socket
+ * @language Lua
  */
 
 
@@ -55,9 +59,27 @@
  *
  * This constant has a string describing the current LuaSocket version.
  *
- * @variable
+ * @constant
  * @name socket._VERSION
  *
+ */
+
+/*# TCP master object
+ * @typedef
+ * @name master
+ * @param value [type:userdata]
+ */
+
+/*# TCP client object
+ * @typedef
+ * @name client
+ * @param value [type:userdata]
+ */
+
+/*# unconnected UDP object
+ * @typedef
+ * @name unconnected
+ * @param value [type:userdata]
  */
 
 /*# creates a new IPv6 TCP master object
@@ -76,7 +98,7 @@
  *
  * This constant contains the maximum number of sockets that the select function can handle.
  *
- * @variable
+ * @constant
  * @name socket._SETSIZE
  *
  */

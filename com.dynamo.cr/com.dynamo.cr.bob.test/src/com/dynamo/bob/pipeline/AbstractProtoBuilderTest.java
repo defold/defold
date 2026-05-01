@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,13 +29,14 @@ import java.security.CodeSource;
 import javax.imageio.ImageIO;
 
 import com.dynamo.bob.fs.*;
+import com.dynamo.graphics.proto.Graphics;
 import org.apache.commons.io.FilenameUtils;
 
 import org.junit.After;
 
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
@@ -64,6 +65,7 @@ public abstract class AbstractProtoBuilderTest {
 
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
+        project.scan(scanner, "com.defold.extension.pipeline.texture");
 
         try {
             CodeSource src = getClass().getProtectionDomain().getCodeSource();
@@ -77,7 +79,7 @@ public abstract class AbstractProtoBuilderTest {
                 this.fileSystem.addMountPoint(this.mp);
             }
             else {
-                this.mp = new ZipMountPoint(null, path, false);
+                this.mp = new ZipMountPoint(null, path);
                 this.mp.mount();
             }
         } catch (Exception e) {
@@ -151,20 +153,24 @@ public abstract class AbstractProtoBuilderTest {
         }
     }
 
-    protected Project GetProject() {
+    protected Project getProject() {
         return this.project;
+    }
+
+    protected MockFileSystem getFileSystem() {
+        return this.fileSystem;
     }
 
     protected List<Message> build(String file, String source) throws Exception {
         addFile(file, source);
         project.setInputs(Collections.singletonList(file));
-        List<TaskResult> results = project.build(new NullProgress(), "build");
+        List<TaskResult> results = project.build(Progress.discarding(), "build");
         List<Message> messages = new ArrayList<Message>();
         for (TaskResult result : results) {
             if (!result.isOk()) {
                 throw new CompileExceptionError(project.getResource(file), result.getLineNumber(), result.getMessage());
             }
-            Task<?> task = result.getTask();
+            Task task = result.getTask();
             for (IResource output : task.getOutputs()) {
                 Message msg = ParseUtil.parse(output);
                 if (msg != null) {
@@ -173,6 +179,26 @@ public abstract class AbstractProtoBuilderTest {
             }
         }
         return messages;
+    }
+
+    protected void clean() throws Exception {
+        Collection<String> result = new ArrayList<>();
+        fileSystem.walk("build", new FileSystemWalker() {
+            public void handleFile(String path, Collection<String> results) {
+                fileSystem.addFile(path, null);
+            }
+        }, result);
+        project.build(Progress.discarding(), "clean");
+    }
+
+    protected <T extends Message> T getMessage(List<Message> messages, Class<T> type) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            Message message = messages.get(i);
+            if (type.isInstance(message)) {
+                return type.cast(message);
+            }
+        }
+        return null;
     }
 
     protected byte[] getFile(String file) throws IOException {
@@ -236,4 +262,32 @@ public abstract class AbstractProtoBuilderTest {
         addFile(path, baos.toByteArray());
     }
 
+    protected ShaderProgramBuilderBundle.ModuleBundle createShaderModules(String[] shaderPaths, IShaderCompiler.CompileOptions compileOptions) {
+        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
+        modules.setCompileOptions(compileOptions);
+        for (String path : shaderPaths) {
+            modules.addModule(path);
+        }
+        return modules;
+    }
+
+    protected Graphics.ShaderDesc addAndBuildShaderDescs(ShaderProgramBuilderBundle.ModuleBundle modules, String[] shaderSources, String shaderBundlePath) throws Exception {
+        String[] shaderPaths = modules.getModules();
+        for (int i = 0; i < shaderPaths.length; i++) {
+            String path = shaderPaths[i];
+            String source = shaderSources[i];
+            addFile(path, source);
+        }
+
+        List<Message> outputs = build(shaderBundlePath, modules.toBase64String());
+        return (Graphics.ShaderDesc) outputs.get(0);
+    }
+
+    protected Graphics.ShaderDesc addAndBuildShaderDescs(String[] shaderPaths, String[] shaderSources, String shaderBundlePath) throws Exception {
+        return addAndBuildShaderDescs(createShaderModules(shaderPaths, new IShaderCompiler.CompileOptions()), shaderSources, shaderBundlePath);
+    }
+
+    protected Graphics.ShaderDesc addAndBuildShaderDesc(String shaderPath, String shaderSource, String shaderBundlePath) throws Exception {
+        return addAndBuildShaderDescs(new String[]{shaderPath}, new String[]{shaderSource}, shaderBundlePath);
+    }
 }

@@ -1,0 +1,45 @@
+name: "custom_attributes_instancing_valid"
+vertex_program: "/material/attributes_instancing.vp"
+fragment_program: "/fragment_program/valid.fp"
+
+attributes {
+  name: "position"
+  semantic_type: SEMANTIC_TYPE_POSITION
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  data_type: TYPE_FLOAT
+  element_count: 2
+  double_values {
+    v: 1.0
+    v: 2.0
+    v: 3.0
+    v: 4.0
+  }
+}
+
+attributes {
+  name: "normal"
+  data_type: TYPE_BYTE
+  element_count: 3
+  long_values {
+  	v: 64
+  	v: 32
+  	v: 16
+    v: 8
+  }
+}
+
+attributes {
+  name: "texcoord0"
+  data_type: TYPE_SHORT
+  semantic_type: SEMANTIC_TYPE_TEXCOORD
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  element_count: 2
+  long_values {
+  	v: -16000
+  	v: 16000
+    v: 123
+    v: 321
+  }
+}
+

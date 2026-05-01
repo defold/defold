@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,8 +31,8 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
@@ -59,54 +59,6 @@ import org.apache.commons.io.FilenameUtils;
 @ProtoParams(srcClass = SceneDesc.class, messageClass = SceneDesc.class)
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
-
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        SceneDesc.Builder builder = SceneDesc.newBuilder();
-        ProtoUtil.merge(input, builder);
-
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-        List<String> templateList = new ArrayList<>();
-        for (NodeDesc n : builder.getNodesList()) {
-            if(n.getType() == Type.TYPE_TEMPLATE) {
-                if(!n.getTemplate().isEmpty() && !templateList.contains(n.getTemplate())) {
-                    templateList.add(n.getTemplate());
-                    taskBuilder.addInput(this.project.getResource(n.getTemplate()));
-                }
-            }
-        }
-
-        // For backwards compatibility
-        List<String> spineSceneList = new ArrayList<>();
-        for (SpineSceneDesc f : builder.getSpineScenesList()) {
-            if(!f.getSpineScene().isEmpty() && !spineSceneList.contains(f.getSpineScene())) {
-                spineSceneList.add(f.getSpineScene());
-                taskBuilder.addInput(this.project.getResource(f.getSpineScene()));
-            }
-        }
-
-        List<String> particlefxSceneList = new ArrayList<>();
-        for (ParticleFXDesc p : builder.getParticlefxsList()) {
-            if (!p.getParticlefx().isEmpty() && !particlefxSceneList.contains(p.getParticlefx())) {
-                particlefxSceneList.add(p.getParticlefx());
-                taskBuilder.addInput(this.project.getResource(p.getParticlefx()));
-            }
-        }
-
-        List<String> resourcesList = new ArrayList<>();
-        for (ResourceDesc resource : builder.getResourcesList()) {
-            if (!resource.getPath().isEmpty() && !resourcesList.contains(resource.getPath())) {
-                resourcesList.add(resource.getPath());
-                taskBuilder.addInput(this.project.getResource(resource.getPath()));
-            }
-        }
-
-        return taskBuilder.build();
-    }
 
     private static void quatToEuler(Quat4d quat, Tuple3d euler) {
         double heading;
@@ -282,7 +234,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
         }
         if (n.getType() == Type.TYPE_TEMPLATE && n.getTemplate().isEmpty()) {
-            throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, "template"));
+            throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, "template", input));
         }
     }
 
@@ -418,8 +370,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                  throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
                          new String[] { scriptPath, suffix, "gui_script" } ));
             }
-            sceneBuilder.setScript(BuilderUtil.replaceExt(scriptPath, ".gui_script", ".gui_scriptc"));
-            sceneBuilder.setMaterial(BuilderUtil.replaceExt(sceneBuilder.getMaterial(), ".material", ".materialc"));
+            sceneBuilder.setScript(ResourceUtil.minifyPathAndReplaceExt(scriptPath, ".gui_script", ".gui_scriptc"));
+            sceneBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(sceneBuilder.getMaterial(), ".material", ".materialc"));
 
             for (FontDesc f : sceneBuilder.getFontsList()) {
                 if (fontNames.contains(f.getName())) {
@@ -427,7 +379,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 fontNames.add(f.getName());
-                newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(BuilderUtil.replaceExt(f.getFont(), ".font", ".fontc")).build());
+                newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(ResourceUtil.minifyPathAndReplaceExt(f.getFont(), ".font", ".fontc")).build());
             }
 
             for (SpineSceneDesc f : sceneBuilder.getSpineScenesList()) {
@@ -436,7 +388,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 resourceNames.add(f.getName());
-                ResourceDesc desc = ResourceDesc.newBuilder().setName(f.getName()).setPath(BuilderUtil.replaceExt(f.getSpineScene(), ".spinescene", ".spinescenec")).build();
+                ResourceDesc desc = ResourceDesc.newBuilder().setName(f.getName()).setPath(ResourceUtil.minifyPathAndReplaceExt(f.getSpineScene(), ".spinescene", ".spinescenec")).build();
                 newResourcesList.add(desc);
             }
 
@@ -446,7 +398,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 particlefxNames.add(f.getName());
-                newParticleFXList.add(ParticleFXDesc.newBuilder().mergeFrom(f).setParticlefx(BuilderUtil.replaceExt(f.getParticlefx(), ".particlefx", ".particlefxc")).build());
+                newParticleFXList.add(ParticleFXDesc.newBuilder().mergeFrom(f).setParticlefx(ResourceUtil.minifyPathAndReplaceExt(f.getParticlefx(), ".particlefx", ".particlefxc")).build());
             }
 
             for (TextureDesc f : sceneBuilder.getTexturesList()) {
@@ -464,7 +416,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 materialNames.add(f.getName());
-                newMaterialList.add(MaterialDesc.newBuilder().mergeFrom(f).setMaterial(BuilderUtil.replaceExt(f.getMaterial(), ".material", ".materialc")).build());
+                newMaterialList.add(MaterialDesc.newBuilder().mergeFrom(f).setMaterial(ResourceUtil.minifyPathAndReplaceExt(f.getMaterial(), ".material", ".materialc")).build());
             }
 
             for (ResourceDesc f : sceneBuilder.getResourcesList()) {
@@ -474,7 +426,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 }
                 // TODO: use the plugin for this
                 resourceNames.add(f.getName());
-                newResourcesList.add(ResourceDesc.newBuilder().mergeFrom(f).setPath(BuilderUtil.replaceExt(f.getPath(), ".spinescene", ".spinescenec")).build());
+                newResourcesList.add(ResourceDesc.newBuilder().mergeFrom(f).setPath(ResourceUtil.minifyPathAndReplaceExt(f.getPath(), ".spinescene", ".spinescenec")).build());
             }
 
             // transform scene internal resources
@@ -718,7 +670,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     @Override()
-    protected SceneDesc.Builder transform(Task<Void> task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+    protected SceneDesc.Builder transform(Task task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
         HashMap<String, SceneDesc.Builder> sceneResourceCache = new HashMap<String, SceneDesc.Builder>(32);
         MergeOriginalValuesIntoLayouts(messageBuilder);
         return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(this.project), sceneResourceCache, true);

@@ -1,3 +1,17 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 #-------------------------------------------------------------------------------
 #   Generate Java+Jni bindings from C++
 #
@@ -9,6 +23,12 @@
 
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'external'))
+
+# until we have a DEFOLD_HOME
+if not 'DEFOLD_HOME' in os.environ:
+    os.environ['DEFOLD_HOME'] = os.path.normpath(os.path.join(os.environ["DYNAMO_HOME"], '../..'))
+sys.path.insert(0, os.environ['DEFOLD_HOME'])
+import apply_license
 
 import gen_ir
 import os, sys
@@ -96,14 +116,14 @@ c_type_to_jni_capname = {
     'bool':     'Boolean',
     'char':     'Char',
     'int8_t':   'Byte',
-    'uint8_t':  'Byte',
+    'uint8_t':  'UByte',
     'int16_t':  'Short',
-    'uint16_t': 'Short',
+    'uint16_t': 'UShort',
     'int':      'Int',
     'int32_t':  'Int',
-    'uint32_t': 'Int',
+    'uint32_t': 'UInt', # same as Int, but we do a cast internally
     'int64_t':  'Long',
-    'uint64_t': 'Long',
+    'uint64_t': 'ULong',
     'float':    'Float',
     'double':   'Double',
 }
@@ -459,6 +479,8 @@ def gen_namespace(inp, class_name, package_name):
                 pass
 
 def gen_java_source(inp, class_name, package_name):
+    l(apply_license.get_license_for_file("foo.java"))
+    l('')
     l('// generated, do not edit')
     l('')
     l(f'package {package_name};')
@@ -1150,6 +1172,8 @@ def gen_jni_namespace_source(inp, class_name, package_name, header=False):
             #     print(f"Not implemented yet: {kind}")
 
 def gen_jni_source(inp, class_name, header_name, package_name):
+    l(apply_license.get_license_for_file("foo.cpp"))
+    l('')
     l('// generated, do not edit')
     l('')
     l('#include <jni.h>')
@@ -1165,6 +1189,8 @@ def gen_jni_source(inp, class_name, header_name, package_name):
 
 
 def gen_jni_header(inp, class_name, package_name):
+    l(apply_license.get_license_for_file("foo.h"))
+    l('')
     l('// generated, do not edit')
     l('')
     l('#include <jni.h>')

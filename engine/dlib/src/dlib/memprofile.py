@@ -1,12 +1,12 @@
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -63,7 +63,7 @@ class MemProfile(object):
 def load_symbol_table(addresses, executable):
     symbol_table = {}
     if sys.platform == 'darwin':
-        p = subprocess.Popen(['atos', '-o', executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        p = subprocess.Popen(['atos', '-o', executable, '-offset'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     else:
         p = subprocess.Popen(['addr2line', '-e', executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
@@ -149,8 +149,8 @@ if __name__ == '__main__':
 
     profile = load(sys.argv[2], sys.argv[1])
 
-    lst = profile.summary.values()
-    lst.sort(lambda x,y: cmp(y.malloc_total, x.malloc_total))
+    lst = list(profile.summary.values())
+    lst.sort(reverse=True, key=lambda x: x.malloc_total)
     active_total = 0
     for s in lst:
         if s.nmalloc > 0:

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,20 +14,22 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-
 import org.junit.Test;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.script.proto.Lua.LuaSource;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
@@ -46,8 +48,8 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testProps() throws Exception {
-        addFile("/vp.vp", "");
-        addFile("/fp.fp", "");
+        addFile("/vp.vp", ShaderProgramBuilderTest.vp);
+        addFile("/fp.fp", ShaderProgramBuilderTest.fp);
         addFile("/material.material", "name: \"material\"\nvertex_program: \"/vp.vp\"\nfragment_program: \"/fp.fp\"");
         StringBuilder src = new StringBuilder();
         src.append("\n");
@@ -64,14 +66,14 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("\n");
         src.append("    go.property(  \"space_number\"  ,  1   )\n");
         src.append("go.property(\"semi_colon\", 1);\n");
-        LuaModule luaModule = (LuaModule)build("/test.script", src.toString()).get(0);
+        LuaModule luaModule = getMessage(build("/test.script", src.toString()), LuaModule.class);
         PropertyDeclarations properties = luaModule.getProperties();
         assertEquals(3, properties.getNumberEntriesCount());
         PropertiesTestUtil.assertNumber(properties, 1, 0);
         PropertiesTestUtil.assertNumber(properties, 1, 1);
         PropertiesTestUtil.assertNumber(properties, 1, 2);
         PropertiesTestUtil.assertHash(properties, MurmurHash.hash64("hash"), 0);
-        PropertiesTestUtil.assertHash(properties, MurmurHash.hash64("/material.materialc"), 1);
+        PropertiesTestUtil.assertHash(properties, MurmurHash.hash64(ResourceUtil.minifyPath("/material.materialc")), 1);
         PropertiesTestUtil.assertURL(properties, "", 0);
         PropertiesTestUtil.assertVector3(properties, 1, 2, 3, 0);
         PropertiesTestUtil.assertVector3(properties, 0, 0, 0, 1);
@@ -79,7 +81,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
         PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
         PropertiesTestUtil.assertBoolean(properties, true, 0);
-        assertEquals("/material.materialc", luaModule.getPropertyResources(0));
+        assertEquals(ResourceUtil.minifyPath("/material.materialc"), luaModule.getPropertyResources(0));
 
         // Verify that .x, .y, .z and .w exists as sub element ids for Vec3, Vec4 and Quat.
         assertSubElementsV3(properties.getVector3Entries(0));
@@ -116,8 +118,32 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testGoPropertyOnlyAllowedInScriptFiles() throws Exception {
+        String source = "go.property(\"number\", 1)";
+        String resourceSource = "go.property(\"material\", resource.material(\"/missing.material\"))";
+        String invalidArgsSource = "go.property()";
+        String invalidValueSource = "go.property(\"value\", \"string\")";
+        String invalidLocationSource = "function init() go.property(\"number\", 1) end";
+
+        LuaModule luaModule = getMessage(build("/test.script", source), LuaModule.class);
+        assertEquals(1, luaModule.getProperties().getNumberEntriesCount());
+
+        for (String path : new String[]{"/test.lua", "/test.gui_script", "/test.render_script"}) {
+            for (String invalidSource : new String[]{source, resourceSource, invalidArgsSource, invalidValueSource, invalidLocationSource}) {
+                try {
+                    build(path, invalidSource);
+                    fail("Expected go.property rejection for " + path);
+                } catch (CompileExceptionError e) {
+                    assertEquals("go.property cannot be used in this file type", e.getMessage());
+                    assertEquals(1, e.getLineNumber());
+                }
+            }
+        }
+    }
+
+    @Test
     public void testUseUncompressedLuaSource() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("use-uncompressed-lua-source", "true");
 
         final String path = "/test.script";
@@ -134,8 +160,8 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testCompressedLuaSourceForHTML5() throws Exception {
-        Project p = GetProject();
-        p.setOption("platform", "js-web");
+        Project p = getProject();
+        p.setOption("platform", "wasm-web");
 
         final String path = "/test.script";
         final String scriptSource = "function foo() print('foo') end";
@@ -155,7 +181,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     // @Test
     // public void testVanillaLuaBytecode() throws Exception {
     //     Project p = GetProject();
-    //     p.setOption("platform", "js-web");
+    //     p.setOption("platform", "wasm-web");
 
     //     StringBuilder src = new StringBuilder();
     //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
@@ -169,7 +195,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     // @Test
     // public void testVanillaLuaBytecodeChunkname() throws Exception {
     //     Project p = GetProject();
-    //     p.setOption("platform", "js-web");
+    //     p.setOption("platform", "wasm-web");
 
     //     StringBuilder src = new StringBuilder();
     //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
@@ -180,11 +206,10 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testLuaJITBytecode64WithoutDelta() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "arm64-android");
 
-        StringBuilder src = new StringBuilder();
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
         LuaSource luaSource = luaModule.getSource();
         assertTrue(luaSource.getScript().size() == 0);
@@ -195,7 +220,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testLuaJITBytecode32WithoutDelta() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "armv7-android");
 
@@ -210,11 +235,10 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testLuaJITBytecode32And64WithoutDelta() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "armv7-android,arm64-android");
 
-        StringBuilder src = new StringBuilder();
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
         LuaSource luaSource = luaModule.getSource();
         assertTrue(luaSource.getScript().size() == 0);
@@ -225,7 +249,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testLuaJITBytecode64WithDelta() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "armv7-android,arm64-android");
         p.setOption("use-lua-bytecode-delta", "true");
@@ -286,5 +310,19 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertTrue((delta[260] & 0xff) == 1);
         // byte - the last diffing byte
         assertTrue(delta[261] == 99);
+    }
+
+    @Test
+    public void testCircularRequire() throws Exception {
+        addFile("/first.lua", "require(\"second\")");
+        addFile("/second.lua", "require(\"third\")");
+        addFile("/third.lua", "require(\"first\")");
+        try {
+            build("/main.lua", "require(\"first\")");
+            fail("Expected a CompileExceptionError due to circular dependency, but no exception was thrown.");
+        }
+        catch (CompileExceptionError e) {
+            assertTrue(e.getMessage().contains("Circular dependency detected"));
+        }
     }
 }

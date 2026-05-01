@@ -1,28 +1,29 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.defnode-test
-  (:require [clojure.test :refer :all]
-            [clojure.set :as set]
+  (:require [clojure.set :as set]
             [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [support.test-support :refer [tx-nodes with-clean-system]]
-            [internal.util :as util]
-            [schema.core :as s])
+            [schema.core :as s]
+            [support.test-support :refer [tx-nodes with-clean-system]])
   (:import [clojure.lang Compiler$CompilerException]))
+
+(set! *warn-on-reflection* true)
 
 (g/deftype Int s/Int)
 
@@ -307,7 +308,7 @@
 
 (deftest nodes-can-include-properties
   (testing "a single property"
-    (let [node (g/construct SinglePropertyNode)]
+    (let [node (g/construct SinglePropertyNode :a-property nil)]
       (is (:a-property (g/declared-property-labels SinglePropertyNode)))
       (is (:a-property (-> node g/node-type g/declared-property-labels)))
       (is (some #{:a-property} (keys node)))))
@@ -317,7 +318,7 @@
     (is (= #{:a-property} (g/declared-property-labels SinglePropertyNode))))
 
   (testing "two properties"
-    (let [node (g/construct TwoPropertyNode)]
+    (let [node (g/construct TwoPropertyNode :a-property nil :another-property nil)]
       (is (contains? (g/declared-property-labels TwoPropertyNode) :a-property))
       (is (contains? (g/declared-property-labels TwoPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
@@ -325,10 +326,10 @@
 
   (testing "properties can have defaults"
     (let [node (g/construct TwoPropertyNode)]
-      (is (= "default value" (:a-property node)))))
+      (is (= "default value" (gt/get-property node (g/now) :a-property)))))
 
   (testing "properties are inherited"
-    (let [node (g/construct InheritedPropertyNode)]
+    (let [node (g/construct InheritedPropertyNode :a-property nil :another-property nil)]
       (is (contains? (g/declared-property-labels InheritedPropertyNode) :a-property))
       (is (contains? (g/declared-property-labels InheritedPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
@@ -344,8 +345,8 @@
 
   (testing "property defaults can be inherited or overridden"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (= "default value" (:a-property node)))
-      (is (= -1              (:another-property node)))))
+      (is (= "default value" (gt/get-property node (g/now) :a-property)))
+      (is (= -1              (gt/get-property node (g/now) :another-property)))))
 
   (testing "output dependencies include properties"
     (let [deps (g/input-dependencies InheritedPropertyNode)]
@@ -900,13 +901,13 @@
 (g/defnk produce-all [test :as all]
   all)
 
-(g/defnk produce-all-intrinsics [test _node-id _this :as all]
+(g/defnk produce-all-intrinsics [test _node-id _this ^:unsafe _evaluation-context :as all]
   all)
 
 (g/defnode AsAllNode
   (property test g/Str (default "test"))
   (output inline g/Any (g/fnk [test :as all] all))
-  (output inline-intrinsics g/Any (g/fnk [test _node-id _this :as all] all))
+  (output inline-intrinsics g/Any (g/fnk [test _node-id _this ^:unsafe _evaluation-context :as all] all))
   (output defnk g/Any produce-all)
   (output defnk-intrinsics g/Any produce-all-intrinsics))
 
@@ -914,9 +915,9 @@
   (with-clean-system
     (let [[n] (tx-nodes (g/make-node world AsAllNode))]
       (is (= {:test "test"} (g/node-value n :inline)))
-      (is (= #{:test :_node-id :_this} (set (keys (g/node-value n :inline-intrinsics)))))
+      (is (= #{:test :_node-id :_this :_evaluation-context} (set (keys (g/node-value n :inline-intrinsics)))))
       (is (= {:test "test"} (g/node-value n :defnk)))
-      (is (= #{:test :_node-id :_this} (set (keys (g/node-value n :defnk-intrinsics))))))))
+      (is (= #{:test :_node-id :_this :_evaluation-context} (set (keys (g/node-value n :defnk-intrinsics))))))))
 
 ;; try on output
 (g/defnode TryModifierOnErrorOutput

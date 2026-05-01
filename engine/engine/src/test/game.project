@@ -11,12 +11,12 @@ uri = src/test/build/default
 [physics]
 world_count = 18
 [collection_proxy]
-max_count = 17
+max_count = 60
 [particle_fx]
 max_count = 1
 
 [display]
-update_frequency = 30
+update_frequency = 0
 
 [physics]
 update_frequency = 0

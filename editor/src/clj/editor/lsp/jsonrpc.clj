@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -42,7 +42,8 @@
                                (throw (ex-info "Method not found" {:jsonrpc/code -32601 :method (:method message)})))]
                (handler (:params message)))}
     (catch Throwable e
-      (error-reporting/report-exception! e)
+      (when-not (Boolean/getBoolean "defold.tests")
+        (error-reporting/report-exception! e))
       {:jsonrpc "2.0"
        :id (:id message)
        :error {:code (:jsonrpc/code (ex-data e) -32603)
@@ -116,7 +117,7 @@
                         close
 
   Returns a message sink: a chan to put messages to send to the language server,
-  a message is a map with following keys:
+  a message is a map with the following keys:
     :method         server's JSON-RPC method name, a string, required
     :params         server's JSON-RPC method parameter map, optional
     :response-ch    a channel that might eventually receive a response and

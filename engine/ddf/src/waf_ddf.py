@@ -1,12 +1,12 @@
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,7 +22,6 @@ import waflib.Context
 
 waflib.Task.task_factory('ddf_jar', '${JAR} ${JARCREATE} ${TGT} ${DDF_JAR_OPTIONS}',
                       color='PINK',
-                      after='apply_java',
                       shell=False)
 
 # TODO: Should be ddf and not '*'.
@@ -108,7 +107,7 @@ def configure(conf):
     conf.find_program('ddfc_cxx', var='DDFC_CXX', mandatory = True)
 
 # The "protoc-gen-ddf" adds a new plugin with name "ddf", and protoc automatically checks for the "--ddf_out"
-bproto = waflib.Task.task_factory('bproto', 'protoc \
+bproto = waflib.Task.task_factory('bproto', '${PROTOC} \
 --plugin=protoc-gen-ddf=${DDFC_CXX} \
 --ddf_out=${TGT[0].parent.abspath()} \
 -I ../${SRC[0].parent.srcpath()} -I ${SRC[0].parent.parent.abspath()} ${PROTOC_FLAGS} ${SRC}',
@@ -131,21 +130,21 @@ def bproto_file(self, node):
     if hasattr(self, "ddf_namespace"):
         protoc.env['ddf_options'] = '--ns %s' % self.ddf_namespace
 
-proto_b = waflib.Task.task_factory('proto_b', 'protoc -o${TGT} -I ../${SRC[0].parent.srcpath()} -I ${SRC[0].parent.parent.abspath()} ${PROTOC_FLAGS} ${SRC}',
+proto_b = waflib.Task.task_factory('proto_b', '${PROTOC} -o${TGT} -I ../${SRC[0].parent.srcpath()} -I ${SRC[0].parent.parent.abspath()} ${PROTOC_FLAGS} ${SRC}',
                                  color='PINK',
                                  before='c cxx',
                                  shell=True)
 
 proto_b.scan = scan
 
-proto_gen_cc = waflib.Task.task_factory('proto_gen_cc', 'protoc --cpp_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${SRC[0].abspath()}',
+proto_gen_cc = waflib.Task.task_factory('proto_gen_cc', '${PROTOC} --cpp_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${SRC[0].abspath()}',
                                       color='RED',
                                       before='c cxx',
                                       after='proto_b',
                                       shell=True)
 proto_gen_cc.scan = scan
 
-proto_gen_py = waflib.Task.task_factory('proto_gen_py', 'protoc --python_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${PROTOC_FLAGS} ${SRC[0].abspath()}',
+proto_gen_py = waflib.Task.task_factory('proto_gen_py', '${PROTOC} --python_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${PROTOC_FLAGS} ${SRC[0].abspath()}',
                                      color='RED',
                                      before='c cxx',
                                      after='proto_b',
@@ -158,7 +157,7 @@ proto_gen_py_package = waflib.Task.task_factory('proto_gen_py_package', 'echo ""
                                              after='proto_b',
                                              shell=True)
 
-proto_gen_java = waflib.Task.task_factory('proto_gen_java', 'protoc --java_out=${JAVA_OUT} ${PROTOC_FLAGS} ${SRC}',
+proto_gen_java = waflib.Task.task_factory('proto_gen_java', '${PROTOC} --java_out=${JAVA_OUT} ${PROTOC_FLAGS} ${SRC}',
                                        color='RED',
                                        
                                        after='proto_b',
@@ -313,8 +312,11 @@ def proto_file(self, node):
                 pkg_task.set_inputs(node)
                 pkg_task.set_outputs(pkg_out)
                 gen_py_proto_packages.add(py_out.parent.abspath())
-                if do_install:
+                install_py_proto_packages = getattr(self.bld, 'install_py_proto_packages', set())
+                if do_install and rel_path and rel_path not in install_py_proto_packages:
                     self.bld.install_files('${PREFIX}/lib/python/%s' % rel_path, pkg_out)
+                    install_py_proto_packages.add(rel_path)
+                    self.bld.install_py_proto_packages = install_py_proto_packages
 
                 # Only create __init__.py once
                 gen_py_proto_packages.add(py_out.parent.abspath())
@@ -358,4 +360,3 @@ def proto_file(self, node):
             self.ddf_javaclass_inputs.append(java_out.change_ext('.class'))
 
             compile_java_file(self, java_out, java_out_dir)
-

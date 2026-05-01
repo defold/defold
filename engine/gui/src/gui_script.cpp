@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,6 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
-
 #include <gameobject/gameobject_props_lua.h>
 #include <gameobject/gameobject_script_util.h>
 
@@ -47,6 +46,7 @@ namespace dmGui
      * @document
      * @name GUI
      * @namespace gui
+     * @language Lua
      */
 
     /*# [type:hash] gui material
@@ -258,7 +258,7 @@ namespace dmGui
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
         const char* path = luaL_checkstring(L, 2);
-        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path, strlen(path)));
+        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path));
         return 1;
     }
 
@@ -291,6 +291,13 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptGetUniqueScriptId(lua_State* L)
+    {
+        Scene* inst = (Scene*)lua_touserdata(L, 1);
+        lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -306,6 +313,7 @@ namespace dmGui
         {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},
         {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    GuiScriptGetInstanceDataTableRef},
+        {dmScript::META_GET_UNIQUE_SCRIPT_ID,           GuiScriptGetUniqueScriptId},
         {0, 0}
     };
 
@@ -398,7 +406,7 @@ namespace dmGui
         }
         else
         {
-            lua_pushstring(L,"<foreign scene node>");
+            lua_pushliteral(L, "<foreign scene node>");
         }
 
         return 1;
@@ -551,6 +559,48 @@ namespace dmGui
         return 1;
     }
 
+    /*# gets the node type
+     *
+     * @name gui.get_type
+     * @param node [type:node] node from which to get the type
+     * @return type [type:constant] type
+     *
+     * - `gui.TYPE_BOX`
+     * - `gui.TYPE_TEXT`
+     * - `gui.TYPE_PIE`
+     * - `gui.TYPE_PARTICLEFX`
+     * - `gui.TYPE_CUSTOM`
+     *
+     * @return subtype [type:number|nil] id of the custom type
+     */
+    static int LuaGetType(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        dmGui::HScene scene = dmGui::GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmGui::NodeType type = dmGui::GetNodeType(scene, hnode);
+        lua_pushnumber(L, type);
+
+        if (type == NODE_TYPE_CUSTOM)
+        {
+            uint32_t subtype = dmGui::GetNodeCustomType(scene, hnode);
+            lua_pushnumber(L, (lua_Number) subtype);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        assert(top + 2 == lua_gettop(L));
+
+        return 2;
+    }
+
     /*# sets the id of the specified node
      *
      * Set the id of the specicied node to a new value.
@@ -600,8 +650,8 @@ namespace dmGui
         return 0;
     }
 
-    /*# gets the named property of a specified gui node 
-     * 
+    /*# gets the named property of a specified gui node
+     *
      * Instead of using specific getters such as gui.get_position or gui.get_scale,
      * you can use gui.get instead and supply the property as a string or a hash.
      * While this function is similar to go.get, there are a few more restrictions
@@ -627,9 +677,9 @@ namespace dmGui
      *
      * @name gui.get
      * @param node [type:node] node to get the property for
-     * @param property [type:string|hash|constant] the property to retrieve 
+     * @param property [type:string|hash|constant] the property to retrieve
      * @param [options] [type:table] optional options table (only applicable for material constants)
-     * - `index` [type:integer] index into array property (1 based)
+     * - `index` [type:number] index into array property (1 based)
      *
      * @examples
      *
@@ -676,17 +726,16 @@ namespace dmGui
             return 1;
         }
 
-        dmGameObject::PropertyOptions property_options = {};
-        bool index_requested = false;
+        dmGameObject::LuaToPropertyOptionsResult options_result = {};
 
         if (lua_gettop(L) >= 3)
         {
-            dmGameObject::LuaToPropertyOptions(L, 3, &property_options, property_id, &index_requested);
+            dmGameObject::LuaToPropertyOptions(L, 3, &options_result);
         }
 
         dmMessage::URL target = {};
         dmGameObject::PropertyDesc property_desc;
-        dmGameObject::PropertyResult property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+        dmGameObject::PropertyResult property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &options_result.m_Options) ?
              dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
 
         bool is_matrix_type = property_desc.m_Variant.m_Type == dmGameObject::PROPERTY_TYPE_MATRIX4;
@@ -696,13 +745,13 @@ namespace dmGui
             array_size = property_desc.m_ArrayLength / 4;
         }
 
-        if (property_res == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && array_size > 1)
+        if (property_res == dmGameObject::PROPERTY_RESULT_OK && !options_result.m_IndexRequested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && array_size > 1)
         {
             lua_newtable(L);
 
             // We already have the first value, so no need to get it again.
             // But we do need to check the result, we could still get errors even if the result is OK
-            int handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+            int handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, options_result.m_Options, options_result.m_IndexRequested, options_result.m_KeysRequested);
             if (handle_go_get_result != 1)
             {
                 return handle_go_get_result;
@@ -710,13 +759,18 @@ namespace dmGui
 
             lua_rawseti(L, -2, 1);
 
+            dmGameObject::PropertyOptions get_material_property_opts;
+            dmGameObject::AddPropertyOptionsIndex(&get_material_property_opts, 0);
+
             for (int i = 1; i < array_size; ++i)
             {
-                property_options.m_Index = i;
-                property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+                bool did_set = SetPropertyOptionsByIndex(&get_material_property_opts, 0, i);
+                assert(did_set);
+
+                property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &get_material_property_opts) ?
                         dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
 
-                handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+                handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, get_material_property_opts, options_result.m_IndexRequested, options_result.m_KeysRequested);
                 if (handle_go_get_result != 1)
                 {
                     return handle_go_get_result;
@@ -728,11 +782,11 @@ namespace dmGui
             return 1;
         }
 
-        return dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+        return dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, options_result.m_Options, options_result.m_IndexRequested, options_result.m_KeysRequested);
     }
 
-    /*# sets the named property of a specified gui node 
-     * 
+    /*# sets the named property of a specified gui node
+     *
      * Instead of using specific setteres such as gui.set_position or gui.set_scale,
      * you can use gui.set instead and supply the property as a string or a hash.
      * While this function is similar to go.get and go.set, there are a few more restrictions
@@ -766,11 +820,12 @@ namespace dmGui
      * If the material has a constant array called 'tint_array' specified in the material, you can use `gui.set(node, "tint_array", vmath.vec4(1,0,0,1), { index = 4})` to set the fourth array element to a different value.
      *
      * @name gui.set
-     * @param node [type:node] node to set the property for
-     * @param property [type:string|hash|constant] the property to set 
-     * @param value [type:number|vector4|vector3|quat] the property to set
+     * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
+     * @param property [type:string|hash|constant] the property to set
+     * @param value [type:number|vector4|vector3|quaternion] the property to set
      * @param [options] [type:table] optional options table (only applicable for material constants)
-     * - `index` [type:integer] index into array property (1 based)
+     * - `index` [type:number] index into array property (1 based)
+     * - `key` [type:hash] name of internal property
      *
      * @examples
      *
@@ -813,6 +868,21 @@ namespace dmGui
      * -- update a sub-element in an array constant at position 4
      * gui.set(node, "tint_array.x", 1, {index = 4})
      * ```
+     *
+     * Set a named property
+     *
+     * ```lua
+     * function on_message(self, message_id, message, sender)
+     *    if message_id == hash("set_font") then
+     *        gui.set(msg.url(), "fonts", message.font, {key = "my_font_name"})
+     *        gui.set_font(gui.get_node("text"), "my_font_name")
+     *    elseif message_id == hash("set_texture") then
+     *        gui.set(msg.url(), "textures", message.texture, {key = "my_texture"})
+     *        gui.set_texture(gui.get_node("box"), "my_texture")
+     *        gui.play_flipbook(gui.get_node("box"), "logo_256")
+     *    end
+     * end
+     * ```
      */
     static int LuaSet(lua_State* L)
     {
@@ -820,11 +890,47 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
 
-        HNode hnode;
-        LuaCheckNodeInternal(L, 1, &hnode);
-
         dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+
+        dmGameObject::PropertyVar property_var;
+        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
+
+        if (result != dmGameObject::PROPERTY_RESULT_OK)
+        {
+            return DM_LUA_ERROR("Property '%s' has an unsupported type", dmHashReverseSafe64(property_hash));
+        }
+
+        dmGameObject::LuaToPropertyOptionsResult options_result = {};
+
+        if (lua_gettop(L) > 3)
+        {
+            dmGameObject::LuaToPropertyOptions(L, 4, &options_result);
+        }
+
+        if (dmScript::IsURL(L, 1))
+        {
+            dmMessage::URL sender;
+            dmScript::GetURL(L, &sender);
+            dmMessage::URL target;
+            dmScript::ResolveURL(L, 1, &target, &sender);
+            bool is_self = (sender.m_Socket == target.m_Socket) &&
+                           (sender.m_Path == target.m_Path) &&
+                           (sender.m_Fragment == target.m_Fragment);
+            if (!is_self)
+            {
+                return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
+            }
+            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
+            result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
+            if (result != dmGameObject::PROPERTY_RESULT_OK)
+            {
+                return HandleGoSetResult(L, result, property_hash, instance, target, options_result.m_Options);
+            }
+            return 0;
+        }
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
 
         if (pd)
         {
@@ -877,25 +983,12 @@ namespace dmGui
             return 0;
         }
 
-        dmGameObject::PropertyVar property_var;
-        dmGameObject::PropertyOptions property_options = {};
-        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
-
-        if (lua_gettop(L) > 3)
-        {
-            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
-            if (options_result != 0)
-            {
-                return options_result;
-            }
-        }
-
-        if (result == dmGameObject::PROPERTY_RESULT_OK && dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
+        if (dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &options_result.m_Options))
         {
             return 0;
         }
 
-        return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
+        return DM_LUA_ERROR("Property '%s' not found", dmHashReverseSafe64(property_hash));
     }
 
     /*# gets the index of the specified node
@@ -1042,245 +1135,245 @@ namespace dmGui
     /*# once forward
      *
      * @name gui.PLAYBACK_ONCE_FORWARD
-     * @variable
+     * @constant
      */
     /*# once backward
      *
      * @name gui.PLAYBACK_ONCE_BACKWARD
-     * @variable
+     * @constant
      */
     /*# once forward and then backward
      *
      * @name gui.PLAYBACK_ONCE_PINGPONG
-     * @variable
+     * @constant
      */
     /*# loop forward
      *
      * @name gui.PLAYBACK_LOOP_FORWARD
-     * @variable
+     * @constant
      */
     /*# loop backward
      *
      * @name gui.PLAYBACK_LOOP_BACKWARD
-     * @variable
+     * @constant
      */
     /*# ping pong loop
      *
      * @name gui.PLAYBACK_LOOP_PINGPONG
-     * @variable
+     * @constant
      */
 
     /*# linear interpolation
      *
      * @name gui.EASING_LINEAR
-     * @variable
+     * @constant
      */
     /*# in-quadratic
      *
      * @name gui.EASING_INQUAD
-     * @variable
+     * @constant
      */
     /*# out-quadratic
      *
      * @name gui.EASING_OUTQUAD
-     * @variable
+     * @constant
      */
     /*# in-out-quadratic
      *
      * @name gui.EASING_INOUTQUAD
-     * @variable
+     * @constant
      */
     /*# out-in-quadratic
      *
      * @name gui.EASING_OUTINQUAD
-     * @variable
+     * @constant
      */
     /*# in-cubic
      *
      * @name gui.EASING_INCUBIC
-     * @variable
+     * @constant
      */
     /*# out-cubic
      *
      * @name gui.EASING_OUTCUBIC
-     * @variable
+     * @constant
      */
     /*# in-out-cubic
      *
      * @name gui.EASING_INOUTCUBIC
-     * @variable
+     * @constant
      */
     /*# out-in-cubic
      *
      * @name gui.EASING_OUTINCUBIC
-     * @variable
+     * @constant
      */
     /*# in-quartic
      *
      * @name gui.EASING_INQUART
-     * @variable
+     * @constant
      */
     /*# out-quartic
      *
      * @name gui.EASING_OUTQUART
-     * @variable
+     * @constant
      */
     /*# in-out-quartic
      *
      * @name gui.EASING_INOUTQUART
-     * @variable
+     * @constant
      */
     /*# out-in-quartic
      *
      * @name gui.EASING_OUTINQUART
-     * @variable
+     * @constant
      */
     /*# in-quintic
      *
      * @name gui.EASING_INQUINT
-     * @variable
+     * @constant
      */
     /*# out-quintic
      *
      * @name gui.EASING_OUTQUINT
-     * @variable
+     * @constant
      */
     /*# in-out-quintic
      *
      * @name gui.EASING_INOUTQUINT
-     * @variable
+     * @constant
      */
     /*# out-in-quintic
      *
      * @name gui.EASING_OUTINQUINT
-     * @variable
+     * @constant
      */
     /*# in-sine
      *
      * @name gui.EASING_INSINE
-     * @variable
+     * @constant
      */
     /*# out-sine
      *
      * @name gui.EASING_OUTSINE
-     * @variable
+     * @constant
      */
     /*# in-out-sine
      *
      * @name gui.EASING_INOUTSINE
-     * @variable
+     * @constant
      */
     /*# out-in-sine
      *
      * @name gui.EASING_OUTINSINE
-     * @variable
+     * @constant
      */
     /*# in-exponential
      *
      * @name gui.EASING_INEXPO
-     * @variable
+     * @constant
      */
     /*# out-exponential
      *
      * @name gui.EASING_OUTEXPO
-     * @variable
+     * @constant
      */
     /*# in-out-exponential
      *
      * @name gui.EASING_INOUTEXPO
-     * @variable
+     * @constant
      */
     /*# out-in-exponential
      *
      * @name gui.EASING_OUTINEXPO
-     * @variable
+     * @constant
      */
     /*# in-circlic
      *
      * @name gui.EASING_INCIRC
-     * @variable
+     * @constant
      */
     /*# out-circlic
      *
      * @name gui.EASING_OUTCIRC
-     * @variable
+     * @constant
      */
     /*# in-out-circlic
      *
      * @name gui.EASING_INOUTCIRC
-     * @variable
+     * @constant
      */
     /*# out-in-circlic
      *
      * @name gui.EASING_OUTINCIRC
-     * @variable
+     * @constant
      */
     /*# in-elastic
      *
      * @name gui.EASING_INELASTIC
-     * @variable
+     * @constant
      */
     /*# out-elastic
      *
      * @name gui.EASING_OUTELASTIC
-     * @variable
+     * @constant
      */
     /*# in-out-elastic
      *
      * @name gui.EASING_INOUTELASTIC
-     * @variable
+     * @constant
      */
     /*# out-in-elastic
      *
      * @name gui.EASING_OUTINELASTIC
-     * @variable
+     * @constant
      */
     /*# in-back
      *
      * @name gui.EASING_INBACK
-     * @variable
+     * @constant
      */
     /*# out-back
      *
      * @name gui.EASING_OUTBACK
-     * @variable
+     * @constant
      */
     /*# in-out-back
      *
      * @name gui.EASING_INOUTBACK
-     * @variable
+     * @constant
      */
     /*# out-in-back
      *
      * @name gui.EASING_OUTINBACK
-     * @variable
+     * @constant
      */
     /*# in-bounce
      *
      * @name gui.EASING_INBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-bounce
      *
      * @name gui.EASING_OUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# in-out-bounce
      *
      * @name gui.EASING_INOUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-in-bounce
      *
      * @name gui.EASING_OUTINBOUNCE
-     * @variable
+     * @constant
      */
 
     /*# animates a node property
      * This starts an animation of a node property according to the specified parameters.
      * If the node property is already being animated, that animation will be canceled and
      * replaced by the new one. Note however that several different node properties
-     * can be animated simultaneously. Use `gui.cancel_animation` to stop the animation
+     * can be animated simultaneously. Use `gui.cancel_animations` to stop the animation
      * before it has completed.
      *
      * Composite properties of type vector3, vector4 or quaternion
@@ -1401,13 +1494,7 @@ namespace dmGui
         InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
-        dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
-        }
-
+        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
             char buffer[128];
             luaL_error(L, "property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
@@ -1494,13 +1581,13 @@ namespace dmGui
         return 0;
     }
 
-    /*# cancels an ongoing animation
+    /*# cancels a single animation or all animations
      *
-     * If an animation of the specified node is currently running (started by <code>gui.animate</code>), it will immediately be canceled.
+     * If one or more animations of the specified node is currently running (started by <code>gui.animate</code>), they will immediately be canceled.
      *
-     * @name gui.cancel_animation
+     * @name gui.cancel_animations
      * @param node [type:node] node that should have its animation canceled
-     * @param property [type:string|constant] property for which the animation should be canceled
+     * @param [property] [type:nil|string|constant] optional property for which the animation should be canceled
      *
      * - `"position"`
      * - `"rotation"`
@@ -1528,10 +1615,22 @@ namespace dmGui
      * gui.animate(node, "position", pos, go.EASING_LINEAR, 2)
      * ...
      * -- cancel animation of the x component.
-     * gui.cancel_animation(node, "position.x")
+     * gui.cancel_animations(node, "position.x")
+     * ```
+     *
+     * Cancels all property animations on a node in a single call:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * -- animate to new position and scale
+     * gui.animate(node, "position", vmath.vector3(100, 100, 0), go.EASING_LINEAR, 5)
+     * gui.animate(node, "scale", vmath.vector3(0.5), go.EASING_LINEAR, 5)
+     * ...
+     * -- cancel positioning and scaling at once
+     * gui.cancel_animations(node)
      * ```
      */
-    static int LuaCancelAnimation(lua_State* L)
+    static int LuaCancelAnimations(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -1542,14 +1641,13 @@ namespace dmGui
         InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
-        dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
+        dmhash_t property_hash = 0;
+        if (top >= 2 && !lua_isnil(L, 2))
+        {
+            property_hash = dmScript::CheckHashOrString(L, 2);
         }
 
-        if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
+        if (property_hash != 0 && !dmGui::HasPropertyHash(scene, hnode, property_hash)) {
             luaL_error(L, "property '%s' not found", dmHashReverseSafe64(property_hash));
         }
 
@@ -1999,7 +2097,7 @@ namespace dmGui
         return 0;
     }
 
-    static dmImage::Type ToImageType(lua_State*L, const char* type_str)
+    static dmImage::Type ToImageType(lua_State* L, const char* type_str)
     {
         if (strcmp(type_str, "rgb") == 0) {
             return dmImage::TYPE_RGB;
@@ -2007,12 +2105,22 @@ namespace dmGui
             return dmImage::TYPE_RGBA;
         } else if (strcmp(type_str, "l") == 0) {
             return dmImage::TYPE_LUMINANCE;
+        } else if (strcmp(type_str, "astc") == 0) {
+            return dmImage::TYPE_RGBA;
         } else {
             luaL_error(L, "unsupported texture format '%s'", type_str);
         }
 
         // never reached
         return (dmImage::Type) 0;
+    }
+
+    static dmImage::CompressionType ToImageCompressionType(const char* type_str)
+    {
+        if (strcmp(type_str, "astc") == 0) {
+            return dmImage::COMPRESSION_TYPE_ASTC;
+        }
+        return dmImage::COMPRESSION_TYPE_NONE;
     }
 
     /*# create new texture
@@ -2027,6 +2135,7 @@ namespace dmGui
      * - `"rgb"` - RGB</li>
      * - `"rgba"` - RGBA</li>
      * - `"l"` - LUMINANCE</li>
+     * - `"astc"` - ASTC compressed format</li>
      *
      * @param buffer [type:string] texture data
      * @param flip [type:boolean] flip texture vertically
@@ -2060,6 +2169,20 @@ namespace dmGui
      *      end
      * end
      * ```
+     *
+     * @examples
+     *
+     * How to create a texture using .astc format
+     *
+     * ```lua
+     * local path = "/assets/images/logo_4x4.astc"
+     * local buffer = sys.load_resource(path)
+     * local n = gui.new_box_node(pos, vmath.vector3(size, size, 0))
+     * -- size is read from the .astc buffer
+     * -- flip is not supported
+     * gui.new_texture(path, 0, 0, "astc", buffer, false)
+     * gui.set_texture(n, path)
+     * ```
      */
     static int LuaNewTexture(lua_State* L)
     {
@@ -2090,7 +2213,8 @@ namespace dmGui
         flip = !flip;
 
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = NewDynamicTexture(scene, name, width, height, type, flip, buffer, buffer_size);
+        dmImage::CompressionType compression_type = ToImageCompressionType(type_str);
+        Result r = NewDynamicTexture(scene, name, width, height, type, compression_type, flip, buffer, buffer_size);
 
         if (r == RESULT_OK)
         {
@@ -2158,6 +2282,7 @@ namespace dmGui
      *   <li><code>"rgb"</code> - RGB</li>
      *   <li><code>"rgba"</code> - RGBA</li>
      *   <li><code>"l"</code> - LUMINANCE</li>
+     *   <li><code>"astc"</code> - ASTC compressed format</li>
      * </ul>
      * @param buffer [type:string] texture data
      * @param flip [type:boolean] flip texture vertically
@@ -2217,7 +2342,8 @@ namespace dmGui
         flip = !flip;
 
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = SetDynamicTextureData(scene, name, width, height, type, flip, buffer, buffer_size);
+        dmImage::CompressionType compression_type = ToImageCompressionType(type_str);
+        Result r = SetDynamicTextureData(scene, name, width, height, type, compression_type, flip, buffer, buffer_size);
         if (r == RESULT_OK) {
             lua_pushboolean(L, 1);
         } else {
@@ -2265,7 +2391,7 @@ namespace dmGui
     }
 
     /*# sets the node material
-     * Set the material on a node. The material must be mapped to the gui scene in the gui editor, 
+     * Set the material on a node. The material must be mapped to the gui scene in the gui editor,
      * and assigning a material is supported for all node types. To set the default material that
      * is assigned to the gui scene node, use `gui.reset_material(node_id)` instead.
      *
@@ -2514,6 +2640,93 @@ namespace dmGui
 
         dmScript::PushHash(L, dmGui::GetLayout(scene));
         assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the scene layout
+     *
+     * Applies a named layout on the GUI scene. This re-applies per-layout node descriptors
+     * and, if a matching Display Profile exists, updates the scene resolution. Emits
+     * the "layout_changed" message to the scene script when the layout actually changes.
+     *
+     * @name gui.set_layout
+     * @param layout [type:string|hash] the layout id to apply
+     * @return [type:boolean] true if the layout exists in the scene and was applied, false otherwise
+     */
+    static int LuaSetLayout(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmhash_t layout_id = dmScript::CheckHashOrString(L, 1);
+
+        // Verify existence
+        bool has_layout = false;
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) == dmGui::RESULT_OK && id == layout_id)
+            {
+                has_layout = true;
+                break;
+            }
+        }
+
+        if (!has_layout)
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        if (!scene->m_ApplyLayoutCallback)
+        {
+            return DM_LUA_ERROR("gui.set_layout is unavailable in this context");
+        }
+
+        scene->m_ApplyLayoutCallback(scene, layout_id);
+        lua_pushboolean(L, 1);
+        return 1;
+    }
+
+    /*# returns available layouts with sizes
+     *
+     * Returns a table mapping each layout id hash to a vector3(width, height, 0). For the default layout,
+     * the current scene resolution is returned. If a layout name is not present in the Display Profiles (or when
+     * no display profiles are assigned), the width/height pair is 0.
+     *
+     * @name gui.get_layouts
+     * @return [type:table] layout_id_hash -> vmath.vector3(width, height, 0)
+     */
+    static int LuaGetLayouts(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        lua_newtable(L);
+
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) != dmGui::RESULT_OK)
+                continue;
+
+            uint32_t w = 0, h = 0;
+            if (id == dmGui::DEFAULT_LAYOUT)
+            {
+                dmGui::GetSceneResolution(scene, w, h);
+            }
+            else if (scene->m_GetDisplayProfileDescCallback)
+            {
+                scene->m_GetDisplayProfileDescCallback(scene, id, &w, &h);
+            }
+
+            dmScript::PushHash(L, id);
+            dmScript::PushVector3(L, dmVMath::Vector3((float)w, (float)h, 0.0f));
+            lua_settable(L, -3);
+        }
+
         return 1;
     }
 
@@ -3459,6 +3672,34 @@ namespace dmGui
         return 0;
     }
 
+    /*# sets the safe area mode for the gui scene
+     *
+     * Sets how the safe area is applied to this gui scene.
+     *
+     * @name gui.set_safe_area_mode
+     * @param mode [type:constant] safe area mode
+     *
+     * - `gui.SAFE_AREA_NONE`
+     * - `gui.SAFE_AREA_LONG`
+     * - `gui.SAFE_AREA_SHORT`
+     * - `gui.SAFE_AREA_BOTH`
+     */
+    static int LuaSetSafeMode(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        int mode = luaL_checkinteger(L, 1);
+        if (mode < SAFE_AREA_NONE || mode > SAFE_AREA_BOTH)
+        {
+            return luaL_error(L, "Invalid safe area mode");
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmGui::SetSceneSafeAreaMode(scene, (dmGui::SafeAreaMode)mode);
+
+        return 0;
+    }
+
     /*# gets the node size mode
      * Returns the size of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
@@ -3883,25 +4124,25 @@ namespace dmGui
     /*# default keyboard
      *
      * @name gui.KEYBOARD_TYPE_DEFAULT
-     * @variable
+     * @constant
      */
 
     /*# number input keyboard
      *
      * @name gui.KEYBOARD_TYPE_NUMBER_PAD
-     * @variable
+     * @constant
      */
 
     /*# email keyboard
      *
      * @name gui.KEYBOARD_TYPE_EMAIL
-     * @variable
+     * @constant
      */
 
     /*# password keyboard
      *
      * @name gui.KEYBOARD_TYPE_PASSWORD
-     * @variable
+     * @constant
      */
 
     /*# shows the on-display keyboard if available [icon:ios] [icon:android]
@@ -3976,7 +4217,7 @@ namespace dmGui
      *
      * @name gui.get_rotation
      * @param node [type:node] node to get the rotation from
-     * @return rotation [type:quat] node rotation
+     * @return rotation [type:quaternion] node rotation
      */
 
     /*# sets the node rotation
@@ -3985,7 +4226,7 @@ namespace dmGui
      *
      * @name gui.set_rotation
      * @param node [type:node] node to set the rotation for
-     * @param rotation [type:quat|vector4] new rotation
+     * @param rotation [type:quaternion|vector4] new rotation
      */
 
     /*# gets the node rotation
@@ -4311,7 +4552,7 @@ namespace dmGui
     }
 
     /*# sets screen position to the node
-     * 
+     *
      * Set the screen position to the supplied node
      *
      * @name gui.set_screen_position
@@ -4329,7 +4570,7 @@ namespace dmGui
     }
 
     /*# convert screen position to the local node position
-     * 
+     *
      * Convert the screen position to the local position of supplied node
      *
      * @name gui.screen_to_local
@@ -4813,12 +5054,14 @@ namespace dmGui
         {"get_node",        LuaGetNode},
         {"get_id",          LuaGetId},
         {"set_id",          LuaSetId},
+        {"get_type",        LuaGetType},
         {"get",             LuaGet},
         {"set",             LuaSet},
         {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
-        {"cancel_animation",LuaCancelAnimation},
+        {"cancel_animation",    LuaCancelAnimations}, // deprecated Lua function name
+        {"cancel_animations",   LuaCancelAnimations},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
         {"new_pie_node",    LuaNewPieNode},
@@ -4851,6 +5094,8 @@ namespace dmGui
         {"get_layer",        LuaGetLayer},
         {"set_layer",        LuaSetLayer},
         {"get_layout",        LuaGetLayout},
+        {"set_layout",        LuaSetLayout},
+        {"get_layouts",       LuaGetLayouts},
         {"get_text_metrics",LuaGetTextMetrics},
         {"get_text_metrics_from_node",LuaGetTextMetricsFromNode},
         {"get_xanchor",     LuaGetXAnchor},
@@ -4870,6 +5115,7 @@ namespace dmGui
         {"set_visible",     LuaSetVisible},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},
+        {"set_safe_area_mode",   LuaSetSafeMode},
         {"get_size_mode",   LuaGetSizeMode},
         {"set_size_mode",   LuaSetSizeMode},
         {"move_above",      LuaMoveAbove},
@@ -4930,262 +5176,312 @@ namespace dmGui
     /*# position property
      *
      * @name gui.PROP_POSITION
-     * @variable
+     * @constant
      */
 
     /*# rotation property
      *
      * @name gui.PROP_ROTATION
-     * @variable
+     * @constant
      */
 
     /*# euler property
      *
      * @name gui.PROP_EULER
-     * @variable
+     * @constant
      */
 
     /*# scale property
      *
      * @name gui.PROP_SCALE
-     * @variable
+     * @constant
      */
 
     /*# color property
      *
      * @name gui.PROP_COLOR
-     * @variable
+     * @constant
      */
 
     /*# outline color property
      *
      * @name gui.PROP_OUTLINE
-     * @variable
+     * @constant
      */
 
     /*# shadow color property
      *
      * @name gui.PROP_SHADOW
-     * @variable
+     * @constant
      */
 
     /*# size property
      *
      * @name gui.PROP_SIZE
-     * @variable
+     * @constant
      */
 
     /*# fill_angle property
      *
      * @name gui.PROP_FILL_ANGLE
-     * @variable
+     * @constant
      */
 
     /*# inner_radius property
      *
      * @name gui.PROP_INNER_RADIUS
-     * @variable
+     * @constant
      */
 
     /*# leading property
      *
      * @name gui.PROP_LEADING
-     * @variable
+     * @constant
      */
 
     /*# tracking property
      *
      * @name gui.PROP_TRACKING
-     * @variable
+     * @constant
      */
 
     /*# slice9 property
      *
      * @name gui.PROP_SLICE9
-     * @variable
+     * @constant
      */
 
     /*# alpha blending
      *
      * @name gui.BLEND_ALPHA
-     * @variable
+     * @constant
      */
 
     /*# additive blending
      *
      * @name gui.BLEND_ADD
-     * @variable
+     * @constant
      */
 
     /*# additive alpha blending
      *
      * @name gui.BLEND_ADD_ALPHA
-     * @variable
+     * @constant
      */
 
     /*# multiply blending
      *
      * @name gui.BLEND_MULT
-     * @variable
+     * @constant
      */
 
     /*# screen blending
      *
      * @name gui.BLEND_SCREEN
-     * @variable
+     * @constant
      */
 
     /*# clipping mode none
      *
      * @name gui.CLIPPING_MODE_NONE
-     * @variable
+     * @constant
      */
 
     /*# clipping mode stencil
      *
      * @name gui.CLIPPING_MODE_STENCIL
-     * @variable
+     * @constant
      */
 
     /*# left x-anchor
      *
      * @name gui.ANCHOR_LEFT
-     * @variable
+     * @constant
      */
 
     /*# right x-anchor
      *
      * @name gui.ANCHOR_RIGHT
-     * @variable
+     * @constant
      */
 
     /*# top y-anchor
      *
      * @name gui.ANCHOR_TOP
-     * @variable
+     * @constant
      */
 
     /*# bottom y-anchor
      *
      * @name gui.ANCHOR_BOTTOM
-     * @variable
+     * @constant
      */
 
     /*# no anchor
      *
      * @name gui.ANCHOR_NONE
-     * @variable
+     * @constant
      */
 
     /*# center pivot
      *
      * @name gui.PIVOT_CENTER
-     * @variable
+     * @constant
      */
     /*# north pivot
      *
      * @name gui.PIVOT_N
-     * @variable
+     * @constant
      */
     /*# north-east pivot
      *
      * @name gui.PIVOT_NE
-     * @variable
+     * @constant
      */
     /*# east pivot
      *
      * @name gui.PIVOT_E
-     * @variable
+     * @constant
      */
     /*# south-east pivot
      *
      * @name gui.PIVOT_SE
-     * @variable
+     * @constant
      */
     /*# south pivot
      *
      * @name gui.PIVOT_S
-     * @variable
+     * @constant
      */
     /*# south-west pivot
      *
      * @name gui.PIVOT_SW
-     * @variable
+     * @constant
      */
     /*# west pivot
      *
      * @name gui.PIVOT_W
-     * @variable
+     * @constant
      */
     /*# north-west pivot
      *
      * @name gui.PIVOT_NW
-     * @variable
+     * @constant
+     */
+
+    /*# box type
+     *
+     * @name gui.TYPE_BOX
+     * @constant
+     */
+    /*# text type
+     *
+     * @name gui.TYPE_TEXT
+     * @constant
+     */
+    /*# pie type
+     *
+     * @name gui.TYPE_PIE
+     * @constant
+     */
+    /*# particlefx type
+     *
+     * @name gui.TYPE_PARTICLEFX
+     * @constant
+     */
+    /*# custom type
+     *
+     * @name gui.TYPE_CUSTOM
+     * @constant
      */
 
     /*# fit adjust mode
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The fit mode ensures that the entire node is visible in the adjusted gui scene.
      * @name gui.ADJUST_FIT
-     * @variable
+     * @constant
      */
 
     /*# zoom adjust mode
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The zoom mode ensures that the node fills its entire area and might make the node exceed it.
      * @name gui.ADJUST_ZOOM
-     * @variable
+     * @constant
      */
 
     /*# stretch adjust mode
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The stretch mode ensures that the node is displayed as is in the adjusted gui scene, which might scale it non-uniformally.
      * @name gui.ADJUST_STRETCH
-     * @variable
+     * @constant
+     */
+
+    /*# no safe area
+     * Safe area mode that ignores safe area insets.
+     * @name gui.SAFE_AREA_NONE
+     * @constant
+     */
+
+    /*# long side safe area
+     * Safe area mode that applies insets only on the long edges.
+     * @name gui.SAFE_AREA_LONG
+     * @constant
+     */
+
+    /*# short side safe area
+     * Safe area mode that applies insets only on the short edges.
+     * @name gui.SAFE_AREA_SHORT
+     * @constant
+     */
+
+    /*# both sides safe area
+     * Safe area mode that applies insets on all edges.
+     * @name gui.SAFE_AREA_BOTH
+     * @constant
      */
 
     /*# elliptical pie node bounds
      * @name gui.PIEBOUNDS_ELLIPSE
-     * @variable
+     * @constant
      */
 
     /*# rectangular pie node bounds
      * @name gui.PIEBOUNDS_RECTANGLE
-     * @variable
+     * @constant
      */
 
 
     /*# manual size mode
      * The size of the node is determined by the size set in the editor, the constructor or by gui.set_size()
      * @name gui.SIZE_MODE_MANUAL
-     * @variable
+     * @constant
      */
 
     /*# automatic size mode
      * The size of the node is determined by the currently assigned texture.
      * @name gui.SIZE_MODE_AUTO
-     * @variable
+     * @constant
      */
 
 
     /*# texture already exists
      * The texture id already exists when trying to use gui.new_texture().
      * @name gui.RESULT_TEXTURE_ALREADY_EXISTS
-     * @variable
+     * @constant
      */
 
     /*# out of resource
      * The system is out of resources, for instance when trying to create a new
      * texture using gui.new_texture().
      * @name gui.RESULT_OUT_OF_RESOURCES
-     * @variable
+     * @constant
      */
 
     /*# data error
      * The provided data is not in the expected format or is in some other way
      * incorrect, for instance the image data provided to gui.new_texture().
      * @name gui.RESULT_DATA_ERROR
-     * @variable
+     * @constant
      */
 
     lua_State* InitializeScript(dmScript::HContext script_context)
@@ -5222,6 +5518,18 @@ namespace dmGui
         SETPROP(slice9, SLICE9)
 
 #undef SETPROP
+
+#define SETTYPE(name) \
+    lua_pushnumber(L, (lua_Number) NODE_TYPE_##name); \
+    lua_setfield(L, -2, "TYPE_"#name);\
+
+    SETTYPE(BOX)
+    SETTYPE(TEXT)
+    SETTYPE(PIE)
+    SETTYPE(PARTICLEFX)
+    SETTYPE(CUSTOM)
+
+#undef SETTYPE
 
 // For backwards compatibility
 #define SETEASINGOLD(name, easing) \
@@ -5357,6 +5665,17 @@ namespace dmGui
 
 #undef SETADJUST
 
+#define SETSAFEAREA(name) \
+        lua_pushnumber(L, (lua_Number) SAFE_AREA_##name); \
+        lua_setfield(L, -2, "SAFE_AREA_"#name);\
+
+        SETSAFEAREA(NONE)
+        SETSAFEAREA(LONG)
+        SETSAFEAREA(SHORT)
+        SETSAFEAREA(BOTH)
+
+#undef SETSAFEAREA
+
 #define SETPLAYBACK(name) \
         lua_pushnumber(L, (lua_Number) PLAYBACK_##name); \
         lua_setfield(L, -2, "PLAYBACK_"#name);\
@@ -5410,7 +5729,7 @@ namespace dmGui
      * to set the initial state of the script and gui scene.
      *
      * @name init
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -5428,7 +5747,7 @@ namespace dmGui
      * from this function since the gui component is about to be destroyed.
      *
      * @name final
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -5444,7 +5763,7 @@ namespace dmGui
      * It can be used to perform any kind of gui related tasks, e.g. animating nodes.
      *
      * @name update
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples
      *
@@ -5497,7 +5816,7 @@ namespace dmGui
      * See the [ref:update] function for examples on how to use this callback-function.
      *
      * @name on_message
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param message_id [type:hash] id of the received message
      * @param message [type:table] a table containing the message data
      */
@@ -5527,22 +5846,37 @@ namespace dmGui
      *
      * Here is a brief description of the available table fields:
      *
-     * Field       | Description
-     * ----------- | ----------------------------------------------------------
-     * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
-     * `pressed`   | If the input was pressed this frame. This is not present for mouse movement.
-     * `released`  | If the input was released this frame. This is not present for mouse movement.
-     * `repeated`  | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
-     * `x`         | The x value of a pointer device, if present.
-     * `y`         | The y value of a pointer device, if present.
-     * `screen_x`  | The screen space x value of a pointer device, if present.
-     * `screen_y`  | The screen space y value of a pointer device, if present.
-     * `dx`        | The change in x value of a pointer device, if present.
-     * `dy`        | The change in y value of a pointer device, if present.
-     * `screen_dx` | The change in screen space x value of a pointer device, if present.
-     * `screen_dy` | The change in screen space y value of a pointer device, if present.
-     * `gamepad`   | The index of the gamepad device that provided the input.
-     * `touch`     | List of touch input, one element per finger, if present. See table below about touch input
+     *
+     * Field         | Description
+     * ------------- | ----------------------------------------------------------
+     * `value`       | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement and text input.
+     * `pressed`     | If the input was pressed this frame. This is not present for mouse movement and text input.
+     * `released`    | If the input was released this frame. This is not present for mouse movement and text input.
+     * `repeated`    | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement and text input.
+     * `x`           | The x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `y`           | The y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_x`    | The screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_y`    | The screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dx`          | The change in x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dy`          | The change in y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dx`   | The change in screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dy`   | The change in screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `gamepad`     | The index of the gamepad device that provided the input. See table below about gamepad input.
+     * `touch`       | List of touch input, one element per finger, if present. See table below about touch input
+     * `text`        | Text input from a (virtual) keyboard or similar.
+     * `marked_text` | Sequence of entered symbols while entering a symbol combination, for example Japanese Kana.
+     *
+     * Gamepad specific fields:
+     *
+     * Field             | Description
+     * ----------------- | ----------------------------------------------------------
+     * `gamepad`         | The index of the gamepad device that provided the input.
+     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
+     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
+     * `gamepad_name`    | Name of the gamepad
+     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
+     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:
      *
@@ -5561,7 +5895,7 @@ namespace dmGui
      * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
@@ -5587,7 +5921,7 @@ namespace dmGui
      * </p>
      *
      * @name on_reload
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua

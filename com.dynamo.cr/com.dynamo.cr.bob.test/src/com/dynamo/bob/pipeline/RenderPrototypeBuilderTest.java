@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,7 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.CompileExceptionError;
 import com.google.protobuf.Message;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
@@ -36,21 +37,17 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
     public void testDataMigration() throws Exception {
         addFile("/test.render_script", "");
 
-        addFile("/test.material", "");
-        addFile("/test.vp", "");
-        addFile("/test.fp", "");
-
         StringBuilder srcShader = new StringBuilder();
         srcShader.append("void main() {}\n");
 
-        build("/test.vp", srcShader.toString());
-        build("/test.fp", srcShader.toString());
+        addFile("/testDataMigration.vp", srcShader.toString());
+        addFile("/testDataMigration.fp", srcShader.toString());
 
         StringBuilder materialSrc = new StringBuilder();
         materialSrc.append("name: \"test_material\"\n");
-        materialSrc.append("vertex_program: \"/test.vp\"\n");
-        materialSrc.append("fragment_program: \"/test.fp\"\n");
-        build("/test.material", materialSrc.toString());
+        materialSrc.append("vertex_program: \"/testDataMigration.vp\"\n");
+        materialSrc.append("fragment_program: \"/testDataMigration.fp\"\n");
+        addFile("/test.material", materialSrc.toString());
 
         {
             final String srcOneMaterial =
@@ -61,14 +58,14 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
                 "}\n";
 
             List<Message> outputs = build("/test.render", srcOneMaterial);
-            RenderPrototypeDesc output = (RenderPrototypeDesc) outputs.get(0);
+            RenderPrototypeDesc output = getMessage(outputs, RenderPrototypeDesc.class);
 
             assertEquals(0, output.getMaterialsList().size());
             assertEquals(1, output.getRenderResourcesList().size());
 
             RenderPrototypeDesc.RenderResourceDesc res_desc = output.getRenderResourcesList().get(0);
             assertTrue(res_desc.getName().equals("test"));
-            assertTrue(res_desc.getPath().equals("/test.materialc"));
+            assertTrue(res_desc.getPath().equals(ResourceUtil.minifyPath("/test.materialc")));
         }
 
         {
@@ -83,19 +80,18 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
                 "   path: \"/test.material\"\n" +
                 "}\n";
 
-            List<Message> outputs = build("/test2.render", srcOneMaterialOneRenderResource);
-            RenderPrototypeDesc output = (RenderPrototypeDesc) outputs.get(0);
+            RenderPrototypeDesc output = getMessage(build("/test2.render", srcOneMaterialOneRenderResource), RenderPrototypeDesc.class);
 
             assertEquals(0, output.getMaterialsList().size());
             assertEquals(2, output.getRenderResourcesList().size());
 
             RenderPrototypeDesc.RenderResourceDesc res_desc_1 = output.getRenderResourcesList().get(0);
             assertTrue(res_desc_1.getName().equals("test"));
-            assertTrue(res_desc_1.getPath().equals("/test.materialc"));
+            assertTrue(res_desc_1.getPath().equals(ResourceUtil.minifyPath("/test.materialc")));
 
             RenderPrototypeDesc.RenderResourceDesc res_desc_2 = output.getRenderResourcesList().get(1);
             assertTrue(res_desc_2.getName().equals("test_2"));
-            assertTrue(res_desc_2.getPath().equals("/test.materialc"));
+            assertTrue(res_desc_2.getPath().equals(ResourceUtil.minifyPath("/test.materialc")));
         }
 
         {

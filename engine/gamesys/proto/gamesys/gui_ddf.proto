@@ -12,6 +12,7 @@ option java_outer_classname = "Gui";
  * @document
  * @name GUI
  * @namespace gui
+ * @language Lua
  */
 
 message NodeDesc
@@ -157,6 +158,10 @@ message NodeDesc
 
     optional string material                = 47;
 
+    // Spine GUI options
+    // Controls whether GUI bone nodes are created for Spine nodes.
+    optional bool   spine_create_bones      = 48 [default = false];
+
 }
 
 message SceneDesc
@@ -215,7 +220,7 @@ message SceneDesc
         required string particlefx  = 2 [(resource)=true];
     }
 
-    required string          script               = 1 [(resource)=true];
+    optional string          script               = 1 [(resource)=true];
     repeated FontDesc        fonts                = 2;
     repeated TextureDesc     textures             = 3;
     optional dmMath.Vector4  background_color     = 4; // Deprecated

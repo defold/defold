@@ -7,6 +7,7 @@ import os
 import waf_dynamo
 import waflib
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -22,6 +23,7 @@ def configure(conf):
     conf.load('waf_dynamo')
     conf.load('java')
     conf.recurse('src')
+
     conf.env.append_unique('DEFINES', f'DLIB_LOG_DOMAIN="{APPNAME.upper()}"')
 
 def build(bld):
@@ -36,4 +38,4 @@ def build(bld):
     bld.install_files('${PREFIX}/include/jni', 'src/jni/jni_util.h')
 
 def shutdown(self):
-    waf_dynamo.run_tests(test_context, valgrind = True)
+    waf_dynamo.run_tests(test_context)

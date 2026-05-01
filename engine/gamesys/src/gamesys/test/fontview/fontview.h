@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,14 +19,15 @@
 
 #include <resource/resource.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.h>
 
 #include <graphics/graphics.h>
 
 #include <hid/hid.h>
 
 #include <render/render.h>
-#include <render/font_renderer.h>
+#include <render/font/font_renderer.h>
+#include <render/font/fontmap.h>
 
 #include <render/render_ddf.h>
 
@@ -40,7 +41,7 @@ namespace dmFontView
         dmHID::HContext m_HidContext;
         dmRender::HFontMap m_FontMap;
         dmRender::HRenderContext m_RenderContext;
-        dmPlatform::HWindow m_Window;
+        HWindow m_Window;
         uint32_t m_ScreenWidth;
         uint32_t m_ScreenHeight;
     };

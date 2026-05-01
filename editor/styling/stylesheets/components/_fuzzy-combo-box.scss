@@ -7,8 +7,8 @@
   .text-field {
     -fx-border-width: 0px;
     -fx-cursor: default;
-    -fx-max-height: 26px;
-    -fx-min-height: 26px;
+    -fx-max-height: 25px;
+    -fx-min-height: 25px;
 
     &:focused {
       -fx-background-color: -df-background-light;
@@ -25,8 +25,8 @@
   }
 
   .arrow-button {
-    -fx-max-height: 26px;
-    -fx-min-height: 26px;
+    -fx-max-height: 25px;
+    -fx-min-height: 25px;
     -fx-padding: 10px 6px 10px 8px;
 
     > .arrow {

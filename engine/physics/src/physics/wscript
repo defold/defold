@@ -1,37 +1,60 @@
 import waflib.Options
 
+from BuildUtility import create_build_utility
+
 def configure(conf):
     pass
 
 def build(bld):
+    build_util = create_build_utility(bld.env)
+
+    common_source         = ['physics.cpp', 'physics_common.cpp']
+
+    box2d_includes        = [build_util.get_dynamo_ext('include', 'box2d')]
+    box2d_source          = bld.path.ant_glob('box2d/*.cpp')
+    box2d_defold_includes = [build_util.get_dynamo_ext('include', 'box2d_defold')]
+    box2d_defold_source   = bld.path.ant_glob('box2d_defold/*.cpp')
+
+    bullet_source         = ['physics_3d.cpp', 'debug_draw_3d.cpp']
+
+    null_source_2d    = ['physics_2d_null.cpp']
+    null_source_3d    = ['physics_3d_null.cpp']
+
     physics = bld.stlib(features = 'cxx',
-                        use = 'DLIB  BULLET',
-                        includes = '. .. ../box2d',
-                        source = bld.path.ant_glob('*.cpp'),
+                        use = 'DLIB BULLET BOX2D_DEFOLD',
+                        includes = ['.', '..'] + box2d_defold_includes,
+                        source = common_source + bullet_source + box2d_defold_source,
                         proto_gen_py = True,
                         target = 'physics')
 
-    physics.source = [x for x in physics.source if not x.name.endswith('null.cpp')]
-
     bld.stlib(features = 'cxx',
               use = 'DLIB',
-              includes = '. ..',
+              includes = ['.', '..'] + box2d_defold_includes,
               proto_gen_py = True,
-              source = ['physics_common.cpp', 'physics_2d_null.cpp', 'physics_3d_null.cpp'],
+              source = ['physics_common.cpp'] + null_source_2d + null_source_3d,
               target = 'physics_null')
 
     bld.stlib(features = 'cxx',
               use = 'DLIB',
-              includes = '. .. ../box2d',
+              includes = ['.', '..'] + box2d_includes,
               proto_gen_py = True,
-              source = ['physics.cpp', 'physics_common.cpp', 'physics_2d.cpp', 'physics_3d_null.cpp', 'debug_draw_2d.cpp'],
+              source = common_source + null_source_3d + box2d_source,
               target = 'physics_2d')
+
+    # This is the old customized Box2D implementation. It's deprecated in favor of the new Box2D V3 implementation, but
+    # we need to keep it around for a bit to support projects that might not want to migrate yet.
+    bld.stlib(features = 'cxx',
+              use = 'DLIB',
+              includes = ['.', '..'] + box2d_defold_includes,
+              proto_gen_py = True,
+              source = common_source + null_source_3d + box2d_defold_source,
+              target = 'physics_2d_defold')
 
     bld.stlib(features = 'cxx',
               use = 'DLIB',
               includes = '. ..',
               proto_gen_py = True,
-              source = ['physics.cpp', 'physics_common.cpp', 'physics_3d.cpp', 'physics_2d_null.cpp', 'debug_draw_3d.cpp'],
+              source = common_source + bullet_source + null_source_2d,
               target = 'physics_3d')
 
     bld.install_files('${PREFIX}/include/physics', 'physics.h')

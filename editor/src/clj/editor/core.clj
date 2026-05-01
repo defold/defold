@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,6 @@
   "Essential node types"
   (:require [cognitect.transit :as transit]
             [dynamo.graph :as g]
-            [editor.types :as types]
             [internal.graph.types :as gt]
             [internal.util :as util]))
 
@@ -119,38 +118,5 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
        scope-id
        (recur basis scope-id node-type)))))
 
-(g/defnode Saveable
-  "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit
-this node to indicate that 'Save' is a meaningful action.
-
-Inheritors are required to supply a production function for the :save output."
-  (output save g/Keyword :abstract))
-
-
-(g/defnode ResourceNode
-  "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename types/PathManipulation (dynamic visible (g/constantly false)))
-
-  (output content g/Any :abstract))
-
-(g/defnode OutlineNode
-  "Mixin. Any OutlineNode can be shown in an outline view.
-
-Inputs:
-- children `[OutlineItem]` - Input values that will be nested beneath this node.
-
-Outputs:
-- tree `OutlineItem` - A single value that contains the display info for this node and all its children."
-  (output outline-children [types/OutlineItem] (g/constantly []))
-  (output outline-label    g/Str :abstract)
-  (output outline-commands [types/OutlineCommand] (g/constantly []))
-  (output outline-tree     types/OutlineItem
-          (g/fnk [_node-id outline-label outline-commands outline-children]
-               {:label outline-label
-                ;; :icon "my type of icon"
-                :node-ref _node-id
-                :commands outline-commands
-                :children outline-children})))
-
 (defprotocol Adaptable
-  (adapt [this t]))
+  (adapt [this t evaluation-context]))

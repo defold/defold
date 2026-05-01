@@ -31,13 +31,12 @@ def configure(conf):
 
     conf.env.append_value('INCLUDES', 'src')
     conf.env.append_value('INCLUDES', 'src/proto')
-    conf.env['STLIB_DLIB']      = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB']      = ['dlib', 'image', 'zip', 'mbedtls']
     conf.env['STLIB_DDF']       = 'ddf'
     conf.env['STLIB_RIG']       = 'rig'
     conf.env['STLIB_RESOURCE']  = 'resource'
     conf.env['STLIB_SCRIPT']    = 'script'
     conf.env['STLIB_EXTENSION'] = 'extension'
-    conf.env['STLIB_HID']       = 'hid_null'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')
 
@@ -51,4 +50,4 @@ def build(bld):
     TestContext.initialize_test_context(test_context, bld)
 
 def shutdown(self):
-    waf_dynamo.run_tests(test_context, valgrind = True)
+    waf_dynamo.run_tests(test_context, folders = {"build/src/gameobject/test": "build/src/gameobject/test"})

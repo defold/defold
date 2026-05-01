@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,23 +28,18 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/profile.h>
-#include <dmsdk/extension/extension_gen.hpp>
+#include <dmsdk/extension/extension.hpp>
 
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
 #include <resource/resource_mounts.h>
 #include <resource/resource_manifest.h> // project id len
-#include <resource/resource_verify.h>   // VerifyManifest
+#include <resource/resource_verify.h>
 #include <resource/resource_util.h>     // BytesToHexString for debug printing
 #include <resource/providers/provider.h>
-
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#endif
 
 namespace dmLiveUpdate
 {
@@ -112,13 +107,14 @@ namespace dmLiveUpdate
         dmResourceMounts::HContext      m_ResourceMounts;       // The resource mounts
         dmResourceProvider::HArchive    m_ResourceBaseArchive;  // The "game.arcd" archive
 
-        dmJobThread::HContext           m_JobThread;
+        HJobContext                     m_JobContext;
 
         // Legacy functionality
         dmResource::HFactory            m_ResourceFactory;      // Resource system factory
         dmResourceProvider::HArchive    m_LiveupdateArchive;
         dmResource::HManifest           m_LiveupdateArchiveManifest;
         bool                            m_IsEnabled;
+        bool                            m_MainContextHasExcludedResources;
 
     } g_LiveUpdate;
 
@@ -379,7 +375,7 @@ namespace dmLiveUpdate
 
     static bool IsLiveupdateThreadDisabled()
     {
-        if (!g_LiveUpdate.m_JobThread)
+        if (!g_LiveUpdate.m_JobContext)
         {
             dmLogError("Liveupdate function can't be called. Liveupdate disabled");
             return true;
@@ -418,9 +414,15 @@ namespace dmLiveUpdate
     // ** LiveUpdate async functions
     // ******************************************************************
 
-    static bool PushAsyncJob(dmJobThread::FProcess process, dmJobThread::FCallback callback, void* jobctx, void* jobdata)
+    static bool PushAsyncJob(FJobProcess process, FJobCallback callback, void* jobctx, void* jobdata)
     {
-        dmJobThread::PushJob(g_LiveUpdate.m_JobThread, process, callback, jobctx, jobdata);
+        Job job = {0};
+        job.m_Process = process;
+        job.m_Callback = callback;
+        job.m_Context = jobctx;
+        job.m_Data = jobdata;
+        HJob hjob = JobSystemCreateJob(g_LiveUpdate.m_JobContext, &job);
+        JobSystemPushJob(g_LiveUpdate.m_JobContext, hjob);
         return true;
     }
 
@@ -449,7 +451,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int StoreResourceProcess(LiveUpdateCtx* jobctx, ResourceInfo* job)
+    static int StoreResourceProcess(HJobContext context, HJob hjob, LiveUpdateCtx* jobctx, ResourceInfo* job)
     {
         if (jobctx->m_LiveupdateArchiveManifest == 0 || jobctx->m_LiveupdateArchive == 0)
         {
@@ -478,8 +480,8 @@ namespace dmLiveUpdate
 
         return dmResourceProvider::RESULT_OK == result;
     }
-    // Called on the main thread (see dmJobThread::Update below)
-    static void StoreResourceFinished(LiveUpdateCtx* jobctx, ResourceInfo* job, int result)
+    // Called on the main thread (see JobSystemUpdate below)
+    static void StoreResourceFinished(HJobContext context, HJob hjob, JobSystemStatus status, LiveUpdateCtx* jobctx, ResourceInfo* job, int result)
     {
         if (job->m_Callback)
             job->m_Callback(result == 1, job->m_CallbackData);
@@ -518,7 +520,7 @@ namespace dmLiveUpdate
         info->m_Callback = callback;
         info->m_CallbackData = callback_data;
 
-        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreResourceProcess, (dmJobThread::FCallback)StoreResourceFinished, (void*)&g_LiveUpdate, info);
+        bool res = dmLiveUpdate::PushAsyncJob((FJobProcess)StoreResourceProcess, (FJobCallback)StoreResourceFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -538,7 +540,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int StoreManifestProcess(LiveUpdateCtx* jobctx, StoreManifestInfo* job)
+    static int StoreManifestProcess(HJobContext context, HJob hjob, LiveUpdateCtx* jobctx, StoreManifestInfo* job)
     {
         dmResource::Manifest* manifest = 0;
         dmResource::Result result = dmResource::LoadManifestFromBuffer(job->m_Data, job->m_DataLength, &manifest);
@@ -547,8 +549,7 @@ namespace dmLiveUpdate
         {
             if (job->m_Verify)
             {
-                const char* public_key_path = dmResource::GetPublicKeyPath(g_LiveUpdate.m_ResourceFactory);
-                result = dmResource::VerifyManifest(manifest, public_key_path);
+                result = dmResource::VerifyManifestSupportedEngineVersion(manifest);
                 if (result != dmResource::RESULT_OK)
                 {
                     dmLogError("Manifest verification failed. Manifest was not stored. %d %s", result, dmResource::ResultToString(result));
@@ -582,8 +583,8 @@ namespace dmLiveUpdate
         return result;
     }
 
-    // Called on the main thread (see dmJobThread::Update below)
-    static void StoreManifestFinished(LiveUpdateCtx* jobctx, StoreManifestInfo* job, int result)
+    // Called on the main thread (see JobSystemUpdate below)
+    static void StoreManifestFinished(HJobContext context, HJob hjob, JobSystemStatus status, LiveUpdateCtx* jobctx, StoreManifestInfo* job, int result)
     {
         dmLogInfo("Finishing manifest job");
         if (job->m_Callback)
@@ -616,7 +617,7 @@ namespace dmLiveUpdate
         info->m_CallbackData = callback_data;
         info->m_Verify = true;
 
-        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreManifestProcess, (dmJobThread::FCallback)StoreManifestFinished, (void*)&g_LiveUpdate, info);
+        bool res = dmLiveUpdate::PushAsyncJob((FJobProcess)StoreManifestProcess, (FJobCallback)StoreManifestFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -637,12 +638,11 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int StoreArchiveProcess(LiveUpdateCtx* jobctx, StoreArchiveInfo* job)
+    static int StoreArchiveProcess(HJobContext context, HJob hjob, LiveUpdateCtx* jobctx, StoreArchiveInfo* job)
     {
         if (job->m_Verify)
         {
-            const char* public_key_path = dmResource::GetPublicKeyPath(g_LiveUpdate.m_ResourceFactory);
-            dmResource::Result result = dmLiveUpdate::VerifyZipArchive(job->m_Path, public_key_path);
+            dmResource::Result result = dmLiveUpdate::VerifyZipArchive(job->m_Path);
             if (dmResource::RESULT_OK != result)
             {
                 dmLogError("Zip archive verification failed. Archive was not stored. %d %s", result, dmResource::ResultToString(result));
@@ -691,8 +691,8 @@ namespace dmLiveUpdate
         return RESULT_OK;
     }
 
-    // Called on the main thread (see dmJobThread::Update below)
-    static void StoreArchiveFinished(LiveUpdateCtx* jobctx, StoreArchiveInfo* job, int result)
+    // Called on the main thread (see JobSystemUpdate below)
+    static void StoreArchiveFinished(HJobContext context, HJob hjob, JobSystemStatus status, LiveUpdateCtx* jobctx, StoreArchiveInfo* job, int result)
     {
         dmLogInfo("Finishing archive job: %d", result);
         if (job->m_Callback)
@@ -726,7 +726,7 @@ namespace dmLiveUpdate
         info->m_CallbackData = callback_data;
         info->m_Verify = true;
 
-        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreArchiveProcess, (dmJobThread::FCallback)StoreArchiveFinished, (void*)&g_LiveUpdate, info);
+        bool res = dmLiveUpdate::PushAsyncJob((FJobProcess)StoreArchiveProcess, (FJobCallback)StoreArchiveFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -748,7 +748,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int AddMountProcess(LiveUpdateCtx* jobctx, AddMountInfo* job)
+    static int AddMountProcess(HJobContext context, HJob hjob, LiveUpdateCtx* jobctx, AddMountInfo* job)
     {
         dmURI::Parts uri;
         dmURI::Parse(job->m_Uri, &uri);
@@ -785,8 +785,8 @@ namespace dmLiveUpdate
         return RESULT_OK;
     }
 
-    // Called on the main thread (see dmJobThread::Update below)
-    static void AddMountFinished(LiveUpdateCtx* jobctx, AddMountInfo* job, int result)
+    // Called on the main thread (see JobSystemUpdate below)
+    static void AddMountFinished(HJobContext context, HJob hjob, JobSystemStatus status, LiveUpdateCtx* jobctx, AddMountInfo* job, int result)
     {
         dmLogInfo("Finishing add mount job: %d", result);
         if (job->m_Callback)
@@ -811,7 +811,7 @@ namespace dmLiveUpdate
         info->m_Callback = callback;
         info->m_CallbackData = callback_data;
 
-        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)AddMountProcess, (dmJobThread::FCallback)AddMountFinished, (void*)&g_LiveUpdate, info);
+        bool res = dmLiveUpdate::PushAsyncJob((FJobProcess)AddMountProcess, (FJobCallback)AddMountFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -857,7 +857,7 @@ namespace dmLiveUpdate
     }
 
     // ******************************************************************
-    // **
+    // ** DEPRECATED SCRIPT API
     // ******************************************************************
 
     bool HasLiveUpdateMount()
@@ -885,11 +885,25 @@ namespace dmLiveUpdate
     }
 
     // ******************************************************************
+    // ** SCRIPT API
+    // ******************************************************************
+
+    bool IsBuiltWithExcludedFiles()
+    {
+        return g_LiveUpdate.m_MainContextHasExcludedResources;
+    }
+
+    // ******************************************************************
     // ** LiveUpdate life cycle functions
     // ******************************************************************
 
     static dmExtension::Result InitializeLegacy(dmExtension::Params* params)
     {
+        if (!g_LiveUpdate.m_ResourceBaseArchive)
+        {
+            return dmExtension::RESULT_INIT_ERROR;
+        }
+
         g_LiveUpdate.m_LiveupdateArchive = FindLiveupdateArchiveMount(g_LiveUpdate.m_ResourceMounts, LIVEUPDATE_LEGACY_MOUNT_NAME);
         if (!g_LiveUpdate.m_LiveupdateArchive)
         {
@@ -919,44 +933,49 @@ namespace dmLiveUpdate
         }
         g_LiveUpdate.m_IsEnabled = true;
 
+        // We initialize scripting first, as we might want to use file/http providers
+        JobSystemCreateParams job_thread_create_param;
+        job_thread_create_param.m_ThreadNamePrefix  = "liveupdate";
+        job_thread_create_param.m_ThreadCount       = 1;
+
+        g_LiveUpdate.m_JobContext = JobSystemCreate(&job_thread_create_param);
+
         dmResource::HFactory factory = (dmResource::HFactory)params->m_ResourceFactory;
+
+        if (g_LiveUpdate.m_JobContext) // Make the liveupdate module `nil` if it isn't available
+        {
+            if (params->m_L) // TODO: until unit tests have been updated with a Lua context
+                ScriptInit(params->m_L, factory);
+        }
 
         g_LiveUpdate.m_ResourceFactory = factory;
         g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
         g_LiveUpdate.m_ResourceBaseArchive = dmResource::GetBaseArchive(factory);
+        g_LiveUpdate.m_MainContextHasExcludedResources = false;
 
-        if (!g_LiveUpdate.m_ResourceBaseArchive)
+        if (g_LiveUpdate.m_ResourceBaseArchive)
         {
-            return dmExtension::RESULT_OK;
-        }
+            dmResource::HManifest manifest;
+            dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
+            if (dmResourceProvider::RESULT_OK != p_result)
+            {
+                dmLogError("Could not get base archive manifest project id. Liveupdate disabled");
+                return dmExtension::RESULT_OK;
+            }
 
-        dmResource::HManifest manifest;
-        dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
-        if (dmResourceProvider::RESULT_OK != p_result)
-        {
-            dmLogError("Could not get base archive manifest project id. Liveupdate disabled");
-            return dmExtension::RESULT_OK;
-        }
+            dmResource::Result r_result = dmResource::GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
+            if (dmResource::RESULT_OK != r_result)
+            {
+                dmLogError("Could not determine liveupdate folder. Liveupdate disabled");
+                return dmExtension::RESULT_OK;
+            }
 
-        dmResource::Result r_result = dmResource::GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
-        if (dmResource::RESULT_OK != r_result)
-        {
-            dmLogError("Could not determine liveupdate folder. Liveupdate disabled");
-            return dmExtension::RESULT_OK;
-        }
+            g_LiveUpdate.m_MainContextHasExcludedResources = dmResource::HasManifestExcludedEntries(manifest);
 
-        dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
-
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "liveupdate_jobs";
-        job_thread_create_param.m_ThreadCount    = 1;
-
-        g_LiveUpdate.m_JobThread = dmJobThread::Create(job_thread_create_param);
-
-        if (g_LiveUpdate.m_JobThread) // Make the liveupdate module `nil` if it isn't available
-        {
-            if (params->m_L) // TODO: until unit tests have been updated with a Lua context
-                ScriptInit(params->m_L, factory);
+            if (g_LiveUpdate.m_MainContextHasExcludedResources)
+            {
+                dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
+            }
         }
 
         // initialize legacy mode
@@ -970,9 +989,9 @@ namespace dmLiveUpdate
         if (!IsLiveupdateEnabled())
             return dmExtension::RESULT_OK;
 
-        if (g_LiveUpdate.m_JobThread)
-            dmJobThread::Destroy(g_LiveUpdate.m_JobThread);
-        g_LiveUpdate.m_JobThread = 0;
+        if (g_LiveUpdate.m_JobContext)
+            JobSystemDestroy(g_LiveUpdate.m_JobContext);
+        g_LiveUpdate.m_JobContext = 0;
         g_LiveUpdate.m_ResourceFactory = 0;
         return dmExtension::RESULT_OK;
     }
@@ -982,11 +1001,9 @@ namespace dmLiveUpdate
         if (!IsLiveupdateEnabled())
             return dmExtension::RESULT_OK;
 
-        if (!g_LiveUpdate.m_ResourceBaseArchive)
-            return dmExtension::RESULT_OK;
-
         DM_PROFILE("LiveUpdate");
-        dmJobThread::Update(g_LiveUpdate.m_JobThread); // Flushes finished async jobs', and calls any Lua callbacks
+        if (g_LiveUpdate.m_JobContext)
+            JobSystemUpdate(g_LiveUpdate.m_JobContext, 0); // Flushes finished async jobs', and calls any Lua callbacks
         return dmExtension::RESULT_OK;
     }
 };

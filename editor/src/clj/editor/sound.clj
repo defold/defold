@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,13 +16,14 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
             [editor.process :as process]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
@@ -31,22 +32,21 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob Platform]
-           [com.dynamo.gamesys.proto Sound$SoundDesc]
-           [org.apache.commons.io IOUtils]))
+           [com.dynamo.gamesys.proto Sound$SoundDesc]))
 
 (set! *warn-on-reflection* true)
 
 (def sound-icon "icons/32/Icons_26-AT-Sound.png")
 
-(def supported-audio-formats #{"wav" "ogg"})
+(def supported-audio-formats #{"wav" "ogg" "opus"})
 
-(defn- resource->bytes [resource]
-  (with-open [in (io/input-stream resource)]
-    (IOUtils/toByteArray in)))
+(def ^:private sound-message (properties/label-message :sound :sound))
+(def ^:private loopcount-message (properties/label-message :sound :loopcount))
+(def ^:private gain-message (properties/label-message :sound :gain))
+(def ^:private pan-message (properties/label-message :sound :pan))
+(def ^:private speed-message (properties/label-message :sound :speed))
 
-(defn- build-sound-source
-  [resource dep-resources user-data]
-  {:resource resource :content (resource->bytes (:resource resource))})
+(def ^:private error-invalid-ogg-file-message (localization/message "error.sound.invalid-ogg-file"))
 
 (defn oggz-validate-path []
   (let [platform (Platform/getHostPlatform)]
@@ -56,7 +56,7 @@
             (aget (.getExeSuffixes platform) 0))))
 
 (defn validate-if-ogg [_node-id resource]
-  (when (= "ogg" (resource/ext resource))
+  (when (some #{(resource/ext resource)} ["ogg" "opus"])
     (let [temp-file (fs/create-temp-file! "sound" ".ogg")]
       (try
         (with-open [is (io/input-stream resource)]
@@ -66,22 +66,19 @@
           (when-not (zero? (process/await-exit-code p))
             (g/->error _node-id :resource :fatal resource
                        (if output
-                         (str "Invalid ogg file (oggz-validate):\n"
-                              (string/replace output #"^[^\n]+\n" "")) ;; remove first line
-                         "Invalid ogg file"))))
+                         (localization/message "error.sound.invalid-ogg-file-details" {"output" (string/replace output #"^[^\n]+\n" "")}) ;; remove first line
+                         error-invalid-ogg-file-message))))
         (finally
           (fs/delete! temp-file {:fail :silently}))))))
 
 (g/defnk produce-source-build-targets [_node-id resource]
   (try
     (or (validate-if-ogg _node-id resource)
-        [(bt/with-content-hash
-           {:node-id _node-id
-            :resource (workspace/make-build-resource resource)
-            :build-fn build-sound-source
-            :user-data {:content-hash (resource/resource->sha1-hex resource)}})])
+        [(pipeline/make-source-bytes-build-target _node-id resource)])
     (catch Exception _
-      (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
+      (g/->error _node-id :resource :fatal resource
+                 (localization/message "error.sound.could-not-read-audio-file"
+                                       {"resource" (resource/resource->proj-path resource)})))))
 
 (g/defnode SoundSourceNode
   (inherits resource-node/ResourceNode)
@@ -94,7 +91,7 @@
   [_node-id]
   {:node-id _node-id
    :node-outline-key "Sound"
-   :label "Sound"
+   :label (localization/message "outline.sound")
    :icon sound-icon})
 
 (g/defnk produce-form-data
@@ -103,28 +100,28 @@
    :form-ops {:user-data {:node-id _node-id}
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
-   :sections [{:title "Sound"
+   :sections [{:localization-key "sound"
                :fields [{:path [:sound]
-                         :label "Sound"
+                         :localization-key "sound.sound"
                          :type :resource
                          :filter supported-audio-formats}
                         {:path [:looping]
-                         :label "Loop"
+                         :localization-key "sound.looping"
                          :type :boolean}
                         {:path [:loopcount]
-                         :label "Loopcount"
+                         :localization-key "sound.loopcount"
                          :type :integer}
                         {:path [:group]
-                         :label "Group"
+                         :localization-key "sound.group"
                          :type :string}
                         {:path [:gain]
-                         :label "Gain"
+                         :localization-key "sound.gain"
                          :type :number}
                         {:path [:pan]
-                         :label "Pan"
+                         :localization-key "sound.pan"
                          :type :number}
                         {:path [:speed]
-                         :label "Speed"
+                         :localization-key "sound.speed"
                          :type :number}]}]
    :values {[:sound] sound
             [:looping] looping
@@ -151,13 +148,14 @@
 
 (g/defnk produce-build-targets
   [_node-id resource sound dep-build-targets save-value]
-  (or (validation/prop-error :fatal _node-id :sound validation/prop-nil? sound "Sound")
-      (validation/prop-error :fatal _node-id :sound validation/prop-nil? (seq dep-build-targets) "Sound")
+  (or (validation/prop-error :fatal _node-id :sound validation/prop-nil? sound sound-message)
+      (validation/prop-error :fatal _node-id :sound validation/prop-nil? (seq dep-build-targets) sound-message)
       [(make-sound-desc-build-target _node-id resource save-value dep-build-targets)]))
 
 (defn load-sound [_project self resource sound-desc]
   {:pre [(map? sound-desc)]} ; Sound$SoundDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (gu/set-properties-from-pb-map self Sound$SoundDesc sound-desc
       sound (resolve-resource :sound)
       looping (protobuf/int->boolean :looping)
@@ -167,7 +165,7 @@
       speed :speed
       loopcount :loopcount)))
 
-(def prop-sound_speed? (partial validation/prop-outside-range? [0.1 5.0]))
+(def prop-sound-speed? (partial validation/prop-outside-range? [0.0 50.0]))
 
 (g/defnode SoundNode
   (inherits resource-node/ResourceNode)
@@ -182,24 +180,41 @@
                                             [:resource :sound-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id sound]
-                             (or (validation/prop-error :info _node-id :sound validation/prop-nil? sound "Sound")
-                                 (validation/prop-error :fatal _node-id :sound validation/prop-resource-not-exists? sound "Sound"))))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats})))
-  (property looping g/Bool (default (protobuf/int->boolean (protobuf/default Sound$SoundDesc :looping))))
+                             (or (validation/prop-error :info _node-id :sound validation/prop-nil? sound sound-message)
+                                 (validation/prop-error :fatal _node-id :sound validation/prop-resource-not-exists? sound sound-message))))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats}))
+            (dynamic label (properties/label-dynamic :sound :sound))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :sound)))
+  (property looping g/Bool (default (protobuf/int->boolean (protobuf/default Sound$SoundDesc :looping)))
+            (dynamic label (properties/label-dynamic :sound :looping))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :looping)))
   (property loopcount g/Int (default (protobuf/default Sound$SoundDesc :loopcount))
             (value (g/fnk [looping loopcount]
                      (if (not looping) 0 loopcount)))
             (dynamic error (g/fnk [_node-id loopcount]
-                             (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount "Loopcount")))
+                             (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount loopcount-message)))
             (dynamic read-only? (g/fnk [looping]
-                                  (not looping))))
-  (property group g/Str (default (protobuf/default Sound$SoundDesc :group)))
+                                   (not looping)))
+            (dynamic label (properties/label-dynamic :sound :loopcount))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :loopcount)))
+  (property group g/Str (default (protobuf/default Sound$SoundDesc :group))
+            (dynamic label (properties/label-dynamic :sound :group))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :group)))
   (property gain g/Num (default (protobuf/default Sound$SoundDesc :gain))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? gain)))
+            (dynamic error (g/fnk [_node-id gain]
+                             (validation/prop-error :fatal _node-id :gain validation/prop-negative? gain gain-message)))
+            (dynamic label (properties/label-dynamic :sound :gain))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :gain)))
   (property pan g/Num (default (protobuf/default Sound$SoundDesc :pan))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan)))
+            (dynamic error (g/fnk [_node-id pan]
+                             (validation/prop-error :fatal _node-id :pan validation/prop-1-1? pan pan-message)))
+            (dynamic label (properties/label-dynamic :sound :pan))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :pan)))
   (property speed g/Num (default (protobuf/default Sound$SoundDesc :speed))
-            (dynamic error (validation/prop-error-fnk :fatal prop-sound_speed? speed)))
+            (dynamic error (g/fnk [_node-id speed]
+                             (validation/prop-error :fatal _node-id :speed prop-sound-speed? speed speed-message)))
+            (dynamic label (properties/label-dynamic :sound :speed))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :speed)))
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)
@@ -215,11 +230,12 @@
       :load-fn load-sound
       :icon sound-icon
       :icon-class :property
+      :category (localization/message "resource.category.components")
       :view-types [:cljfx-form-view :text]
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}
-      :label "Sound")
+      :label (localization/message "resource.type.sound"))
     (for [format supported-audio-formats]
       (workspace/register-resource-type workspace
         :ext format

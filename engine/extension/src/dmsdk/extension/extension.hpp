@@ -19,6 +19,36 @@
    #error "This file is supported in C++ only!"
 #endif
 
-#include "extension_gen.hpp"
+#include <dmsdk/extension/extension_gen.hpp>
+#include <dmsdk/dlib/hash.h>
+
+namespace dmExtension {
+
+   template<typename T>
+   T GetContextAsType(dmExtension::AppParams* app_params, const char* name)
+   {
+      return (T)ExtensionAppParamsGetContextByName((ExtensionAppParams*)app_params, name);
+   }
+
+   template<typename T>
+   T GetContextAsType(dmExtension::AppParams* app_params, dmhash_t name_hash)
+   {
+      return (T)ExtensionAppParamsGetContext((ExtensionAppParams*)app_params, name_hash);
+   }
+
+   template<typename T>
+   T GetContextAsType(dmExtension::Params* params, const char* name)
+   {
+      return (T)ExtensionParamsGetContextByName((ExtensionParams*)params, name);
+   }
+
+   template<typename T>
+   T GetContextAsType(dmExtension::Params* params, dmhash_t name_hash)
+   {
+      return (T)ExtensionParamsGetContext((ExtensionParams*)params, name_hash);
+   }
+
+
+} // namespace
 
 #endif // DMSDK_EXTENSION_HPP

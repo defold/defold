@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,25 +16,26 @@
 #define DMSDK_DSTRINGS_H
 
 #include <stdio.h>
+#include <string.h>
 
 /*# String functions.
  *
  * SDK Defold String Utils API documentation
  *
  * @document
- * @namespace dmStringFunc
- * @name DStrings
- * @path engine/dlib/src/dmsdk/dlib/dstrings.h
+ * @name Strings
+ * @language C
  */
 
 /*# Size-bounded string formating.
  *
- * Size-bounded string formating. Resulting string is guaranteed to be 0-terminated.
+ * Size-bounded string formating. Resulting string is guaranteed to be 0-terminated. Unlike snprintf, which
+ * always returns the untruncated string length, this function returns -1 if the string was truncated.
  *
  * @name dmSnPrintf
- * @param buffer Buffer to write to
- * @param count Size of the buffer
- * @param format String format
+ * @param buffer [type:char*] Buffer to write to
+ * @param count [type:size_t] Size of the buffer
+ * @param format [type:const char*] String format
  * @return Size of the resulting string (excl terminating 0) if it fits, -1 otherwise
  * @examples
  *
@@ -55,9 +56,9 @@
  * Tokenize strings. Equivalent to BSD strsep_r. Thread-save version of strtok.
  *
  * @name dmStrTok
- * @param string Pointer to string. For the first call string is the string to tokenize. Subsequent should pass NULL.
- * @param delim Delimiter string
- * @param lasts Internal state pointer
+ * @param string [type:char*] Pointer to string. For the first call string is the string to tokenize. Subsequent should pass NULL.
+ * @param delim [type:const char*] Delimiter string
+ * @param lasts [type:char**] Internal state pointer
  * @return Each call to dmStrTok() returns a pointer to a null-terminated string containing the next token. This string does not include the delimiting byte. If no more tokens are found, dmStrTok() returns NULL
  * @examples
  *
@@ -78,9 +79,9 @@ char* dmStrTok(char *string, const char *delim, char **lasts);
  * Always NUL terminates (unless siz == 0).Returns strlen(src); if retval >= siz, truncation occurred.
  *
  * @name dmStrlCpy
- * @param dst Destination string
- * @param src Source string
- * @param size Max size
+ * @param dst [type:char*] Destination string
+ * @param src [type:const char*] Source string
+ * @param size [type:size_t] Max size
  * @return Total length of the created string
  * @examples
  *
@@ -97,12 +98,12 @@ size_t dmStrlCpy(char *dst, const char *src, size_t size);
  * Size-bounded string concatenation. Same as OpenBSD 2.4 [strlcat](http://www.manpagez.com/man/3/strlcat).
  * Appends src to string dst of size siz (unlike strncat, siz is the full size of dst, not space left).
  * At most siz-1 characters will be copied.  Always NUL terminates (unless siz == 0).
- * Returns strlen(src); if retval >= siz, truncation occurred.
+ * Returns strlen(dst) + strlen(src); if retval >= siz, truncation occurred.
  *
  * @name dmStrlCat
- * @param dst Destination string
- * @param src Source string
- * @param size Max size
+ * @param dst [type:char*] Destination string
+ * @param src [type:char*] Source string
+ * @param size [type:size_t] Max size
  * @return Total length of the created string
  * @examples
  *
@@ -119,8 +120,8 @@ size_t dmStrlCat(char *dst, const char *src, size_t size);
  * Case-insensitive string comparison
  *
  * @name dmStrCaseCmp
- * @param s1 First string to compare
- * @param s2 Second string to compare
+ * @param s1 [type:const char*] First string to compare
+ * @param s2 [type:const char*] Second string to compare
  * @return an integer greater than, equal to, or less than 0 after lexicographically comparison of s1 and s2
  * @examples
  *
@@ -139,8 +140,8 @@ int dmStrCaseCmp(const char *s1, const char *s2);
  * If the buffer is null, or if size is zero, nothing will happen.
  *
  * @name dmStrError
- * @param dst Destination string that carries the error message
- * @param size Max size of destination string in bytes
+ * @param dst [type:char*] Destination string that carries the error message
+ * @param size [type:size_t] Max size of destination string in bytes
  * @return a null-terminated error message
  * @examples
  *

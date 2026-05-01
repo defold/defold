@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -468,7 +468,7 @@
       (test-util/make-file-tree! dir ["name.txt"])
       (let [src (io/file dir "name.txt")
             tgt (io/file dir "Name.txt")]
-        (if fs/case-sensitive?
+        (if fs/is-case-sensitive
           (do
             (is (= [[src tgt]] (fs/copy-file! src tgt)))
             (is (= ["Name.txt" "name.txt"] (test-util/file-tree dir))))
@@ -550,7 +550,7 @@
       (test-util/make-file-tree! dir [{"directory" ["name.txt"]}])
       (let [src (io/file dir "directory")
             tgt (io/file dir "Directory")]
-        (if fs/case-sensitive?
+        (if fs/is-case-sensitive
           (do
             (is (= [[src tgt]] (fs/copy-directory! src tgt)))
             (is (= [{"Directory" ["name.txt"]} {"directory" ["name.txt"]}] (test-util/file-tree dir))))
@@ -678,7 +678,7 @@
     (is (false? (fs/below-directory? (io/file project-dir "subdirectory") (io/file project-dir "subdir"))))
     (is (false? (fs/below-directory? project-dir project-dir)))
 
-    (if fs/case-sensitive?
+    (if fs/is-case-sensitive
       (is (false? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory"))))
       (is (true? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory")))))))
 

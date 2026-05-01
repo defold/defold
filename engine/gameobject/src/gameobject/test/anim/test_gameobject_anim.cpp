@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,7 +26,7 @@
 class AnimTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f ;
 
@@ -59,7 +59,7 @@ protected:
         m_CancelCount = 0;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
@@ -107,6 +107,7 @@ static dmhash_t hash(const char* s)
 TEST_F(AnimTest, AnimateAndStop)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, go);
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position");
@@ -490,15 +491,15 @@ TEST_F(AnimTest, LoadTest)
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
     }
 
-    uint64_t time = dmTime::GetTime();
+    uint64_t time = dmTime::GetMonotonicTime();
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    uint64_t delta = dmTime::GetTime() - time;
+    uint64_t delta = dmTime::GetMonotonicTime() - time;
 
     printf("%d animations started in %.3f ms\n", count*4, delta * 0.001);
 
-    time = dmTime::GetTime();
+    time = dmTime::GetMonotonicTime();
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-    delta = dmTime::GetTime() - time;
+    delta = dmTime::GetMonotonicTime() - time;
 
     printf("%d animations simulated in %.3f ms\n", count*3, delta * 0.001);
 

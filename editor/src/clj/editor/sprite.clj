@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,8 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
@@ -31,7 +33,6 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
-            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -90,16 +91,11 @@
         frame-index (get-in updatable [:state :frame] 0)
 
         texcoord-datas
-        (if (and (coll/empty? scene-infos)
-                 (= :size-mode-manual size-mode))
-          (let [vertex-data (slice9/vertex-data nil size slice9 :pivot-center)]
-            [(assoc vertex-data :page-index 0)])
+        (if (coll/empty? scene-infos)
+          [(texture-set/vertex-data nil size-mode size slice9 :pivot-center)]
           (mapv (fn [{:keys [animation]}]
-                  (let [animation-frame (get-in animation [:frames frame-index])
-                        vertex-data (if (= :size-mode-auto size-mode)
-                                      (texture-set/vertex-data animation-frame)
-                                      (slice9/vertex-data animation-frame size slice9 :pivot-center))]
-                    (assoc vertex-data :page-index (:page-index animation-frame 0))))
+                  (let [animation-frame (get-in animation [:frames frame-index])]
+                    (texture-set/vertex-data animation-frame size-mode size slice9 :pivot-center)))
                 scene-infos))]
 
     (conj {:texcoord-datas texcoord-datas
@@ -108,28 +104,9 @@
           (select-keys (first texcoord-datas) [:position-data :line-data]))))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
-  (.set pt x y 0)
+  (.set pt x y 0.0)
   (.transform wt pt)
   (vector-of :float (.x pt) (.y pt) (.z pt) cr cg cb 1.0))
-
-(defn- conj-outline-quad! [^ByteBuffer buf ^Matrix4d wt ^Point3d pt width height cr cg cb]
-  (let [x1 (* 0.5 width)
-        y1 (* 0.5 height)
-        x0 (- x1)
-        y0 (- y1)
-        v0 (gen-outline-vertex wt pt x0 y0 cr cg cb)
-        v1 (gen-outline-vertex wt pt x1 y0 cr cg cb)
-        v2 (gen-outline-vertex wt pt x1 y1 cr cg cb)
-        v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
-    (doto buf
-      (vtx/buf-push-floats! v0)
-      (vtx/buf-push-floats! v1)
-      (vtx/buf-push-floats! v1)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v3)
-      (vtx/buf-push-floats! v3)
-      (vtx/buf-push-floats! v0))))
 
 (defn- conj-outline-slice9-quad! [buf line-data ^Matrix4d world-transform tmp-point cr cg cb]
   (let [outline-points (map (fn [[x y]]
@@ -145,16 +122,12 @@
     (doseq [renderable renderables]
       (let [[cr cg cb] (colors/renderable-outline-color renderable)
             world-transform (:world-transform renderable)
-            {:keys [scene-infos size size-mode slice9]} (:user-data renderable)
-            animation (:animation (first scene-infos))
-            [quad-width quad-height] size
+            {:keys [animation size size-mode slice9]} (:user-data renderable)
             animation-frame-index (or (some-> renderable :updatable :state :frame) 0)
-            animation-frame (get-in animation [:frames animation-frame-index])]
-        (if (= :size-mode-auto size-mode)
-          (conj-outline-quad! buf world-transform tmp-point quad-width quad-height cr cg cb)
-          (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
-                line-data (:line-data slice9-data)]
-            (conj-outline-slice9-quad! buf line-data world-transform tmp-point cr cg cb)))))
+            animation-frame (get-in animation [:frames animation-frame-index])
+            vertex-data (texture-set/vertex-data animation-frame size-mode size slice9 :pivot-center)
+            line-data (:line-data vertex-data)]
+        (conj-outline-slice9-quad! buf line-data world-transform tmp-point cr cg cb)))
     (vtx/flip! vbuf)))
 
 ; Rendering
@@ -210,17 +183,22 @@
   (let [user-data (:user-data (first renderables))
         scene-infos (:scene-infos user-data)
         pass (:pass render-args)
-
-        renderable-datas (mapv renderable-data renderables)
+        {:keys [blend-mode material-attribute-infos shader]} user-data
+        shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+        combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
+        has-semantic-type-world-matrix (some #(= :semantic-type-world-matrix (:semantic-type %)) combined-attribute-infos)
+        has-semantic-type-normal-matrix (some #(= :semantic-type-normal-matrix (:semantic-type %)) combined-attribute-infos)
+        renderable-datas (mapv (fn [renderable]
+                                 (cond-> (renderable-data renderable)
+                                   has-semantic-type-world-matrix (assoc :has-semantic-type-world-matrix true)
+                                   has-semantic-type-normal-matrix (assoc :has-semantic-type-normal-matrix true)))
+                               renderables)
         num-vertices (count-vertices renderable-datas)]
     (condp = pass
       pass/transparent
-      (let [shader (:shader user-data)
-            shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index] :coordinate-space-world)
-            vertex-description (graphics/make-vertex-description shader-bound-attributes)
+      (let [vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
             vbuf (graphics/put-attributes! (vtx/make-vertex-buffer vertex-description :dynamic num-vertices) renderable-datas)
-            vertex-binding (vtx/use-with ::sprite-trans vbuf shader)
-            blend-mode (:blend-mode user-data)]
+            vertex-binding (vtx/use-with ::sprite-trans vbuf shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (doseq [{:keys [gpu-texture sampler]} scene-infos]
             (gl/bind gl gpu-texture render-args)
@@ -296,15 +274,20 @@
             (< 1 (count (:frames first-animation)))
             (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
 
-(defn- validate-material [_node-id material]
-  (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
-      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))
+(def ^:private material-message (properties/label-message :material))
+(def ^:private default-animation-message (properties/label-message :sprite :default-animation))
+(def ^:private image-message (properties/label-message :image))
 
-(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count material-samplers material-shader blend-mode size-mode manual-size slice9 dep-build-targets offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
+(defn- validate-material [_node-id material]
+  (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
+      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)))
+
+(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (g/precluding-errors
     (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
-          is-paged-material (shader/is-using-array-samplers? material-shader)
-          unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")]
+          is-paged-material (and (shader/shader-lifecycle? material-shader)
+                                 (shader/is-using-array-samplers? material-shader))
+          unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation default-animation-message)]
       (concat
         ;; Validate material assignment.
         [(validate-material _node-id material)]
@@ -315,15 +298,15 @@
         (mapcat
           (fn [sampler]
             (let [sampler-name (:name sampler)
-                  label (if (= 1 (count material-samplers)) "Image" sampler-name)
+                  message (if (= 1 (count material-samplers)) image-message sampler-name)
                   {:keys [anim-data texture texture-page-count]} (sampler-name->texture-binding-info sampler-name)
-                  unassigned-texture-error (or (validation/prop-error :fatal _node-id :textures validation/prop-nil? texture label)
-                                               (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture label))]
+                  unassigned-texture-error (or (validation/prop-error :fatal _node-id :textures validation/prop-nil? texture message)
+                                               (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture message))]
               (if unassigned-texture-error
                 [unassigned-texture-error]
-                [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
-                 (when (nil? unassigned-default-animation-error)
-                   (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label))])))
+                [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 message)
+                 (when (and anim-data (nil? unassigned-default-animation-error))
+                   (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data message))])))
           material-samplers)
 
         ;; Validate default-animation assignment.
@@ -343,7 +326,10 @@
         :playback-rate playback-rate
         :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)
         :textures textures}
-       dep-build-targets)]))
+       nil
+       (into [(resource/proj-path material)]
+             (map (comp resource/proj-path :texture))
+             textures))]))
 
 (def ^:private fake-resource
   (reify resource/Resource
@@ -353,6 +339,7 @@
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)
+    (symlink? [_] false)
     (path [_] "")
     (abs-path [_] "")
     (proj-path [_] "")
@@ -360,7 +347,8 @@
     (workspace [_])
     (resource-hash [_])
     (openable? [_] false)
-    (editable? [_] false)))
+    (editable? [_] false)
+    (loaded? [_] false)))
 
 (g/defnode TextureBinding
   (property sampler g/Str) ; Required protobuf field.
@@ -372,8 +360,7 @@
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:gpu-texture :gpu-texture]
-                                            [:texture-page-count :texture-page-count]
-                                            [:build-targets :build-targets]))))
+                                            [:texture-page-count :texture-page-count]))))
   (input texture-resource resource/Resource)
   (input anim-data g/Any)
   (input anim-ids g/Any)
@@ -385,17 +372,16 @@
                                          (g/error-value? anim-data) (dissoc :anim-data)
                                          (g/error-value? anim-ids) (dissoc :anim-ids)
                                          (g/error-value? texture-page-count) (dissoc :texture-page-count))))
-  (output scene-info g/Any (g/fnk [sampler gpu-texture anim-data :as info] info))
-  (input build-targets g/Any :array)
-  (output build-targets g/Any (gu/passthrough build-targets)))
+  (output texture-binding-save-value g/Any (g/fnk [sampler texture :as info] info))
+  (output scene-info g/Any (g/fnk [sampler gpu-texture anim-data :as info] info)))
 
 (defn- create-texture-binding-tx [sprite sampler texture]
   (g/make-nodes (g/node-id->graph-id sprite) [texture-binding [TextureBinding
                                                                :sampler sampler
                                                                :texture texture]]
     (g/connect texture-binding :_node-id sprite :copied-nodes)
-    (g/connect texture-binding :build-targets sprite :dep-build-targets)
     (g/connect texture-binding :texture-binding-info sprite :texture-binding-infos)
+    (g/connect texture-binding :texture-binding-save-value sprite :texture-binding-save-values)
     (g/connect texture-binding :scene-info sprite :scene-infos)))
 
 (defn- clear-texture-binding-node-id [texture-binding-node-id _]
@@ -404,9 +390,11 @@
 (defn- set-texture-binding-id [sampler-name _ node-id _ new]
   (create-texture-binding-tx node-id sampler-name new))
 
-(g/defnk produce-properties [_declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
-  (let [extension (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)
-        is-paged-material (shader/is-using-array-samplers? material-shader)
+(g/defnk produce-properties [^:unsafe _evaluation-context _declared-properties _node-id default-animation material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader resource texture-binding-infos vertex-attribute-overrides]
+  (let [workspace (resource/workspace resource)
+        extension (workspace/resource-kind-extensions workspace :atlas _evaluation-context)
+        is-paged-material (and (shader/shader-lifecycle? material-shader)
+                               (shader/is-using-array-samplers? material-shader))
         texture-binding-index (util/name-index texture-binding-infos :sampler)
         material-sampler-index (if (g/error-value? material-samplers)
                                  {}
@@ -414,13 +402,15 @@
         combined-name+indices (-> #{}
                                   (into (map key) texture-binding-index)
                                   (into (map key) material-sampler-index))
+
         texture-binding-properties
         (->> combined-name+indices
              sort
              (mapv
                (fn [[sampler-name order :as name+order]]
-                 (let [property-key (keyword (str "__sampler__" sampler-name "__" order))
-                       label (if (= 1 (count combined-name+indices)) "Image" sampler-name)]
+                 (let [has-single-sampler (= 1 (count combined-name+indices))
+                       property-key (keyword (str "__sampler__" sampler-name "__" order))
+                       label (if has-single-sampler image-message sampler-name)]
                    (if-let [i (texture-binding-index name+order)]
                      ;; texture binding exists
                      (let [{:keys [anim-data sampler texture texture-page-count]
@@ -435,14 +425,12 @@
                            :prop-kw :texture
                            :error (or
                                     (when should-be-deleted
-                                      (g/->error _node-id :textures :warning texture
-                                                 (format "'%s' is not defined in the material. Clear the field to delete it. If the sampler is necessary for the shader, add a missing sampler in the material"
-                                                         sampler)))
+                                      (g/->error _node-id :textures :warning texture (localization/message "error.sampler-not-defined-in-material" {"sampler" sampler})))
                                     (validation/prop-error :info _node-id :textures validation/prop-nil? texture label)
                                     (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture label)
                                     (when (nil? texture-page-count)  ; nil from :try producing error-value
-                                      (g/->error _node-id :textures :fatal texture "the assigned Image has internal errors"))
-                                    (validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
+                                      (g/->error _node-id :textures :fatal texture (localization/message "error.assigned-image-has-internal-errors")))
+                                    (validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 label)
                                     (when-not (coll/empty? default-animation)
                                       (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label)))
 
@@ -461,7 +449,11 @@
                        :edit-type {:type resource/Resource
                                    :ext extension
                                    :set-fn (fn/partial set-texture-binding-id sampler-name)}}])))))
-        attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
+
+        attribute-properties
+        (when-not (g/error-value? material-attribute-infos)
+          (graphics/attribute-property-entries _node-id material-attribute-infos 0 vertex-attribute-overrides))]
+
     (-> _declared-properties
         (update :properties (fn [props]
                               (-> props
@@ -509,21 +501,36 @@
     (reduce
       (fn [acc i]
         (let [start-texture-unit (-> (acc (dec i)) :gpu-texture :texture-units peek inc)]
-          (update-in acc [i :gpu-texture :texture-units]
-                     (fn [texture-units]
-                       (vec (range start-texture-unit
-                                   (+ start-texture-unit (count texture-units))))))))
+          (update-in acc [i :gpu-texture] texture/set-base-unit start-texture-unit)))
       infos
       (range 1 (count infos)))))
 
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
   (property default-animation g/Str ; Required protobuf field.
+            ;; NOTE: There's an edge case where if the user sets :sprite-mode-manual before having selected the default animation,
+            ;; manual-size won't get set because it can't know the size of the sprite, so add a check to set it here
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [size-mode (g/node-value self :size-mode evaluation-context)
+                         manual-size (g/node-value self :manual-size evaluation-context)]
+                     (when (and (= :size-mode-manual size-mode)
+                                (= [0.0 0.0 0.0] manual-size))
+                       (let [texture-binding-infos (g/node-value self :texture-binding-infos evaluation-context)]
+                         (when-some [animation (some (fn [info]
+                                                       (get (:anim-data info) new-value))
+                                                     texture-binding-infos)]
+                           (g/set-property self :manual-size
+                                           [(double (:width animation))
+                                            (double (:height animation))
+                                            0.0])))))))
+            (dynamic label (properties/label-dynamic :sprite :default-animation))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :default-animation))
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
                              (when (pos? (count textures))
-                               (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
-                                   (let [{:keys [anim-data sampler]} primary-texture-binding-info]
-                                     (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data sampler))))))
+                               (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation default-animation-message)
+                                   (let [{:keys [anim-data sampler]} primary-texture-binding-info
+                                         image-property-label (if (= 1 (count textures)) image-message sampler)]
+                                     (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data image-property-label))))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
 
   (property material resource/Resource ; Default assigned in load-fn.
@@ -534,16 +541,17 @@
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
                                             [:max-page-count :material-max-page-count]
-                                            [:attribute-infos :material-attribute-infos]
-                                            [:build-targets :dep-build-targets])))
+                                            [:attribute-infos :material-attribute-infos])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
             (dynamic error (g/fnk [_node-id material]
                              (validate-material _node-id material))))
 
   (property blend-mode g/Any (default (protobuf/default Sprite$SpriteDesc :blend-mode))
-            (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
+            (dynamic tooltip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default (protobuf/default Sprite$SpriteDesc :size-mode))
+            (dynamic label (properties/label-dynamic :sprite :size-mode))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :size-mode))
             (set (fn [evaluation-context self old-value new-value]
                    ;; Use the texture size for the :manual-size when the user switches
                    ;; from :size-mode-auto to :size-mode-manual.
@@ -569,10 +577,16 @@
                    (g/set-property self :manual-size new-value)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
   (property slice9 types/Vec4 (default (protobuf/default Sprite$SpriteDesc :slice9))
+            (dynamic label (properties/label-dynamic :sprite :slice9))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :slice9))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
-  (property playback-rate g/Num (default (protobuf/default Sprite$SpriteDesc :playback-rate)))
+  (property playback-rate g/Num (default (protobuf/default Sprite$SpriteDesc :playback-rate))
+            (dynamic label (properties/label-dynamic :sprite :playback-rate))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :playback-rate)))
   (property offset g/Num (default (protobuf/default Sprite$SpriteDesc :offset))
+            (dynamic label (properties/label-dynamic :sprite :offset))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :offset))
             (dynamic edit-type (g/constantly {:type :slider
                                               :min 0.0
                                               :max 1.0
@@ -581,6 +595,7 @@
             (dynamic visible (g/constantly false)))
 
   (input texture-binding-infos g/Any :array)
+  (input texture-binding-save-values g/Any :array)
   (input scene-infos g/Any :array)
   (output scene-infos g/Any :cached produce-scene-infos)
 
@@ -588,6 +603,10 @@
                                         (if (g/error-value? material-samplers)
                                           texture-binding-infos
                                           (detect-and-apply-renames texture-binding-infos material-samplers))))
+  (output texture-binding-save-values g/Any (g/fnk [texture-binding-save-values ^:try material-samplers]
+                                              (if (g/error-value? material-samplers)
+                                                texture-binding-save-values
+                                                (util/detect-and-apply-renames texture-binding-save-values :sampler material-samplers :name))))
   (output primary-texture-binding-info g/Any (g/fnk [texture-binding-infos ^:try material-samplers]
                                                (if (g/error-value? material-samplers)
                                                  (first texture-binding-infos)
@@ -597,15 +616,9 @@
                                                                  texture-binding-info))
                                                              texture-binding-infos)
                                                        (first texture-binding-infos))))))
-  (output textures g/Any (g/fnk [texture-binding-infos]
-                           (into []
-                                 (keep (fn [{:keys [sampler texture]}]
-                                         (when texture
-                                           {:sampler sampler :texture texture})))
-                                 texture-binding-infos)))
+  (output textures g/Any (g/fnk [texture-binding-save-values]
+                           (filterv :texture texture-binding-save-values)))
   (output anim-ids g/Any (g/fnk [primary-texture-binding-info] (:anim-ids primary-texture-binding-info)))
-
-  (input dep-build-targets g/Any :array)
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
@@ -613,22 +626,34 @@
   (input material-max-page-count g/Int)
   (input material-attribute-infos g/Any)
   (input default-tex-params g/Any)
+  (input exclude-gles-sm100 g/Any)
 
   (input copied-nodes g/Any :array :cascade-delete)
 
-  (output aabb AABB (g/fnk [size]
+  (output aabb AABB (g/fnk [size ^:try scene-infos]
                       (let [[^double width ^double height ^double depth] size
+                            first-animation (when-not (g/error-value? scene-infos)
+                                              (:animation (first scene-infos)))
+                            anim-pivot (when first-animation
+                                         (get-in first-animation [:frames 0 :pivot]))
+                            [pivot-x pivot-y] (if anim-pivot
+                                                anim-pivot
+                                                [0.0 0.0])
                             half-width (* 0.5 width)
                             half-height (* 0.5 height)
-                            half-depth (* 0.5 depth)]
-                        (geom/make-aabb (Point3d. (- half-width) (- half-height) (- half-depth))
-                                        (Point3d. half-width half-height half-depth)))))
+                            half-depth (* 0.5 depth)
+
+                            ; Adjusted calculations for min-x and min-y
+                            min-x (- (* (- width) pivot-x) half-width)
+                            min-y (- (* (- height) pivot-y) half-height)]
+                        (geom/make-aabb (Point3d. min-x min-y (- half-depth))
+                                        (Point3d. (+ min-x width) (+ min-y height) half-depth)))))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output _properties g/Properties :cached produce-properties)
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
-                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos 0 vertex-attribute-overrides))))
 
 (def ^:private default-material-proj-path (protobuf/default Sprite$SpriteDesc :material))
 
@@ -655,9 +680,11 @@
 
 (defn- load-sprite [project self resource sprite-desc]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (gu/set-properties-from-pb-map self Sprite$SpriteDesc sprite-desc
         default-animation :default-animation
         material (resolve-resource (:material :or default-material-proj-path))
@@ -680,7 +707,8 @@
     :sanitize-fn sanitize-sprite
     :icon sprite-icon
     :icon-class :design
+    :category (localization/message "resource.category.components")
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}
-    :label "Sprite"))
+    :label (localization/message "resource.type.sprite")))

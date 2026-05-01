@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@
 #define DM_PROFILER_H
 
 #include <stdint.h>
+#include <dlib/profile.h>
 
 namespace dmRender
 {
@@ -25,19 +26,17 @@ namespace dmRender
 
 namespace dmGraphics
 {
-    typedef void* HContext;
+    typedef struct GraphicsContext* HContext;
 } // dmGraphics
-
-namespace dmProfile
-{
-    typedef void* HProfile;
-} // dmProfile
 
 namespace dmProfiler
 {
     void SetUpdateFrequency(uint32_t update_frequency);
     void ToggleProfiler();
-    void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map);
+    void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map);
+
+    // Tag the currently recorded frame for output to console
+    void SetDumpFrame();
 
 } // dmProfiler
 

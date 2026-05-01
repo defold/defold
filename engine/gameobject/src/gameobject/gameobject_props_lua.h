@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@
 #define GAMEOBJECT_PROPS_LUA_H
 
 #include "gameobject_props.h"
+#include <dmsdk/gameobject/script.h>
 
 namespace dmGameObject
 {
@@ -25,4 +26,4 @@ namespace dmGameObject
     HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index);
 }
 
-#endif // GAMEOBJECT_PROPS_DDF_H
+#endif // GAMEOBJECT_PROPS_LUA_H

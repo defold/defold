@@ -3,19 +3,21 @@ from waf_dynamo import platform_supports_feature
 
 def build(bld):
 
+    extra_defines = []
     if bld.env.IS_TARGET_DESKTOP or bld.env.PLATFORM in ['win32']:
         vpx = 'VPX'
         record = 'record'
     else:
         vpx = ''
         record = 'record_null'
+        extra_defines.append('DM_RECORD_NULL')
 
-    extra_defines = []
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     if not platform_supports_feature(bld.env.PLATFORM, 'record', None):
-        extra_defines = ['DM_RECORD_NULL']
+        if not 'DM_RECORD_NULL' in extra_defines:
+            extra_defines = ['DM_RECORD_NULL']
 
     test_record = bld.program(features='cxx test',
                               includes='../../../src .',

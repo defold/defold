@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.control ChoiceBox ChoiceDialog ComboBox ContextMenu Control CustomMenuItem Dialog Labeled ListView Menu MenuButton MenuItem ScrollPane SplitPane Tab TabPane TableColumnBase TableView TextInputControl TitledPane ToolBar Tooltip TreeItem]
            [javafx.scene.control.cell ChoiceBoxListCell ChoiceBoxTableCell ChoiceBoxTreeCell ChoiceBoxTreeTableCell ComboBoxListCell ComboBoxTableCell ComboBoxTreeCell ComboBoxTreeTableCell]
+           [javafx.scene.layout Region]
            [javafx.scene.text Text]
            [javafx.stage Popup Window]))
 
@@ -234,11 +235,20 @@
 
 (defn- styleable-props [^Styleable styleable]
   {:id (.getId styleable)
-   :style-classes (not-empty (vec (sort (.getStyleClass styleable))))})
+   :style (not-empty (.getStyle styleable))
+   :style-classes (not-empty (vec (sort (.getStyleClass styleable))))
+   :pseudo-classes (not-empty (into (sorted-set) (map str) (.getPseudoClassStates styleable)))})
 
 (defn- node-props [^Node node]
   (let [layout-bounds (.getLayoutBounds node)]
-    {:layout-size [(.getWidth layout-bounds) (.getHeight layout-bounds)]}))
+    (cond-> {:layout-size [(.getWidth layout-bounds) (.getHeight layout-bounds)]}
+            (.isDisable node) (assoc :disable true)
+            (.isMouseTransparent node) (assoc :mouse-transparent true)
+            (not (.isManaged node)) (assoc :managed false)
+            (not (.isVisible node)) (assoc :visible false))))
+
+(defn- region-props [^Region region]
+  {:is-snap-to-pixel (.isSnapToPixel region)})
 
 (defn- to-coll [items]
   (cond
@@ -266,6 +276,9 @@
 
           (instance? Node obj)
           (into (node-props obj))
+
+          (instance? Region obj)
+          (into (region-props obj))
 
           (satisfies? InfoProps obj)
           (into (info-props obj))

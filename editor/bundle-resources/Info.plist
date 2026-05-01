@@ -5,7 +5,7 @@
 	<key>CFBundleExecutable</key>
 	<string>Defold</string>
 	<key>CFBundleGetInfoString</key>
-	<string>Defold, Copyright Defold Foundation. 2009-2024. All rights reserved.</string>
+	<string>Defold, Copyright Defold Foundation. 2009-2025. All rights reserved.</string>
 	<key>CFBundleIconFile</key>
 	<string>logo.icns</string>
 	<key>CFBundleIdentifier</key>
@@ -24,6 +24,12 @@
 	<string>????</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_defold._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Defold uses local network access to discover and connect to running Defold targets for debugging, profiling, hot reload, and log streaming on devices on your LAN.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleDocumentTypes</key>

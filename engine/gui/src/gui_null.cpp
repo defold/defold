@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "gui.h"
+
+#include <string.h>
 
 #include "gui_private.h"
 #include "gui_script.h"
@@ -96,6 +98,24 @@ namespace dmGui
     {
     }
 
+    void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y)
+    {
+    }
+
+    void UpdateSafeAreaAdjust(HContext context, SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                              int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom)
+    {
+    }
+
+    SafeAreaMode ParseSafeAreaMode(const char* mode)
+    {
+        return SAFE_AREA_NONE;
+    }
+
+    void SetSceneSafeAreaMode(HScene scene, SafeAreaMode mode)
+    {
+    }
+
     void GetDefaultResolution(HContext context, uint32_t& width, uint32_t& height)
     {
         width = 0;
@@ -168,7 +188,7 @@ namespace dmGui
         return 0;
     }
 
-    Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         return RESULT_OK;
     }
@@ -178,7 +198,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         return RESULT_OK;
     }
@@ -680,6 +700,15 @@ namespace dmGui
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         return RESULT_OK;
+    }
+
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
+    {
+        memset(out_text_layout, 0, sizeof(*out_text_layout));
+    }
+
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout)
+    {
     }
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node)

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -328,6 +328,46 @@ namespace dmGameSystem
         }
     }
 
+    void PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttributeInfo* attribute, const uint8_t* value_ptr)
+    {
+        float values[4] = {};
+        const uint8_t* read_ptr = value_ptr;
+        uint32_t byte_size = 0;
+        if (!read_ptr)
+        {
+            dmGraphics::GetAttributeValues(*attribute, &read_ptr, &byte_size);
+        }
+
+        if (read_ptr)
+        {
+            dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
+            uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
+            for (uint32_t i = 0; i < attribute->m_ElementCount; ++i)
+            {
+                values[i] = dmGraphics::VertexAttributeDataTypeToFloat(attribute->m_DataType, read_ptr + bytes_per_element * i);
+            }
+        }
+
+        if (attribute->m_ElementCount == 4)
+        {
+            dmVMath::Vector4 v(values[0], values[1], values[2], values[3]);
+            dmScript::PushVector4(L, v);
+        }
+        else if (attribute->m_ElementCount == 3 || attribute->m_ElementCount == 2)
+        {
+            dmVMath::Vector3 v(values[0], values[1], values[2]);
+            dmScript::PushVector3(L, v);
+        }
+        else if (attribute->m_ElementCount == 1)
+        {
+            lua_pushnumber(L, values[0]);
+        }
+        else
+        {
+            assert("Not supported!");
+        }
+    }
+
     void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
     {
         // parse u_wrap
@@ -533,7 +573,6 @@ namespace dmGameSystem
         ScriptResourceFinalize(context);
         ScriptWindowFinalize(context);
         ScriptSysGameSysFinalize(context);
-        ScriptHttpFinalize(context);
     }
 
     void UpdateScriptLibs(const ScriptLibContext& context)

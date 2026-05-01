@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,7 +19,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/utf8.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 #include <platform/platform_window_constants.h>
 
 #include "hid.h"
@@ -55,7 +55,7 @@ namespace dmHID
         context->m_GamepadConnectivityUserdata = callback_ctx;
     }
 
-    void SetWindow(HContext context, dmPlatform::HWindow window)
+    void SetWindow(HContext context, HWindow window)
     {
         context->m_Window = window;
     }
@@ -280,7 +280,7 @@ namespace dmHID
 
     bool GetKey(KeyboardPacket* packet, Key key)
     {
-       int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
+        int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
 
         if (packet != 0x0)
             return packet->m_Keys[key_index / 32] & (1 << (key_index % 32));
@@ -527,21 +527,21 @@ namespace dmHID
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
     {
-        dmPlatform::DeviceState device_state;
+        WindowDeviceState device_state;
 
         switch (type)
         {
             case KEYBOARD_TYPE_DEFAULT:
-                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT;
+                device_state = WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT;
                 break;
             case KEYBOARD_TYPE_NUMBER_PAD:
-                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD;
+                device_state = WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD;
                 break;
             case KEYBOARD_TYPE_EMAIL:
-                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL;
+                device_state = WINDOW_DEVICE_STATE_KEYBOARD_EMAIL;
                 break;
             case KEYBOARD_TYPE_PASSWORD:
-                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD;
+                device_state = WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD;
                 break;
             default:
                 dmLogWarning("Unknown keyboard type %d\n", type);
@@ -552,26 +552,39 @@ namespace dmHID
 
     void HideKeyboard(HContext context)
     {
-        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT, false);
+        dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT, false);
     }
 
     void EnableAccelerometer(HContext context)
     {
-        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_ACCELEROMETER, true);
+        dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_ACCELEROMETER, true);
     }
 
     void ShowMouseCursor(HContext context)
     {
-        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, true);
+        dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_CURSOR, true);
     }
 
     void HideMouseCursor(HContext context)
     {
-        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, false);
+        dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_CURSOR, false);
     }
 
     bool GetCursorVisible(HContext context)
     {
-        return !dmPlatform::GetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR_LOCK);
+        return !dmPlatform::GetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_CURSOR_LOCK);
+    }
+
+    dmhash_t CalcStateHash(HContext context)
+    {
+        HashState64 state;
+        dmHashInit64(&state, false);
+        dmHashUpdateBuffer64(&state, &context->m_Keyboards[0], MAX_KEYBOARD_COUNT * sizeof(Keyboard));
+        dmHashUpdateBuffer64(&state, &context->m_Mice[0], MAX_MOUSE_COUNT * sizeof(Mouse));
+        dmHashUpdateBuffer64(&state, &context->m_Gamepads[0], MAX_GAMEPAD_COUNT * sizeof(Gamepad));
+        dmHashUpdateBuffer64(&state, &context->m_TouchDevices[0], MAX_TOUCH_DEVICE_COUNT * sizeof(TouchDevice));
+        dmHashUpdateBuffer64(&state, &context->m_TextPacket, sizeof(TextPacket));
+        dmHashUpdateBuffer64(&state, &context->m_AccelerationPacket, sizeof(context->m_AccelerationPacket));
+        return dmHashFinal64(&state);
     }
 }

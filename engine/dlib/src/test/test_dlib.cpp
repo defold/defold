@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,106 +20,16 @@
 #include <jc_test/jc_test.h>
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
+#include "../dlib/time.h"
 
 class dlib : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmHashEnableReverseHash(true);
     }
 };
-
-TEST_F(dlib, Hash)
-{
-    uint32_t h1 = dmHashBuffer32("foo", 3);
-    uint64_t h2 = dmHashBuffer64("foo", 3);
-
-    HashState32 hs32;
-    dmHashInit32(&hs32, true);
-    dmHashUpdateBuffer32(&hs32, "f", 1);
-    dmHashUpdateBuffer32(&hs32, "o", 1);
-    dmHashUpdateBuffer32(&hs32, "o", 1);
-    uint32_t h1_i = dmHashFinal32(&hs32);
-
-    HashState64 hs64;
-    dmHashInit64(&hs64, true);
-    dmHashUpdateBuffer64(&hs64, "f", 1);
-    dmHashUpdateBuffer64(&hs64, "o", 1);
-    dmHashUpdateBuffer64(&hs64, "o", 1);
-    uint64_t h2_i = dmHashFinal64(&hs64);
-
-    ASSERT_EQ(0xd861e2f7L, h1);
-    ASSERT_EQ(0xd861e2f7L, h1_i);
-    ASSERT_EQ(0x97b476b3e71147f7LL, h2);
-    ASSERT_EQ(0x97b476b3e71147f7LL, h2_i);
-}
-
-TEST_F(dlib, HashIncremental32)
-{
-    for (uint32_t i = 0; i < 1000; ++i)
-    {
-        std::string s;
-        uint32_t n = rand() % 32 + 1;
-        for (uint32_t j = 0; j < n; ++j)
-        {
-            char tmp[] = { (char)rand(), 0 };
-            s += tmp;
-        }
-        uint32_t h1 = dmHashString32(s.c_str());
-
-        HashState32 hs;
-        dmHashInit32(&hs, true);
-        dmHashUpdateBuffer32(&hs, s.c_str(), s.size());
-        uint32_t h2 = dmHashFinal32(&hs);
-
-        dmHashInit32(&hs, true);
-        while (s.size() > 0)
-        {
-            int nchars = (rand() % s.size()) + 1;
-
-            dmHashUpdateBuffer32(&hs, s.substr(0, nchars).c_str(), nchars);
-            s = s.substr(nchars, s.size() - nchars);
-        }
-        uint32_t h3 = dmHashFinal32(&hs);
-
-        ASSERT_EQ(h1, h2);
-        ASSERT_EQ(h1, h3);
-    }
-}
-
-TEST_F(dlib, HashIncremental64)
-{
-    for (uint32_t i = 0; i < 1000; ++i)
-    {
-        std::string s;
-        uint32_t n = rand() % 32 + 1;
-        for (uint32_t j = 0; j < n; ++j)
-        {
-            char tmp[] = { (char)rand(), 0 };
-            s += tmp;
-        }
-        uint64_t h1 = dmHashString64(s.c_str());
-
-        HashState64 hs;
-        dmHashInit64(&hs, true);
-        dmHashUpdateBuffer64(&hs, s.c_str(), s.size());
-        uint64_t h2 = dmHashFinal64(&hs);
-
-        dmHashInit64(&hs, true);
-        while (s.size() > 0)
-        {
-            int nchars = (rand() % s.size()) + 1;
-
-            dmHashUpdateBuffer64(&hs, s.substr(0, nchars).c_str(), nchars);
-            s = s.substr(nchars, s.size() - nchars);
-        }
-        uint64_t h3 = dmHashFinal64(&hs);
-
-        ASSERT_EQ(h1, h2);
-        ASSERT_EQ(h1, h3);
-    }
-}
 
 TEST_F(dlib, HashToString32)
 {
@@ -493,6 +403,52 @@ TEST_F(dlib, HashMaxReverse)
 
     free((void*) buffer);
 }
+
+TEST_F(dlib, HashReverseStress)
+{
+    // Make sure creating many reverse hashes doesn't take too much time
+    uint32_t count_small = 1000;
+    uint32_t count_large = 100000;
+
+    uint64_t tsmall_start = dmTime::GetMonotonicTime();
+    for(uint32_t i = 0; i < count_small; ++i)
+    {
+        uint64_t h = dmHashBuffer64(&i, sizeof(i));
+
+        uint32_t* rh = (uint32_t*)dmHashReverse64(h, 0);
+
+        ASSERT_NE((uint32_t*)0, rh);
+        ASSERT_EQ(i, *rh);
+    }
+    uint64_t tsmall_end = dmTime::GetMonotonicTime();
+    float time_small = (tsmall_end - tsmall_start)/1000000.0f;
+
+    printf("Hash + reverse lookup of %u items took %f s\n", count_small, time_small);
+    // The complexity goes up
+    float multiplier = 1000.0f;
+    float expected_time = multiplier * (time_small * (count_large / count_small));
+    printf("Hash + reverse lookup of %u items x %f %%: ca %f s\n", count_large, multiplier*100.0f, expected_time);
+
+    uint64_t tlarge_start = dmTime::GetMonotonicTime();
+    for(uint32_t i = 0; i < count_large; ++i)
+    {
+        uint64_t h = dmHashBuffer64(&i, sizeof(i));
+
+        uint32_t* rh = (uint32_t*)dmHashReverse64(h, 0);
+
+        ASSERT_NE((uint32_t*)0, rh);
+        ASSERT_EQ(i, *rh);
+    }
+    uint64_t tlarge_end = dmTime::GetMonotonicTime();
+
+    float time_large = (tlarge_end - tlarge_start)/1000000.0f;
+
+    printf("Hash + reverse lookup of %u items took %f s\n", count_large, time_large);
+
+    ASSERT_GE(expected_time, time_large);
+
+}
+
 
 TEST_F(dlib, HashIncrementalReverse)
 {

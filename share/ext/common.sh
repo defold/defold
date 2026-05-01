@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,21 +16,56 @@
 
 set -e
 
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+_SOURCE="${BASH_SOURCE[0]:-$0}"
+SCRIPTDIR="$( cd "$( dirname "${_SOURCE}" )" >/dev/null 2>&1 && pwd )"
+
+eval $(python $SCRIPTDIR/../../build_tools/set_sdk_vars.py VERSION_IPHONEOS VERSION_IPHONESIMULATOR VERSION_IPHONEOS_MIN VERSION_MACOSX_MIN VERSION_MACOSX VERSION_XCODE PACKAGES_EMSCRIPTEN_SDK)
 
 # config
-IOS_SDK_VERSION=16.2
-IOS_SIMULATOR_SDK_VERSION=16.2
-IOS_MIN_SDK_VERSION=11.0
+IOS_SDK_VERSION=$VERSION_IPHONEOS
+IOS_SIMULATOR_SDK_VERSION=$VERSION_IPHONESIMULATOR
+IOS_MIN_SDK_VERSION=$VERSION_IPHONEOS_MIN
 
-OSX_MIN_SDK_VERSION=10.13
-OSX_SDK_VERSION=13.1
-XCODE_VERSION=14.2
+OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
+OSX_SDK_VERSION=$VERSION_MACOSX
+XCODE_VERSION=$VERSION_XCODE
 
 OSX_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX${OSX_SDK_VERSION}.sdk
 IOS_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
 IOS_SIMULATOR_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneSimulator${IOS_SDK_VERSION}.sdk
 DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault${XCODE_VERSION}.xctoolchain
+
+EMSCRIPTEN_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/${PACKAGES_EMSCRIPTEN_SDK}
+export EMSCRIPTEN_BIN_DIR=${EMSCRIPTEN_SDK_ROOT}/upstream/emscripten
+export EM_CACHE=${EMSCRIPTEN_SDK_ROOT}/.defold_cache
+export EM_CONFIG=${EMSCRIPTEN_SDK_ROOT}/.emscripten
+
+readonly HOST_UNAME=$(uname)
+readonly HOST_ARCH=$(arch)
+
+HOST_PLATFORM=${HOST_UNAME}
+if [ "Darwin" == "${HOST_PLATFORM}" ]; then
+    HOST_PLATFORM="x86_64-macos"
+    if [ "arm64" == "${HOST_ARCH}" ]; then
+        HOST_PLATFORM="arm64-macos"
+    fi
+elif [ "Linux" == "${HOST_PLATFORM}" ]; then
+    HOST_PLATFORM="x86_64-linux"
+    if [ "${HOST_ARCH}" == "aarch64" ] || [ "${HOST_ARCH}" == "arm64" ]; then
+        HOST_PLATFORM="arm64-linux"
+    fi
+elif [[ "${HOST_PLATFORM}" == MINGW* ]] || [[ "${HOST_PLATFORM}" == MSYS* ]] || [[ "${HOST_PLATFORM}" == CYGWIN* ]]; then
+    HOST_PLATFORM="x86_64-win32"
+    if [ "${HOST_ARCH}" == "i686" ] || [ "${HOST_ARCH}" == "i386" ]; then
+        HOST_PLATFORM="win32"
+    fi
+fi
+
+if [ "${HOST_PLATFORM}" == "${HOST_UNAME}" ]; then
+    echo "Error setting HOST_PLATFORM: '${HOST_PLATFORM}'"
+    exit 1
+fi
+
 
 if [ "Darwin" == "$(uname)" ]; then
     if [ ! -d "${DARWIN_TOOLCHAIN_ROOT}" ]; then
@@ -146,8 +181,8 @@ function cmi_cleanup() {
 }
 
 function cmi_cross() {
-    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]]; then
-        # Cross compiling protobuf for js-web with --host doesn't work
+    if [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
+        # Cross compiling protobuf for web with --host doesn't work
         # Unknown host in reported by configure script
         cmi_do $1
     else
@@ -178,76 +213,6 @@ function windows_path_to_posix() {
 
 function path_to_posix() {
     echo "$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
-}
-
-function cmi_setup_vs2019_env() {
-    # from https://stackoverflow.com/a/3272301
-
-    # These lines will be installation-dependent.
-    export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\'
-    export WindowsSdkDir='C:\Program Files (x86)\Windows Kits\10\'
-    export WindowsLibPath='C:\Program Files (x86)\Windows'
-    export FrameworkDir32='C:\Windows\Microsoft.NET\Framework\'
-    export FrameworkDir64='C:\Windows\Microsoft.NET\Framework64\'
-    export UCRTVersion=10.0.19041.0
-    export FrameworkVersion=v4.0.30319
-    export VCToolsVersion=14.29.30037
-
-    # The following should be largely installation-independent.
-    export VCINSTALLDIR='${VSINSTALLDIR}VC\'
-    export DevEnvDir='${VSINSTALLDIR}Common7\IDE\'
-
-    local platform=$1
-    shift
-
-    arch="x64"
-    export FrameworkDir=${FrameworkDir64}
-    if [ "$platform" == "win32" ]; then
-        arch="x86"
-        export FrameworkDir=${FrameworkDir32}
-    fi
-
-    export INCLUDE="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\include;${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\include;${WindowsSdkDir}\\include\\${UCRTVersion}\\ucrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\shared;${WindowsSdkDir}\\include\\${UCRTVersion}\\um;${WindowsSdkDir}\\include\\${UCRTVersion}\\winrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\cppwinrt"
-    export LIB="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\ucrt\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\um\\${arch}"
-    export LIBPATH="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\x86\\store\\references;${WindowsSdkDir}\\UnionMetadata\\${UCRTVersion};${WindowsSdkDir}\\References\\${UCRTVersion};${FrameworkDir64}\\${FrameworkVersion}"
-
-    c_VSINSTALLDIR="$VSINSTALLDIR"
-    c_WindowsSdkDir="$WindowsSdkDir"
-    c_FrameworkDir64="$FrameworkDir"
-    PATHSEP=";"
-
-    local pathtype=$1
-    shift
-
-    if [ "$pathtype" == "bash" ]; then
-        c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
-        c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
-        c_FrameworkDir64=$(windows_path_to_posix "$FrameworkDir")
-        PATHSEP=":"
-    fi
-
-    echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
-    echo AFTER c_VSINSTALLDIR == $c_VSINSTALLDIR
-
-    TMPPATH="${c_VSINSTALLDIR}Common7/IDE/Extensions/Microsoft/IntelliCode/CLI"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}VC/Tools/MSVC/${VCToolsVersion}/bin/Host${arch}/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/VC/VCPackages"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TestWindow"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TeamFoundation/Team Explorer"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}MSBuild/Current/bin/Roslyn"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Team Tools/Performance Tools/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Team Tools/Performance Tools"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/Tools/devinit"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}MSBuild/Current/Bin"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/Tools/"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_WindowsSdkDir}bin/${UCRTVersion}/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_WindowsSdkDir}bin/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_FrameworkDir64}${FrameworkVersion}"
-
-    export PATH="$TMPPATH${PATHSEP}${PATH}"
 }
 
 function cmi_setup_cc() {
@@ -366,17 +331,29 @@ function cmi_setup_cc() {
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
 
-        linux)
-            export CPPFLAGS="-m32 -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -m32 -fPIC"
-            export CFLAGS="${CFLAGS} -m32 -fPIC"
-            export LDFLAGS="-m32"
-            ;;
 
         x86_64-linux)
-            export CFLAGS="${CFLAGS} -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -fPIC"
-            export CPPFLAGS="${CPPFLAGS} -fPIC"
+            export CFLAGS="${CFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+
+            export CC=$(which clang)
+            export CXX=$(which clang++)
+            export AR=$(which ar)
+            export RANLIB=$(which ranlib)
+            export CPP="${CC} -E"
+            ;;
+
+        arm64-linux)
+            export CFLAGS="${CFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+
+            export CC=$(which clang)
+            export CXX=$(which clang++)
+            export AR=$(which ar)
+            export RANLIB=$(which ranlib)
+            export CPP="${CC} -E"
             ;;
 
         win32)
@@ -393,26 +370,28 @@ function cmi_setup_cc() {
             export RANLIB=i586-mingw32msvc-ranlib
             ;;
 
-        js-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
+        wasm-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
+            export CC=${EMSCRIPTEN_BIN_DIR}/emcc
+            export CXX=${EMSCRIPTEN_BIN_DIR}/em++
+            export AR=${EMSCRIPTEN_BIN_DIR}/emar
+            export LD=${EMSCRIPTEN_BIN_DIR}/em++
+            export RANLIB=${EMSCRIPTEN_BIN_DIR}/emranlib
             export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
             export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
+            export CMAKE_TOOLCHAIN_FILE="${EMSCRIPTEN_BIN_DIR}/cmake/Modules/Platform/Emscripten.cmake"
             ;;
 
-        wasm-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
-            export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
-            export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
+        wasm_pthread-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
+            export CC=${EMSCRIPTEN_BIN_DIR}/emcc
+            export CXX=${EMSCRIPTEN_BIN_DIR}/em++
+            export AR=${EMSCRIPTEN_BIN_DIR}/emar
+            export LD=${EMSCRIPTEN_BIN_DIR}/em++
+            export RANLIB=${EMSCRIPTEN_BIN_DIR}/emranlib
+            export CFLAGS="${CFLAGS} -fPIC -fno-exceptions -pthread"
+            export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions -pthread"
+            export CMAKE_TOOLCHAIN_FILE="${EMSCRIPTEN_BIN_DIR}/cmake/Modules/Platform/Emscripten.cmake"
             ;;
 
         *)
@@ -437,12 +416,12 @@ function cmi() {
             cmi_cross $1 arm-linux
             ;;
 
-        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web)
+        arm64-ios|x86_64-ios|armv7-android|arm64-android|wasm-web|wasm_pthread-web)
             cmi_cross $1 arm-ios
             ;;
 
         # desktop
-        x86_64-macos|arm64-macos|x86_64-linux|win32|x86_64-win32)
+        x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|win32|x86_64-win32)
             cmi_buildplatform $1
             ;;
 

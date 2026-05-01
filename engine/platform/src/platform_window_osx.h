@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,7 +15,7 @@
 #ifndef DM_PLATFORM_WINDOW_OSX_H
 #define DM_PLATFORM_WINDOW_OSX_H
 
-#include "platform_window.h"
+#include "window.hpp"
 
 #include <objc/objc.h>
 

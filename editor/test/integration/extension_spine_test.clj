@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,18 +14,19 @@
 
 (ns integration.extension-spine-test
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
             [editor.defold-project :as project]
             [editor.game-project :as game-project]
             [editor.gui :as gui]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
+            [integration.gui-test :as gui-test]
             [integration.test-util :as test-util]
+            local-extensions
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
             [util.diff :as diff]))
@@ -36,7 +37,7 @@
 
 (def ^:private migration-project-path "test/resources/spine_migration_project")
 
-(def ^:private extension-spine-url (settings-core/inject-jvm-properties "{{defold.extension.spine.url}}"))
+(def ^:private extension-spine-url (local-extensions/inject-jvm-properties "{{defold.extension.spine.url}}"))
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
@@ -283,9 +284,8 @@
                               error-item-of-parent-resource (first (:children error-tree))
                               error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
                           (is (= :resource (:type error-item-of-parent-resource)))
-                          (is (string/starts-with?
-                                (:message error-item-of-faulty-node)
-                                (str "The file '" error-resource-path "' could not be loaded")))))]
+                          (is (= (localization/message "error.resource-not-loaded-with-error" {"resource" error-resource-path "error" "irrelevant"})
+                                 (localization/vary-message-variables (:message error-item-of-faulty-node) assoc "error" "irrelevant")))))]
                 (is (invalid-content-error? "/main/main.collection" (test-util/build-error! main-collection)))
                 (is (invalid-content-error? "/main/main.gui" (test-util/build-error! main-gui))))))
           ;; Before unloading the project, generate the content for a migrated
@@ -426,3 +426,40 @@
                              "   15 +   \"material: \\\\\\\"/defold-spine/assets/spine.material\\\\\\\"\\\\n\""]}
 
                            save-data-diffs-by-proj-path))))))))))))
+
+(defn- built-scene-desc [gui-scene-node-id]
+  (-> gui-scene-node-id
+      (g/valid-node-value :build-targets)
+      (get-in [0 :user-data :pb])))
+
+(deftest layout-node-desc-includes-size-mode-test
+  (test-util/with-loaded-project project-path
+    (let [gui-scene (test-util/resource-node project "/main/spineboy.gui")]
+
+      (testing "Built Spine NodeDescs have :size-mode-auto."
+        (let [built-scene-desc (built-scene-desc gui-scene)
+              built-node-desc (get-in built-scene-desc [:nodes 0])]
+          (is (= :size-mode-auto (:size-mode built-node-desc)))
+          (is (not (contains? built-scene-desc :layouts)))))
+
+      ;; Add a Portrait layout to the gui scene.
+      (gui-test/add-layout! project app-view gui-scene "Portrait")
+
+      (testing "Newly added layout exists, but contains no override NodeDescs."
+        (let [built-scene-desc (built-scene-desc gui-scene)
+              built-layout-desc (get-in built-scene-desc [:layouts 0])]
+          (is (= "Portrait" (:name built-layout-desc)))
+          (is (not (contains? built-layout-desc :nodes)))))
+
+      ;; Override the default animation on the SpineNode.
+      (let [spine-node (test-util/outline-node-id gui-scene (localization/message "outline.gui.nodes") "spineboy")]
+        (gui-test/with-visible-layout! gui-scene "Portrait"
+          (test-util/prop! spine-node :spine-default-animation "jump")))
+
+      (testing "After overriding a property, the override NodeDesc includes all properties from the default layout."
+        (let [built-scene-desc (built-scene-desc gui-scene)
+              built-node-desc (get-in built-scene-desc [:nodes 0])
+              built-layout-desc (get-in built-scene-desc [:layouts 0])
+              built-node-desc-for-layout (get-in built-layout-desc [:nodes 0])]
+          (is (= (assoc built-node-desc :spine-default-animation "jump")
+                 built-node-desc-for-layout)))))))

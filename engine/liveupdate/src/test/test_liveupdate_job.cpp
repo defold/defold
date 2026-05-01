@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,28 +21,34 @@
 #include <stdlib.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 
-#if defined(DM_USE_SINGLE_THREAD)
-class AsyncTestMultiThread : public jc_test_base_class
+#if DM_TEST_THREAD_COUNT==0
+#define TestClassName AsyncTestNoThread
 #else
-class AsyncTestSingleThread : public jc_test_base_class
+#define TestClassName AsyncTestThread
+#endif
+
+// Make the name nicer in the terminal output
+#if DM_TEST_THREAD_COUNT==0
+class AsyncTestNoThread : public jc_test_base_class
+#else
+class AsyncTestThread : public jc_test_base_class
 #endif
 {
 public:
-    virtual void SetUp()
+    void SetUp() override
     {
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "test_jobs";
-        job_thread_create_param.m_ThreadCount    = 1;
-        m_JobThread = dmJobThread::Create(job_thread_create_param);
+        JobSystemCreateParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount = DM_TEST_THREAD_COUNT;
+        m_JobContext = JobSystemCreate(&job_thread_create_param);
     }
-    virtual void TearDown()
+    void TearDown() override
     {
-        dmJobThread::Destroy(m_JobThread);
+        JobSystemDestroy(m_JobContext);
     }
 
-    dmJobThread::HContext m_JobThread;
+    HJobContext m_JobContext;
 };
 
 struct JobData
@@ -51,7 +57,7 @@ struct JobData
     int  m_Result;
 };
 
-static int ProcessData(void* context, void* _data)
+static int ProcessData(HJobContext, HJob, void* context, void* _data)
 {
     HashState64* hash_state = (HashState64*)context;
     JobData* data = (JobData*)_data;
@@ -61,21 +67,27 @@ static int ProcessData(void* context, void* _data)
     return data->m_Char;
 }
 
-static void FinishData(void* context, void* _data, int result)
+static void FinishData(HJobContext, HJob, JobSystemStatus status, void* context, void* _data, int result)
 {
     JobData* data = (JobData*)_data;
     data->m_Result = result;
 }
 
-static void PushJob(dmJobThread::HContext thread, HashState64* hash_state, JobData* data)
+static void PushJob(HJobContext thread, HashState64* hash_state, JobData* data)
 {
-    dmJobThread::PushJob(thread, (dmJobThread::FProcess)ProcessData, (dmJobThread::FCallback)FinishData, (void*)hash_state, (void*)data);
+    Job job = {0};
+    job.m_Process = ProcessData;
+    job.m_Callback = FinishData;
+    job.m_Context = (void*)hash_state;
+    job.m_Data = (void*)data;
+    HJob hjob = JobSystemCreateJob(thread, &job);
+    JobSystemPushJob(thread, hjob);
 }
 
-#if defined(DM_USE_SINGLE_THREAD)
-TEST_F(AsyncTestMultiThread, TestJobs)
+#if DM_TEST_THREAD_COUNT==0
+TEST_F(AsyncTestNoThread, TestJobs)
 #else
-TEST_F(AsyncTestSingleThread, TestJobs)
+TEST_F(AsyncTestThread, TestJobs)
 #endif
 {
     const char* test_data = "TESTSTRING";
@@ -90,19 +102,19 @@ TEST_F(AsyncTestSingleThread, TestJobs)
         contexts[i].m_Char = test_data[i] + 1;
         contexts[i].m_Result = 0;
 
-        PushJob(m_JobThread, &hash_state, &contexts[i]);
+        PushJob(m_JobContext, &hash_state, &contexts[i]);
     }
 
-    uint64_t time_start = dmTime::GetTime();
+    uint64_t time_start = dmTime::GetMonotonicTime();
     while (true)
     {
-        if ((dmTime::GetTime() - time_start) >= 5 * 10000000)
+        if ((dmTime::GetMonotonicTime() - time_start) >= 2 * 10000000)
         {
             dmLogError("Test timed out!");
             break;
         }
 
-        dmJobThread::Update(m_JobThread); // Flushes finished async jobs', and calls any Lua callbacks
+        JobSystemUpdate(m_JobContext, 0); // Flushes finished async jobs', and calls any Lua callbacks
 
         int num_finished = 0;
         for (uint32_t i = 0; i < num_jobs; ++i)

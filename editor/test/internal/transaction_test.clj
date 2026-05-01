@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -77,7 +77,7 @@
   (testing "simple update"
     (ts/with-clean-system
       (let [[resource] (ts/tx-nodes (g/make-node world Resource :marker (int 0)))
-            tx-result  (g/transact (it/update-property resource :marker safe+ [42]))]
+            tx-result  (g/transact (it/update-property resource :marker safe+ [42] nil))]
         (is (= :ok (:status tx-result)))
         (is (= 42 (g/node-value resource :marker))))))
 
@@ -161,7 +161,7 @@
 (deftest precise-invalidation
   (ts/with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)]
-      (are [update expected] (= (into #{} (pairwise expected)) (affected-by (apply g/set-property update)))
+      (are [update expected] (= (into #{} (pairwise expected)) (affected-by (apply g/set-properties update)))
         [calculator :touched true]                {calculator        #{:_declared-properties :_properties :touched}}
         [person :date-of-birth (java.util.Date.)] {person            #{:_declared-properties :_properties :age :date-of-birth}
                                                    calculator        #{:passthrough}}
@@ -195,12 +195,81 @@
       (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
       (is (= #{:_declared-properties :_properties :_overridden-properties :_node-id :_output-jammers :self-dependent :a-property :ordinary}
              (into #{} (map gt/endpoint-label) outputs-modified)))
-      (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [])]
+      (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [] nil)]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
         (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
         (is (= #{:_declared-properties :_properties :a-property :ordinary :self-dependent}
                (into #{} (map gt/endpoint-label) outputs-modified)))))))
+
+(defn- graph-successors-cache
+  [graph-id]
+  (get-in @g/*the-system* [:graphs graph-id :successors]))
+
+(deftest transact-with-full-invalidation-test
+  (testing "Invalidates all graph successor caches after a property update."
+    (ts/with-clean-system
+      (let [graph-a (g/make-graph! :history false)
+            graph-b (g/make-graph! :history false)
+            [resource-a receiver-a resource-b receiver-b] (ts/tx-nodes
+                                                            (g/make-node graph-a Resource)
+                                                            (g/make-node graph-a Receiver)
+                                                            (g/make-node graph-b Resource)
+                                                            (g/make-node graph-b Receiver))]
+        (g/transact
+          [(g/connect resource-a :b receiver-a :generic-input)
+           (g/connect resource-b :b receiver-b :generic-input)])
+
+        (is (= #{(g/endpoint receiver-a :passthrough)}
+               (set (g/successors (g/now) resource-a :b))))
+        (is (= #{(g/endpoint receiver-b :passthrough)}
+               (set (g/successors (g/now) resource-b :b))))
+
+        (let [graph-a-successors-before (graph-successors-cache graph-a)
+              graph-b-successors-before (graph-successors-cache graph-b)]
+          (g/transact {:full-invalidation true}
+            (g/set-property resource-a :marker (int 1)))
+
+          (let [graph-a-successors-after (graph-successors-cache graph-a)
+                graph-b-successors-after (graph-successors-cache graph-b)]
+            ;; :successors is a mutable cache object stored per graph. With full
+            ;; invalidation, we conservatively replace that cache for every
+            ;; graph. This ensures later successor queries are recomputed from
+            ;; the current topology instead of using stale cached data from
+            ;; before the transaction.
+            (is (not (identical? graph-a-successors-before graph-a-successors-after)))
+            (is (not (identical? graph-b-successors-before graph-b-successors-after)))
+            (is (= #{(g/endpoint receiver-b :passthrough)}
+                   (set (g/successors (g/now) resource-b :b)))))))))
+
+  (testing "Does not invalidate successors for a no-op transaction."
+    (ts/with-clean-system
+      (let [graph (g/make-graph! :history false)
+            [resource receiver] (ts/tx-nodes
+                                  (g/make-node graph Resource)
+                                  (g/make-node graph Receiver))]
+        (g/transact
+          (g/connect resource :b receiver :generic-input))
+
+        (let [successors-before (graph-successors-cache graph)]
+          (g/transact {:full-invalidation true} [])
+          (is (identical? successors-before (graph-successors-cache graph)))))))
+
+  (testing "Recomputes topology changes after connect and disconnect."
+    (ts/with-clean-system
+      (let [graph (g/make-graph! :history false)
+            [resource receiver] (ts/tx-nodes
+                                  (g/make-node graph Resource)
+                                  (g/make-node graph Receiver))]
+        (g/transact {:full-invalidation true}
+          (g/connect resource :b receiver :generic-input))
+        (is (= #{(g/endpoint receiver :passthrough)}
+               (set (g/successors (g/now) resource :b))))
+
+        (g/transact {:full-invalidation true}
+          (g/disconnect resource :b receiver :generic-input))
+        (is (= #{}
+               (set (g/successors (g/now) resource :b))))))))
 
 (g/defnode CachedValueNode
   (output cached-output g/Str :cached (g/fnk [] "an-output-value")))

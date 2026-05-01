@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,15 +16,15 @@
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.settings-core :as settings-core]
             [integration.test-util :as tu]
+            [local-extensions :as local-extensions]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
   (:import [com.dynamo.lua.proto Lua$LuaModule]))
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private extension-lua-preprocessor-url (settings-core/inject-jvm-properties "{{defold.extension.lua-preprocessor.url}}"))
+(defonce ^:private extension-lua-preprocessor-url (local-extensions/inject-jvm-properties "{{defold.extension.lua-preprocessor.url}}"))
 
 (deftest extension-lua-preprocessor-test
   (with-clean-system
@@ -67,23 +67,23 @@
             expected-built-lines-before-preprocessing
             ["local system = require 'system'"
              ""
-             "--#IF DEBUG"
-             "    local utils = require 'debug-utils'"
-             "--#ENDIF"
              ""
-             "--#IF RELEASE"
+             "    local utils = require 'debug-utils'"
+             ""
+             ""
+             ""
              "    local utils = require 'release-utils'"
-             "--#ENDIF"
+             ""
              ""
              "                                                          "
              ""
-             "--#IF DEBUG"
-             "                                                                                  "
-             "--#ENDIF"
              ""
-             "--#IF RELEASE"
+             "                                                                                  "
+             ""
+             ""
+             ""
              "                                                                                      "
-             "--#ENDIF"]
+             ""]
 
             ;; The expected output with the Lua preprocessor plugin. Since the
             ;; go.property declarations are stripped out regardless, only the
@@ -91,23 +91,23 @@
             expected-built-lines-after-preprocessing
             ["local system = require 'system'"
              ""
-             "--#IF DEBUG"
-             "    local utils = require 'debug-utils'"
-             "--#ENDIF"
              ""
-             "--#IF RELEASE"
+             "    local utils = require 'debug-utils'"
+             ""
+             ""
+             ""
              "                                         "
-             "--#ENDIF"
+             ""
              ""
              "                                                          "
              ""
-             "--#IF DEBUG"
-             "                                                                                  "
-             "--#ENDIF"
              ""
-             "--#IF RELEASE"
+             "                                                                                  "
+             ""
+             ""
+             ""
              "                                                                                      "
-             "--#ENDIF"]
+             ""]
 
             script (tu/make-code-resource-node! project "/script.script" script-lines)]
 

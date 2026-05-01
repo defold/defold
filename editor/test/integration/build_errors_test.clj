@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,16 +18,17 @@
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.defold-project :as project]
-            [editor.progress :as progress]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [internal.util :as util]))
+            [internal.util :as util]
+            [util.fn :as fn]))
 
 (def ^:private project-path "test/resources/errors_project")
 
 (defn- build-error [render-error-fn-call-logger]
-  (let [calls (test-util/call-logger-calls render-error-fn-call-logger)
+  (let [calls (fn/call-logger-calls render-error-fn-call-logger)
         args (last calls)
         error-value (first args)]
     error-value))
@@ -55,14 +56,15 @@
           resource (partial test-util/resource workspace)
           resource-node (partial test-util/resource-node project)
           outline-node (fn [resource-path labels] (find-outline-node (resource-node resource-path) labels))
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          nodes-label (localization/message "outline.gui.nodes")]
 
       (testing "Build error links to source node"
         (are [component-resource-path error-resource-path error-outline-path]
             (with-open [_ (make-restore-point!)]
               (add-component-from-file! workspace game-object component-resource-path)
               (let [old-artifact-map (workspace/artifact-map workspace)
-                    build-results (build/build-project! project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
+                    build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
                     error-value (:error build-results)]
                 (if (is (some? error-value) component-resource-path)
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
@@ -79,29 +81,29 @@
           "/errors/syntax_error.script" []
 
           "/errors/button_break_self.gui"
-          "/errors/button_break_self.gui" ["Nodes" "box"]
+          "/errors/button_break_self.gui" [nodes-label "box"]
 
           "/errors/panel_using_button_break_self.gui"
-          "/errors/button_break_self.gui" ["Nodes" "box"]
+          "/errors/button_break_self.gui" [nodes-label "box"]
 
           "/errors/panel_break_button.gui"
-          "/errors/panel_break_button.gui" ["Nodes" "button" "button/box"]
+          "/errors/panel_break_button.gui" [nodes-label "button" "button/box"]
 
           "/errors/window_using_panel_break_button.gui"
-          "/errors/panel_break_button.gui" ["Nodes" "button" "button/box"]
+          "/errors/panel_break_button.gui" [nodes-label "button" "button/box"]
 
           "/errors/window_break_panel.gui"
-          "/errors/window_break_panel.gui" ["Nodes" "panel" "panel/button"]
+          "/errors/window_break_panel.gui" [nodes-label "panel" "panel/button"]
 
           "/errors/window_break_button.gui"
-          "/errors/window_break_button.gui" ["Nodes" "panel" "panel/button" "panel/button/box"]))
+          "/errors/window_break_button.gui" [nodes-label "panel" "panel/button" "panel/button/box"]))
 
       (testing "Build errors from missing files link to referencing files, not referenced"
         (are [resource-path error-resource-path error-outline-path add-fn]
             (with-open [_ (make-restore-point!)]
               (add-fn resource-path)
               (let [old-artifact-map (workspace/artifact-map workspace)
-                    build-results (build/build-project! project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
+                    build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
                     error-value (:error build-results)]
                 (if (is (some? error-value) resource-path)
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
@@ -122,6 +124,22 @@
           "/main/main.collection" ["file_not_found"]
           (partial add-game-object-from-file! workspace main-collection)))
 
+      (testing "Build errors from embedded collection proxies link to the owning resource"
+        (with-open [_ (make-restore-point!)]
+          (let [collection-proxy-resource-type (workspace/get-resource-type workspace "collectionproxy")
+                embedded-component (test-util/add-embedded-component! game-object collection-proxy-resource-type)
+                embedded-resource-node (test-util/to-component-resource-node-id embedded-component)]
+            (test-util/prop! embedded-resource-node :collection (resource "/errors/missing.collection"))
+            (let [old-artifact-map (workspace/artifact-map workspace)
+                  build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
+                  error-value (:error build-results)]
+              (if (is (some? error-value))
+                (let [error-tree (build-errors-view/build-resource-tree error-value)
+                      error-item-of-parent-resource (first (:children error-tree))]
+                  (is (= [(resource "/main/main.collection") (resource-node "/main/main.collection")]
+                         (error-item-open-info-without-opts error-item-of-parent-resource))))
+                (workspace/artifact-map! workspace (:artifact-map build-results)))))))
+
       (testing "Errors from the same source are not duplicated"
         (with-open [_ (make-restore-point!)]
           (doseq [path ["/errors/button_break_self.gui"
@@ -131,7 +149,7 @@
                         "/errors/window_using_panel_break_button.gui"]]
             (add-component-from-file! workspace game-object path))
           (let [old-artifact-map (workspace/artifact-map workspace)
-                build-results (build/build-project! project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
+                build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
                 error-value (:error build-results)]
             (if (is (some? error-value))
               (let [error-tree (build-errors-view/build-resource-tree error-value)]

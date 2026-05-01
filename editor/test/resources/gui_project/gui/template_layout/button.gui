@@ -1,0 +1,12 @@
+fonts {
+  name: "font"
+  font: "/assets/vera_mo_bd.font"
+}
+nodes {
+  type: TYPE_TEXT
+  text: "button default"
+  font: "font"
+  id: "text"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT

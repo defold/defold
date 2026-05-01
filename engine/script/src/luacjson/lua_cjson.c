@@ -168,7 +168,17 @@ typedef struct {
     int decode_max_depth;
     int decode_array_with_array_mt;
     int decode_null_as_userdata;
+    // DEFOLD
+    lua_State* l;
+    int protected_mode;
+    char* error_message;
+    size_t error_message_length;
+    // END DEFOLD
 } json_config_t;
+
+// DEFOLD
+static int DefoldError(json_config_t* cfg, const char* format, ...);
+// END DEFOLD
 
 typedef struct {
     const char *data;
@@ -461,7 +471,7 @@ static void json_create_config(lua_State *l)
 #endif // DEFOLD
 
 // DEFOLD
-static void json_initialize_config(lua_State *l, json_config_t* cfg, int encode_keep_buffer)
+static void json_initialize_config(lua_State *l, json_config_t* cfg, int encode_keep_buffer, int protected_mode, char* errbuf, size_t errbuf_len)
 {
     int i;
 
@@ -478,6 +488,11 @@ static void json_initialize_config(lua_State *l, json_config_t* cfg, int encode_
     cfg->decode_array_with_array_mt = DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT;
     cfg->encode_escape_forward_slash = DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH;
     cfg->decode_null_as_userdata = DEFAULT_DECODE_NULL_AS_USERDATA;
+
+    cfg->l = l;
+    cfg->protected_mode = protected_mode;
+    cfg->error_message = errbuf;
+    cfg->error_message_length = errbuf_len;
 
     if (encode_keep_buffer > 0)
     {
@@ -561,7 +576,7 @@ static void json_encode_exception(lua_State *l, json_config_t *cfg, strbuf_t *js
     // We don't need the buffer if error happened.
     strbuf_free(json);
 
-    luaL_error(l, "Cannot serialise %s: %s",
+    DefoldError(cfg, "Cannot serialise %s: %s",
                   lua_typename(l, lua_type(l, lindex)), reason);
 }
 
@@ -714,7 +729,7 @@ static void json_check_encode_depth(lua_State *l, json_config_t *cfg,
     // We don't need the buffer if error happened.
     strbuf_free(json);
 
-    luaL_error(l, "Cannot serialise, excessive nesting (%d)",
+    DefoldError(cfg, "Cannot serialise, excessive nesting (%d)",
                current_depth);
 }
 
@@ -961,7 +976,7 @@ int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
     strbuf_t local_encode_buf;
     strbuf_t *encode_buf;
 
-    json_initialize_config(l, &cfg, DEFAULT_ENCODE_KEEP_BUFFER);
+    json_initialize_config(l, &cfg, DEFAULT_ENCODE_KEEP_BUFFER, 1, 0, 0);
     if (!cfg.encode_keep_buffer) {
         /* Use private buffer */
         encode_buf = &local_encode_buf;
@@ -996,7 +1011,7 @@ int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
 
 /* ===== DECODING ===== */
 
-static void json_process_value(lua_State *l, json_parse_t *json,
+static int json_process_value(lua_State *l, json_parse_t *json,
                                json_token_t *token);
 
 static int hexdigit2int(char hex)
@@ -1366,7 +1381,7 @@ static void json_next_token(json_parse_t *json, json_token_t *token)
  * json->tmp struct.
  * json and token should exist on the stack somewhere.
  * luaL_error() will long_jmp and release the stack */
-static void json_throw_parse_error(lua_State *l, json_parse_t *json,
+static int json_throw_parse_error(lua_State *l, json_parse_t *json,
                                    const char *exp, json_token_t *token)
 {
     const char *found;
@@ -1379,7 +1394,7 @@ static void json_throw_parse_error(lua_State *l, json_parse_t *json,
         found = json_token_type_name[token->type];
 
     /* Note: token->index is 0 based, display starting from 1 */
-    luaL_error(l, "Expected %s but found %s at character %d",
+    return DefoldError(json->cfg, "Expected %s but found %s at character %d",
                exp, found, token->index + 1);
 }
 
@@ -1398,11 +1413,11 @@ static void json_decode_descend(lua_State *l, json_parse_t *json, int slots)
     }
 
     strbuf_free(json->tmp);
-    luaL_error(l, "Found too many nested data structures (%d) at character %d",
+    DefoldError(json->cfg, "Found too many nested data structures (%d) at character %d",
         json->current_depth, (int)(uintptr_t)(json->ptr - json->data));
 }
 
-static void json_parse_object_context(lua_State *l, json_parse_t *json)
+static int json_parse_object_context(lua_State *l, json_parse_t *json)
 {
     json_token_t token;
 
@@ -1417,23 +1432,24 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
     /* Handle empty objects */
     if (token.type == T_OBJ_END) {
         json_decode_ascend(json);
-        return;
+        return 1;
     }
 
     while (1) {
         if (token.type != T_STRING)
-            json_throw_parse_error(l, json, "object key string", &token);
+            return json_throw_parse_error(l, json, "object key string", &token);
 
         /* Push key */
         lua_pushlstring(l, token.value.string, token.string_len);
 
         json_next_token(json, &token);
         if (token.type != T_COLON)
-            json_throw_parse_error(l, json, "colon", &token);
+            return json_throw_parse_error(l, json, "colon", &token);
 
         /* Fetch value */
         json_next_token(json, &token);
-        json_process_value(l, json, &token);
+        if (!json_process_value(l, json, &token))
+            return 0;
 
         /* Set key = value */
         lua_rawset(l, -3);
@@ -1442,18 +1458,19 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
 
         if (token.type == T_OBJ_END) {
             json_decode_ascend(json);
-            return;
+            return 1;
         }
 
         if (token.type != T_COMMA)
-            json_throw_parse_error(l, json, "comma or object end", &token);
+            return json_throw_parse_error(l, json, "comma or object end", &token);
 
         json_next_token(json, &token);
     }
+    return 1;
 }
 
 /* Handle the array context */
-static void json_parse_array_context(lua_State *l, json_parse_t *json)
+static int json_parse_array_context(lua_State *l, json_parse_t *json)
 {
     json_token_t token;
     int i;
@@ -1476,29 +1493,31 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
     /* Handle empty arrays */
     if (token.type == T_ARR_END) {
         json_decode_ascend(json);
-        return;
+        return 1;
     }
 
     for (i = 1; ; i++) {
-        json_process_value(l, json, &token);
+        if (!json_process_value(l, json, &token))
+            return 0;
         lua_rawseti(l, -2, i);            /* arr[i] = value */
 
         json_next_token(json, &token);
 
         if (token.type == T_ARR_END) {
             json_decode_ascend(json);
-            return;
+            return 1;
         }
 
         if (token.type != T_COMMA)
-            json_throw_parse_error(l, json, "comma or array end", &token);
+            return json_throw_parse_error(l, json, "comma or array end", &token);
 
         json_next_token(json, &token);
     }
+    return 1;
 }
 
 /* Handle the "value" context */
-static void json_process_value(lua_State *l, json_parse_t *json,
+static int json_process_value(lua_State *l, json_parse_t *json,
                                json_token_t *token)
 {
     switch (token->type) {
@@ -1512,7 +1531,8 @@ static void json_process_value(lua_State *l, json_parse_t *json,
         lua_pushboolean(l, token->value.boolean);
         break;;
     case T_OBJ_BEGIN:
-        json_parse_object_context(l, json);
+        if (!json_parse_object_context(l, json))
+            return 0;
         break;;
     case T_ARR_BEGIN:
         json_parse_array_context(l, json);
@@ -1531,8 +1551,9 @@ static void json_process_value(lua_State *l, json_parse_t *json,
         }
         break;;
     default:
-        json_throw_parse_error(l, json, "value", token);
+        return json_throw_parse_error(l, json, "value", token);
     }
+    return 1;
 }
 
 #if 0 // DEFOLD
@@ -1582,18 +1603,37 @@ static int json_decode(lua_State *l)
 // Defold: Expose needed functions to our script_json module
 ////////////////////////////////////////////////////////////
 
-// The major difference between this function and the internal
+static int DefoldError(json_config_t* cfg, const char* format, ...)
+{
+    va_list argp;
+    va_start(argp, format);
+
+    char tmp_buffer[256];
+    char* buffer = cfg->error_message ? cfg->error_message : tmp_buffer;
+    size_t buffer_len = cfg->error_message ? cfg->error_message_length : sizeof(tmp_buffer);
+    vsnprintf(buffer, buffer_len, format, argp);
+
+    if (cfg->protected_mode)
+    {
+        return luaL_error(cfg->l, "%s", buffer);
+    }
+    va_end(argp);
+    return 0;
+}
+
+// Note: The major difference between this function and the internal
 // cjson json_encode function is that we don't use the config
 // object created by cjson. Instead we initialize and create
 // a default config here to avoid passing the config as
 // a user data object.
-int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len)
+// Note: We also have a boolean which decides upon the error handling
+int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len, int protected_mode, char* errbuf, size_t errbuf_len)
 {
     json_config_t cfg;
     json_parse_t json;
     json_token_t token;
 
-    json_initialize_config(l, &cfg, 0);
+    json_initialize_config(l, &cfg, 0, protected_mode, errbuf, errbuf_len);
     json.cfg = &cfg;
     json.data = json_string;
     json.data_end = json_string + json_len;
@@ -1606,7 +1646,9 @@ int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len)
      * character is guaranteed to be ASCII (at worst: '"'). This is
      * still enough to detect whether the wrong encoding is in use. */
     if (json_len >= 2 && (!json.data[0] || !json.data[1]))
-        luaL_error(l, "JSON parser does not support UTF-16 or UTF-32");
+    {
+        return DefoldError(&cfg, "JSON parser does not support UTF-16 or UTF-32");
+    }
 
     /* Ensure the temporary buffer can hold the entire string.
      * This means we no longer need to do length checks since the decoded
@@ -1614,13 +1656,14 @@ int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len)
     json.tmp = strbuf_new(json_len);
 
     json_next_token(&json, &token);
-    json_process_value(l, &json, &token);
+    if(!json_process_value(l, &json, &token))
+        return 0;
 
     /* Ensure there is no more input left */
     json_next_token(&json, &token);
 
     if (token.type != T_END)
-        json_throw_parse_error(l, &json, "the end", &token);
+        return json_throw_parse_error(l, &json, "the end", &token);
 
     strbuf_free(json.tmp);
 

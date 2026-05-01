@@ -4,13 +4,16 @@ write_log = 0
 
 [bootstrap]
 main_collection = /main/main.collectionc
+render = /main/dummy.renderc
 
 [display]
 height = 960
 width = 640
+display_profiles = /main/dummy.display_profilesc
 
 [input]
 game_binding = /main/game.input_bindingc
+gamepads = /main/dummy.gamepadsc
 
 [graphics]
 texture_profiles = /main/dummy.texture_profiles

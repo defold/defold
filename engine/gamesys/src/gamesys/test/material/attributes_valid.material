@@ -7,12 +7,6 @@ attributes {
   coordinate_space: COORDINATE_SPACE_LOCAL
   data_type: TYPE_FLOAT
   element_count: 2
-  double_values {
-    v: 1.0
-    v: 2.0
-    v: 3.0
-    v: 4.0
-  }
 }
 
 attributes {
@@ -37,3 +31,15 @@ attributes {
   }
 }
 
+attributes {
+  name: "color"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  data_type: TYPE_FLOAT
+  element_count: 3
+  double_values {
+    v: 1.0
+    v: 2.0
+    v: 3.0
+    v: 4.0
+  }
+}

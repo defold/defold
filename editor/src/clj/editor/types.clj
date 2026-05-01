@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,8 +14,11 @@
 
 (ns editor.types
   (:require [dynamo.graph :as g]
-            [schema.core :as s])
+            [editor.pose]
+            [schema.core :as s]
+            [util.defonce :as defonce])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
+           [editor.pose Pose]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
@@ -27,10 +30,10 @@
 ;; ----------------------------------------
 
 (defprotocol R3Min
-  (min-p ^Point3d  [this]))
+  (min-p ^Point3d [this]))
 
 (defprotocol R3Max
-  (max-p ^Point3d  [this]))
+  (max-p ^Point3d [this]))
 
 (defprotocol Rotation
   (rotation ^Quat4d [this]))
@@ -66,8 +69,9 @@
 ;;; Functions to create basic value types
 ;;; ----------------------------------------
 
-;; note - Int32 is a schema, not a value type
-(def Int32   (s/both s/Int (s/pred #(< Integer/MIN_VALUE % Integer/MAX_VALUE) 'int32?)))
+(def TInt32 (s/both s/Int (s/pred #(< Integer/MIN_VALUE % Integer/MAX_VALUE) 'int32?)))
+(def TFloat32 (s/pred #(instance? Float %) "float"))
+(def TNodeID (s/named s/Int "node-id"))
 
 (g/deftype Icon    s/Str)
 
@@ -85,22 +89,38 @@
                     (s/one s/Num "z")
                     (s/one s/Num "w")])
 
-(g/deftype Lines [s/Str])
+(g/deftype Mat2 [(s/one s/Num "m00") (s/one s/Num "m01")
+                 (s/one s/Num "m10") (s/one s/Num "m11")])
+
+(g/deftype Mat3 [(s/one s/Num "m00") (s/one s/Num "m01") (s/one s/Num "m02")
+                 (s/one s/Num "m10") (s/one s/Num "m11") (s/one s/Num "m12")
+                 (s/one s/Num "m20") (s/one s/Num "m21") (s/one s/Num "m22")])
+
+(g/deftype Mat4 [(s/one s/Num "m00") (s/one s/Num "m01") (s/one s/Num "m02") (s/one s/Num "m03")
+                 (s/one s/Num "m10") (s/one s/Num "m11") (s/one s/Num "m12") (s/one s/Num "m13")
+                 (s/one s/Num "m20") (s/one s/Num "m21") (s/one s/Num "m22") (s/one s/Num "m23")
+                 (s/one s/Num "m30") (s/one s/Num "m31") (s/one s/Num "m32") (s/one s/Num "m33")])
+
+(def TLines [s/Str])
+(g/deftype Lines TLines)
 
 (defn Point3d->Vec3 [^Point3d p]
   [(.getX p) (.getY p) (.getZ p)])
 
 (def Registry {s/Any s/Any})
 
-(s/defrecord Rect
-  [path     :- s/Any
-   x        :- Int32
-   y        :- Int32
-   width    :- Int32
-   height   :- Int32]
+(defonce/record Rect [path ^long x ^long y ^long width ^long height]
   N2Extent
   (width [this] width)
   (height [this] height))
+
+(defn Rect->Vector3d
+  ^Vector3d [^Rect rect]
+  (Vector3d. (.x rect) (.y rect) 0.0))
+
+(defn Rect->Point3d
+  ^Point3d [^Rect rect]
+  (Point3d. (.x rect) (.y rect) 0.0))
 
 (def ^:private aabb-unique-axes
   [(Vector3d. 1.0 0.0 0.0)
@@ -184,13 +204,16 @@
           :sprite-trim-mode-5
           :sprite-trim-mode-6
           :sprite-trim-mode-7
-          :sprite-trim-mode-8))
+          :sprite-trim-mode-8
+          :sprite-trim-polygons))
 
 (s/defrecord Image
   [path     :- s/Any
    contents :- (s/maybe BufferedImage)
-   width    :- Int32
-   height   :- Int32
+   width    :- TInt32
+   height   :- TInt32
+   pivot-x  :- TFloat32
+   pivot-y  :- TFloat32
    sprite-trim-mode :- sprite-trim-modes]
   ImageHolder
   (contents [this] contents))
@@ -203,7 +226,7 @@
 (s/defrecord Animation
   [id              :- s/Str
    images          :- [Image]
-   fps             :- Int32
+   fps             :- TInt32
    flip-horizontal :- s/Bool
    flip-vertical   :- s/Bool
    playback        :- playback-modes])
@@ -216,19 +239,19 @@
    animations   :- [Animation]])
 
 (s/defrecord Vertices
-  [counts   :- [Int32]
-   starts   :- [Int32]
+  [counts   :- [TInt32]
+   starts   :- [TInt32]
    vertices :- [s/Num]])
 
 (s/defrecord EngineFormatTexture
-  [width           :- Int32
-   height          :- Int32
-   original-width  :- Int32
-   original-height :- Int32
+  [width           :- TInt32
+   height          :- TInt32
+   original-width  :- TInt32
+   original-height :- TInt32
    format          :- Graphics$TextureImage$TextureFormat
    data            :- ByteBuffer
-   mipmap-sizes    :- [Int32]
-   mipmap-offsets  :- [Int32]])
+   mipmap-sizes    :- [TInt32]
+   mipmap-offsets  :- [TInt32]])
 
 (s/defrecord TextureSetAnimationFrame
   [image                :- Image ; TODO: is this necessary?
@@ -241,9 +264,9 @@
 
 (s/defrecord TextureSetAnimation
   [id              :- s/Str
-   width           :- Int32
-   height          :- Int32
-   fps             :- Int32
+   width           :- TInt32
+   height          :- TInt32
+   fps             :- TInt32
    flip-horizontal :- s/Int
    flip-vertical   :- s/Int
    playback        :- playback-modes
@@ -264,25 +287,26 @@
   (dimensions [this])
   (empty-space? [this]))
 
-(s/defrecord Region
-  [left   :- s/Num
-   right  :- s/Num
-   top    :- s/Num
-   bottom :- s/Num]
+(defonce/record Region [^double left ^double right ^double top ^double bottom]
   Area
-  (dimensions [this] [(- right left) (- bottom top)])
-  (empty-space? [this] (or (= 0 (- right left)) (= 0 (- bottom top)))))
+  (dimensions [this]
+    [(- (.right this) (.left this))
+     (- (.bottom this) (.top this))])
+  (empty-space? [this]
+    (or (<= (.right this) (.left this))
+        (<= (.bottom this) (.top this)))))
 
-(s/defrecord Camera
-  [type           :- (s/enum :perspective :orthographic)
-   position       :- Point3d
-   rotation       :- Quat4d
-   ^double z-near :- s/Num
-   ^double z-far  :- s/Num
-   ^double fov-x  :- s/Num
-   ^double fov-y  :- s/Num
-   focus-point    :- Vector4d
-   filter-fn      :- Runnable]
+(defonce/record Camera
+  [type ;; :perspective or :orthographic
+   ^Point3d position
+   ^Quat4d rotation
+   ^double z-near
+   ^double z-far
+   ^double fov-x
+   ^double fov-y
+   ^Vector4d focus-point
+   ^double focus-distance
+   filter-fn]
   Position
   (position [this] position)
   Rotation
@@ -316,3 +340,40 @@
 
 (g/deftype NodeOutlineKeyPaths #{(s/pred node-outline-key-path?)})
 (g/deftype RenderableTags #{s/Keyword})
+
+;; SDK api
+(def TSceneRenderable
+  {:passes [(s/protocol Pass)]
+   (s/optional-key :batch-key) s/Any
+   (s/optional-key :preview-fn) (s/pred fn?)
+   (s/optional-key :render-fn) (s/pred fn?)
+   (s/optional-key :select-batch-key) s/Any
+   (s/optional-key :tags) #{s/Keyword}
+   (s/optional-key :topmost?) s/Bool
+   (s/optional-key :user-data) s/Any
+   s/Keyword s/Any})
+
+;; SDK api
+(def TSceneUpdatable
+  {:update-fn (s/pred fn?)
+   (s/optional-key :initial-state) s/Any
+   (s/optional-key :name) s/Str
+   (s/optional-key :node-id) TNodeID
+   s/Keyword s/Any})
+
+;; SDK api
+(def TScene
+  {(s/optional-key :aabb) AABB
+   (s/optional-key :children) [(s/recursive #'TScene)]
+   (s/optional-key :info-text) s/Str
+   (s/optional-key :node-id) TNodeID
+   (s/optional-key :pose) Pose
+   (s/optional-key :renderable) TSceneRenderable
+   (s/optional-key :updatable) (s/maybe TSceneUpdatable)
+   s/Keyword s/Any})
+
+;; SDK api
+(g/deftype SceneRenderable TSceneRenderable)
+(g/deftype SceneUpdatable TSceneUpdatable)
+(g/deftype Scene TScene)
+(g/deftype SceneVec [TScene])

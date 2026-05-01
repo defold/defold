@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,16 +27,6 @@ namespace dmResource
 
     // Decrypts a buffer, using the built in function, or the custom one set by RegisterResourceDecryption
     Result DecryptBuffer(void* buffer, uint32_t buffer_len);
-
-    /**
-     * The manifest has a signature embedded. This signature is created when bundling by hashing the manifest content
-     * and encrypting the hash with the private part of a public-private key pair. To verify a manifest this procedure
-     * is performed in reverse; first decrypting the signature using the public key (bundled with the engine) to
-     * retreive the content hash then hashing the actual manifest content and comparing the two.
-     * This method handles the signature decryption part.
-     */
-    Result DecryptSignatureHash(const dmResource::HManifest manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len);
-
 
     /*#
      * Returns the length in bytes of the supplied hash algorithm
@@ -88,20 +78,12 @@ namespace dmResource
     Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
-     * Gets the normalized resource path: "/my//icon.texturec" -> "/my/icon.texturec". "my/icon.texturec" -> "/my/icon.texturec".
-     * @param relative_dir the relative dir of the resource
-     * @param buf the result of the operation
-     * @return the length of the buffer
-     */
-    uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
-
-    /**
      * Gets the actual resource path e.g. "base_dir/my/icon.texturec".
      * @param relative_dir the relative dir of the resource
      * @param buf the result of the operation
      * @return the length of the buffer
      */
-    uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
+    uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf, uint32_t buf_len);
 
     // For debugging
     void PrintHash(const uint8_t* hash, uint32_t len);

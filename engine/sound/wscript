@@ -32,6 +32,7 @@ def configure(conf):
     conf.env.append_value('INCLUDES', "default/src")
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_TREMOLO'] = 'tremolo'
+    conf.env['STLIB_OPUS'] = 'opus'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
 
@@ -44,4 +45,4 @@ def shutdown(self):
     if sys.platform == 'linux' and not os.path.exists('/dev/snd/controlC0'):
         print ("SKIPPING TESTS SINCE WE DETECTED NO SOUND CARD")
         return
-    waf_dynamo.run_tests(test_context, valgrind = True)
+    waf_dynamo.run_tests(test_context)

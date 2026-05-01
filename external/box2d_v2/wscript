@@ -1,0 +1,20 @@
+#! /usr/bin/env python
+
+import os
+
+def options(opt):
+    opt.load('waf_dynamo')
+
+def configure(conf):
+    if os.environ['DYNAMO_HOME'] != conf.env.PREFIX:
+        if 'PREFIX' not in os.environ:
+            conf.env.PREFIX = os.environ['DYNAMO_HOME']
+            print("Setting PREFIX=$DYNAMO_HOME")
+
+    conf.load('waf_dynamo')
+
+def build(bld):
+    bld.recurse('Box2D')
+
+def package(package):
+    package.recurse('Box2D')

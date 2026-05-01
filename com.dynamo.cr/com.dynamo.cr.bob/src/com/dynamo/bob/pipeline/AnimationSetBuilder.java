@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,12 +37,10 @@ import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.google.protobuf.TextFormat;
 
-import javax.xml.stream.XMLStreamException;
+@BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc", isCacheble = true)
+public class AnimationSetBuilder extends Builder  {
 
-@BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc")
-public class AnimationSetBuilder extends Builder<Void>  {
-
-    public static void collectAnimations(Task.TaskBuilder<Void> taskBuilder, Project project, IResource owner, AnimationSetDesc.Builder animSetDescBuilder) throws IOException, CompileExceptionError  {
+    public static void collectAnimations(Task.TaskBuilder taskBuilder, Project project, IResource owner, AnimationSetDesc.Builder animSetDescBuilder) throws IOException, CompileExceptionError  {
         for(AnimationInstanceDesc instance : animSetDescBuilder.getAnimationsList()) {
             IResource animFile = BuilderUtil.checkResource(project, owner, "animationset", instance.getAnimation());
             taskBuilder.addInput(animFile);
@@ -57,13 +55,12 @@ public class AnimationSetBuilder extends Builder<Void>  {
         }
     }
 
-
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
             .setName(params.name())
-            .addInput(input);
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
+            .addInput(input)
+            .addOutput(input.changeExt(params.outExt()));
 
         if( input.getAbsPath().endsWith(".animationset") ) {
             ByteArrayInputStream animFileIS = new ByteArrayInputStream(input.getContent());
@@ -77,14 +74,14 @@ public class AnimationSetBuilder extends Builder<Void>  {
         return taskBuilder.build();
     }
 
-    private void validateAndAddFile(Task<Void> task, String path, ArrayList<String> animFiles) throws CompileExceptionError {
+    private void validateAndAddFile(Task task, String path, ArrayList<String> animFiles) throws CompileExceptionError {
         if(animFiles.contains(path)) {
             throw new CompileExceptionError(task.input(0), -1, "Animation file referenced more than once: " + path);
         }
         animFiles.add(path);
     }
 
-    private void buildAnimations(Task<Void> task, boolean isAnimationSet, ModelImporter.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
+    private void buildAnimations(Task task, boolean isAnimationSet, ModelImporterJni.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
                                             String parentId, ArrayList<String> animFiles) throws CompileExceptionError, IOException {
         ArrayList<String> idList = new ArrayList<>(animSetDescBuilder.getAnimationsCount());
 
@@ -117,18 +114,14 @@ public class AnimationSetBuilder extends Builder<Void>  {
             ArrayList<String> animationIds = new ArrayList<String>();
 
             String suffix = BuilderUtil.getSuffix(animFile.getPath());
-            boolean isCollada = suffix.equals("dae");
+            if (!suffix.equals("gltf") && !suffix.equals("glb")) {
+                throw new CompileExceptionError(animFile, -1, "Unsupported animation format '." + suffix + "'");
+            }
 
             try {
-                if (isCollada)
-                    loadColladaAnimations(animBuilder, animFileIS, animId, parentId);
-                else
-                    loadModelAnimations(isAnimationSet, animBuilder, animFileIS, dataResolver, animId, parentId, animFile.getPath(), animationIds);
-
-            } catch (XMLStreamException e) {
-                throw new CompileExceptionError(animFile, e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(animFile, -1, "Failed to load animation: " + e.getLocalizedMessage(), e);
+                loadModelAnimations(isAnimationSet, animBuilder, animFileIS, dataResolver, animId, parentId, animFile.getPath(), animationIds);
+            } catch (IOException e) {
+                throw new CompileExceptionError(animFile, -1, e.getMessage(), e);
             }
 
             animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
@@ -157,20 +150,11 @@ public class AnimationSetBuilder extends Builder<Void>  {
         return makeUnique(animations);
     }
 
-    static void loadColladaAnimations(AnimationSet.Builder animationSetBuilder, InputStream is, String animId, String parentId)
-    throws IOException, XMLStreamException, LoaderException {
-        ArrayList<String> localAnimationIds = new ArrayList<String>();
-        AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
-        ColladaUtil.loadAnimations(is, animBuilder, animId, localAnimationIds);
-
-        animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
-    }
-
     static void loadModelAnimations(boolean isAnimationSet, AnimationSet.Builder animationSetBuilder,
-                                    InputStream is, ModelImporter.DataResolver dataResolver, String animId, String parentId,
+                                    InputStream is, ModelImporterJni.DataResolver dataResolver, String animId, String parentId,
                                     String path, ArrayList<String> animationIds) throws IOException {
 
-        ModelImporter.Scene scene = ModelUtil.loadScene(is, path, new ModelImporter.Options(), dataResolver);
+        Modelimporter.Scene scene = ModelUtil.loadScene(is, path, new Modelimporter.Options(), dataResolver);
 
         ArrayList<String> localAnimationIds = new ArrayList<String>();
         AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
@@ -185,7 +169,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
         ModelUtil.unloadScene(scene);
     }
 
-    public static class ResourceDataResolver implements ModelImporter.DataResolver
+    public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
         Project project;
 
@@ -211,7 +195,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
     };
 
     // For the editor
-    static public void buildAnimations(boolean isAnimationSet, List<String> paths, List<InputStream> streams, ModelImporter.DataResolver dataResolver, List<String> parentIds,
+    static public void buildAnimations(boolean isAnimationSet, List<String> paths, List<InputStream> streams, ModelImporterJni.DataResolver dataResolver, List<String> parentIds,
                              AnimationSet.Builder animationSetBuilder, ArrayList<String> animationIds) throws IOException, CompileExceptionError {
 
 
@@ -233,29 +217,22 @@ public class AnimationSetBuilder extends Builder<Void>  {
             }
             animationIds.add(animId);
 
-            boolean isCollada = false;
             String suffix = BuilderUtil.getSuffix(path);
-            if (suffix.equals("dae")) {
-                isCollada = true;
+            if (!suffix.equals("gltf") && !suffix.equals("glb")) {
+                throw new CompileExceptionError(String.format("Unsupported animation format '.%s' in animation set: %s", suffix, path));
             }
 
             try {
-                if (isCollada)
-                    loadColladaAnimations(animationSetBuilder, stream, animId, parentId);
-                else
-                    loadModelAnimations(isAnimationSet, animationSetBuilder, stream, dataResolver, animId, parentId, path, animationIds);
-
-            } catch (XMLStreamException e) {
-                throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, e.getLocation().getLineNumber(), e.getLocalizedMessage()), e);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, -1, e.getLocalizedMessage()), e);
+                loadModelAnimations(isAnimationSet, animationSetBuilder, stream, dataResolver, animId, parentId, path, animationIds);
+            } catch (IOException e) {
+                throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, -1, e.getMessage()), e);
             }
         }
     }
 // END EDITOR SPECIFIC FUNCTIONS
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
 
         ByteArrayInputStream animSetDescIS = new ByteArrayInputStream(task.input(0).getContent());
         InputStreamReader animSetDescISR = new InputStreamReader(animSetDescIS);

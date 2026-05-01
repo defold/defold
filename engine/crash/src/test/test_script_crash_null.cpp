@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,7 +15,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <script/script.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -40,7 +40,7 @@ extern "C"
 class ScriptCrashTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmCrash::Init("DefoldScriptTest", "0123456789abcdef");
 
@@ -64,7 +64,7 @@ protected:
 
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmConfigFile::Delete(m_ConfigFile);
         dmResource::DeleteFactory(m_ResourceFactory);

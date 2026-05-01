@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,20 +24,21 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.util.BobNLS;
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector3One;
-import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.proto.DdfMath.Vector4One;
 
-import com.dynamo.bob.Builder;
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.bob.util.ComponentsCounter;
@@ -51,8 +52,9 @@ import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.google.protobuf.TextFormat;
 
+@ProtoParams(srcClass = PrototypeDesc.class, messageClass = PrototypeDesc.class)
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
-public class GameObjectBuilder extends Builder<Void> {
+public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     private Boolean ifObjectHasDynamicFactory = false;
 
     private boolean isComponentOfType(EmbeddedComponentDesc d, String type) {
@@ -63,18 +65,16 @@ public class GameObjectBuilder extends Builder<Void> {
     }
 
     private PrototypeDesc.Builder loadPrototype(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(input, b);
+        PrototypeDesc.Builder b = getSrcBuilder(input);
 
         List<ComponentDesc> lst = b.getComponentsList();
         List<ComponentDesc> newList = new ArrayList<GameObject.ComponentDesc>();
 
-
         for (ComponentDesc componentDesc : lst) {
-            // Convert .wav and .ogg resource component to an embedded sound
+            // Convert .wav, .opus and .ogg resource component to an embedded sound
             // Should be fixed in the editor, see https://github.com/defold/defold/issues/4959
             String comp = componentDesc.getComponent();
-            if (comp.endsWith(".wav") || comp.endsWith(".ogg")) {
+            if (comp.endsWith(".wav") || comp.endsWith(".ogg") || comp.endsWith(".opus")) {
                 SoundDesc.Builder sd = SoundDesc.newBuilder().setSound(comp);
                 EmbeddedComponentDesc ec = EmbeddedComponentDesc.newBuilder()
                     .setId(componentDesc.getId())
@@ -94,32 +94,32 @@ public class GameObjectBuilder extends Builder<Void> {
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = loadPrototype(input);
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
 
-        for (ComponentDesc cd : b.getComponentsList()) {
+        PrototypeDesc.Builder builder = loadPrototype(input);
+
+        for (ComponentDesc cd : builder.getComponentsList()) {
             Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project);
             if (isStatic != null) {
                 ifObjectHasDynamicFactory |= !isStatic;
             }
-            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
-            for(String r : resources) {
-                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
-                taskBuilder.addInput(resource);
-                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
+            Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
+            for (Map.Entry<String, String> entry : resources.entrySet()) {
+                createSubTask(entry.getValue(), entry.getKey(), taskBuilder);
             }
         }
 
-        PrototypeDesc proto = b.build();
+        createSubTasks(builder, taskBuilder);
+        PrototypeDesc proto = builder.build();
 
         // Gather the unique resources first
         Map<Long, IResource> uniqueResources = new HashMap<>();
-        List<Task<?>> embedTasks = new ArrayList<>();
+        List<Task> embedTasks = new ArrayList<>();
 
         for (EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
             byte[] data = ec.getData().getBytes();
@@ -135,7 +135,7 @@ public class GameObjectBuilder extends Builder<Void> {
                 genResource.setContent(data);
                 uniqueResources.put(hash, genResource);
             }
-            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, taskBuilder, input);
+            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, data, taskBuilder, input);
             if (isStatic != null) {
                 ifObjectHasDynamicFactory |= !isStatic;
             }
@@ -143,18 +143,12 @@ public class GameObjectBuilder extends Builder<Void> {
 
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-            taskBuilder.addOutput(genResource);
-            Task<?> embedTask = project.createTask(genResource);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input,
-                                                0,
-                                                String.format("Failed to create build task for component '%s'", genResource.getPath()));
-            }
+            Task embedTask = createSubTask(genResource, taskBuilder);
             embedTasks.add(embedTask);
         }
 
-        Task<Void> task = taskBuilder.build();
-        for (Task<?> et : embedTasks) {
+        Task task = taskBuilder.build();
+        for (Task et : embedTasks) {
             et.setProductOf(task);
         }
 
@@ -162,14 +156,15 @@ public class GameObjectBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
-            IOException {
-        IResource input = task.input(0);
-        PrototypeDesc.Builder protoBuilder = loadPrototype(input);
+    public void build(Task task) throws CompileExceptionError, IOException {
+        IResource input = task.firstInput();
+        PrototypeDesc.Builder protoBuilder = getSrcBuilder(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
             BuilderUtil.checkResource(this.project, input, "component", component);
         }
+
+        int buildDirLen = project.getBuildDirectory().length();
 
         // convert embedded components to generated components in the build folder
         for (EmbeddedComponentDesc ec : protoBuilder.getEmbeddedComponentsList()) {
@@ -185,14 +180,13 @@ public class GameObjectBuilder extends Builder<Void> {
             // TODO: We have to set content again here as distclean might have removed everything at this point (according to CollectionBuilder.java)
             genResource.setContent(data);
 
-            int buildDirLen = project.getBuildDirectory().length();
-            String path = genResource.getPath().substring(buildDirLen);
+            String relativePath = genResource.getPath().substring(buildDirLen);
 
             ComponentDesc.Builder b = ComponentDesc.newBuilder()
                     .setId(ec.getId())
                     .setPosition(ec.getPosition())
                     .setRotation(ec.getRotation())
-                    .setComponent(path);
+                    .setComponent(relativePath);
 
             // #3981
             // copy the scale from the embedded component only if it has a scale to
@@ -235,13 +229,13 @@ public class GameObjectBuilder extends Builder<Void> {
             String ext = FilenameUtils.getExtension(c);
             compStorage.add(ext);
             String inExt = "." + ext;
-            String outExt = project.replaceExt(inExt);
+            String outExt = ResourceUtil.getOutputExt(inExt);
             if (ext.equals("gui_script") || ext.equals("render_script"))
             {
                 throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
                         new String[] { c, ext, "script" } ));
             }
-            c = BuilderUtil.replaceExt(c, inExt, outExt);
+            c = ResourceUtil.minifyPathAndReplaceExt(c, inExt, outExt);
 
             PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
             for (PropertyDesc desc : cd.getPropertiesList()) {

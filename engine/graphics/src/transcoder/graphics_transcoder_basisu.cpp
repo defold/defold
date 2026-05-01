@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,7 +36,7 @@ namespace dmGraphics
         case dmGraphics::TEXTURE_FORMAT_R_ETC2:             out = basist::transcoder_texture_format::cTFETC2_EAC_R11; return true;
         case dmGraphics::TEXTURE_FORMAT_RG_ETC2:            out = basist::transcoder_texture_format::cTFETC2_EAC_RG11; return true;
         case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:          out = basist::transcoder_texture_format::cTFETC2_RGBA; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:      out = basist::transcoder_texture_format::cTFASTC_4x4_RGBA; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4:      out = basist::transcoder_texture_format::cTFASTC_4x4_RGBA; return true;
         case dmGraphics::TEXTURE_FORMAT_RGB_BC1:            out = basist::transcoder_texture_format::cTFBC1_RGB; return true;
         case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:           out = basist::transcoder_texture_format::cTFBC3_RGBA; return true;
         case dmGraphics::TEXTURE_FORMAT_R_BC4:              out = basist::transcoder_texture_format::cTFBC4_R; return true;
@@ -48,7 +48,7 @@ namespace dmGraphics
     }
 
 
-#define TEX_TRANSCODE_DEBUG 1
+#define TEX_TRANSCODE_DEBUG 0
     #if defined(TEX_TRANSCODE_DEBUG)
         const char* ToString(dmGraphics::TextureFormat format)
         {
@@ -66,7 +66,7 @@ namespace dmGraphics
                 case dmGraphics::TEXTURE_FORMAT_R_ETC2: return "TEXTURE_FORMAT_R_ETC2";
                 case dmGraphics::TEXTURE_FORMAT_RG_ETC2: return "TEXTURE_FORMAT_RG_ETC2";
                 case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2: return "TEXTURE_FORMAT_RGBA_ETC2";
-                case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4: return "TEXTURE_FORMAT_RGBA_ASTC_4x4";
+                case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4: return "TEXTURE_FORMAT_RGBA_ASTC_4X4";
                 case dmGraphics::TEXTURE_FORMAT_RGB_BC1: return "TEXTURE_FORMAT_RGB_BC1";
                 case dmGraphics::TEXTURE_FORMAT_RGBA_BC3: return "TEXTURE_FORMAT_RGBA_BC3";
                 case dmGraphics::TEXTURE_FORMAT_R_BC4: return "TEXTURE_FORMAT_R_BC4";
@@ -287,7 +287,7 @@ namespace dmGraphics
         return true;
     }
 
-    bool Transcode(const char* path, dmGraphics::TextureImage::Image* image, uint8_t image_count, dmGraphics::TextureFormat format,
+    bool Transcode(const char* path, dmGraphics::TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, dmGraphics::TextureFormat format,
                     uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips)
     {
         DM_PROFILE(__FUNCTION__);
@@ -304,59 +304,61 @@ namespace dmGraphics
         basist::transcoder_texture_format transcoder_format;
         if (!TextureFormatToBasisFormat(format, transcoder_format))
         {
-            dmLogError("Failed to convert texture format %d to basis format %d for file '%s'", format, transcoder_format, path);
+            dmLogError("Failed to convert texture format %d to basis format %d for file '%s'", format, (int)transcoder_format, path);
             return false;
         }
 
-        uint32_t max_num_images = *num_transcoded_mips;
-        uint32_t slice_data_offset = 0;
-
-        ImageTranscodeState* image_transcoders = new ImageTranscodeState[image_count];
-
     #if defined(TEX_TRANSCODE_DEBUG)
-        dmLogInfo("Transcoding: %s from %d to %d (%s -> %s)", path, format, transcoder_format, ToString(format), ToString(transcoder_format));
+        dmLogInfo("Transcoding: %s from %d to %d (%s -> %s)", path, format, (int)transcoder_format, ToString(format), ToString(transcoder_format));
     #endif
 
-        for (int i = 0; i < image_count; ++i)
+        uint32_t max_mipmap_count              = dmMath::Min(*num_transcoded_mips, image[0].m_MipMapSize.m_Count);
+        uint32_t images_and_mipmap_count       = max_mipmap_count * image_count;
+        ImageTranscodeState* image_transcoders = new ImageTranscodeState[images_and_mipmap_count];
+
+        uint32_t slice_data_offset = 0;
+        for (int i = 0; i < image_count * max_mipmap_count; ++i)
         {
             uint32_t size = image->m_MipMapSizeCompressed[i];
-            uint8_t* ptr  = &image->m_Data.m_Data[slice_data_offset];
+            uint8_t* ptr  = &image_bytes[slice_data_offset];
 
             if (!TranscodeInitializeState(path, image_transcoders[i], ptr, size, transcoder_format))
             {
+                delete[] image_transcoders;
                 return false;
             }
 
             slice_data_offset += size;
         }
 
-        uint32_t num_levels = dmMath::Min(image_transcoders[0].m_Info.m_total_levels, max_num_images);
-        for (uint32_t level_index = 0; level_index < num_levels; ++level_index)
-        {
-            uint32_t data_size      = image_transcoders[0].m_LevelData[level_index].m_Size;
-            uint8_t* data_write_ptr = new uint8_t[data_size * image_count];
+        uint32_t transcoder_index = 0;
 
-            images[level_index] = data_write_ptr;
-            sizes[level_index]  = data_size;
+        for (int i = 0; i < max_mipmap_count; ++i)
+        {
+            uint32_t data_size        = image_transcoders[transcoder_index].m_LevelData[0].m_Size;
+            uint8_t* data_write_ptr   = new uint8_t[data_size * image_count];
+            images[i]                 = data_write_ptr;
+            sizes[i]                  = data_size;
 
             bool level_result = true;
-            for (int i = 0; i < image_count && level_result; ++i)
-            {
-                assert(image_transcoders[i].m_Info.m_total_levels == num_levels);
-                level_result = TranscodeLevel(path, image_transcoders[i], data_write_ptr, level_index, transcoder_format, format);
-                data_write_ptr += data_size;
-            }
 
-            if (!level_result)
+            for (int j = 0; j < image_count; ++j)
             {
-                dmLogError("Transcoding failed on level %d for %s\n", level_index, path);
-                delete[] data_write_ptr;
-                TranscoderDeleteStateArray(image_transcoders, image_count);
-                return false;
+                level_result = TranscodeLevel(path, image_transcoders[transcoder_index], data_write_ptr, 0, transcoder_format, format);
+                data_write_ptr += data_size;
+                transcoder_index++;
+
+                if (!level_result)
+                {
+                    dmLogError("Transcoding failed on level %d for %s\n", i, path);
+                    delete[] data_write_ptr;
+                    TranscoderDeleteStateArray(image_transcoders, image_count);
+                    return false;
+                }
             }
         }
 
-        *num_transcoded_mips = num_levels;
+        *num_transcoded_mips = max_mipmap_count;
 
         TranscoderDeleteStateArray(image_transcoders, image_count);
         return true;

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,9 +15,11 @@
 (ns editor.validation
   (:require [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.util :as util]))
+            [util.coll :as coll]
+            [util.path :as path]))
 
 (set! *warn-on-reflection* true)
 
@@ -26,13 +28,13 @@
      (when (= ~field :blend-mode-add-alpha)
        (let [options# (protobuf/enum-values ~pb-blend-type)
              options# (zipmap (map first options#) (map (comp :display-name second) options#))]
-         (format "\"%s\" has been replaced by \"%s\"",
-                 (options# :blend-mode-add-alpha) (options# :blend-mode-add))))))
+         (localization/message "error.blend-mode-add-alpha-replaced"
+                               {"old" (options# :blend-mode-add-alpha)
+                                "new" (options# :blend-mode-add)})))))
 
-(defn format-ext
-  ^String [ext]
+(defn format-ext-message [ext]
   (if (coll? ext)
-    (util/join-words ", " " or " (into (sorted-set) (map (partial str \.)) ext))
+    (localization/or-list (vec (sort (mapv (partial str \.) ext))))
     (str \. ext)))
 
 (defn format-name
@@ -44,30 +46,46 @@
 
 (defn prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
-    (format "'%s' is in use by another instance" id)))
+    (localization/message "error.duplicate-instance-id" {"id" id})))
 
-(defn prop-contains-url-characters? [id name]
-  (when (re-find #"[#:]" id)
-    (format "%s should not contain special URL symbols such as '#' or ':'" name)))
+(defn prop-contains-prohibited-characters? [id name]
+  (cond
+    (coll/empty? id)
+    nil
+
+    (re-find #"[#:]" id)
+    (localization/message "error.property-contains-url-prohibited-characters" {"property" name})
+
+    (or (= (first id) \space) (= (last id) \space))
+    (localization/message "error.property-cannot-start-or-end-with-space" {"property" name})))
 
 (defn prop-negative? [v name]
   (when (< v 0)
-    (format "'%s' cannot be negative" name)))
+    (localization/message "error.property-cannot-be-negative" {"property" name})))
 
 (defn prop-zero-or-below? [v name]
   (when (<= v 0)
-    (format "'%s' must be greater than zero" name)))
+    (localization/message "error.property-must-be-greater-than-zero" {"property" name})))
 
 (defn prop-nil? [v name]
   (when (nil? v)
-    (format "'%s' must be specified" name)))
+    (localization/message "error.unspecified-property" {"property" name})))
 
 (defn prop-empty? [v name]
   (when (empty? v)
-    (format "'%s' must be specified" name)))
+    (localization/message "error.unspecified-property" {"property" name})))
 
 (defn prop-resource-not-exists? [v name]
-  (and v (not (resource/exists? v)) (format "%s '%s' could not be found" name (resource/resource->proj-path v))))
+  (and v
+       (not (resource/exists? v))
+       (if-some [symlink-target-path (some-> (path/symlink-target v) path/absolute)]
+         (localization/message "error.property-resource-is-a-broken-symlink"
+                               {"property" name
+                                "resource" (resource/resource->proj-path v)
+                                "path" symlink-target-path})
+         (localization/message "error.property-resource-not-found"
+                               {"property" name
+                                "resource" (resource/resource->proj-path v)}))))
 
 (defn prop-resource-missing? [v name]
   (or (prop-nil? v name)
@@ -76,37 +94,47 @@
 (defn prop-resource-ext? [v ext name]
   (or (prop-resource-missing? v name)
       (when-not (= (resource/type-ext v) ext)
-        (format "%s '%s' is not of type %s" name (resource/resource->proj-path v) (format-ext ext)))))
+        (localization/message "error.resource-assignment-not-of-type"
+                              {"property" name
+                               "resource" (resource/resource->proj-path v)
+                               "type" (format-ext-message ext)}))))
 
 (defn prop-resource-not-component? [v name]
   (let [resource-type (some-> v resource/resource-type)
         tags (:tags resource-type)]
     (when-not (or (contains? tags :component)
                   (contains? tags :embeddable))
-      (format "Only components allowed for '%s'. '%s' is not a component." name (:ext resource-type)))))
+      (localization/message "error.only-components-allowed"
+                            {"property" name
+                             "ext" (:ext resource-type)}))))
 
 (defn prop-member-of? [v val-set message]
   (when (and val-set (not (val-set v)))
     message))
 
-(defn prop-anim-missing? [animation anim-ids]
+(defn prop-anim-missing? [animation anim-ids in]
   (when (and anim-ids (not-any? #(= animation %) anim-ids))
-    (format "'%s' could not be found in the specified image" animation)))
+    (localization/message "error.animation-not-found" {"animation" animation "property" in})))
 
 (defn prop-anim-missing-in? [animation anim-data in]
   (when-not (contains? anim-data animation)
-    (format "'%s' could not be found in '%s'" animation in)))
+    (localization/message "error.animation-not-found" {"animation" animation "property" in})))
 
 (defn prop-outside-range? [[min max] v name]
-  (let [tmpl (if (integer? min)
-               "'%s' must be between %d and %d"
-               "'%s' must be between %f and %f")]
-    (when (not (<= min v max))
-      (util/format* tmpl name min max))))
+  (when-not (<= min v max)
+    (localization/message "error.property-must-be-between" {"property" name "min" min "max" max})))
+
+(defn prop-minimum-check? [min v name]
+  (when (< v min)
+    (localization/message "error.property-must-be-at-least" {"property" name "min" min})))
+
+(defn prop-maximum-check? [max v name]
+  (when (> v max)
+    (localization/message "error.property-must-be-at-most" {"property" name "max" max})))
 
 (defn prop-collision-shape-conflict? [shapes collision-shape]
   (when (and collision-shape (not (empty? shapes)))
-    "Cannot combine embedded shapes with a referenced 'Collision Shape'. Please remove either."))
+    (localization/message "error.collision-shape-conflict")))
 
 (def prop-0-1? (partial prop-outside-range? [0.0 1.0]))
 
@@ -121,10 +149,3 @@
   (-> kw
       name
       format-name))
-
-(defmacro prop-error-fnk
-  [severity f property]
-  (let [name-kw# (keyword property)
-        name# (keyword->name name-kw#)]
-    `(g/fnk [~'_node-id ~property]
-            (prop-error ~severity ~'_node-id ~name-kw# ~f ~property ~name#))))

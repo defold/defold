@@ -1,11 +1,17 @@
+## GitHub Actions
 
+Run the LuaJIT package build from a branch with:
 
-# Notes
+    $ gh workflow run build-luajit.yml --ref <branch>
 
-`luajit-32` for MacOS cannot currently be built with latest LuaJIT.
-We therefore use the prebuilt version.
-An option is to use a 32 bit VM of an old osx
+To build and commit the generated `packages/luajit-*.tar.gz` artifacts back to the same branch:
 
+    $ gh workflow run build-luajit.yml --ref <branch> -f push_changes=true
+
+Watch the latest run with:
+
+    $ gh run list --workflow build-luajit.yml --limit 1
+    $ gh run watch <run-id>
 
 ## Win32 + Win64
 
@@ -46,3 +52,4 @@ Note that you may need to remove the previous android sdk/ndk tools from DYNAMO_
     $ ./scripts/build.py install_sdk --platform=armv7-android
 
 Change directory to luajit and build as usual.
+

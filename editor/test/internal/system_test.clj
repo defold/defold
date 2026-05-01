@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.localization :as localization]
             [support.test-support :as ts]
             [internal.graph.types :as gt]
             [internal.system :as is]))
@@ -89,23 +90,27 @@
 
   (testing "transaction labels appear in the history"
     (ts/with-clean-system
-      (let [pgraph-id    (g/make-graph! :history true)
+      (let [pgraph-id (g/make-graph! :history true)
             undos-before (is/undo-stack (is/graph-history @g/*the-system* pgraph-id))
-            tx-report    (g/transact [(g/make-node pgraph-id Root)
-                                      (g/operation-label "Build root")])
-            root         (first (g/tx-nodes-added tx-report))
-            tx-report    (g/transact [(g/set-property root :touched 1)
-                                      (g/operation-label "Increment touch count")])
-            undos-after  (is/undo-stack (is/graph-history @g/*the-system* pgraph-id))
-            redos-after  (is/redo-stack (is/graph-history @g/*the-system* pgraph-id))
-            snapshot     @g/*the-system*]
-        (is (= ["Build root" "Increment touch count"] (mapv :label undos-after)))
-        (is (= []                                     (mapv :label redos-after)))
+            tx-report (g/transact [(g/make-node pgraph-id Root)
+                                   (g/operation-label (localization/message "operation.build-root"))])
+            root (first (g/tx-nodes-added tx-report))
+            tx-report (g/transact [(g/set-property root :touched 1)
+                                   (g/operation-label (localization/message "operation.increment-touch-count"))])
+            undos-after (is/undo-stack (is/graph-history @g/*the-system* pgraph-id))
+            redos-after (is/redo-stack (is/graph-history @g/*the-system* pgraph-id))
+            snapshot @g/*the-system*]
+        (is (= [(localization/message "operation.build-root")
+                (localization/message "operation.increment-touch-count")]
+               (mapv :label undos-after)))
+        (is (= [] (mapv :label redos-after)))
         (let [system-after-undo (is/undo-history snapshot pgraph-id)
-              undos-after-undo  (is/undo-stack (is/graph-history system-after-undo pgraph-id))
-              redos-after-undo  (is/redo-stack (is/graph-history system-after-undo pgraph-id))]
-          (is (= ["Build root"]            (mapv :label undos-after-undo)))
-          (is (= ["Increment touch count"] (mapv :label redos-after-undo)))))))
+              undos-after-undo (is/undo-stack (is/graph-history system-after-undo pgraph-id))
+              redos-after-undo (is/redo-stack (is/graph-history system-after-undo pgraph-id))]
+          (is (= [(localization/message "operation.build-root")]
+                 (mapv :label undos-after-undo)))
+          (is (= [(localization/message "operation.increment-touch-count")]
+                 (mapv :label redos-after-undo)))))))
 
   (testing "has-undo? and has-redo?"
     (ts/with-clean-system
@@ -415,7 +420,7 @@
         (is (= nil (g/node-value sink :loud)))))))
 
 (defn- successors [node-id label]
-  (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :successors node-id label]))
+  (g/successors (g/now) node-id label))
 
 (defn- sarcs [node-id label]
   (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :sarcs node-id label]))

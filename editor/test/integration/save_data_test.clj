@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -85,7 +85,6 @@
   an enum field in the specified protobuf type."
   {'dmBufferDDF.StreamDesc "value_type"
    'dmGameObjectDDF.PropertyDesc "type"
-   'dmGameSystemDDF.LightDesc "type"
    'dmGraphics.VertexAttribute "data_type"
    'dmGuiDDF.NodeDesc "type"
    'dmInputDDF.GamepadMapEntry "type"
@@ -188,13 +187,6 @@
    {:default
     {"scale" :deprecated}} ; Migration tested in integration.label-test/label-migration-test.
 
-   ['dmGameSystemDDF.LightDesc "[POINT]"]
-   {:default
-    {"type" :allowed-default
-     "cone_angle" :unused
-     "drop_off" :unused
-     "penumbra_angle" :unused}}
-
    'dmGameSystemDDF.SpineSceneDesc
    {:default
     {"sample_rate" :deprecated}} ; This was a legacy setting in our own Spine implementation. There is no equivalent in the official Spine runtime.
@@ -204,14 +196,17 @@
     {"tile_set" :deprecated}} ; Replaced with 'textures'; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGraphics.VertexAttribute
-   {[["particlefx" "emitters" "[*]" "attributes"]
+   {:default
+    {"element_count" :deprecated} ; Migration tested in integration.save-data-test/silent-migrations-test.
+
+    [["particlefx" "emitters" "[*]" "attributes"]
      ["sprite" "attributes"]
      ["model" "materials" "attributes"]]
     {"coordinate_space" :unused
      "data_type" :unused
-     "element_count" :unused
      "normalize" :unused
-     "semantic_type" :unused}}
+     "semantic_type" :unused
+     "step_function" :unused}}
 
    ['dmGraphics.VertexAttribute "[TYPE_FLOAT]"]
    {:default
@@ -242,6 +237,7 @@
      "pieFillAngle" :unused
      "shadow" :unused
      "shadow_alpha" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -298,6 +294,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -319,6 +316,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -353,6 +351,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -382,6 +381,7 @@
      "pieFillAngle" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -393,6 +393,11 @@
    {:default
     {"background_color" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
      "spine_scenes" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
+
+   'dmGraphics.TextureFormatAlternative
+   {:default
+    {"compression_level" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "compression_type" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_AXIS]"]
    {:default
@@ -489,7 +494,7 @@
 
    'dmRenderDDF.RenderPrototypeDesc
    {:default
-    {"materials" :deprecated}}
+    {"materials" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmRenderDDF.RenderTargetDesc.DepthStencilAttachment
    {:default
@@ -497,7 +502,12 @@
 
    'dmRigDDF.AnimationSetDesc
    {:default
-    {"skeleton" :deprecated}}}) ; Non-default depth/stencil format not supported yet.
+    {"skeleton" :deprecated}} ; Non-default depth/stencil format not supported yet.
+
+   'dmRiveDDF.RiveModelDesc
+   {:default
+    {"auto_play" :unimplemented ; Not currently implemented in the editor or runtime.
+     "blit_material" :non-editable}}}) ; Not currently editable, but perhaps will be in the future.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
@@ -611,6 +621,24 @@
   (is (s/valid? ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
       (s/explain-str ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
 
+(def texture-profile-format-combinations
+  (let [formats [:texture-format-luminance
+                 :texture-format-luminance-alpha
+                 :texture-format-rgb
+                 :texture-format-rgb-16bpp
+                 :texture-format-rgba
+                 :texture-format-rgba-16bpp]
+        compressors [{:compressor "Uncompressed"
+                      :presets ["UNCOMPRESSED"]}
+                     {:compressor "BasisU"
+                      :presets ["BASISU_LOW" "BASISU_MEDIUM" "BASISU_HIGH" "BASISU_HIGHEST"]}]]
+    (for [format formats
+          {:keys [compressor presets]} compressors
+          preset presets]
+      {:format format
+       :compressor compressor
+       :compressor-preset preset})))
+
 (deftest silent-migrations-test
   ;; This test is intended to verify that certain silent data migrations are
   ;; performed correctly. A silent migration typically involves a :sanitize-fn
@@ -624,8 +652,8 @@
     (testing "collection"
       (let [uniform-scale-collection (project/get-resource-node project "/silently_migrated/uniform_scale.collection")
             referenced-collection (:node-id (test-util/outline uniform-scale-collection [0]))
-            embedded-go (:node-id (test-util/outline uniform-scale-collection [1]))
-            referenced-go (:node-id (test-util/outline uniform-scale-collection [2]))]
+            referenced-go (:node-id (test-util/outline uniform-scale-collection [1]))
+            embedded-go (:node-id (test-util/outline uniform-scale-collection [2]))]
         (is (= collection/CollectionInstanceNode (g/node-type* referenced-collection)))
         (is (= collection/EmbeddedGOInstanceNode (g/node-type* embedded-go)))
         (is (= collection/ReferencedGOInstanceNode (g/node-type* referenced-go)))
@@ -670,7 +698,23 @@
                  :name "normal"
                  :wrap-u :wrap-mode-clamp-to-edge
                  :wrap-v :wrap-mode-clamp-to-edge}]
-               (g/node-value legacy-textures-material :samplers)))))
+               (g/node-value legacy-textures-material :samplers))))
+      (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
+            legacy-attributes (g/node-value legacy-element-count-material :attributes)
+            vector-types-by-attribute-name (into (sorted-map)
+                                                 (map (fn [attribute]
+                                                        (pair (:name attribute)
+                                                              (select-keys attribute [:vector-type :values]))))
+                                                 legacy-attributes)]
+        (is (= {"legacy_count_1" {:vector-type :vector-type-scalar
+                                  :values [1.1]}
+                "legacy_count_2" {:vector-type :vector-type-vec2
+                                  :values [1.1 1.2]}
+                "legacy_count_3" {:vector-type :vector-type-vec3
+                                  :values [1.1 1.2 1.3]}
+                "legacy_count_4" {:vector-type :vector-type-vec4
+                                  :values [1.1 1.2 1.3 1.4]}}
+               vector-types-by-attribute-name))))
 
     (testing "render"
       (let [legacy-render-prototype (project/get-resource-node project "/silently_migrated/legacy_render_prototype.render")]
@@ -692,6 +736,19 @@
                  :attributes {}}]
                (g/node-value legacy-material-and-textures-model :materials)))))
 
+    (testing "rivemodel"
+      (let [deprecated-fields-rive-model (project/get-resource-node project "/silently_migrated/deprecated_fields.rivemodel")]
+        (is (= (g/node-value deprecated-fields-rive-model :source-value)
+               (g/node-value deprecated-fields-rive-model :save-value))))
+      (let [fullscreen-coordinate-system-rive-model (project/get-resource-node project "/silently_migrated/fullscreen_coordinate_system.rivemodel")]
+        (is (= (g/node-value fullscreen-coordinate-system-rive-model :source-value)
+               (g/node-value fullscreen-coordinate-system-rive-model :save-value)))))
+
+    (testing "rivescene"
+      (let [deprecated-fields-rive-scene (project/get-resource-node project "/silently_migrated/deprecated_fields.rivescene")]
+        (is (= (g/node-value deprecated-fields-rive-scene :source-value)
+               (g/node-value deprecated-fields-rive-scene :save-value)))))
+
     (testing "sprite"
       (let [legacy-tile-set-sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]
         (is (= [{:sampler "texture_sampler"
@@ -702,7 +759,14 @@
             embedded-sprite (test-util/to-component-resource-node-id embedded-component)]
         (is (= [{:sampler "texture_sampler"
                  :texture (workspace/find-resource workspace "/checked.atlas")}]
-               (g/node-value embedded-sprite :textures)))))))
+               (g/node-value embedded-sprite :textures)))))
+
+    (testing "texture_profiles"
+      (let [legacy-texture-profiles (project/get-resource-node project "/silently_migrated/legacy_texture_profile_formats.texture_profiles")
+            legacy-texture-profiles-save-value (g/node-value legacy-texture-profiles :save-value)
+            legacy-texture-profiles-formats (set (get-in legacy-texture-profiles-save-value [:profiles 0 :platforms 0 :formats]))
+            all-format-combinations (set texture-profile-format-combinations)]
+        (is (= all-format-combinations legacy-texture-profiles-formats))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.
@@ -1285,7 +1349,7 @@
   ;; being overridden from a template node in one of the root-level files in the
   ;; save data test project. If you add a field to the NodeDesc protobuf
   ;; message, you'll either need to add a template override for it (we suggest
-  ;; you add it to `checked02.gui`, which hosts the majority of the template
+  ;; you add it to `checked01.gui`, which hosts the majority of the template
   ;; overrides), or add a field ignore rule to the `pb-ignored-fields` map at
   ;; the top of this file.
   (test-util/with-loaded-project project-path
@@ -1313,7 +1377,7 @@
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data! project)
     (doseq [save-data (project->save-datas project)]
-      (test-util/check-save-data-disk-equivalence! save-data))))
+      (test-util/check-save-data-disk-equivalence! save-data project-path))))
 
 (deftest save-value-is-equivalent-to-source-value-test
   ;; This test is intended to verify that the saved data contains all the same
@@ -1382,7 +1446,7 @@
                 (is (not (:dirty save-data))
                     "Unsaved changes detected after saving.")
                 (when (:dirty save-data)
-                  (test-util/check-save-data-disk-equivalence! save-data))))))))))
+                  (test-util/check-save-data-disk-equivalence! save-data project-path))))))))))
 
 (deftest resource-save-data-retention-test
   ;; This test is intended to verify that the system cache is populated with the

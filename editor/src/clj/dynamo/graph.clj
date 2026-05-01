@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,11 +27,13 @@
             [internal.util :as util]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]
-            [util.coll :as coll]
+            [service.log :as log]
+            [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]))
+           [java.io ByteArrayInputStream ByteArrayOutputStream]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
 
@@ -41,11 +43,11 @@
 
 (namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order])
 
-(namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse])
+(namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse successors])
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
 
-(let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
+(let [graph-id ^AtomicInteger (AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
 
 ;; ---------------------------------------------------------------------------
@@ -57,21 +59,102 @@
 
 (def ^:dynamic *tps-debug* nil)
 
-(defn now
-  "The basis at the current point in time"
+;; If a new Basis or evaluation-context is created from inside an auto
+;; evaluation-context scope, it typically suggests you're bypassing the active
+;; evaluation-context. This could lead to values produced in the
+;; evaluation-context not being committed to the system cache, or multiple
+;; identical values being produced and then ending up referenced from different
+;; cache entries.
+;;
+;; When the strict-evaluation-context-scopes setting is :log or :log-once, we
+;; will log whenever g/now or g/make-evaluation-context is called from within an
+;; auto evaluation-context scope. You can also set it to :throw to throw an
+;; exception instead.
+;;
+;; We're still in the process of fixing all the various places where this rule
+;; is violated. When complete, we should enable strict evaluation-context scope
+;; checks by default.
+;;
+;; Until that day, you can turn on these checks using the :strict-ec-scopes lein
+;; profile when running tasks: `lein with-profile +strict-ec-scopes <task>`.
+(def ^:private strict-evaluation-context-scopes
+  (let [strict-evaluation-context-scopes-setting (and *assert* (some-> (System/getProperty "defold.graph.strict-evaluation-context-scopes") keyword))]
+    (assert (contains? #{nil :log :log-once :throw} strict-evaluation-context-scopes-setting))
+    strict-evaluation-context-scopes-setting))
+
+(defn ^{:dynamic strict-evaluation-context-scopes} make-evaluation-context
+  "Returns a new evaluation-context from the current state of *the-system*. Will
+  assert if called inside an auto evaluation-context scope when strict
+  evaluation-context scope checks are enabled."
+  ([] (is/default-evaluation-context @*the-system*))
+  ([options] (is/custom-evaluation-context @*the-system* options)))
+
+(defn ^{:dynamic strict-evaluation-context-scopes} now
+  "Returns the basis at the current point in time. Will assert if called inside
+  an auto evaluation-context scope when strict evaluation-context scope checks
+  are enabled."
   []
   (is/basis @*the-system*))
+
+(defn unsafe-basis
+  "Returns the basis at the current point in time. Bypasses strict
+  evaluation-context scope checks. Use with caution!"
+  []
+  (is/basis @*the-system*))
+
+(defn- comparable-exception-data [^Throwable exception]
+  (let [cause (.getCause exception)]
+    (cond-> {:class (.getName (.getClass exception))
+             :stacktrace (mapv (fn [^StackTraceElement ste]
+                                 (pair (.getFileName ste)
+                                       (.getLineNumber ste)))
+                               (.getStackTrace exception))}
+            cause (assoc :cause (comparable-exception-data cause)))))
+
+(defmacro make-evaluation-context-scope-violation-exception [fn-sym]
+  `(Error. (str '~fn-sym " called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation.")))
+
+(defonce ^:private logged-evaluation-context-scope-violations-atom
+  (when (= :log-once strict-evaluation-context-scopes)
+    (atom #{})))
+
+(defn forget-logged-evaluation-context-scope-violations! []
+  (when logged-evaluation-context-scope-violations-atom
+    (reset! logged-evaluation-context-scope-violations-atom #{})
+    nil))
+
+(defn log-evaluation-context-scope-violation-exception! [exception]
+  (when (or (nil? logged-evaluation-context-scope-violations-atom)
+            (let [[old new] (swap-vals! logged-evaluation-context-scope-violations-atom conj (comparable-exception-data exception))]
+              (not= (count old)
+                    (count new))))
+    (log/warn :message "evaluation-context scope violation" :exception exception)))
+
+(defmacro strict-evaluation-context-scope-reporting-variant [fn-sym]
+  (let [rebound-fn-sym (symbol (str "rebound-" (name fn-sym)))]
+    (case strict-evaluation-context-scopes
+      (:log :log-once)
+      `(let [~'original-fn ~fn-sym]
+         (fn ~rebound-fn-sym [& ~'args]
+           (log-evaluation-context-scope-violation-exception!
+             (make-evaluation-context-scope-violation-exception ~fn-sym))
+           (apply ~'original-fn ~'args)))
+
+      (:throw)
+      `(fn ~rebound-fn-sym [& ~'_]
+         (throw
+           (make-evaluation-context-scope-violation-exception ~fn-sym))))))
+
+(defmacro do-strict-evaluation-context-scope-body [& body]
+  (if strict-evaluation-context-scopes
+    `(binding [now (strict-evaluation-context-scope-reporting-variant now)
+               make-evaluation-context (strict-evaluation-context-scope-reporting-variant make-evaluation-context)]
+       ~@body)
+    `(do ~@body)))
 
 (defn clone-system
   ([] (clone-system @*the-system*))
   ([sys] (is/clone-system sys)))
-
-(defn system= [s1 s2]
-  (is/system= s1 s2))
-
-(defmacro with-system [sys & body]
-  `(binding [*the-system* (atom ~sys)]
-     ~@body))
 
 (defn node-by-id
   "Returns a node given its id. If the basis is provided, it returns the value of the node using that basis.
@@ -82,6 +165,12 @@
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
+(defn node-exists?
+  ([node-id]
+   (node-exists? (now) node-id))
+  ([basis node-id]
+   (some? (gt/node-by-id-at basis node-id))))
+
 (defn node-type*
   "Return the node-type given a node-id.  Uses the current basis if not provided."
   ([node-id]
@@ -91,7 +180,7 @@
      (gt/node-type n))))
 
 (defn node-type
-  "Return the node-type given a node. Uses the current basis if not provided."
+  "Return the node-type given a node."
   [node]
   (when node
     (gt/node-type node)))
@@ -106,6 +195,18 @@
 
 (defn node-override? [node]
   (some? (gt/original node)))
+
+(defn own-property-values
+  "Returns a map of property-label property-value for the specified node. If the
+  queried node is an override node, the map will contain overridden properties
+  only. Otherwise, the map will include assigned properties and defaults."
+  [node]
+  (or (if (node-override? node)
+        (gt/overridden-properties node)
+        (coll/merge
+          (in/defaults (gt/node-type node))
+          (gt/assigned-properties node)))
+      {}))
 
 (defn invalidate-counters
   "The current state of the invalidate counters in the system."
@@ -175,66 +276,167 @@
         (aset-long tps-counts 0 0)))
     tps-counts))
 
+(defn eager-tx-data
+  "Return a vector of flattened transaction steps from a sequence of possibly
+  nested sequences of transaction steps."
+  [txs]
+  (into [] coll/flatten-xf txs))
+
+(defn make-transaction-context [opts]
+  (let [system (deref *the-system*)
+        basis (is/basis system)
+        id-generators (is/id-generators system)
+        override-id-generator (is/override-id-generator system)
+        tx-data-context-map (or (:tx-data-context-map opts) {})
+        metrics-collector (:metrics opts)
+        full-invalidation (:full-invalidation opts)]
+    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation)))
+
+(defn commit-tx-result!
+  [tx-result transact-opts]
+  (when (and (not (:dry-run transact-opts))
+             (= :ok (:status tx-result)))
+    (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result))
+    (when (:full-invalidation transact-opts)
+      (clear-system-cache!))
+    nil))
+
 (defn transact
-  "Provides a way to run a transaction against the graph system.  It takes a list of transaction steps.
+  "Runs a transaction against the graph system.
+
+  Args:
+    opts    optional map with transaction settings:
+              :dry-run
+                Returns the tx report without committing to *the-system*.
+
+              :metrics
+                The metrics collector; results are returned in :metrics.
+
+              :full-invalidation
+                Defaults to false. When true, disables precise change
+                tracking and uses full invalidation instead of incremental
+                updates. The system cache is cleared automatically after
+                commit, but older evaluation contexts may still be stale and
+                must not be written back into the cache. Undo history is not
+                tracked accurately in this mode, so callers that need
+                consistent undo semantics must reset or otherwise manage
+                history explicitly.
+
+              :tx-data-context-map
+                Initial transaction data context map. The final value is
+                returned as :tx-data-context-map.
+    txs     sequence of transaction steps
 
   Example:
 
       (g/transact
-         [(g/connect n1 output-name n :xs)
+        [(g/connect n1 output-name n :xs)
          (g/connect n2 output-name n :xs)])
 
-  It returns the transaction result, (tx-result),  which is a map containing keys about the transaction.
-  Transaction result-keys:
-  `[:status :basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]`
-  "
+  Returns a transaction result, a map with the following keys:
+    :status                :empty if no transaction steps completed, otherwise
+                           :ok
+    :basis                 transaction basis after applying the transaction
+    :graphs-modified       modified graph ids, most useful when full
+                           invalidation is disabled
+    :nodes-added           added node ids
+    :nodes-modified        modified node ids when full invalidation is
+                           disabled
+    :nodes-deleted         deleted nodes by node id
+    :outputs-modified      modified endpoints when full invalidation is
+                           disabled
+    :label                 transaction label, if any
+    :sequence-label        transaction sequence label, if any
+    :tx-data-context-map   final transaction context map
+    :metrics               transaction metrics, when metrics collection is
+                           enabled"
   ([txs]
    (transact nil txs))
   ([opts txs]
    (when *tps-debug*
      (send-off tps-counter tick (System/nanoTime)))
-   (let [system (deref *the-system*)
-         basis (is/basis system)
-         id-generators (is/id-generators system)
-         override-id-generator (is/override-id-generator system)
-         tx-data-context-map (or (:tx-data-context-map opts) {})
-         metrics-collector (:metrics opts)
-         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector)
-         tx-result (it/transact* transaction-context txs)]
-     (when (and (not (:dry-run opts))
-                (= :ok (:status tx-result)))
-       (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+   ;; When strict evaluation-context scope checks are enabled, we also want to
+   ;; verify that, for example, g/node-value isn't being used to evaluate an
+   ;; out-of-transaction value from something like a property setter or override
+   ;; :traverse-fn. However, it is perfectly valid to evaluate on the
+   ;; out-of-transaction basis to generate the transaction steps themselves.
+   ;; Since we use a lot of lazy sequences in functions that return transaction
+   ;; steps, we flatten and realize the lazy sequence outside the
+   ;; do-strict-evaluation-context-scope-body block to avoid false positives
+   ;; when strict evaluation-context scope checks are enabled.
+   (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
+         transaction-context (make-transaction-context opts)
+         tx-result (do-strict-evaluation-context-scope-body
+                     (it/transact* transaction-context txs))]
+     (commit-tx-result! tx-result opts)
      tx-result)))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
-(defn tx-data-nodes-added
-  "Returns a list of the node-ids added given a list of transaction steps, (tx-data)."
+
+(defn tx-data?
+  "Returns true if the value is a (possibly nested) sequence of transaction
+  steps."
+  [value]
+  (and (seqable? value)
+       (coll/reduce-> value
+         false
+         coll/flatten-xf
+         (fn [_ item]
+           (if (it/tx-step? item)
+             true
+             (reduced false))))))
+
+(defn tx-data-step-types
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  keywords identifying the type of each encountered transaction step. Used in
+  tests."
   [txs]
-  (keep (fn [tx-data]
-          (case (:type tx-data)
-            :create-node (-> tx-data :node :_node-id)
-            nil))
-        (flatten txs)))
+  (sequence
+    (comp coll/flatten-xf
+          (map it/tx-step-type))
+    txs))
+
+(defn tx-data-added-arcs
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  Arcs that will be added by any encountered :tx-step/connect steps."
+  [txs]
+  (sequence
+    (comp coll/flatten-xf
+          (keep it/tx-step-added-arc))
+    txs))
+
+(defn tx-data-added-nodes
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  Nodes that will be added by any encountered :tx-step/add-node steps."
+  [txs]
+  (sequence
+    (comp coll/flatten-xf
+          (keep it/tx-step-added-node))
+    txs))
+
+(defn tx-data-added-node-ids
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  node-ids that will be added by any encountered :tx-step/add-node steps."
+  [txs]
+  (map gt/node-id
+       (tx-data-added-nodes txs)))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
 ;; ---------------------------------------------------------------------------
+(defn tx-result? [x]
+  (and (map? x)
+       (contains? x :status)
+       (contains? x :basis)
+       (contains? x :graphs-modified)
+       (contains? x :nodes-added)))
+
 (defn tx-nodes-added
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
   [tx-result]
   (:nodes-added tx-result))
-
-(defn is-added?
-  "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
-  [tx-result node-id]
-  (contains? (:nodes-added tx-result) node-id))
-
-(defn is-deleted?
-  "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
-  [tx-result node-id]
-  (contains? (:nodes-deleted tx-result) node-id))
 
 (defn transaction-basis
   "Returns the final basis from the result of a transaction given a tx-result"
@@ -318,7 +520,7 @@
                              :type                                 s/Any
                              s/Keyword                             s/Any}}
      (s/optional-key :node-id) s/Int
-     (s/optional-key :display-order) [(s/conditional vector? [(s/one String "category") s/Keyword] keyword? s/Keyword)]})
+     (s/optional-key :display-order) [(s/conditional vector? [(s/one s/Any "category") s/Keyword] keyword? s/Keyword)]})
 (deftype Err ErrorValue)
 
 ;; ---------------------------------------------------------------------------
@@ -382,11 +584,14 @@
   optional. _producer_ may be a var that names an fn, or fnk.  It may
   also be a function tail as [arglist] + forms.
 
-  In the arglist, you can specify ^:try metadata on arguments to allow
-  the computation of the output even when some of its arguments are
-  errors. Note that adding ^:try metadata on an array input will never
-  supply an error value to the output fnk; instead, it will provide
-  an array where some items might be errors.
+  In the arglist, you can specify ^:raw or ^:try metadata tags on arguments to
+  control how dependencies are evaluated. Tagging a property argument with ^:raw
+  will bypass any (value _getter_) declared for the property, and instead
+  produce the raw value assigned to the property map in the node or its override
+  chain. Tagging an argument with ^:try allows the computation of the output
+  even when some of its arguments are errors. Note that adding ^:try metadata on
+  an :array input will not supply an ErrorValue to the fnk; instead, it will
+  provide an array where some items might be ErrorValues.
 
   Values produced on an output with the :cached flag will be cached in
   memory until the node is affected by some change in inputs or
@@ -450,6 +655,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Transactions
 ;; ---------------------------------------------------------------------------
+
 (defmacro make-nodes
   "Create a number of nodes in a graph, binding them to local names
    to wire up connections. The resulting code will return a collection
@@ -462,9 +668,9 @@
   Example:
 
   (make-nodes view [render     AtlasRender
-                   scene      scene/SceneRenderer
-                   background background/Gradient
-                   camera     [c/CameraController :camera (c/make-orthographic)]]
+                    scene      scene/SceneRenderer
+                    background background/Gradient
+                    camera     [c/CameraController :camera (c/make-orthographic)]]
      (g/connect background   :renderable scene :renderables)
      (g/connect atlas-render :renderable scene :renderables))"
   [graph-id binding-expr & body-exprs]
@@ -487,7 +693,7 @@
         ~@body-exprs))))
 
 (defn operation-label
-  "Set a human-readable label to describe the current transaction."
+  "Set a human-readable label (MessagePattern or string) to describe the current transaction."
   [label]
   (it/label label))
 
@@ -503,6 +709,22 @@
                                  (is/undo-stack)
                                  (last))]
       (:sequence-label prev-step))))
+
+(defn take-node-ids
+  "Given a count, returns a realized sequence of claimed, unique node-ids in the
+  specified graph."
+  [^long graph-id ^long node-id-count]
+  (when (pos? node-id-count)
+    (is/take-node-ids @*the-system* graph-id node-id-count)))
+
+(def add-node
+  "Returns the transaction step for adding a node to the graph. The node will
+  typically have been constructed beforehand using the construct function.
+
+  Example:
+
+  `(transact (add-node (construct SimpleTestNode)))`"
+  it/new-node)
 
 (defn- construct-node-with-id
   [graph-id node-type args]
@@ -556,15 +778,34 @@
   (transact (delete-node node-id)))
 
 (defn callback
-  "Call the specified function with args when reaching the transaction step"
-  [f & args]
-  (it/callback f args))
+  "Call the specified callback-fn with args when reaching the transaction step."
+  [callback-fn & args]
+  (it/callback callback-fn args nil))
 
 (defn callback-ec
   "Same as callback, but injects the in-transaction evaluation-context
-  as the first argument to the update-fn."
+  as the first argument to the callback-fn."
+  [callback-fn & args]
+  (it/callback callback-fn args it/inject-evaluation-context-opts))
+
+(defn expand
+  "Call the specified function when reaching the transaction step and apply the
+  returned transaction steps in the same transaction"
   [f & args]
-  (it/callback-ec f args))
+  (it/expand f args nil))
+
+;; SDK api
+(defn expand-ec
+  "Call the specified function when reaching the transaction step with an
+  in-transaction evaluation context as a first argument and apply the
+  returned transaction steps in the same transaction
+
+  NOTE: When used by outline's :tx-attach-fn, avoid creating g/connect txs in
+  g/expand-ec to connect self to the child node. Outline inspects txs and
+  filters out duplicate connections, but it can't see connection txs if they are
+  created only when transaction is executed, as is the case with g/expand-ec"
+  [f & args]
+  (it/expand f args it/inject-evaluation-context-opts))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
@@ -623,32 +864,43 @@
    (assert target-id)
    (it/disconnect-sources basis target-id target-label)))
 
-(defn- set-value-from-first-arg [_ b] b)
+(defn set-properties
+  "Creates transaction steps to assign multiple values to a node's properties.
+  You must call the transact function on the return value to see the effects.
+
+  Example:
+  `(transact (set-properties node-id :name \"item\" :opacity 0.5))`"
+  [node-id & kvs]
+  (coll/into-> kvs []
+    (partition-all 2)
+    (mapcat (fn [[property-label new-value]]
+              (it/set-property node-id property-label new-value)))))
+
+(defn set-properties!
+  "Creates transaction steps to assign multiple values to a node's properties,
+  then executes them in a transaction. Returns the result of the transaction,
+  (tx-result)"
+  [node-id & kvs]
+  (transact (apply set-properties node-id kvs)))
 
 (defn set-property
-  "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
-  is applies in a transact.
+  "Creates a transaction step to assign a value to a node property. You must
+  call the transact function on the return value to see the effects.
 
   Example:
-
-  `(transact (set-property root-id :touched 1))`"
-  [node-id & kvs]
-  (assert node-id)
-  (mapcat
-   (fn [[p v]]
-     (it/update-property node-id p set-value-from-first-arg [v]))
-   (partition-all 2 kvs)))
+  `(transact (set-property node-id :opacity 0.5))`"
+  [node-id property-label value]
+  (it/set-property node-id property-label value))
 
 (defn set-property!
-  "Creates the transaction step to assign a value to a node's property (or properties) value(s) and applies it in a transaction.
-  It returns the result of the transaction, (tx-result).
+  "Creates a transaction step to assign a value to a node property, then
+  executes it in a transaction. Returns the result of the transaction,
+  (tx-result).
 
   Example:
-
-  `(set-property! root-id :touched 1)`"
-  [node-id & kvs]
-  (assert node-id)
-  (transact (apply set-property node-id kvs)))
+  `(set-property! node-id :opacity 0.5)`"
+  [node-id property-label value]
+  (transact (set-property node-id property-label value)))
 
 (defn update-property
   "Create the transaction step to apply a function to a node's property in a transaction. The
@@ -659,15 +911,13 @@
 
   `(transact (g/update-property node-id :int-prop inc))`"
   [node-id p f & args]
-  (assert node-id)
-  (it/update-property node-id p f args))
+  (it/update-property node-id p f args nil))
 
 (defn update-property-ec
   "Same as update-property, but injects the in-transaction evaluation-context
   as the first argument to the update-fn."
   [node-id p f & args]
-  (assert node-id)
-  (it/update-property-ec node-id p f args))
+  (it/update-property node-id p f args it/inject-evaluation-context-opts))
 
 (defn update-property!
   "Create the transaction step to apply a function to a node's property in a transaction. Then it applies the transaction.
@@ -739,6 +989,18 @@
   [node-id]
   (assert node-id)
   (it/invalidate node-id))
+
+(defn invalidate-output
+  "Creates a transaction step to invalidate the specified output of the node.
+  It will take effect when the transaction is applied in a transact call.
+
+   Example:
+
+   `(transact (invalidate-output node-id :output-label))`"
+  [node-id output-label]
+  {:pre [(node-id? node-id)
+         (keyword? output-label)]}
+  (it/invalidate-output node-id output-label))
 
 (defn mark-defective
   "Creates the transaction step to mark a node as _defective_.
@@ -852,9 +1114,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
-(defn make-evaluation-context
-  ([] (is/default-evaluation-context @*the-system*))
-  ([options] (is/custom-evaluation-context @*the-system* options)))
 
 (defn pruned-evaluation-context
   "Selectively filters out cache entries from the supplied evaluation context.
@@ -872,26 +1131,102 @@
 
 (defmacro with-auto-evaluation-context [ec & body]
   `(let [~ec (make-evaluation-context)
-         result# (do ~@body)]
+         result# (do-strict-evaluation-context-scope-body ~@body)]
      (update-cache-from-evaluation-context! ~ec)
      result#))
+
+(defn- let-ec-strict-form
+  [bindings & body]
+  {:pre [(vector? bindings)
+         (even? (count bindings))]}
+  (let [private-bindings-per-binding (coll/into-> bindings []
+                                       (partition-all 2)
+                                       (map destructure))
+        public-symbols (coll/into-> private-bindings-per-binding []
+                         (mapcat #(take-nth 2 %))
+                         (distinct))
+        private-bindings (into [] cat private-bindings-per-binding)]
+    (assert (every? symbol? public-symbols))
+    (list*
+      `let
+      [public-symbols
+       (list
+         `with-auto-evaluation-context 'evaluation-context
+         (list
+           `let*
+           private-bindings
+           public-symbols))]
+      body)))
+
+(defn- form-references-evaluation-context? [form]
+  (coll/some
+    true?
+    (coll/search
+      form
+      (fn [sub-form]
+        (when (= 'evaluation-context sub-form)
+          true)))))
+
+(defn- let-ec-relaxed-form
+  [evaluation-context-sym bindings & body]
+  {:pre [(symbol? evaluation-context-sym)
+         (vector? bindings)
+         (even? (count bindings))]}
+  (list*
+    `let
+    (coll/into-> bindings
+      [evaluation-context-sym `(make-evaluation-context)]
+      (partition-all 2)
+      (mapcat (fn [[binding-form init-expr]]
+                ;; Using a generated symbol ensures the evaluation-context
+                ;; cannot be referenced from the body after it has been closed.
+                (pair binding-form
+                      (if (form-references-evaluation-context? init-expr)
+                        `(let [~'evaluation-context ~evaluation-context-sym]
+                           ~init-expr)
+                        init-expr)))))
+    `(update-cache-from-evaluation-context! ~evaluation-context-sym)
+    body))
+
+(defmacro let-ec
+  "binding => binding-form init-expr
+  binding-form => name, or destructuring-form
+  destructuring-form => map-destructure-form, or seq-destructure-form
+
+  Emit the supplied bindings in a let expression after creating a new
+  evaluation-context from the current state of *the-system*. The
+  evaluation-context is available for use inside the binding-forms, but is
+  closed and merged back into the system cache before executing the body.
+
+  Example:
+  (g/let-ec [{:keys [view-id view-type]}
+             (g/node-value app-view :active-view-info evaluation-context)
+
+             camera-matrix
+             (when (= :scene (:id view-type))
+               (let [camera-id (g/node-value view-id :camera evaluation-context)]
+                 (camera/matrix camera-id evaluation-context)))]
+
+    (some-> camera-matrix
+            math/invert))"
+  [bindings & body]
+  (if strict-evaluation-context-scopes
+    (apply let-ec-strict-form bindings body)
+    (apply let-ec-relaxed-form (gensym "evaluation-context__") bindings body)))
 
 (def fake-system (is/make-system {:cache-size 0}))
 
 (defmacro with-auto-or-fake-evaluation-context [ec & body]
   `(let [real-system# @*the-system*
          ~ec (is/default-evaluation-context (or real-system# fake-system))
-         result# (do ~@body)]
+         result# (do-strict-evaluation-context-scope-body ~@body)]
      (when (some? real-system#)
        (update-cache-from-evaluation-context! ~ec))
      result#))
 
-(defn- do-node-value [node-id label evaluation-context]
-  (is/node-value @*the-system* node-id label evaluation-context))
-
 (defn node-value
   "Pull a value from a node's output, property or input, identified by `label`.
-  The value may be cached or it may be computed on demand. This is
+  The value may be cached, or it may be computed on demand. This is
   transparent to the caller.
 
   This uses the value of the node and its output at the time the
@@ -909,9 +1244,12 @@
   `(node-value node-id :chained-output)`"
   ([node-id label]
    (with-auto-evaluation-context evaluation-context
-     (do-node-value node-id label evaluation-context)))
+     (node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
-   (do-node-value node-id label evaluation-context)))
+   (when (some? node-id)
+     (let [basis (:basis evaluation-context)
+           node (gt/node-by-id-at basis node-id)]
+       (in/node-value node label evaluation-context)))))
 
 (defn valid-node-value
   "Like the node-value function, but throws an exception if evaluation produced
@@ -920,13 +1258,99 @@
    (with-auto-evaluation-context evaluation-context
      (valid-node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
-   (let [value (do-node-value node-id label evaluation-context)]
-     (if (error? value)
-       (throw (ex-info "Evaluation produced an ErrorValue."
-                       {:node-type-kw (node-type-kw (:basis evaluation-context) node-id)
-                        :label label
-                        :error value}))
-       value))))
+   (let [value (node-value node-id label evaluation-context)]
+     (if-not (error? value)
+       value
+       (let [node-type-kw (node-type-kw (:basis evaluation-context) node-id)]
+         (throw
+           (ex-info
+             (format "Evaluation produced an ErrorValue from %s on %s %d."
+                     label
+                     (symbol node-type-kw)
+                     node-id)
+             {:node-type-kw node-type-kw
+              :label label
+              :error value})))))))
+
+(defn maybe-node-value
+  "Like the node-value function, but returns nil if evaluation produced an
+  ErrorValue or the label does not exist on the node."
+  ([node-id label]
+   (with-auto-evaluation-context evaluation-context
+     (maybe-node-value node-id label evaluation-context)))
+  ([node-id label evaluation-context]
+   (when (some? node-id)
+     (let [basis (:basis evaluation-context)
+           node (gt/node-by-id-at basis node-id)]
+       (when (some-> node gt/node-type (in/behavior label))
+         (let [value (in/node-value node label evaluation-context)]
+           (when-not (error? value)
+             value)))))))
+
+(defmacro tx-cached-value!
+  "Finds and returns a cached value at the specified key path of the
+  :tx-data-context in the supplied evaluation-context. If no existing value was
+  found in the :tx-data-context, evaluate the value-expr and store the value at
+  the specified key path in the :tx-data-context, then return the value."
+  [evaluation-context-expr tx-data-context-key-path-expr value-expr]
+  `(let [tx-data-context-atom# (:tx-data-context ~evaluation-context-expr)
+         tx-data-context-key-path# ~tx-data-context-key-path-expr
+         cached-value# (-> tx-data-context-atom#
+                           (deref)
+                           (get-in tx-data-context-key-path# :dynamo.graph/not-found))]
+     (case cached-value#
+       :dynamo.graph/not-found
+       (let [evaluated-value# ~value-expr]
+         (swap! tx-data-context-atom# assoc-in tx-data-context-key-path# evaluated-value#)
+         evaluated-value#)
+       cached-value#)))
+
+(defn tx-cached-node-value!
+  "Like the node-value function, but caches the result in the :tx-data-context
+  of the supplied evaluation-context if it doesn't have a cache. This is mostly
+  a workaround for the fact that the evaluation-context supplied to property
+  setters inside transactions does not contain a cache. Some operations, like
+  resource lookups, can benefit hugely from caching the lookup maps. However,
+  beware that this function bypasses the regular cache invalidation mechanism.
+  Don't use it on outputs that might otherwise have been invalidated between two
+  calls in the same transaction. The lack of a cache inside transactions has
+  previously been reported as DEFEDIT-1411."
+  [node-id label evaluation-context]
+  (cond
+    (nil? node-id)
+    nil
+
+    (some? (:cache evaluation-context))
+    (node-value node-id label evaluation-context)
+
+    :else
+    (let [tx-data-context-key-path (pair :tx-node-value-cache (gt/endpoint node-id label))]
+      (tx-cached-value! evaluation-context tx-data-context-key-path
+        (node-value node-id label evaluation-context)))))
+
+(definline raw-property-value*
+  "Fast raw property access to the given node. Will bypass the property value
+  fnk if present, but does traverse the override hierarchy. This can be more
+  efficient than the node-value function, as it doesn't need to create an
+  evaluation-context, check output jammers, and so on. It will simply return the
+  value in the property map for the first node in the override chain that
+  provides it. You should only really use this with properties that don't have a
+  value fnk on nodes that you're sure haven't been marked defective."
+  [basis node property-label]
+  `(gt/get-property ~node ~basis ~property-label))
+
+(definline raw-property-value
+  "Fast raw property access to the given node-id. Will bypass the property value
+  fnk if present, but does traverse the override hierarchy. This can be more
+  efficient than the node-value function, as it doesn't need to create an
+  evaluation-context, check output jammers, and so on. It will simply return the
+  value in the property map for the first node in the override chain that
+  provides it. You should only really use this with properties that don't have a
+  value fnk on nodes that you're sure haven't been marked defective."
+  [basis node-id property-label]
+  `(let [basis# ~basis
+         node# (gt/node-by-id-at basis# ~node-id)]
+     (raw-property-value* basis# node# ~property-label)))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
@@ -1048,6 +1472,12 @@
    (node-instance? (now) type node-id))
   ([basis type node-id]
    (node-instance*? type (gt/node-by-id-at basis node-id))))
+
+(defn node-kw-instance?
+  "Returns true if the node is a member of a given type keyword, including
+   supertypes."
+  [basis type-kw node-id]
+  (isa? (node-type-kw basis node-id) type-kw))
 
 (defn node-instance-match*
   "Returns the first node-type from the provided sequence of node-types that
@@ -1374,10 +1804,10 @@
   ([root-id opts]
    (override root-id opts default-override-init-fn))
   ([root-id opts init-fn]
-   (let [{:keys [traverse-fn properties-by-node-id]
+   (let [{:keys [traverse-fn init-props-fn properties-by-node-id]
           :or {traverse-fn always-override-traverse-fn
                properties-by-node-id default-override-properties-by-node-id}} opts]
-     (it/override root-id traverse-fn init-fn properties-by-node-id))))
+     (it/override root-id traverse-fn init-props-fn init-fn properties-by-node-id))))
 
 (defn transfer-overrides [from-id->to-id]
   (it/transfer-overrides from-id->to-id))
@@ -1406,7 +1836,7 @@
   ([node-id]
    (override? (now) node-id))
   ([basis node-id]
-   (not (nil? (override-original basis node-id)))))
+   (some? (override-original basis node-id))))
 
 (defn override-id
   ([node-id]
@@ -1434,6 +1864,31 @@
      (property-overridden? basis node-id prop-kw)
      true)))
 
+(defn node-property-dynamic
+  "Returns the value of a dynamic associated with a specific node property
+  If the dynamic does not exist, returns the provided not-found value, or throws
+  an assertion error if there was no not-found value provided"
+  ([node property-label dynamic-label evaluation-context]
+   (let [ret (node-property-dynamic node property-label dynamic-label ::not-found evaluation-context)]
+     (assert (not (identical? ret ::not-found))
+             (format "Dynamic %s not found on property %s in node-type %s." dynamic-label property-label (:k (node-type node))))
+     ret))
+  ([node property-label dynamic-label not-found evaluation-context]
+   (let [node-type (node-type node)
+         property-def (get (in/all-properties node-type) property-label)
+         _ (assert property-def (format "Property %s not found in node-type %s." property-label (:k node-type)))
+         dynamic-fnk (-> property-def (get :dynamics) (get dynamic-label))]
+     (if dynamic-fnk
+       (let [dynamic-fn (:fn dynamic-fnk)
+             dynamic-args (coll/into-> (:arguments dynamic-fnk) {}
+                            (map (fn [arg-label]
+                                   (let [arg-value (case arg-label
+                                                     :_this node
+                                                     (in/node-value node arg-label evaluation-context))]
+                                     (pair arg-label arg-value)))))]
+         (dynamic-fn dynamic-args))
+       not-found))))
+
 (defmulti node-key
   "Used to identify a node uniquely within a scope. This has various uses,
   among them is that we will restore overridden properties during resource sync
@@ -1452,13 +1907,15 @@
   "Returns a map of overridden prop-keywords to property values. Values will be
   produced by property value functions if possible."
   [node-id {:keys [basis] :as evaluation-context}]
-  (let [node-type (node-type* basis node-id)]
-    (into {}
-          (map (fn [[prop-kw raw-prop-value]]
-                 [prop-kw (if (has-property? node-type prop-kw)
-                            (node-value node-id prop-kw evaluation-context)
-                            raw-prop-value)]))
-          (node-value node-id :_overridden-properties evaluation-context))))
+  (if-let [node (node-by-id basis node-id)]
+    (let [node-type (gt/node-type node)]
+      (into {}
+            (map (fn [[prop-kw raw-prop-value]]
+                   [prop-kw (if (has-property? node-type prop-kw)
+                              (in/node-value node prop-kw evaluation-context)
+                              raw-prop-value)]))
+            (in/node-value node :_overridden-properties evaluation-context)))
+    {}))
 
 (defn collect-overridden-properties
   "Collects overridden property values from override nodes originating from the
@@ -1488,7 +1945,11 @@
                                    node-key
                                    node-type-kw)
                            {:node-key node-key
-                            :node-type node-type-kw})))
+                            :node-type node-type-kw
+                            :source-node-id source-node-id
+                            :override-node-id override-node-id
+                            :override-node-key override-node-key
+                            :properties-by-override-node-key (persistent! properties-by-override-node-key)})))
                      (when (seq overridden-properties)
                        (assoc! properties-by-override-node-key
                                override-node-key overridden-properties))))))
@@ -1521,7 +1982,10 @@
   "Set up the initial system including graphs, caches, and disposal queues"
   [config]
   (reset! *the-system* (is/make-system config))
-  (low-memory/add-callback! clear-system-cache!))
+  (low-memory/add-callback!
+    (fn low-memory-callback! []
+      (log/info :message "Clearing the system cache in desperation due to low-memory conditions.")
+      (clear-system-cache!))))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no

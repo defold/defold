@@ -1,4 +1,4 @@
--- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -49,6 +49,10 @@ function assert_number(v_test,v_correct)
     local v = v_test == v_correct
     local e = v and nil or tostring(v_test) .. " and " .. tostring(v_correct) .. " are not the same!"
     assert_fn(v, e)
+end
+
+function assert_not_nil(v_test)
+    assert_fn(v_test ~= nil, "Value shouldn't be nil!")
 end
 
 function assert_error(func)

@@ -1,13 +1,13 @@
 #! /usr/bin/env bash
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,8 +28,9 @@ set -e
 
 TARGET_DIR="$(pwd)/local_sdks"
 
-PLATFORMS="/Applications/Xcode.app/Contents/Developer/Platforms"
-XCODE="/Applications/Xcode.app/Contents/Developer/Toolchains"
+XCODE_CONTENTS="/Applications/Xcode.app/Contents"
+PLATFORMS="$XCODE_CONTENTS/Developer/Platforms"
+XCODE="$XCODE_CONTENTS/Developer/Toolchains"
 
 VERBOSE=
 
@@ -85,40 +86,45 @@ function package_xcode() {
     local version=$(/usr/bin/xcodebuild -version | grep -e "Xcode" | awk '{print $2}')
     local target=${name}${version}.${namesuffix}.${host_platform}
 
+    inner_folder_name=${name}${version}.toolchain
+    intermediate_folder=$(pwd)/XcodeIntermediate
+    rm -rf $intermediate_folder
+    mkdir -p $intermediate_folder/$inner_folder_name
+
+    echo "Copy llbuild.framework to $intermediate_folder/$inner_folder_name/SharedFrameworks/"
+    mkdir -p $intermediate_folder/$inner_folder_name/SharedFrameworks/llbuild.framework
+    cp -R $XCODE_CONTENTS/SharedFrameworks/llbuild.framework/ $intermediate_folder/$inner_folder_name/SharedFrameworks/llbuild.framework
+
+    mkdir -p $intermediate_folder/$inner_folder_name/Developer/Toolchains
+    cp -R $XCODE/$_name $intermediate_folder/$inner_folder_name/Developer/Toolchains
+
+    link_name=${name}${version}.${namesuffix}
+    ln -s $inner_folder_name/Developer/Toolchains/$_name $intermediate_folder/$link_name
+
     echo FOUND ${XCODE}/${_name} "->" ${target}
 
-    pushd ${XCODE}
+    pushd $intermediate_folder/
 
-    # No need to include executables on linux, where we run vanilla clang
-    if [ $host_platform != "darwin" ]
-    then
-        EXTRA_ARGS="--exclude=${_name}/usr/bin ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift/watchos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift/watchsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift/appletvos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift/appletvsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.0/watchos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.0/watchsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.0/appletvos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.0/appletvsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.5/watchos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.5/watchsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.5/appletvos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/swift-5.5/appletvsimulator ${EXTRA_ARGS}"
 
-        for f in ${_name}/usr/lib/*.dylib
-        do
-           EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
-        done
-    fi
-
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/watchos ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/watchsimulator ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/appletvos ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/appletvsimulator ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.0/watchos ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.0/watchsimulator ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.0/appletvos ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.0/appletvsimulator ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/watchos ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/watchsimulator ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/appletvos ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/appletvsimulator ${EXTRA_ARGS}"
-
-    EXTRA_ARGS="--exclude=${_name}/Developer/Platforms ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/sourcekitd.framework ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/lib/sourcekitdlnProc.framework ${EXTRA_ARGS}"
-    EXTRA_ARGS="--exclude=${_name}/usr/metal ${EXTRA_ARGS}"
-    make_archive ${_name} ${target} ${EXTRA_ARGS}
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/Developer/Platforms ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/sourcekitd.framework ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/lib/sourcekitdlnProc.framework ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=$inner_folder_name/Developer/Toolchains/${_name}/usr/metal ${EXTRA_ARGS}"
+    make_archive ./ ${target} ${EXTRA_ARGS}
     popd
+    rm -rf $intermediate_folder
 }
 
 package_platform "iPhoneOS"
@@ -126,7 +132,6 @@ package_platform "iPhoneSimulator"
 package_platform "MacOSX"
 
 package_xcode "XcodeDefault" "darwin"
-package_xcode "XcodeDefault" "linux"
 
 echo "PACKAGES"
 ls -la ${TARGET_DIR}/*.gz

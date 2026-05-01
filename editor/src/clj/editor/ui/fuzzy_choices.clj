@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,14 +17,16 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [clojure.core.reducers :as r]
             [editor.fuzzy-text :as fuzzy-text]
-            [editor.util :as util])
+            [editor.util :as util]
+            [util.bit-set :as bit-set]
+            [util.thread-util :as thread-util])
   (:import [javafx.scene.text Text TextFlow]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- option->fuzzy-matched-option [option->text pattern option]
-  (when-some [[score matching-indices] (fuzzy-text/match-path pattern (option->text option))]
+(defn- option->fuzzy-matched-option [option->text prepared-pattern option]
+  (when-some [[score matching-indices] (fuzzy-text/match-path prepared-pattern (option->text option))]
     (vary-meta option assoc :score score :matching-indices matching-indices)))
 
 (defn- option-order [option->text a b]
@@ -35,8 +37,8 @@
       score-comparison
       (let [a-matching-indices (:matching-indices a-meta)
             b-matching-indices (:matching-indices b-meta)
-            a-matched-substring-length (- ^long (peek a-matching-indices) ^long (first a-matching-indices))
-            b-matched-substring-length (- ^long (peek b-matching-indices) ^long (first b-matching-indices))
+            a-matched-substring-length (- (bit-set/last-set-bit a-matching-indices) (bit-set/first-set-bit a-matching-indices))
+            b-matched-substring-length (- (bit-set/last-set-bit b-matching-indices) (bit-set/first-set-bit b-matching-indices))
             matched-substring-length-comparison (compare a-matched-substring-length b-matched-substring-length)]
         (if-not (zero? matched-substring-length-comparison)
           matched-substring-length-comparison
@@ -51,12 +53,19 @@
                   (compare (System/identityHashCode a) (System/identityHashCode b)))))))))))
 
 (defn filter-options [option->matched-text option->label-text filter-text options]
-  (if (empty? filter-text)
-    options
-    (sort (partial option-order option->label-text)
-          (seq (r/foldcat (r/filter some?
-                                    (r/map (partial option->fuzzy-matched-option option->matched-text filter-text)
-                                           options)))))))
+  (let [prepared-pattern (fuzzy-text/prepare-pattern filter-text)]
+    (if (fuzzy-text/empty-prepared-pattern? prepared-pattern)
+      options
+      (let [fuzzy-matched-options
+            (->> options
+                 (r/take-while (thread-util/thread-uninterrupted-predicate))
+                 (r/map #(option->fuzzy-matched-option option->matched-text prepared-pattern %))
+                 (r/filter some?)
+                 (r/foldcat))]
+
+        (thread-util/throw-if-interrupted!)
+        (sort (partial option-order option->label-text)
+              (seq fuzzy-matched-options))))))
 
 (defn- make-text-run [text style-class]
   (let [text-view (Text. text)]

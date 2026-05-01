@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,6 +52,11 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    dmGameObject::UpdateResult CompModelLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompModelRender(const dmGameObject::ComponentsRenderParams& params)
     {
         return dmGameObject::UPDATE_RESULT_OK;
@@ -59,7 +64,6 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -102,6 +106,28 @@ namespace dmGameSystem
     }
 
     bool CompModelGetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool* out)
+    {
+        return false;
+    }
+
+    uint32_t CompModelGetMeshCount(ModelComponent* component)
+    {
+        return 0;
+    }
+
+    void CompModelGetAABB(ModelComponent* component, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max)
+    { }
+
+    void CompModelGetMeshAABB(ModelComponent* component, uint32_t mesh_idx, dmhash_t* out_mesh_id, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max)
+    { }
+
+    void CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count)
+    { }
+
+    void CompModelResetBlendWeights(ModelComponent* component)
+    { }
+
+    bool CompModelGetBlendWeights(ModelComponent* component, const float** out_weights, uint32_t* out_count)
     {
         return false;
     }

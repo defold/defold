@@ -1,0 +1,787 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Extended
+permissions:
+  contents: read
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build_kat:
+    strategy:
+      fail-fast: false
+      matrix:
+        external:
+         - ${{ github.repository_owner != 'pq-code-package' }}
+        target:
+         - runner: macos-latest
+           name: 'MacOS (aarch64)'
+           arch: mac
+           mode: native
+           nix_shell: ci
+         - runner: macos-15-intel
+           name: 'MacOS (x86_64)'
+           arch: mac
+           mode: native
+           nix_shell: ci
+         - runner: ubuntu-24.04-arm
+           name: 'ubuntu-latest (aarch64)'
+           arch: aarch64
+           mode: native
+           nix_shell: ci
+         - runner: ubuntu-24.04-arm
+           name: 'ubuntu-latest (aarch64)'
+           arch: x86_64
+           mode: cross-x86_64
+           nix_shell: ci-cross-x86_64
+         - runner: ubuntu-24.04-arm
+           name: 'ubuntu-latest (aarch64)'
+           arch: riscv64
+           mode: cross-riscv64
+           nix_shell: ci-cross-riscv64
+         - runner: ubuntu-24.04-arm
+           name: 'ubuntu-latest (aarch64)'
+           arch: riscv32
+           mode: cross-riscv32
+           nix_shell: ci-cross-riscv32
+         - runner: ubuntu-24.04-arm
+           name: 'ubuntu-latest (ppc64le)'
+           arch: ppc64le
+           mode: cross-ppc64le
+           nix_shell: ci-cross-ppc64le
+         - runner: ubuntu-latest
+           name: 'ubuntu-latest (x86_64)'
+           arch: x86_64
+           mode: native
+           nix_shell: ci
+         - runner: ubuntu-latest
+           name: 'ubuntu-latest (x86_64)'
+           arch: aarch64
+           mode: cross-aarch64
+           nix_shell: ci-cross-aarch64
+         - runner: ubuntu-latest
+           name: 'ubuntu-latest (x86_64)'
+           arch: aarch64_be
+           mode: cross-aarch64_be
+           nix_shell: ci-cross-aarch64_be
+        exclude:
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'ubuntu-latest (aarch64)',
+               arch: aarch64,
+               mode: native,
+              nix_shell: ci
+             }}
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'ubuntu-latest (aarch64)',
+               arch: x86_64,
+               mode: cross-x86_64,
+               nix_shell: ci-cross-x86_64
+             }}
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'ubuntu-latest (aarch64)',
+               arch: riscv64,
+               mode: cross-riscv64,
+               nix_shell: ci-cross-riscv64
+             }}
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'ubuntu-latest (aarch64)',
+               arch: riscv32,
+               mode: cross-riscv32,
+               nix_shell: ci-cross-riscv32
+             }}
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'ubuntu-latest (ppc64le)',
+               arch: ppc64le,
+               mode: cross-ppc64le,
+               nix_shell: ci-cross-ppc64le
+             }}
+          - {external: true,
+             target: {
+               runner: ubuntu-latest,
+               name: 'ubuntu-latest (x86_64)',
+               arch: x86_64,
+               mode: native,
+               nix_shell: ci
+             }}
+          - {external: true,
+             target: {
+               runner: ubuntu-latest,
+               name: 'ubuntu-latest (x86_64)',
+               arch: aarch64,
+               mode: cross-aarch64,
+               nix_shell: ci-cross-aarch64
+             }}
+          - {external: true,
+             target: {
+               runner: ubuntu-latest,
+               name: 'ubuntu-latest (x86_64)',
+               arch: aarch64_be,
+               mode: cross-aarch64_be,
+               nix_shell: ci-cross-aarch64_be
+             }}
+    name: Functional tests (${{ matrix.target.arch }}${{ matrix.target.mode != 'native' && ', cross' || ''}})
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: build + test (no-opt)
+        uses: ./.github/actions/multi-functest
+        with:
+          nix-shell: ${{ matrix.target.nix_shell }}
+          nix-cache: ${{ matrix.target.mode == 'native' && 'false' || 'true' }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: ${{ matrix.target.mode }}
+          opt: 'no_opt'
+      - name: build + test (+debug+memsan+ubsan, native)
+        uses: ./.github/actions/multi-functest
+        if: ${{ matrix.target.mode == 'native' }}
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: native
+          cflags: "-DMLDSA_DEBUG -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+          ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+          check_namespace: 'false'
+      - name: build + test (cross, opt)
+        uses: ./.github/actions/multi-functest
+        # There is no native code yet on PPC64LE, riscv32 or AArch64_be, so no point running opt tests
+        if: ${{ matrix.target.mode != 'native' && (matrix.target.arch != 'ppc64le' && matrix.target.arch != 'riscv32' && matrix.target.arch != 'aarch64_be') }}
+        with:
+          nix-shell: ${{ matrix.target.nix_shell }}
+          nix-cache: ${{ matrix.target.mode == 'native' && 'false' || 'true' }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: ${{ matrix.target.mode }}
+          opt: 'opt'
+      - name: build + test (cross, opt, +debug)
+        uses: ./.github/actions/multi-functest
+        # There is no native code yet on PPC64LE, riscv32 or AArch64_be, so no point running opt tests
+        if: ${{ matrix.target.mode != 'native' && (matrix.target.arch != 'ppc64le' && matrix.target.arch != 'riscv32' && matrix.target.arch != 'aarch64_be') }}
+        with:
+          nix-shell: ${{ matrix.target.nix_shell }}
+          nix-cache: ${{ matrix.target.mode == 'native' && 'false' || 'true' }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: ${{ matrix.target.mode }}
+          cflags: "-DMLDSA_DEBUG"
+          opt: 'opt'
+  backend_tests:
+    name: AArch64 FIPS202 backends (${{ matrix.backend }})
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [x1_scalar, x1_v84a, x2_v84a, x4_v8a_scalar, x4_v8a_v84a_scalar]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: build + test
+        uses: ./.github/actions/multi-functest
+        with:
+          nix-shell: 'ci'
+          nix-cache: 'false'
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: 'native'
+          opt: 'opt'
+          examples: 'false'
+          cflags: "-DMLDSA_DEBUG -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+          ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+          check_namespace: 'false'
+          extra_args: "--fips202-aarch64-backend ${{ matrix.backend }}"
+  compiler_tests:
+    name: Compiler tests  (${{ matrix.compiler.name }}, ${{ matrix.target.name }}, ${{ matrix.cflags }})
+    strategy:
+      fail-fast: false
+      matrix:
+        cflags: [ "-O0", "-Os", "-O3" ]
+        target:
+         - runner: ubuntu-24.04-arm
+           name: 'aarch64'
+         - runner: ubuntu-latest
+           name: 'x86_64'
+         - runner: macos-latest
+           name: 'macos'
+        compiler:
+         - name: gcc-4.8
+           shell: ci_gcc48
+           darwin: False
+           c17: False
+           c23: False
+           opt: all
+           examples: true
+         - name: gcc-4.9
+           shell: ci_gcc49
+           darwin: False
+           c17: False
+           c23: False
+           opt: all
+           examples: true
+         - name: gcc-7
+           shell: ci_gcc7
+           darwin: False
+           c17: False
+           c23: False
+           opt: all
+           examples: true
+         - name: gcc-11
+           shell: ci_gcc11
+           darwin: True
+           c17: True
+           c23: False
+           opt: all
+           examples: true
+         - name: gcc-13
+           shell: ci_gcc13
+           darwin: True
+           c17: True
+           c23: False
+           opt: all
+           examples: true
+         - name: gcc-14
+           shell: ci_gcc14
+           darwin: True
+           c17: True
+           c23: True
+           opt: all
+           examples: true
+         - name: gcc-15
+           shell: ci_gcc15
+           darwin: True
+           c17: True
+           c23: True
+           opt: all
+           examples: true
+         - name: clang-18
+           shell: ci_clang18
+           darwin: True
+           c17: True
+           c23: True
+           opt: all
+           examples: true
+         - name: clang-19
+           shell: ci_clang19
+           darwin: True
+           c17: True
+           c23: True
+           opt: all
+           examples: true
+         - name: clang-20
+           shell: ci_clang20
+           darwin: True
+           c17: True
+           c23: True
+           opt: all
+           examples: true
+         - name: clang-21
+           shell: ci_clang21
+           darwin: True
+           c17: True
+           c23: True
+           opt: all
+           examples: true
+         # CPU flags are not correctly passed to the zig assembler
+         # https://github.com/ziglang/zig/issues/23576
+         # We therefore only test the C backend
+         #
+         # We omit all examples since there is currently no way to run
+         # only those examples not involving native code.
+         - name: zig-0.12
+           shell: ci_zig0_12
+           darwin: True
+           c17: True
+           c23: False
+           examples: False
+           opt: no_opt
+         - name: zig-0.13
+           shell: ci_zig0_13
+           darwin: True
+           c17: True
+           c23: False
+           examples: False
+           opt: no_opt
+         - name: zig-0.14
+           shell: ci_zig0_14
+           darwin: True
+           c17: True
+           c23: True
+           examples: False
+           opt: no_opt
+         - name: zig-0.15
+           shell: ci_zig0_15
+           darwin: True
+           c17: True
+           c23: True
+           examples: False
+           opt: no_opt
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: native build+functest (default)
+        if: ${{ matrix.compiler.darwin || matrix.target.runner != 'macos-latest' }}
+        uses: ./.github/actions/multi-functest
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: native
+          func: true
+          kat: false
+          acvp: false
+          examples: ${{ matrix.compiler.examples }}
+          opt: ${{ matrix.compiler.opt }}
+          nix-shell: ${{ matrix.compiler.shell }}
+          cflags: "${{ matrix.cflags }}"
+      - name: native build+functest (C90)
+        if: ${{ matrix.compiler.darwin || matrix.target.runner != 'macos-latest' }}
+        uses: ./.github/actions/multi-functest
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: native
+          func: true
+          kat: false
+          acvp: false
+          examples: ${{ matrix.compiler.examples }}
+          opt: ${{ matrix.compiler.opt }}
+          nix-shell: ${{ matrix.compiler.shell }}
+          cflags: "-std=c90 ${{ matrix.cflags }}"
+      - name: native build+functest (C99)
+        if: ${{ matrix.compiler.darwin || matrix.target.runner != 'macos-latest' }}
+        uses: ./.github/actions/multi-functest
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: native
+          func: true
+          kat: false
+          acvp: false
+          examples: ${{ matrix.compiler.examples }}
+          opt: ${{ matrix.compiler.opt }}
+          nix-shell: ${{ matrix.compiler.shell }}
+          cflags: "-std=c99 ${{ matrix.cflags }}"
+      - name: native build+functest (C11)
+        if: ${{ matrix.compiler.darwin || matrix.target.runner != 'macos-latest' }}
+        uses: ./.github/actions/multi-functest
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: native
+          func: true
+          kat: false
+          acvp: false
+          examples: ${{ matrix.compiler.examples }}
+          opt: ${{ matrix.compiler.opt }}
+          nix-shell: ${{ matrix.compiler.shell }}
+          cflags: "-std=c11 ${{ matrix.cflags }}"
+      - name: native build+functest (C17)
+        if: ${{ (matrix.compiler.darwin || matrix.target.runner != 'macos-latest') &&
+                matrix.compiler.c17 }}
+        uses: ./.github/actions/multi-functest
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: native
+          func: true
+          kat: false
+          acvp: false
+          examples: ${{ matrix.compiler.examples }}
+          opt: ${{ matrix.compiler.opt }}
+          nix-shell: ${{ matrix.compiler.shell }}
+          cflags: "-std=c17 ${{ matrix.cflags }}"
+      - name: native build+functest (C23)
+        if: ${{ (matrix.compiler.darwin || matrix.target.runner != 'macos-latest') &&
+                matrix.compiler.c23 }}
+        uses: ./.github/actions/multi-functest
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: native
+          func: true
+          kat: false
+          acvp: false
+          examples: ${{ matrix.compiler.examples }}
+          opt: ${{ matrix.compiler.opt }}
+          nix-shell: ${{ matrix.compiler.shell }}
+          cflags: "-std=c23 ${{ matrix.cflags }}"
+  stack_analysis:
+    name: Stack analysis (${{ matrix.target.name }}, ${{ matrix.cflags }})
+    strategy:
+      fail-fast: false
+      matrix:
+        external:
+         - ${{ github.repository_owner != 'pq-code-package' }}
+        target:
+          - runner: ubuntu-latest
+            name: x86_64
+          - runner: ubuntu-24.04-arm
+            name: aarch64
+        cflags:
+          - '-O3'
+          - '-Os'
+          - '-O3 -DMLD_CONFIG_REDUCE_RAM'
+          - '-Os -DMLD_CONFIG_REDUCE_RAM'
+        exclude:
+          - external: true
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Stack analysis
+        uses: ./.github/actions/multi-functest
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: native
+          nix-shell: ci_valgrind-varlat_gcc15
+          nix-cache: false
+          opt: all
+          cflags: "${{ matrix.cflags }}"
+          func: false
+          kat: false
+          acvp: false
+          examples: false
+          stack: true
+          check_namespace: false
+  config_variations:
+    name: Non-standard configurations
+    strategy:
+      fail-fast: false
+      matrix:
+        external:
+         - ${{ github.repository_owner != 'pq-code-package' }}
+        target:
+         - runner: ubuntu-24.04-arm
+           name: 'ubuntu-latest (aarch64)'
+         - runner: ubuntu-latest
+           name: 'ubuntu-latest (x86_64)'
+        exclude:
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'ubuntu-latest (aarch64)',
+             }}
+          - {external: true,
+             target: {
+               runner: ubuntu-latest,
+               name: 'ubuntu-latest (x86_64)',
+             }}
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: "Config Variations"
+        uses: ./.github/actions/config-variations
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+  check-cf-protections:
+    name: Test control-flow protections  (${{ matrix.compiler.name }}, x86_64)
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+         - name: gcc-14
+           shell: ci_gcc14
+         - name: gcc-15
+           shell: ci_gcc15
+         - name: clang-19
+           shell: ci_clang19
+    # On AArch64 -fcf-protection is not supported anyway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Test control-flow protections
+        uses: ./.github/actions/multi-functest
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          compile_mode: native
+          cflags: "-Wl,-z,cet-report=error -fcf-protection=full"
+          func: true
+          kat: true
+          acvp: true
+          nix-shell: ${{ matrix.compiler.shell }}
+  # ensure that sign.h and mldsa_native.h; api.h and native backends are compatible
+  check-apis:
+    strategy:
+      fail-fast: false
+      matrix:
+        external:
+         - ${{ github.repository_owner != 'pq-code-package' }}
+        target:
+         - runner: ubuntu-24.04-arm
+           name: 'aarch64'
+         - runner: ubuntu-latest
+           name: 'x86_64'
+        exclude:
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'aarch64'
+             }}
+    name: Check API consistency
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: make quickcheck
+        run: |
+          OPT=0 CFLAGS="-Imldsa -DMLD_CHECK_APIS -Wno-redundant-decls" make quickcheck
+          make clean >/dev/null
+          OPT=1 CFLAGS="-Imldsa -DMLD_CHECK_APIS -Wno-redundant-decls" make quickcheck
+      - uses: ./.github/actions/setup-apt
+      - name: tests func
+        run: |
+          ./scripts/tests func --cflags="-Imldsa -DMLD_CHECK_APIS -Wno-redundant-decls"
+  ec2_functests:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: AMD EPYC 4th gen (t3a)
+            ec2_instance_type: t3a.small
+            ec2_ami: ubuntu-latest (x86_64)
+            ec2_volume_size: 20
+            compile_mode: native
+            opt: all
+            config_variations: 'native-cap-CPUID_AVX2'
+          - name: Intel Xeon 4th gen (t3)
+            ec2_instance_type: t3.small
+            ec2_ami: ubuntu-latest (x86_64)
+            ec2_volume_size: 20
+            compile_mode: native
+            opt: all
+            config_variations: 'native-cap-CPUID_AVX2'
+          - name: Graviton2 (c6g.medium)
+            ec2_instance_type: c6g.medium
+            ec2_ami: ubuntu-latest (aarch64)
+            ec2_volume_size: 20
+            compile_mode: native
+            opt: all
+            config_variations: 'native-cap-ON native-cap-OFF native-cap-ID_AA64PFR1_EL1'
+          - name: Graviton3 (c7g.medium)
+            ec2_instance_type: c7g.medium
+            ec2_ami: ubuntu-latest (aarch64)
+            ec2_volume_size: 20
+            compile_mode: native
+            opt: all
+            config_variations: 'native-cap-ID_AA64PFR1_EL1'
+    name: Platform tests  (${{ matrix.target.name }})
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    if: github.repository_owner == 'pq-code-package' && !github.event.pull_request.head.repo.fork
+    uses: ./.github/workflows/ci_ec2_reusable.yml
+    with:
+      name: ${{ matrix.target.name }}
+      ec2_instance_type: ${{ matrix.target.ec2_instance_type }}
+      ec2_ami: ${{ matrix.target.ec2_ami }}
+      ec2_ami_id: ${{ matrix.target.ec2_ami_id }}
+      compile_mode: ${{ matrix.target.compile_mode }}
+      opt: ${{ matrix.target.opt }}
+      config_variations: ${{ matrix.target.config_variations || '' }}
+      functest: true
+      kattest: true
+      acvptest: true
+      lint: false
+      verbose: true
+    secrets: inherit
+  compatibility_tests:
+    strategy:
+      max-parallel: 4
+      fail-fast: false
+      matrix:
+        container:
+          - id: debian:bullseye
+          - id: debian:bookworm
+          - id: nixos/nix:latest
+            nix_shell: 'nix-shell -p python3 gcc gnumake perl'
+    name: Compatibility tests (${{ matrix.container.id }})
+    runs-on: ubuntu-latest
+    container:
+      ${{ matrix.container.id }}
+    steps:
+      # We're not using the checkout action here because on it's not supported
+      # on all containers we want to test. Resort to a manual checkout.
+
+      # We can't hoist this into an action since calling an action can only
+      # be done after checkout.
+      - name: Manual checkout
+        shell: bash
+        run: |
+          if (which yum > /dev/null); then
+             yum install git -y
+          elif (which apt > /dev/null); then
+             apt update
+             apt install git -y
+          fi
+
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+          git init
+          git remote add origin $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
+          git fetch origin --depth 1 $GITHUB_SHA
+          git checkout FETCH_HEAD
+      - uses: ./.github/actions/setup-os
+        with:
+          sudo: ""
+      - name: make quickcheck
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.container.nix_shell }}" ]; then
+            ${{ matrix.container.nix_shell }} --run "CC=gcc OPT=0 make quickcheck && make clean >/dev/null && CC=gcc OPT=1 make quickcheck"
+          else
+            CC=gcc OPT=0 make quickcheck
+            make clean >/dev/null
+            CC=gcc OPT=1 make quickcheck
+          fi
+      - name: Functional Tests
+        uses: ./.github/actions/multi-functest
+        with:
+          nix-shell: ""
+          custom_shell: ${{ matrix.container.nix_shell && format('{0} --run \"bash -e {{0}}\"', matrix.container.nix_shell) || 'bash' }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+  ec2_compatibilitytests:
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        container:
+          - id: amazonlinux-2-aarch:base
+            # TODO: Python 3.7 on Amazon Linux 2 lacks `sha512_224` in hashlib; set to false to skip acvp.
+            quickcheck: false
+            acvptest: false
+          - id: amazonlinux-2-aarch:gcc-7x
+            # TODO: Python 3.7 on Amazon Linux 2 lacks `sha512_224` in hashlib; set to false to skip acvp.
+            quickcheck: false
+            acvptest: false
+          - id: amazonlinux-2-aarch:clang-7x
+            # TODO: Python 3.7 on Amazon Linux 2 lacks `sha512_224` in hashlib; set to false to skip acvp.
+            quickcheck: false
+            acvptest: false
+          - id: amazonlinux-2023-aarch:base
+            quickcheck: true
+            acvptest: true
+          - id: amazonlinux-2023-aarch:gcc-11x
+            quickcheck: true
+            acvptest: true
+          - id: amazonlinux-2023-aarch:clang-15x
+            quickcheck: true
+            acvptest: true
+          - id: amazonlinux-2023-aarch:clang-15x-sanitizer
+            quickcheck: true
+            acvptest: true
+          # - id: amazonlinux-2023-aarch:cryptofuzz Not yet supported
+          - id: ubuntu-22.04-aarch:gcc-12x
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-22.04-aarch:gcc-11x
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-20.04-aarch:gcc-8x
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-20.04-aarch:gcc-7x
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-20.04-aarch:clang-9x
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-20.04-aarch:clang-8x
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-20.04-aarch:clang-7x-bm-framework
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-20.04-aarch:clang-7x
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-20.04-aarch:clang-10x
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-22.04-aarch:base
+            quickcheck: true
+            acvptest: true
+          - id: ubuntu-20.04-aarch:base
+            quickcheck: true
+            acvptest: true
+    name: Compatibility tests (${{ matrix.container.id }})
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    uses: ./.github/workflows/ci_ec2_container.yml
+    if: github.repository_owner == 'pq-code-package' && !github.event.pull_request.head.repo.fork
+    with:
+      container: ${{ matrix.container.id }}
+      name: ${{ matrix.container.id }}
+      ec2_instance_type: t4g.small
+      ec2_ami: ubuntu-latest (custom AMI)
+      ec2_ami_id: ami-0c9bc1901ef0d1066 # Has docker images preinstalled
+      compile_mode: native
+      opt: all
+      functest: true
+      kattest: true
+      acvptest: ${{ matrix.container.acvptest }}
+      quickcheck: ${{ matrix.container.quickcheck }}
+      lint: false
+      verbose: true
+      cflags: "-O0"
+    secrets: inherit
+  check_autogenerated_files:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - system: macos-latest
+            nix_shell: 'ci-cross-x86_64'
+            nix_cache: 'true'
+            extra_args: '--force-cross'
+          # TODO: This does not yet work (#1304) <- MLKEM ISSUE, Port when fixed
+          # - system: macos-15-intel
+          #   nix_cache: 'false'
+          #   nix_shell: 'ci'
+          - system: ubuntu-latest
+            nix_shell: 'ci-cross-aarch64'
+            nix_cache: 'true'
+            extra_args: '--force-cross'
+          - system: ubuntu-24.04-arm
+            nix_shell: 'ci-cross-x86_64'
+            nix_cache: 'true'
+            extra_args: '--force-cross'
+    runs-on: ${{ matrix.target.system }}
+    name: Check autogenerated files
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/setup-shell
+        with:
+          nix-shell: ${{ matrix.target.nix_shell }}
+          nix-cache: ${{ matrix.target.nix_cache }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            python3 ./scripts/autogen --dry-run ${{ matrix.target.extra_args }}
+  check_hol_light_object_code:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - system: macos-latest
+            nix_cache: 'true'
+            nix_shell: 'hol_light-cross-x86_64'
+            extra_args: '--force-cross'
+          # TODO: autogen does not yet work on macos15-intel (#1304)
+          # - system: macos-15-intel
+          #   nix_cache: 'false'
+          #   nix_shell: 'ci'
+          - system: ubuntu-latest
+            nix_shell: 'hol_light-cross-aarch64'
+            nix_cache: 'true'
+            extra_args: '--force-cross'
+          - system: ubuntu-24.04-arm
+            nix_shell: 'hol_light-cross-x86_64'
+            nix_cache: 'true'
+            extra_args: '--force-cross'
+    runs-on: ${{ matrix.target.system }}
+    name: Check object code in HOL-Light proofs
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/setup-shell
+        with:
+          nix-shell: ${{ matrix.target.nix_shell }}
+          nix-cache: ${{ matrix.target.nix_cache }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            python3 ./scripts/autogen --dry-run --update-hol-light-bytecode ${{ matrix.target.extra_args }}

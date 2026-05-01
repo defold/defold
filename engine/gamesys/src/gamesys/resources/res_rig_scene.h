@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_SPINE_SCENE_H
-#define DM_GAMESYS_RES_SPINE_SCENE_H
+#ifndef DM_GAMESYS_RES_RIG_SCENE_H
+#define DM_GAMESYS_RES_RIG_SCENE_H
 
 #include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_rig_scene.h>
@@ -29,4 +29,4 @@ namespace dmGameSystem
     dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
-#endif // DM_GAMESYS_RES_SPINE_SCENE_H
+#endif // DM_GAMESYS_RES_RIG_SCENE_H

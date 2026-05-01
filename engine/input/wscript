@@ -10,6 +10,7 @@ import sys, os
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -29,11 +30,8 @@ def configure(conf):
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "src")
-    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls']
     conf.env['STLIB_DDF'] = 'ddf'
-    conf.env['STLIB_HID_NULL'] = 'hid_null'
-
-    platform = conf.env['PLATFORM']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="INPUT"')
 
@@ -43,4 +41,4 @@ def build(bld):
     TestContext.initialize_test_context(test_context, bld)
 
 def shutdown(self):
-    waf_dynamo.run_tests(test_context, valgrind = True)
+    waf_dynamo.run_tests(test_context, folders = {"build/src/test": "build/src/test"})

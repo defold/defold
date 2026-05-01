@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,13 +21,13 @@
 #include <dmsdk/render/render.h>
 
 /*# Component render constant API documentation
- * [file:<dmsdk/gamesystem/render_constants.h>]
  *
  * Api for setting and updating component render constants
  *
  * @document
  * @name Component Render Constants
  * @namespace dmGameSystem
+ * @language C++
  */
 
 namespace dmGameObject
@@ -43,6 +43,13 @@ namespace dmRender
 
 namespace dmGameSystem
 {
+
+    /*#
+     * Found in hash.h
+     * @typedef
+     * @name HashState32
+     */
+
     /*#
      * Render constants handle
      * @typedef

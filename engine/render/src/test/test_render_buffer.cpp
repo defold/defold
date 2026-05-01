@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@
 #include <jc_test/jc_test.h>
 
 #include <testmain/testmain.h>
+#include <platform/window.hpp>
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -24,19 +25,21 @@
 class dmRenderBufferTest : public jc_test_base_class
 {
 public:
-    dmPlatform::HWindow           m_Window;
+    HWindow                       m_Window;
     dmGraphics::HContext          m_GraphicsContext;
     dmRender::HRenderContext      m_RenderContext;
     dmRender::RenderContextParams m_Params;
     bool                          m_MultiBufferingRequired;
 
-    virtual void SetUp()
+    void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
-        dmPlatform::WindowParams win_params = {};
+        WindowCreateParams win_params;
+        WindowCreateParamsInitialize(&win_params);
         win_params.m_Width = 20;
         win_params.m_Height = 10;
+        win_params.m_ContextAlphabits = 8;
 
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, win_params);
@@ -55,9 +58,10 @@ public:
 
         m_MultiBufferingRequired = m_RenderContext->m_MultiBufferingRequired;
     }
-    virtual void TearDown()
+    void TearDown() override
     {
         dmRender::DeleteRenderContext(m_RenderContext, 0);
+        dmGraphics::CloseWindow(m_GraphicsContext);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmPlatform::CloseWindow(m_Window);
         dmPlatform::DeleteWindow(m_Window);

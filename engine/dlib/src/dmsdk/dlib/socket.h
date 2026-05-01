@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,19 +19,19 @@
 #include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/file_descriptor.h>
 
-/*# SDK Socket API documentation
+/*# Socket API documentation
  * Socket functions.
  *
  * @document
  * @name Socket
  * @namespace dmSocket
- * @path engine/dlib/src/dmsdk/dlib/socket.h
+ * @language C++
  */
 namespace dmSocket
 {
     /*#
      * Socket default timeout value
-     * @variable
+     * @constant
      * @name SOCKET_TIMEOUT
      */
     const int SOCKET_TIMEOUT = 500 * 1000;
@@ -46,7 +46,7 @@ namespace dmSocket
 
     /*#
      * Invalid socket handle
-     * @variable
+     * @constant
      * @name INVALID_SOCKET_HANDLE
      */
     const Socket INVALID_SOCKET_HANDLE = 0xffffffff;

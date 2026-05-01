@@ -3,7 +3,7 @@
 import os, re, sys
 from waflib import Options
 from waflib.TaskGen import feature, after
-from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private, platform_supports_feature
+from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private, platform_supports_feature, feature_enabled
 from BuildUtility import BuildUtilityException, create_build_utility
 
 def options(opt):
@@ -39,12 +39,26 @@ def build(bld):
         platform_source_dirs.append('dlib/nx64/**/*.cpp')
     elif bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
         platform_source_dirs.append('dlib/ps4/**/*.cpp')
+    elif bld.env.PLATFORM in ['x86_64-xbone']:
+        platform_source_dirs.append('dlib/win32/**/*.cpp')
+        platform_source_dirs.append('dlib/xbox/**/*.cpp')
 
-    extra_defines = ['ZLIB_CONST']
+    zlib_conf_defines = []
+    if 'ZLIB_CONF_H' in bld.env:
+        zlib_conf_defines = bld.env['ZLIB_CONF_H']
+    else:
+        zlib_conf_defines = ['ZLIB_CONST']
+        if 'win32' not in bld.env.PLATFORM:
+            zlib_conf_defines.append('Z_HAVE_UNISTD_H')
+            zlib_conf_defines.append('HAVE_HIDDEN')
+
+    extra_defines = []
+    extra_defines.extend(zlib_conf_defines)
+
+    extra_defines += ['MINIZ_NO_TIME']
+    extra_defines += ['ZIP_ENABLE_INFLATE=1', 'ZIP_ENABLE_DEFLATE=0', 'ZIP_HAVE_SYMLINK=0']
 
     if 'win32' not in bld.env.PLATFORM:
-        extra_defines.append('Z_HAVE_UNISTD_H')
-        extra_defines.append('HAVE_HIDDEN')
         extra_defines.append('CONFIG_USE_DEV_URANDOM')
     else:
         pass
@@ -55,6 +69,8 @@ def build(bld):
     platform = build_util.get_target_os()
     if platform == 'win':
         platform = "win32"
+
+    use_mbedtls = feature_enabled('mbedtls')
 
     source_files = bld.path.ant_glob(source_dirs)
 
@@ -74,12 +90,14 @@ def build(bld):
             return False
         return [x for x in sources if not matches(x.abspath(), patterns)]
 
-    # build image sources as separate libraries to make it excludable
-    remove_files(source_files, ['image.cpp', 'image_null.cpp'])
+    # build image and SSL socket backends as separate selectable sources
+    source_files = remove_files(source_files, ['image.cpp', 'image_null.cpp',
+                                                'sslsocket_darwin.mm', 'sslsocket_mbedtls.cpp', 'sslsocket_null.cpp'])
 
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['condition_variable.cpp',
-                                                    'mutex.cpp',
+                                                    'mutex_posix.cpp',
+                                                    'mutex_empty.cpp',
                                                     'sys_posix.cpp',
                                                     'socket_posix.cpp',
                                                     'time.cpp'])
@@ -88,26 +106,95 @@ def build(bld):
         source_files = remove_files(source_files, ['condition_variable.cpp',
                                                     'file_descriptor_posix.cpp',
                                                     'mutex_posix.cpp',
+                                                    'mutex_empty.cpp',
                                                     'socket_posix.cpp',
                                                     'thread_posix.cpp',
                                                     'sys_posix.cpp'])
 
-    if 'win32' in bld.env.PLATFORM:
+    if bld.env.PLATFORM in ('x86_64-win32', 'win32', 'x86_64-xbone'):
         source_files = remove_files(source_files, ['time_posix.cpp'])
         source_files = remove_files(source_files, ['thread_posix.cpp'])
         source_files = remove_files(source_files, ['mutex_posix.cpp'])
+        source_files = remove_files(source_files, ['mutex_empty.cpp'])
+        source_files = remove_files(source_files, ['sys_posix.cpp'])
     else:
         source_files = remove_files(source_files, ['thread_win32.cpp'])
         source_files = remove_files(source_files, ['mutex_win32.cpp'])
+        source_files = remove_files(source_files, ['sys_win32.cpp'])
+        if bld.env.PLATFORM == 'wasm-web':
+            source_files = remove_files(source_files, ['mutex_posix.cpp'])
+        else:
+            source_files = remove_files(source_files, ['mutex_empty.cpp'])
+
+    target_os = build_util.get_target_os()
+
+    if target_os in ['macos', 'ios']:
+        source_files = remove_files(source_files, ['time_posix.cpp'])
+
+    crypt_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios']
+    sslsocket_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios', 'web']
+
+    crypt_files = ['crypt.cpp']
+    if crypt_uses_mbedtls:
+        crypt_files.append('crypt_mbedtls.cpp')
+    elif target_os in ['macos', 'ios']:
+        crypt_files.append('crypt_darwin.mm')
+    crypt_source_files = bld.path.ant_glob(['dlib/crypt/%s' % file for file in crypt_files])
+
+    if 'web' in bld.env.PLATFORM:
+        source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'configfile_http.cpp'])
+        extra_defines.append('DM_NO_HTTP_CACHE')
+
+    sslsocket_files = []
+    if sslsocket_uses_mbedtls:
+        sslsocket_files.append('sslsocket_mbedtls.cpp')
+    elif target_os in ['macos', 'ios']:
+        sslsocket_files.append('sslsocket_darwin.mm')
+    sslsocket_source_files = []
+    if sslsocket_files:
+        sslsocket_source_files = bld.path.ant_glob(['dlib/%s' % file for file in sslsocket_files])
+
+    mbedtls_public_includes = ['.', './mbedtls/defold', './mbedtls', './mbedtls/include', './mbedtls/tf-psa-crypto/include', './mbedtls/tf-psa-crypto/drivers/builtin/include']
+
+    # If we have optimizations on, let's minimize this library
+    opt_level = getattr(Options.options, 'opt_level', '')
+    FLAG_ST = '/O%s' if ('cl.exe' in bld.env.CXX) else '-O%s'
+    remove_flags = {}
+    new_opt_level = False
+
+    mbedtls_defines = [
+        'MBEDTLS_THREADING_ALT',
+        'MBEDTLS_THREADING_C',
+        'DM_MBEDTLS_DISABLE_ASM',
+        'MBEDTLS_USER_CONFIG_FILE="mbedtls_user_config.h"',
+        'TF_PSA_CRYPTO_USER_CONFIG_FILE="tf_psa_crypto_user_config.h"',
+    ]
+    if bld.env.PLATFORM == 'wasm-web':
+        mbedtls_defines += ['DM_MBEDTLS_CRYPTO_ONLY']
+    elif sslsocket_uses_mbedtls:
+        mbedtls_defines += ['DM_MBEDTLS_TLS_CLIENT_ONLY']
+    if opt_level in ['3','2']:
+        remove_flags['CFLAGS'] = []
+        remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        remove_flags['CXXFLAGS'] = []
+        remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        new_opt_level = True
+        # if in release mode we'll only keep a (non verbose) print function
+        mbedtls_defines += ['DM_MBEDTLS_ERROR_STRERROR_DUMMY']
+    else:
+        mbedtls_defines += ['DM_MBEDTLS_ERROR_C']
 
     dlib = bld.stlib(features = 'c cxx',
-                     source   = source_files + platform_source_files,
-                     includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],
+                     source   = source_files + platform_source_files + crypt_source_files + sslsocket_source_files,
+                     includes = mbedtls_public_includes,
                      target   = 'dlib',
-                     defines  = ['VALGRIND'] + extra_defines)
+                     use      = ['zip'],
+                     defines  = ['VALGRIND'] + extra_defines + mbedtls_defines)
 
     # remove all null implementations
     dlib.source = remove_files(dlib.source, ['_null.cpp'])
+    if 'web' in bld.env.PLATFORM:
+        dlib.source += bld.path.ant_glob(['dlib/http_cache_null.cpp', 'dlib/sslsocket_null.cpp', 'dlib/configfile_http_null.cpp'])
 
     if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
@@ -119,36 +206,53 @@ def build(bld):
     dlib_noasan = bld.stlib(features = dlib.features + ['skip_asan'],
                           includes    = dlib.includes,
                           defines     = dlib.defines,
+                          use         = ['zip_noasan'],
                           target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
-
-    mbedtls_dirs = 'mbedtls/crypto/library/**/*.c mbedtls/library/**/*.c'.split()
+    if bld.env.PLATFORM == 'wasm-web':
+        mbedtls_dirs = [
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/md5.c',
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/sha1.c',
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/sha256.c',
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/sha512.c',
+            'mbedtls/tf-psa-crypto/extras/md.c',
+            'mbedtls/tf-psa-crypto/platform/platform.c',
+            'mbedtls/tf-psa-crypto/platform/platform_util.c',
+            'mbedtls/tf-psa-crypto/utilities/base64.c',
+            'mbedtls/tf-psa-crypto/utilities/constant_time.c',
+        ]
+    else:
+        mbedtls_dirs = [
+            'mbedtls/library/**/*.c',
+            'mbedtls/tf-psa-crypto/core/*.c',
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/*.c',
+            'mbedtls/tf-psa-crypto/extras/*.c',
+            'mbedtls/tf-psa-crypto/platform/*.c',
+            'mbedtls/tf-psa-crypto/utilities/*.c',
+        ]
     if is_platform_private(bld.env.PLATFORM) and not platform_supports_feature(bld.env.PLATFORM, 'mbedtls', {}):
         mbedtls_dirs = 'mbedtls_stub/**/*.c'.split()
 
-    # If we have optimizations on, let's minimize this library
-    opt_level = getattr(Options.options, 'opt_level', '')
-    FLAG_ST = '/O%s' if ('cl.exe' in bld.env.CXX) else '-O%s'
-    remove_flags = {}
-    new_opt_level = False
-    if opt_level in ['3','2']:
-        remove_flags['CFLAGS'] = []
-        remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
-        remove_flags['CXXFLAGS'] = []
-        remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
-        new_opt_level = True
-        # if in release mode we'll only keep a (non verbose) print function
-        extra_defines += ['MBEDTLS_ERROR_STRERROR_DUMMY']
-    else:
-        extra_defines += ['MBEDTLS_ERROR_C']
+    mbedtls_includes = mbedtls_public_includes + [
+        './mbedtls/library',
+        './mbedtls/tf-psa-crypto/core',
+        './mbedtls/tf-psa-crypto/dispatch',
+        './mbedtls/tf-psa-crypto/drivers/builtin/src',
+        './mbedtls/tf-psa-crypto/drivers/everest/include',
+        './mbedtls/tf-psa-crypto/drivers/p256-m',
+        './mbedtls/tf-psa-crypto/drivers/pqcp/include',
+        './mbedtls/tf-psa-crypto/extras',
+        './mbedtls/tf-psa-crypto/platform',
+        './mbedtls/tf-psa-crypto/utilities',
+    ]
 
     mbedtls = bld.stlib(features    = 'c cxx remove_flags',
-                  includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
+                  includes    = mbedtls_includes,
                   target      = 'mbedtls',
                   source      = bld.path.ant_glob(mbedtls_dirs),
                   remove_flags= remove_flags,
-                  defines     = ['VALGRIND'] + extra_defines)
+                  defines     = mbedtls_defines)
     if new_opt_level:
         mbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
 
@@ -161,12 +265,15 @@ def build(bld):
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
-    libzip_dirs = ['zip/**/*.cpp']
+    libzip_dirs = ['zip/**/*.c']
+
     libzip = bld.stlib(features    = 'c cxx',
                  includes    = '. ./zip',
                  source      = bld.path.ant_glob(libzip_dirs),
                  target      = 'zip',
                  defines     = ['VALGRIND'] + extra_defines)
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip.env.append_unique('CFLAGS', '-ansi')
 
     libzip_noasan = bld(features  = ' '.join(libzip.features) + ' skip_asan',
                         includes  = libzip.includes,
@@ -174,6 +281,8 @@ def build(bld):
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip_noasan.env.append_unique('CFLAGS', '-ansi')
 
     image = bld.stlib(features  = 'c cxx',
                     includes    = '.',
@@ -203,27 +312,14 @@ def build(bld):
     # ******************************************************************
 
     libprofile_features = 'c cxx'
-    libprofile_includes = '. ./dlib/profile ./remotery'
-    libprofile_defines = ['VALGRIND'] + extra_defines
-
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
-        libprofile = bld.stlib(features     = libprofile_features,
-                               includes     = libprofile_includes,
-                               defines      = libprofile_defines,
-                               source       = ['dlib/profile/profile.cpp', 'dlib/profile/profile_remotery.cpp'],
-                               target       = 'profile')
-
-        libprofile_noasan = bld.stlib(features     = libprofile.features + ['skip_asan'],
-                                      includes     = libprofile.includes,
-                                      defines      = libprofile.defines,
-                                      target       = 'profile_noasan')
-        libprofile_noasan.source = libprofile.source
+    libprofile_includes = '. ./dlib/profile'
+    libprofile_defines = extra_defines
 
     # null version
     libprofile_null = bld.stlib(features     = libprofile_features,
                                 includes     = libprofile_includes,
                                 defines      = libprofile_defines,
-                                source       = 'dlib/profile/profile.cpp dlib/profile/profile_null.cpp',
+                                source       = 'dlib/profile/profile_null.cpp',
                                 target       = 'profile_null')
 
     libprofile_null_noasan = bld.stlib(features     = libprofile_null.features + ['skip_asan'],
@@ -232,55 +328,33 @@ def build(bld):
                                        target       = 'profile_null_noasan')
     libprofile_null_noasan.source = libprofile_null.source
 
-    # ******************************************************************
+    #if bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'wasm-web', 'wasm_pthread-web'):
+    libprofile_includes = '. ./dlib/profile'
+    libprofile = bld.stlib(features     = libprofile_features,
+                           includes     = libprofile_includes,
+                           defines      = libprofile_defines,
+                           source       = ['dlib/profile/profile.cpp'],
+                           target       = 'profile')
 
-    remotery_defines = []
-
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
-        libremotery = bld.stlib(features     = 'c cxx',
-                                includes     = '. ./remotery/lib',
-                                target       = 'remotery',
-                                source       = bld.path.ant_glob('remotery/lib/*.c'),
-                                defines      = ['VALGRIND'] + extra_defines + remotery_defines)
-
-        if build_util.get_target_os() not in ['macos', 'ios']:
-            libremotery.source = [x for x in libremotery.source if not x.abspath().endswith('.mm')]
-
-        libremotery_noasan = bld.stlib(features  = 'c cxx skip_asan',
-                                       includes  = '. ./remotery/lib',
-                                       source       = bld.path.ant_glob('remotery/lib/*.c'),
-                                       defines   = ['VALGRIND'] + extra_defines + remotery_defines,
-                                       target    = 'remotery_noasan')
-
-        if build_util.get_target_os() not in ['macos', 'ios']:
-            libremotery_noasan.source = [x for x in libremotery_noasan.source if not x.abspath().endswith('.mm')]
-
-    libremotery_null = bld.stlib(features    = 'c cxx',
-                                 includes    = '. ./remotery/lib',
-                                 target      = 'remotery_null',
-                                 source       = bld.path.ant_glob('remotery/*.c'),
-                                 defines     = ['VALGRIND'] + extra_defines + remotery_defines)
-
-    libremotery_null_noasan = bld.stlib(features  = 'c cxx skip_asan',
-                                        includes  = '. ./remotery/lib',
-                                        source    = bld.path.ant_glob('remotery/*.c'),
-                                        defines   = ['VALGRIND'] + extra_defines + remotery_defines,
-                                        target    = 'remotery_null_noasan')
-
-    if build_util.get_target_os() not in ['macos', 'ios']:
-        libremotery_null_noasan.source = [x for x in libremotery_null_noasan.source if not x.abspath().endswith('.mm')]
+    libprofile_noasan = bld.stlib(features     = libprofile.features + ['skip_asan'],
+                                  includes     = libprofile.includes,
+                                  defines      = libprofile.defines,
+                                  target       = 'profile_noasan')
+    libprofile_noasan.source = libprofile.source
 
     # ******************************************************************
 
-    desktop = bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos', 'x86_64-linux', 'x86_64-win32')
-    if desktop:
+    if bld.env.IS_TARGET_DESKTOP:
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
-                                includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                                includes = mbedtls_public_includes,
                                 target = 'dlib_shared',
-                                defines= ['VALGRIND'] + extra_defines,
-                                use = ['SOCKET', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan'])
+                                defines= ['VALGRIND'] + extra_defines + mbedtls_defines,
+                                use = ['SOCKET', 'profile_null_noasan', 'mbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
+
+        if target_os == 'macos':
+            dlib_shared.env.append_value('LINKFLAGS', ['-framework', 'CFNetwork', '-framework', 'Security'])
 
         if 'win32' not in bld.env['PLATFORM']:
             dlib_memprofile = bld(features = 'c cxx cshlib',
@@ -302,7 +376,7 @@ def build(bld):
 
     # for desktop only
     if bld.env.IS_TARGET_DESKTOP:
-        basis_encoder = bld.stlib(features = 'c cxx skip_asan',
+        basis_encoder = bld.stlib(features = 'c cxx',
                                     includes = ['basis'],
                                     source = bld.path.ant_glob("basis/encoder/**/*.c") +
                                              bld.path.ant_glob("basis/encoder/**/*.cpp") +
@@ -312,6 +386,12 @@ def build(bld):
 
         if new_opt_level:
             basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
+
+        basis_encoder_noasan = bld.stlib(features = basis_encoder.features + ['skip_asan'],
+                                         includes = basis_encoder.includes,
+                                         defines  = basis_encoder.defines,
+                                         target   = 'basis_encoder_noasan')
+        basis_encoder_noasan.source = [x for x in basis_encoder.source]
 
     # For the runtime
     basis_transcoder = bld.stlib(features = 'cxx remove_flags',
@@ -329,13 +409,12 @@ def build(bld):
 
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
     classpath = os.pathsep.join(classpath)
-
     bld(features='javac seq',
         classpath=classpath,
         srcdir='java',
         outdir='java')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+    bld.env["JAVACFLAGS"] = '-g --release 8 -Xlint:-options'.split()
 
     bld(features='jar seq',
         basedir='java',
@@ -343,10 +422,12 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/java', 'dlib.jar')
 
-    bld(features='javac seq',
-        classpath=classpath  + os.pathsep + 'src/java',
-        srcdir='java_test',
-        outdir='java_test')
+    java_test_dir = bld.path.find_dir('java_test')
+    if java_test_dir and java_test_dir.ant_glob('**/*.java'):
+        bld(features='javac seq',
+            classpath=classpath  + os.pathsep + 'src/java',
+            srcdir='java_test',
+            outdir='java_test')
 
     # ************************************************************************
     if not Options.options.skip_build_tests:
@@ -367,9 +448,10 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
+    bld.install_files('${PREFIX}/include/dlib/crypt', 'dlib/crypt/crypt.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dalloca.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/double_linked_list.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
@@ -382,15 +464,17 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/job_thread.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/jobsystem.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memory.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/mdns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_posix.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_empty.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/opaque_handle_container.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
@@ -399,12 +483,11 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/pprint.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/profile/profile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/set.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sslsocket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp_private.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/static_assert.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
@@ -447,7 +530,6 @@ def build(bld):
     if is_platform_private(bld.env.PLATFORM):
         bld.install_files('${PREFIX}/include/dlib', 'dlib/endian_vendor.h')
         bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_vendor.h')
-        bld.install_files('${PREFIX}/include/dlib', 'dlib/alloca_vendor.h')
 
     for p in platforms:
         platform_include_dir = 'dlib/%s' % p

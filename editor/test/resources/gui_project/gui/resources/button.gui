@@ -1,0 +1,116 @@
+fonts {
+  name: "button_font"
+  font: "/assets/vera_mo_bd.font"
+}
+textures {
+  name: "button_texture"
+  texture: "/assets/button.atlas"
+}
+nodes {
+  type: TYPE_BOX
+  texture: "button_texture/button_striped"
+  id: "box"
+  layer: "button_layer"
+  material: "button_material"
+}
+nodes {
+  type: TYPE_PIE
+  texture: "button_texture/button_striped"
+  id: "pie"
+  layer: "button_layer"
+  material: "button_material"
+}
+nodes {
+  type: TYPE_TEXT
+  font: "button_font"
+  id: "text"
+  layer: "button_layer"
+  material: "button_material"
+}
+nodes {
+  type: TYPE_PARTICLEFX
+  id: "particlefx"
+  layer: "button_layer"
+  size_mode: SIZE_MODE_AUTO
+  particlefx: "button_particlefx"
+  material: "button_material"
+}
+nodes {
+  type: TYPE_CUSTOM
+  id: "spine"
+  layer: "button_layer"
+  size_mode: SIZE_MODE_AUTO
+  spine_scene: "button_spinescene"
+  custom_type: 405028931
+  material: "button_material"
+}
+layers {
+  name: "button_layer"
+}
+material: "/builtins/materials/gui.material"
+layouts {
+  name: "Landscape"
+  nodes {
+    type: TYPE_BOX
+    texture: "button_texture/button_striped"
+    id: "box"
+    layer: "button_layer"
+    overridden_fields: 9
+    overridden_fields: 20
+    overridden_fields: 47
+    material: "button_material"
+  }
+  nodes {
+    type: TYPE_PIE
+    texture: "button_texture/button_striped"
+    id: "pie"
+    layer: "button_layer"
+    overridden_fields: 9
+    overridden_fields: 20
+    overridden_fields: 47
+    material: "button_material"
+  }
+  nodes {
+    type: TYPE_TEXT
+    font: "button_font"
+    id: "text"
+    layer: "button_layer"
+    overridden_fields: 10
+    overridden_fields: 20
+    overridden_fields: 47
+    material: "button_material"
+  }
+  nodes {
+    type: TYPE_PARTICLEFX
+    id: "particlefx"
+    layer: "button_layer"
+    overridden_fields: 20
+    overridden_fields: 43
+    overridden_fields: 47
+    particlefx: "button_particlefx"
+    material: "button_material"
+  }
+  nodes {
+    type: TYPE_CUSTOM
+    id: "spine"
+    layer: "button_layer"
+    overridden_fields: 20
+    overridden_fields: 39
+    overridden_fields: 47
+    spine_scene: "button_spinescene"
+    custom_type: 405028931
+    material: "button_material"
+  }
+}
+particlefxs {
+  name: "button_particlefx"
+  particlefx: "/assets/spray.particlefx"
+}
+resources {
+  name: "button_spinescene"
+  path: "/defold-spine/assets/template/template.spinescene"
+}
+materials {
+  name: "button_material"
+  material: "/builtins/materials/gui.material"
+}

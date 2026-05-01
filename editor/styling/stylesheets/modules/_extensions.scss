@@ -1,0 +1,544 @@
+$ext-spacing-small: 4px;
+$ext-spacing-medium: 8px;
+$ext-spacing-large: 16px;
+$ext-line-height: 26px;
+
+.ext {
+    &-spacing {
+        &-none        { -fx-spacing: 0; }
+        &-small       { -fx-spacing: $ext-spacing-small; }
+        &-medium      { -fx-spacing: $ext-spacing-medium; }
+        &-large       { -fx-spacing: $ext-spacing-large; }
+    }
+    &-grid-spacing {
+        &-none        { -fx-hgap: 0; -fx-vgap: 0; }
+        &-small       { -fx-hgap: $ext-spacing-small; -fx-vgap: $ext-spacing-small; }
+        &-medium      { -fx-hgap: $ext-spacing-medium; -fx-vgap: $ext-spacing-medium; }
+        &-large       { -fx-hgap: $ext-spacing-large; -fx-vgap: $ext-spacing-large; }
+    }
+    &-padding {
+        &-none        { -fx-padding: 0; }
+        &-small       { -fx-padding: 16px; }
+        &-medium      { -fx-padding: 24px; }
+        &-large       { -fx-padding: 40px; }
+    }
+    &-heading-style {
+        &-h1 { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; }
+        &-h2 { -fx-font-size: 24px; -fx-font-family: "Source Sans Pro Light"; }
+        &-h3 { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; }
+        &-h4 { -fx-font-size: 20px; }
+        &-h5 { -fx-font-size: 18px; }
+        &-h6 { -fx-font-size: 16px; }
+        &-form { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; } // same as h1
+        &-dialog { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; } // same as h3
+    }
+    &-scroll-pane {
+        > .scroll-bar .thumb {
+            -fx-background-color: -df-component-dark;
+            &:hover {
+                -fx-background-color: -df-component-lighter;
+            }
+        }
+    }
+    &-separator {
+        -fx-min-width: 1px;
+        -fx-min-height: 1px;
+        -fx-background-color: -df-background-light;
+        &:horizontal {
+            -fx-max-height: 1px;
+        }
+        &:vertical {
+            -fx-max-width: 1px;
+        }
+    }
+    &-icon-container {
+        -fx-min-width: $ext-line-height;
+        -fx-min-height: $ext-line-height;
+        -fx-max-width: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+    }
+    &-label {
+        -fx-padding: 4px 0px; // padding to make a single line label fit into 26px line-height
+        &-color {
+            &-text     {}
+            &-hint     { -fx-text-fill: -df-text-dark; }
+            &-override { -fx-text-fill: -df-defold-blue-lighter; }
+            &-warning  { -fx-text-fill: -df-error-severity-warning; }
+            &-error    { -fx-text-fill: -df-error-severity-fatal; }
+        }
+    }
+    &-button {
+        -fx-background-color: -df-component-dark;
+        -fx-background-radius: 2px;
+        -fx-border-radius: 2px;
+        -fx-font-size: 110%;
+        -fx-font-family: "Source Sans Pro";
+        -fx-text-fill: -df-text;
+        -fx-graphic-text-gap: 0;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+        &:hover {
+            -fx-background-color: -df-component-lighter;
+            -fx-text-fill: -df-text-selected;
+        }
+        &:armed {
+            -fx-background-color: -df-component-light;
+            -fx-text-fill: -df-text-selected;
+        }
+        &:disabled { -fx-opacity: 0.4; }
+        &-icon {} // no padding: icon is line-height x line-height already
+        &-text { -fx-padding: 0 8px; } // only horizontal padding
+        &-text-and-icon { -fx-padding: 0 8px 0 1px; } // smaller padding on the left because icon uses some space
+    }
+    &-check-box {
+        & > .box {
+            -fx-border-radius: 2px;
+            -fx-background-radius: 2px;
+        }
+        -fx-font-size: 110%;
+        -fx-font-family: "Source Sans Pro";
+        -fx-text-fill: -df-text;
+        -fx-label-padding: 0 0 0 $ext-spacing-small;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+        &:warning {
+            & > .box { -fx-border-color: -df-error-severity-warning-dim; }
+            &:focused > .box { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
+        }
+        &:error {
+            & > .box { -fx-border-color: -df-error-severity-fatal-dim; }
+            &:focused > .box { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
+        }
+    }
+    &-text-field {
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+        -fx-min-width: 40px;
+        -fx-pref-width: 160px;
+        -fx-max-width: Infinity;
+        -fx-border-radius: 2px;
+        -fx-background-radius: 3px;
+        &:focused {
+            -fx-border-radius: 2px;
+            -fx-background-radius: 3px;
+        }
+        &:warning {
+            -fx-border-color: -df-error-severity-warning-dim;
+            &:hover {  -fx-border-color: -df-error-severity-warning; }
+            &:focused { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
+        }
+        &:error {
+            -fx-border-color: -df-error-severity-fatal-dim;
+            &:hover {  -fx-border-color: -df-error-severity-fatal; }
+            &:focused { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
+        }
+    }
+    &-text-area {
+        -fx-border-radius: 2px;
+        -fx-background-radius: 3px;
+        -fx-border-width: 1px;
+        -fx-border-color: -df-component-dark;
+        -fx-background-color: -df-background-input;
+        -fx-prompt-text-fill: -df-text-dark;
+        -fx-highlight-fill: -df-background-input;
+        -fx-highlight-text-fill: -df-text-selected;
+        -fx-padding: 1px 1px;
+        &:hover { -fx-border-color: -df-component-light; }
+        &:focused {
+            -fx-border-width: 1px 1px 2px 1px;
+            -fx-padding: 1px 1px -1px 1px;
+            -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+            -fx-background-color: -df-background;
+            -fx-highlight-fill: -fx-accent;
+        }
+        &:warning {
+            -fx-border-color: -df-error-severity-warning-dim;
+            &:hover { -fx-border-color: -df-error-severity-warning; }
+            &:focused { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
+        }
+        &:error {
+            -fx-border-color: -df-error-severity-fatal-dim;
+            &:hover { -fx-border-color: -df-error-severity-fatal; }
+            &:focused { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
+        }
+        & > .scroll-pane {
+            -fx-background-color: transparent;
+            & > .viewport {
+                -fx-background-color: transparent;
+            }
+            & > .scroll-bar > .thumb {
+                -fx-background-color: -df-component-dark;
+                &:hover { -fx-background-color: -df-component-light; }
+                &:pressed { -fx-background-color: -df-component-lighter; }
+            }
+        }
+    }
+    &-table-view {
+        -fx-border-width: 1;
+        -fx-padding: 1px;
+        -fx-border-color: -df-component-dark;
+        -fx-background-insets: 0;
+        -fx-background-color: -df-background-input;
+        &:hover { -fx-border-color: -df-component-light; }
+        &:focused {
+            -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+            -fx-border-width: 1px 1px 2px 1px;
+            -fx-padding: 1px 1px 0 1px;
+            -fx-background-color: -df-background;
+            & > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected {
+                -fx-background-color: -df-background-lighter;
+                & > .table-cell { -fx-text-fill: -df-text-selected; }
+            }
+        }
+        & > .column-header-background {
+            -fx-border-width: 0 0 1 0;
+            -fx-border-color: -df-component-dark;
+            -fx-background-color: transparent;
+            & > .filler {
+                -fx-background-color: transparent;
+            }
+            & > .nested-column-header > .column-header {
+                -fx-background-color: transparent;
+                -fx-border-width: 0 1 0 0;
+                -fx-border-color: -df-component-dark;
+                & > .label {
+                    -fx-text-fill: -df-text;
+                    -fx-alignment: center-left;
+                }
+            }
+        }
+        & > .virtual-flow {
+            & > .clipped-container > .sheet > .table-row-cell {
+                -fx-background-color: transparent;
+                & > .table-cell {
+                    -fx-border-width: 0 1 0 0;
+                    -fx-border-color: -df-component-dark;
+                    -fx-text-fill: -df-text;
+                    -fx-padding: 0 2px;
+                }
+            }
+            & > .scroll-bar > .thumb {
+                -fx-background-color: -df-component-dark;
+                &:hover { -fx-background-color: -df-component-light; }
+                &:pressed { -fx-background-color: -df-component-lighter; }
+            }
+        }
+    }
+    &-hover-overlay {
+        & > * {
+            visibility: hidden;
+        }
+        &:hover > *, &:pressed > * {
+            visibility: visible;
+            -fx-background-color: -df-background-input;
+            -fx-background-radius: 1px;
+        }
+    }
+    &-scrubber {
+        -fx-cursor: v-resize;
+        -fx-pref-height: $ext-line-height;
+        &:hover > .image-view {
+            -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+        }
+        &:pressed > .image-view {
+            -fx-effect: innershadow(gaussian, -df-defold-blue-light, 20, 1.0, 0, 0);
+        }
+    }
+    &-toggle-button {
+        -fx-background-color: -df-component-dark;
+        -fx-background-radius: 2px;
+        -fx-border-width: 0;
+        -fx-min-width: $ext-line-height;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+    }
+    &-color-picker {
+        &-icon {
+            -fx-min-width: $ext-line-height;
+            -fx-max-width: $ext-line-height;
+            -fx-min-height: $ext-line-height;
+            -fx-max-height: $ext-line-height;
+            -fx-border-color: -df-component-dark;
+            -fx-border-radius: 0 2px 2px 0;
+            -fx-border-width: 1px 1px 1px 0;
+            -fx-padding: 0 0 0 1px; // compensate for arrow button not having a left border
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 0 3px 3px 0;
+            & > .arrow-button { visibility: hidden; }
+            & > .color-picker-label { -fx-content-display: graphic-only; }
+        }
+        &-field {
+            -fx-background-radius: 3px 0 0 3px;
+            -fx-border-radius: 2px 0 0 2px;
+            -fx-border-width: 1px 0 1px 1px;
+            &:focused {
+                -fx-border-width: 1px 0 2px 1px;
+                -fx-border-radius: 2px 0 0 2px;
+            }
+        }
+        &:hover {
+            & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                -fx-border-color: -df-component-light;
+            }
+        }
+        &:focus-within {
+            & > .ext-color-picker-field {
+                -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+            }
+            & > .ext-color-picker-icon {
+                -fx-border-color: -df-component-light;
+            }
+        }
+        &:warning {
+            & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                -fx-border-color: -df-error-severity-warning-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                    -fx-border-color: -df-error-severity-warning;
+                }
+            }
+        }
+        &:error {
+            & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                -fx-border-color: -df-error-severity-fatal-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                    -fx-border-color: -df-error-severity-fatal;
+                }
+            }
+        }
+    }
+    &-resource-picker {
+        & > .ext-resource-picker-field {
+            -fx-background-radius: 3px 0 0 3px;
+            -fx-border-radius: 2px 0 0 2px;
+            -fx-border-width: 1px 0 1px 1px;
+        }
+        & > .ext-resource-picker-open-button,
+        & > .ext-resource-picker-browse-button {
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 0;
+            -fx-border-color: -df-component-dark;
+            -fx-border-radius: 0;
+            -fx-border-width: 1px 0 1px 0;
+        }
+        & > .ext-resource-picker-browse-button {
+            -fx-background-radius: 0 3px 3px 0;
+            -fx-border-radius: 0 2px 2px 0;
+            -fx-border-width: 1px 1px 1px 0;
+        }
+        &:hover {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-component-light;
+            }
+        }
+        & > .ext-resource-picker-open-button:hover,
+        & > .ext-resource-picker-browse-button:hover {
+            -fx-background-color: -df-component-light;
+            -fx-text-fill: -df-text-selected;
+        }
+        & > .ext-resource-picker-open-button:disabled,
+        & > .ext-resource-picker-browse-button:disabled {
+            -fx-opacity: 1.0;
+            -fx-background-color: derive(-df-component-dark, -20%);
+            -fx-text-fill: -df-text-dark;
+        }
+        & > .ext-resource-picker-open-button:armed,
+        & > .ext-resource-picker-browse-button:armed {
+            -fx-background-color: -df-component-light;
+            -fx-text-fill: -df-text-selected;
+        }
+        &:focus-within {
+            & > .ext-resource-picker-field {
+                -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+                -fx-border-width: 1px 0 2px 1px;
+            }
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-component-light;
+            }
+        }
+        &:warning {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-error-severity-warning-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-resource-picker-field,
+                & > .ext-resource-picker-open-button,
+                & > .ext-resource-picker-browse-button {
+                    -fx-border-color: -df-error-severity-warning;
+                }
+            }
+        }
+        &:error {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-error-severity-fatal-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-resource-picker-field,
+                & > .ext-resource-picker-open-button,
+                & > .ext-resource-picker-browse-button {
+                    -fx-border-color: -df-error-severity-fatal;
+                }
+            }
+        }
+        &:drag-over {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-defold-green;
+            }
+        }
+        &:drag-over:drag-invalid {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-defold-red;
+            }
+        }
+    }
+    &-combo-box {
+        & > .label {
+            -fx-border-color: -df-component-dark;
+            -fx-border-radius: 2px 0 0 2px;
+            -fx-border-width: 1px 0 1px 1px;
+            -fx-background-color: -df-background-input;
+            -fx-background-radius: 3px 0 0 3px;
+            -fx-min-height: $ext-line-height;
+            -fx-max-height: $ext-line-height;
+            -fx-max-width: Infinity;
+            -fx-text-fill: -df-text-selected;
+            -fx-padding: 1px 8px 1px 8px;
+        }
+        &:hover {
+            & > .label { -fx-border-color: -df-component-light; }
+            & > .ext-combo-box-arrow-button {
+                -fx-border-color: -df-component-light;
+                & > .ext-combo-box-arrow {
+                    -fx-background-color: -df-text-selected;
+                }
+            }
+        }
+        &:focused {
+            & > .label {
+                -fx-background-color: -df-background;
+                -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+                -fx-border-width: 1px 0 2px 1px;
+                -fx-padding: 1px 8px 0px 8px;
+            }
+            & > .ext-combo-box-arrow-button {
+                -fx-border-color: -df-component-light;
+                & > .ext-combo-box-arrow {
+                    -fx-background-color: -df-text-selected;
+                }
+            }
+            &:showing {
+                & > .label {
+                    -fx-border-color: -df-component-light;
+                    -fx-border-width: 1px 0 1px 1px;
+                    -fx-padding: 1px 8px 1px 8px;
+                }
+            }
+        }
+        &:showing {
+            & > .ext-combo-box-arrow-button {
+                & > .ext-combo-box-arrow {
+                    -fx-scale-y: -1.0;
+                }
+                -fx-border-radius: 0 2px 0 0;
+                -fx-background-radius: 0 3px 0 0;
+            }
+            & > .label {
+                -fx-border-radius: 2px 0 0 0;
+                -fx-background-radius: 3px 0 0 0;
+            }
+        }
+        &-arrow-button {
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 0 3px 3px 0;
+            -fx-border-color: -df-component-dark;
+            -fx-border-width: 1px 1px 1px 0;
+            -fx-border-radius: 0 2px 2px 0;
+            -fx-min-width: $ext-line-height;
+            -fx-max-width: $ext-line-height;
+            -fx-min-height: $ext-line-height;
+            -fx-max-height: $ext-line-height;
+            &:disabled { -fx-opacity: 0.4; }
+        }
+        &-arrow {
+            -fx-shape: "M 0 0 h 10 l -5 6 z";
+            -fx-scale-shape: false;
+            -fx-background-color: -df-text;
+            -fx-background-insets: 0 -0.5px 0 0.5px; // compensate for arrow button not having a left border
+        }
+        &-popup {
+            &-background {
+                -fx-background-color: -df-background;
+                -fx-border-color: -df-component-light;
+                -fx-border-width: 1px;
+                -fx-border-radius: 0 0 2px 2px;
+                -fx-background-radius: 0 0 3px 3px;
+                -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0, 0, 8);
+                &:warning {
+                    -fx-border-color: -df-component-light -df-error-severity-warning -df-error-severity-warning -df-error-severity-warning;
+                }
+                &:error {
+                    -fx-border-color: -df-component-light -df-error-severity-fatal -df-error-severity-fatal -df-error-severity-fatal;
+                }
+            }
+            &-field, &-field:focused {
+                -fx-border-radius: 0;
+                -fx-background-radius: 0;
+                -fx-border-width: 0 0 1px 0;
+                -fx-border-color: -df-component-light;
+                -fx-padding: 4px 8px;
+            }
+            &-list {
+                & > .virtual-flow {
+                    & > .scroll-bar > .thumb {
+                        -fx-background-color: -df-component-dark;
+                        &:hover { -fx-background-color: -df-component-light; }
+                        &:pressed { -fx-background-color: -df-component-lighter; }
+                    }
+                    & > .clipped-container > .sheet > .cell {
+                        -fx-padding: 4px 6px;
+                        &:hover, &:selected {
+                            & > TextFlow > Text {
+                                -fx-fill: -df-text-selected;
+                                &.matched { -fx-fill: -df-defold-blue-lighter; }
+                            }
+                        }
+                        &:selected {
+                            -fx-border-color: -df-defold-orange;
+                            -fx-border-width: 0 0 0 2px;
+                        }
+                    }
+                }
+            }
+        }
+        &:warning {
+            & > .label { -fx-border-color: -df-error-severity-warning-dim; }
+            & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-warning-dim; }
+            &:hover, &:focused {
+                & > .label { -fx-border-color: -df-error-severity-warning; }
+                & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-warning; }
+            }
+        }
+        &:error {
+            & > .label { -fx-border-color: -df-error-severity-fatal-dim; }
+            & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-fatal-dim; }
+            &:hover, &:focused {
+                & > .label { -fx-border-color: -df-error-severity-fatal; }
+                & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-fatal; }
+            }
+        }
+    }
+}

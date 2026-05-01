@@ -1,0 +1,70 @@
+local M = {}
+
+local function has_value(values, wanted)
+    for i = 1, #values do
+        if values[i] == wanted then
+            return true
+        end
+    end
+    return false
+end
+
+local function assert_equal(label, expected, actual)
+    if expected ~= actual then
+        error(("%s: expected %s, got %s"):format(label, tostring(expected), tostring(actual)))
+    end
+    print(("%s=%s"):format(label, tostring(actual)))
+end
+
+local function assert_true(label, value)
+    assert_equal(label, true, value)
+end
+
+local function assert_false(label, value)
+    assert_equal(label, false, value)
+end
+
+function M.get_commands()
+    return {
+        {
+            label = "Outline Parent Chain Test",
+            locations = {"Outline"},
+            query = {selection = {type = "outline", cardinality = "one"}},
+            run = function(opts)
+                local node = opts.selection
+                local node_properties = editor.properties(node)
+
+                assert_true("outline.child.can_get_parent", editor.can_get(node, "parent"))
+                assert_true("outline.child.has_parent_property", has_value(node_properties, "parent"))
+
+                local parent = editor.get(node, "parent")
+                assert_false("outline.parent.is_nil", parent == nil)
+                assert_true("outline.parent.can_get_id", editor.can_get(parent, "id"))
+                assert_equal("outline.parent.id", "go", editor.get(parent, "id"))
+
+                local parent_properties = editor.properties(parent)
+                assert_true("outline.parent.has_parent_property", has_value(parent_properties, "parent"))
+                assert_true("outline.parent.can_get_parent", editor.can_get(parent, "parent"))
+
+                local grandparent = editor.get(parent, "parent")
+                assert_false("outline.grandparent.is_nil", grandparent == nil)
+                assert_false("outline.grandparent.can_get_parent", editor.can_get(grandparent, "parent"))
+            end
+        },
+        {
+            label = "Scene Parent Chain Test",
+            locations = {"Scene"},
+            query = {selection = {type = "scene", cardinality = "one"}},
+            run = function(opts)
+                local node = opts.selection
+                local node_properties = editor.properties(node)
+
+                assert_false("scene.node.can_get_parent", editor.can_get(node, "parent"))
+                assert_false("scene.node.has_parent_property", has_value(node_properties, "parent"))
+                assert_false("scene.node.get_parent_succeeds", pcall(editor.get, node, "parent"))
+            end
+        }
+    }
+end
+
+return M

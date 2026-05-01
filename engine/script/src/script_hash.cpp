@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,7 +19,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
-#include <dlib/crypt.h>
+#include <dlib/crypt/crypt.h>
 #include "script_private.h"
 
 #include <dmsdk/dlib/hash.h>
@@ -39,12 +39,26 @@ namespace dmScript
      * @document
      * @name Built-ins
      * @namespace builtins
+     * @language Lua
      */
 
     #define SCRIPT_TYPE_NAME_HASH "hash"
     static uint32_t SCRIPT_HASH_TYPE_HASH = 0;
 
+    static inline void PushHashWeakTableKey(lua_State* L, dmhash_t hash)
+    {
+        // The weak table is indexed by full 64-bit hashes. Lua numbers are doubles
+        // and lua_rawgeti() takes an int, so numeric keys can lose
+        // bits and let stale hash userdata erase a live cache entry.
+        lua_pushlstring(L, (const char*)&hash, sizeof(hash));
+    }
+
     bool IsHash(lua_State *L, int index)
+    {
+        return dmScript::ToUserType(L, index, SCRIPT_HASH_TYPE_HASH) != 0;
+    }
+
+    dmhash_t* ToHash(lua_State *L, int index)
     {
         return (dmhash_t*)dmScript::ToUserType(L, index, SCRIPT_HASH_TYPE_HASH);
     }
@@ -68,14 +82,15 @@ namespace dmScript
      * end
      * ```
      */
-    static int Script_Hash(lua_State* L)
+    static int Hash_new(lua_State* L)
     {
         int top = lua_gettop(L);
 
         dmhash_t hash;
-        if(IsHash(L, 1))
+        dmhash_t* phash = ToHash(L, 1);
+        if (phash != 0)
         {
-            hash = *(dmhash_t*)lua_touserdata(L, 1);
+            hash = *phash;
         }
         else
         {
@@ -103,7 +118,7 @@ namespace dmScript
      * print(hexstr) --> a2bc06d97f580aab
      * ```
      */
-    static int Script_HashToHex(lua_State* L)
+    static int HashToHex(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -116,7 +131,7 @@ namespace dmScript
         return 1;
     }
 
-    static int Script_HashMD5(lua_State* L)
+    static int HashMD5(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -135,6 +150,57 @@ namespace dmScript
         return 1;
     }
 
+    static int CreateLuaHashUserdata(lua_State* L, dmhash_t hash)
+    {
+        HContext context = dmScript::GetScriptContext(L);
+        dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
+        *lua_hash = hash;
+        luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
+        lua_setmetatable(L, -2);
+
+        // [-1] hash
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-2] hash
+        // [-1] Context table
+        lua_pushvalue(L, -2);
+        // [-3] hash
+        // [-2] Context table
+        // [-1] hash
+        int ref = luaL_ref(L, -2);
+        // [-2] hash
+        // [-1] Context table
+        lua_pop(L, 1);
+        // [-1] hash
+
+        dmHashTable64<int>* instances = &context->m_HashInstances;
+        if (instances->Full())
+        {
+            instances->SetCapacity(instances->Size(), instances->Capacity() + 256);
+        }
+        instances->Put(hash, ref);
+
+        // Also store the value in the weak table with the hash as key
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+        // [-2] userdata
+        // [-1] weak_table
+        PushHashWeakTableKey(L, hash);
+        // [-3] userdata
+        // [-2] weak_table
+        // [-1] key
+        lua_pushvalue(L, -3);
+        // [-4] userdata
+        // [-3] weak_table
+        // [-2] key
+        // [-1] value
+        lua_rawset(L, -3); // weak_table[hash] = userdata
+        // [-2] userdata
+        // [-1] weak_table
+        lua_pop(L, 1);
+        // [-1] userdata
+
+        return lua_gettop(L); // return stack index of the new userdata
+    }
+
     void PushHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
@@ -143,43 +209,35 @@ namespace dmScript
 
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
+
         if (refp)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-            // [-1] Context table
-            lua_rawgeti(L, -1, *refp);
-            // [-2] Context table
-            // [-1] hash
-            lua_remove(L, -2);
-            // [-1] hash
+            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+            // [-1] weak_table
+            PushHashWeakTableKey(L, hash);
+            // [-2] weak_table
+            // [-1] key
+            lua_rawget(L, -2);
+            // [-2] weak_table
+            // [-1] value or nil
+            if (lua_isnil(L, -1))
+            {
+                lua_pop(L, 1); // remove nil
+                //[-1] weak_table
+
+                // Create new userdata and re-register it
+                lua_pop(L, 1); // remove weak_table
+                CreateLuaHashUserdata(L, hash);
+            }
+            else
+            {
+                lua_remove(L, -2); // remove weak_table
+                // [-1] hash
+            }
         }
         else
         {
-            dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
-            *lua_hash = hash;
-            luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
-            // [-2] hash
-            // [-1] meta table
-            lua_setmetatable(L, -2);
-            // [-1] hash
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-            // [-2] hash
-            // [-1] Context table
-            lua_pushvalue(L, -2);
-            // [-3] hash
-            // [-2] Context table
-            // [-1] hash
-            int ref = luaL_ref(L, -2);
-            // [-2] hash
-            // [-1] Context table
-            lua_pop(L, 1);
-            // [-1] hash
-
-            if (instances->Full())
-            {
-                instances->SetCapacity(instances->Size(), instances->Capacity() + 256);
-            }
-            instances->Put(hash, ref);
+            CreateLuaHashUserdata(L, hash);
         }
 
         assert(top + 1 == lua_gettop(L));
@@ -188,17 +246,40 @@ namespace dmScript
     void ReleaseHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
+
         HContext context = dmScript::GetScriptContext(L);
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
-        if (refp != 0x0)
+        if (!refp)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-            // [-1] context table
-            luaL_unref(L, -1, *refp);
-            lua_pop(L, 1);
-            instances->Erase(hash);
+            assert(top == lua_gettop(L));
+            return;
         }
+
+        int ref = *refp;
+        // Retrieve the value from the strong table
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-1] context_table
+        lua_rawgeti(L, -1, ref);
+        // [-2] context_table
+        // [-1] value
+
+        if (!lua_isuserdata(L, -1))
+        {
+            lua_pop(L, 2);
+            return;
+        }
+
+        lua_remove(L, -2);
+        // [-1] value
+
+        // Remove value from strong table
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-2] value
+        // [-1] context_table
+        luaL_unref(L, -1, ref);
+        lua_pop(L, 2);
+        // stack balanced
 
         assert(top == lua_gettop(L));
     }
@@ -210,11 +291,10 @@ namespace dmScript
 
     dmhash_t CheckHashOrString(lua_State* L, int index)
     {
-        dmhash_t* lua_hash = 0x0;
-        if (IsHash(L, index))
+        dmhash_t* phash = ToHash(L, index);
+        if (phash != 0)
         {
-            lua_hash = (dmhash_t*)lua_touserdata(L, index);
-            return *lua_hash;
+            return *phash;
         }
         else if( lua_type(L, index) == LUA_TSTRING )
         {
@@ -229,19 +309,18 @@ namespace dmScript
 
     const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength)
     {
-        if (lua_type(L, index) == LUA_TSTRING)
+        dmhash_t* phash = ToHash(L, index);
+        if (phash != 0)
+        {
+            DM_HASH_REVERSE_MEM(hash_ctx, 128);
+            const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, *phash);
+            dmStrlCpy(buffer, reverse, bufferlength);
+        }
+        else if (lua_type(L, index) == LUA_TSTRING)
         {
             size_t len = 0;
             const char* s = lua_tolstring(L, index, &len);
             dmStrlCpy(buffer, s, bufferlength);
-        }
-        else if (IsHash(L, index))
-        {
-            dmhash_t* hash = (dmhash_t*)lua_touserdata(L, index);
-
-            DM_HASH_REVERSE_MEM(hash_ctx, 128);
-            const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, *hash);
-            dmStrlCpy(buffer, reverse, bufferlength);
         }
         else
         {
@@ -250,7 +329,7 @@ namespace dmScript
         return buffer;
     }
 
-    static int Script_eq(lua_State* L)
+    static int Hash_eq(lua_State* L)
     {
         void* userdata_1 = lua_touserdata(L, 1);
         void* userdata_2 = lua_touserdata(L, 2);
@@ -261,7 +340,15 @@ namespace dmScript
         return 1;
     }
 
-    static int Script_tostring(lua_State* L)
+    static int Hash_lt(lua_State* L)
+    {
+        dmhash_t hash_1 = CheckHash(L, 1);
+        dmhash_t hash_2 = CheckHash(L, 2);
+        lua_pushboolean(L, hash_1 < hash_2);
+        return 1;
+    }
+
+    static int Hash_tostring(lua_State* L)
     {
         dmhash_t hash = CheckHash(L, 1);
         DM_HASH_REVERSE_MEM(hash_ctx, 64);
@@ -275,12 +362,12 @@ namespace dmScript
 
     static void PushStringHelper(lua_State* L, int index)
     {
-        if (dmScript::IsHash(L, index))
+        dmhash_t* phash = ToHash(L, index);
+        if (phash != 0)
         {
             char buffer[256];
-            dmhash_t hash = *(dmhash_t*)lua_touserdata(L, index);
             DM_HASH_REVERSE_MEM(hash_ctx, 256);
-            dmSnPrintf(buffer, sizeof(buffer), "[%s]", dmHashReverseSafe64Alloc(&hash_ctx, hash));
+            dmSnPrintf(buffer, sizeof(buffer), "[%s]", dmHashReverseSafe64Alloc(&hash_ctx, *phash));
             lua_pushstring(L, buffer);
         }
         else
@@ -289,7 +376,7 @@ namespace dmScript
         }
     }
 
-    static int Script_concat(lua_State *L)
+    static int Hash_concat(lua_State *L)
     {
         // string .. hash
         // hash .. string
@@ -303,9 +390,37 @@ namespace dmScript
 
     static const luaL_reg ScriptHash_methods[] =
     {
-        {SCRIPT_TYPE_NAME_HASH, Script_Hash},
+        {SCRIPT_TYPE_NAME_HASH, Hash_new},
         {0, 0}
     };
+
+    static int Hash_gc(lua_State* L)
+    {
+        dmhash_t hash = *(dmhash_t*)lua_touserdata(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
+        if (context)
+        {
+            int* refp = context->m_HashInstances.Get(hash);
+            if (refp && context->m_ContextWeakTableRef != LUA_NOREF)
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+                // [-1] weak_table
+                PushHashWeakTableKey(L, hash);
+                // [-2] weak_table
+                // [-1] key
+                lua_rawget(L, -2);
+                // [-2] weak_table
+                // [-1] value or nil
+                if (lua_isnil(L, -1))
+                {
+                    context->m_HashInstances.Erase(hash);
+                    dmHashReverseErase64(hash);
+                }
+                lua_pop(L, 2);
+            }
+        }
+        return 0;
+    }
 
     void InitializeHash(lua_State* L)
     {
@@ -316,25 +431,33 @@ namespace dmScript
 
         luaL_openlib(L, 0x0, ScriptHash_methods, 0);
 
-        lua_pushstring(L, "__eq");
-        lua_pushcfunction(L, Script_eq);
+        lua_pushliteral(L, "__eq");
+        lua_pushcfunction(L, Hash_eq);
         lua_settable(L, -3);
 
-        lua_pushstring(L, "__tostring");
-        lua_pushcfunction(L, Script_tostring);
+        lua_pushliteral(L, "__tostring");
+        lua_pushcfunction(L, Hash_tostring);
         lua_settable(L, -3);
 
-        lua_pushstring(L, "__concat");
-        lua_pushcfunction(L, Script_concat);
+        lua_pushliteral(L, "__concat");
+        lua_pushcfunction(L, Hash_concat);
         lua_settable(L, -3);
 
-        lua_pushcfunction(L, Script_Hash);
+        lua_pushliteral(L, "__lt");
+        lua_pushcfunction(L, Hash_lt);
+        lua_settable(L, -3);
+
+        lua_pushliteral(L, "__gc");
+        lua_pushcfunction(L, Hash_gc);
+        lua_settable(L, -3);
+
+        lua_pushcfunction(L, Hash_new);
         lua_setglobal(L, SCRIPT_TYPE_NAME_HASH);
 
-        lua_pushcfunction(L, Script_HashToHex);
+        lua_pushcfunction(L, HashToHex);
         lua_setglobal(L, "hash_to_hex");
 
-        lua_pushcfunction(L, Script_HashMD5);
+        lua_pushcfunction(L, HashMD5);
         lua_setglobal(L, "hashmd5");
 
         lua_pop(L, 1);

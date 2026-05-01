@@ -1,0 +1,4 @@
+name: "test_combined_shader_1"
+tags: "test_combined_shader_1"
+vertex_program: "/materials/test.vp"
+fragment_program: "/materials/test.fp"

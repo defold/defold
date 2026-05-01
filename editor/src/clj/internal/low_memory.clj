@@ -1,18 +1,19 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.low-memory
+  (:require [service.log :as log])
   (:import [java.lang.management ManagementFactory MemoryNotificationInfo MemoryPoolMXBean MemoryType]
            [javax.management NotificationEmitter NotificationListener]))
 
@@ -21,7 +22,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private memory-usage-threshold 0.8)
+(def ^:private memory-usage-threshold 0.9)
 
 (def ^:private callback-fns-atom (atom []))
 
@@ -29,7 +30,7 @@
   (reify NotificationListener
     (handleNotification [_ notification _]
       (when (= (.getType notification)
-               MemoryNotificationInfo/MEMORY_THRESHOLD_EXCEEDED)
+               MemoryNotificationInfo/MEMORY_COLLECTION_THRESHOLD_EXCEEDED)
         (doseq [callback-fn @callback-fns-atom]
           (callback-fn))))))
 
@@ -48,10 +49,13 @@
   (memoize
     (fn ensure-notification-listener! []
       (when-some [tenured-generation-pool (find-tenured-generation-pool)]
-        (let [^NotificationEmitter notification-emitter (ManagementFactory/getMemoryMXBean)
-              usage-threshold (-> tenured-generation-pool .getUsage .getMax (* memory-usage-threshold) long)]
-          (.setUsageThreshold tenured-generation-pool usage-threshold)
-          (.addNotificationListener notification-emitter notification-listener nil nil))))))
+        (when (.isCollectionUsageThresholdSupported tenured-generation-pool)
+          (let [^NotificationEmitter notification-emitter (ManagementFactory/getMemoryMXBean)
+                usage-threshold (-> tenured-generation-pool .getUsage .getMax (* memory-usage-threshold) long)]
+            (log/info :message "Adding post-gc low-memory notification listener to tenured generation pool."
+                      :threshold-megabytes (quot usage-threshold (* 1024 1024)))
+            (.setCollectionUsageThreshold tenured-generation-pool usage-threshold)
+            (.addNotificationListener notification-emitter notification-listener nil nil)))))))
 
 (defn add-callback!
   "Add a callback function that will be invoked when low memory conditions are

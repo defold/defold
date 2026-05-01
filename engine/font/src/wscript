@@ -1,0 +1,32 @@
+#! /usr/bin/env python
+
+from waf_dynamo import dmsdk_add_files
+
+def options(opt):
+    pass
+
+def configure(conf):
+    conf.recurse('test')
+
+def build(bld):
+
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+
+    bld.stlib(features          = 'cxx',
+                includes        = ['.', '..'],
+                target          = 'font',
+                defines         = [],
+                source          = bld.path.ant_glob(['*.cpp']))
+
+    bld.stlib(features          = 'cxx',
+                includes        = ['.', '..'],
+                target          = 'font_skribidi',
+                defines         = ['FONT_USE_HARFBUZZ',
+                                   'FONT_USE_SKRIBIDI'],
+                source          = bld.path.ant_glob(['*.cpp']))
+
+    bld.install_files('${PREFIX}/include/font', 'font.h')
+    bld.install_files('${PREFIX}/include/font', 'fontcollection.h')
+    bld.install_files('${PREFIX}/include/font', 'text_layout.h')
+
+    bld.recurse('test')

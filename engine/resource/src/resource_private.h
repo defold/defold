@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -66,6 +66,7 @@ struct ResourceType
     ResourceType() // TODO: Will it be ok using C++ constructor, since this is a private header?
     {
         memset(this, 0, sizeof(*this));
+        m_PreloadSize = RESOURCE_INVALID_PRELOAD_SIZE;
     }
     dmhash_t            m_ExtensionHash;
     const char*         m_Extension; // The suffix, without the '.'
@@ -75,6 +76,7 @@ struct ResourceType
     FResourcePostCreate m_PostCreateFunction;
     FResourceDestroy    m_DestroyFunction;
     FResourceRecreate   m_RecreateFunction;
+    uint32_t            m_PreloadSize;
     uint8_t             m_Index;
 };
 
@@ -95,11 +97,18 @@ namespace dmResource
 
     Result CheckSuppliedResourcePath(const char* name);
 
+#if !defined(DM_HAS_THREADS)
+    // Only use for single threaded loading! (used in load_queue_sync.cpp)
+    LoadBufferType* GetGlobalLoadBuffer(HFactory factory);
+#endif
+
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
 
+    // load directly to a user supplied buffer, and chunk size
+    Result LoadResourceToBufferWithOffset(HFactory factory, const char* path, const char* original_name, uint32_t offset, uint32_t size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer);
+
     Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, HResourceDescriptor descriptor);
-    uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
 
     HResourceType FindResourceType(HFactory factory, const char* extension);
     uint32_t GetRefCount(HFactory factory, void* resource);
@@ -114,6 +123,9 @@ namespace dmResource
     // Files mapped with this function should be unmapped with UnmapFile(...)
     Result MapFile(const char* filename, void*& map, uint32_t& size);
     Result UnmapFile(void*& map, uint32_t size);
+    // Assets mapped with this function should be unmapped with UnmapAsset(...)
+    Result MapAsset(const char* name, void*& out_asset, uint32_t& out_size, void*& out_map);
+    Result UnmapAsset(void*& asset, uint32_t size);
 
     /**
      * In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.

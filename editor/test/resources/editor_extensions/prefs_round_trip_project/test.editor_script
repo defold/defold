@@ -1,0 +1,21 @@
+local M = {}
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        run = function()
+            local keys = editor.prefs.get("test.prefs-keys")
+            for i = 1, #keys do
+                local key = keys[i]
+                editor.prefs.set(key, editor.prefs.get(key))
+            end
+        end
+    }}
+end
+
+function M.get_prefs_schema() 
+    return {["test.prefs-keys"] = editor.prefs.schema.array({item = editor.prefs.schema.string()})}
+end
+
+return M

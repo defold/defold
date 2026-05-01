@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,13 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-/*# SDK Alloca API documentation
+/*# Alloca functions
  * Alloca functions.
  *
  * @document
  * @name Alloca
- * @namespace dmMemory
- * @path engine/dlib/src/dmsdk/dlib/dalloca.h
+ * @language C
  */
 
 #ifndef DMSDK_DALLOCA_H
@@ -30,7 +29,9 @@
     #include "alloca_vendor.h"
 #elif defined(_WIN32)
     #include <malloc.h>
-    #define alloca(_SIZE) _alloca(_SIZE)
+    #if !defined(alloca)
+        #define alloca(_SIZE) _alloca(_SIZE) // done in malloc.h if _CRT_INTERNAL_NONSTDC_NAMES is non-zero
+    #endif
 #else
     #include <alloca.h>
 #endif

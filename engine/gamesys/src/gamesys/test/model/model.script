@@ -1,0 +1,79 @@
+-- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+require "lua.test_helpers"
+
+local function test_model_aabb(self)
+    local res = model.get_aabb("#model")
+    assert_not_nil(res)
+    assert_vec3(res.min, vmath.vector3(-50.000019073486, -50, -50.000019073486))
+    assert_vec3(res.max, vmath.vector3(50.000019073486, 50, 50.000030517578))
+end
+
+local function test_model_several_mesh(self)
+    local whole_aabb = model.get_aabb("#several_mesh")
+    assert_not_nil(whole_aabb)
+    assert_vec3(whole_aabb.min, vmath.vector3(-3, -4, -2))
+    assert_vec3(whole_aabb.max, vmath.vector3(2, 2, 0.99999934434891))
+
+    local all_aabb = model.get_mesh_aabb("#several_mesh")
+    assert_not_nil(all_aabb[hash("Cone")])
+    assert_vec3(all_aabb[hash("Cone")].min, vmath.vector3(-1, -1, -1))
+    assert_vec3(all_aabb[hash("Cone")].max, vmath.vector3(1, 1, 1))
+
+    assert_not_nil(all_aabb[hash("Cube")])
+    assert_vec3(all_aabb[hash("Cube")].min, vmath.vector3(-1, -1, -1))
+    assert_vec3(all_aabb[hash("Cube")].max, vmath.vector3(1, 1, 1))
+
+    assert_not_nil(all_aabb[hash("Sphere")])
+    assert_vec3(all_aabb[hash("Sphere")].min, vmath.vector3(-0.99999904632568, -1, -1))
+    assert_vec3(all_aabb[hash("Sphere")].max, vmath.vector3(0.99999970197678, 1, 0.99999934434891))
+end
+
+local function test_empty_model(self)
+    local empty_res = model.get_aabb("#empty")
+    assert_not_nil(empty_res)
+    assert_vec3(empty_res.min, vmath.vector3(0, 0, 0))
+    assert_vec3(empty_res.max, vmath.vector3(0, 0, 0))
+
+    local mesh_aabb = model.get_mesh_aabb("#empty")
+    assert_not_nil(mesh_aabb)
+    local count = 0
+    for _, _ in pairs(mesh_aabb) do
+        count = count + 1
+    end
+    assert_number(count, 0)
+end
+
+local function test_all_aabb(self)
+    local res = model.get_mesh_aabb("#model")
+    local cube_aabb = res[hash("Cube")]
+    assert_not_nil(cube_aabb)
+    assert_vec3(cube_aabb.min, vmath.vector3(-50.000019073486, -50, -50.000019073486))
+    assert_vec3(cube_aabb.max, vmath.vector3(50.000019073486, 50, 50.000030517578))
+end
+
+local function test_wrong_component_url(self)
+    assert_error(function()
+        local res = model.get_mesh_aabb("#invalid_model")
+    end)
+end
+
+function init(self)
+    test_model_aabb(self)
+    test_model_several_mesh(self)
+    test_all_aabb(self)
+    test_wrong_component_url(self)
+    test_empty_model(self)
+end

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/opaque_handle_container.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 
 #include <resource/resource.h>
 
@@ -38,6 +38,7 @@ namespace dmGameSystem
      * @document
      * @name System
      * @namespace sys
+     * @language Lua
      */
 
     enum RequestStatus
@@ -62,10 +63,15 @@ namespace dmGameSystem
     struct SysModule
     {
         dmResource::HFactory                m_Factory;
-        dmJobThread::HContext               m_JobThread;
+        HJobContext                         m_JobContext;
         dmOpaqueHandleContainer<LuaRequest> m_LoadRequests;
         dmMutex::HMutex                     m_LoadRequestsMutex;
         uint8_t                             m_LastUpdateResult : 1; // For tests
+
+        SysModule()
+        {
+            memset(this, 0, sizeof(*this));
+        }
     } g_SysModule;
 
     // Assumes the g_SysModule.m_LoadRequestsMutex is held
@@ -119,8 +125,9 @@ namespace dmGameSystem
     // Assumes the g_SysModule.m_LoadRequestsMutex is held (if needed)
     static dmResource::Result HandleRequestLoading(dmResource::HFactory factory, const char* path, const char* original_name, dmResource::LoadBufferType* buffer, LuaRequest* request)
     {
+        uint32_t buffer_size;
         uint32_t resource_size;
-        dmResource::Result res = dmResource::LoadResourceFromBuffer(factory, path, original_name, &resource_size, buffer);
+        dmResource::Result res = dmResource::LoadResourceToBuffer(factory, path, original_name, RESOURCE_INVALID_PRELOAD_SIZE, &resource_size, &buffer_size, buffer);
 
         if (res != dmResource::RESULT_OK)
         {
@@ -154,7 +161,7 @@ namespace dmGameSystem
     }
 
     // Called from job thread
-    static int LoadBufferFunctionCallback(void* context, void* data)
+    static int LoadBufferFunctionCallback(HJobContext, HJob hjob, void* context, void* data)
     {
         DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
         HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
@@ -164,7 +171,7 @@ namespace dmGameSystem
     }
 
     // Called from the main thread
-    static void LoadBufferCompleteCallback(void* context, void* data, int result)
+    static void LoadBufferCompleteCallback(HJobContext, HJob hjob, JobSystemStatus status, void* context, void* data, int result)
     {
         if (((dmResource::Result) result) == dmResource::RESULT_OK)
         {
@@ -185,10 +192,14 @@ namespace dmGameSystem
     // Assumes the g_SysModule.m_LoadRequestsMutex is held
     static void DispatchRequest(LuaRequest* request)
     {
-        dmJobThread::PushJob(g_SysModule.m_JobThread,
-            LoadBufferFunctionCallback,
-            LoadBufferCompleteCallback,
-            (void*) (uintptr_t) request->m_Handle, 0);
+        Job job = {0};
+        job.m_Process = LoadBufferFunctionCallback;
+        job.m_Callback = LoadBufferCompleteCallback;
+        job.m_Context = (void*) (uintptr_t) request->m_Handle;
+        job.m_Data = 0;
+
+        HJob hjob = JobSystemCreateJob(g_SysModule.m_JobContext, &job);
+        JobSystemPushJob(g_SysModule.m_JobContext, hjob);
     }
 
     /*# loads a buffer from a resource or disk path
@@ -288,7 +299,7 @@ namespace dmGameSystem
      * `buffer`
      * : [type:buffer] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
      *
-     * @return handle [type:handle] a handle to the request
+     * @return handle [type:number] a handle to the request
      * @examples
      *
      * Load binary data from a custom project resource and update a texture resource:
@@ -380,17 +391,17 @@ namespace dmGameSystem
 
     /*# an asyncronous request has finished successfully
      * @name sys.REQUEST_STATUS_FINISHED
-     * @variable
+     * @constant
      */
 
     /*# an asyncronous request is unable to read the resource
      * @name sys.REQUEST_STATUS_ERROR_IO_ERROR
-     * @variable
+     * @constant
      */
 
     /*# an asyncronous request is unable to locate the resource
      * @name sys.REQUEST_STATUS_ERROR_NOT_FOUND
-     * @variable
+     * @constant
      */
 
     void ScriptSysGameSysRegister(const ScriptLibContext& context)
@@ -414,8 +425,10 @@ namespace dmGameSystem
         assert(top == lua_gettop(L));
 
         g_SysModule.m_Factory           = context.m_Factory;
-        g_SysModule.m_JobThread         = context.m_JobThread;
-        g_SysModule.m_LoadRequestsMutex = dmMutex::New();
+        g_SysModule.m_JobContext        = context.m_JobContext;
+
+        if (g_SysModule.m_LoadRequestsMutex == 0)
+            g_SysModule.m_LoadRequestsMutex = dmMutex::New();
     }
 
     void ScriptSysGameSysUpdate(const ScriptLibContext& context)

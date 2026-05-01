@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,8 @@
 #include <particle/particle.h>
 
 #include <script/script.h>
+
+#include <font/text_layout.h>
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gui/gui.h>
@@ -117,6 +119,11 @@ namespace dmGui
     typedef void (*OnWindowResizeCallback)(const HScene scene, uint32_t width, uint32_t height);
 
     /**
+     * Callback for applying a layout from script
+     */
+    typedef void (*ApplyLayoutCallback)(const HScene scene, dmhash_t layout_id);
+
+    /**
      * Callback to create custom node data
      */
     typedef void* (*CreateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
@@ -157,9 +164,14 @@ namespace dmGui
     typedef void (*DestroyRenderConstantsCallback)(void* render_constants);
 
     /**
+     * Callback to clone render constants
+     */
+    typedef void* (*CloneRenderConstantsCallback)(void* render_constants);
+
+    /**
      * Callback to create a texture resource
      */
-    typedef HTextureSource (*NewTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    typedef HTextureSource (*NewTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
     /**
      * Callback to delete a texture resource
@@ -169,7 +181,13 @@ namespace dmGui
     /**
      * Callback to set the data for a texture resource
      */
-    typedef void (*SetTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    typedef void (*SetTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
+
+    /**
+     * Callback to query display profile resolution for a layout id
+     * Should return true and fill out parameters when found; false otherwise
+     */
+    typedef bool (*GetDisplayProfileDescCallback)(HScene scene, dmhash_t layout_id, uint32_t* out_width, uint32_t* out_height);
 
     /**
      * Scene creation
@@ -203,8 +221,11 @@ namespace dmGui
         SetMaterialPropertyCallback    m_SetMaterialPropertyCallback;
         void*                          m_SetMaterialPropertyCallbackContext;
         DestroyRenderConstantsCallback m_DestroyRenderConstantsCallback;
+        CloneRenderConstantsCallback   m_CloneRenderConstantsCallback;
         FetchTextureSetAnimCallback    m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback         m_OnWindowResizeCallback;
+        ApplyLayoutCallback            m_ApplyLayoutCallback;
+        GetDisplayProfileDescCallback  m_GetDisplayProfileDescCallback;
         NewTextureResourceCallback     m_NewTextureResourceCallback;
         DeleteTextureResourceCallback  m_DeleteTextureResourceCallback;
         SetTextureResourceCallback     m_SetTextureResourceCallback;
@@ -220,7 +241,7 @@ namespace dmGui
 
     typedef void (*GetURLCallback)(HScene scene, dmMessage::URL* url);
     typedef uintptr_t (*GetUserDataCallback)(HScene scene);
-    typedef dmhash_t (*ResolvePathCallback)(HScene scene, const char* path, uint32_t path_size);
+    typedef dmhash_t (*ResolvePathCallback)(HScene scene, const char* path);
 
     /**
      * Font metrics of a text string
@@ -238,6 +259,12 @@ namespace dmGui
         float m_MaxAscent;
         /// Max descent of font, positive value
         float m_MaxDescent;
+    };
+
+    struct TextLayout
+    {
+        HTextLayout m_Handle;
+        uint64_t    m_Key;
     };
     /** callback for retrieving text metrics
      * The function is expected to fill out the supplied metrics struct with metrics of the supplied font and text.
@@ -353,7 +380,7 @@ namespace dmGui
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here
-    enum PieBounds
+    enum PieBounds : uint8_t
     {
         PIEBOUNDS_RECTANGLE = 0,
         PIEBOUNDS_ELLIPSE   = 1,
@@ -495,6 +522,20 @@ namespace dmGui
     void DeleteContext(HContext context, dmScript::HContext script_context);
 
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height);
+    void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y);
+
+    enum SafeAreaMode
+    {
+        SAFE_AREA_NONE = 0,
+        SAFE_AREA_LONG = 1,
+        SAFE_AREA_SHORT = 2,
+        SAFE_AREA_BOTH = 3,
+    };
+
+    SafeAreaMode ParseSafeAreaMode(const char* mode);
+    void UpdateSafeAreaAdjust(HContext context, SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                              int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom);
+    void SetSceneSafeAreaMode(HScene scene, SafeAreaMode mode);
 
     void GetPhysicalResolution(HContext context, uint32_t& width, uint32_t& height);
 
@@ -544,6 +585,19 @@ namespace dmGui
     Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
+     * Adds a texture and optional textureset with the specified name to the scene as Dynamic texture.
+     * @note Any nodes connected to the same texture_name will also be connected to the new texture/textureset. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to add the texture/textureset to
+     * @param texture_name_hash Hash of the texture name that will be used in the gui scripts
+     * @param texture The texture to add
+     * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
+     * @param original_width Original With of the texture
+     * @param original_height Original Height of the texture
+     * @return Outcome of the operation
+     */
+    Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
+
+    /**
      * Removes a texture with the specified name from the scene.
      * @note Any nodes connected to the same texture will also be disconnected from the texture. This makes this function O(n), where n is #nodes.
      * @param scene Scene to remove texture from
@@ -573,12 +627,13 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param compression_type
      * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Delete dynamic texture
@@ -595,12 +650,13 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param compression_type
      * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Get texture data for a dynamic texture
@@ -1017,6 +1073,10 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    // Returns the node-owned text layout as a borrowed handle.
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
+    // Stores a node-owned text layout reference. The incoming handle remains owned by the caller.
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);
@@ -1178,18 +1238,6 @@ namespace dmGui
      * @return current scene, or 0
      */
     HScene GetSceneFromLua(lua_State* L);
-
-    // Used only in engine_service.cpp for resource profiling
-    typedef bool (*FDynamicTextturesIterator)(dmhash_t gui_res_id, dmhash_t name_hash, uint32_t size, void* user_ctx);
-    /**
-     * Iterates over all dynamic textures in GUI component, and invokes the callback function with the dyn. texture information
-     * @param gui_res_id The GUI component resource id
-     * @param scene      The scene we get dynamic textures information from
-     * @param callback   The callback function which is invoked for each dynamic texture.
-                         It should return true if the iteration should continue, and false otherwise.
-     * @param user_ctx   The user defined context which is passed along with each callback
-     */
-    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx);
 }
 
 #endif

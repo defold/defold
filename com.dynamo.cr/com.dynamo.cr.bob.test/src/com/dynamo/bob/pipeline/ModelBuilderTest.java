@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,8 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.ModelProto.Material;
 import com.dynamo.rig.proto.Rig.RigScene;
@@ -27,82 +29,50 @@ import com.google.protobuf.Message;
 
 public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
+    final String GLTF = "{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0,\"name\":\"Node0\"}],\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}],\"buffers\":[{\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAgD8AAAAAAAAAAADwPwAAAAAAAPA/AAAAAAAAgD8AIAAAAAAAQAAAAAAAAEAAAAAAAAA=\",\"byteLength\":42}],\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},{\"buffer\":0,\"byteOffset\":36,\"byteLength\":6}],\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\",\"min\":[0.0,0.0,0.0],\"max\":[1.0,1.0,0.0]},{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}],\"materials\":[{\"pbrMetallicRoughness\":{}}]}";
     @Before
     public void setup() {
         addTestFiles();
     }
 
-    @Test
-    public void testModelDae() throws Exception {
-        addFile("/test_meshset.dae", "");
-        addFile("/test_skeleton.dae", "");
-        addFile("/test_animationset.dae", "");
-        addFile("/test.material", "");
-        addFile("/test.vp", "");
-        addFile("/test.fp", "");
+    @Test(expected=CompileExceptionError.class)
+    public void testModelDaeMeshUnsupported() throws Exception {
+        addFile("/test_meshset.dae", "unsupported");
+        build("/test.model", "mesh: \"/test_meshset.dae\"");
+    }
 
-        StringBuilder srcShader = new StringBuilder();
-        srcShader.append("void main() {}\n");
+    @Test(expected=CompileExceptionError.class)
+    public void testModelDaeSkeletonUnsupported() throws Exception {
+        addFile("/test_meshset.gltf", GLTF);
+        addFile("/test_skeleton.dae", "unsupported");
+        build("/test.model", "mesh: \"/test_meshset.gltf\" skeleton: \"/test_skeleton.dae\"");
+    }
 
-        build("/test.vp", srcShader.toString());
-        build("/test.fp", srcShader.toString());
-
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"test_material\"\n");
-        src.append("vertex_program: \"/test.vp\"\n");
-        src.append("fragment_program: \"/test.fp\"\n");
-
-        build("/test.material", src.toString());
-
-        src = new StringBuilder();
-        src.append(" mesh: \"/test_meshset.dae\"");
-        src.append(" skeleton: \"/test_skeleton.dae\"");
-        src.append(" animations: \"/test_animationset.dae\"");
-        src.append(" default_animation: \"test\"");
-        src.append(" material: \"/test.material\"");
-        src.append(" materials {");
-        src.append("   name: \"test2\"");
-        src.append("   material: \"/test.material\"");
-        src.append("}");
-        List<Message> outputs = build("/test.model", src.toString());
-
-        Model model = (Model)outputs.get(0);
-        List<Material> materials = model.getMaterialsList();
-
-        assertEquals(1, materials.size());
-        assertEquals("test2", materials.get(0).getName());
-        assertEquals("/test.materialc", materials.get(0).getMaterial());
-        assertEquals("/test.rigscenec", model.getRigScene());
-
-        assertEquals("test", model.getDefaultAnimation());
-
-        RigScene rigScene = (RigScene)outputs.get(1);
-        assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
-        assertEquals("/test_skeleton.skeletonc", rigScene.getSkeleton());
-        assertEquals("/test_animationset_generated_0.animationsetc", rigScene.getAnimationSet());
+    @Test(expected=CompileExceptionError.class)
+    public void testModelDaeAnimationUnsupported() throws Exception {
+        addFile("/test_meshset.gltf", GLTF);
+        addFile("/test_animation.dae", "unsupported");
+        build("/test.model", "mesh: \"/test_meshset.gltf\" animations: \"/test_animation.dae\"");
     }
 
     @Test
     public void testModelGltf() throws Exception {
-        addFile("/test_meshset.gltf", "");
-        addFile("/test_skeleton.gltf", "");
-        addFile("/test_animation.gltf", "");
-        addFile("/test.material", "");
-        addFile("/test.vp", "");
-        addFile("/test.fp", "");
+        addFile("/test_meshset.gltf", GLTF);
+        addFile("/test_skeleton.gltf", GLTF);
+        addFile("/test_animation.gltf", GLTF);
 
         StringBuilder srcShader = new StringBuilder();
         srcShader.append("void main() {}\n");
 
-        build("/test.vp", srcShader.toString());
-        build("/test.fp", srcShader.toString());
+        addFile("/testModelGltf.vp", srcShader.toString());
+        addFile("/testModelGltf.fp", srcShader.toString());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
-        src.append("vertex_program: \"/test.vp\"\n");
-        src.append("fragment_program: \"/test.fp\"\n");
+        src.append("vertex_program: \"/testModelGltf.vp\"\n");
+        src.append("fragment_program: \"/testModelGltf.fp\"\n");
 
-        build("/test.material", src.toString());
+        addFile("/test.material", src.toString());
 
         src = new StringBuilder();
         src.append(" mesh: \"/test_meshset.gltf\"");
@@ -115,7 +85,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         src.append("}");
         List<Message> outputs = build("/test.model", src.toString());
 
-        Model model = (Model)outputs.get(0);
+        Model model = getMessage(outputs, Model.class);
         List<Material> materials = model.getMaterialsList();
 
         assertEquals("/test.rigscenec", model.getRigScene());
@@ -123,12 +93,12 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
         assertEquals(1, materials.size());
         assertEquals("default", materials.get(0).getName());
-        assertEquals("/test.materialc", materials.get(0).getMaterial());
-        assertEquals("/test.rigscenec", model.getRigScene());
+        assertEquals(ResourceUtil.minifyPath("/test.materialc"), materials.get(0).getMaterial());
+        assertEquals(ResourceUtil.minifyPath("/test.rigscenec"), model.getRigScene());
 
-        RigScene rigScene = (RigScene)outputs.get(1);
+        RigScene rigScene = getMessage(outputs, RigScene.class);
         assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
-        assertEquals("/test_skeleton.skeletonc", rigScene.getSkeleton());
+        assertEquals(ResourceUtil.minifyPath("/test_skeleton.skeletonc"), rigScene.getSkeleton());
         assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
     }
 }

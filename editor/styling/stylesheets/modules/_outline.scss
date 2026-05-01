@@ -2,19 +2,19 @@
 
 @mixin colorize-icon($color, $active-color) {
   &:filled {
-    & > .image-view {
+    > .anchor-pane > .h-box > .image-view {
       -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
     }
 
     &:hover {
-      & > .image-view {
+      > .anchor-pane > .h-box > .image-view {
         -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
       }
     }
 
     &:selected {
-      & > .image-view {
-        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);;
+      > .anchor-pane > .h-box > .image-view {
+        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
       }
     }
   }
@@ -24,10 +24,7 @@
   &:filled {
     -fx-text-fill: $color;
 
-    &:hover {
-      -fx-text-fill: $active-color;
-    }
-
+    &:hover,
     &:selected {
       -fx-text-fill: $active-color;
     }
@@ -46,12 +43,11 @@
 
 #outline {
   .tree-cell {
-    &.reference {
-      .text {
-        -fx-font-style: italic;
-      }
-    }
+    @include colorize-icon(-df-text-dark, -df-text);
 
+    -fx-padding: 3px 0 3px 3px; 
+
+    &.reference,
     &.parent-reference {
       .text {
         -fx-font-style: italic;
@@ -76,18 +72,74 @@
       @include colorize-disclosure-arrow(-df-error-severity-fatal-dim);
     }
 
-    &.scene-visibility-hidden {
+    > .anchor-pane > .h-box > .image-view {
+      -fx-fit-height: 16px;
+      -fx-fit-width: 16px;
+    } 
+
+    .anchor-pane {
+      -fx-background-color: transparent;
+    }
+
+    .h-box {
+      -fx-padding: 0 22px 0 0;
+    }
+
+    .visibility-toggle {
+      visibility: hidden;
+      -fx-padding: 0 4px;
+      -fx-background-color: -df-background-light;
+      -fx-border-width: 0;
+      -fx-min-height: 16px;
+
+      SVGPath {
+        -fx-fill: -df-text-dark;
+      }
+
+      &:hover {
+        SVGPath {
+          -fx-fill: -df-text-light;
+        }
+      }
+    }
+
+    &:selected {
+      .visibility-toggle {
+        -fx-background-color: -df-background-lighter;
+      }
+    }
+
+    &.hidden-parent {
       .tree-disclosure-node {
         .arrow {
           -fx-opacity: 40%;
         }
       }
-      & > .image-view {
+      > .anchor-pane > .h-box > .image-view {
         -fx-opacity: 40%;
       }
       .text {
         -fx-opacity: 40%;
       }
+    }
+
+    &.scene-visibility-hidden {
+      .visibility-toggle {
+        visibility: visible;
+      }
+    }
+
+    &.hideable:hover {
+      .visibility-toggle {
+        visibility: visible;
+      }
+    }
+
+    .text-field {
+      -fx-background-color: transparent;
+      -fx-padding: 0;
+      -fx-border-width: 0;
+      -fx-min-height: 14px;
     }
   }
 }

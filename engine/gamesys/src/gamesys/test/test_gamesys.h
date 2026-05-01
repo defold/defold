@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,9 +20,11 @@
 #include <dlib/buffer.h>
 #include <dlib/testutil.h>
 #include <hid/hid.h>
+#include <platform/window.hpp>
 
 #include <sound/sound.h>
 #include <gameobject/component.h>
+#include <extension/extension.hpp>
 #include <physics/physics.h>
 #include <rig/rig.h>
 
@@ -68,6 +70,8 @@ struct ProjectOptions {
   uint32_t m_MaxCollisionCount;
   uint32_t m_MaxCollisionObjectCount;
   uint32_t m_MaxContactPointCount;
+  uint32_t m_MaxInstances;
+  uint32_t m_TriggerOverlapCapacity;
   bool m_3D;
   float m_Scale;
   float m_VelocityThreshold;
@@ -87,7 +91,7 @@ protected:
         m_projectOptions = options;
     }
 
-    virtual void SetUp() = 0;
+    void SetUp() override = 0;
 };
 
 template<typename T>
@@ -99,13 +103,14 @@ public:
         this->m_projectOptions.m_MaxCollisionCount = 0;
         this->m_projectOptions.m_MaxCollisionObjectCount = 0;
         this->m_projectOptions.m_MaxContactPointCount = 0;
+        this->m_projectOptions.m_MaxInstances = 1024;
         this->m_projectOptions.m_3D = false;
         this->m_projectOptions.m_Scale = 1.0f;
         this->m_projectOptions.m_VelocityThreshold = 1.0f;
     }
 protected:
-    virtual void SetUp();
-    virtual void TearDown();
+    void SetUp() override;
+    void TearDown() override;
     void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx);
 
     void WaitForTestsDone(int update_count, bool render, bool* result);
@@ -116,12 +121,13 @@ protected:
     dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_Config;
 
-    dmPlatform::HWindow m_Window;
+    HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
-    dmJobThread::HContext m_JobThread;
+    HJobContext m_JobContext;
     dmRender::HRenderContext m_RenderContext;
-    dmGameSystem::PhysicsContext m_PhysicsContext;
+    dmGameSystem::PhysicsContextBox2D m_PhysicsContextBox2D;
+    dmGameSystem::PhysicsContextBullet3D m_PhysicsContextBullet3D;
     dmGameSystem::ParticleFXContext m_ParticleFXContext;
     dmGui::HContext m_GuiContext;
     dmHID::HContext m_HidContext;
@@ -134,27 +140,39 @@ protected:
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::LabelContext m_LabelContext;
     dmGameSystem::TilemapContext m_TilemapContext;
-    dmGameSystem::SoundContext m_SoundContext;
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
+    ExtensionAppParams  m_AppParams;
+    ExtensionParams     m_Params;
 };
 
 class ScriptBaseTest : public GamesysTest<const char*>
 {
 public:
-    void SetUp()
+    void SetUp() override
     {
         GamesysTest::SetUp();
+
         m_Scriptlibcontext.m_Factory         = m_Factory;
         m_Scriptlibcontext.m_Register        = m_Register;
         m_Scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
         m_Scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
         m_Scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+        m_Scriptlibcontext.m_JobContext      = m_JobContext;
 
         dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
     }
-    virtual ~ScriptBaseTest() {}
+
+    void TearDown() override
+    {
+        dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
+
+        GamesysTest::TearDown();
+    }
+
+    virtual ~ScriptBaseTest() { }
+
     dmGameSystem::ScriptLibContext m_Scriptlibcontext;
 };
 
@@ -198,6 +216,13 @@ public:
     }
 };
 
+class Trigger2DTest : public CollisionObject2DTest
+{
+public:
+	Trigger2DTest() {
+		m_projectOptions.m_TriggerOverlapCapacity = 1;
+	}
+};
 
 class VelocityThreshold2DTest : public CollisionObject2DTest
 {
@@ -236,36 +261,37 @@ struct ResourceFailParams
 class ResourceFailTest : public GamesysTest<ResourceFailParams>
 {
 public:
-    virtual ~ResourceFailTest() {}
+    ~ResourceFailTest() override = default;
 };
 
 class InvalidVertexSpaceTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~InvalidVertexSpaceTest() {}
+    ~InvalidVertexSpaceTest() override = default;
 };
 
 class ComponentTest : public ScriptBaseTest
 {
 public:
-    virtual ~ComponentTest() {}
+    ~ComponentTest() override = default;
 };
 
 class ComponentFailTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~ComponentFailTest() {}
+    ~ComponentFailTest() override = default;
 };
 
 class BufferMetadataTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~BufferMetadataTest() {}
+    ~BufferMetadataTest() override = default;
 };
 
 struct FactoryTestParams
 {
     const char* m_GOPath;
+    const char* m_PrototypePath; // If set, then it uses "Dynamic Prototype"
     bool m_IsDynamic;
     bool m_IsPreloaded;
 };
@@ -273,7 +299,13 @@ struct FactoryTestParams
 class FactoryTest : public GamesysTest<FactoryTestParams>
 {
 public:
-    virtual ~FactoryTest() {}
+    ~FactoryTest() override = default;
+};
+
+class FactoryRecursivePrototypeTest : public GamesysTest<FactoryTestParams>
+{
+public:
+    ~FactoryRecursivePrototypeTest() override = default;
 };
 
 struct CollectionFactoryTestParams
@@ -287,26 +319,32 @@ struct CollectionFactoryTestParams
 class CollectionFactoryTest : public GamesysTest<CollectionFactoryTestParams>
 {
 public:
-    virtual ~CollectionFactoryTest() {}
+    ~CollectionFactoryTest() override = default;
+};
+
+class CollectionFactoryRecursivePrototypeTest : public GamesysTest<CollectionFactoryTestParams>
+{
+public:
+    ~CollectionFactoryRecursivePrototypeTest() override = default;
 };
 
 class SpriteTest : public ScriptBaseTest
 {
 public:
-    virtual ~SpriteTest() {}
+    ~SpriteTest() override = default;
 };
 
-class ParticleFxTest : public GamesysTest<const char*>
+class ParticleFxTest : public ScriptBaseTest
 {
 public:
-    virtual ~ParticleFxTest() {}
+    ~ParticleFxTest() override = default;
 };
 
 
 class WindowTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~WindowTest() {}
+    ~WindowTest() override = default;
 };
 
 struct DrawCountParams
@@ -318,7 +356,7 @@ struct DrawCountParams
 class DrawCountTest : public GamesysTest<DrawCountParams>
 {
 public:
-    virtual ~DrawCountTest() {}
+    ~DrawCountTest() override = default;
 };
 
 struct BoxRenderParams
@@ -335,13 +373,13 @@ struct BoxRenderParams
 class BoxRenderTest : public GamesysTest<BoxRenderParams>
 {
 public:
-    virtual ~BoxRenderTest() {}
+    ~BoxRenderTest() override = default;
 };
 
 class GamepadConnectedTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~GamepadConnectedTest() {}
+    ~GamepadConnectedTest() override = default;
 };
 
 struct ResourcePropParams {
@@ -360,18 +398,18 @@ struct ResourcePropParams {
 class ResourcePropTest : public GamesysTest<ResourcePropParams>
 {
 protected:
-    void SetUp()
+    void SetUp() override
     {
         GamesysTest::SetUp();
     }
 public:
-    virtual ~ResourcePropTest() {}
+    ~ResourcePropTest() override = default;
 };
 
 class FlipbookTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~FlipbookTest() {}
+    ~FlipbookTest() override = default;
 };
 
 struct CursorTestParams
@@ -386,19 +424,19 @@ struct CursorTestParams
 class CursorTest : public GamesysTest<CursorTestParams>
 {
 public:
-    virtual ~CursorTest() {}
+    ~CursorTest() override = default;
 };
 
 class FontTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~FontTest() {}
+    ~FontTest() override = default;
 };
 
 class GuiTest : public ScriptBaseTest
 {
 public:
-    virtual ~GuiTest() {}
+    ~GuiTest() override = default;
 };
 
 struct ScriptComponentTestParams
@@ -411,13 +449,13 @@ struct ScriptComponentTestParams
 class ScriptComponentTest : public GamesysTest<ScriptComponentTestParams>
 {
 public:
-    virtual ~ScriptComponentTest() {}
+    ~ScriptComponentTest() override = default;
 };
 
 class SoundTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~SoundTest() {}
+    ~SoundTest() override = default;
 };
 
 class RenderConstantsTest : public GamesysTest<const char*>
@@ -429,7 +467,13 @@ public:
 class MaterialTest : public ScriptBaseTest
 {
 public:
-    virtual ~MaterialTest() {}
+    ~MaterialTest() override = default;
+};
+
+class ModelTest : public ScriptBaseTest
+{
+public:
+    ~ModelTest() override = default;
 };
 
 class MiscTests : public ScriptBaseTest
@@ -441,13 +485,13 @@ public:
 class ShaderTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~ShaderTest() {}
+    ~ShaderTest() override = default;
 };
 
-class SysTest : public GamesysTest<const char*>
+class SysTest : public ScriptBaseTest
 {
 public:
-    virtual ~SysTest() {}
+    ~SysTest() override = default;
 };
 
 bool CopyResource(const char* src, const char* dst);
@@ -474,14 +518,20 @@ void GamesysTest<T>::SetUp()
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
+    JobSystemCreateParams job_thread_create_param = {0};
+    job_thread_create_param.m_ThreadCount = 1;
+    m_JobContext = JobSystemCreate(&job_thread_create_param);
+
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    params.m_JobThreadContext = m_JobContext;
 
     m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
-    dmPlatform::WindowParams win_params = {};
+    WindowCreateParams win_params;
+    WindowCreateParamsInitialize(&win_params);
     m_Window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(m_Window, win_params);
 
@@ -489,17 +539,13 @@ void GamesysTest<T>::SetUp()
     dmHID::Init(m_HidContext);
     dmHID::SetWindow(m_HidContext, m_Window);
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
-    job_thread_create_param.m_ThreadCount    = 1;
-    m_JobThread = dmJobThread::Create(job_thread_create_param);
 
-    dmGraphics::InstallAdapter();
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
     dmGraphics::ResetDrawCount(); // for the unit test
 
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_Window = m_Window;
-    graphics_context_params.m_JobThread = m_JobThread;
+    graphics_context_params.m_JobContext = m_JobContext;
 
     m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
@@ -508,6 +554,14 @@ void GamesysTest<T>::SetUp()
     script_context_params.m_GraphicsContext = m_GraphicsContext;
     m_ScriptContext = dmScript::NewContext(script_context_params);
     dmScript::Initialize(m_ScriptContext);
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    #ifdef DM_PHYSICS_BOX2D_V3
+        lua_pushstring(L, "box2dv3");
+    #else
+        lua_pushstring(L, "box2dv2");
+    #endif
+    lua_setglobal(L, "PHYSICS");
 
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
@@ -520,15 +574,20 @@ void GamesysTest<T>::SetUp()
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
-    m_Contexts.SetCapacity(7,16);
-    m_Contexts.Put(dmHashString64("goc"), m_Register);
-    m_Contexts.Put(dmHashString64("collectionc"), m_Register);
-    m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
-    m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
-    m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
-    m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
+    dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
 
-    dmResource::RegisterTypes(m_Factory, &m_Contexts);
+    ExtensionAppParamsInitialize(&m_AppParams);
+    ExtensionParamsInitialize(&m_Params);
+
+    m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
+    m_Params.m_ResourceFactory = m_Factory;
+    m_Params.m_ConfigFile = m_Config;
+    ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
+    ExtensionParamsSetContext(&m_Params, "config", m_Config);
+    ExtensionParamsSetContext(&m_Params, "jobs", m_JobContext);
+
+    dmExtension::AppInitialize(&m_AppParams);
+    dmExtension::Initialize(&m_Params);
 
     dmRender::RenderContextParams render_params;
     render_params.m_MaxRenderTypes = 10;
@@ -545,28 +604,59 @@ void GamesysTest<T>::SetUp()
     input_params.m_RepeatInterval = 0.1f;
     m_InputContext = dmInput::NewContext(input_params);
 
-    memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
-    m_PhysicsContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
-    m_PhysicsContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
-    m_PhysicsContext.m_MaxCollisionObjectCount = this->m_projectOptions.m_MaxCollisionObjectCount;
-    m_PhysicsContext.m_3D = this->m_projectOptions.m_3D;
-    if (m_PhysicsContext.m_3D) {
-        m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
-    } else {
+    dmGameSystem::PhysicsContext* physics_context = 0;
+
+    memset(&m_PhysicsContextBox2D, 0, sizeof(m_PhysicsContextBox2D));
+    memset(&m_PhysicsContextBullet3D, 0, sizeof(m_PhysicsContextBullet3D));
+
+    if (this->m_projectOptions.m_3D)
+    {
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionObjectCount = this->m_projectOptions.m_MaxCollisionObjectCount;
+
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionCount = 64;
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxContactPointCount = 128;
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionObjectCount = 512;
+        m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
+
+        m_PhysicsContextBullet3D.m_Context = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
+
+        physics_context = &m_PhysicsContextBullet3D.m_BaseContext;
+    }
+    else
+    {
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionObjectCount = this->m_projectOptions.m_MaxCollisionObjectCount;
+
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionCount = 64;
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxContactPointCount = 128;
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionObjectCount = 512;
+        m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+        m_PhysicsContextBox2D.m_BaseContext.m_Box2DVelocityIterations = 10;
+        m_PhysicsContextBox2D.m_BaseContext.m_Box2DPositionIterations = 10;
+        m_PhysicsContextBox2D.m_BaseContext.m_Box2DSubStepCount = 4;
+
         dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
         context2DParams.m_Scale = this->m_projectOptions.m_Scale;
         context2DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
-        m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(context2DParams);
+        context2DParams.m_TriggerOverlapCapacity = this->m_projectOptions.m_TriggerOverlapCapacity;
+        m_PhysicsContextBox2D.m_Context = dmPhysics::NewContext2D(context2DParams);
+
+        physics_context = &m_PhysicsContextBox2D.m_BaseContext;
     }
 
     m_ParticleFXContext.m_Factory = m_Factory;
     m_ParticleFXContext.m_RenderContext = m_RenderContext;
     m_ParticleFXContext.m_MaxParticleFXCount = 64;
     m_ParticleFXContext.m_MaxParticleCount = 256;
+    m_ParticleFXContext.m_MaxParticleBufferCount = 256;
     m_ParticleFXContext.m_MaxEmitterCount = 8;
 
     m_SpriteContext.m_RenderContext = m_RenderContext;
     m_SpriteContext.m_MaxSpriteCount = 32;
+    m_SpriteContext.m_Factory = m_Factory;
 
     m_CollectionProxyContext.m_Factory = m_Factory;
     m_CollectionProxyContext.m_MaxCollectionProxyCount = 8;
@@ -589,70 +679,101 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_RenderContext = m_RenderContext;
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
+    m_ModelContext.m_MaxBoneMatrixTextureWidth = 1024;
+    m_ModelContext.m_MaxBoneMatrixTextureHeight = 1024;
+    m_ModelContext.m_MaxMorphTargetTextureWidth = 1024;
+    m_ModelContext.m_MaxMorphTargetTextureHeight = 1024;
 
     dmBuffer::NewContext(); // ???
 
-    m_SoundContext.m_MaxComponentCount = 32;
-    m_SoundContext.m_MaxSoundInstances = 256;
+    m_Contexts.OffsetCapacity(16);
+    m_Contexts.Put(dmHashString64("goc"), m_Register);
+    m_Contexts.Put(dmHashString64("collectionc"), m_Register);
+    m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
+    m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
+    m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
+    m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
+    m_Contexts.Put(dmHashString64("fontc"), m_RenderContext);
+    m_Contexts.Put(dmHashString64("lightc"), m_RenderContext);
 
-    m_PhysicsContext.m_MaxCollisionCount = 64;
-    m_PhysicsContext.m_MaxContactPointCount = 128;
-    m_PhysicsContext.m_MaxCollisionObjectCount = 512;
+    dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
-    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, &m_PhysicsContext);
+    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, physics_context, &m_ModelContext);
     ASSERT_EQ(dmResource::RESULT_OK, r);
 
     dmResource::Get(m_Factory, "/input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
     ASSERT_NE((void*)0, m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-
-    dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
-
     dmGameObject::ComponentTypeCreateCtx component_create_ctx;
     SetupComponentCreateContext(component_create_ctx);
     dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_SpriteContext,
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, physics_context, &m_ParticleFXContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
-                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
+                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext));
+
+    dmRender::SetLightBufferCount(m_RenderContext, 32);
+
+    dmGameObject::SortComponentTypes(m_Register);
 
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
     //dmGameObject::SortComponentTypes(m_Register);
 
-    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, this->m_projectOptions.m_MaxInstances, 0x0);
 }
 
 template<typename T>
 void GamesysTest<T>::TearDown()
 {
-    dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
+    dmGameObject::DeleteCollections(m_Register);
+    m_Collection = 0;
+
     dmResource::Release(m_Factory, m_GamepadMapsDDF);
+
+    dmResource::DeregisterTypes(m_Factory, &m_Contexts);
 
     dmGameObject::ComponentTypeCreateCtx component_create_ctx;
     SetupComponentCreateContext(component_create_ctx);
     dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
 
-    dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
+    dmGameObject::DeleteRegister(m_Register);
+
+    dmSound::Finalize();
+    dmInput::DeleteContext(m_InputContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
-    dmJobThread::Destroy(m_JobThread);
-    dmGraphics::DeleteContext(m_GraphicsContext);
-    dmPlatform::CloseWindow(m_Window);
-    dmPlatform::DeleteWindow(m_Window);
+    dmHID::Final(m_HidContext);
+    dmHID::DeleteContext(m_HidContext);
+    dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
+
+    dmExtension::Finalize(&m_Params);
+
+    ExtensionParamsFinalize(&m_Params);
+
     dmScript::Finalize(m_ScriptContext);
     dmScript::DeleteContext(m_ScriptContext);
     dmResource::DeleteFactory(m_Factory);
-    dmGameObject::DeleteRegister(m_Register);
-    dmSound::Finalize();
-    dmInput::DeleteContext(m_InputContext);
-    dmHID::Final(m_HidContext);
-    dmHID::DeleteContext(m_HidContext);
-    if (m_PhysicsContext.m_3D) {
-        dmPhysics::DeleteContext3D(m_PhysicsContext.m_Context3D);
-    } else {
-        dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
+
+    JobSystemDestroy(m_JobContext);
+    dmGraphics::CloseWindow(m_GraphicsContext);
+    dmGraphics::DeleteContext(m_GraphicsContext);
+    dmPlatform::CloseWindow(m_Window);
+    dmPlatform::DeleteWindow(m_Window);
+
+    if (m_PhysicsContextBullet3D.m_Context)
+    {
+        dmPhysics::DeleteContext3D(m_PhysicsContextBullet3D.m_Context);
     }
+
+    if (m_PhysicsContextBox2D.m_Context)
+    {
+        dmPhysics::DeleteContext2D(m_PhysicsContextBox2D.m_Context);
+    }
+
+    dmExtension::AppFinalize(&m_AppParams);
+    ExtensionAppParamsFinalize(&m_AppParams);
+
     dmBuffer::DeleteContext();
     dmConfigFile::Delete(m_Config);
 }
@@ -677,7 +798,7 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
             dmGameObject::Render(m_Collection);
 
             dmRender::RenderListEnd(m_RenderContext);
-            dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+            dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
         }
 
         // check if tests are done
@@ -704,7 +825,7 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
 class ScriptImageTest : public GamesysTest<const char*>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         GamesysTest::SetUp();
 
@@ -717,7 +838,7 @@ protected:
 
         L = dmScript::GetLuaState(m_ScriptContext);
     }
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
         GamesysTest::TearDown();
@@ -731,7 +852,7 @@ protected:
 class ScriptBufferTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmBuffer::NewContext();
 
@@ -756,7 +877,7 @@ protected:
         dmBuffer::Create(m_Count, streams_decl, 2, &m_Buffer);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if( m_Buffer )
             dmBuffer::Destroy(m_Buffer);
@@ -787,7 +908,7 @@ struct CopyBufferTestParams
 class ScriptBufferCopyTest : public jc_test_params_class<CopyBufferTestParams>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmBuffer::NewContext();
         dmScript::ContextParams script_context_params = {};
@@ -812,7 +933,7 @@ protected:
         dmBuffer::Create(p.m_Count, streams_decl, 2, &m_Buffer);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmBuffer::Destroy(m_Buffer);
 
@@ -833,7 +954,7 @@ protected:
 class LabelTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Position = dmVMath::Point3(0.0);
         m_Size = dmVMath::Vector3(2.0, 2.0, 0.0);
@@ -859,4 +980,3 @@ protected:
 };
 
 #endif // DM_TEST_GAMESYS_H
-

@@ -23,47 +23,79 @@ materials {
     texture: "/referenced/images/blue.png"
   }
   attributes {
+    name: "byte"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "float"
+    double_values {
+      v: 2.0
+    }
+  }
+  attributes {
+    name: "instance_custom"
+    double_values {
+      v: 2.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "instance_custom_mat2"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+    vector_type: VECTOR_TYPE_MAT2
+  }
+  attributes {
+    name: "instance_custom_mat3"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
+    name: "instance_custom_mat4"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
+    name: "int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
     name: "normalized_byte"
-    double_values {
-      v: 1.0
-      v: 1.0
-      v: 0.0
-    }
-  }
-  attributes {
-    name: "normalized_unsigned_byte"
-    double_values {
-      v: 1.0
-      v: 1.0
-      v: 0.0
-    }
-  }
-  attributes {
-    name: "normalized_short"
-    double_values {
-      v: 1.0
-      v: 1.0
-      v: 0.0
-    }
-  }
-  attributes {
-    name: "normalized_unsigned_short"
-    double_values {
-      v: 1.0
-      v: 1.0
-      v: 0.0
-    }
-  }
-  attributes {
-    name: "normalized_int"
-    double_values {
-      v: 1.0
-      v: 1.0
-      v: 0.0
-    }
-  }
-  attributes {
-    name: "normalized_unsigned_int"
     double_values {
       v: 1.0
       v: 1.0
@@ -79,7 +111,47 @@ materials {
     }
   }
   attributes {
-    name: "byte"
+    name: "normalized_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_byte"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "short"
     long_values {
       v: 2
     }
@@ -91,7 +163,7 @@ materials {
     }
   }
   attributes {
-    name: "short"
+    name: "unsigned_int"
     long_values {
       v: 2
     }
@@ -102,22 +174,5 @@ materials {
       v: 2
     }
   }
-  attributes {
-    name: "int"
-    long_values {
-      v: 2
-    }
-  }
-  attributes {
-    name: "unsigned_int"
-    long_values {
-      v: 2
-    }
-  }
-  attributes {
-    name: "float"
-    double_values {
-      v: 2.0
-    }
-  }
 }
+create_go_bones: false

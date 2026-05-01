@@ -152,6 +152,7 @@
  * @document
  * @name String
  * @namespace string
+ * @language Lua
  */
 
 /*# converts a character into its ASCII (decimal) equivalent
@@ -164,9 +165,9 @@
  * 
  * 
  * @name string.byte
- * @param s
- * @param [i]
- * @param [j]
+ * @param s [type:string]
+ * @param [i] [type:number]
+ * @param [j] [type:number]
  */
 
 /*# converts ASCII codes into their equivalent characters
@@ -191,7 +192,7 @@
  * 
  * 
  * @name string.dump
- * @param function
+ * @param function [type:function]
  */
 
 /*# searches a string for a pattern
@@ -216,10 +217,10 @@
  * 
  * 
  * @name string.find
- * @param s
- * @param pattern
- * @param [init]
- * @param [plain]
+ * @param s [type:string]
+ * @param pattern [type:string]
+ * @param [init] [type:number]
+ * @param [plain] [type:boolean]
  */
 
 /*# formats a string
@@ -264,7 +265,7 @@
  * 
  * 
  * @name string.format
- * @param formatstring
+ * @param formatstring [type:string]
  * @param ...
  */
 
@@ -305,8 +306,8 @@
  * 
  * 
  * @name string.gmatch
- * @param s
- * @param pattern
+ * @param s [type:string]
+ * @param pattern [type:string]
  */
 
 /*# substitute strings inside another string
@@ -373,10 +374,10 @@
  * 
  * 
  * @name string.gsub
- * @param s
- * @param pattern
- * @param repl
- * @param [n]
+ * @param s [type:string]
+ * @param pattern [type:string]
+ * @param repl [type:string]
+ * @param [n] [type:number]
  */
 
 /*# return the length of a string
@@ -387,7 +388,7 @@
  * 
  * 
  * @name string.len
- * @param s
+ * @param s [type:string]
  */
 
 /*# converts a string to lower-case
@@ -398,7 +399,7 @@
  * 
  * 
  * @name string.lower
- * @param s
+ * @param s [type:string]
  */
 
 /*# searches a string for a pattern
@@ -415,9 +416,9 @@
  * 
  * 
  * @name string.match
- * @param s
- * @param pattern
- * @param [init]
+ * @param s [type:string]
+ * @param pattern [type:string]
+ * @param [init] [type:number]
  */
 
 /*# returns repeated copies of a string
@@ -426,8 +427,8 @@
  * 
  * 
  * @name string.rep
- * @param s
- * @param n
+ * @param s [type:string]
+ * @param n [type:number]
  */
 
 /*# reverses the order of characters in a string
@@ -435,7 +436,7 @@
  * 
  * 
  * @name string.reverse
- * @param s
+ * @param s [type:string]
  */
 
 /*# returns a substring of a string
@@ -452,9 +453,9 @@
  * 
  * 
  * @name string.sub
- * @param s
- * @param i
- * @param [j]
+ * @param s [type:string]
+ * @param i [type:number]
+ * @param [j] [type:number]
  */
 
 /*# converts a string to upper-case
@@ -464,6 +465,6 @@
  * The definition of what a lowercase letter is depends on the current locale.
  * 
  * @name string.upper
- * @param s
+ * @param s [type:string]
  */
 

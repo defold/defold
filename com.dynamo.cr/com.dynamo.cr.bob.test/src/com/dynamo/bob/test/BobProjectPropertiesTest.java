@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -94,10 +94,10 @@ public class BobProjectPropertiesTest {
     public void testExtensionMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_property = just content");
         createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
-        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_EXTENSION_FILE, "[project]\ncustom_property.private = 1");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_property.private = 1");
 
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.loadProjectFile();
+        project.loadProjectFile(true);
         BobProjectProperties properties = project.getProjectProperties();
 
         assertEquals(true, properties.isPrivate("project", "custom_property"));
@@ -107,11 +107,11 @@ public class BobProjectPropertiesTest {
     public void testOverrideExtensionMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_property = just content");
         createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
-        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_EXTENSION_FILE, "[project]\ncustom_property.private = 1");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_property.private = 1");
         createFile(contentRoot, BobProjectProperties.PROPERTIES_PROJECT_FILE, "[project]\ncustom_property.private = 0");
 
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.loadProjectFile();
+        project.loadProjectFile(true);
         BobProjectProperties properties = project.getProjectProperties();
 
         assertEquals(false, properties.isPrivate("project", "custom_property"));

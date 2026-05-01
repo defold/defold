@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,7 +15,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <script/script.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -40,7 +40,8 @@ extern "C"
 class ScriptCrashTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+
+    void SetUp() override
     {
         dmCrash::Init("DefoldScriptTest", "0123456789abcdef");
 
@@ -55,31 +56,39 @@ protected:
         script_context_params.m_ConfigFile = m_ConfigFile;
         m_Context = dmScript::NewContext(script_context_params);
 
-        dmExtension::AppParams app_params;
-        app_params.m_ConfigFile = m_ConfigFile;
-        dmExtension::AppInitialize(&app_params);
+        ExtensionAppParamsInitialize(&m_AppParams);
+        m_AppParams.m_ConfigFile = m_ConfigFile;
+        dmExtension::AppInitialize(&m_AppParams);
 
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
 
+        ExtensionParamsInitialize(&m_Params);
+        m_Params.m_L = L;
+
+        dmExtension::Initialize(&m_Params);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmConfigFile::Delete(m_ConfigFile);
         dmResource::DeleteFactory(m_ResourceFactory);
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
 
-        dmExtension::AppParams app_params;
-        app_params.m_ConfigFile = m_ConfigFile;
-        dmExtension::AppFinalize(&app_params);
+        dmExtension::Finalize(&m_Params);
+        dmExtension::AppFinalize(&m_AppParams);
+
+        ExtensionParamsFinalize(&m_Params);
+        ExtensionAppParamsFinalize(&m_AppParams);
     }
 
     dmScript::HContext m_Context;
     dmConfigFile::HConfig m_ConfigFile;
     dmResource::HFactory m_ResourceFactory;
     lua_State* L;
+    ExtensionAppParams  m_AppParams;
+    ExtensionParams     m_Params;
 };
 
 bool RunFile(lua_State* L, const char* filename)

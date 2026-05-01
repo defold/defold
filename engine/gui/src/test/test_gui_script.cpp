@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@
 #include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/dlib/vmath.h>
+#include <platform/window.hpp>
 
 #include <ddf/ddf.h>
 #include <script/lua_source_ddf.h>
@@ -59,19 +60,20 @@ class dmGuiScriptTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
-    dmPlatform::HWindow m_Window;
+    HWindow m_Window;
     dmHID::HContext m_HidContext;
     dmGui::HContext m_Context;
     dmGui::RenderSceneParams m_RenderParams;
 
     DynamicTextureContainer m_DynamicTextures;
 
-    virtual void SetUp()
+    void SetUp() override
     {
-        dmPlatform::WindowParams window_params = {};
+        WindowCreateParams window_params;
+        WindowCreateParamsInitialize(&window_params);
         window_params.m_Width                  = 2;
         window_params.m_Height                 = 2;
-        window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+        window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_NULL;
 
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, window_params);
@@ -95,7 +97,7 @@ public:
         m_RenderParams.m_RenderNodes = RenderNodesStoreTransform;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmScript::Finalize(m_ScriptContext);
@@ -290,6 +292,44 @@ TEST_F(dmGuiScriptTest, TestParenting)
             "    assert(gui.get_parent(child) == parent)\n"
             "    gui.set_parent(child, nil)\n"
             "    assert(gui.get_parent(child) == nil)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestGetType)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local node = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    local type, subtype = gui.get_type(node)\n"
+            "    assert(type == gui.TYPE_BOX)\n"
+            "    assert(subtype == nil)\n"
+            "    local node = gui.new_text_node(vmath.vector3(1, 1, 1), \"TEST\")\n"
+            "    local type, subtype = gui.get_type(node)\n"
+            "    assert(type == gui.TYPE_TEXT)\n"
+            "    assert(subtype == nil)\n"
+            "    local node = gui.new_pie_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    local type, subtype = gui.get_type(node)\n"
+            "    assert(type == gui.TYPE_PIE)\n"
+            "    assert(subtype == nil)\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
@@ -926,7 +966,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
             "    local scale = gui.get_scale(n1)\n"
             "    elapsed = elapsed + dt\n"
             "    if 0.5 <= elapsed and animating then\n"
-            "        gui.cancel_animation(n1, gui.PROP_SCALE)\n"
+            "        gui.cancel_animations(n1, gui.PROP_SCALE)\n"
             "        animating = false\n"
             "    end\n"
             "end\n";
@@ -994,7 +1034,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
             "    local scale = gui.get_scale(n1)\n"
             "    elapsed = elapsed + dt\n"
             "    if 0.5 <= elapsed and animating then\n"
-            "        gui.cancel_animation(n1, \"scale.y\")\n"
+            "        gui.cancel_animations(n1, \"scale.y\")\n"
             "        animating = false\n"
             "    end\n"
             "end\n";
@@ -1028,6 +1068,86 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
             ::dmSnPrintf(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
             EXPECT_STREQ(animatedScale, currentScale);
         }
+        ++ticks;
+    }
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestCancelAnimationAll)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+   	dmGui::SetSceneResolution(scene, 1, 1);
+    dmGui::SetSceneScript(scene, script);
+
+    // Animate position and scale
+
+    // Update for .5 seconds
+    const int num_steps = 8;
+    const int num_steps_half = num_steps/2;
+    const float step_dt = 1.0f / num_steps;
+
+    char script_buffer[1024];
+    dmSnPrintf(script_buffer, sizeof(script_buffer),
+            "local n1\n"
+            "local elapsed = 0\n"
+            "local animating = true\n"
+            "local max_frame_count = %d\n"
+            "local trigger_frame = %d\n"
+            "function init(self)\n"
+            "    n1 = gui.new_box_node(vmath.vector3(0), vmath.vector3(1))\n"
+            "    gui.set_pivot(n1, gui.PIVOT_SW)\n"
+            "    gui.animate(n1, gui.PROP_POSITION, vmath.vector3(100, 100, 0), gui.EASING_LINEAR, 1)\n"
+            "    gui.animate(n1, gui.PROP_SCALE, vmath.vector3(2), gui.EASING_LINEAR, 1)\n"
+            "    self.frame = 0\n"
+            "end\n"
+            "function update(self, dt)\n"
+            "    self.frame = self.frame + 1\n"
+            "    if self.frame == trigger_frame and animating then\n"
+            "        print('cancel animations on frame', self.frame)\n"
+            "        gui.cancel_animations(n1)\n"
+            "        animating = false\n"
+            "    end\n"
+            "end\n", num_steps, num_steps_half);
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(script_buffer));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    int ticks = 0;
+    dmVMath::Matrix4 t1;
+    while (ticks < num_steps_half) {
+        dmGui::RenderScene(scene, m_RenderParams, &t1);
+        dmGui::UpdateScene(scene, step_dt);
+        ++ticks;
+    }
+
+    // after half the steps, we should have cancelled the animations
+    // so store the current positions, to compare with later...
+    dmVMath::Vector3 translation = t1.getTranslation();
+    dmVMath::Vector3 postScaleDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+
+    const float epsilon = 10e-10f;
+    while (ticks < num_steps) {
+        dmGui::RenderScene(scene, m_RenderParams, &t1);
+        dmGui::UpdateScene(scene, step_dt);
+
+        dmVMath::Vector3 currentTranslation = t1.getTranslation();
+        dmVMath::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+
+        // Make sure that the values don't change after the animations were cancelled
+        ASSERT_LE(Vectormath::Aos::lengthSqr(currentTranslation - translation), epsilon);
+        ASSERT_LE(Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal), epsilon);
+
         ++ticks;
     }
 
@@ -1266,7 +1386,7 @@ TEST_F(dmGuiScriptTest, TestGuiAnimateEuler)
     dmGui::DeleteScript(script);
 }
 
-static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
 {
     dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
     return (dmGui::HTextureSource) self->m_DynamicTextures.New(path_hash, width, height, type, buffer);
@@ -1278,7 +1398,7 @@ static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui:
     self->m_DynamicTextures.Delete(path_hash);
 }
 
-static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
 {
     dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
     self->m_DynamicTextures.Set(path_hash, width, height, type, buffer);
@@ -1370,18 +1490,18 @@ TEST_F(dmGuiScriptTest, TestKeyboardFunctions)
     result = dmGui::InitScene(scene);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
-    ASSERT_TRUE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD));
+    ASSERT_TRUE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_EMAIL));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD));
 
     result = dmGui::UpdateScene(scene, 1.0f / 60);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_EMAIL));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD));
 
     dmGui::DeleteScene(scene);
 

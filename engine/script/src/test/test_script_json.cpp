@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -63,6 +63,28 @@ TEST_F(ScriptJsonTest, TestJsonToLua)
         int ret = dmScript::JsonToLua(L, json, json_length);
         ASSERT_EQ(1, ret);
         lua_pop(L, 1);
+        free((void*)json);
+    }
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptJsonTest, TestJsonToLua_Issue10304)
+{
+    int top = lua_gettop(L);
+
+    {
+        const char* json_original = "xxxx";
+        size_t json_length = 4;
+        // Make it fully dynamic so that ASAN can catch it
+        const char* json = (const char*)malloc(json_length);
+        memcpy((void*)json, (void*)json_original, json_length);
+
+        int ret = dmScript::JsonToLua(L, json, json_length);
+        ASSERT_EQ(0, ret);
+        int newtop = lua_gettop(L);
+        ASSERT_EQ(0, newtop - top);
+        free((void*)json);
     }
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -102,6 +124,7 @@ TEST_F(ScriptJsonTest, TestLuaToJson)
         ASSERT_TRUE(strstr(json, "\"c\":{\"d\":7}") != 0);
 
         lua_pop(L, 1);
+        free((void*)json);
     }
 
     ASSERT_EQ(top, lua_gettop(L));

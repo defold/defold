@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,19 +22,19 @@
 extern "C" {
 #endif
 
-/*# SDK ConfigFile API documentation
+/*# ConfigFile API documentation
  *
  * Configuration file access functions.
  * The configuration file is compiled version of the [file:game.project] file.
  *
  * @document
  * @name ConfigFile
- * @path engine/dlib/src/dmsdk/dlib/configfile.h
+ * @language C
  */
 
 /*# HConfigFile type definition
  *
- * Each game session has a single config file that holds all parameters from game.projec,t and any overridden values.
+ * Each game session has a single config file that holds all parameters from game.project and any overridden values.
  * @note Properties can be overridden on command line or via the config file extension system. (See [ref:DM_DECLARE_CONFIGFILE_EXTENSION])
  *
  * @typedef
@@ -178,7 +178,7 @@ typedef bool (*FConfigFileGetFloat)(HConfigFile config, const char* key, float d
 
 /*# Used when registering new config file extensions.
  * It defines the minimum size of the description blob being registered.
- * @variable
+ * @constant
  * @name ConfigFileExtensionDescBufferSize
  */
 const uint32_t ConfigFileExtensionDescBufferSize = 64;

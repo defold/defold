@@ -1,0 +1,266 @@
+name: Build external package
+
+permissions:
+  contents: write
+
+on:
+  workflow_call:
+    inputs:
+      package_name:
+        type: string
+        description: 'External package name'
+        required: true
+      result_folder_name:
+        type: string
+        description: 'Folder name where build result is located'
+        required: true
+      result_lib_name:
+        type: string
+        required: true
+      package_version:
+        type: string
+        description: 'Package version'
+        required: true
+      package_root:
+        type: string
+        default: ''
+        description: 'Path to the package source directory'
+        required: false
+      artifact_dir:
+        type: string
+        default: ''
+        description: 'Path to generated package tarballs'
+        required: false
+      platforms:
+        type: string
+        default: >
+          [
+            { "name": "x86_64-linux", "runner": "ubuntu-22.04", "target": "linux" },
+            { "name": "arm64-linux", "runner": "ubuntu-22.04-arm", "target": "linux" },
+            { "name": "arm64-macos", "runner": "macOS-14", "target": "macos" },
+            { "name": "x86_64-macos", "runner": "macOS-14", "target": "macos" },
+            { "name": "arm64-ios", "runner": "macOS-14", "target": "macos" },
+            { "name": "x86_64-ios", "runner": "macOS-14", "target": "macos" },
+            { "name": "wasm-web", "runner": "ubuntu-22.04", "target": "web" },
+            { "name": "wasm_pthread-web", "runner": "ubuntu-22.04", "target": "web" },
+            { "name": "win32", "runner": "windows-2025", "target": "windows" },
+            { "name": "x86_64-win32", "runner": "windows-2025", "target": "windows" },
+            { "name": "arm64-android", "runner": "ubuntu-22.04", "target": "android" },
+            { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" }
+          ]
+        description: 'JSON array of platforms to build'
+        required: false
+      android_abi_version:
+        type: number
+        default: 21
+        description: 'Minimum android ABI version'
+        required: false
+      push_changes:
+        type: boolean
+        default: false
+        description: 'Commit built package tarballs into ./packages on the target branch'
+        required: false
+      setup_msvc:
+        type: boolean
+        default: false
+        description: 'Set up an MSVC developer command prompt for Windows builds'
+        required: false
+      pre_build_command:
+        type: string
+        default: ''
+        description: 'Optional bash command to run before building'
+        required: false
+      build_command:
+        type: string
+        default: ''
+        description: 'Optional bash command to build non-Windows platforms'
+        required: false
+      windows_build_command:
+        type: string
+        default: ''
+        description: 'Optional cmd.exe command to build Windows platforms'
+        required: false
+    secrets:
+      dm_packages_url:
+        required: true
+
+env:
+  DM_PACKAGES_URL: ${{ secrets.dm_packages_url }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        platforms: ${{ fromJSON(inputs.platforms) }}
+      fail-fast: false
+    runs-on: ${{ matrix.platforms.runner }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
+
+      - name: Setup MSVC
+        if: "${{ matrix.platforms.target == 'windows' && inputs.setup_msvc }}"
+        uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
+        with:
+          arch: ${{ matrix.platforms.name == 'win32' && 'x86' || 'x64' }}
+
+      - name: Setup NDK (r25b)
+        if: "${{ matrix.platforms.target == 'android' }}"
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
+        id: setup-ndk
+        with:
+          ndk-version: r25b
+          add-to-path: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: 3.13
+
+      - name: Setup emsdk
+        if: "${{ matrix.platforms.target == 'web' }}"
+        uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
+        with:
+          version: "4.0.6"
+
+      - name: Install dependencies
+        shell: bash
+        run: ci/ci.sh install --platform=${{ matrix.platforms.name }}
+
+      - name: Install externals
+        shell: bash
+        run: ci/ci.sh install_ext
+
+      - name: Build ${{ inputs.package_name }}
+        if: "${{ matrix.platforms.target != 'windows' || inputs.windows_build_command == '' }}"
+        shell: bash
+        env:
+          PACKAGE_ROOT: ${{ inputs.package_root != '' && inputs.package_root || format('external/{0}', inputs.package_name) }}
+          ARTIFACT_DIR: ${{ inputs.artifact_dir != '' && inputs.artifact_dir || format('{0}/build', inputs.package_root != '' && inputs.package_root || format('external/{0}', inputs.package_name)) }}
+          BUILD_PLATFORM_NAME: ${{ matrix.platforms.name }}
+          BUILD_PLATFORM_TARGET: ${{ matrix.platforms.target }}
+          PRE_BUILD_COMMAND: ${{ inputs.pre_build_command }}
+          BUILD_COMMAND: ${{ inputs.build_command }}
+        run: |
+          set -euo pipefail
+          PACKAGE_ROOT="$GITHUB_WORKSPACE/$PACKAGE_ROOT"
+          ARTIFACT_DIR="$GITHUB_WORKSPACE/$ARTIFACT_DIR"
+
+          ./scripts/build.py --save-env-path=ci/env.sh save_env
+
+          if [ "$BUILD_PLATFORM_TARGET" == "windows" ]; then
+            ORIG_PATH="$PATH"
+            source ci/env.sh
+            export PATH="$ORIG_PATH:$DYNAMO_HOME/ext/bin"
+          else
+            source ci/env.sh
+          fi
+
+          echo "DYNAMO_HOME=$DYNAMO_HOME"
+          if [ "$BUILD_PLATFORM_TARGET" == "web" ]; then
+            source "$EMSDK/emsdk_env.sh"
+            export CC=emcc
+            export CXX=em++
+          fi
+
+          if [ "$BUILD_PLATFORM_TARGET" == "android" ]; then
+            export ANDROID_NDK_HOME="${{ steps.setup-ndk.outputs.ndk-path }}"
+            export ANDROID_NDK_ROOT="${{ steps.setup-ndk.outputs.ndk-path }}"
+            export ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
+            export ANDROID_HOME="$ANDROID_SDK_ROOT"
+            export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+
+            if [[ "$BUILD_PLATFORM_NAME" == "arm64-android" ]]; then
+              export CC="aarch64-linux-android${{ inputs.android_abi_version }}-clang"
+              export CXX="aarch64-linux-android${{ inputs.android_abi_version }}-clang++"
+            else
+              export CC="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang"
+              export CXX="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang++"
+            fi
+
+            echo "=== Using NDK at: $ANDROID_NDK_ROOT ==="
+            $CC --version
+          fi
+
+          if [ -n "$PRE_BUILD_COMMAND" ]; then
+            eval "$PRE_BUILD_COMMAND"
+          fi
+
+          if [ -n "$BUILD_COMMAND" ]; then
+            eval "$BUILD_COMMAND"
+          else
+            ./scripts/build.py install_waf
+            cd "$PACKAGE_ROOT"
+
+            waf distclean || true
+            PREFIX="$DYNAMO_HOME" waf configure --platform="$BUILD_PLATFORM_NAME"
+            waf install
+          fi
+
+          echo "Final package includes:"
+          tar -tzf "$ARTIFACT_DIR/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-$BUILD_PLATFORM_NAME.tar.gz" | grep -E '${{ inputs.result_lib_name }}\\.(a|lib)' || true
+
+      - name: Build ${{ inputs.package_name }} (Windows)
+        if: "${{ matrix.platforms.target == 'windows' && inputs.windows_build_command != '' }}"
+        shell: cmd
+        env:
+          BUILD_PLATFORM_NAME: ${{ matrix.platforms.name }}
+        run: ${{ inputs.windows_build_command }}
+
+      - name: Archive results (common)
+        # archive common package once
+        if: "${{ matrix.platforms.name == 'x86_64-linux' }}"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.package_name }}-${{ inputs.package_version }}-common.tar.gz
+          path: ${{ inputs.artifact_dir != '' && inputs.artifact_dir || format('{0}/build', inputs.package_root != '' && inputs.package_root || format('external/{0}', inputs.package_name)) }}/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-common.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Archive results (platform-specific)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.package_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
+          path: ${{ inputs.artifact_dir != '' && inputs.artifact_dir || format('{0}/build', inputs.package_root != '' && inputs.package_root || format('external/{0}', inputs.package_name)) }}/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  push-packages:
+    if: ${{ inputs.push_changes }}
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
+          fetch-depth: 0
+
+      - name: Download artifacts to packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: ${{ inputs.package_name }}-${{ inputs.package_version }}*.tar.gz
+          path: packages
+          merge-multiple: true
+
+      - name: Setup git user
+        run: |
+          git config user.email "services@defold.se"
+          git config user.name "Defold Services"
+
+      - name: Commit package updates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add "packages/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-"*.tar.gz
+
+          if git diff --cached --quiet; then
+            echo "No package changes to commit"
+            exit 0
+          fi
+
+          git commit -m "packages: update ${{ inputs.result_folder_name }} ${{ inputs.package_version }}"
+          git push origin "HEAD:${{ env.BUILD_BRANCH || github.ref_name }}"

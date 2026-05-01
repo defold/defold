@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,12 +17,16 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.id :as id]
+            [editor.localization :as localization]
             [editor.resource :as resource]
-            [editor.util :as util]
             [internal.cache :as c]
+            [internal.graph.types :as gt]
             [schema.core :as s]
-            [service.log :as log])
-  (:import [internal.graph.types Arc]))
+            [service.log :as log]
+            [util.coll :as coll])
+  (:import [com.defold.editor.localization MessagePattern]
+           [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
@@ -61,11 +65,16 @@
       (some (partial match-reqs root-nodes)))
     nil))
 
+(defn- valid-link? [value]
+  (resource/resource? value))
+
 (g/deftype OutlineData {:node-id                              s/Int
                         :node-outline-key                     (s/maybe s/Str)
-                        :label                                s/Str
+                        :label                                (s/conditional
+                                                                string? s/Str
+                                                                localization/message-pattern? MessagePattern)
                         :icon                                 s/Str
-                        (s/optional-key :link)                (s/maybe (s/pred resource/openable-resource?))
+                        (s/optional-key :link)                (s/maybe (s/pred valid-link?))
                         (s/optional-key :children)            [s/Any]
                         (s/optional-key :child-reqs)          [s/Any]
                         (s/optional-key :outline-error?)      s/Bool
@@ -102,13 +111,12 @@
                                          (when-some [tx-attach-fn (:tx-attach-fn req)]
                                            (let [target-id (g/override-root (:node-id item))
                                                  tx-data (tx-attach-fn target-id child-id)]
-                                             (keep (fn [tx-step]
-                                                     (when (= :connect (:type tx-step))
-                                                       (let [src-serial-id (node-id->serial-id (:source-id tx-step))
-                                                             tgt-serial-id (node-id->serial-id (:target-id tx-step))]
-                                                         (when (and src-serial-id tgt-serial-id)
-                                                           [src-serial-id (:source-label tx-step) tgt-serial-id (:target-label tx-step)]))))
-                                                   (flatten tx-data)))))))
+                                             (keep (fn [arc]
+                                                     (let [src-serial-id (node-id->serial-id (gt/source-id arc))
+                                                           tgt-serial-id (node-id->serial-id (gt/target-id arc))]
+                                                       (when (and src-serial-id tgt-serial-id)
+                                                         [src-serial-id (gt/source-label arc) tgt-serial-id (gt/target-label arc)])))
+                                                   (g/tx-data-added-arcs tx-data)))))))
                              original-attachments)
 
         attachments (into []
@@ -142,6 +150,8 @@
                                         :external-refs {project :project}
                                         :external-labels {project #{:collision-group-nodes
                                                                     :collision-groups-data
+                                                                    :display-height
+                                                                    :display-width
                                                                     :default-tex-params
                                                                     :settings}}})
                       (add-attachments root-ids))]
@@ -183,7 +193,7 @@
          root-ids (mapv #(:node-id (value %)) src-item-iterators)]
      (g/transact
        (concat
-         (g/operation-label "Cut")
+         (g/operation-label (localization/message "operation.cut"))
          (for [id root-ids]
            (g/delete-node (g/override-root id)))
          extra-tx-data))
@@ -198,11 +208,9 @@
 
 (defn- nodes-by-id
   [paste-data]
-  (into {}
-        (comp (filter #(= (:type %) :create-node))
-              (map :node)
-              (map (juxt :_node-id identity)))
-        (:tx-data paste-data)))
+  (->> (:tx-data paste-data)
+       (g/tx-data-added-nodes)
+       (coll/pair-map-by g/node-id)))
 
 (defn- root-nodes [paste-data]
   (let [id->node (nodes-by-id paste-data)]
@@ -262,7 +270,7 @@
         paste-data (paste project fragment)
         root-nodes (root-nodes paste-data)]
     (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
-      (do-paste! "Paste" (gensym) paste-data (:attachments fragment) item reqs select-fn))))
+      (do-paste! (localization/message "operation.paste") (gensym) paste-data (:attachments fragment) item reqs select-fn))))
 
 (defn paste? [project item-iterator data]
   (try
@@ -304,23 +312,11 @@
         (let [op-seq (gensym)]
           (g/transact
             (concat
-              (g/operation-label "Drop")
+              (g/operation-label (localization/message "operation.drop"))
               (g/operation-sequence op-seq)
               (for [it src-item-iterators]
                 (g/delete-node (g/override-root (:node-id (value it)))))))
-          (do-paste! "Drop" op-seq paste-data (:attachments fragment) item reqs select-fn))))))
-
-(defn- ids->lookup [ids]
-  (if (or (set? ids) (map? ids))
-    ids
-    (set ids)))
-
-(defn- lookup-insert [lookup id]
-  (cond (set? lookup) (conj lookup id)
-        (map? lookup) (assoc lookup id id)
-        :else (throw (ex-info (str "Unsupported lookup " (type lookup))
-                              {:id id
-                               :lookup lookup}))))
+          (do-paste! (localization/message "operation.drop") op-seq paste-data (:attachments fragment) item reqs select-fn))))))
 
 (defn- trim-digits
   ^String [^String id]
@@ -331,27 +327,9 @@
         (recur (unchecked-dec index))
         (subs id 0 index)))))
 
-(defn resolve-id [id ids]
-  (let [ids (ids->lookup ids)]
-    (if (ids id)
-      (let [prefix (trim-digits id)]
-        (loop [suffix ""
-               index 1]
-          (let [id (str prefix suffix)]
-            (if (contains? ids id)
-              (recur (str index) (inc index))
-              id))))
-      id)))
-
-(defn resolve-ids [wanted-ids taken-ids]
-  (first (reduce (fn [[resolved-ids taken-ids] wanted-id]
-                   (let [id (resolve-id wanted-id taken-ids)]
-                     [(conj resolved-ids id) (lookup-insert taken-ids id)]))
-                 [[] (ids->lookup taken-ids)]
-                 wanted-ids)))
-
-(defn natural-sort [items]
-  (->> items (sort-by :label util/natural-order) vec))
+(defn name-resource-pairs [taken-ids resources]
+  (let [names (id/resolve-all (map resource/base-name resources) taken-ids)]
+    (map vector names resources)))
 
 (defn gen-node-outline-keys [prefixes]
   (loop [prefixes prefixes
@@ -365,10 +343,14 @@
                (conj node-outline-keys (str prefix count))))
       node-outline-keys)))
 
-(defn taken-node-outline-keys [parent-outline-node]
-  (into #{}
-        (keep :node-outline-key)
-        (:children (g/node-value parent-outline-node :node-outline))))
+(defn taken-node-outline-keys
+  ([parent-outline-node]
+   (g/with-auto-evaluation-context evaluation-context
+     (taken-node-outline-keys parent-outline-node evaluation-context)))
+  ([parent-outline-node evaluation-context]
+   (into #{}
+         (keep :node-outline-key)
+         (:children (g/node-value parent-outline-node :node-outline evaluation-context)))))
 
 (defn next-node-outline-key [template-node-outline-key taken-node-outline-keys]
   ;; Contrary to resolve-id, we want to return the next id following the highest

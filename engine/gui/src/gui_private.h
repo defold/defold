@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -87,9 +87,21 @@ namespace dmGui
         GetTextMetricsCallback          m_GetTextMetricsCallback;
         uint32_t                        m_PhysicalWidth;
         uint32_t                        m_PhysicalHeight;
+        uint32_t                        m_AdjustWidth;
+        uint32_t                        m_AdjustHeight;
         uint32_t                        m_DefaultProjectWidth;
         uint32_t                        m_DefaultProjectHeight;
         uint32_t                        m_Dpi;
+        float                           m_AdjustOffsetX;
+        float                           m_AdjustOffsetY;
+        bool                            m_UseSafeAreaAdjust;
+        SafeAreaMode                    m_SafeAreaMode;
+        uint32_t                        m_WindowWidth;
+        uint32_t                        m_WindowHeight;
+        int32_t                         m_WindowInsetLeft;
+        int32_t                         m_WindowInsetTop;
+        int32_t                         m_WindowInsetRight;
+        int32_t                         m_WindowInsetBottom;
         dmArray<HScene>                 m_Scenes;
         dmArray<RenderEntry>            m_RenderNodes;
         dmArray<dmVMath::Matrix4>       m_RenderTransforms;
@@ -105,72 +117,66 @@ namespace dmGui
 
     struct Node
     {
-        dmVMath::Vector4    m_Properties[PROPERTY_COUNT];
-        dmVMath::Vector4    m_ResetPointProperties[PROPERTY_COUNT];
-        dmVMath::Matrix4    m_LocalTransform;
-        dmVMath::Vector4    m_LocalAdjustScale;
-        uint32_t            m_ResetPointState;
+        dmVMath::Matrix4        m_LocalTransform;
+        dmVMath::Vector4        m_Properties[PROPERTY_COUNT];
+        dmVMath::Vector4        m_LocalAdjustScale;
 
-        uint32_t    m_HasResetPoint         : 1; // If true, we have stored a copy of the m_State, into m_ResetPointState
-        uint32_t    m_PerimeterVertices     :31;
-        PieBounds   m_OuterBounds;
+        uint64_t                m_TextureHash;
+        uint64_t                m_FlipbookAnimHash;
+        uint64_t                m_FontHash;
+        uint64_t                m_ParticlefxHash;
+        dmhash_t                m_LayerHash;
+        dmhash_t                m_MaterialNameHash;
+
+        HTextureSource          m_Texture;
+        void*                   m_Font;
+        void*                   m_Material;
+        void*                   m_RenderConstants;
+        void*                   m_CustomData;
+        void*                   m_ParticlefxPrototype;
+        dmParticle::HInstance   m_ParticleInstance;
+        dmVMath::Vector4*       m_ResetPointProperties;
+        uint32_t                m_ResetPointState;
+        uint32_t                m_RenderConstantsHash;
+        uint32_t                m_CustomType; // Only valid if m_NodeType == NODE_TYPE_CUSTOM
+
+        uint32_t                m_PerimeterVertices : 31;
+        uint32_t                m_HasResetPoint : 1;
 
         union
         {
             struct
             {
-                uint32_t    m_BlendMode : 4;
-                uint32_t    m_NodeType : 4;
-                uint32_t    m_XAnchor : 2;
-                uint32_t    m_YAnchor : 2;
-                uint32_t    m_Pivot : 4;
-                uint32_t    m_AdjustMode : 2;
-                uint32_t    m_SizeMode : 1;
-                uint32_t    m_LineBreak : 1;
-                uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
-                uint32_t    m_IsVisible : 1;
-                uint32_t    m_DirtyLocal : 1;
-                uint32_t    m_InheritAlpha : 1;
-                uint32_t    m_ClippingMode : 2;
-                uint32_t    m_ClippingVisible : 1;
-                uint32_t    m_ClippingInverted : 1;
-                uint32_t    m_IsBone : 1;
-                uint32_t    m_HasHeadlessPfx : 1;
-                uint32_t    m_Reserved : 2;
+                uint32_t        m_BlendMode : 4;
+                uint32_t        m_NodeType : 4;
+                uint32_t        m_XAnchor : 2;
+                uint32_t        m_YAnchor : 2;
+                uint32_t        m_Pivot : 4;
+                uint32_t        m_AdjustMode : 2;
+                uint32_t        m_SizeMode : 1;
+                uint32_t        m_LineBreak : 1;
+                uint32_t        m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
+                uint32_t        m_IsVisible : 1;
+                uint32_t        m_DirtyLocal : 1;
+                uint32_t        m_InheritAlpha : 1;
+                uint32_t        m_ClippingMode : 2;
+                uint32_t        m_ClippingVisible : 1;
+                uint32_t        m_ClippingInverted : 1;
+                uint32_t        m_IsBone : 1;
+                uint32_t        m_HasHeadlessPfx : 1;
+                uint32_t        m_Reserved : 2;
             };
-
             uint32_t m_State;
         };
 
-        uint32_t    m_CustomType; // Valid if m_State.m_NodeType == NODE_TYPE_CUSTOM
-
-        const char* m_Text;
-
-        uint64_t        m_TextureHash;
-        HTextureSource  m_Texture;
-        NodeTextureType m_TextureType;
-
-        TextureSetAnimDesc m_TextureSetAnimDesc;
-        uint64_t    m_FlipbookAnimHash;
-        float       m_FlipbookAnimPosition;
-
-        uint64_t    m_FontHash;
-        void*       m_Font;
-        dmhash_t    m_LayerHash;
-        uint16_t    m_LayerIndex;
-
-        void**      m_NodeDescTable;
-
-        void*       m_CustomData;
-
-        dmhash_t    m_MaterialNameHash;
-        void*       m_Material;
-        void*       m_RenderConstants;
-        uint32_t    m_RenderConstantsHash;
-
-        uint64_t                m_ParticlefxHash;
-        void*                   m_ParticlefxPrototype;
-        dmParticle::HInstance   m_ParticleInstance;
+        const char*             m_Text;
+        TextLayout              m_TextLayout;
+        void**                  m_NodeDescTable;
+        TextureSetAnimDesc      m_TextureSetAnimDesc;
+        float                   m_FlipbookAnimPosition;
+        uint16_t                m_LayerIndex;
+        PieBounds               m_OuterBounds;
+        NodeTextureType         m_TextureType;
     };
 
     struct InternalNode
@@ -259,6 +265,7 @@ namespace dmGui
         int                                   m_InstanceReference;
         int                                   m_DataReference;
         int                                   m_ContextTableReference;
+        uint32_t                              m_UniqueScriptId;
         Context*                              m_Context;
         Script*                               m_Script;
         dmIndexPool16                         m_NodePool;
@@ -287,6 +294,13 @@ namespace dmGui
         uint16_t                              m_ResChanged : 1;
         uint32_t                              m_Width;
         uint32_t                              m_Height;
+        uint32_t                              m_AdjustWidth;
+        uint32_t                              m_AdjustHeight;
+        float                                 m_AdjustOffsetX;
+        float                                 m_AdjustOffsetY;
+        SafeAreaMode                          m_SafeAreaMode;
+        bool                                  m_SafeAreaModeOverride;
+        bool                                  m_UseSafeAreaAdjust;
         dmScript::ScriptWorld*                m_ScriptWorld;
         CreateCustomNodeCallback              m_CreateCustomNodeCallback;
         DestroyCustomNodeCallback             m_DestroyCustomNodeCallback;
@@ -297,14 +311,17 @@ namespace dmGui
         void*                                 m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback           m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback                m_OnWindowResizeCallback;
+        ApplyLayoutCallback                   m_ApplyLayoutCallback;
         GetMaterialPropertyCallback           m_GetMaterialPropertyCallback;
         void*                                 m_GetMaterialPropertyCallbackContext;
         SetMaterialPropertyCallback           m_SetMaterialPropertyCallback;
         void*                                 m_SetMaterialPropertyCallbackContext;
         DestroyRenderConstantsCallback        m_DestroyRenderConstantsCallback;
+        CloneRenderConstantsCallback          m_CloneRenderConstantsCallback;
         NewTextureResourceCallback            m_NewTextureResourceCallback;
         DeleteTextureResourceCallback         m_DeleteTextureResourceCallback;
         SetTextureResourceCallback            m_SetTextureResourceCallback;
+        GetDisplayProfileDescCallback         m_GetDisplayProfileDescCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,7 +17,8 @@
             [clojure.string :as string]
             [editor.code.syntax :as syntax]
             [editor.code.util :as util]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
            [java.util Collections]
@@ -30,15 +31,18 @@
 (def ^:private clipboard-mime-type-plain-text "text/plain")
 (def ^:private clipboard-mime-type-multi-selection "application/x-string-vector")
 
-(defprotocol Clipboard
+(defonce/protocol Clipboard
   (has-content? [this mime-type])
   (get-content [this mime-type])
   (set-content! [this representation-by-mime-type]))
 
-(defprotocol GlyphMetrics
+(defonce/protocol GlyphMetrics
   (ascent [this] "A rounded double representing the distance from the baseline to the top.")
   (line-height [this] "A rounded double representing the line height.")
   (char-width [this character] "A rounded double representing the width of the specified character."))
+
+(defmacro clamp [value minimum maximum]
+  `(max ~minimum (min ~value ~maximum)))
 
 (defn- identifier-character-at-index? [line ^long index]
   (if-some [^char character (get line index)]
@@ -74,7 +78,7 @@
 
 (def ^:private compare-extra-cursor-fields (partial compare-extra-fields #{:row :col}))
 
-(defrecord Cursor [^long row ^long col]
+(defonce/record Cursor [^long row ^long col]
   Comparable
   (compareTo [this other]
     (util/comparisons
@@ -113,7 +117,7 @@
 (declare cursor-range-start cursor-range-end)
 (def ^:private compare-extra-cursor-range-fields (partial compare-extra-fields #{:from :to}))
 
-(defrecord CursorRange [^Cursor from ^Cursor to]
+(defonce/record CursorRange [^Cursor from ^Cursor to]
   Comparable
   (compareTo [this other]
     (util/comparisons
@@ -214,8 +218,10 @@
 (defn cursor-range-starts-before-row? [^long row ^CursorRange cursor-range]
   (> row (.row (cursor-range-start cursor-range))))
 
-(defn cursor-range-contains? [^CursorRange cursor-range ^Cursor cursor]
-  ;; NOTE: Returns true when the cursor is on either edge of the cursor range.
+(defn cursor-range-contains?
+  "Note: Returns true when the cursor is on either edge of the cursor range.
+  See also: [[cursor-range-contains-exclusive?]]"
+  [^CursorRange cursor-range ^Cursor cursor]
   (let [start (cursor-range-start cursor-range)
         end (cursor-range-end cursor-range)]
     (cond (= (.row start) (.row end) (.row cursor))
@@ -227,6 +233,25 @@
 
           (= (.row end) (.row cursor))
           (>= (.col end) (.col cursor))
+
+          :else
+          (and (<= (.row start) (.row cursor))
+               (>= (.row end) (.row cursor))))))
+
+(defn cursor-range-contains-exclusive?
+  "See also: [[cursor-range-contains?]]"
+  [^CursorRange cursor-range ^Cursor cursor]
+  (let [start (cursor-range-start cursor-range)
+        end (cursor-range-end cursor-range)]
+    (cond (= (.row start) (.row end) (.row cursor))
+          (and (<= (.col start) (.col cursor))
+               (> (.col end) (.col cursor)))
+
+          (= (.row start) (.row cursor))
+          (<= (.col start) (.col cursor))
+
+          (= (.row end) (.row cursor))
+          (> (.col end) (.col cursor))
 
           :else
           (and (<= (.row start) (.row cursor))
@@ -278,6 +303,38 @@
       ;; intersection, A before B
       :else
       [(->CursorRange a-start b-start)])))
+
+(defn cursor-range-intersection
+  "Returns either nil if no intersection or an intersection cursor range.
+  Note: returned range is never empty; the result is nil if 2 ranges only touch."
+  [^CursorRange a ^CursorRange b]
+  (let [a-start (cursor-range-start a)
+        a-end (cursor-range-end a)
+        b-start (cursor-range-start b)
+        b-end (cursor-range-end b)]
+    (cond
+      ;; no intersection
+      (or (cursor-before-or-same? b-end a-start)
+          (cursor-before-or-same? a-end b-start))
+      nil
+
+      ;; A within B
+      (and (cursor-before-or-same? b-start a-start)
+           (cursor-before-or-same? a-end b-end))
+      (when-not (cursor-range-empty? a) a)
+
+      ;; B within A
+      (and (cursor-before? a-start b-start)
+           (cursor-before? b-end a-end))
+      (when-not (cursor-range-empty? b) b)
+
+      ;; intersection, B before A
+      (cursor-before? b-end a-end)
+      (->CursorRange a-start b-end)
+
+      ;; intersection, A before B
+      :else
+      (->CursorRange b-start a-end))))
 
 (defn- cursor-range-midpoint-follows? [^CursorRange cursor-range ^Cursor cursor]
   (let [start (cursor-range-start cursor-range)
@@ -401,7 +458,7 @@
 (defn string->lines [^String string]
   (util/split-lines string))
 
-(defrecord Rect [^double x ^double y ^double w ^double h])
+(defonce/record Rect [^double x ^double y ^double w ^double h])
 
 (defn rect-contains? [^Rect r ^double x ^double y]
   (and (<= (.x r) x (+ (.x r) (.w r)))
@@ -413,6 +470,27 @@
           (- (.y r) y)
           (+ (.w r) (* 2.0 x))
           (+ (.h r) (* 2.0 y))))
+
+(defn rect-intersection
+  "Returns either nil if no intersection or a Rect of some area where the two
+  input rectangles intersect. See also cursor-range-intersection."
+  ^Rect [^Rect a ^Rect b]
+  (let [al (.x a)
+        at (.y a)
+        ar (+ al (.w a))
+        ab (+ at (.h a))
+        bl (.x b)
+        bt (.y b)
+        br (+ bl (.w b))
+        bb (+ bt (.h b))
+        l (clamp al bl br)
+        r (clamp ar bl br)
+        t (clamp at bt bb)
+        b (clamp ab bt bb)
+        w (- r l)
+        h (- b t)]
+    (when (and (pos? w) (pos? h))
+      (->Rect l t w h))))
 
 (defn- outer-bounds
   ^Rect [^Rect a ^Rect b]
@@ -426,7 +504,7 @@
         height (- bottom top)]
     (->Rect left top width height)))
 
-(defrecord GestureInfo [type button ^long click-count ^double x ^double y])
+(defonce/record GestureInfo [type button ^long click-count ^double x ^double y])
 
 (defn- button? [value]
   (case value (:primary :secondary :middle) true false))
@@ -447,19 +525,19 @@
     (->GestureInfo type button click-count x y)
     (merge (->GestureInfo type button click-count x y) extras)))
 
-(defrecord LayoutInfo [line-numbers
-                       canvas
-                       minimap
-                       glyph
-                       tab-stops
-                       scroll-tab-x
-                       scroll-tab-y
-                       ^double scroll-x
-                       ^double scroll-y
-                       ^double scroll-y-remainder
-                       ^double document-width
-                       ^long drawn-line-count
-                       ^long dropped-line-count])
+(defonce/record LayoutInfo [line-numbers
+                            canvas
+                            minimap
+                            glyph
+                            tab-stops
+                            scroll-tab-x
+                            scroll-tab-y
+                            ^double scroll-x
+                            ^double scroll-y
+                            ^double scroll-y-remainder
+                            ^double document-width
+                            ^long drawn-line-count
+                            ^long dropped-line-count])
 
 (defn- next-tab-stop-x
   ^double [tab-stops ^double x]
@@ -589,18 +667,19 @@
         minimap-width (if visible-minimap? (min (Math/ceil (/ excluding-gutter-width 9.0)) 150.0) 0.0)
         canvas-rect-width (- excluding-gutter-width minimap-width)
         line-count (count lines)
+        canvas-rect (->Rect ^double gutter-width 0.0 canvas-rect-width canvas-height)
         scroll-x (limit-scroll (- canvas-rect-width ^double document-width) scroll-x)
-        scroll-y (limit-scroll (- ^double canvas-height (* line-height line-count)) scroll-y)
+        ^Rect scroll-tab-x-rect (scroll-tab-x-rect canvas-rect document-width scroll-x)
+        scroll-tab-x-height (double (if scroll-tab-x-rect (.h scroll-tab-x-rect) 0.0))
+        scroll-y (limit-scroll (- ^double canvas-height (* line-height line-count) scroll-tab-x-height) scroll-y)
         dropped-line-count (long (/ scroll-y (- line-height)))
         scroll-y-remainder (double (mod scroll-y (- line-height)))
         drawn-line-count (long (Math/ceil (/ ^double (- ^double canvas-height scroll-y-remainder) line-height)))
         line-numbers-rect (->Rect ^double gutter-margin 0.0 (- ^double gutter-width (* 2.0 ^double gutter-margin)) canvas-height)
         minimap-left (- ^double canvas-width minimap-width)
         minimap-rect (->Rect minimap-left 0.0 minimap-width canvas-height)
-        canvas-rect (->Rect ^double gutter-width 0.0 canvas-rect-width canvas-height)
         tab-stops (tab-stops glyph-metrics tab-spaces)
-        scroll-tab-x-rect (scroll-tab-x-rect canvas-rect document-width scroll-x)
-        scroll-tab-y-rect (scroll-tab-y-rect minimap-rect line-height line-count dropped-line-count scroll-y-remainder)]
+        scroll-tab-y-rect (scroll-tab-y-rect minimap-rect line-height line-count dropped-line-count (+ scroll-y-remainder scroll-tab-x-height))]
     (->LayoutInfo line-numbers-rect
                   canvas-rect
                   minimap-rect
@@ -694,6 +773,19 @@
             (recur next-col end-x)
             (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x))))))))))))
 
+(defn x->character-col [^LayoutInfo layout ^double x ^String line]
+  (let [line-x (x->doc-x layout x)
+        line-length (count line)]
+    (loop [col 0
+           start-x 0.0]
+      (if (<= line-length col)
+        nil
+        (let [next-col (inc col)
+              end-x (double (advance-text layout line col next-col start-x))]
+          (if (<= end-x line-x)
+            (recur next-col end-x)
+            (max 0 (+ col (long (/ (- line-x start-x) (- end-x start-x)))))))))))
+
 (defn adjust-row
   ^long [lines ^long row]
   (max 0 (min row (dec (count lines)))))
@@ -746,23 +838,37 @@
   (into [] (cursor-ranges->row-runs-xform lines) cursor-ranges))
 
 (defn canvas->cursor
+  "Returns cursor closest to the mouse position
+
+  See also: [[canvas->character-cursor]]"
   ^Cursor [^LayoutInfo layout lines x y]
   (let [row (y->row layout y)
         line (get lines (adjust-row lines row))
         col (x->col layout x line)]
     (->Cursor row col)))
 
+(defn canvas->character-cursor
+  "Returns cursor situated before the character that is hovered by the mouse
+
+  See also: [[canvas->cursor]]"
+  ^Cursor [^LayoutInfo layout lines x y]
+  (let [row (y->row layout y)
+        adjusted-row (adjust-row lines row)]
+    (when (= adjusted-row row)
+      (when-let [col (x->character-col layout x (get lines adjusted-row))]
+        (->Cursor row col)))))
+
 (defn- peek!
   "Like peek, but works for transient vectors."
   [coll]
   (get coll (dec (count coll))))
 
-(defrecord Subsequence [^String first-line middle-lines ^String last-line])
+(defonce/record Subsequence [^String first-line middle-lines ^String last-line])
 
 (defn- empty-subsequence? [subsequence]
   (and (empty? (:first-line subsequence))
        (empty? (:middle-lines subsequence))
-       (empty? (:last-line subsequence))))
+       (nil? (:last-line subsequence))))
 
 (defn lines->subsequence
   ^Subsequence [lines]
@@ -1057,8 +1163,10 @@
   ^double [^LayoutInfo layout ^long line-count]
   (let [^double line-height (line-height (.glyph layout))
         document-height (* line-count line-height)
-        canvas-height (.h ^Rect (.canvas layout))]
-    (- canvas-height document-height)))
+        canvas-height (.h ^Rect (.canvas layout))
+        ^Rect scroll-tab-x (.scroll-tab-x layout)
+        scroll-tab-x-h (double (if scroll-tab-x (.h scroll-tab-x) 0.0))]
+    (- canvas-height document-height scroll-tab-x-h)))
 
 (defn limit-scroll-x
   ^double [^LayoutInfo layout ^double scroll-x]
@@ -1181,6 +1289,16 @@
                    (next lines)
                    contexts))
           (persistent! syntax-info'))))))
+
+(defn syntax-scope-before-cursor [syntax-info grammar ^Cursor cursor]
+  {:pre [(< (.-row cursor) (count syntax-info))]}
+  (let [row (.-row cursor)
+        col-before-cursor (dec (.-col cursor))
+        runs (second (get syntax-info row))
+        result-index (dec ^long (util/find-insert-index runs [col-before-cursor] #(compare (%1 0) (%2 0))))]
+    (if-let [run (get runs result-index)]
+      (second run)
+      (:scope-name grammar "source"))))
 
 (defn last-visible-row
   "Returns 1-indexed row number of the last visible row"
@@ -1489,7 +1607,9 @@
         previous-version (hash lines)
         change {:previous-version previous-version
                 :current-version (hash new-lines)
-                :ascending-cursor-ranges-and-replacements ascending-cursor-ranges-and-replacements}]
+                :ascending-cursor-ranges-and-replacements (mapv (fn [[cursor-range replacement]]
+                                                                  [(adjust-cursor-range lines cursor-range) replacement])
+                                                                ascending-cursor-ranges-and-replacements)}]
     (with-meta
       new-lines
       (update (meta lines)
@@ -1513,23 +1633,28 @@
   (let [changes (::changes (meta new-lines))]
     (when (and changes (= (hash new-lines) (:current-version (peek changes))))
       (let [old-version (hash old-lines)
-            ret (into
-                  []
-                  (comp
-                    (drop-while #(not= old-version (:previous-version %)))
-                    (map :ascending-cursor-ranges-and-replacements)
-                    (mapcat
-                      (fn [ascending-cursor-ranges-and-replacements]
-                        (eduction
-                          (map (fn [[cursor-range replacement]]
-                                 [(->CursorRange
-                                    (cursor-range-start cursor-range)
-                                    (cursor-range-end cursor-range))
-                                  replacement]))
-                          (reverse ascending-cursor-ranges-and-replacements)))))
-                  changes)]
-        (when (pos? (count ret))
-          ret)))))
+            last-version-index (long (loop [i (dec (count changes))]
+                                       (cond
+                                         (neg? i) i
+                                         (= old-version (:previous-version (changes i))) i
+                                         :else (recur (dec i)))))]
+        (when-not (neg? last-version-index)
+          (let [ret (into
+                      []
+                      (comp
+                        (map :ascending-cursor-ranges-and-replacements)
+                        (mapcat
+                          (fn [ascending-cursor-ranges-and-replacements]
+                            (eduction
+                              (map (fn [[cursor-range replacement]]
+                                     [(->CursorRange
+                                        (cursor-range-start cursor-range)
+                                        (cursor-range-end cursor-range))
+                                      replacement]))
+                              (reverse ascending-cursor-ranges-and-replacements)))))
+                      (subvec changes last-version-index))]
+            (when (pos? (count ret))
+              ret)))))))
 
 (defn- offset-cursor-on-row
   ^Cursor [^Cursor cursor ^long col-affected-row ^long row-offset ^long col-offset]
@@ -1579,7 +1704,7 @@
                     {:start start
                      :end end}))))
 
-(defrecord SpliceInfo [^Cursor start ^Cursor end ^long row-offset ^long col-offset])
+(defonce/record SpliceInfo [^Cursor start ^Cursor end ^long row-offset ^long col-offset])
 
 (defn- col-affected-row
   ^long [^SpliceInfo splice-info]
@@ -1811,7 +1936,11 @@
               (assoc :regions regions')))))
 
 (defn- begins-indentation? [grammar ^String line]
-  (and (some? line) (some? (some-> grammar :indent :begin (re-find line)))))
+  (when (some? line)
+    (let [begin? (:begin (:indent grammar))]
+      (cond
+        (fn? begin?) (begin? line)
+        :else (re-find begin? line)))))
 
 (defn- ends-indentation? [grammar ^String line]
   (and (some? line) (some? (some-> grammar :indent :end (re-find line)))))
@@ -2181,22 +2310,48 @@
             (empty? clean-lines)
             (assoc :invalidated-row 0))))
 
-(defn delete-character-before-cursor [lines cursor-range]
-  (let [from (CursorRange->Cursor cursor-range)
-        to (cursor-left lines from)]
-    [(->CursorRange from to) [""]]))
+(defn delete-character-before-cursor [lines grammar auto-closing-parens syntax-info cursor-range]
+  (let [cursor (adjust-cursor lines (CursorRange->Cursor cursor-range))]
+    (or
+      (when-let [{:keys [characters exclude-scopes open-scopes]} (when auto-closing-parens (:auto-insert grammar))]
+        ;; auto-remove closing parens only across a single line
+        (let [row (.-row cursor)
+              ^String line (lines row)
+              next-character-index (.-col cursor)
+              deleted-character-index (dec next-character-index)]
+          ;; check if there exist both at least 1 char to the left and 1 char to
+          ;; the right
+          (when (and (not (neg? deleted-character-index))
+                     (< next-character-index (.length line)))
+            (let [deleted-character (.charAt line deleted-character-index)]
+              (when-let [closing-counterpart (characters deleted-character)]
+                (when (and (= (.charAt line next-character-index)
+                              (char closing-counterpart))
+                           ;; exclusion: we don't open auto-inserts in certain
+                           ;; regions (e.g. inside strings). for these regions, we
+                           ;; also don't remove such a matching closing chars...
+                           ;; UNLESS the deleted char is white-listed for open
+                           (or (nil? exclude-scopes)
+                               (not (contains? exclude-scopes (syntax-scope-before-cursor syntax-info grammar (update cursor :col dec))))
+                               ;; the "unless" part
+                               (when-let [deleted-char-open-scope (get open-scopes deleted-character)]
+                                 (= deleted-char-open-scope (syntax-scope-before-cursor syntax-info grammar cursor)))))
+                  [(->CursorRange (->Cursor row deleted-character-index)
+                                  (->Cursor row (inc next-character-index)))
+                   [""]]))))))
+      [(->CursorRange cursor (cursor-left lines cursor)) [""]])))
 
-(defn delete-word-before-cursor [lines cursor-range]
+(defn delete-word-before-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-prev-word lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn delete-character-after-cursor [lines cursor-range]
+(defn delete-character-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-right lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn delete-word-after-cursor [lines cursor-range]
+(defn delete-word-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-next-word lines from)]
     [(->CursorRange from to) [""]]))
@@ -2279,13 +2434,105 @@
               (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
               (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y)))))
 
-(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed]
+(defn- key-type-with-auto-insert [indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info ^String typed]
+  {:pre [(= 1 (.length typed))
+         (contains? grammar :auto-insert)]}
+  (let [ch (.charAt typed 0)
+        {:keys [close-characters characters exclude-scopes close-scopes open-scopes]} (:auto-insert grammar)
+        cursor-ranges (mapv (partial adjust-cursor-range lines) cursor-ranges)
+        max-range-row (long (transduce (map #(.-row (cursor-range-end %))) max 0 cursor-ranges))
+        syntax-info (ensure-syntax-info syntax-info (inc max-range-row) lines grammar)
+        changes (-> (splice
+                      lines
+                      regions
+                      (mapv
+                        (fn [^CursorRange cursor-range]
+                          (cond
+                            ;; if no selection and we typed a closing char, e.g. "]"
+                            ;; after "[", we only move the cursor to the right
+                            (and (cursor-range-empty? cursor-range)
+                                 (contains? close-characters ch)
+                                 (let [cursor (cursor-range-end cursor-range)
+                                       ^String line (lines (.-row cursor))
+                                       next-char-index (.-col cursor)]
+                                   (and (< next-char-index (.length line))
+                                        (let [next-char (.charAt line next-char-index)]
+                                          (and (= ch next-char)
+                                               ;; Corner case: if the next character is a
+                                               ;; closing one, but it resides in an open scope,
+                                               ;; skip it here. An example is typing a single
+                                               ;; quote (') in this scenario:
+                                               ;; 'asd'|'asd'
+                                               ;;      ^-- this is a cursor, not a pipe
+                                               ;; Without handling the corner case, the cursor
+                                               ;; would move right instead of inserting a new
+                                               ;; string
+                                               (if-let [next-char-open-scope (get open-scopes next-char)]
+                                                 (not= next-char-open-scope (syntax-scope-before-cursor syntax-info grammar (update cursor :col inc)))
+                                                 true)
+
+                                               ;; exclusion: when we don't open an auto-insert
+                                               ;; in certain regions (e.g. inside strings), we
+                                               ;; also don't close the regions... UNLESS the
+                                               ;; next-char is white-listed for close!
+                                               (or (nil? exclude-scopes)
+                                                   (not (contains? exclude-scopes (syntax-scope-before-cursor syntax-info grammar cursor)))
+                                                   ;; the "unless" part
+                                                   (when-let [next-char-close-scope (get close-scopes next-char)]
+                                                     (= next-char-close-scope (syntax-scope-before-cursor syntax-info grammar (update cursor :col inc))))))))))
+                            (pair (assoc cursor-range :pair ::close) [""])
+
+                            ;; if we insert an open character, also add a closing
+                            ;; character after the selection
+                            (and (contains? characters ch)
+                                 ;; exclusion: we don't open an auto-insert
+                                 ;; in certain regions (e.g. inside strings)
+                                 (or (nil? exclude-scopes)
+                                     (not (contains? exclude-scopes (syntax-scope-before-cursor syntax-info grammar (.-to cursor-range))))))
+                            (pair (assoc cursor-range :pair ::open)
+                                  (util/split-lines (str ch
+                                                         (cursor-range-text lines cursor-range)
+                                                         (characters ch))))
+
+                            :else
+                            (pair cursor-range (util/split-lines typed))))
+                        cursor-ranges))
+                    (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+                    (update-document-width-after-splice layout))
+        {:keys [lines]} changes]
+    (-> changes
+        (update
+          :cursor-ranges
+          (fn [cursor-ranges]
+            (mapv
+              (fn [^CursorRange cursor-range]
+                (case (:pair cursor-range)
+                  ::close (Cursor->CursorRange (cursor-right lines (cursor-range-end cursor-range)))
+                  ::open (let [from (.-from cursor-range)
+                               to (.-to cursor-range)
+                               range-inverted (pos? (compare-cursor-position from to))
+                               start (if range-inverted to from)
+                               end (if range-inverted from to)
+                               new-start (cursor-right lines start)
+                               new-end (cursor-left lines end)]
+                           (if range-inverted
+                             (->CursorRange new-end new-start)
+                             (->CursorRange new-start new-end)))
+                  (cursor-range-end-range cursor-range)))
+              cursor-ranges)))
+        (frame-cursor layout))))
+
+(defn key-typed [indent-level-pattern indent-string grammar auto-closing-parens lines cursor-ranges regions layout syntax-info ^String typed]
   (case typed
     "\r" ; Enter or Return.
     (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
 
     (when (not-any? #(Character/isISOControl ^char %) typed)
-      (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed))))
+      (if (and auto-closing-parens
+               (= 1 (.length typed))
+               (contains? grammar :auto-insert))
+        (key-type-with-auto-insert indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info typed)
+        (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
 
 (defn execution-marker? [region]
   (= :execution-marker (:type region)))
@@ -2298,12 +2545,19 @@
            :type :execution-marker
            :location-type location-type)))
 
-(defn breakpoint [lines ^long row]
+(defn make-breakpoint-region [lines ^long row]
   (let [line-start (text-start lines row)
         line-end (count (lines row))]
     (assoc (->CursorRange (->Cursor row line-start)
                           (->Cursor row line-end))
-      :type :breakpoint)))
+      :type :breakpoint
+      :enabled true)))
+
+(defn get-breakpoint-region [regions ^long row]
+  (coll/some #(when (and (= (:type %) :breakpoint)
+                         (= (:row (:from %)) row))
+                %)
+             regions))
 
 (defn breakpoint-region? [region]
   (= :breakpoint (:type region)))
@@ -2312,7 +2566,7 @@
   (assert (breakpoint-region? region))
   (.row (cursor-range-start region)))
 
-(defn toggle-breakpoint [lines regions rows]
+(defn toggle-breakpoint-region [lines regions rows]
   (assert (set? rows))
   (let [removed-rows (into #{} (comp (filter breakpoint-region?) (map breakpoint-row) (filter rows)) regions)
         added-rows (set/difference rows removed-rows)]
@@ -2322,23 +2576,32 @@
                               (and (breakpoint-region? region)
                                    (contains? removed-rows (breakpoint-row region))))
             regions' (vec (sort (concat (remove removed-region? regions)
-                                        (map (partial breakpoint lines) added-rows))))]
+                                        (map (partial make-breakpoint-region lines) added-rows))))]
         {:regions regions'}))))
 
-(defn- edit-breakpoint [lines regions row]
+(defn toggle-breakpoint-enabled-region [lines regions rows]
+  (assert (set? rows))
+  {:regions (mapv (fn [region]
+                    (if (and (breakpoint-region? region)
+                             (contains? rows (breakpoint-row region)))
+                      (assoc region :enabled (not (:enabled region)))
+                      region))
+                  regions)})
+
+(defn- edit-breakpoint-region [lines regions row]
   {:edited-breakpoint (or (some (fn [region]
                                   (when (and (breakpoint-region? region)
                                              (= row (breakpoint-row region)))
                                     region))
                                 regions)
-                          (breakpoint lines row))})
+                          (make-breakpoint-region lines row))})
 
 (defn edit-breakpoint-from-single-cursor-range [lines cursor-ranges regions]
   (when (= 1 (count cursor-ranges))
     (let [row (.row ^Cursor (.to ^CursorRange (first cursor-ranges)))]
-      (edit-breakpoint lines regions row))))
+      (edit-breakpoint-region lines regions row))))
 
-(defn ensure-breakpoint [lines regions breakpoint-region]
+(defn ensure-breakpoint-region [lines regions breakpoint-region]
   {:pre [(breakpoint-region? breakpoint-region)]}
   (let [row (breakpoint-row breakpoint-region)
         filtered-regions (filterv (fn [region]
@@ -2386,7 +2649,7 @@
                                   :from-doc-x (x->doc-x layout x)
                                   :from-doc-y (y->doc-y layout y))}))
 
-(defn- in-gutter? [^LayoutInfo layout x]
+(defn in-gutter? [^LayoutInfo layout x]
   (and (< ^double x (.x ^Rect (.canvas layout)))
        (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout))))))
 
@@ -2402,7 +2665,7 @@
       ;; Click in the gutter to toggle breakpoints.
       (in-gutter? layout x)
       (when-let [clicked-row (y->existing-row layout lines y)]
-        (toggle-breakpoint lines regions #{clicked-row}))
+        (toggle-breakpoint-region lines regions #{clicked-row}))
 
       ;; Prepare to drag the horizontal scroll tab.
       (and (not alt-key?) (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-x layout) (rect-contains? x y)))
@@ -2476,7 +2739,14 @@
     (cond
       (in-gutter? layout x)
       (when-let [clicked-row (y->existing-row layout lines y)]
-        (edit-breakpoint lines regions clicked-row)))
+        (edit-breakpoint-region lines regions clicked-row))
+
+      (not (some-> (.minimap layout) (rect-contains? x y)))
+      (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))]
+        ;; Move cursor when we are outside of the current selection.
+        (when-not (some #(cursor-range-contains? % mouse-cursor) cursor-ranges)
+          {:cursor-ranges [(Cursor->CursorRange mouse-cursor)]})))
+
     :back
     nil
     :forward
@@ -2641,10 +2911,13 @@
         {:type :ui-element :ui-element :minimap-viewed-range}
         {:type :ui-element :ui-element :minimap}))
 
+    (in-gutter? layout x)
+    (when-some [hovered-row (y->existing-row layout lines y)]
+      {:type :gutter-row :row hovered-row})
+
     :else
     (when-some [clickable-region (some (fn [region]
-                                         (when (and (or (some? (:on-click! region))
-                                                        (:hoverable region))
+                                         (when (and (some? (:on-click! region))
                                                     (some #(rect-contains? % x y)
                                                           (cursor-range-rects layout lines region)))
                                            region))
@@ -2692,9 +2965,13 @@
   (or (can-paste-plain-text? clipboard)
       (can-paste-multi-selection? clipboard cursor-ranges)))
 
-(defn delete [lines cursor-ranges regions ^LayoutInfo layout delete-fn]
+(defn delete [lines grammar auto-closing-parens syntax-info cursor-ranges regions ^LayoutInfo layout delete-fn]
   (-> (if (every? cursor-range-empty? cursor-ranges)
-        (splice lines regions (map (partial delete-fn lines) cursor-ranges))
+        (let [syntax-info (if (and auto-closing-parens (:auto-insert grammar))
+                            (let [max-row (long (transduce (map #(-> % cursor-range-end .-row)) max 0 cursor-ranges))]
+                              (ensure-syntax-info syntax-info (inc max-row) lines grammar))
+                            syntax-info)]
+          (splice lines regions (map (partial delete-fn lines grammar auto-closing-parens syntax-info) cursor-ranges)))
         (splice lines regions (map (partial delete-range lines) cursor-ranges)))
       (frame-cursor layout)))
 
@@ -3060,3 +3337,67 @@
                                                 (update :to dissoc ::sticky)
                                                 (dissoc ::cursor))))
                                     new-regions))))
+
+(defn apply-edits
+  ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements]
+   (let [all-regions (vec (sort (into regions
+                                      (map #(-> %
+                                                (update :from assoc ::sticky :right)
+                                                (update :to assoc ::sticky :right)
+                                                (assoc ::cursor true)))
+                                      cursor-ranges)))
+         ret (splice lines all-regions ascending-cursor-ranges-and-replacements)
+         new-regions (:regions ret all-regions)]
+     (assoc ret :regions (into [] (remove ::cursor) new-regions)
+                :cursor-ranges (into []
+                                     (comp
+                                       (filter ::cursor)
+                                       (map #(-> %
+                                                 (update :from dissoc ::sticky)
+                                                 (update :to dissoc ::sticky)
+                                                 (dissoc ::cursor))))
+                                     new-regions))))
+  ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements layout]
+   (-> (apply-edits lines regions cursor-ranges ascending-cursor-ranges-and-replacements)
+       (update-document-width-after-splice layout)
+       (frame-cursor layout))))
+
+(defn duplicate-selection [lines cursor-ranges regions ^LayoutInfo layout]
+  (let [adjusted-cursor-ranges (mapv (partial adjust-cursor-range lines) cursor-ranges)
+        ret
+        (if (coll/every? cursor-range-empty? adjusted-cursor-ranges)
+          ;; No text selection: duplicate full lines for each distinct cursor
+          ;; row. We keep text edits and cursor movement as two separate steps:
+          ;; 1. apply line-end insertions without cursor-ranges, so text
+          ;;    duplication is stable.
+          ;; 2. move original cursor-ranges by a row delta based on how many
+          ;;    duplicated rows are at-or-before their row (`row->offset`).
+          ;; This makes every cursor on a duplicated row land on the inserted
+          ;; copy while otherwise preserving duplicate cursor-ranges as-is.
+          (let [rows (cursor-ranges->start-rows lines adjusted-cursor-ranges)
+                row->offset (into {}
+                                  (map-indexed (fn [^long index ^long row]
+                                                 (pair row (unchecked-inc index))))
+                                  rows)
+                ascending-cursor-ranges-and-replacements
+                (mapv (fn [^long row]
+                        (let [line-end-cursor (->Cursor row (count (lines row)))]
+                          [(->CursorRange line-end-cursor line-end-cursor) ["" (lines row)]]))
+                      rows)
+                moved-cursor-ranges
+                (mapv #(offset-cursor-range % :both (row->offset (.row (CursorRange->Cursor %))) 0)
+                      adjusted-cursor-ranges)]
+            (-> (apply-edits lines regions [] ascending-cursor-ranges-and-replacements)
+                (update-document-width-after-splice layout)
+                (assoc :cursor-ranges moved-cursor-ranges)))
+          ;; At least one non-empty selection exists: duplicate only selected
+          ;; text ranges. For each selected range we insert an exact copy at
+          ;; selection end.
+          (let [ascending-cursor-ranges-and-replacements
+                (mapv (fn [^CursorRange cursor-range]
+                        [(cursor-range-end-range cursor-range)
+                         (subsequence->lines (cursor-range-subsequence lines cursor-range))])
+                      adjusted-cursor-ranges)]
+            (-> (splice lines regions ascending-cursor-ranges-and-replacements)
+                (update-document-width-after-splice layout))))]
+    (frame-cursor ret layout)))

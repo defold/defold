@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,7 +26,8 @@
             [editor.lsp.async :as lsp.async]
             [editor.process :as process]
             [editor.workspace :as workspace])
-  (:import [org.luaj.vm2 LuaError]))
+  (:import [java.io PrintStream]
+           [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
 
@@ -44,7 +45,7 @@
     f))
 
 (defmethod action->batched-executor+input :set [action rt project evaluation-context]
-  (let [node-id (graph/node-id-or-path->node-id (:node_id action) project evaluation-context)
+  (let [node-id (graph/unresolved-editor-lookup->node-id (:node_id action) project evaluation-context)
         property (:property action)
         setter (graph/ext-lua-value-setter node-id property rt project evaluation-context)]
     (if setter
@@ -70,30 +71,28 @@
 
   Args
     input-stream       the InputStream to consume
-    display-output!    2-arg function used to display extension-related output
-                       to the user
-    type               display-output!'s type argument, either :err or :out"
-  [input-stream display-output! type]
-  (future
+    out                the PrintStream to write lines to"
+  [input-stream ^PrintStream out]
+  (future/io
     (error-reporting/catch-all!
       (with-open [reader (io/reader input-stream)]
         (doseq [line (line-seq reader)]
-          (display-output! type line))))))
+          (.println out line))))))
 
 (defn- shell! [commands project state]
-  (let [{:keys [reload-resources! display-output!]} state
+  (let [{:keys [reload-resources! rt]} state
         root (lsp.async/with-auto-evaluation-context evaluation-context
-               (-> project
-                   (project/workspace evaluation-context)
-                   (workspace/project-path evaluation-context)))]
+               (let [basis (:basis evaluation-context)
+                     workspace (project/workspace project evaluation-context)]
+                 (workspace/project-directory basis workspace)))]
     (-> (await-all-sequentially
           (eduction
             (map
               (fn [cmd+args]
                 (fn start-async-shell-command! []
                   (let [process (doto (apply process/start! {:dir root} cmd+args)
-                                  (-> process/out (input-stream->console display-output! :out))
-                                  (-> process/err (input-stream->console display-output! :err)))]
+                                  (-> process/out (input-stream->console (rt/stdout rt)))
+                                  (-> process/err (input-stream->console (rt/stderr rt))))]
                     (let [exit-code (process/await-exit-code process)]
                       (when-not (zero? exit-code)
                         (throw (ex-info (str "Command \""
@@ -112,7 +111,7 @@
   (coerce/vector-of
     (coerce/by-key
       :action
-      {:set (coerce/hash-map :req {:node_id graph/node-id-or-path-coercer
+      {:set (coerce/hash-map :req {:node_id graph/unresolved-editor-lookup-coercer
                                    :property coerce/string
                                    :value coerce/untouched})
        :shell (coerce/hash-map :req {:command (coerce/vector-of coerce/string :min-count 1)})})))

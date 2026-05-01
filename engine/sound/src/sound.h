@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/sound/sound.h>
 
 namespace dmSound
 {
@@ -29,6 +30,8 @@ namespace dmSound
     {
         SOUND_DATA_TYPE_WAV        = 0,
         SOUND_DATA_TYPE_OGG_VORBIS = 1,
+        SOUND_DATA_TYPE_OPUS = 2,
+        SOUND_DATA_TYPE_MAX = 3
     };
 
     enum Parameter
@@ -37,28 +40,6 @@ namespace dmSound
         PARAMETER_PAN   = 1,
         PARAMETER_SPEED = 2,
         PARAMETER_MAX   = 3
-    };
-
-    enum Result
-    {
-        RESULT_OK                 =  0,    //!< RESULT_OK
-        RESULT_OUT_OF_SOURCES     = -1,    //!< RESULT_OUT_OF_SOURCES
-        RESULT_EFFECT_NOT_FOUND   = -2,    //!< RESULT_EFFECT_NOT_FOUND
-        RESULT_OUT_OF_INSTANCES   = -3,    //!< RESULT_OUT_OF_INSTANCES
-        RESULT_RESOURCE_LEAK      = -4,    //!< RESULT_RESOURCE_LEAK
-        RESULT_OUT_OF_BUFFERS     = -5,    //!< RESULT_OUT_OF_BUFFERS
-        RESULT_INVALID_PROPERTY   = -6,    //!< RESULT_INVALID_PROPERTY
-        RESULT_UNKNOWN_SOUND_TYPE = -7,    //!< RESULT_UNKNOWN_SOUND_TYPE
-        RESULT_INVALID_STREAM_DATA= -8,    //!< RESULT_INVALID_STREAM_DATA
-        RESULT_OUT_OF_MEMORY      = -9,    //!< RESULT_OUT_OF_MEMORY
-        RESULT_UNSUPPORTED        = -10,   //!< RESULT_UNSUPPORTED
-        RESULT_DEVICE_NOT_FOUND   = -11,   //!< RESULT_DEVICE_NOT_FOUND
-        RESULT_OUT_OF_GROUPS      = -12,   //!< RESULT_OUT_OF_GROUPS
-        RESULT_NO_SUCH_GROUP      = -13,   //!< RESULT_NO_SUCH_GROUP
-        RESULT_NOTHING_TO_PLAY    = -14,   //!< RESULT_NOTHING_TO_PLAY
-        RESULT_INIT_ERROR         = -15,   //!< RESULT_INIT_ERROR
-        RESULT_FINI_ERROR         = -16,   //!< RESULT_FINI_ERROR
-        RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
     // Used to identify if a sound.play or play_sound msg
@@ -73,17 +54,28 @@ namespace dmSound
     struct InitializeParams;
     void SetDefaultInitializeParams(InitializeParams* params);
 
+    enum DSPImplType
+    {
+        DSPIMPL_TYPE_CPU = 0,
+        DSPIMPL_TYPE_SSE2 = 1,
+        DSPIMPL_TYPE_WASM_SIMD128 = 2,
+
+        DSPIMPL_TYPE_DEFAULT = -1,
+    };
+
     struct InitializeParams
     {
-        const char* m_OutputDevice;
-        float    m_MasterGain;
-        uint32_t m_MaxSoundData;
-        uint32_t m_MaxSources;
-        uint32_t m_MaxBuffers;
-        uint32_t m_BufferSize;
-        uint32_t m_FrameCount;
-        uint32_t m_MaxInstances;
-        bool     m_UseThread;
+        const char*  m_OutputDevice;
+        float        m_MasterGain;
+        uint32_t     m_MaxSoundData;
+        uint32_t     m_MaxSources;
+        uint32_t     m_MaxBuffers;
+        uint32_t     m_FrameCount;
+        uint32_t     m_MaxInstances;
+        bool         m_UseThread;
+        DSPImplType  m_DSPImplementation;
+        bool         m_UseLegacyStereoPan;
+        bool         m_UseLinearGain;
 
         InitializeParams()
         {
@@ -100,11 +92,24 @@ namespace dmSound
     // Pauses the (threaded) sound system
     Result Pause(bool pause);
 
+    // returns the audio device mix rate (48000, 44100 etc)
+    // Only valid after successful initialization
+    uint32_t GetMixRate();
+
+    const char* ResultToString(Result result);
+
+    typedef Result (*FSoundDataGetData)(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* out_size);
+
     // Thread safe
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name);
+    Result NewSoundDataStreaming(FSoundDataGetData cbk, void* cbk_ctx, SoundDataType type, HSoundData* sound_data, dmhash_t name);
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size);
+    Result SetSoundDataCallback(HSoundData sound_data, FSoundDataGetData cbk, void* cbk_ctx);
+    bool IsSoundDataValid(HSoundData sound_data);
     uint32_t GetSoundResourceSize(HSoundData sound_data);
     Result DeleteSoundData(HSoundData sound_data);
+
+    Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size);
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance);
     Result DeleteSoundInstance(HSoundInstance sound_instance);
@@ -119,6 +124,7 @@ namespace dmSound
 
     Result GetGroupRMS(dmhash_t group_hash, float window, float* rms_left, float* rms_right);
     Result GetGroupPeak(dmhash_t group_hash, float window, float* peak_left, float* peak_right);
+    Result GetScaleFromGain(float gain, float* scale);
 
     Result Play(HSoundInstance sound_instance);
     Result Stop(HSoundInstance sound_instance);
@@ -131,11 +137,27 @@ namespace dmSound
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const dmVMath::Vector4& value);
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, dmVMath::Vector4& value);
 
+    // Set initial playback offset before playing; only applied to the initial playback
+    Result SetStartFrame(HSoundInstance sound_instance, uint32_t start_frame);
+    Result SetStartTime(HSoundInstance sound_instance, float start_time_seconds);
+
     // Platform dependent
     bool IsMusicPlaying();
     bool IsAudioInterrupted();
 
+    struct DecoderOutputSettings {
+        bool m_UseNormalizedFloatRange;     //!< if true, decoders must deliver any float data in [-1..1] range, otherwise: [-32768, 32767]
+        bool m_UseInterleaved;              //!< if true, decoders must deliver data with interleaved channels, otherwise: they can choose
+    };
+    void GetDecoderOutputSettings(DecoderOutputSettings* settings);
+
     void OnWindowFocus(bool focus);
+
+    /**
+     * Notify the sound system that the active device has been invalidated and must be reopened.
+     * Currently used by the WASAPI backend when Windows reports AUDCLNT_E_DEVICE_INVALIDATED.
+     */
+    void NotifyDeviceInvalidated();
 }
 
 namespace dmSound
@@ -163,6 +185,12 @@ namespace dmSound
     struct DeviceInfo
     {
         uint32_t m_MixRate;
+        uint32_t m_FrameCount; // If != 0, the max size of the audio buffer
+        DSPImplType m_DSPImplementation;
+        uint8_t m_UseNonInterleaved : 1; // If set output buffer contains channels in sequence instead of interleaved
+        uint8_t m_UseFloats : 1; // If set device expects float data
+        uint8_t m_UseNormalized : 1; // If set any float data must be normalized in range
+        uint8_t : 5;
     };
 
     /**
@@ -194,13 +222,13 @@ namespace dmSound
 
         /**
          * Queue buffer.
-         * @note Buffer data in 16-bit signed PCM stereo
+         * @note Buffer data in 16-bit signed PCM stereo or 32-bit float, interleaved or not - according to DeviceInfo data
          * @param device
          * @param frames
          * @param frame_count
          * @return
          */
-        Result (*m_Queue)(HDevice device, const int16_t* frames, uint32_t frame_count);
+        Result (*m_Queue)(HDevice device, const void* frames, uint32_t frame_count);
 
         /**
          * Number of free buffers
@@ -208,6 +236,13 @@ namespace dmSound
          * @return
          */
         uint32_t (*m_FreeBufferSlots)(HDevice device);
+
+        /**
+         * The available number of frames in the free buffer
+         * @param device
+         * @return number of frames available for write
+         */
+        uint32_t (*m_GetAvailableFrames)(HDevice device);
 
         /**
          * Get device info
@@ -251,13 +286,14 @@ namespace dmSound
     /**
      * Declare a new sound device
      */
-    #define DM_DECLARE_SOUND_DEVICE(symbol, name, open, close, queue, free_buffer_slots, device_info, enable, disable) \
+    #define DM_DECLARE_SOUND_DEVICE(symbol, name, open, close, queue, free_buffer_slots, get_available_frames, device_info, enable, disable) \
             dmSound::DeviceType DM_SOUND_PASTE2(symbol, __LINE__) = { \
                     name, \
                     open, \
                     close, \
                     queue, \
                     free_buffer_slots, \
+                    get_available_frames, \
                     device_info, \
                     enable, \
                     disable, \

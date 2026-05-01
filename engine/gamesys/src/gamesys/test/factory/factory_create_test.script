@@ -1,0 +1,21 @@
+function init(self)
+	-- max_instances is set before the test runs
+	-- it is the max instances value sent to the collection when created
+	-- try to create up to the cap
+	-- minus one for the game object this script is attached to
+	local amount = _G.max_instances - 1
+	local created = 0
+	for i=1,amount do
+		local id = factory.create("/go#factory")
+		if not id then
+			break
+		end
+		created = created + 1
+	end
+	assert(created == amount, "Expected " .. amount .. " number of game objects to be created. Actual " .. created)
+
+	-- try to create one more
+	-- this should fail
+	local id = factory.create("/go#factory")
+	assert(not id, "Expected game object to not be created")
+end

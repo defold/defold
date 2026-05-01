@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,6 +33,8 @@ namespace dmRender
         COMMAND_TYPE_SET_VIEW,
         COMMAND_TYPE_SET_PROJECTION,
         COMMAND_TYPE_SET_BLEND_FUNC,
+        COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE,
+        COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE,
         COMMAND_TYPE_SET_COLOR_MASK,
         COMMAND_TYPE_SET_DEPTH_MASK,
         COMMAND_TYPE_SET_DEPTH_FUNC,
