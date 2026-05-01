@@ -1,3 +1,7 @@
+Only in a/bullet-2.77: Demos
+Only in a/bullet-2.77: Extras
+Only in a/bullet-2.77: Glut
+Only in a/bullet-2.77: msvc
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h
 --- a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h	2010-08-24 18:28:48.000000000 +0300
 +++ c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h	2026-04-22 13:34:34.620969000 +0300
@@ -396,18 +400,60 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispat
  		input.m_maximumDistanceSquared*= input.m_maximumDistanceSquared;
  	}
  
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp
+--- a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp	2009-05-22 19:15:56.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp	2026-04-30 23:18:32.365467000 +0300
+@@ -24,6 +24,7 @@
+ 	m_shapeType = CAPSULE_SHAPE_PROXYTYPE;
+ 	m_upAxis = 1;
+ 	m_implicitShapeDimensions.setValue(radius,0.5f*height,radius);
++	m_collisionMargin = radius;
+ }
+ 
+  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h
 --- a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h	2010-02-17 23:16:36.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h	2026-04-22 11:18:11.000000000 +0300
-@@ -95,10 +95,7 @@
- 		btVector3 implicitShapeDimensionsWithMargin = m_implicitShapeDimensions+oldMargin;
- 		btVector3 unScaledImplicitShapeDimensionsWithMargin = implicitShapeDimensionsWithMargin / m_localScaling;
++++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h	2026-04-30 23:20:57.019787000 +0300
+@@ -45,21 +45,14 @@
+ 	
+ 	virtual void setMargin(btScalar collisionMargin)
+ 	{
+-		//correct the m_implicitShapeDimensions for the margin
+-		btVector3 oldMargin(getMargin(),getMargin(),getMargin());
+-		btVector3 implicitShapeDimensionsWithMargin = m_implicitShapeDimensions+oldMargin;
+-		
+-		btConvexInternalShape::setMargin(collisionMargin);
+-		btVector3 newMargin(getMargin(),getMargin(),getMargin());
+-		m_implicitShapeDimensions = implicitShapeDimensionsWithMargin - newMargin;
+-
++		//don't override the margin for capsules, their entire radius == margin
++		(void)collisionMargin;
+ 	}
  
+ 	virtual void getAabb (const btTransform& t, btVector3& aabbMin, btVector3& aabbMax) const
+ 	{
+ 			btVector3 halfExtents(getRadius(),getRadius(),getRadius());
+ 			halfExtents[m_upAxis] = getRadius() + getHalfHeight();
+-			halfExtents += btVector3(getMargin(),getMargin(),getMargin());
+ 			btMatrix3x3 abs_b = t.getBasis().absolute();  
+ 			btVector3 center = t.getOrigin();
+ 			btVector3 extent = btVector3(abs_b[0].dot(halfExtents),abs_b[1].dot(halfExtents),abs_b[2].dot(halfExtents));		  
+@@ -91,14 +84,10 @@
+ 
+ 	virtual void	setLocalScaling(const btVector3& scaling)
+ 	{
+-		btVector3 oldMargin(getMargin(),getMargin(),getMargin());
+-		btVector3 implicitShapeDimensionsWithMargin = m_implicitShapeDimensions+oldMargin;
+-		btVector3 unScaledImplicitShapeDimensionsWithMargin = implicitShapeDimensionsWithMargin / m_localScaling;
+-
 -		btConvexInternalShape::setLocalScaling(scaling);
 -
 -		m_implicitShapeDimensions = (unScaledImplicitShapeDimensionsWithMargin * m_localScaling) - oldMargin;
 -
-+		m_implicitShapeDimensions = (unScaledImplicitShapeDimensionsWithMargin * scaling) - oldMargin;
++		btVector3 unScaledImplicitShapeDimensions = m_implicitShapeDimensions / m_localScaling;
++		m_implicitShapeDimensions = (unScaledImplicitShapeDimensions * scaling);
++		int radiusAxis = (m_upAxis + 2) % 3;
++		m_collisionMargin = m_implicitShapeDimensions[radiusAxis];
  	}
  
  	virtual	int	calculateSerializeBufferSize() const;
@@ -1023,7 +1069,7 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btActio
  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp c/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp
 --- a/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp	2010-08-15 13:45:56.000000000 +0300
-+++ c/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp	2026-04-22 13:34:34.653970000 +0300
++++ c/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp	2026-04-30 23:16:46.076032000 +0300
 @@ -52,7 +52,7 @@
  :btDynamicsWorld(dispatcher,pairCache,collisionConfiguration),
  m_constraintSolver(constraintSolver),
@@ -2344,3 +2390,4 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/CMakeLists.txt c/bul
  			ENDIF (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
  		ENDIF (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 2.5)
  
+Only in a/bullet-2.77: UnitTests
