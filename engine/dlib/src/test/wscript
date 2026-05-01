@@ -240,15 +240,20 @@ def build(bld):
                           'data/valid.astc',
                           'data/invalid.astc']
 
-    create_test(bld, 'test_image', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = image_embed_source,
-                extra_local_libs = ['image'],
+    bld.stlib(features     = 'cxx embed test',
+              target       = 'test_image_embeds',
+              source       = 'test_image_embeds_dummy.cpp',
+              embed_source = image_embed_source)
+
+    bld.add_group()
+
+    create_test(bld, 'test_image', extra_libs = ['THREAD'],
+                extra_local_libs = ['image', 'test_image_embeds'],
                 extra_includes = ['.']
                 )
 
-    create_test(bld, 'test_image', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = image_embed_source,
-                extra_local_libs = ['image_null'],
+    create_test(bld, 'test_image', extra_libs = ['THREAD'],
+                extra_local_libs = ['image_null', 'test_image_embeds'],
                 extra_includes = ['.'],
                 skip_run = True,
                 target_name = 'test_image_null'
