@@ -12,7 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex, json
+import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs, Errors
 from waflib.TaskGen import extension, feature, after, before, task_gen
@@ -20,6 +20,7 @@ from waflib.Logs import error
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
+from cross import get_platform_file_fallback_tags, get_platform_file_tags, get_platform_roots, get_repo_root
 import sdk
 
 if not 'DYNAMO_HOME' in os.environ:
@@ -98,66 +99,6 @@ def platform_setup_vars(ctx, build_util):
 
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
-
-def get_repo_root():
-    return os.path.dirname(script_dir)
-
-def get_platform_roots(platform):
-    config_path = os.path.join(get_repo_root(), '.defold-platforms')
-    if not os.path.exists(config_path):
-        return []
-    with open(config_path, 'r') as f:
-        platforms = json.load(f)
-    platform_config = platforms.get(platform, {})
-    roots = []
-    if 'root' in platform_config:
-        roots.append(platform_config['root'])
-    roots.extend(platform_config.get('roots', []))
-    return roots
-
-def get_platform_file_tags(platform):
-    target = platform
-    if '-' in platform:
-        target = platform.split('-')[-1]
-
-    tags = []
-    def append_tag(tag):
-        if tag and tag not in tags:
-            tags.append(tag)
-
-    append_tag(target)
-
-    if target == 'nx64':
-        append_tag('switch')
-        append_tag('nintendo')
-    elif target in ('ps4', 'ps5'):
-        append_tag('playstation')
-        append_tag('sony')
-    elif target == 'xbone':
-        append_tag('xbox')
-        append_tag('microsoft')
-        append_tag('win32')
-
-    if target in ('macos', 'ios'):
-        append_tag('darwin')
-        append_tag('apple')
-
-    return tags
-
-def get_platform_file_fallback_tags(platform):
-    target = platform
-    if '-' in platform:
-        target = platform.split('-')[-1]
-
-    tags = []
-    def append_tag(tag):
-        if tag and tag not in tags:
-            tags.append(tag)
-
-    if target in ('android', 'ios', 'linux', 'macos', 'web'):
-        append_tag('posix')
-
-    return tags
 
 def find_platform_file(bld, platform, path, public_fallback = True, private_roots = True):
     repo_root = get_repo_root()
@@ -248,12 +189,14 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
     for node in bld.path.ant_glob(feature_patterns):
         append_file(feature_files, node)
 
+    # Core implementation: <feature>.<ext> is shared by all platforms.
     for extension in extensions:
         node = find_file(feature_base + extension, True, False)
         if node:
             append_file(files, node)
             append_file(feature_files, node)
 
+    # Preferred tags: explicit feature choices such as mbedtls override platform tags.
     tag_files = []
     for tag in get_feature_extra_tags(platform, preferred_tags):
         for extension in extensions:
@@ -262,6 +205,7 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
                 append_file(tag_files, node)
                 append_file(feature_files, node)
 
+    # Platform tags: target-specific files, optionally extended with feature tags.
     if not tag_files:
         for tag in get_platform_file_tags(platform) + get_feature_extra_tags(platform, extra_tags):
             for extension in extensions:
@@ -270,6 +214,7 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
                     append_file(tag_files, node)
                     append_file(feature_files, node)
 
+    # Fallback tags: public shared implementations used when no platform file matched.
     if not tag_files:
         for tag in get_platform_file_fallback_tags(platform) + ['default']:
             for extension in extensions:
