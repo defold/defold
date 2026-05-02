@@ -79,20 +79,6 @@ namespace dmSys
         return RESULT_UNKNOWN;
     }
 
-    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
-    {
-        dmSnPrintf(buffer, buffer_size, "%s", path);
-        return RESULT_OK;
-    }
-
-    Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path)
-    {
-        dmSnPrintf(buffer, buffer_size, "%s", path);
-        if (dmSys::ResourceExists(buffer))
-            return RESULT_OK;
-        return RESULT_NOENT;
-    }
-
 #if !defined(DM_PLATFORM_VENDOR)
 
     static bool WideToACP(const wchar_t* path, char* out, uint32_t out_len)
