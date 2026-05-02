@@ -1201,7 +1201,7 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreateComputePipeline(VkDevice vk_device, VulkanProgram* program, Pipeline* pipelineOut)
+    VkResult CreateComputePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VulkanProgram* program, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1213,10 +1213,10 @@ bail:
         vk_pipeline_create_info.layout             = program->m_Handle.m_PipelineLayout;
         vk_pipeline_create_info.pNext              = 0;
         vk_pipeline_create_info.stage              = program->m_ComputeModule->m_PipelineStageInfo;
-        return vkCreateComputePipelines(vk_device, 0, 1, &vk_pipeline_create_info, 0, pipelineOut);
+        return vkCreateComputePipelines(vk_device, vk_pipeline_cache, 1, &vk_pipeline_create_info, 0, pipelineOut);
     }
 
-    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
+    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
         RenderTarget* render_target, Pipeline* pipelineOut)
     {
@@ -1427,7 +1427,7 @@ bail:
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 
-        return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, pipelineOut);
+        return vkCreateGraphicsPipelines(vk_device, vk_pipeline_cache, 1, &vk_pipeline_info, 0, pipelineOut);
     }
 
     void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
