@@ -211,13 +211,15 @@ def get_feature_extra_tags(platform, extra_tags):
         append_tag(tag)
     return tags
 
-def find_feature_files(bld, feature_name, platform, extra_tags = None):
+def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred_tags = None):
     """Return (selected_files, feature_files) for feature_name.
 
     Rules:
     * feature_files contains <feature>.<ext> and <feature>_*.ext when found.
     * selected_files contains all <feature>.<ext> core files when found.
     * selected_files contains all matching <feature>_<tag>.ext files for the platform.
+    * preferred_tags may be a list for all platforms, or a dict where platform/target override '*'.
+    * preferred tag matches replace platform tag matches when found.
     * extra_tags may be a list for all platforms, or a dict where platform/target override '*'.
     * extra tag matches are appended to platform tag matches before fallback tags.
     * fallback tags and default are used only when no platform tag matched.
@@ -253,12 +255,20 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None):
             append_file(feature_files, node)
 
     tag_files = []
-    for tag in get_platform_file_tags(platform) + get_feature_extra_tags(platform, extra_tags):
+    for tag in get_feature_extra_tags(platform, preferred_tags):
         for extension in extensions:
             node = find_file('%s_%s%s' % (feature_base, tag, extension))
             if node:
                 append_file(tag_files, node)
                 append_file(feature_files, node)
+
+    if not tag_files:
+        for tag in get_platform_file_tags(platform) + get_feature_extra_tags(platform, extra_tags):
+            for extension in extensions:
+                node = find_file('%s_%s%s' % (feature_base, tag, extension))
+                if node:
+                    append_file(tag_files, node)
+                    append_file(feature_files, node)
 
     if not tag_files:
         for tag in get_platform_file_fallback_tags(platform) + ['default']:
