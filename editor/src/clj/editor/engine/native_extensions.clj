@@ -159,6 +159,44 @@
   [prefs]
   (into [] (remove string/blank?) (string/split-lines (prefs/get prefs [:extensions :build-server-headers]))))
 
+(def ^:private app-manifest-upload-path "_app/app.manifest")
+
+(defn- app-manifest-context-prefix ^bytes []
+  (let [line-separator (System/lineSeparator)]
+    (.getBytes (str "context:" line-separator
+                    "    baseVariant: debug" line-separator
+                    "    withSymbols: true" line-separator)
+               StandardCharsets/UTF_8)))
+
+(defn- concat-byte-arrays ^bytes [^bytes a ^bytes b]
+  (let [result (byte-array (+ (alength a) (alength b)))]
+    (System/arraycopy a 0 result 0 (alength a))
+    (System/arraycopy b 0 result (alength a) (alength b))
+    result))
+
+(defn- resource-node-content ^bytes [resource-node evaluation-context]
+  (if-let [content (some-> (g/node-value resource-node :save-data evaluation-context)
+                           (resource-node/save-data-content))]
+    (.getBytes content StandardCharsets/UTF_8)
+    (with-open [is (io/input-stream (g/node-value resource-node :resource evaluation-context))]
+      (.readAllBytes is))))
+
+(defn- resource-node-last-modified [resource-node evaluation-context]
+  (.lastModified (io/file (g/node-value resource-node :resource evaluation-context))))
+
+(defn- make-app-manifest-resource [app-manifest-resource-node evaluation-context]
+  (reify ExtenderResource
+    (getPath [_] app-manifest-upload-path)
+    (getContent [_]
+      (let [context-prefix (app-manifest-context-prefix)]
+        (if app-manifest-resource-node
+          (concat-byte-arrays context-prefix (resource-node-content app-manifest-resource-node evaluation-context))
+          context-prefix)))
+    (getLastModified [_]
+      (if app-manifest-resource-node
+        (resource-node-last-modified app-manifest-resource-node evaluation-context)
+        0))))
+
 ;; Note: When we do bundling for Android via the editor, we need add
 ;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
@@ -173,7 +211,7 @@
                                  "Missing Native Extension Resource"
                                  proj-path
                                  (project/get-resource-node project "/game.project" evaluation-context))))))))
-          [[["native_extension" "app_manifest"] "_app/app.manifest"]])))
+          [[["native_extension" "app_manifest"] app-manifest-upload-path]])))
 
 (defn- get-ne-platform [platform]
   (case platform
@@ -230,23 +268,21 @@
         (pos? (count (global-resource-nodes-by-upload-path project evaluation-context))))))
 
 (defn- make-extender-resources [project platform evaluation-context]
-  (reduce-kv
-    (fn [^ArrayList acc upload-path resource-node]
-      (doto acc
-        (.add (reify ExtenderResource
-                (getPath [_] upload-path)
-                (getContent [_]
-                  (if-let [content (some-> (g/node-value resource-node :save-data evaluation-context)
-                                           (resource-node/save-data-content))]
-                    (.getBytes content StandardCharsets/UTF_8)
-                    (with-open [is (io/input-stream (g/node-value resource-node :resource evaluation-context))]
-                      (.readAllBytes is))))
-                (getLastModified [_]
-                  (.lastModified (io/file (g/node-value resource-node :resource evaluation-context))))))))
-    (ArrayList.)
-    (merge (global-resource-nodes-by-upload-path project evaluation-context)
-           (extension-resource-nodes-by-upload-path project evaluation-context platform)
-           (get-main-manifest-file-upload-resource project evaluation-context platform))))
+  (let [global-resource-nodes (global-resource-nodes-by-upload-path project evaluation-context)]
+    (reduce-kv
+      (fn [^ArrayList acc upload-path resource-node]
+        (doto acc
+          (.add (reify ExtenderResource
+                  (getPath [_] upload-path)
+                  (getContent [_]
+                    (resource-node-content resource-node evaluation-context))
+                  (getLastModified [_]
+                    (resource-node-last-modified resource-node evaluation-context))))))
+      (doto (ArrayList.)
+        (.add (make-app-manifest-resource (get global-resource-nodes app-manifest-upload-path) evaluation-context)))
+      (merge (dissoc global-resource-nodes app-manifest-upload-path)
+             (extension-resource-nodes-by-upload-path project evaluation-context platform)
+             (get-main-manifest-file-upload-resource project evaluation-context platform)))))
 
 (defn get-engine-archive [project platform prefs evaluation-context]
   (if-not (supported-platform? platform)
