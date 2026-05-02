@@ -21,6 +21,7 @@
 #include <script/script.h>
 
 #include "component.h"
+#include "gameobject_private.h"
 #include "gameobject_script.h"
 #include "gameobject_props.h"
 #include "gameobject_props_lua.h"
@@ -66,6 +67,7 @@ namespace dmGameObject
         uint16_t            m_Composite : 1;
         uint16_t            m_Backwards : 1;
         uint16_t            m_FirstUpdate : 1;
+        uint16_t            m_TransformsUpdated : 1;
     };
 
     struct AnimWorld
@@ -184,7 +186,7 @@ namespace dmGameObject
         AnimWorld* world = (AnimWorld*)params.m_World;
         world->m_InUpdate = 1;
         uint32_t size = world->m_Animations.Size();
-        uint32_t orig_size = size;
+        bool transforms_updated = false;
 
         DM_PROPERTY_ADD_U32(rmtp_ComponentsAnim, size);
 
@@ -322,6 +324,11 @@ namespace dmGameObject
                     AddPropertyOptionsIndex(&property_opt, 0);
                     SetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, PropertyVar(v));
                 }
+                if (anim.m_TransformsUpdated)
+                {
+                    MarkTransformDirty(anim.m_Instance);
+                    transforms_updated = true;
+                }
             }
             if (completed)
             {
@@ -386,7 +393,7 @@ namespace dmGameObject
             }
         }
         world->m_InUpdate = 0;
-        update_result.m_TransformsUpdated = orig_size != 0;
+        update_result.m_TransformsUpdated = transforms_updated;
         return result;
     }
 
@@ -480,6 +487,7 @@ namespace dmGameObject
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
         animation.m_Composite = composite ? 1 : 0;
+        animation.m_TransformsUpdated = IsGameObjectTransformProperty(component_id, property_id) ? 1 : 0;
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
             animation.m_Backwards = 1;
         animation.m_FirstUpdate = 1;

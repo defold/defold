@@ -87,6 +87,44 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
+static void SetCachedWorldPosition(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Point3& position)
+{
+    Matrix4 world = Matrix4::identity();
+    world.setCol3(Vector4(position.getX(), position.getY(), position.getZ(), 1.0f));
+    collection->m_Collection->m_WorldTransforms[instance->m_Index] = world;
+}
+
+static void AssertWorldPosition(dmGameObject::HInstance instance, const Point3& expected)
+{
+    Point3 actual = dmGameObject::GetWorldPosition(instance);
+    ASSERT_NEAR(expected.getX(), actual.getX(), EPSILON);
+    ASSERT_NEAR(expected.getY(), actual.getY(), EPSILON);
+    ASSERT_NEAR(expected.getZ(), actual.getZ(), EPSILON);
+}
+
+static void AssertPosition(dmGameObject::HInstance instance, const Point3& expected)
+{
+    Point3 actual = dmGameObject::GetPosition(instance);
+    ASSERT_NEAR(expected.getX(), actual.getX(), EPSILON);
+    ASSERT_NEAR(expected.getY(), actual.getY(), EPSILON);
+    ASSERT_NEAR(expected.getZ(), actual.getZ(), EPSILON);
+}
+
+static void PostSetParentMessage(dmGameObject::HCollection collection, dmGameObject::HInstance child, dmGameObject::HInstance parent, bool keep_world_transform)
+{
+    dmGameObjectDDF::SetParent ddf = {};
+    ddf.m_ParentId = parent ? dmGameObject::GetIdentifier(parent) : 0;
+    ddf.m_KeepWorldTransform = keep_world_transform ? 1 : 0;
+
+    dmMessage::URL receiver = {};
+    receiver.m_Socket = dmGameObject::GetMessageSocket(collection);
+    receiver.m_Path = dmGameObject::GetIdentifier(child);
+    receiver.m_Fragment = 0;
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
+        0, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
+}
+
 TEST_F(HierarchyTest, TestHierarchy1)
 {
     for (int i = 0; i < 2; ++i)
@@ -351,7 +389,6 @@ TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
     ASSERT_TRUE(ret);
 
     // Capture original world positions
-    Point3 child_world_before       = dmGameObject::GetWorldPosition(child);
     Point3 grandchild_world_before  = dmGameObject::GetWorldPosition(grandchild);
 
     // Modify parent local transform mid-frame
@@ -385,6 +422,171 @@ TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
     dmGameObject::Delete(m_Collection, parent, true);
     ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
+}
+
+TEST_F(HierarchyTest, TransformChangesMarkCollectionDirty)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    dmGameObject::SetPosition(parent, Point3(1, 2, 3));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    dmGameObject::SetRotation(parent, Quat::rotationZ(0.5f));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    dmGameObject::SetScale(parent, Vector3(2, 3, 4));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromVector3(parent, 0, dmHashString64("position"), Vector3(4, 5, 6)));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromQuat(parent, 0, dmHashString64("rotation"), Quat::rotationZ(0.25f)));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromVector3(parent, 0, dmHashString64("euler"), Vector3(0, 0, 45)));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetPropertyFromVector3(parent, 0, dmHashString64("scale"), Vector3(2, 2, 2)));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    dmGameObject::SetBone(child, true);
+    dmTransform::Transform component_transform;
+    component_transform.SetIdentity();
+    dmTransform::Transform bone_transform;
+    bone_transform.SetIdentity();
+    bone_transform.SetTranslation(Vector3(7, 8, 9));
+    ASSERT_EQ(1u, dmGameObject::SetBoneTransforms(child, component_transform, &bone_transform, 1));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    dmGameObject::Delete(m_Collection, parent, true);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+}
+
+TEST_F(HierarchyTest, DeleteWithReparentMarksCollectionDirty)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetParent(child, parent);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    dmGameObject::Delete(m_Collection, parent, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ((dmGameObject::HInstance) 0, dmGameObject::GetParent(child));
+
+    dmGameObject::Delete(m_Collection, child, false);
+}
+
+TEST_F(HierarchyTest, DeleteWithReparentUpdatesPromotedSubtree)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance grandchild = dmGameObject::New(m_Collection, "/go.goc");
+
+    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
+    dmGameObject::SetPosition(child, Point3(1, 0, 0));
+    dmGameObject::SetPosition(grandchild, Point3(2, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(grandchild, child));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    SetCachedWorldPosition(m_Collection, child, Point3(100, 100, 100));
+    SetCachedWorldPosition(m_Collection, grandchild, Point3(200, 200, 200));
+
+    dmGameObject::Delete(m_Collection, parent, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(m_Collection->m_Collection->m_DirtyTransforms);
+    ASSERT_EQ((dmGameObject::HInstance) 0, dmGameObject::GetParent(child));
+
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    AssertWorldPosition(child, Point3(1, 0, 0));
+    AssertWorldPosition(grandchild, Point3(3, 0, 0));
+
+    dmGameObject::Delete(m_Collection, child, true);
+}
+
+TEST_F(HierarchyTest, DirtyCollectionRefreshesAllWorldTransforms)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+
+    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
+    dmGameObject::SetPosition(child, Point3(1, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    SetCachedWorldPosition(m_Collection, parent, Point3(100, 100, 100));
+    SetCachedWorldPosition(m_Collection, child, Point3(200, 200, 200));
+    m_Collection->m_Collection->m_DirtyTransforms = true;
+
+    dmGameObject::UpdateTransforms(m_Collection->m_Collection);
+    AssertWorldPosition(parent, Point3(10, 0, 0));
+    AssertWorldPosition(child, Point3(11, 0, 0));
+}
+
+TEST_F(HierarchyTest, FailedSetParentMessageDoesNotModifyTransform)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child, "child"));
+
+    dmGameObject::SetPosition(parent, Point3(10, 0, 0));
+    dmGameObject::SetPosition(child, Point3(1, 0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    Point3 parent_position_before = dmGameObject::GetPosition(parent);
+    Point3 parent_world_before = dmGameObject::GetWorldPosition(parent);
+    Point3 child_world_before = dmGameObject::GetWorldPosition(child);
+
+    PostSetParentMessage(m_Collection, parent, child, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ((dmGameObject::HInstance) 0, dmGameObject::GetParent(parent));
+    ASSERT_EQ(parent, dmGameObject::GetParent(child));
+    AssertPosition(parent, parent_position_before);
+    AssertWorldPosition(parent, parent_world_before);
+    AssertWorldPosition(child, child_world_before);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    PostSetParentMessage(m_Collection, parent, child, true);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ((dmGameObject::HInstance) 0, dmGameObject::GetParent(parent));
+    ASSERT_EQ(parent, dmGameObject::GetParent(child));
+    AssertPosition(parent, parent_position_before);
+    AssertWorldPosition(parent, parent_world_before);
+    AssertWorldPosition(child, child_world_before);
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    dmGameObject::Delete(m_Collection, parent, true);
 }
 
 TEST_F(HierarchyTest, TestHierarchy4)

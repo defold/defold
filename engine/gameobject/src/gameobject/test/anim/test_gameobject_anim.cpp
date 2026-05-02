@@ -120,8 +120,10 @@ TEST_F(AnimTest, AnimateAndStop)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NEAR(2.5f, X(go), EPSILON);
+    ASSERT_NEAR(2.5f, dmGameObject::GetWorldPosition(go).getX(), EPSILON);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NEAR(5.0f, X(go), EPSILON);
+    ASSERT_NEAR(5.0f, dmGameObject::GetWorldPosition(go).getX(), EPSILON);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NEAR(7.5f, X(go), EPSILON);
     ASSERT_EQ(0u, this->m_FinishCount);
