@@ -19,6 +19,7 @@
 #import <Foundation/Foundation.h>
 #include "log.h"
 #include "sys.h"
+#include "sys_posix.h"
 #include "sys_private.h"
 #include "dstrings.h"
 
@@ -33,6 +34,16 @@
 
 namespace dmSys
 {
+    char* GetEnv(const char* name)
+    {
+        return dmSysPosix::GetEnv(name);
+    }
+
+    Result Rename(const char* dst_filename, const char* src_filename)
+    {
+        return dmSysPosix::Rename(dst_filename, src_filename);
+    }
+
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
         @autoreleasepool
@@ -51,6 +62,104 @@ namespace dmSys
             }
             return RESULT_OK;
         }
+    }
+
+    Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len)
+    {
+        @autoreleasepool
+        {
+            assert(path_len > 0);
+            path[0] = '\0';
+
+            NSBundle* mainBundle = [NSBundle mainBundle];
+            if (!mainBundle)
+            {
+                dmLogFatal("Unable to get main bundle");
+                return RESULT_UNKNOWN;
+            }
+
+            NSString* resource_path = [mainBundle resourcePath];
+            if (!resource_path)
+            {
+                dmLogFatal("Unable to locate bundle resource directory");
+                return RESULT_UNKNOWN;
+            }
+
+            if (dmStrlCpy(path, [resource_path UTF8String], path_len) >= path_len)
+                return RESULT_INVAL;
+
+            return RESULT_OK;
+        }
+    }
+
+    void FillTimeZone(SystemInfo* info)
+    {
+        dmSysPosix::FillTimeZone(info);
+    }
+
+    bool ResourceExists(const char* path)
+    {
+        return dmSysPosix::ResourceExists(path);
+    }
+
+    Result ResourceSize(const char* path, uint32_t* resource_size)
+    {
+        return dmSysPosix::ResourceSize(path, resource_size);
+    }
+
+    Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
+    {
+        return dmSysPosix::LoadResource(path, buffer, buffer_size, resource_size);
+    }
+
+    Result LoadResourcePartial(const char* path, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread)
+    {
+        return dmSysPosix::LoadResourcePartial(path, offset, size, buffer, nread);
+    }
+
+    Result Rmdir(const char* path)
+    {
+        return dmSysPosix::Rmdir(path);
+    }
+
+    Result Mkdir(const char* path, uint32_t mode)
+    {
+        return dmSysPosix::Mkdir(path, mode);
+    }
+
+    Result IsDir(const char* path)
+    {
+        return dmSysPosix::IsDir(path);
+    }
+
+    bool Exists(const char* path)
+    {
+        return dmSysPosix::Exists(path);
+    }
+
+    Result IterateTree(const char* dirpath, bool recursive, bool call_before, void* ctx, void (*callback)(void* ctx, const char* path, bool isdir))
+    {
+        return dmSysPosix::IterateTree(dirpath, recursive, call_before, ctx, callback);
+    }
+
+    Result Unlink(const char* path)
+    {
+        return dmSysPosix::Unlink(path);
+    }
+
+    Result Stat(const char* path, StatInfo* stat_info)
+    {
+        return dmSysPosix::Stat(path, stat_info);
+    }
+
+    int StatIsDir(const StatInfo* stat_info)
+    {
+        return dmSysPosix::StatIsDir(stat_info);
+    }
+
+    int StatIsFile(const StatInfo* stat_info)
+    {
+        return dmSysPosix::StatIsFile(stat_info);
     }
 
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
@@ -301,8 +410,5 @@ namespace dmSys
         return NETWORK_CONNECTED;
     }
 
-#endif
+#endif // macos
 }
-
-// Apple overrides live above; the remaining implementation is shared with POSIX platforms.
-#include "sys_posix.cpp"
