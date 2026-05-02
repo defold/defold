@@ -32,6 +32,30 @@ extern "C"
 
 namespace dmGameSystem
 {
+    static dmGraphics::TextureType NormalizeBindableTextureType(dmGraphics::TextureType texture_type)
+    {
+        switch (texture_type)
+        {
+            case dmGraphics::TEXTURE_TYPE_TEXTURE_2D:       return dmGraphics::TEXTURE_TYPE_2D;
+            case dmGraphics::TEXTURE_TYPE_TEXTURE_2D_ARRAY: return dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+            case dmGraphics::TEXTURE_TYPE_TEXTURE_3D:       return dmGraphics::TEXTURE_TYPE_3D;
+            case dmGraphics::TEXTURE_TYPE_TEXTURE_CUBE:     return dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            default:                                        return texture_type;
+        }
+    }
+
+    static dmGraphics::CoordinateSpace ResolveMaterialCoordinateSpace(dmRender::HMaterial material, dmGraphics::CoordinateSpace coordinate_space)
+    {
+        if (coordinate_space != dmGraphics::COORDINATE_SPACE_DEFAULT)
+        {
+            return coordinate_space;
+        }
+
+        return dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL
+            ? dmGraphics::COORDINATE_SPACE_LOCAL
+            : dmGraphics::COORDINATE_SPACE_WORLD;
+    }
+
     /*# Material API documentation
      *
      * Functions for interacting with materials.
@@ -145,7 +169,7 @@ namespace dmGameSystem
             lua_pushinteger(L, (lua_Integer) info.m_Attribute->m_DataType);
             lua_setfield(L, -2, "data_type");
 
-            lua_pushinteger(L, (lua_Integer) info.m_Attribute->m_CoordinateSpace);
+            lua_pushinteger(L, (lua_Integer) ResolveMaterialCoordinateSpace(material_res->m_Material, info.m_Attribute->m_CoordinateSpace));
             lua_setfield(L, -2, "coordinate_space");
 
             lua_pushinteger(L, (lua_Integer) info.m_Attribute->m_SemanticType);
@@ -788,11 +812,13 @@ namespace dmGameSystem
         float max_anisotropy;
         dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
 
-        if (texture_type != texture_type_in)
+        dmGraphics::TextureType normalized_sampler_type = NormalizeBindableTextureType(texture_type);
+
+        if (normalized_sampler_type != texture_type_in)
         {
             return luaL_error(L, "Texture type mismatch. Can't bind a %s texture to a %s sampler",
                 dmGraphics::GetTextureTypeLiteral(texture_type_in),
-                dmGraphics::GetTextureTypeLiteral(texture_type));
+                dmGraphics::GetTextureTypeLiteral(normalized_sampler_type));
         }
 
         material_res->m_TextureResourcePaths[unit] = texture_path;

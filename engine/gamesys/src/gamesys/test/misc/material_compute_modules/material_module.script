@@ -25,8 +25,8 @@ function init(self)
     })
 
     test_module_get_vertex_attributes(material, self.material, {
-        make_vertex_attribute("position", vmath.vector4(), graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_POSITION),
-        make_vertex_attribute("page_index", 0, graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_PAGE_INDEX),
+        make_vertex_attribute("position", vmath.vector3(), graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_POSITION),
+        make_vertex_attribute("page_index", 0, graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_LOCAL, false, graphics.SEMANTIC_TYPE_PAGE_INDEX),
         make_vertex_attribute("custom_one", vmath.vector3(), graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_NONE),
         make_vertex_attribute("custom_two", vmath.vector3(), graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_NONE),
         make_vertex_attribute("custom_three", vmath.vector4(), graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_NONE),

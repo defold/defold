@@ -8223,7 +8223,6 @@ TEST_F(MiscTests, MaterialModule)
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
 TEST_F(MiscTests, ComputeModule)
@@ -8239,7 +8238,6 @@ TEST_F(MiscTests, ComputeModule)
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 
     dmResource::Release(m_Factory, compute_program_res);
 }
