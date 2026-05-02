@@ -188,6 +188,45 @@ namespace dmSys
 
 #endif
 
+#if defined(_GAMING_XBOX)
+
+    // Public GDK definitions/storage mappings:
+    // _GAMING_XBOX is the official GDK-on-Xbox preprocessor define:
+    // https://learn.microsoft.com/en-us/gaming/gdk/docs/tools/tools-console/visualstudio/preprocessor-definitions?view=gdk-2604
+    // Local storage maps installed game data to G:\ and temporary local storage to T:\:
+    // https://learn.microsoft.com/en-us/gaming/gdk/docs/features/console/storage/local-storage?view=gdk-2604
+
+    Result GetApplicationPath(char* path_out, uint32_t path_len)
+    {
+        int written = dmSnPrintf(path_out, path_len, "G:\\");
+        if (written >= 0 && (uint32_t)written < path_len)
+            return RESULT_OK;
+        return RESULT_INVAL;
+    }
+
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        (void)application_name;
+        int written = dmSnPrintf(path, path_len, "T:\\");
+        if (written >= 0 && (uint32_t)written < path_len)
+            return RESULT_OK;
+        return RESULT_INVAL;
+    }
+
+    Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
+    {
+        return GetApplicationSupportPath(application_name, path, path_len);
+    }
+
+    Result OpenURL(const char* url, const char* target)
+    {
+        (void)url;
+        (void)target;
+        return RESULT_UNKNOWN;
+    }
+
+#endif
+
     Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len)
     {
         assert(path_len > 0);
