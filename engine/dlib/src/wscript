@@ -340,6 +340,8 @@ def build(bld):
 
         if target_os == 'macos':
             dlib_shared.env.append_value('LINKFLAGS', ['-framework', 'CFNetwork', '-framework', 'Security'])
+        elif platform == 'win32':
+            dlib_shared.env.append_value('LINKFLAGS', bld.env['LINKFLAGS_DLIB'])
 
         if 'win32' not in bld.env['PLATFORM']:
             dlib_memprofile = bld(features = 'c cxx cshlib',
