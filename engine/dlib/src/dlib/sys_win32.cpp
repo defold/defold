@@ -25,6 +25,7 @@
 #include <time.h>
 #include <limits.h> // UINT_MAX
 
+#include "safe_windows.h"
 #include "sys.h"
 #include "sys_private.h"
 #include "log.h"
@@ -39,8 +40,10 @@
 #include "dirent.h"
 
 
+#if !defined(_GAMING_XBOX)
 #include <Shlobj.h>
 #include <Shellapi.h>
+#endif
 #include <io.h>
 #include <direct.h>
 
@@ -49,7 +52,6 @@
 
 #ifndef S_ISREG
 #define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
-#warning "S_ISREG WAS ADDED AS A DEFINE! /MAWE"
 #endif
 
 namespace dmSys
@@ -79,7 +81,7 @@ namespace dmSys
         return RESULT_UNKNOWN;
     }
 
-#if !defined(DM_PLATFORM_VENDOR)
+#if !defined(_GAMING_XBOX)
 
     static bool WideToACP(const wchar_t* path, char* out, uint32_t out_len)
     {
@@ -136,15 +138,18 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        wchar_t tmp_wpath[MAX_PATH];
-
-        if(SUCCEEDED(SHGetFolderPathW(NULL,
-                                     CSIDL_APPDATA | CSIDL_FLAG_CREATE,
-                                     NULL,
-                                     0,
-                                     tmp_wpath)))
+        // FOLDERID_RoamingAppData, kept local to avoid an extra uuid.lib dependency.
+        static const GUID ROAMING_APP_DATA_FOLDER_ID =
         {
-            return GetApplicationSupportPath(tmp_wpath, application_name, path, path_len);
+            0x3EB685DB, 0x65F9, 0x4CF6, { 0xA0, 0x3A, 0xE3, 0xEF, 0x65, 0x72, 0x9F, 0x3D }
+        };
+        PWSTR tmp_wpath = 0;
+        HRESULT hr = SHGetKnownFolderPath(ROAMING_APP_DATA_FOLDER_ID, KF_FLAG_CREATE, NULL, &tmp_wpath);
+        if (SUCCEEDED(hr))
+        {
+            Result result = GetApplicationSupportPath(tmp_wpath, application_name, path, path_len);
+            CoTaskMemFree(tmp_wpath);
+            return result;
         }
         else
         {
@@ -155,29 +160,16 @@ namespace dmSys
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
         assert(path_len > 0);
-        assert(path_len >= MAX_PATH);
-        size_t ret = GetModuleFileNameA(GetModuleHandle(NULL), path_out, path_len);
-        if (ret > 0 && ret < path_len) {
-            // path_out contains path+filename
-            // search for last path separator and end the string there,
-            // effectively removing the filename and keeping the path
-            size_t i = strlen(path_out);
-            do
-            {
-                i -= 1;
-                if (path_out[i] == '\\')
-                {
-                    path_out[i] = 0;
-                    break;
-                }
-            }
-            while (i >= 0);
-        }
-        else
+        path_out[0] = 0;
+
+        char module_file_name[DMPATH_MAX_PATH];
+        DWORD copied = GetModuleFileNameA(NULL, module_file_name, DMPATH_MAX_PATH);
+        if (copied == 0 || copied >= DMPATH_MAX_PATH)
         {
-            path_out[0] = 0;
             return RESULT_INVAL;
         }
+
+        dmPath::Dirname(module_file_name, path_out, path_len);
         return RESULT_OK;
     }
 
@@ -234,6 +226,34 @@ namespace dmSys
     }
 
     typedef int (WINAPI *PGETUSERDEFAULTLOCALENAME)(LPWSTR, int);
+    typedef LONG (WINAPI *PRTLGETVERSION)(OSVERSIONINFOW*);
+
+    static bool GetWindowsVersion(DWORD* major_version, DWORD* minor_version)
+    {
+        HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+        if (!ntdll)
+        {
+            return false;
+        }
+
+        PRTLGETVERSION RtlGetVersion = (PRTLGETVERSION)GetProcAddress(ntdll, "RtlGetVersion");
+        if (!RtlGetVersion)
+        {
+            return false;
+        }
+
+        OSVERSIONINFOW version_info;
+        memset(&version_info, 0, sizeof(version_info));
+        version_info.dwOSVersionInfoSize = sizeof(version_info);
+        if (RtlGetVersion(&version_info) != 0)
+        {
+            return false;
+        }
+
+        *major_version = version_info.dwMajorVersion;
+        *minor_version = version_info.dwMinorVersion;
+        return true;
+    }
 
     void GetSystemInfo(SystemInfo* info)
     {
@@ -241,15 +261,17 @@ namespace dmSys
         PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetUserDefaultLocaleName");
         dmStrlCpy(info->m_DeviceModel, "", sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));
-        OSVERSIONINFOA version_info;
-        version_info.dwOSVersionInfoSize = sizeof(version_info);
-        GetVersionExA(&version_info);
 
         const int max_len = 256;
         char lang[max_len];
         dmStrlCpy(lang, "en-US", max_len);
 
-        dmSnPrintf(info->m_SystemVersion, sizeof(info->m_SystemVersion), "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
+        DWORD major_version = 0;
+        DWORD minor_version = 0;
+        if (GetWindowsVersion(&major_version, &minor_version))
+        {
+            dmSnPrintf(info->m_SystemVersion, sizeof(info->m_SystemVersion), "%u.%u", (uint32_t)major_version, (uint32_t)minor_version);
+        }
         if (GetUserDefaultLocaleName) {
             // Only availble on >= Vista
             wchar_t tmp[max_len];
@@ -316,6 +338,10 @@ namespace dmSys
             }
 
             FILE* f = fopen(path, "rb");
+            if (!f)
+            {
+                return ErrnoToResult(errno);
+            }
             size_t nread = fread(buffer, 1, size_as_32b, f);
             fclose(f);
 
@@ -420,17 +446,28 @@ namespace dmSys
         Result res = RESULT_OK;
         while(entry = readdir(dir))
         {
-            DIR* sub_dir = NULL;
-            FILE* file = NULL;
-
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                 continue;
 
-            char abs_path[1024];
-            dmSnPrintf(abs_path, sizeof(abs_path), "%s/%s", dirpath, entry->d_name);
+            char abs_path[DMPATH_MAX_PATH];
+            int written = dmSnPrintf(abs_path, sizeof(abs_path), "%s/%s", dirpath, entry->d_name);
+            if (written < 0 || written >= (int)sizeof(abs_path))
+            {
+                dmLogError("Failed to iterate '%s/%s': path is too long", dirpath, entry->d_name);
+                continue;
+            }
 
             struct stat path_stat;
-            stat(abs_path, &path_stat);
+            if (stat(abs_path, &path_stat) != 0)
+            {
+                if (errno == ENOENT || errno == ENOTDIR)
+                {
+                    continue;
+                }
+
+                res = ErrnoToResult(errno);
+                goto cleanup;
+            }
 
             bool isdir = S_ISDIR(path_stat.st_mode);
 
@@ -438,13 +475,14 @@ namespace dmSys
             if (call_before)
                 callback(ctx, abs_path, isdir);
 
-            if (isdir && recursive) {
-
+            if (isdir && recursive)
+            {
                 // Make sure the directory still exists (the callback might have removed it!)
                 if (Exists(abs_path))
                 {
                     res = IterateTree(abs_path, recursive, call_before, ctx, callback);
-                    if (res != RESULT_OK) {
+                    if (res != RESULT_OK)
+                    {
                         goto cleanup;
                     }
                 }

@@ -113,6 +113,10 @@ namespace dmSysPosix
                 return dmSys::RESULT_INVAL;
             }
             FILE* f = fopen(path, "rb");
+            if (!f)
+            {
+                return dmSys::ErrnoToResult(errno);
+            }
             size_t nread = fread(buffer, 1, file_stat.st_size, f);
             fclose(f);
             if (nread != (size_t) file_stat.st_size) {
