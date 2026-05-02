@@ -1639,38 +1639,45 @@
 
 (declare make-menu-items)
 
-(defn- make-menu-item [^Scene scene item command-contexts keymap localization evaluation-context]
-  (let [{:keys [id icon style children label command user-data check on-submenu-open]} item]
-    (cond
-      (= label :separator)
-      (SeparatorMenuItem.)
+(defn- make-menu-item
+  ([^Scene scene item command-contexts keymap localization evaluation-context]
+   (make-menu-item scene item command-contexts keymap localization evaluation-context true))
+  ([^Scene scene item command-contexts keymap localization evaluation-context allow-custom-menu-items?]
+   (let [{:keys [id icon style children label command user-data check on-submenu-open]} item]
+     (cond
+       (= label :separator)
+       (SeparatorMenuItem.)
 
-      children
-      (let [items (make-menu-items scene children command-contexts keymap localization evaluation-context)]
-        (make-submenu id label localization icon style items on-submenu-open))
+       children
+       (let [items (make-menu-items scene children command-contexts keymap localization evaluation-context allow-custom-menu-items?)]
+         (make-submenu id label localization icon style items on-submenu-open))
 
-      :else
-      (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-        ;; NOTE: This label is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
-        (let [label (or (handler/label handler-ctx evaluation-context) label)
-              enabled? (handler/enabled? handler-ctx evaluation-context)
-              key-combo (first (keymap/shortcuts keymap command))
-              options (handler/options handler-ctx evaluation-context)]
-          (if (or (nil? options)
-                  (and key-combo (not (:expand item))))
-            (make-menu-command scene id label localization icon style key-combo user-data command enabled? check)
-            (if (some-> options meta :layout (= :grid))
-              (let [grid-menu (make-grid-menu scene localization options command-contexts evaluation-context)]
-                (make-submenu id label localization icon style [grid-menu] #(focus-first-grid-menu-item grid-menu)))
-              (make-submenu id label localization icon style
-                            (make-menu-items scene (localization/sort-if-annotated @localization options)
-                                             command-contexts keymap localization evaluation-context)
-                            on-submenu-open))))))))
+       :else
+       (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+         ;; NOTE: This label is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
+         (let [label (or (handler/label handler-ctx evaluation-context) label)
+               enabled? (handler/enabled? handler-ctx evaluation-context)
+               key-combo (first (keymap/shortcuts keymap command))
+               options (handler/options handler-ctx evaluation-context)]
+           (if (or (nil? options)
+                   (and key-combo (not (:expand item))))
+             (make-menu-command scene id label localization icon style key-combo user-data command enabled? check)
+             (if (and allow-custom-menu-items?
+                      (some-> options meta :layout (= :grid)))
+               (let [grid-menu (make-grid-menu scene localization options command-contexts evaluation-context)]
+                 (make-submenu id label localization icon style [grid-menu] #(focus-first-grid-menu-item grid-menu)))
+               (make-submenu id label localization icon style
+                             (make-menu-items scene (localization/sort-if-annotated @localization options)
+                                              command-contexts keymap localization evaluation-context allow-custom-menu-items?)
+                             on-submenu-open)))))))))
 
-(defn- make-menu-items [^Scene scene menu command-contexts keymap localization evaluation-context]
-  (into []
-        (keep #(make-menu-item scene % command-contexts keymap localization evaluation-context))
-        menu))
+(defn- make-menu-items
+  ([^Scene scene menu command-contexts keymap localization evaluation-context]
+   (make-menu-items scene menu command-contexts keymap localization evaluation-context true))
+  ([^Scene scene menu command-contexts keymap localization evaluation-context allow-custom-menu-items?]
+   (into []
+         (keep #(make-menu-item scene % command-contexts keymap localization evaluation-context allow-custom-menu-items?))
+         menu)))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
   (let [context-menu (doto (ContextMenu.)
@@ -1919,7 +1926,8 @@
                                         visible-command-contexts
                                         keymap
                                         localization
-                                        evaluation-context))
+                                        evaluation-context
+                                        (not (.isUseSystemMenuBar menu-bar))))
   (user-data! menu-bar ::menu menu)
   (user-data! menu-bar ::visible-command-contexts visible-command-contexts)
   (user-data! menu-bar ::keymap keymap)
@@ -1967,7 +1975,8 @@
                                               visible-command-contexts
                                               keymap
                                               localization
-                                              evaluation-context)]
+                                              evaluation-context
+                                              (not (.isUseSystemMenuBar menu-bar)))]
             (replace-menu! menu-bar menu-item new-menu-item)))))
     (clear-invalidated-menubar-items!)))
 

@@ -22,7 +22,7 @@
             [integration.test-util :as test-util]
             [support.test-support :as test-support])
   (:import [javafx.scene Scene]
-           [javafx.scene.control ComboBox ListView Menu MenuBar MenuItem SelectionMode Tab TabPane TreeItem TreeView]
+           [javafx.scene.control ComboBox CustomMenuItem ListView Menu MenuBar MenuItem SelectionMode Tab TabPane TreeItem TreeView]
            [javafx.scene.control.skin TabPaneSkin]
            [javafx.scene.layout Pane VBox]))
 
@@ -113,6 +113,42 @@
       (let [menu-items (make-menu-items nil ::my-menu command-context)]
         (is (= 1 (count menu-items)))
         (is (= 1 (count (.getItems (first menu-items)))))))))
+
+(deftest system-menubar-does-not-use-custom-menu-items-test
+  @(fx/on-fx-thread
+     (test-support/with-clean-system
+       (handler/register-menu! ::my-menu
+         [{:label (localization/message "command.file")
+           :children [{:label (localization/message "command.file.new")
+                       :command :file.new
+                       :expand true}]}])
+
+       (handler/defhandler :file.new :global
+         (run [user-data] user-data)
+         (options [user-data]
+           (when-not user-data
+             (with-meta
+               [{:label (localization/message "command.file.new.any-file")
+                 :command :file.new
+                 :user-data {:any-file true}}]
+               {:layout :grid
+                :columns [[(localization/message "resource.category.other")]]}))))
+
+       (let [root (Pane.)
+             scene (Scene. root)
+             selection-provider (TestSelectionProvider. [])
+             menubar (doto (MenuBar.)
+                       (.setUseSystemMenuBar true))]
+         (ui/user-data! scene :localization test-util/localization)
+         (ui/context! root :global {} selection-provider)
+         (.add (.getChildren root) menubar)
+         (ui/register-menubar scene menubar ::my-menu)
+         (ui/refresh scene)
+         (let [menu-items (tree-seq #(and (instance? Menu %)
+                                          (seq (.getItems ^Menu %)))
+                                    #(.getItems ^Menu %)
+                                    (first (.getMenus menubar)))]
+           (is (not-any? #(instance? CustomMenuItem %) menu-items)))))))
 
 (g/defnode FakeAppView
   (property active-tab g/Any))
