@@ -116,7 +116,8 @@ def build(bld):
             else:
                 extra_tags = {'android': ['mbedtls'], 'linux': ['mbedtls'], 'win32': ['mbedtls']}
         elif feature_name == 'dlib/sys':
-            extra_tags = {'android': ['posix'], 'linux': ['posix'], 'macos': ['posix'], 'ios': ['posix'], 'web': ['posix']}
+            extra_tags = {'android': ['posix'], 'linux': ['posix'], 'macos': ['posix'], 'ios': ['posix'], 'web': ['posix'],
+                          'nx64': ['posix'], 'ps4': ['posix'], 'ps5': ['posix']}
         selected_files, all_files = find_feature_files(bld, feature_name, bld.env.PLATFORM, extra_tags, preferred_tags)
         feature_sources += selected_files
         feature_files += all_files

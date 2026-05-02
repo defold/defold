@@ -386,6 +386,11 @@ namespace dmSys
         return false;
     }
 
+    Result GetLogPath(char* path, uint32_t path_len)
+    {
+        return dmSysPosix::GetLogPath(path, path_len);
+    }
+
     Result OpenURL(const char* url, const char* target)
     {
         NSString* ns_url = [NSString stringWithUTF8String: url];
