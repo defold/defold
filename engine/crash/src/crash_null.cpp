@@ -145,5 +145,19 @@ namespace dmCrash
         (void)index;
         return 0;
     }
+
+    uint32_t GetModuleSize(HDump dump, uint32_t index)
+    {
+        (void)dump;
+        (void)index;
+        return 0;
+    }
+
+    const char* GetModuleBuildID(HDump dump, uint32_t index)
+    {
+        (void)dump;
+        (void)index;
+        return 0;
+    }
 }
 
