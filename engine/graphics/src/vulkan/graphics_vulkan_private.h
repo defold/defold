@@ -168,6 +168,11 @@ namespace dmGraphics
             // For the main RT this aliases context->m_MainRenderPass.
             // For offscreen RTs this is a distinct, RT-owned render pass.
             VkRenderPass  m_RenderPassClear;
+            // Variant with LOAD_OP_CLEAR on all color AND depth/stencil attachments. Used when
+            // VulkanClear clears both color and depth before the pass begins, folding both into
+            // the attachment load ops. For the main RT this also aliases context->m_MainRenderPass
+            // (which already specifies CLEAR for both). VK_NULL_HANDLE when no depth attachment.
+            VkRenderPass  m_RenderPassClearColorDepth;
             VkFramebuffer m_Framebuffer;
             uint8_t       m_LastUsedFrame;
         };
@@ -177,6 +182,8 @@ namespace dmGraphics
         AttachmentOp   m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp   m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float          m_ColorAttachmentClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+        float          m_DepthAttachmentClearValue;
+        uint32_t       m_StencilAttachmentClearValue;
 
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
@@ -195,6 +202,9 @@ namespace dmGraphics
         // are being cleared. Consumed by the next BeginRenderPass which picks the CLEAR
         // variant render pass and uses m_ColorAttachmentClearValue as load-op clear colors.
         uint32_t       m_HasPendingClearColor : 1;
+        // Set alongside m_HasPendingClearColor when depth/stencil is also pending a clear.
+        // BeginRenderPass picks m_RenderPassClearColorDepth and uses m_DepthAttachmentClearValue.
+        uint32_t       m_HasPendingClearDepth : 1;
         uint32_t       m_ColorAttachmentCount : 7;
         uint32_t       m_SubPassCount         : 8;
         uint32_t       m_SubPassIndex         : 8;
