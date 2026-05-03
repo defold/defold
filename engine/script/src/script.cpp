@@ -39,6 +39,10 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+#if defined(DM_SANITIZE_ADDRESS)
+extern "C" void __asan_handle_no_return();
+#endif
+
 DM_PROPERTY_GROUP(rmtp_Script, "", 0);
 
 namespace dmScript
@@ -1602,6 +1606,9 @@ namespace dmScript
         va_end(argp);
         lua_concat(m_L, 2);
         m_Diff = -0x800000;
+#if defined(DM_SANITIZE_ADDRESS)
+        __asan_handle_no_return(); // to make asan not throw stack allocated use-after-free issues
+#endif
         return lua_error(m_L);
     }
 
