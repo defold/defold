@@ -1459,7 +1459,7 @@ namespace dmGraphics
 
     static bool NullIsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return (((NullContext*) context)->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0;
+        return (((NullContext*) context)->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
     }
 
     static uint32_t NullGetMaxTextureSize(HContext context)
