@@ -34,6 +34,7 @@
 #include "gamesys/resources/res_textureset.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/memory.h>
@@ -75,6 +76,13 @@
 #include <jc_test/jc_test.h>
 
 using namespace dmVMath;
+
+static float ReadUnalignedFloat(const void* ptr)
+{
+    float value;
+    memcpy(&value, ptr, sizeof(value));
+    return value;
+}
 
 namespace dmGameObject
 {
@@ -7611,10 +7619,9 @@ TEST_F(ComponentTest, TextureTransformVertexBuffer)
         ASSERT_EQ(sprite_vertex_count * vertex_stride, ((dmGraphics::VertexBuffer*)sprite_vx_buffer->m_Buffers[0])->m_Size);
 
         const char* sprite_vb_base = ((dmGraphics::VertexBuffer*)sprite_vx_buffer->m_Buffers[0])->m_Buffer;
-        const float* written_sprite_tt = (const float*)(sprite_vb_base + tt_offset);
         for (int i = 0; i < 9; ++i)
         {
-            ASSERT_NEAR(expected_sprite_tt[i], written_sprite_tt[i], EPSILON);
+            ASSERT_NEAR(expected_sprite_tt[i], ReadUnalignedFloat(sprite_vb_base + tt_offset + i * sizeof(float)), EPSILON);
         }
     }
 
@@ -7644,10 +7651,9 @@ TEST_F(ComponentTest, TextureTransformVertexBuffer)
         const char* model_vb_base = (const char*) dmGraphics::MapVertexBuffer(m_GraphicsContext, model_vx_buffer, dmGraphics::BUFFER_ACCESS_READ_ONLY);
         for (uint32_t v = 0; v < model_vertex_count; ++v)
         {
-            const float* tt = (const float*)(model_vb_base + v * vertex_stride + tt_offset);
             for (int i = 0; i < 9; ++i)
             {
-                ASSERT_NEAR(identity_mat3[i], tt[i], EPSILON);
+                ASSERT_NEAR(identity_mat3[i], ReadUnalignedFloat(model_vb_base + v * vertex_stride + tt_offset + i * sizeof(float)), EPSILON);
             }
         }
         dmGraphics::UnmapVertexBuffer(m_GraphicsContext, model_vx_buffer);
@@ -7704,12 +7710,10 @@ TEST_F(ComponentTest, SpriteTextureTransformMultiAtlasVertexBuffer)
     ASSERT_EQ(vertex_count * vertex_stride, ((dmGraphics::VertexBuffer*)vx_buffer->m_Buffers[0])->m_Size);
 
     const char* vb_base = ((dmGraphics::VertexBuffer*)vx_buffer->m_Buffers[0])->m_Buffer;
-    const float* written_tt0 = (const float*)(vb_base + tt0_offset);
-    const float* written_tt1 = (const float*)(vb_base + tt1_offset);
     for (int i = 0; i < 9; ++i)
     {
-        ASSERT_NEAR(expected_tt0[i], written_tt0[i], EPSILON);
-        ASSERT_NEAR(expected_tt1[i], written_tt1[i], EPSILON);
+        ASSERT_NEAR(expected_tt0[i], ReadUnalignedFloat(vb_base + tt0_offset + i * sizeof(float)), EPSILON);
+        ASSERT_NEAR(expected_tt1[i], ReadUnalignedFloat(vb_base + tt1_offset + i * sizeof(float)), EPSILON);
     }
 
     dmResource::Release(m_Factory, material_res);
