@@ -1015,7 +1015,17 @@ namespace dmGraphics
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
-        return ((NullShaderModule*) program)->m_Language;
+        NullProgram* p = (NullProgram*) program;
+
+        if (p->m_VP)
+            return p->m_VP->m_Language;
+        if (p->m_FP)
+            return p->m_FP->m_Language;
+        if (p->m_Compute)
+            return p->m_Compute->m_Language;
+
+        assert(0);
+        return ShaderDesc::LANGUAGE_GLSL_SM330;
     }
 
     static bool NullIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
