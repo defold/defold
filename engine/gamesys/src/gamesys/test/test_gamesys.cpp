@@ -84,6 +84,13 @@ static float ReadUnalignedFloat(const void* ptr)
     return value;
 }
 
+static int16_t ReadUnalignedInt16(const void* ptr)
+{
+    int16_t value;
+    memcpy(&value, ptr, sizeof(value));
+    return value;
+}
+
 namespace dmGameObject
 {
     HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
@@ -7483,8 +7490,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
         float position_expected[] = { 0.0f, 0.0f };
         for (int i = 0; i < 2; ++i)
         {
-            float* f_ptr = (float*) value_ptr;
-            ASSERT_NEAR(position_expected[i], f_ptr[i], EPSILON);
+            ASSERT_NEAR(position_expected[i], ReadUnalignedFloat(value_ptr + i * sizeof(float)), EPSILON);
         }
     }
 
@@ -7510,8 +7516,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
         int16_t texcoord0_expected[] = { -16000, 16000 };
         for (int i = 0; i < 2; ++i)
         {
-            int16_t* short_values = (int16_t*) value_ptr;
-            ASSERT_EQ(texcoord0_expected[i], short_values[i]);
+            ASSERT_EQ(texcoord0_expected[i], ReadUnalignedInt16(value_ptr + i * sizeof(int16_t)));
         }
     }
 
@@ -7525,8 +7530,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
         float color_expected[] = { 1.0f, 2.0f, 3.0f };
         for (int i = 0; i < 3; ++i)
         {
-            float* f_ptr = (float*) value_ptr;
-            ASSERT_NEAR(color_expected[i], f_ptr[i], EPSILON);
+            ASSERT_NEAR(color_expected[i], ReadUnalignedFloat(value_ptr + i * sizeof(float)), EPSILON);
         }
     }
 
