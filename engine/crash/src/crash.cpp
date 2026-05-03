@@ -153,16 +153,6 @@ namespace dmCrash
         return 1;
     }
 
-    static HDump LoadDumpV4(AppState* state, FILE* f)
-    {
-        if (fread(state, 1, sizeof(AppStateV4), f) != sizeof(AppStateV4))
-        {
-            dmLogError("%s: Crashdump is incomplete", __FUNCTION__);
-            return 0;
-        }
-        return 1;
-    }
-
     static HDump LoadPrevious(FILE* f)
     {
         AppStateHeader header;
@@ -173,11 +163,7 @@ namespace dmCrash
             memset(&g_PreviousAppState, 0, sizeof(AppState));
 
             HDump result = 0;
-            if (header.m_Version == AppStateV4::VERSION && header.m_StructSize == sizeof(AppStateV4))
-            {
-                result = LoadDumpV4(&g_PreviousAppState, f);
-            }
-            else if (header.m_Version == AppStateV3::VERSION && header.m_StructSize == sizeof(AppStateV3))
+            if (header.m_Version == AppStateV3::VERSION && header.m_StructSize == sizeof(AppStateV3))
             {
                 result = LoadDumpV3(&g_PreviousAppState, f);
             }
@@ -362,21 +348,6 @@ namespace dmCrash
         if (index < AppState::MODULES_MAX)
         {
             return state->m_ModuleSize[index];
-        }
-        return 0;
-    }
-
-    const char *GetModuleBuildID(HDump dump, uint32_t index)
-    {
-        CHECK_STATE_RET(dump, 0);
-        if (index < AppState::MODULES_MAX)
-        {
-            if (state->m_ModuleBuildID[index][0])
-            {
-                char* field = state->m_ModuleBuildID[index];
-                field[AppState::MODULE_BUILD_ID_SIZE - 1] = 0;
-                return field;
-            }
         }
         return 0;
     }
