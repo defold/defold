@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import s3
 
 
-DOWNLOAD_WORKERS = 4
+DOWNLOAD_WORKERS = 8
 
 
 def _download_platform_sdk_zip(netloc, key, out_path):

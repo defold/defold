@@ -7,7 +7,7 @@ import shutil
 
 blddir = 'build'
 
-def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK'):
+def create_simple_protoc_task(name, ext, compiled_ext, type, shell = True, color = 'PINK'):
     def create(self, node):
         task = self.create_task(name)
         task.set_inputs(node)
@@ -15,11 +15,11 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         task.set_outputs(out)
 
     cmd = '${PROTOC} --encode=%s -I ../src/test -I ${DYNAMO_HOME}/share/proto ../src/test/test_resource_ddf.proto < ${SRC} > ${TGT}' % type
-    waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
+    waflib.Task.task_factory(name, cmd, shell=shell, color=color)
     extension(ext)(create)
 
-create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource.ResourceContainerDesc', before='c cxx')
-create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='c cxx')
+create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource.ResourceContainerDesc')
+create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo')
 
 # Test archive data. Only copy the source data.
 new_copy_task('ad', '.ad', '.adc')
@@ -28,15 +28,37 @@ new_copy_task('script', '.script', '.scriptc')
 
 def add_to_zip_file(task):
     cwd = task.cwd.abspath()
-    with zipfile.ZipFile(task.outputs[0].abspath(), 'a') as zipf:
-        for i in task.inputs:
-            src = i.get_bld().abspath()
-            name, ext = os.path.splitext(src)
-            ext = ext.replace('.ad', '.adc')
-            ext = ext.replace('.script', '.scriptc')
-            src = name + ext
-            dst = os.path.relpath(src, cwd)
-            zipf.write(src, dst)
+    base_zip = task.inputs[0].abspath()
+    output_zip = task.outputs[0].abspath()
+    output_dir = os.path.dirname(output_zip)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    extra_entries = {}
+    for i in task.inputs[1:]:
+        if i.isdir():
+            continue
+        extra_entries[os.path.relpath(i.abspath(), cwd)] = i
+
+    tmp_zip = output_zip + '.tmp'
+    with zipfile.ZipFile(base_zip, 'r') as src_zip:
+        with zipfile.ZipFile(tmp_zip, 'w') as dst_zip:
+            written = set()
+            for info in src_zip.infolist():
+                if info.filename in extra_entries or info.filename in written:
+                    continue
+                dst_zip.writestr(info, src_zip.read(info.filename))
+                written.add(info.filename)
+
+            for dst, src in sorted(extra_entries.items()):
+                dst_zip.write(src.abspath(), dst)
+
+    os.replace(tmp_zip, output_zip)
+
+def copy_archive_files(task):
+    for src, dst in zip(task.inputs, task.outputs):
+        dst.parent.mkdir()
+        shutil.copyfile(src.abspath(), dst.abspath())
 
 
 def copy_file_to_output(task):
@@ -46,27 +68,46 @@ def copy_file_to_output(task):
         os.makedirs(dst_dir)
     shutil.copyfile(task.inputs[0].abspath(), dst)
 
+def zip_input_node(node):
+    if node.name.endswith('.ad'):
+        return node.change_ext('.adc')
+    if node.name.endswith('.script'):
+        return node.change_ext('.scriptc')
+    return node
+
+def compiled_resource_node(node):
+    if node.name.endswith('.cont_pb'):
+        return node.change_ext('.cont')
+    if node.name.endswith('.foo_pb'):
+        return node.change_ext('.foo')
+    return zip_input_node(node)
+
 def build(bld):
-    resources = bld(source = ['test.cont_pb', 'test_ref.cont_pb', 'empty.script'])
+    base_archive_sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script']]
+    archive_sources = base_archive_sources + ['archive_data/%s' % e for e in ['liveupdate.file7.ad', 'liveupdate.file6.script']]
+    archive_source_nodes = [bld.path.find_node(source) for source in archive_sources]
+    archive_outputs = [compiled_resource_node(node) for node in archive_source_nodes]
+    base_archive_outputs = [compiled_resource_node(bld.path.find_node(source)) for source in base_archive_sources]
+    resource_pb_sources = bld.path.ant_glob('*.*_pb')
+    resource_pb_outputs = [compiled_resource_node(node) for node in resource_pb_sources]
+
+    resources = bld(source = resource_pb_sources + archive_source_nodes + ['empty.script'])
 
     # Create an archive without any liveupdate content
-    sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script']]
     archive = bld(features='barchive',
                   source_root='src/test',
                   resource_name='resources_no_lu',
                   use_compression=False,
-                  source=' '.join(sources))
+                  source=base_archive_outputs)
 
     bld.add_group()
 
     # ArchiveBuilder (in test mode) automatically marks files with "liveupdate" as excluded resources
-    sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script', 'liveupdate.file7.ad', 'liveupdate.file6.script']]
-
     archive = bld(features='barchive',
                   source_root='src/test',
                   resource_name='resources',
                   use_compression=False,
-                  source=' '.join(sources))
+                  source=archive_outputs)
 
     bld.add_group()
 
@@ -74,16 +115,28 @@ def build(bld):
                              source_root='src/test',
                              resource_name='resources_compressed',
                              use_compression=True,
-                             source=' '.join(sources))
+                             source=archive_outputs)
 
     bld.add_group()
 
     bld(features='barchive',
         source_root='src/test',
         name='luresources',
-        resource_name='luresources',
+        resource_name='luresources_base',
         use_compression=False,
-        source=' '.join(sources))
+        source=archive_outputs)
+
+    bld.add_group()
+
+    luresources_outputs = []
+    luresources_base_outputs = []
+    for ext in ['arci', 'arcd', 'dmanifest', 'manifest_hash']:
+        luresources_outputs.append(bld.path.find_or_declare('luresources.%s' % ext))
+        luresources_base_outputs.append(bld.path.find_or_declare('luresources_base.%s' % ext))
+
+    bld(rule = copy_archive_files,
+        source = luresources_base_outputs,
+        target = luresources_outputs)
 
     bld.add_group()
 
@@ -91,7 +144,7 @@ def build(bld):
         source_root='src/test',
         resource_name='luresources_compressed',
         use_compression=True,
-        source=' '.join(sources))
+        source=archive_outputs)
 
     bld.add_group()
 
@@ -99,7 +152,7 @@ def build(bld):
          source_root='src/test',
          resource_name='resources_pb',
          use_compression=False,
-         source=bld.path.ant_glob('*.*_pb'))
+         source=resource_pb_outputs)
 
     bld.add_group()
 
@@ -108,11 +161,14 @@ def build(bld):
 
     bld.add_group()
 
+    zip_inputs = [zip_input_node(node) for node in bld.path.ant_glob('zipfiles/**/*')]
+
+    luresources_zip = bld.path.find_or_declare('luresources.zip')
+    luresources_base_zip = bld.path.find_or_declare('luresources_base.zip')
     bld(rule = add_to_zip_file,
-        target = bld.path.find_or_declare('luresources.zip'),
-        source = bld.path.ant_glob('zipfiles/**/*'),
-        cwd = bld.path.find_or_declare('zipfiles'),
-        after = ['luresources', 'overides'])
+        target = luresources_zip,
+        source = [luresources_base_zip] + zip_inputs,
+        cwd = bld.path.find_or_declare('zipfiles'))
 
     bld.add_group()
 
@@ -157,21 +213,24 @@ def build(bld):
         embed_source.append(name + '.arcd')
         embed_source.append(name + '.dmanifest')
 
-    bld.program(features     = 'cxx embed test',
+    bld.stlib(features     = 'cxx embed test',
+                target       = 'embedded_resources',
+                source       = 'dummy.cpp',
+                embed_source = embed_source + ['resources.manifest_hash'])
+
+    bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource embedded_resources',
                 exported_symbols = ['ResourceProviderArchive'],
                 target       = 'test_provider_archive',
-                source       = 'test_provider_archive.cpp',
-                embed_source = embed_source)
+                source       = 'test_provider_archive.cpp')
 
-    bld.program(features = 'cxx embed test',
+    bld.program(features = 'cxx test',
                 includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource embedded_resources',
                 exported_symbols = ['ResourceProviderArchive', 'ResourceProviderArchiveMutable'],
                 target       = 'test_provider_archive_mutable',
-                source       = 'test_provider_archive_mutable.cpp',
-                embed_source = embed_source)
+                source       = 'test_provider_archive_mutable.cpp')
 
     bld.program(features     = ['cxx', 'test'] + skip_http_test,
                 includes     = '.. ../../proto',
@@ -208,13 +267,12 @@ def build(bld):
     # ******************************************************************************************************************************
     # Integration tests
 
-    bld.program(features     = 'cxx embed test',
+    bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA APP resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA APP resource embedded_resources',
                 proto_gen_py = True,
                 target       = 'test_resource_archive',
-                source       = 'test_resource_archive.cpp',
-                embed_source = embed_source + 'resources.manifest_hash'.split())
+                source       = 'test_resource_archive.cpp')
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
@@ -224,13 +282,12 @@ def build(bld):
                 source       = 'test_resource_mounts.cpp',
                 embed_source = embed_source + 'resources.manifest_hash'.split())
 
-    bld.program(features     = ['cxx', 'embed', 'test'] + skip_http_test,
+    bld.program(features     = ['cxx', 'test'] + skip_http_test,
                 includes     = '.. ../../proto',
                 defines      = defines,
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA APP resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA APP resource embedded_resources',
                 web_libs     = ['library_sys.js'],
                 proto_gen_py = True,
                 exported_symbols = ['ResourceProviderFile', 'ResourceProviderArchive'] + resource_http_provider_symbols,
                 target       = 'test_resource',
-                source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
-                embed_source = 'resources.arci resources.arcd resources.dmanifest')
+                source       = 'test_resource.cpp test_resource_ddf.proto')

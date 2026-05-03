@@ -22,7 +22,6 @@ import waflib.Context
 
 waflib.Task.task_factory('ddf_jar', '${JAR} ${JARCREATE} ${TGT} ${DDF_JAR_OPTIONS}',
                       color='PINK',
-                      after='apply_java',
                       shell=False)
 
 # TODO: Should be ddf and not '*'.

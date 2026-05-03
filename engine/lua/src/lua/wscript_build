@@ -6,6 +6,8 @@ if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
     # Note: LUA_NO_SYSTEM is our own invention, mimicking the LJ_NO_SYSTEM
     EXTRA_DEFINES = ['LUA_NO_SYSTEM']
 
+LUA_DEFINES = ['LUA_ANSI', 'DM_LUA_USE_LUA51'] + EXTRA_DEFINES
+
 lua_lib_source = ['lapi.c', 'lcode.c', 'ldebug.c', 'ldo.c',
                   'ldump.c', 'lfunc.c', 'lgc.c', 'llex.c',
                   'lmem.c', 'lobject.c', 'lopcodes.c', 'lparser.c',
@@ -20,7 +22,7 @@ lua_lib = bld.stlib(features = 'c cxx',
                     includes = '. ../',
                     target = 'lua',
                     source = lua_lib_source,
-                    defines = ['LUA_ANSI'] + EXTRA_DEFINES)
+                    defines = LUA_DEFINES)
 
 if bld.env.IS_TARGET_DESKTOP:
     lua = bld.program(features = 'c cxx',
@@ -28,14 +30,14 @@ if bld.env.IS_TARGET_DESKTOP:
                       source = 'lua.c',
                       target = 'lua',
                       use = 'lua_static',
-                      defines = ['LUA_ANSI'] + EXTRA_DEFINES)
+                      defines = LUA_DEFINES)
 
     luac = bld.program(features = 'c cxx',
                        includes = '. ../',
                        source = 'luac.c print.c',
                        target = 'luac',
                        use = 'lua_static',
-                       defines = ['LUA_ANSI'] + EXTRA_DEFINES)
+                       defines = LUA_DEFINES)
 
 bld.install_files('${PREFIX}/include/lua', 'lua.h')
 bld.install_files('${PREFIX}/include/lua', 'lauxlib.h')

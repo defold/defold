@@ -114,7 +114,7 @@ namespace dmLiveUpdate
         dmResourceProvider::HArchive    m_LiveupdateArchive;
         dmResource::HManifest           m_LiveupdateArchiveManifest;
         bool                            m_IsEnabled;
-        bool                            m_MainConttextHasExcludedEntries;
+        bool                            m_MainContextHasExcludedResources;
 
     } g_LiveUpdate;
 
@@ -890,7 +890,7 @@ namespace dmLiveUpdate
 
     bool IsBuiltWithExcludedFiles()
     {
-        return g_LiveUpdate.m_MainConttextHasExcludedEntries;
+        return g_LiveUpdate.m_MainContextHasExcludedResources;
     }
 
     // ******************************************************************
@@ -951,7 +951,7 @@ namespace dmLiveUpdate
         g_LiveUpdate.m_ResourceFactory = factory;
         g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
         g_LiveUpdate.m_ResourceBaseArchive = dmResource::GetBaseArchive(factory);
-        g_LiveUpdate.m_MainConttextHasExcludedEntries = false;
+        g_LiveUpdate.m_MainContextHasExcludedResources = false;
 
         if (g_LiveUpdate.m_ResourceBaseArchive)
         {
@@ -970,9 +970,9 @@ namespace dmLiveUpdate
                 return dmExtension::RESULT_OK;
             }
 
-            g_LiveUpdate.m_MainConttextHasExcludedEntries = dmResource::HasManifestExcludedEntries(manifest);
+            g_LiveUpdate.m_MainContextHasExcludedResources = dmResource::HasManifestExcludedEntries(manifest);
 
-            if (g_LiveUpdate.m_MainConttextHasExcludedEntries)
+            if (g_LiveUpdate.m_MainContextHasExcludedResources)
             {
                 dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
             }

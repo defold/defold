@@ -18,9 +18,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.text.ParseException;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.Collections;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -30,16 +30,16 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.fs.IFileSystem.IWalker;
-import com.dynamo.bob.util.LibraryUtil;
+import com.dynamo.bob.util.Library;
 
 public class ZipMountPoint implements IMountPoint {
 
     IFileSystem fileSystem;
     String archivePath;
     ZipFile file;
-    Set<String> includeDirs = null;
-    String includeBaseDir = "";
-    private boolean isProject = true; // is it a Defold project?
+    private final Set<String> includeDirs;
+    private final String includeBaseDir;
+    private final Library.Archive projectArchive;
 
     private class ZipResource extends AbstractResource<IFileSystem> {
         ZipEntry entry;
@@ -102,18 +102,23 @@ public class ZipMountPoint implements IMountPoint {
     public ZipMountPoint(IFileSystem fileSystem, String archivePath) {
         this.fileSystem = fileSystem;
         this.archivePath = archivePath;
+        this.projectArchive = null;
+        this.includeDirs = Collections.emptySet();
+        this.includeBaseDir = "";
     }
 
-    public ZipMountPoint(IFileSystem fileSystem, String archivePath, boolean projectZip) {
+    public ZipMountPoint(IFileSystem fileSystem, Library.Archive projectArchive) {
         this.fileSystem = fileSystem;
-        this.archivePath = archivePath;
-        this.isProject = projectZip;
+        this.projectArchive = projectArchive;
+        this.archivePath = projectArchive.path().toString();
+        this.includeBaseDir = projectArchive.baseDir().isEmpty() ? "" : projectArchive.baseDir() + "/";
+        this.includeDirs = projectArchive.includeDirs();
     }
 
     @Override
     public IResource get(String path) {
         ZipEntry entry = null;
-        if (this.isProject) {
+        if (this.projectArchive != null) {
             if (this.file != null && includes(path)) {
                 entry = this.file.getEntry(this.includeBaseDir + path);
             }
@@ -130,15 +135,8 @@ public class ZipMountPoint implements IMountPoint {
     public void mount() throws IOException {
         try {
             this.file = new ZipFile(this.archivePath);
-
-            if (this.isProject) {
-                this.includeBaseDir = LibraryUtil.findIncludeBaseDir(this.file);
-                this.includeDirs = LibraryUtil.readIncludeDirsFromArchive(this.includeBaseDir, this.file);
-            }
         } catch (ZipException e) {
             throw new IOException(String.format("Failed to mount zip file '%s': %s", this.archivePath, e));
-        } catch (ParseException e) {
-            throw new IOException(e);
         }
     }
 
@@ -164,7 +162,7 @@ public class ZipMountPoint implements IMountPoint {
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 String entryPath = entry.getName();
-                if (this.isProject) {
+                if (this.projectArchive != null) {
                     if (entryPath.startsWith(this.includeBaseDir)) {
                         entryPath = entryPath.substring(this.includeBaseDir.length());
                         if (includes(entryPath) && entryPath.startsWith(path)) {
@@ -190,9 +188,7 @@ public class ZipMountPoint implements IMountPoint {
         int sep = path.indexOf('/');
         if (sep != -1) {
             String dir = path.substring(0, sep);
-            if (this.includeDirs.contains(dir)) {
-                return true;
-            }
+            return this.includeDirs.contains(dir);
         }
         return false;
     }

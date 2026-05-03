@@ -20,7 +20,6 @@
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
-            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -33,7 +32,7 @@
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress$Message$Building IProgress$Message$BuildingEngine IProgress$Message$Bundling IProgress$Message$Cleaning IProgress$Message$CleaningEngine IProgress$Message$DownloadingArchive IProgress$Message$DownloadingArchives IProgress$Message$DownloadingSymbols IProgress$Message$GeneratingReport IProgress$Message$ReadingClasses IProgress$Message$ReadingTasks IProgress$Message$TranspilingToLua IProgress$Message$Working Progress Progress$Reporter TaskResult]
+  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType Progress Progress$Reporter TaskResult]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
            [java.nio.charset StandardCharsets]
@@ -53,30 +52,9 @@
        (isCanceled [_]
          (task-cancelled?))
        (report [_ message fraction]
-         (error-reporting/catch-all!
-           (render-progress!
-             (progress/make
-               (condp instance? message
-                 IProgress$Message$Bundling (localization/message "progress.bundling")
-                 IProgress$Message$BuildingEngine (localization/message "progress.building-engine")
-                 IProgress$Message$CleaningEngine (localization/message "progress.cleaning-engine")
-                 IProgress$Message$DownloadingSymbols (localization/message "progress.downloading-symbols")
-                 IProgress$Message$TranspilingToLua (localization/message "progress.transpiling-to-lua")
-                 IProgress$Message$ReadingTasks (localization/message "progress.reading-tasks")
-                 IProgress$Message$Building (localization/message "progress.building")
-                 IProgress$Message$Cleaning (localization/message "progress.cleaning")
-                 IProgress$Message$GeneratingReport (localization/message "progress.generating-report")
-                 IProgress$Message$Working (localization/message "progress.working")
-                 IProgress$Message$ReadingClasses (localization/message "progress.reading-classes")
-                 IProgress$Message$DownloadingArchives (localization/message "progress.downloading-archives" {"count" (.count ^IProgress$Message$DownloadingArchives message)})
-                 IProgress$Message$DownloadingArchive (localization/message "progress.downloading-archive" {"uri" (str (.uri ^IProgress$Message$DownloadingArchive message))})
-                 localization/empty-message)
-               1000
-               (long (* 1000.0 fraction))
-               true))))
+         (error-reporting/catch-all! (render-progress! (progress/bob message fraction true))))
        (close [_]
-         (error-reporting/catch-all!
-           (render-progress! progress/done)))))))
+         (error-reporting/catch-all! (render-progress! progress/done)))))))
 
 (defn- project-title [project]
   (let [proj-settings (project/settings project)]

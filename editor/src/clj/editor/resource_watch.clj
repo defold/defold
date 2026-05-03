@@ -19,12 +19,12 @@
             [dynamo.graph :as g]
             [editor.library :as library]
             [editor.resource :as resource]
-            [editor.settings-core :as settings-core]
             [editor.system :as system]
             [util.coll :as coll :refer [pair]]
-            [util.fn :as fn])
-  (:import [java.io File]
-           [java.net URI]))
+            [util.fn :as fn]
+            [util.path :as path])
+  (:import [com.dynamo.bob.util Library$Archive Library$Result]
+           [java.io File]))
 
 (set! *warn-on-reflection* true)
 
@@ -35,66 +35,45 @@
         (first path-splits))
       (first path-splits))))
 
-(defn parse-include-dirs [include-string]
-  (filter (comp not str/blank?) (str/split include-string  #"[,\s]")))
-
-(defn- extract-game-project-include-dirs [game-project-resource]
-  (with-open [reader (io/reader game-project-resource)]
-    (let [settings (settings-core/parse-settings reader)]
-      (parse-include-dirs (str (settings-core/get-setting settings ["library" "include_dirs"]))))))
-
-(defn- load-library-zip [workspace file]
-  (let [base-path (library/library-base-path file)
-        zip-resources (resource/load-zip-resources workspace file base-path)
-        game-project-resource (some (fn [resource]
-                                      (when (= "game.project" (resource/resource-name resource))
-                                        resource))
-                                    (:tree zip-resources))]
-    (when game-project-resource
-      (let [include-dirs (set (extract-game-project-include-dirs game-project-resource))]
-        (update zip-resources :tree (fn [resources]
-                                      (filterv #(include-dirs (resource-root-dir %))
-                                               resources)))))))
-
-(defn- make-library-snapshot [workspace lib-state]
-  (let [file ^File (:file lib-state)
-        tag (:tag lib-state)
-        uri-string (.toString ^URI (:uri lib-state))
-        zip-file-version (if-not (str/blank? tag) tag (str (.lastModified file)))
-        {resources :tree crc :crc} (load-library-zip workspace file)]
-    {:resources resources
-     :status-map (into {}
-                       (comp resource/xform-recursive-resources
-                             (map (fn [resource]
-                                    (let [proj-path (resource/proj-path resource)
-                                          version (str zip-file-version ":" (crc proj-path))]
-                                      (pair proj-path
-                                            {:version version
-                                             :source :library
-                                             :library uri-string})))))
-                       resources)}))
+(defn- make-library-snapshot [workspace ^Library$Result lib-result mtime]
+  (let [archive (.archive lib-result)
+        base-dir (.baseDir archive)
+        zip-resources (resource/load-zip-resources
+                        workspace
+                        (.toFile (.path archive))
+                        (when-not (str/blank? base-dir) base-dir))
+        include-dirs (set (.includeDirs archive))
+        {:keys [tree crc]} (update zip-resources :tree coll/filterv-> #(include-dirs (resource-root-dir %)))]
+    {:mtime mtime
+     :resources tree
+     :status-map (coll/into-> tree {}
+                   resource/xform-recursive-resources
+                   (map (fn [resource]
+                          (let [proj-path (resource/proj-path resource)]
+                            (pair proj-path
+                                  {:version (str mtime ":" (crc proj-path))
+                                   :source :library
+                                   :library (.uri lib-result)})))))}))
 
 (defn- update-library-snapshot-cache
-  [library-snapshot-cache workspace lib-states]
+  [library-snapshot-cache workspace lib-results]
   (into library-snapshot-cache
-        (keep (fn [lib-state]
-                (when-some [^File file (:file lib-state)]
-                  (let [lib-file-path (.getPath file)
-                        mtime (.lastModified file)
-                        cached-snapshot (get library-snapshot-cache lib-file-path)]
+        (keep (fn [^Library$Result lib-result]
+                (when-some [archive (.archive lib-result)]
+                  (let [archive-path (.path archive)
+                        mtime (path/last-modified-ms archive-path)
+                        cached-snapshot (get library-snapshot-cache archive-path)]
                     (when (or (nil? cached-snapshot)
-                              (not= mtime (:mtime (meta cached-snapshot))))
-                      (pair lib-file-path
-                            (with-meta (make-library-snapshot workspace lib-state)
-                                       {:mtime mtime})))))))
-        lib-states))
+                              (not= mtime (:mtime cached-snapshot)))
+                      (pair archive-path (make-library-snapshot workspace lib-result mtime)))))))
+        lib-results))
 
-(defn- make-library-snapshots [library-snapshot-cache lib-states]
+(defn- make-library-snapshots [library-snapshot-cache lib-results]
   (into []
-        (comp (keep :file)
-              (map #(.getPath ^File %))
+        (comp (keep Library$Result/.archive)
+              (map Library$Archive/.path)
               (map library-snapshot-cache))
-        lib-states))
+        lib-results))
 
 (defn- make-builtins-snapshot-raw [workspace]
   (let [unpack-path (system/defold-unpack-path)
@@ -130,11 +109,13 @@
          unloaded-proj-path? (g/raw-property-value basis workspace :unloaded-proj-path?)]
      (make-file-tree workspace project-directory file editable-proj-path? unloaded-proj-path?)))
   ([workspace ^File root ^File file editable-proj-path? unloaded-proj-path?]
-   (let [children (into []
-                        (comp (filter (partial file-resource-filter root))
-                              (map #(make-file-tree workspace root % editable-proj-path? unloaded-proj-path?)))
-                        (.listFiles file))]
-     (resource/make-file-resource workspace (.getPath root) file children editable-proj-path? unloaded-proj-path?))))
+   (coll/ptree
+     (fn file-tree-children [^File file]
+       (when (.isDirectory file)
+         (filterv #(file-resource-filter root %) (.listFiles file))))
+     (fn file-tree-node [^File file children]
+       (resource/make-file-resource workspace (.getPath root) file children editable-proj-path? unloaded-proj-path?))
+     file)))
 
 (defn- file-resource-status [resource]
   (assert (resource/file-resource? resource))
@@ -219,12 +200,12 @@
 
 (defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
   (resource/with-defignore-pred project-directory
-    (let [lib-states (library/current-library-state project-directory library-uris)
-          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-states)]
+    (let [lib-results (library/cached project-directory library-uris)
+          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)]
       {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
                                            (make-directory-snapshot workspace project-directory)
                                            (make-debugger-snapshot workspace)
-                                           (make-library-snapshots new-library-snapshot-cache lib-states)))
+                                           (make-library-snapshots new-library-snapshot-cache lib-results)))
        :snapshot-cache new-library-snapshot-cache})))
 
 (defn make-resource-map [snapshot]

@@ -26,6 +26,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dmsdk/dlib/intersection.h>
 #include <particle/particle.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -390,7 +391,7 @@ namespace dmGameSystem
                 uint32_t num_particles_to_write = size_left / (VERTEX_COUNT * vx_stride);
 
                 dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexDataPartial(particle_context,
-                    pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
+                    emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
                     p, num_particles_to_write,
                     *emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
 
@@ -577,6 +578,25 @@ namespace dmGameSystem
         }
     }
 
+    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
+    {
+        ParticleFXWorld* pfx_world = (ParticleFXWorld*)params.m_UserData;
+
+        for (uint32_t i = 0; i < params.m_NumEntries; ++i)
+        {
+            dmRender::RenderListEntry* entry = &params.m_Entries[i];
+            dmParticle::EmitterRenderData* render_data = (dmParticle::EmitterRenderData*)entry->m_UserData;
+            if (dmIntersection::TestFrustumSphereSq(*params.m_Frustum, render_data->m_FrustumCullingCenter, render_data->m_FrustumCullingRadiusSq))
+            {
+                entry->m_Visibility = dmRender::VISIBILITY_FULL;
+            }
+            else
+            {
+                entry->m_Visibility = dmRender::VISIBILITY_NONE;
+            }
+        }
+    }
+
     dmGameObject::UpdateResult CompParticleFXRender(const dmGameObject::ComponentsRenderParams& params)
     {
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
@@ -599,7 +619,7 @@ namespace dmGameSystem
         }
 
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(ctx->m_RenderContext, world_emitter_count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(ctx->m_RenderContext, &RenderListDispatch, pfx_world);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(ctx->m_RenderContext, &RenderListDispatch, &RenderListFrustumCulling, pfx_world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < count; ++i)

@@ -191,16 +191,7 @@ dmResource::Result GetApplicationSupportPath(dmResource::HManifest manifest, cha
 
 bool HasManifestExcludedEntries(dmResource::HManifest manifest)
 {
-    uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
-    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
-
-    for(uint32_t i = 0; i < entry_count; ++i)
-    {
-        dmLiveUpdateDDF::ResourceEntry* entry = &entries[i];
-        if (entry->m_Flags & dmLiveUpdateDDF::EXCLUDED)
-            return true;
-    }
-    return false;
+    return manifest->m_DDFData->m_HasExcludedResources;
 }
 
 dmLiveUpdateDDF::ResourceEntry* FindEntry(dmResource::HManifest manifest, dmhash_t url_hash)
@@ -303,5 +294,3 @@ void DebugPrintManifest(dmResource::HManifest manifest)
 }
 
 } // namespace
-
-

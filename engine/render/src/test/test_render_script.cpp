@@ -1456,6 +1456,50 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_InvalidUsage)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+// Test that constant buffers passed to render.draw() as locals survive garbage
+// collection between command creation and command parsing.
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
+{
+    // Create multiple constant buffers as locals only — no reference
+        // from self, so they become eligible for GC after the loop.
+    const char* script =
+        "function init(self)\n"
+        "    self.pred = render.predicate({\"tag\"})\n"
+        "    for i = 1, 5 do\n"
+        "        local cb = render.constant_buffer()\n"
+        "        cb.tint = vmath.vector4(i, 0, 0, 1)\n"
+        "        render.draw(self.pred, { constants = cb })\n"
+        "    end\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    // init() creates the draw commands but does NOT call ParseCommands.
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(5u, commands.Size());
+
+    // Force a full garbage collection cycle from C++
+    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
+    for (uint32_t i = 0; i < commands.Size(); ++i)
+    {
+        ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, commands[i].m_Type);
+        dmRender::HNamedConstantBuffer cb = (dmRender::HNamedConstantBuffer)commands[i].m_Operands[1];
+        ASSERT_NE((dmRender::HNamedConstantBuffer)0, cb);
+        ASSERT_EQ(1u, dmRender::GetNamedConstantCount(cb));
+    }
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestAssetHandlesValidRenderTarget)
 {
     const char* script =

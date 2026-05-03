@@ -1501,6 +1501,8 @@ namespace dmGameSystem
             // we can't use transform.GetUniformScale() since the z-component is ignored by the gui
             float scale = dmMath::Min(transform.GetScalePtr()[0], transform.GetScalePtr()[1]);
             dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, scale);
+            // GUI applies transform overrides in the render path, so refresh the cached particle render state in-frame.
+            dmParticle::UpdateRenderData(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, gui_world->m_DT);
         }
 
         vertex_count = dmMath::Min(vertex_count, vb_max_size / (uint32_t)sizeof(ParticleGuiVertex));
@@ -1523,7 +1525,6 @@ namespace dmGameSystem
             uint32_t vb_generate_size = 0;
             dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexData(
                 gui_world->m_ParticleContext,
-                gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
                 gui_world->m_ParticleAttributeInfos,

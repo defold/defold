@@ -101,7 +101,9 @@ excluded_paths = [
     "./engine/dlib/src/basis/transcoder",
     "./engine/dlib/src/dlib/jsmn",
     "./engine/dlib/src/lz4",
-    "./engine/dlib/src/mbedtls",
+    "./engine/dlib/src/mbedtls/include",
+    "./engine/dlib/src/mbedtls/library",
+    "./engine/dlib/src/mbedtls/tf-psa-crypto",
     "./engine/dlib/src/stb",
     "./engine/dlib/src/jc",
     "./engine/dlib/src/zlib",
@@ -114,7 +116,6 @@ excluded_paths = [
     "./engine/sound/src/stb_vorbis",
     "./engine/script/src/bitop",
     "./engine/script/src/luasocket",
-    "./com.dynamo.cr/com.dynamo.cr.bob/src/org/jagatoo",
 ]
 
 dryrun = False

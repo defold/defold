@@ -605,7 +605,7 @@ function M.get_commands()
                     }),
                     editor.tx.add(go, "components", {
                         type = "model",
-                        mesh = "/builtins/assets/meshes/cube.dae"
+                        mesh = "/builtins/assets/gltf/cube.gltf"
                     }),
                     editor.tx.add(go, "components", {
                         type = "sound",

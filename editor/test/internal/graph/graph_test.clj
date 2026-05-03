@@ -146,48 +146,6 @@
     (g/transact (g/update-graph-value world :things assoc :a 1))
     (is (= {:a 1} (g/graph-value world :things)))))
 
-(deftest with-system
-  (testing "property value change does not affect original"
-    (with-clean-system
-      (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
-        (is (= "original" (g/node-value n :val)))
-        (let [clone (g/clone-system)]
-          (g/with-system clone
-            (g/transact (g/set-property n :val "cloned"))
-            (is (= "cloned" (g/node-value n :val)))))
-        (is (= "original" (g/node-value n :val))))))
-
-  (testing "deleting node does not affect original"
-    (with-clean-system
-      (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
-        (let [clone (g/clone-system)]
-          (g/with-system clone
-            (g/transact (g/delete-node n))
-            (is (= nil (g/node-by-id n)))))
-        (is (not= nil (g/node-by-id n))))))
-
-  (testing "changing cache does not affect original"
-    (with-clean-system
-      (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
-        (is (= "original" (g/node-value n :val)))
-
-        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
-        (is (= "originaloriginal" (g/node-value n :val-val)))
-        (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
-
-        (let [clone (g/clone-system)]
-          (g/with-system clone
-            (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
-
-            (g/transact (g/set-property n :val "cloned"))
-            (is (= "cloned" (g/node-value n :val)))
-
-            (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
-            (is (= "clonedcloned" (g/node-value n :val-val)))
-            (is (= "clonedcloned" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))))
-
-        (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) :miss)))))))
-
 (deftest evaluation-context
   (testing "node-value sees state of graphs as given in evaluation-context"
     (with-clean-system
