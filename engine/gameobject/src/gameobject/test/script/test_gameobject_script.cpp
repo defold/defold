@@ -228,36 +228,9 @@ static void CreateScriptFile(const char* file_name, const char* contents)
     assert(r == dmDDF::RESULT_OK);
 }
 
-static void CreateGoFile(const char* file_name, const char* script_resource_name)
-{
-    dmGameObjectDDF::PrototypeDesc prototype;
-    memset(&prototype, 0, sizeof(prototype));
-    prototype.m_Components.m_Count = 1;
-    dmGameObjectDDF::ComponentDesc component_desc;
-    memset(&component_desc, 0, sizeof(component_desc));
-    component_desc.m_Id = "script";
-    component_desc.m_Component = script_resource_name;
-    prototype.m_Components.m_Data = &component_desc;
-
-    dmDDF::Result r = dmDDF::SaveMessageToFile(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, file_name);
-    assert(r == dmDDF::RESULT_OK);
-}
-
 TEST_F(ScriptTest, UpdateWithoutTransformChangeDoesNotRefreshWorldTransform)
 {
-    const char* script_resource_name = "/__no_transform_update__.scriptc";
-    char script_file_name[512];
-    dmTestUtil::MakeHostPathf(script_file_name, sizeof(script_file_name), "%s%s", m_Path, script_resource_name);
-
-    const char* go_resource_name = "/__no_transform_update__.goc";
-    char go_file_name[512];
-    dmTestUtil::MakeHostPathf(go_file_name, sizeof(go_file_name), "%s%s", m_Path, go_resource_name);
-
-    CreateScriptFile(script_file_name,
-               "function update(self)\n"
-               "    self.counter = (self.counter or 0) + 1\n"
-               "end\n");
-    CreateGoFile(go_file_name, script_resource_name);
+    const char* go_resource_name = "/update_transform_cache_no_change.goc";
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
     ASSERT_NE((dmGameObject::HInstance) 0, go);
@@ -265,9 +238,7 @@ TEST_F(ScriptTest, UpdateWithoutTransformChangeDoesNotRefreshWorldTransform)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
 
-    Matrix4 sentinel = Matrix4::identity();
-    sentinel.setCol3(Vector4(42, 43, 44, 1));
-    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = sentinel;
+    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -278,34 +249,18 @@ TEST_F(ScriptTest, UpdateWithoutTransformChangeDoesNotRefreshWorldTransform)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go, false);
-    dmSys::Unlink(script_file_name);
-    dmSys::Unlink(go_file_name);
 }
 
 TEST_F(ScriptTest, UpdateWithTransformChangeRefreshesWorldTransform)
 {
-    const char* script_resource_name = "/__transform_update__.scriptc";
-    char script_file_name[512];
-    dmTestUtil::MakeHostPathf(script_file_name, sizeof(script_file_name), "%s%s", m_Path, script_resource_name);
-
-    const char* go_resource_name = "/__transform_update__.goc";
-    char go_file_name[512];
-    dmTestUtil::MakeHostPathf(go_file_name, sizeof(go_file_name), "%s%s", m_Path, go_resource_name);
-
-    CreateScriptFile(script_file_name,
-               "function update(self)\n"
-               "    go.set_position(vmath.vector3(1, 2, 3))\n"
-               "end\n");
-    CreateGoFile(go_file_name, script_resource_name);
+    const char* go_resource_name = "/update_transform_cache_change.goc";
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
     ASSERT_NE((dmGameObject::HInstance) 0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    Matrix4 sentinel = Matrix4::identity();
-    sentinel.setCol3(Vector4(42, 43, 44, 1));
-    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = sentinel;
+    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -316,25 +271,11 @@ TEST_F(ScriptTest, UpdateWithTransformChangeRefreshesWorldTransform)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go, false);
-    dmSys::Unlink(script_file_name);
-    dmSys::Unlink(go_file_name);
 }
 
 TEST_F(ScriptTest, MessageWithoutTransformChangeDoesNotRefreshWorldTransform)
 {
-    const char* script_resource_name = "/__no_transform_message__.scriptc";
-    char script_file_name[512];
-    dmTestUtil::MakeHostPathf(script_file_name, sizeof(script_file_name), "%s%s", m_Path, script_resource_name);
-
-    const char* go_resource_name = "/__no_transform_message__.goc";
-    char go_file_name[512];
-    dmTestUtil::MakeHostPathf(go_file_name, sizeof(go_file_name), "%s%s", m_Path, go_resource_name);
-
-    CreateScriptFile(script_file_name,
-               "function on_message(self, message_id, message, sender)\n"
-               "    self.counter = (self.counter or 0) + 1\n"
-               "end\n");
-    CreateGoFile(go_file_name, script_resource_name);
+    const char* go_resource_name = "/message_transform_cache_no_change.goc";
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
     ASSERT_NE((dmGameObject::HInstance) 0, go);
@@ -343,9 +284,7 @@ TEST_F(ScriptTest, MessageWithoutTransformChangeDoesNotRefreshWorldTransform)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
 
-    Matrix4 sentinel = Matrix4::identity();
-    sentinel.setCol3(Vector4(42, 43, 44, 1));
-    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = sentinel;
+    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
 
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
@@ -362,25 +301,11 @@ TEST_F(ScriptTest, MessageWithoutTransformChangeDoesNotRefreshWorldTransform)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go, false);
-    dmSys::Unlink(script_file_name);
-    dmSys::Unlink(go_file_name);
 }
 
 TEST_F(ScriptTest, MessageWithTransformChangeRefreshesWorldTransform)
 {
-    const char* script_resource_name = "/__transform_message__.scriptc";
-    char script_file_name[512];
-    dmTestUtil::MakeHostPathf(script_file_name, sizeof(script_file_name), "%s%s", m_Path, script_resource_name);
-
-    const char* go_resource_name = "/__transform_message__.goc";
-    char go_file_name[512];
-    dmTestUtil::MakeHostPathf(go_file_name, sizeof(go_file_name), "%s%s", m_Path, go_resource_name);
-
-    CreateScriptFile(script_file_name,
-               "function on_message(self, message_id, message, sender)\n"
-               "    go.set_position(vmath.vector3(1, 2, 3))\n"
-               "end\n");
-    CreateGoFile(go_file_name, script_resource_name);
+    const char* go_resource_name = "/message_transform_cache_change.goc";
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
     ASSERT_NE((dmGameObject::HInstance) 0, go);
@@ -388,9 +313,7 @@ TEST_F(ScriptTest, MessageWithTransformChangeRefreshesWorldTransform)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    Matrix4 sentinel = Matrix4::identity();
-    sentinel.setCol3(Vector4(42, 43, 44, 1));
-    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = sentinel;
+    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
 
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
@@ -407,8 +330,6 @@ TEST_F(ScriptTest, MessageWithTransformChangeRefreshesWorldTransform)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go, false);
-    dmSys::Unlink(script_file_name);
-    dmSys::Unlink(go_file_name);
 }
 
 TEST_F(ScriptTest, TestReload)

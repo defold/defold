@@ -87,11 +87,9 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
-static void SetCachedWorldPosition(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Point3& position)
+static void SetCachedWorldTransform(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Matrix4& transform)
 {
-    Matrix4 world = Matrix4::identity();
-    world.setCol3(Vector4(position.getX(), position.getY(), position.getZ(), 1.0f));
-    collection->m_Collection->m_WorldTransforms[instance->m_Index] = world;
+    collection->m_Collection->m_WorldTransforms[instance->m_Index] = transform;
 }
 
 static void AssertWorldPosition(dmGameObject::HInstance instance, const Point3& expected)
@@ -515,8 +513,8 @@ TEST_F(HierarchyTest, DeleteWithReparentUpdatesPromotedSubtree)
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(grandchild, child));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    SetCachedWorldPosition(m_Collection, child, Point3(100, 100, 100));
-    SetCachedWorldPosition(m_Collection, grandchild, Point3(200, 200, 200));
+    SetCachedWorldTransform(m_Collection, child, Matrix4::translation(Vector3(100, 100, 100)));
+    SetCachedWorldTransform(m_Collection, grandchild, Matrix4::translation(Vector3(200, 200, 200)));
 
     dmGameObject::Delete(m_Collection, parent, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -541,8 +539,8 @@ TEST_F(HierarchyTest, DirtyCollectionRefreshesAllWorldTransforms)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    SetCachedWorldPosition(m_Collection, parent, Point3(100, 100, 100));
-    SetCachedWorldPosition(m_Collection, child, Point3(200, 200, 200));
+    SetCachedWorldTransform(m_Collection, parent, Matrix4::translation(Vector3(100, 100, 100)));
+    SetCachedWorldTransform(m_Collection, child, Matrix4::translation(Vector3(200, 200, 200)));
     m_Collection->m_Collection->m_DirtyTransforms = true;
 
     dmGameObject::UpdateTransforms(m_Collection->m_Collection);

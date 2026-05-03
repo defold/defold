@@ -324,11 +324,7 @@ namespace dmGameObject
                     AddPropertyOptionsIndex(&property_opt, 0);
                     SetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, PropertyVar(v));
                 }
-                if (anim.m_TransformsUpdated)
-                {
-                    MarkTransformDirty(anim.m_Instance);
-                    transforms_updated = true;
-                }
+                transforms_updated |= anim.m_TransformsUpdated;
             }
             if (completed)
             {
@@ -487,7 +483,7 @@ namespace dmGameObject
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
         animation.m_Composite = composite ? 1 : 0;
-        animation.m_TransformsUpdated = IsGameObjectTransformProperty(component_id, property_id) ? 1 : 0;
+        animation.m_TransformsUpdated = component_id == 0 && IsGameObjectTransformProperty(property_id) ? 1 : 0;
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
             animation.m_Backwards = 1;
         animation.m_FirstUpdate = 1;

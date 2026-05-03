@@ -84,20 +84,8 @@ namespace dmGameObject
     PROP_VECTOR3(EULER, euler);
     PROP_VECTOR3(SCALE, scale);
 
-    void MarkTransformDirty(HInstance instance)
+    bool IsGameObjectTransformProperty(dmhash_t property_id)
     {
-        instance->m_Collection->m_DirtyTransforms = true;
-    }
-
-    bool IsGameObjectTransformProperty(dmhash_t component_id, dmhash_t property_id)
-    {
-        // Component id 0 targets the game object itself. Non-zero ids target component
-        // properties, which may have overlapping names such as "scale".
-        if (component_id != 0)
-        {
-            return false;
-        }
-
         return property_id == PROP_POSITION ||
                property_id == PROP_POSITION_X ||
                property_id == PROP_POSITION_Y ||
@@ -2285,26 +2273,25 @@ namespace dmGameObject
         return instance->m_Bone;
     }
 
-    static uint32_t DoSetBoneTransforms(HCollection hcollection, dmTransform::Transform* component_transform, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
+    static uint32_t DoSetBoneTransforms(Collection* collection, dmTransform::Transform* component_transform, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
     {
         if (transform_count == 0)
             return 0;
         uint16_t current_index = first_index;
         uint32_t count = 0;
-        Collection* collection = hcollection->m_Collection;
         while (current_index != INVALID_INSTANCE_INDEX)
         {
             HInstance instance = collection->m_Instances[current_index];
             if (instance->m_Bone)
             {
                 instance->m_Transform = transforms[count++];
-                if (component_transform && count == 1) {
+                if (component_transform && count == 1)
+                {
                     instance->m_Transform = dmTransform::Mul(*component_transform, instance->m_Transform);
                 }
-                MarkTransformDirty(instance);
                 if (count < transform_count)
                 {
-                    count += DoSetBoneTransforms(hcollection, 0x0, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
+                    count += DoSetBoneTransforms(collection, 0x0, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
                 }
                 if (transform_count == count)
                 {
@@ -2318,7 +2305,13 @@ namespace dmGameObject
 
     uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count)
     {
-        return DoSetBoneTransforms(instance->m_Collection->m_HCollection, &component_transform, instance->m_Index, transforms, transform_count);
+        Collection* collection = instance->m_Collection;
+        uint32_t count = DoSetBoneTransforms(collection, &component_transform, instance->m_Index, transforms, transform_count);
+        if (count > 0)
+        {
+            collection->m_DirtyTransforms = true;
+        }
+        return count;
     }
 
     static void DeleteBones(Collection* collection, uint16_t first_index) {
@@ -2390,28 +2383,25 @@ namespace dmGameObject
                         dmLogWarning("Could not find parent instance with id '%s'.", dmHashReverseSafe64(sp->m_ParentId));
 
                 }
-                Matrix4 parent_t = Matrix4::identity();
-
-                if (parent)
-                {
-                    parent_t = collection->m_WorldTransforms[parent->m_Index];
-                }
-
-                Matrix4 world_transform = parent_t * dmTransform::ToMatrix4(instance->m_Transform);
-                dmTransform::Transform local_transform = dmTransform::ToTransform(inverse(parent_t) * collection->m_WorldTransforms[instance->m_Index]);
                 uint16_t old_parent = instance->m_Parent;
 
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
 
                 if (result == dmGameObject::RESULT_OK && old_parent != instance->m_Parent)
                 {
+                    Matrix4 parent_t = Matrix4::identity();
+                    if (parent)
+                    {
+                        parent_t = collection->m_WorldTransforms[parent->m_Index];
+                    }
+
                     if (sp->m_KeepWorldTransform == 0)
                     {
-                        collection->m_WorldTransforms[instance->m_Index] = world_transform;
+                        collection->m_WorldTransforms[instance->m_Index] = parent_t * dmTransform::ToMatrix4(instance->m_Transform);
                     }
                     else
                     {
-                        instance->m_Transform = local_transform;
+                        instance->m_Transform = dmTransform::ToTransform(inverse(parent_t) * collection->m_WorldTransforms[instance->m_Index]);
                     }
                 }
 
@@ -2567,7 +2557,7 @@ namespace dmGameObject
         return DispatchMessages(hcollection->m_Collection, sockets, socket_count);
     }
 
-    static void UpdateEulerToRotation(HInstance instance, bool mark_dirty);
+    static void UpdateEulerToRotation(HInstance instance);
 
     static inline bool Vec3Equals(const uint32_t* a, const uint32_t* b)
     {
@@ -2581,11 +2571,11 @@ namespace dmGameObject
         return !Vec3Equals((uint32_t*)(&euler), (uint32_t*)(&prev_euler));
     }
 
-    static void CheckEuler(Instance* instance, bool mark_dirty)
+    static void CheckEuler(Instance* instance)
     {
         if (HasEulerChanged(instance))
         {
-            UpdateEulerToRotation(instance, mark_dirty);
+            UpdateEulerToRotation(instance);
         }
     }
 
@@ -2601,7 +2591,7 @@ namespace dmGameObject
         {
             uint16_t index = root_level[i];
             Instance* instance = collection->m_Instances[index];
-            CheckEuler(instance, false);
+            CheckEuler(instance);
             collection->m_WorldTransforms[index] = dmTransform::ToMatrix4(instance->m_Transform);
             uint16_t parent_index = instance->m_Parent;
             assert(parent_index == INVALID_INSTANCE_INDEX);
@@ -2615,7 +2605,7 @@ namespace dmGameObject
             {
                 uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
-                CheckEuler(instance, false);
+                CheckEuler(instance);
                 Matrix4* trans = &collection->m_WorldTransforms[index];
 
                 uint16_t parent_index = instance->m_Parent;
@@ -2656,7 +2646,7 @@ namespace dmGameObject
         for (int32_t i = (int32_t)count - 1; i >= 0; --i)
         {
             Instance* cur = chain[i];
-            CheckEuler(cur, false);
+            CheckEuler(cur);
 
             Matrix4 own = dmTransform::ToMatrix4(cur->m_Transform);
             if (cur->m_Parent == INVALID_INSTANCE_INDEX)
@@ -3191,7 +3181,7 @@ namespace dmGameObject
     void SetPosition(HInstance instance, Point3 position)
     {
         instance->m_Transform.SetTranslation(Vector3(position));
-        MarkTransformDirty(instance);
+        instance->m_Collection->m_DirtyTransforms = true;
     }
 
     Point3 GetPosition(HInstance instance)
@@ -3202,7 +3192,7 @@ namespace dmGameObject
     void SetRotation(HInstance instance, Quat rotation)
     {
         instance->m_Transform.SetRotation(rotation);
-        MarkTransformDirty(instance);
+        instance->m_Collection->m_DirtyTransforms = true;
     }
 
     Quat GetRotation(HInstance instance)
@@ -3213,19 +3203,19 @@ namespace dmGameObject
     void SetScale(HInstance instance, float scale)
     {
         instance->m_Transform.SetUniformScale(scale);
-        MarkTransformDirty(instance);
+        instance->m_Collection->m_DirtyTransforms = true;
     }
 
     void SetScale(HInstance instance, Vector3 scale)
     {
         instance->m_Transform.SetScale(scale);
-        MarkTransformDirty(instance);
+        instance->m_Collection->m_DirtyTransforms = true;
     }
 
     void SetScaleXY(HInstance instance, float scale_x, float scale_y)
     {
         instance->m_Transform.SetScaleXY(scale_x, scale_y);
-        MarkTransformDirty(instance);
+        instance->m_Collection->m_DirtyTransforms = true;
     }
 
     float GetUniformScale(HInstance instance)
@@ -3369,7 +3359,7 @@ namespace dmGameObject
             }
         }
 
-        MarkTransformDirty(child);
+        collection->m_DirtyTransforms = true;
         return RESULT_OK;
     }
 
@@ -3426,19 +3416,10 @@ namespace dmGameObject
         instance->m_PrevEulerRotation = instance->m_EulerRotation;
     }
 
-    static void UpdateEulerToRotation(HInstance instance, bool mark_dirty)
+    static void UpdateEulerToRotation(HInstance instance)
     {
         instance->m_PrevEulerRotation = instance->m_EulerRotation;
         instance->m_Transform.SetRotation(dmVMath::EulerToQuat(instance->m_EulerRotation));
-        if (mark_dirty)
-        {
-            MarkTransformDirty(instance);
-        }
-    }
-
-    static void UpdateEulerToRotation(HInstance instance)
-    {
-        UpdateEulerToRotation(instance, true);
     }
 
     PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value)
@@ -3842,6 +3823,7 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
+            Collection* collection = instance->m_Collection;
             float* position = instance->m_Transform.GetPositionPtr();
             float* rotation = instance->m_Transform.GetRotationPtr();
             float* scale = instance->m_Transform.GetScalePtr();
@@ -3852,7 +3834,7 @@ namespace dmGameObject
                 position[0] = value.m_V4[0];
                 position[1] = value.m_V4[1];
                 position[2] = value.m_V4[2];
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_X)
@@ -3860,7 +3842,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 position[0] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_Y)
@@ -3868,7 +3850,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 position[1] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_Z)
@@ -3876,7 +3858,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 position[2] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_SCALE)
@@ -3886,7 +3868,7 @@ namespace dmGameObject
                     scale[0] = (float)value.m_Number;
                     scale[1] = scale[0];
                     scale[2] = scale[0];
-                    MarkTransformDirty(instance);
+                    collection->m_DirtyTransforms = true;
                     return PROPERTY_RESULT_OK;
                 }
                 else if (value.m_Type == PROPERTY_TYPE_VECTOR3)
@@ -3894,7 +3876,7 @@ namespace dmGameObject
                     scale[0] = value.m_V4[0];
                     scale[1] = value.m_V4[1];
                     scale[2] = value.m_V4[2];
-                    MarkTransformDirty(instance);
+                    collection->m_DirtyTransforms = true;
                     return PROPERTY_RESULT_OK;
                 }
                 return PROPERTY_RESULT_TYPE_MISMATCH;
@@ -3905,14 +3887,14 @@ namespace dmGameObject
                 {
                     scale[0] = (float)value.m_Number;
                     scale[1] = scale[0];
-                    MarkTransformDirty(instance);
+                    collection->m_DirtyTransforms = true;
                     return PROPERTY_RESULT_OK;
                 }
                 else if (value.m_Type == PROPERTY_TYPE_VECTOR3)
                 {
                     scale[0] = value.m_V4[0];
                     scale[1] = value.m_V4[1];
-                    MarkTransformDirty(instance);
+                    collection->m_DirtyTransforms = true;
                     return PROPERTY_RESULT_OK;
                 }
                 return PROPERTY_RESULT_TYPE_MISMATCH;
@@ -3922,7 +3904,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 scale[0] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_SCALE_Y)
@@ -3930,7 +3912,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 scale[1] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_SCALE_Z)
@@ -3938,7 +3920,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 scale[2] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION)
@@ -3949,7 +3931,7 @@ namespace dmGameObject
                 rotation[1] = value.m_V4[1];
                 rotation[2] = value.m_V4[2];
                 rotation[3] = value.m_V4[3];
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_X)
@@ -3957,7 +3939,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 rotation[0] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_Y)
@@ -3965,7 +3947,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 rotation[1] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_Z)
@@ -3973,7 +3955,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 rotation[2] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_W)
@@ -3981,7 +3963,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 rotation[3] = (float)value.m_Number;
-                MarkTransformDirty(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER)
@@ -3990,6 +3972,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 instance->m_EulerRotation = Vector3(value.m_V4[0], value.m_V4[1], value.m_V4[2]);
                 UpdateEulerToRotation(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER_X)
@@ -3998,6 +3981,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 instance->m_EulerRotation.setX((float)value.m_Number);
                 UpdateEulerToRotation(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER_Y)
@@ -4006,6 +3990,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 instance->m_EulerRotation.setY((float)value.m_Number);
                 UpdateEulerToRotation(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER_Z)
@@ -4014,6 +3999,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 instance->m_EulerRotation.setZ((float)value.m_Number);
                 UpdateEulerToRotation(instance);
+                collection->m_DirtyTransforms = true;
                 return PROPERTY_RESULT_OK;
             }
             else
