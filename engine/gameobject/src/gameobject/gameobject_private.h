@@ -37,12 +37,14 @@ namespace dmGameObject
 
     // TODO: Configurable?
     const uint32_t MAX_MESSAGE_DATA_SIZE = 256;
+    const uint16_t INVALID_COMPONENT_INSTANCE_USER_DATA_INDEX = 0xffffu;
 
     struct Prototype
     {
         Prototype()
             : m_Components(0)
             , m_ComponentCount(0)
+            , m_ComponentInstanceUserDataCount(0)
         {
         }
         ~Prototype();
@@ -52,7 +54,7 @@ namespace dmGameObject
                       dmhash_t id,
                       dmhash_t resource_id,
                       ComponentType* type,
-                      uint32_t type_index,
+                      uint16_t type_index,
                       const Point3& position,
                       const Quat& rotation,
                       const Vector3& scale) :
@@ -60,6 +62,7 @@ namespace dmGameObject
                 m_ResourceId(resource_id),
                 m_Type(type),
                 m_TypeIndex(type_index),
+                m_InstanceUserDataIndex(INVALID_COMPONENT_INSTANCE_USER_DATA_INDEX),
                 m_Resource(resource),
                 m_Position(position),
                 m_Rotation(rotation),
@@ -71,7 +74,8 @@ namespace dmGameObject
             dmhash_t        m_Id;
             dmhash_t        m_ResourceId;
             ComponentType*  m_Type;
-            uint32_t        m_TypeIndex;
+            uint16_t        m_TypeIndex;
+            uint16_t        m_InstanceUserDataIndex;
             void*           m_Resource;
             Point3          m_Position;
             Quat            m_Rotation;
@@ -80,7 +84,8 @@ namespace dmGameObject
         };
 
         Component*     m_Components;
-        uint32_t       m_ComponentCount;
+        uint16_t       m_ComponentCount;
+        uint16_t       m_ComponentInstanceUserDataCount;
         // Resources referenced through property overrides inside the prototype
         dmArray<void*> m_PropertyResources;
     };
@@ -181,6 +186,15 @@ namespace dmGameObject
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];
     };
+
+    inline uintptr_t* GetComponentInstanceUserData(Instance* instance, const Prototype::Component& component)
+    {
+        if (component.m_Type->m_InstanceHasUserData)
+        {
+            return &instance->m_ComponentInstanceUserData[component.m_InstanceUserDataIndex];
+        }
+        return 0;
+    }
 
     // Max component types could not be larger than 255 since the index is stored as a uint8_t
     const uint32_t MAX_COMPONENT_TYPES = 255;

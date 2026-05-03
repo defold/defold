@@ -49,6 +49,12 @@ namespace dmGameObject
 
         proto->m_ComponentCount = 0;
         proto->m_Components = 0;
+        proto->m_ComponentInstanceUserDataCount = 0;
+        if (proto_desc->m_Components.m_Count > 0xFFFF)
+        {
+            dmLogError("Too many components in game object: %u (max is 65535)", proto_desc->m_Components.m_Count);
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
         if (proto_desc->m_Components.m_Count == 0)
         {
             return dmResource::RESULT_OK;
@@ -56,6 +62,7 @@ namespace dmGameObject
 
         proto->m_Components = (Prototype::Component*)malloc(sizeof(Prototype::Component) * proto_desc->m_Components.m_Count);
 
+        uint32_t component_instance_user_data_count = 0;
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
         {
             dmGameObjectDDF::ComponentDesc& component_desc = proto_desc->m_Components[i];
@@ -107,10 +114,14 @@ namespace dmGameObject
                                       id,
                                       ResourceDescriptorGetNameHash(descriptor),
                                       type,
-                                      type_index,
+                                      (uint16_t)type_index,
                                       component_desc.m_Position,
                                       component_desc.m_Rotation,
                                       component_desc.m_Scale);
+                if (type->m_InstanceHasUserData)
+                {
+                    c.m_InstanceUserDataIndex = (uint16_t)component_instance_user_data_count++;
+                }
                 c.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
 
                 c.m_PropertySet.m_UserData = (uintptr_t)PropertyContainerCreateFromDDF(&component_desc.m_PropertyDecls);
@@ -121,6 +132,7 @@ namespace dmGameObject
                 proto->m_Components[proto->m_ComponentCount++] = c;
             }
         }
+        proto->m_ComponentInstanceUserDataCount = (uint16_t)component_instance_user_data_count;
         return dmResource::RESULT_OK;
     }
 
@@ -197,11 +209,14 @@ namespace dmGameObject
         if (dmResource::RESULT_OK == r) {
             Prototype* proto = (Prototype*) ResourceDescriptorGetResource(params->m_Resource);
             Prototype::Component* c = proto->m_Components;
-            uint32_t i = proto->m_ComponentCount;
+            uint16_t i = proto->m_ComponentCount;
+            uint16_t component_instance_user_data_count = proto->m_ComponentInstanceUserDataCount;
             proto->m_Components = temp->m_Components;
             proto->m_ComponentCount = temp->m_ComponentCount;
+            proto->m_ComponentInstanceUserDataCount = temp->m_ComponentInstanceUserDataCount;
             temp->m_Components = c;
             temp->m_ComponentCount = i;
+            temp->m_ComponentInstanceUserDataCount = component_instance_user_data_count;
             ResourceDescriptorSetPrevResource(params->m_Resource, temp);
         } else {
             ReleaseResources(params->m_Factory, temp);

@@ -1250,7 +1250,6 @@ static void SetProperties(dmGameObject::HInstance instance)
 {
     dmGameObject::Prototype::Component* components = instance->m_Prototype->m_Components;
     uint32_t count = instance->m_Prototype->m_ComponentCount;
-    uint32_t component_instance_data_index = 0;
     dmGameObject::ComponentSetPropertiesParams params;
     params.m_Instance = instance;
     params.m_PropertySet.m_GetPropertyCallback = 0;
@@ -1260,12 +1259,10 @@ static void SetProperties(dmGameObject::HInstance instance)
         dmGameObject::ComponentType* type = components[i].m_Type;
         if (type->m_SetPropertiesFunction != 0x0)
         {
-            uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
+            uintptr_t* component_instance_data = dmGameObject::GetComponentInstanceUserData(instance, components[i]);
             params.m_UserData = component_instance_data;
             type->m_SetPropertiesFunction(params);
         }
-        if (components[i].m_Type->m_InstanceHasUserData)
-            ++component_instance_data_index;
     }
 }
 

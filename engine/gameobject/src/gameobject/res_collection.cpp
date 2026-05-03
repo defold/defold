@@ -138,7 +138,6 @@ namespace dmGameObject
             bool result = dmGameObject::CreateComponents(collection, instance);
             if (result) {
                 // Set properties
-                uint32_t component_instance_data_index = 0;
                 Prototype::Component* components = instance->m_Prototype->m_Components;
                 uint32_t comp_count = instance->m_Prototype->m_ComponentCount;
                 for (uint32_t comp_i = 0; comp_i < comp_count; ++comp_i)
@@ -177,12 +176,9 @@ namespace dmGameObject
                                 break;
                             }
                         }
-                        uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
-                        set_params.m_UserData = component_instance_data;
+                        set_params.m_UserData = GetComponentInstanceUserData(instance, component);
                         type->m_SetPropertiesFunction(set_params);
                     }
-                    if (component.m_Type->m_InstanceHasUserData)
-                        ++component_instance_data_index;
                 }
             } else {
                 dmGameObject::ReleaseIdentifier(collection, instance);

@@ -411,6 +411,25 @@ TEST_F(ComponentTest, TestComponentUserdata)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go5.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
+    dmGameObject::Prototype::Component* components = go->m_Prototype->m_Components;
+    ASSERT_EQ(6u, go->m_Prototype->m_ComponentInstanceUserDataCount);
+    ASSERT_EQ(6u, go->m_ComponentInstanceUserDataCount);
+    ASSERT_EQ(0u, components[0].m_InstanceUserDataIndex);
+    ASSERT_EQ(1u, components[1].m_InstanceUserDataIndex);
+    ASSERT_EQ(2u, components[2].m_InstanceUserDataIndex);
+    ASSERT_EQ(dmGameObject::INVALID_COMPONENT_INSTANCE_USER_DATA_INDEX, components[3].m_InstanceUserDataIndex);
+    ASSERT_EQ(3u, components[4].m_InstanceUserDataIndex);
+    ASSERT_EQ(4u, components[5].m_InstanceUserDataIndex);
+    ASSERT_EQ(5u, components[6].m_InstanceUserDataIndex);
+    ASSERT_EQ((void*) 0, (void*) dmGameObject::GetComponentInstanceUserData(go, components[3]));
+    ASSERT_EQ((uintptr_t) 10, *dmGameObject::GetComponentInstanceUserData(go, components[6]));
+
+    uint32_t component_type = 0;
+    dmGameObject::HComponent component = 0;
+    dmGameObject::HComponentWorld world = 0;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("c3"), &component_type, &component, &world));
+    ASSERT_EQ((uintptr_t) 10, (uintptr_t) component);
+
     dmGameObject::Delete(m_Collection, go, false);
     bool ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);

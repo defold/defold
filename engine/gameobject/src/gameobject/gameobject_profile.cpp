@@ -100,25 +100,19 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
         HInstance instance = it->m_Parent.m_Instance; // the owner of the component instances, i.e. the parent in this traversal
         Prototype* prototype = instance->m_Prototype;
 
-        // Find the actual component instance data
-        // if none exist at this index, fast forward to the next item in the list
-        uint32_t next_component_instance_data = 0;
         uintptr_t* component_instance_data = 0;
 
-        for (uint32_t k = 0; k < prototype->m_ComponentCount; ++k)
+        // Find the actual component instance data.
+        // If none exists at this index, fast forward to the next component with instance data.
+        uint32_t component_index = (uint32_t)index;
+        for (uint32_t k = component_index; k < prototype->m_ComponentCount; ++k)
         {
-            ComponentType* component_type = prototype->m_Components[k].m_Type;
-
-            if (component_type->m_InstanceHasUserData)
+            Prototype::Component* component = &prototype->m_Components[k];
+            component_instance_data = GetComponentInstanceUserData(instance, *component);
+            if (component_instance_data)
             {
-                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
-
-                // We need to iterate from k=0 since the prototype potentially contains multiple instances of the same component type
-                if (k >= index)
-                {
-                    index = k;
-                    break;
-                }
+                index = k;
+                break;
             }
         }
 

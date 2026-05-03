@@ -791,22 +791,8 @@ namespace dmGameObject
         instance->m_LevelIndex = level_index;
     }
 
-    static HInstance AllocInstance(Prototype* proto, const char* prototype_name) {
-        // Count number of component userdata fields required
-        uint32_t component_instance_userdata_count = 0;
-        for (uint32_t i = 0; i < proto->m_ComponentCount; ++i)
-        {
-            Prototype::Component* component = &proto->m_Components[i];
-            ComponentType* component_type = component->m_Type;
-            if (!component_type)
-            {
-                dmLogError("Internal error. Component type #%d for '%s' not found.", i, prototype_name);
-                assert(false);
-            }
-            if (component_type->m_InstanceHasUserData)
-                component_instance_userdata_count++;
-        }
-
+    static HInstance AllocInstance(Prototype* proto) {
+        uint32_t component_instance_userdata_count = proto->m_ComponentInstanceUserDataCount;
         uint32_t component_userdata_size = sizeof(((Instance*)0)->m_ComponentInstanceUserData[0]);
         // NOTE: Allocate actual Instance with *all* component instance user-data accounted
         void* instance_memory = ::operator new (sizeof(Instance) + component_instance_userdata_count * component_userdata_size);
@@ -832,7 +818,7 @@ namespace dmGameObject
             dmLogError("The game object instance could not be created since the buffer is full (%d). Increase the capacity with collection.max_instances", collection->m_InstanceIndices.Capacity());
             return 0;
         }
-        HInstance instance = AllocInstance(proto, prototype_name);
+        HInstance instance = AllocInstance(proto);
         instance->m_Collection = collection;
         uint16_t instance_index = collection->m_InstanceIndices.Pop();
         instance->m_Index = instance_index;
@@ -880,10 +866,6 @@ namespace dmGameObject
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
         bool ok = true;
-        if (proto->m_ComponentCount > 0xFFFF ) {
-            dmLogWarning("Too many components in game object: %u (max is 65536)", proto->m_ComponentCount);
-            return false;
-        }
         for (uint32_t i = 0; i < proto->m_ComponentCount; ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
@@ -1190,20 +1172,15 @@ namespace dmGameObject
 
     static bool SetScriptPropertiesFromBuffer(HInstance instance, const char *prototype_name, HPropertyContainer property_container)
     {
-        uint32_t next_component_instance_data = 0;
         Prototype::Component* components = instance->m_Prototype->m_Components;
         uint32_t count = instance->m_Prototype->m_ComponentCount;
         for (uint32_t i = 0; i < count; ++i) {
             Prototype::Component& component = components[i];
             ComponentType* component_type = component.m_Type;
-            uintptr_t* component_instance_data = 0;
-            if (component_type->m_InstanceHasUserData)
-            {
-                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
-            }
 
-            if (strcmp(component.m_Type->m_Name, "scriptc") == 0 && component.m_Type->m_SetPropertiesFunction != 0x0)
+            if (strcmp(component_type->m_Name, "scriptc") == 0 && component_type->m_SetPropertiesFunction != 0x0)
             {
+                uintptr_t* component_instance_data = GetComponentInstanceUserData(instance, component);
                 ComponentSetPropertiesParams params;
                 params.m_Instance = instance;
                 params.m_UserData = component_instance_data;
@@ -1215,7 +1192,7 @@ namespace dmGameObject
 
                 params.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
                 params.m_PropertySet.m_FreeUserDataCallback = PropertyContainerDestroyCallback;
-                PropertyResult result = component.m_Type->m_SetPropertiesFunction(params);
+                PropertyResult result = component_type->m_SetPropertiesFunction(params);
                 if (result != PROPERTY_RESULT_OK)
                 {
                     dmLogError("Could not load properties when spawning '%s'.", prototype_name);
@@ -1584,7 +1561,6 @@ namespace dmGameObject
             if (success) {
                 created.Push(instance);
                 // Set properties
-                uint32_t component_instance_data_index = 0;
                 Prototype::Component* components = instance->m_Prototype->m_Components;
                 uint32_t comp_count = instance->m_Prototype->m_ComponentCount;
                 for (uint32_t comp_i = 0; comp_i < comp_count; ++comp_i)
@@ -1667,8 +1643,7 @@ namespace dmGameObject
                             params.m_PropertySet.m_UserData = (uintptr_t)properties;
                         }
 
-                        uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
-                        params.m_UserData = component_instance_data;
+                        params.m_UserData = GetComponentInstanceUserData(instance, component);
 
                         PropertyResult r = type->m_SetPropertiesFunction(params);
                         if (r != PROPERTY_RESULT_OK)
@@ -1680,8 +1655,6 @@ namespace dmGameObject
                             break;
                         }
                     }
-                    if (component.m_Type->m_InstanceHasUserData)
-                        ++component_instance_data_index;
                 }
             } else {
                 ReparentChildNodes(collection, instance);
@@ -2222,12 +2195,9 @@ namespace dmGameObject
 
     Result GetComponent(HInstance instance, dmhash_t component_id, uint32_t* component_type, HComponent* out_component, HComponentWorld* out_world)
     {
-        // TODO: We should probably not store user-data sparse.
-        // A lot of loops just to find user-data such as the code below
         assert(instance != 0x0);
         const Prototype::Component* components = instance->m_Prototype->m_Components;
         uint32_t n = instance->m_Prototype->m_ComponentCount;
-        uint32_t component_instance_data = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
             const Prototype::Component* component = &components[i];
@@ -2237,9 +2207,10 @@ namespace dmGameObject
                 *component_type = component->m_TypeIndex;
 
                 dmGameObject::HComponentInternal user_data = 0;
-                if (type->m_InstanceHasUserData)
+                uintptr_t* component_instance_data = GetComponentInstanceUserData(instance, *component);
+                if (component_instance_data)
                 {
-                    user_data = instance->m_ComponentInstanceUserData[component_instance_data];
+                    user_data = *component_instance_data;
                 }
 
                 dmGameObject::HComponentWorld world = 0;
@@ -2263,11 +2234,6 @@ namespace dmGameObject
                     *out_world = world;
                 }
                 return RESULT_OK;
-            }
-
-            if (type->m_InstanceHasUserData)
-            {
-                component_instance_data++;
             }
         }
 
@@ -2451,23 +2417,7 @@ namespace dmGameObject
 
             if (component_type->m_OnMessageFunction)
             {
-                // TODO: Not optimal way to find index of component instance data
-                uint32_t next_component_instance_data = 0;
-                for (uint32_t i = 0; i < component_index; ++i)
-                {
-                    ComponentType* ct = prototype->m_Components[i].m_Type;
-                    assert(component_type);
-                    if (ct->m_InstanceHasUserData)
-                    {
-                        next_component_instance_data++;
-                    }
-                }
-
-                uintptr_t* component_instance_data = 0;
-                if (component_type->m_InstanceHasUserData)
-                {
-                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                }
+                uintptr_t* component_instance_data = GetComponentInstanceUserData(instance, *component);
                 {
                     DM_PROFILE("OnMessageFunction");
                     ComponentOnMessageParams params;
@@ -2489,7 +2439,6 @@ namespace dmGameObject
         }
         else // broadcast
         {
-            uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
             {
                 Prototype::Component* component = &prototype->m_Components[i];
@@ -2498,11 +2447,7 @@ namespace dmGameObject
 
                 if (component_type->m_OnMessageFunction)
                 {
-                    uintptr_t* component_instance_data = 0;
-                    if (component_type->m_InstanceHasUserData)
-                    {
-                        component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
-                    }
+                    uintptr_t* component_instance_data = GetComponentInstanceUserData(instance, *component);
                     {
                         DM_PROFILE("OnMessageFunction");
                         ComponentOnMessageParams params;
@@ -2514,13 +2459,6 @@ namespace dmGameObject
                         UpdateResult res = component_type->m_OnMessageFunction(params);
                         if (res != UPDATE_RESULT_OK)
                             context->m_Success = false;
-                    }
-                }
-                else
-                {
-                    if (component_type->m_InstanceHasUserData)
-                    {
-                        ++next_component_instance_data;
                     }
                 }
             }
@@ -3043,18 +2981,14 @@ namespace dmGameObject
                     uint32_t components_size = prototype->m_ComponentCount;
 
                     InputResult res = INPUT_RESULT_IGNORED;
-                    uint32_t next_component_instance_data = 0;
                     for (uint32_t l = 0; l < components_size; ++l)
                     {
-                        ComponentType* component_type = prototype->m_Components[l].m_Type;
+                        Prototype::Component* component = &prototype->m_Components[l];
+                        ComponentType* component_type = component->m_Type;
                         assert(component_type);
                         if (component_type->m_OnInputFunction)
                         {
-                            uintptr_t* component_instance_data = 0;
-                            if (component_type->m_InstanceHasUserData)
-                            {
-                                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                            }
+                            uintptr_t* component_instance_data = GetComponentInstanceUserData(instance, *component);
                             ComponentOnInputParams params;
                             params.m_Instance = instance;
                             params.m_InputAction = &input_action;
@@ -3065,10 +2999,6 @@ namespace dmGameObject
                                 res = comp_res;
                             else if (comp_res == INPUT_RESULT_UNKNOWN_ERROR)
                                 return UPDATE_RESULT_UNKNOWN_ERROR;
-                        }
-                        if (component_type->m_InstanceHasUserData)
-                        {
-                            next_component_instance_data++;
                         }
                     }
                     if (res == INPUT_RESULT_CONSUMED)
@@ -3631,17 +3561,7 @@ namespace dmGameObject
                 ComponentType* type = component.m_Type;
                 if (type->m_GetPropertyFunction)
                 {
-                    uintptr_t* user_data = 0;
-                    if (type->m_InstanceHasUserData)
-                    {
-                        uint32_t next_component_instance_data = 0;
-                        for (uint32_t i = 0; i < component_index; ++i)
-                        {
-                            if (components[i].m_Type->m_InstanceHasUserData)
-                                ++next_component_instance_data;
-                        }
-                        user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                    }
+                    uintptr_t* user_data = GetComponentInstanceUserData(instance, component);
                     ComponentGetPropertyParams p;
                     p.m_Context = type->m_Context;
                     p.m_World = instance->m_Collection->m_ComponentWorlds[component.m_TypeIndex];
@@ -4031,17 +3951,7 @@ namespace dmGameObject
                 ComponentType* type = component.m_Type;
                 if (type->m_SetPropertyFunction)
                 {
-                    uintptr_t* user_data = 0;
-                    if (type->m_InstanceHasUserData)
-                    {
-                        uint32_t next_component_instance_data = 0;
-                        for (uint32_t i = 0; i < component_index; ++i)
-                        {
-                            if (components[i].m_Type->m_InstanceHasUserData)
-                                ++next_component_instance_data;
-                        }
-                        user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                    }
+                    uintptr_t* user_data = GetComponentInstanceUserData(instance, component);
                     ComponentSetPropertyParams p;
                     p.m_Context = type->m_Context;
                     p.m_World = instance->m_Collection->m_ComponentWorlds[component.m_TypeIndex];
@@ -4213,7 +4123,7 @@ namespace dmGameObject
         // We don't support recreating instances that are 'transitioning'
         assert(instance->m_ToBeAdded == 0);
         assert(instance->m_ToBeDeleted == 0);
-        HInstance new_instance = AllocInstance(new_proto, new_proto_name);
+        HInstance new_instance = AllocInstance(new_proto);
         if (!new_instance) {
             return;
         }
@@ -4286,7 +4196,6 @@ namespace dmGameObject
                     Prototype* prev_prototype = (Prototype*)ResourceDescriptorGetPrevResource(params->m_Resource);
                     RecreateInstance(collection, index, prev_prototype, prototype, params->m_Filename);
                 } else {
-                    uint32_t next_component_instance_data = 0;
                     for (uint32_t j = 0; j < instance->m_Prototype->m_ComponentCount; ++j)
                     {
                         Prototype::Component& component = instance->m_Prototype->m_Components[j];
@@ -4295,11 +4204,7 @@ namespace dmGameObject
                         {
                             if (type->m_OnReloadFunction)
                             {
-                                uintptr_t* user_data = 0;
-                                if (type->m_InstanceHasUserData)
-                                {
-                                    user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                                }
+                                uintptr_t* user_data = GetComponentInstanceUserData(instance, component);
                                 ComponentOnReloadParams on_reload_params;
                                 on_reload_params.m_Instance = instance;
                                 on_reload_params.m_Resource = prototype;
@@ -4308,10 +4213,6 @@ namespace dmGameObject
                                 on_reload_params.m_UserData = user_data;
                                 type->m_OnReloadFunction(on_reload_params);
                             }
-                        }
-                        if (type->m_InstanceHasUserData)
-                        {
-                            next_component_instance_data++;
                         }
                     }
                 }
