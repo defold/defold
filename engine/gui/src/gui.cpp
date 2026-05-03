@@ -1492,9 +1492,18 @@ namespace dmGui
                 scope.m_RefVal |= parent_scope->m_RefVal;
             }
         } else {
-            scope.m_RefVal = 1 << (7 - index);
-            if (parent_scope != 0x0) {
-                scope.m_RefVal |= (CalcMask(bit_field_offset) & parent_scope->m_RefVal);
+            if (index >= 8)
+            {
+                dmLogOnceError("Stencil buffer exceeded for inverted clipping node, clipping will not work as expected.");
+                // Match the previous backend behavior without relying on undefined shifting.
+                scope.m_RefVal = 0;
+            }
+            else
+            {
+                scope.m_RefVal = 1u << (7 - index);
+                if (parent_scope != 0x0) {
+                    scope.m_RefVal |= (CalcMask(bit_field_offset) & parent_scope->m_RefVal);
+                }
             }
         }
         if (inverted && node->m_Node.m_ClippingVisible) {
