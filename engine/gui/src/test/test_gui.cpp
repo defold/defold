@@ -2107,7 +2107,7 @@ TEST_F(dmGuiTest, PostMessageToGuiEmptyLuaTable)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char DM_ALIGNED(16) buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2139,7 +2139,7 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char DM_ALIGNED(16) buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2409,7 +2409,7 @@ TEST_F(dmGuiTest, Bug352)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr((const char*)BUG352_LUA, BUG352_LUA_SIZE));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char DM_ALIGNED(16) buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2681,7 +2681,7 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     ASSERT_NE(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NE(dmGui::RESULT_OK, r);
-    char DM_ALIGNED(16) buffer[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buffer[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
