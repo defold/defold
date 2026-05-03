@@ -43,6 +43,28 @@ TEST(dmCrypt, XTea)
     ASSERT_ARRAY_EQ(original, buf);
 }
 
+TEST(dmCrypt, XTeaUnaligned)
+{
+    const char* s = "ABCDEFGH12345678XYZ";
+    int n = strlen(s);
+
+    uint8_t storage[20];
+    uint8_t* buf = storage + ((((uintptr_t) storage) & 7) == 0 ? 1 : 0);
+    ASSERT_NE(0U, (uint32_t) (((uintptr_t) buf) & 7));
+    memcpy(buf, s, n);
+
+    uint8_t key[16] = {0};
+    memcpy(key, "12345678abcdefgh", 16);
+
+    Encrypt(dmCrypt::ALGORITHM_XTEA, buf, n, key, 16);
+    uint8_t expected[] = { 0x81, 0xb4, 0xa1, 0x04, 0x2d, 0xac, 0xe5, 0xcb, 0x77,
+                           0x89, 0xec, 0x11, 0x61, 0xc3, 0xdc, 0xfa, 0xb9, 0xa3, 0x25 };
+    ASSERT_ARRAY_EQ_LEN(expected, buf, sizeof(expected));
+
+    Decrypt(dmCrypt::ALGORITHM_XTEA, buf, n, key, 16);
+    ASSERT_ARRAY_EQ_LEN(s, (const char*) buf, n);
+}
+
 TEST(dmCrypt, Random)
 {
     uint8_t key[16];
