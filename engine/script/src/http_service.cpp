@@ -252,11 +252,16 @@ namespace dmHttpService
         // Headers are either 0, of a list of strings "header1: value\nheader2: value\n"
         const char* current = (const char*)worker->m_Request->m_Headers;
         const char* headers_end = current + worker->m_Request->m_HeadersLength;
+        uint32_t header_length = strlen(header);
         while (current < headers_end)
         {
-            const char* end = strchr(current, '\n');
+            const char* end = (const char*) memchr(current, '\n', headers_end - current);
+            if (!end)
+            {
+                end = headers_end;
+            }
             uint32_t length = end - current;
-            if (strstr(current, header) == current)
+            if (length >= header_length && memcmp(current, header, header_length) == 0)
             {
                 if (length < buffer_length)
                 {
@@ -265,7 +270,7 @@ namespace dmHttpService
                     return buffer;
                 }
             }
-            current += length+1;
+            current = end + (end < headers_end ? 1 : 0);
         }
         return 0;
     }

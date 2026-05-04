@@ -189,8 +189,9 @@ namespace dmGameSystem
                 }
                 lua_pop(L, 1);
 
-                headers = (char*) malloc(h.Size());
+                headers = (char*) malloc(h.Size() + 1);
                 memcpy(headers, h.Begin(), h.Size());
+                headers[h.Size()] = '\0';
                 headers_length = h.Size();
             }
 

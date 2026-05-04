@@ -74,6 +74,15 @@ LUALIB_API int (luaL_error) (lua_State *L, const char *fmt, ...) __attribute__ (
 LUALIB_API int (luaL_error) (lua_State *L, const char *fmt, ...);
 #endif
 
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+#if defined(__GNUC__)
+LUALIB_API int (dm_luaL_error_asan) (lua_State *L, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
+#else
+LUALIB_API int (dm_luaL_error_asan) (lua_State *L, const char *fmt, ...);
+#endif
+#define luaL_error dm_luaL_error_asan
+#endif
+
 LUALIB_API int (luaL_checkoption) (lua_State *L, int narg, const char *def,
                                    const char *const lst[]);
 
@@ -176,4 +185,3 @@ LUALIB_API void (luaL_pushresult) (luaL_Buffer *B);
 #define luaL_reg	luaL_Reg
 
 #endif
-
