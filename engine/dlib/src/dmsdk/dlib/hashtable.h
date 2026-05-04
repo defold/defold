@@ -181,6 +181,7 @@ public:
         assert(table_size > 0);
         assert(table_size < MAX_SIZE);
         assert(capacity < MAX_SIZE);
+        assert((m_State & STATE_USER_ALLOCATED) == 0);
         assert(capacity >= Capacity());
 
         if (m_InitialEntries == 0)
