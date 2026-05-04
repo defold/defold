@@ -19,7 +19,7 @@
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.bob CompileExceptionError]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceMember Shaderc$ResourceType Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceType Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
            [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]))
 
@@ -152,36 +152,25 @@
                  vertex-shader-stage-flag)))
 
 (def ^:private preview-light-type-name "Light")
-(def ^:private preview-light-array-member-name "lights")
 
 (defn- preview-light-capacity
-  "Returns the array size of the lights[] member whose element type is the Light
-  struct, as reported by the SPIR-V reflector.  Returns 0 when the shader does
-  not declare a preview-light buffer."
+  "Returns the array size of the Light UBO as reported by the SPIR-V reflector.
+  The Light UBO is identified by having a type named \"Light\" in the types list
+  and a matching UBO resource.  Returns 0 when the shader does not declare a
+  preview-light buffer."
   ^long [^SPIRVReflector spirv-reflector]
-  (let [types (.getTypes spirv-reflector)]
-    (if-some [^Shaderc$ResourceTypeInfo light-type
-              (some (fn [^Shaderc$ResourceTypeInfo t]
-                      (when (and t (= preview-light-type-name (.-name t)))
-                        t))
-                    types)]
-      ;; Walk every type's members looking for `lights` whose element type is
-      ;; the Light struct.  The member's type.arraySize gives us the capacity.
-      (let [light-type-name (.-name light-type)]
-        (long
-          (or (some (fn [^Shaderc$ResourceTypeInfo t]
-                      (some (fn [^Shaderc$ResourceMember m]
-                              (when (= preview-light-array-member-name (.-name m))
-                                (let [^Shaderc$ResourceType mt (.-type m)]
-                                  (when (and (.-useTypeIndex mt)
-                                             (= light-type-name
-                                                (.-name ^Shaderc$ResourceTypeInfo (.get types (.-typeIndex mt)))))
-                                    (let [sz (.-arraySize mt)]
-                                      (when (pos? sz)
-                                        sz))))))
-                            (.-members t)))
-                    types)
-              0)))
+  (let [has-light-type (some (fn [^Shaderc$ResourceTypeInfo t]
+                               (and t (= preview-light-type-name (.-name t))))
+                             (.getTypes spirv-reflector))]
+    (if has-light-type
+      (long
+        (or (some (fn [^Shaderc$ShaderResource ubo]
+                    (when (= preview-light-type-name (.-name ubo))
+                      (let [arr-size (.-arraySize ^Shaderc$ResourceType (.-type ubo))]
+                        (when (pos? arr-size)
+                          arr-size))))
+                  (.getUBOs spirv-reflector))
+            0))
       0)))
 
 (defn transpile-shader-source

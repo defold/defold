@@ -33,21 +33,15 @@
     :spot 2.0
     0.0))
 
-(defn- preview-normalize-dir! ^Vector3d [^Vector3d v]
-  (let [len (Math/sqrt (+ (* (.x v) (.x v)) (* (.y v) (.y v)) (* (.z v) (.z v))))]
-    (if (> len 1e-10)
-      (doto v (.scale (/ 1.0 len)))
-      (doto v (.set 0.0 0.0 -1.0)))))
-
 (defn- world-space-light-direction [^Matrix4d world-transform]
   ;; Extract only rotation from the world transform so that scale
   ;; (including negative scale) does not affect the direction.
   ;; For direction (0,0,-1), the result is the negated third column of
   ;; the upper-left 3x3, normalized to remove scale.
-  (preview-normalize-dir!
-    (Vector3d. (- (.m02 world-transform))
-               (- (.m12 world-transform))
-               (- (.m22 world-transform)))))
+  (doto (Vector3d. (- (.m02 world-transform))
+                   (- (.m12 world-transform))
+                   (- (.m22 world-transform)))
+    (.normalize)))
 
 (defn- preview-renderable-min-scale ^double [renderable]
   (if-some [^Vector3d ws (:world-scale renderable)]

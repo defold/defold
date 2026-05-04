@@ -756,11 +756,11 @@ These forms should be quoted, as if they came from a macro."
 
 (defn uses-preview-light-buffer? [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)]
-    (pos? (.-preview-light-capacity request-data))))
+    (pos? (long (.-preview-light-capacity request-data)))))
 
-(defn preview-light-capacity [^ShaderLifecycle shader-lifecycle]
+(defn preview-light-capacity ^long [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)]
-    (.-preview-light-capacity request-data)))
+    (long (.-preview-light-capacity request-data))))
 
 (defn- first-shader-source-of-type
   ^String [shader-type ^ShaderLifecycle shader-lifecycle]
