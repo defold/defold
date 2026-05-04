@@ -40,7 +40,14 @@
       (doto v (.set 0.0 0.0 -1.0)))))
 
 (defn- world-space-light-direction [^Matrix4d world-transform]
-  (preview-normalize-dir! (math/transform-vector world-transform (Vector3d. 0.0 0.0 -1.0))))
+  ;; Extract only rotation from the world transform so that scale
+  ;; (including negative scale) does not affect the direction.
+  ;; For direction (0,0,-1), the result is the negated third column of
+  ;; the upper-left 3x3, normalized to remove scale.
+  (preview-normalize-dir!
+    (Vector3d. (- (.m02 world-transform))
+               (- (.m12 world-transform))
+               (- (.m22 world-transform)))))
 
 (defn- preview-renderable-min-scale ^double [renderable]
   (if-some [^Vector3d ws (:world-scale renderable)]

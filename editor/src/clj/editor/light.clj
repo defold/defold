@@ -584,8 +584,9 @@
 
 (defn- render-spot-outline [^GL2 gl render-args renderables n]
   (assert (= pass/outline (:pass render-args)))
-  (when (light-gizmo-selected? (first renderables))
-    (render-light-gizmo-lines gl render-args renderables n))
+  (let [selected (filterv light-gizmo-selected? renderables)]
+    (when (pos? (count selected))
+      (render-light-gizmo-lines gl render-args selected (count selected))))
   (render-origin-markers-billboard gl render-args renderables @icon-spot-gpu-texture-delay))
 
 (defn- render-spot-volume [^GL2 gl render-args renderables n]
