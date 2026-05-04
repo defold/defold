@@ -13,6 +13,7 @@
 -- specific language governing permissions and limitations under the License.
 
 local expected_lorem_ipsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+local host_fs = test_host_fs or ""
 
 local function assert_error(func)
     local r, err = pcall(func)
@@ -38,7 +39,7 @@ local function test_1(self)
             tests_done = #self.data.requests == self.data.test_passed
         end)
 
-    local r2 = sys.load_buffer_async("src/gamesys/test/sys/sys_buffer_test_content.raw",
+    local r2 = sys.load_buffer_async(host_fs .. "src/gamesys/test/sys/sys_buffer_test_content.raw",
         function(self, request_id, result)
             assert(request_id == self.data.requests[2])
             local s = buffer.get_bytes(result.buffer, "data")
@@ -48,7 +49,7 @@ local function test_1(self)
         end)
 
     -- requesting something that is already requested will yield a new request
-    local r3 = sys.load_buffer_async("src/gamesys/test/sys/sys_buffer_test_content.raw",
+    local r3 = sys.load_buffer_async(host_fs .. "src/gamesys/test/sys/sys_buffer_test_content.raw",
         function(self, request_id, result)
             assert(request_id == self.data.requests[3])
             local s = buffer.get_bytes(result.buffer, "data")
@@ -172,4 +173,3 @@ function update(self)
         self.test = test_n
     end
 end
-
