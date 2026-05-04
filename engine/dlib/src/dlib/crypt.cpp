@@ -17,7 +17,7 @@
 #include "shared_library.h"
 #include "crypt.h"
 
-#include <dlib/endian.h>
+#include <dlib/endian.hpp>
 
 namespace dmCrypt
 {

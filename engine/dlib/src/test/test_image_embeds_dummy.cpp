@@ -12,9 +12,4 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_ENDIAN_H
-#define DM_ENDIAN_H
-
-#include <dmsdk/dlib/endian.h>
-
-#endif // DM_ENDIAN_H
+// Source file for the test_image_embeds static library.

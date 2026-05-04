@@ -73,8 +73,10 @@ Most notably, it contains some dependencies between resources, in order for the 
 
 ### User defined mounts
 
-The scripting api consists of three main functions: `liveupdate.add_mount()`/`liveupdate.remove_mount()`/`liveupdate.get_mounts()`
+The mount scripting api consists of three main functions: `liveupdate.add_mount()`/`liveupdate.remove_mount()`/`liveupdate.get_mounts()`
 When the developer calls to add/remove a mount, we store a file on disc `liveupdate.mounts`
+
+The api also exposes `liveupdate.is_built_with_excluded_files()`, which reports whether the bundled manifest was produced with excluded resources. This is a build metadata check, not a check for currently mounted or downloaded content.
 
 #### liveupdate.mounts
 
