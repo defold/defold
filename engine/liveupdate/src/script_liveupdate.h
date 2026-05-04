@@ -380,6 +380,27 @@ namespace dmLiveUpdate
  * ```
  */
 
+/*# check if the build contains excluded live update resources
+ *
+ * Checks if the bundled application was built with one or more resources
+ * excluded from the main bundle, through a collection proxy with
+ * `Exclude` enabled.
+ *
+ * This value is based on metadata in the bundled manifest. It does not check
+ * whether any live update archive has been mounted or whether the excluded
+ * resources are currently available on device.
+ *
+ * @name liveupdate.is_built_with_excluded_files
+ * @return is_built_with_excluded_files [type:boolean] true if the bundled application was built with excluded files
+ * @examples
+ *
+ * ```lua
+ * if liveupdate.is_built_with_excluded_files() then
+ *     print("The bundle expects live update content.")
+ * end
+ * ```
+ */
+
  /*# LIVEUPDATE_OK
  *
  * @name liveupdate.LIVEUPDATE_OK

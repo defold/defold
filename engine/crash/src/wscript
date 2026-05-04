@@ -16,6 +16,7 @@ def build(bld):
                           proto_gen_cc = True,
                           protoc_includes = '../proto',
                           source = 'crash_null.cpp script_crash_null.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler,
+                          uselib = 'LUA',
                           target = 'crashext_null')
 
     is_win32 = bld.env['PLATFORM'] in ['win32', 'x86_64-win32']
@@ -57,9 +58,9 @@ def build(bld):
                       proto_gen_cc = True,
                       protoc_includes = '../proto',
                       source = 'crash.cpp script_crash.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler,
+                      uselib = 'LUA',
                       target = 'crashext')
 
     bld.recurse('test')
     bld.recurse('tool')
     bld.install_files('${PREFIX}/include/crash', 'crash.h')
-

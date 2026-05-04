@@ -396,7 +396,7 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
-DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ.get("DM_RELEASE_REPOSITORY") else release_to_github.get_current_repo()
+DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") or os.environ.get("GITHUB_REPOSITORY") or release_to_github.get_current_repo()
 
 PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
@@ -1496,21 +1496,20 @@ class Configuration(object):
                 if self.target_platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
                     pdb = join(bin_dir, os.path.splitext(engine_name)[0] + '.pdb')
                     self.upload_to_archive(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
-
-            if 'web' in self.target_platform:
-                engine_mem = join(bin_dir, engine_name + '.mem')
-                if os.path.exists(engine_mem):
-                    self.upload_to_archive(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
-                engine_symbols = join(bin_dir, engine_name + '.symbols')
-                if os.path.exists(engine_symbols):
-                    self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
-                engine_dwarf = join(bin_dir, engine_name + '.debug.wasm')
-                if os.path.exists(engine_dwarf):
-                    self.upload_to_archive(engine_symbols, '%s/%s.debug.wasm' % (full_archive_path, engine_name))
-            elif 'macos' in self.target_platform or 'ios' in self.target_platform:
-                engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
-                if os.path.exists(engine_symbols):
-                    self.upload_to_archive(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
+                if 'web' in self.target_platform:
+                    engine_mem = join(bin_dir, engine_name + '.mem')
+                    if os.path.exists(engine_mem):
+                        self.upload_to_archive(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
+                    engine_symbols = join(bin_dir, engine_name + '.symbols')
+                    if os.path.exists(engine_symbols):
+                        self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
+                    engine_dwarf = join(bin_dir, engine_name + '.debug.wasm')
+                    if os.path.exists(engine_dwarf):
+                        self.upload_to_archive(engine_dwarf, '%s/%s.debug.wasm' % (full_archive_path, engine_name))
+                elif 'macos' in self.target_platform or 'ios' in self.target_platform:
+                    engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
+                    if os.path.exists(engine_symbols):
+                        self.upload_to_archive(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
 
         zip_archs = []
         if not self.skip_docs:

@@ -57,6 +57,7 @@ def build(bld):
                     includes = '../proto . ..',
                     target = 'engine',
                     defines = engine_defines,
+                    uselib = 'LUA',
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     embed_source='../content/materials/debug.spc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
@@ -70,6 +71,7 @@ def build(bld):
                     includes = '../proto . ..',
                     target = 'engine_release',
                     defines = ['DM_RELEASE=1'] + engine_defines,
+                    uselib = 'LUA',
                     source = engine_release_source,
                     install_path = platform_lib_install_path,
                     use = 'engine_service_null')
