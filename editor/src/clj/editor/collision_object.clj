@@ -204,7 +204,7 @@
      :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
                   :preview-fn preview-sphere-shape-renderable
-                  :tags #{:collision-shape}
+                  :tags #{:collision-shape :gizmo}
                   :passes [pass/transparent pass/selection]
                   :user-data (assoc user-data
                                :color color
@@ -216,7 +216,7 @@
                  :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
                               :preview-fn preview-sphere-shape-renderable
-                              :tags #{:collision-shape :outline}
+                              :tags #{:collision-shape :gizmo :outline}
                               :passes [pass/outline]
                               :user-data (assoc user-data
                                            :color color
@@ -268,7 +268,7 @@
      :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
                   :preview-fn preview-box-shape-renderable
-                  :tags #{:collision-shape}
+                  :tags #{:collision-shape :gizmo}
                   :passes [pass/transparent pass/selection]
                   :user-data (cond-> (assoc user-data
                                        :color color
@@ -281,7 +281,7 @@
                  :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
                               :preview-fn preview-box-shape-renderable
-                              :tags #{:collision-shape :outline}
+                              :tags #{:collision-shape :gizmo :outline}
                               :passes [pass/outline]
                               :user-data (cond-> (assoc user-data
                                                    :color color
@@ -349,7 +349,7 @@
      :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
                   :preview-fn preview-capsule-shape-renderable
-                  :tags #{:collision-shape}
+                  :tags #{:collision-shape :gizmo}
                   :passes [pass/transparent pass/selection]
                   :user-data (assoc user-data
                                :color color
@@ -358,7 +358,7 @@
                  :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
                               :preview-fn preview-capsule-shape-renderable
-                              :tags #{:collision-shape :outline}
+                              :tags #{:collision-shape :gizmo :outline}
                               :passes [pass/outline]
                               :user-data (assoc user-data
                                            :color color
@@ -604,7 +604,7 @@
          :node-outline-key "2D Convex Hull"
          :aabb aabb
          :renderable {:render-fn render-triangles-uniform-scale
-                      :tags #{:collision-shape}
+                      :tags #{:collision-shape :gizmo}
                       :passes [pass/transparent pass/selection]
                       :user-data {:color color
                                   :double-sided true
@@ -613,7 +613,7 @@
          :children [{:node-id _node-id
                      :aabb aabb
                      :renderable {:render-fn render-lines-uniform-scale
-                                  :tags #{:collision-shape :outline}
+                                  :tags #{:collision-shape :gizmo :outline}
                                   :passes [pass/outline]
                                   :user-data {:color color
                                               :geometry {:primitive-type GL2/GL_LINE_LOOP
@@ -622,7 +622,7 @@
          :node-outline-key "3D Convex Hull"
          :aabb aabb
          :renderable {:render-fn render-points-uniform-scale
-                      :tags #{:collision-shape :outline}
+                      :tags #{:collision-shape :gizmo :outline}
                       :passes [pass/outline]
                       :user-data {:color color
                                   :point-size 3.0

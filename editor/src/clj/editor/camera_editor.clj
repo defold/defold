@@ -32,6 +32,7 @@
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
+            [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
             [editor.shaders :as shaders]
             [editor.validation :as validation]
@@ -257,7 +258,9 @@
   (loop [renderables renderables
          vbuf (->color-vtx (* renderable-count camera-preview-mesh-vertices-count))]
     (if-let [renderable (first renderables)]
-      (let [color (colors/renderable-outline-color renderable)
+      (let [color (if (= pass/selection (:pass render-args))
+                    (scene-picking/picking-id->color (:picking-id renderable))
+                    (colors/renderable-outline-color renderable))
             cr (get color 0)
             cg (get color 1)
             cb (get color 2)
@@ -285,14 +288,14 @@
       (persistent! vbuf))))
 
 (defn- render-frustum-outlines [^GL2 gl render-args renderables ^long renderable-count]
-  (assert (= pass/outline (:pass render-args)))
+  (assert (contains? #{pass/outline pass/selection} (:pass render-args)))
   (let [vertex-buffer (gen-outline-vertex-buffer render-args renderables renderable-count)
         outline-vertex-binding (vtx/use-with ::frustum-outline vertex-buffer outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
 
 (g/defnk produce-camera-scene
-  [_node-id fov aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height]
+[_node-id fov aspect-ratio auto-aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height project-render-clear-color]
   ;; TODO: Better AABB calculation
   (let [^double ext-x far-z
         ^double ext-y far-z
@@ -306,24 +309,27 @@
                  :aabb aabb
                  :renderable {:render-fn render-frustum-outlines
                               :batch-key [outline-shader]
-                              :tags #{:camera :outline}
+                              :tags #{:camera :gizmo :outline}
                               :select-batch-key _node-id
                               :user-data {:fov (math/rad->deg fov) ; TODO: FOV should be edited as degrees, not radians.
                                           :aspect-ratio aspect-ratio
+                                          :auto-aspect-ratio auto-aspect-ratio
                                           :near-z near-z
                                           :far-z far-z
                                           :is-orthographic orthographic-projection
                                           :orthographic-zoom orthographic-zoom
                                           :orthographic-mode orthographic-mode
                                           :display-width project-display-width
-                                          :display-height project-display-height}
-                              :passes [pass/outline]}}]}))
+                                          :display-height project-display-height
+                                          :render-clear-color project-render-clear-color}
+                              :passes [pass/outline pass/selection]}}]}))
 
 (defn load-camera [project self _resource camera-desc]
   {:pre [(map? camera-desc)]} ; Camera$CameraDesc in map format.
   (concat
     (g/connect project :display-width self :project-display-width)
     (g/connect project :display-height self :project-display-height)
+    (g/connect project :render-clear-color self :project-render-clear-color)
     (gu/set-properties-from-pb-map self Camera$CameraDesc camera-desc
       aspect-ratio :aspect-ratio
       fov :fov
@@ -374,6 +380,7 @@
 
   (input project-display-width g/Num)
   (input project-display-height g/Num)
+  (input project-render-clear-color g/Any)
 
   (output form-data g/Any produce-form-data)
 
