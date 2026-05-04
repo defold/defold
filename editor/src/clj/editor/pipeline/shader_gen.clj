@@ -19,7 +19,7 @@
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.bob CompileExceptionError]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceMember Shaderc$ResourceType Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
            [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]))
 
@@ -152,13 +152,37 @@
                  vertex-shader-stage-flag)))
 
 (def ^:private preview-light-type-name "Light")
+(def ^:private preview-light-array-member-name "lights")
 
-(defn- uses-preview-light-buffer? [^SPIRVReflector spirv-reflector]
-  (boolean
-    (some (fn [^Shaderc$ResourceTypeInfo resource-type]
-            (and resource-type
-                 (= preview-light-type-name (.-name resource-type))))
-          (.getTypes spirv-reflector))))
+(defn- preview-light-capacity
+  "Returns the array size of the lights[] member whose element type is the Light
+  struct, as reported by the SPIR-V reflector.  Returns 0 when the shader does
+  not declare a preview-light buffer."
+  ^long [^SPIRVReflector spirv-reflector]
+  (let [types (.getTypes spirv-reflector)]
+    (if-some [^Shaderc$ResourceTypeInfo light-type
+              (some (fn [^Shaderc$ResourceTypeInfo t]
+                      (when (and t (= preview-light-type-name (.-name t)))
+                        t))
+                    types)]
+      ;; Walk every type's members looking for `lights` whose element type is
+      ;; the Light struct.  The member's type.arraySize gives us the capacity.
+      (let [light-type-name (.-name light-type)]
+        (long
+          (or (some (fn [^Shaderc$ResourceTypeInfo t]
+                      (some (fn [^Shaderc$ResourceMember m]
+                              (when (= preview-light-array-member-name (.-name m))
+                                (let [^Shaderc$ResourceType mt (.-type m)]
+                                  (when (and (.-useTypeIndex mt)
+                                             (= light-type-name
+                                                (.-name ^Shaderc$ResourceTypeInfo (.get types (.-typeIndex mt)))))
+                                    (let [sz (.-arraySize mt)]
+                                      (when (pos? sz)
+                                        sz))))))
+                            (.-members t)))
+                    types)
+              0)))
+      0)))
 
 (defn transpile-shader-source
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
@@ -192,7 +216,7 @@
         array-sampler-names (vec (.arraySamplers glsl-compile-result))
         spirv-reflector (.reflector glsl-compile-result)
         resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
-        uses-preview-light-buffer (uses-preview-light-buffer? spirv-reflector)
+        preview-light-capacity (preview-light-capacity spirv-reflector)
 
         attribute-reflection-infos
         (coll/into-> (.getInputs spirv-reflector) []
@@ -203,7 +227,7 @@
      :max-page-count ^long max-page-count
      :transpiled-shader-source transpiled-shader-source
      :resource-binding-namespaces resource-binding-namespaces
-     :uses-preview-light-buffer uses-preview-light-buffer
+     :preview-light-capacity preview-light-capacity
      :array-sampler-names array-sampler-names
      :attribute-reflection-infos attribute-reflection-infos}))
 
@@ -271,14 +295,13 @@
         (mapv (coll/pair-fn :location :name)
               attribute-reflection-infos)
 
-        uses-preview-light-buffer
-        (boolean
-          (some :uses-preview-light-buffer augmented-shader-infos))]
+        preview-light-capacity
+        (reduce max 0 (map :preview-light-capacity augmented-shader-infos))]
 
     {:array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
      :attribute-reflection-infos attribute-reflection-infos
      :location+attribute-name-pairs location+attribute-name-pairs
      :max-page-count max-page-count
      :shader-type+source-pairs shader-type+source-pairs
-     :uses-preview-light-buffer uses-preview-light-buffer
+     :preview-light-capacity preview-light-capacity
      :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str}))

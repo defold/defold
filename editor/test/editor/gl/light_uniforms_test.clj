@@ -199,7 +199,7 @@
 
 (deftest bind-preview-lights-for-shader-only-resets-count-when-no-preview-lights-exist-test
   (let [uniform-updates (atom [])
-        shader-request-data (shader/make-shader-request-data [] [] {} nil true)
+        shader-request-data (shader/make-shader-request-data [] [] {} nil 32)
         test-shader (shader/make-shader-lifecycle ::preview-lights-count-only shader-request-data [] {})]
     (with-redefs [scene-cache/request-object! (fn [& _]
                                                 {:program 7
@@ -221,7 +221,7 @@
 
 (deftest bind-preview-lights-for-shader-clamps-to-shader-light-capacity-test
   (let [uniform-updates (atom [])
-        shader-request-data (shader/make-shader-request-data [] [] {} nil true)
+        shader-request-data (shader/make-shader-request-data [] [] {} nil 2)
         test-shader (shader/make-shader-lifecycle ::preview-lights-clamped shader-request-data [] {})
         preview-light {:position (Vector4d. 1.0 2.0 3.0 1.0)
                        :color (Vector4d. 1.0 1.0 1.0 1.0)

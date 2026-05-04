@@ -467,7 +467,7 @@ These forms should be quoted, as if they came from a macro."
    location+attribute-name-pairs
    array-sampler-name->uniform-names
    strip-resource-binding-namespace-regex-str
-   uses-preview-light-buffer])
+   preview-light-capacity])
 
 (defonce/record ShaderLifecycle
   [request-id
@@ -599,25 +599,26 @@ These forms should be quoted, as if they came from a macro."
 
 (defn make-shader-request-data
   (^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]
-   (make-shader-request-data shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str false))
-  (^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str uses-preview-light-buffer]
+   (make-shader-request-data shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str 0))
+  (^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str preview-light-capacity]
    {:pre [(every? shader-type+source-pair? shader-type+source-pairs)
           (every? location+attribute-name-pair? location+attribute-name-pairs)
           (map? array-sampler-name->uniform-names)
           (or (nil? strip-resource-binding-namespace-regex-str)
               (and (string? strip-resource-binding-namespace-regex-str)
                    (pos? (count strip-resource-binding-namespace-regex-str))))
-          (instance? Boolean uses-preview-light-buffer)]}
+          (nat-int? preview-light-capacity)]}
    (->ShaderRequestData
      (vec shader-type+source-pairs)
      (vec location+attribute-name-pairs)
      array-sampler-name->uniform-names
      strip-resource-binding-namespace-regex-str
-     uses-preview-light-buffer)))
+     preview-light-capacity)))
 
-(defn with-preview-light-buffer-usage ^ShaderRequestData [^ShaderRequestData request-data uses-preview-light-buffer]
-  {:pre [(instance? ShaderRequestData request-data)]}
-  (assoc request-data :uses-preview-light-buffer (boolean uses-preview-light-buffer)))
+(defn with-preview-light-capacity ^ShaderRequestData [^ShaderRequestData request-data preview-light-capacity]
+  {:pre [(instance? ShaderRequestData request-data)
+         (nat-int? preview-light-capacity)]}
+  (assoc request-data :preview-light-capacity preview-light-capacity))
 
 (defn make-shader-lifecycle
   ^ShaderLifecycle [request-id request-data attribute-reflection-infos uniform-values-by-name]
@@ -717,7 +718,7 @@ These forms should be quoted, as if they came from a macro."
                 attribute-reflection-infos
                 location+attribute-name-pairs
                 shader-type+source-pairs
-                uses-preview-light-buffer
+                preview-light-capacity
                 strip-resource-binding-namespace-regex-str]}
         (read-combined-shader-info shader-paths opts shader-path->source)
 
@@ -727,7 +728,7 @@ These forms should be quoted, as if they came from a macro."
               location+attribute-name-pairs
               array-sampler-name->slice-sampler-names
               strip-resource-binding-namespace-regex-str)
-            (with-preview-light-buffer-usage uses-preview-light-buffer))
+            (with-preview-light-capacity preview-light-capacity))
 
         attribute-reflection-infos
         (mapv #(editor.graphics.types/assign-attribute-transform % coordinate-space)
@@ -755,7 +756,11 @@ These forms should be quoted, as if they came from a macro."
 
 (defn uses-preview-light-buffer? [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)]
-    (boolean (.-uses-preview-light-buffer request-data))))
+    (pos? (.-preview-light-capacity request-data))))
+
+(defn preview-light-capacity [^ShaderLifecycle shader-lifecycle]
+  (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)]
+    (.-preview-light-capacity request-data)))
 
 (defn- first-shader-source-of-type
   ^String [shader-type ^ShaderLifecycle shader-lifecycle]

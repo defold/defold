@@ -214,7 +214,7 @@
         (:location+attribute-name-pairs combined-shader-info)
         (:array-sampler-name->slice-sampler-names combined-shader-info)
         (:strip-resource-binding-namespace-regex-str combined-shader-info))
-      (shader/with-preview-light-buffer-usage (:uses-preview-light-buffer combined-shader-info))))
+      (shader/with-preview-light-capacity (:preview-light-capacity combined-shader-info))))
 
 (g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
   (let [{:keys [array-sampler-name->slice-sampler-names attribute-reflection-infos]} combined-shader-info
