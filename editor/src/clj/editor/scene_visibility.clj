@@ -333,7 +333,7 @@
                       (g/set-property! scene-visibility :visibility-filters-enabled? v)
                       (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key))
                     (sync-popup-state! scene-visibility))
-        advance! (settings-popup/show! owner keymap localization state on-change 230 -23.0 setting-descriptors nil
+        advance! (settings-popup/show! owner keymap localization state on-change 230 setting-descriptors nil
                                        (fn [_]
                                          (g/set-property! scene-visibility :popup-advance-fn nil)
                                          (sync-popup-state! scene-visibility)))

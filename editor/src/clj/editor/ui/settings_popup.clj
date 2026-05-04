@@ -32,7 +32,7 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control PopupControl Skin]
+           [javafx.scene.control Button PopupControl Skin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout AnchorPane StackPane]
            [javafx.scene.paint Color]))
@@ -126,16 +126,14 @@
                :text (or label "")
                :h-box/hgrow :always
                :max-width Double/MAX_VALUE}
-              {:fx/type ext-color-picker-focus-traversable
-               :desc
-               {:fx/type fxui/color-picker
-                :value (let [[r g b a] (key state)]
-                         (Color. (float r) (float g) (float b) (float a)))
-                :on-value-changed (fn [^Color c]
-                                    (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
-                                      (swap-state assoc key color)
-                                      (on-value-changed color)))
-                :ignore-alpha false}}]})
+              {:fx/type fxui/color-picker
+               :value (let [[r g b a] (key state)]
+                        (Color. (float r) (float g) (float b) (float a)))
+               :on-value-changed (fn [^Color c]
+                                   (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
+                                     (swap-state assoc key color)
+                                     (on-value-changed color)))
+               :ignore-alpha false}]})
 
 (defn- make-vec3-floats-row-fx [{:keys [key state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
@@ -268,7 +266,7 @@
                    descriptors)})
 
 (defn settings-visible? [^Parent owner]
-  (some? (ui/user-data owner ::popup)))
+  (some? (ui/user-data (.lookup (ui/main-scene) "#scene-view-anchor-pane") ::popup)))
 
 (defn- ancestor? [^Node ancestor ^Node node]
   (loop [n node]
@@ -278,15 +276,15 @@
       :else (recur (.getParent n)))))
 
 (defn- pref-popup-position
-  ^Point2D [^Parent container width x-offset]
-  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
+  ^Point2D [^Parent container width]
+  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 10.0 true))
 
 (defn- pref-popup-position
-  ^Point2D [^AnchorPane host ^Parent owner width x-offset]
+  ^Point2D [^AnchorPane host ^Parent owner width]
   (let [owner-bounds (.localToScene owner (.getBoundsInLocal owner))
         host-bounds-min (.sceneToLocal host (.getMinX owner-bounds) (.getMinY owner-bounds))
         host-bounds-max-x (.getX (.sceneToLocal host (.getMaxX owner-bounds) 0.0))]
-    (Point2D. (- host-bounds-max-x width x-offset)
+    (Point2D. (- host-bounds-max-x width)
               (+ (.getY host-bounds-min) (.getHeight (.getBoundsInLocal owner)) 10.0))))
 
 ;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `make-popup` above). PopupWindow has
@@ -295,98 +293,85 @@
 ;; fields), we wrap them in `fxui/ext-ensure-focus-traversable`, which observes the property and
 ;; forces it back to true.
 (defn show!
-  ([^Parent owner keymap localization state on-change width x-offset setting-descriptors]
-   (show! owner keymap localization state on-change width x-offset setting-descriptors nil))
-  ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings]
-   (show! owner keymap localization state on-change width x-offset setting-descriptors hidden-settings nil))
-  ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings on-closed]
-   (if-let [existing ^Node (ui/user-data owner ::popup)]
-     (do
-       (when-let [hide-fn (ui/user-data existing ::hide-fn)]
-         (hide-fn))
-       nil)
-     (let [visible-descriptors (remove #(contains? hidden-settings (:key %)) setting-descriptors)
-           ;; TODO JOE: For some reason, this doesn't work, but the below one does, it seems like there might be multiple?
-           host (.lookup (ui/main-scene) "#scene-view-anchor-pane")
-           ;; _ (println "host1" (.get (.getChildren host) 1))
-           host ^AnchorPane (loop [^Node n owner]
-                              (cond
-                                (nil? n) (throw (ex-info "No AnchorPane host found for popup" {}))
-                                (and (instance? AnchorPane n)
-                                     (= "scene-view-anchor-pane" (.getId ^Node n))) n
-                                :else (recur (.getParent n))))
-           ;; _ (println "host2" (.get(.getChildren host) 1))
-           content (StackPane.)
-           anchor ^Point2D (pref-popup-position host owner width x-offset)
-           *hidden (atom false)
-           *listeners (atom {})
-           hide! (fn []
-                   (println "who?")
-                   (when-not @*hidden
-                     (reset! *hidden true)
-                     (let [{:keys [mouse key focus]} @*listeners
-                           scene (.getScene host)]
-                       (when (and scene mouse) (.removeEventFilter scene MouseEvent/MOUSE_PRESSED mouse))
-                       (when (and scene key) (.removeEventFilter scene KeyEvent/KEY_PRESSED key))
-                       (when (and scene focus) (.removeListener (.focusOwnerProperty scene) focus)))
-                     ;; (fxui/advance-ui-user-data-component! content ::popup nil)
-                     (println host)
-                     (println (.getChildren host))
-                     (.removeAll (.getChildren host) (filterv #(instance? StackPane %) (.getChildren host)))
-                     (println (.getChildren host))
-                     (ui/run-later
-                       (println (.getBoundsInParent (.lookup host "#toolbar"))))
-                     (ui/user-data! owner ::popup nil)
-                     (when on-closed (on-closed nil))
-                     (.requestFocus host)))
-           advance! (fn [state]
-                      (fxui/advance-ui-user-data-component!
-                        content ::popup
-                        {:fx/type fxui/ext-with-stack-pane-props
-                         :desc {:fx/type fxui/ext-value :value content}
-                         :props {:children [{:fx/type fx.region/lifecycle
-                                             :style-class "popup-shadow"}
-                                            {:fx/type cljfx-popup-view
-                                             :descriptors visible-descriptors
-                                             :keymap keymap
-                                             :localization localization
-                                             :state state
-                                             :on-change on-change}]}}))]
-       (doto content
-         (.setPrefWidth width)
-         (.setLayoutX (.getX anchor))
-         (.setLayoutY (.getY anchor)))
-       (ui/user-data! content ::hide-fn hide!)
-       (advance! state)
-       (.add (.getChildren host) content)
-       (ui/user-data! owner ::popup content)
-       (let [scene (.getScene host)
-             mouse-filter (reify EventHandler
+  ([^Parent owner keymap localization state on-change width setting-descriptors]
+   (show! owner keymap localization state on-change width setting-descriptors nil))
+  ([^Parent owner keymap localization state on-change width setting-descriptors hidden-settings]
+   (show! owner keymap localization state on-change width setting-descriptors hidden-settings nil))
+  ([^Parent owner keymap localization state on-change width setting-descriptors hidden-settings on-closed]
+   (let [host (loop [^Node n owner]
+                (cond
+                  (nil? n) (throw (ex-info "No AnchorPane host found for popup" {}))
+                  (and (instance? AnchorPane n)
+                       (= "scene-view-anchor-pane" (.getId ^Node n))) n
+                  :else (recur (.getParent n))))
+         [owner-existing owner-hide-fn] (ui/user-data host ::popup)]
+     (if (= owner-existing owner)
+       (ui/user-data! host ::popup nil)
+       (let [visible-descriptors (remove #(contains? hidden-settings (:key %)) setting-descriptors)
+             ;; TODO JOE: For some reason, this doesn't work, but the below one does, it seems like there might be multiple?
+             ;; _ (println "host1" (.get (.getChildren host) 1))
+             host ^AnchorPane (loop [^Node n owner]
+                                (cond
+                                  (nil? n) (throw (ex-info "No AnchorPane host found for popup" {}))
+                                  (and (instance? AnchorPane n)
+                                       (= "scene-view-anchor-pane" (.getId ^Node n))) n
+                                  :else (recur (.getParent n))))
+             content (StackPane.)
+             anchor ^Point2D (pref-popup-position host owner width)
+             *hidden (atom false)
+             *listeners (atom {})
+             hide! (fn []
+                     (when-not @*hidden
+                       (reset! *hidden true)
+                       (let [{:keys [mouse key focus]} @*listeners
+                             scene (.getScene host)]
+                         (when (and scene mouse) (.removeEventFilter scene MouseEvent/MOUSE_PRESSED mouse))
+                         (when (and scene key) (.removeEventFilter scene KeyEvent/KEY_PRESSED key))
+                         (when (and scene focus) (.removeListener (.focusOwnerProperty scene) focus)))
+                       ;; TODO JOE: Is this needed?
+                       (fxui/advance-ui-user-data-component! content ::popup-thing nil)
+                       ;; (ui/user-data! host ::popup nil)
+                       (.remove (.getChildren host) content)
+                       (when on-closed (on-closed nil))
+                       (.requestFocus host)))
+             advance! (fn [state]
+                        (fxui/advance-ui-user-data-component!
+                          content ::popup-thing
+                          {:fx/type fxui/ext-with-stack-pane-props
+                           :desc {:fx/type fxui/ext-value :value content}
+                           :props {:children [{:fx/type fx.region/lifecycle
+                                               :style-class "popup-shadow"}
+                                              {:fx/type cljfx-popup-view
+                                               :descriptors visible-descriptors
+                                               :keymap keymap
+                                               :localization localization
+                                               :state state
+                                               :on-change on-change}]}}))]
+         (doto content
+           (.setPrefWidth width)
+           (.setLayoutX (.getX anchor))
+           (.setLayoutY (.getY anchor)))
+         (advance! state)
+         (.add (.getChildren host) content)
+         (ui/user-data! host ::popup [owner hide!])
+         (let [scene (.getScene host)
+               mouse-filter (reify EventHandler
+                              (handle [_ e]
+                                (let [t (.getTarget ^MouseEvent e)]
+                                  (when (and (instance? Node t)
+                                             (not (ancestor? content t)))
+                                    (hide!))
+                                  (when (not= t owner)
+                                    (ui/user-data! host ::popup nil)))))
+               key-filter (reify EventHandler
                             (handle [_ e]
-                              (let [t (.getTarget ^MouseEvent e)]
-                                (when (and (instance? Node t)
-                                           (not (ancestor? content t))
-                                           (not (ancestor? owner t))
-                                           (not= owner t))
-                                  (hide!)))))
-             key-filter (reify EventHandler
-                          (handle [_ e]
-                            (when (= KeyCode/ESCAPE (.getCode ^KeyEvent e))
-                              (hide!)
-                              (.consume ^KeyEvent e)
-                              (.requestFocus host))))
-             focus-listener (reify ChangeListener
-                              (changed [_ _ _ new-focus]
-                                ;; (println content)
-                                (when (or (nil? new-focus)
-                                          (not (ancestor? content new-focus)))
-                                  ;; Defer so click-to-focus on a child still works
-                                  (ui/run-later (when-not (.isFocused content) (hide!))))))]
-         (reset! *listeners {:mouse mouse-filter :key key-filter :focus focus-listener})
-         ;; (.addEventFilter scene MouseEvent/MOUSE_PRESSED mouse-filter)
-         (.addEventFilter scene KeyEvent/KEY_PRESSED key-filter)
-         (.addListener (.focusOwnerProperty scene) focus-listener))
-       (let [asdf (.get (.getChildren (.get (.getChildren (.get (.getChildren content) 1)) 0)) 0)]
-         ;; (println asdf)
-         (.requestFocus asdf))
-       advance!))))
+                              (when (= KeyCode/ESCAPE (.getCode ^KeyEvent e))
+                                (hide!)
+                                (.consume ^KeyEvent e)
+                                (.requestFocus host))))]
+           (reset! *listeners {:mouse mouse-filter :key key-filter})
+           (.addEventFilter scene MouseEvent/MOUSE_PRESSED mouse-filter)
+           (.addEventFilter scene KeyEvent/KEY_PRESSED key-filter))
+         (let [asdf (.get (.getChildren (.get (.getChildren (.get (.getChildren content) 1)) 0)) 0)]
+           (.requestFocus asdf))
+         advance!)))))
