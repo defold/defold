@@ -40,17 +40,6 @@ namespace dmScript
     const uint32_t TABLE_VERSION_BASE = 4;
     const uint32_t TABLE_VERSION_HASH_KEYS_ADDED = TABLE_VERSION_CURRENT;
 
-    static int PushLuaError(lua_State* L, const char* fmt, ...)
-    {
-        static char str[512];
-        va_list argp;
-        va_start(argp, fmt);
-        vsnprintf(str, sizeof(str), fmt, argp);
-        va_end(argp);
-        lua_pushstring(L, str);
-        return lua_error(L);
-    }
-
     /*
      * Version 0:
      *    Written without a header. Original table serialization format:
@@ -283,9 +272,9 @@ namespace dmScript
         uint32_t total_size = strlen(buffer) + 1;
         if (buffer_end - buffer < (intptr_t)total_size)
         {
-            static char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
+            char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
-            return (uint32_t)PushLuaError(L, "Reading outside of buffer at element #%d (string): wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, total_size, (int)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
+            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, total_size, (int)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
         }
 
         lua_pushstring(L, buffer);
@@ -301,9 +290,11 @@ namespace dmScript
         uint32_t total_size = value_len + sizeof(uint32_t);
         if (buffer_end - buffer < (intptr_t)total_size)
         {
-            static char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
+            char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
-            return (uint32_t)PushLuaError(L, "Reading outside of buffer at element #%d (string) [value_len=%lu]: wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, value_len, total_size, (uint32_t)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
+            char str[512];
+            dmSnPrintf(str, sizeof(str), "Reading outside of buffer at element #%d (string) [value_len=%lu]: wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, value_len, total_size, (uint32_t)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
+            luaL_error(L, "%s", str);
         }
 
         lua_pushlstring(L, buffer + sizeof(uint32_t), value_len);
@@ -915,9 +906,11 @@ namespace dmScript
 
 #define CHECK_PUSHTABLE_OOB(ELEMTYPE, LOGGER, BUFFER, BUFFER_END, COUNT, DEPTH) \
     if (BUFFER > BUFFER_END) { \
-        static char log_str[PUSH_TABLE_LOGGER_STR_SIZE]; \
+        char log_str[PUSH_TABLE_LOGGER_STR_SIZE]; \
         PushTableLogPrint(LOGGER, log_str); \
-        return PushLuaError(L, "Reading outside of buffer after %s element #%d (depth: #%d) [BufStart: %p, Cursor: %p, End: %p, BufSize: %u, Bytes OOB: %d].\n'%s'", ELEMTYPE, COUNT, DEPTH, LOGGER.m_BufferStart, BUFFER, BUFFER_END, (uint32_t)LOGGER.m_BufferSize, (int)(BUFFER_END - BUFFER), log_str); \
+        char str[512]; \
+        dmSnPrintf(str, sizeof(str), "Reading outside of buffer after %s element #%d (depth: #%d) [BufStart: %p, Cursor: %p, End: %p, BufSize: %u, Bytes OOB: %d].\n'%s'", ELEMTYPE, COUNT, DEPTH, LOGGER.m_BufferStart, BUFFER, BUFFER_END, (uint32_t)LOGGER.m_BufferSize, (int)(BUFFER_END - BUFFER), log_str); \
+        return luaL_error(L, "%s", str); \
     }
 
     int DoPushTable(lua_State*L, PushTableLogger& logger, const TableHeader& header, const char* original_buffer, const char* buffer, uint32_t buffer_size, uint32_t depth)
@@ -944,9 +937,11 @@ namespace dmScript
         PushTableLogFormat(logger, "{%d|", (uint32_t)count);
 
         if (buffer > buffer_end) {
-            static char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
+            char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
-            return PushLuaError(L, "Reading outside of buffer at before element [BufStart: %p, Cursor: %p, End: %p, BufSize: %lu, Bytes OOB: %d].\n'%s'", logger.m_BufferStart, buffer, buffer_end, logger.m_BufferSize, (int)(buffer_end - buffer), log_str);
+            char str[512]; \
+            dmSnPrintf(str, sizeof(str), "Reading outside of buffer at before element [BufStart: %p, Cursor: %p, End: %p, BufSize: %lu, Bytes OOB: %d].\n'%s'", logger.m_BufferStart, buffer, buffer_end, logger.m_BufferSize, (int)(buffer_end - buffer), log_str); \
+            return luaL_error(L, "%s", str);
         }
 
         lua_newtable(L);
@@ -1151,7 +1146,9 @@ namespace dmScript
 
         // Check so that buffer has enough size to read header
         if (buffer_size < sizeof(TableHeader)) {
-            PushLuaError(L, "Not enough data to read table header (buffer size: %u, header size: %u)", buffer_size, (uint32_t)sizeof(TableHeader));
+            char str[256];
+            dmSnPrintf(str, sizeof(str), "Not enough data to read table header (buffer size: %u, header size: %u)", buffer_size, (uint32_t)sizeof(TableHeader));
+            luaL_error(L, "%s", str);
         }
 
         buffer = ReadHeader(buffer, header);
@@ -1165,7 +1162,9 @@ namespace dmScript
         }
         else
         {
-            PushLuaError(L, "Unsupported serialized table data: version = 0x%x (current = 0x%x)", header.m_Version, TABLE_VERSION_CURRENT);
+            char str[256];
+            dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", header.m_Version, TABLE_VERSION_CURRENT);
+            luaL_error(L, "%s", str);
         }
     }
 
