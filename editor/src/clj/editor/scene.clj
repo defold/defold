@@ -96,10 +96,10 @@
    :rotation default-rotation
    :scale default-scale})
 
-(def ^:private camera-inset-margin 18.0)
-(def ^:private camera-inset-width 240.0)
-(def ^:private camera-inset-height 135.0)
-(def ^:private camera-inset-render-scale 2.0)
+(def ^:private ^:const camera-inset-margin 18.0)
+(def ^:private ^:const camera-inset-width 240.0)
+(def ^:private ^:const camera-inset-height 135.0)
+(def ^:private ^:const camera-inset-render-scale 2.0)
 
 (defn significant-scale? [value]
   (cond
@@ -228,7 +228,7 @@
         (when (pos? camera-aspect-ratio)
           camera-aspect-ratio)))))
 
-(defn- make-camera-inset-camera [selected-camera-renderable aspect-ratio]
+(defn- make-camera-inset-camera [selected-camera-renderable ^double aspect-ratio]
   {:pre [(valid-camera-inset-orthographic-zoom? selected-camera-renderable)]}
   (let [{:keys [is-orthographic near-z far-z fov display-height orthographic-zoom orthographic-mode]} (:user-data selected-camera-renderable)
         world-translation ^Vector3d (:world-translation selected-camera-renderable)
@@ -259,7 +259,7 @@
 (defn- render-camera-inset-border! [^GL2 gl ^Region viewport]
   (let [border-shader shaders/basic-color-local-space
         vertex-description (shaders/vertex-description border-shader)
-        [viewport-width viewport-height] (vp-dims viewport)
+        [^double viewport-width ^double viewport-height] (vp-dims viewport)
         border-inset-pixels 1.0
         border-min-x (- 1.0 (/ (* 2.0 border-inset-pixels) viewport-width))
         border-max-x (- border-min-x)
@@ -290,11 +290,12 @@
 
 (defn- find-selected-camera-renderable [scene-render-data]
   (let [selected-cameras (into []
-                               (comp (filter camera-renderable?)
-                                     (filter :selected))
-                               (mapcat val
-                                       (filter (comp types/selection? key)
-                                               (:renderables scene-render-data))))]
+                               (comp (filter (comp types/selection? key))
+                                     (mapcat val)
+                                     (filter camera-renderable?)
+                                     (filter :selected)
+                                     (take 2))
+                               (:renderables scene-render-data))]
     (when (= 1 (count selected-cameras))
       (first selected-cameras))))
 
@@ -302,7 +303,8 @@
   (when-let [selected-camera-renderable (find-selected-camera-renderable scene-render-data)]
     (when (valid-camera-inset-orthographic-zoom? selected-camera-renderable)
       (when-let [aspect-ratio (camera-inset-aspect-ratio selected-camera-renderable)]
-        (let [display-height camera-inset-height
+        (let [aspect-ratio (double aspect-ratio)
+              display-height camera-inset-height
               display-width (* display-height aspect-ratio)
               render-width (* display-width camera-inset-render-scale)
               render-height (* display-height camera-inset-render-scale)
@@ -504,8 +506,8 @@
     (when camera-inset-drawable
       (let [camera-inset-viewport (types/->Region 0 render-width 0 render-height)
             camera-inset-pass->render-args (into {}
-                                                (map (juxt identity (partial pass-render-args camera-inset-viewport camera)))
-                                                camera-inset-passes)
+                                                 (map (juxt identity (partial pass-render-args camera-inset-viewport camera)))
+                                                 camera-inset-passes)
             scene-renderables (make-camera-inset-renderables scene-render-data camera)
             camera-inset-frame (gl/with-drawable-as-current camera-inset-drawable
                                  (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
@@ -518,12 +520,11 @@
                                  (let [[w h] (vp-dims camera-inset-viewport)
                                        buffered-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
                                    (scene-cache/prune-context! gl)
-                                   buffered-image))]
-        (when-some [camera-inset-image (some-> camera-inset-frame
-                                               (SwingFXUtils/toFXImage nil))]
-          {:image camera-inset-image
-           :width display-width
-           :height display-height})))))
+                                   buffered-image))
+            camera-inset-image (SwingFXUtils/toFXImage camera-inset-frame nil)]
+        {:image camera-inset-image
+         :width display-width
+         :height display-height}))))
 
 (defn- apply-pass-overrides
   [pass renderable]
@@ -1906,9 +1907,9 @@
                              (let [async-copy-state-atom (g/node-value view-id :async-copy-state)]
                                (reset! async-copy-state-atom (scene-async/request-resize! @async-copy-state-atom width height))))
                            (let [drawable (gl/offscreen-drawable width height)
-                                picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
-                                camera-inset-drawable (when (supports-camera-inset-drawable? view-id)
-                                                        (gl/offscreen-drawable camera-inset-width camera-inset-height))]
+                                 picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
+                                 camera-inset-drawable (when (supports-camera-inset-drawable? view-id)
+                                                         (gl/offscreen-drawable camera-inset-width camera-inset-height))]
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this image-view view-id)
                              (ui/on-closed! (:tab opts) (fn [_]

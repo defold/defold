@@ -295,9 +295,7 @@
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
 
 (g/defnk produce-camera-scene
-  [_node-id fov aspect-ratio auto-aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode
-   project-display-width project-display-height
-   project-render-clear-color]
+[_node-id fov aspect-ratio auto-aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height project-render-clear-color]
   ;; TODO: Better AABB calculation
   (let [^double ext-x far-z
         ^double ext-y far-z
