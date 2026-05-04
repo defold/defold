@@ -159,19 +159,16 @@
   and a matching UBO resource.  Returns 0 when the shader does not declare a
   preview-light buffer."
   ^long [^SPIRVReflector spirv-reflector]
-  (let [has-light-type (some (fn [^Shaderc$ResourceTypeInfo t]
-                               (and t (= preview-light-type-name (.-name t))))
-                             (.getTypes spirv-reflector))]
-    (if has-light-type
-      (long
-        (or (some (fn [^Shaderc$ShaderResource ubo]
-                    (when (= preview-light-type-name (.-name ubo))
-                      (let [arr-size (.-arraySize ^Shaderc$ResourceType (.-type ubo))]
-                        (when (pos? arr-size)
-                          arr-size))))
-                  (.getUBOs spirv-reflector))
-            0))
-      0)))
+  (if-let [_ (some (fn [^Shaderc$ResourceTypeInfo t]
+                     (and t (= preview-light-type-name (.-name t))))
+                   (.getTypes spirv-reflector))]
+    (long
+      (or (some (fn [^Shaderc$ShaderResource ubo]
+                  (when (= preview-light-type-name (.-name ubo))
+                    (.-arraySize ^Shaderc$ResourceType (.-type ubo))))
+                (.getUBOs spirv-reflector))
+          0))
+    0))
 
 (defn transpile-shader-source
   "Compiles a single shader source file, for example, a .vp or a .fp file into an

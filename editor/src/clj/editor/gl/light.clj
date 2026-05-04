@@ -26,7 +26,7 @@
 
 (def ^:const default-max-preview-lights 8)
 
-(defn- engine-light-type-index ^double [light-type-kw]
+(defn- engine-light-type-index [light-type-kw]
   (case light-type-kw
     :directional 0.0
     :point 1.0
