@@ -39,8 +39,30 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-#if defined(DM_SANITIZE_ADDRESS)
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+#undef lua_error
+#undef luaL_error
 extern "C" void __asan_handle_no_return();
+
+extern "C" int dm_lua_error_asan(lua_State* L)
+{
+    __asan_handle_no_return();
+    return DM_LUA_RENAME(lua_error)(L);
+}
+
+extern "C" int dm_luaL_error_asan(lua_State* L, const char* fmt, ...)
+{
+    va_list argp;
+    va_start(argp, fmt);
+    luaL_where(L, 1);
+    lua_pushvfstring(L, fmt, argp);
+    va_end(argp);
+    lua_concat(L, 2);
+    return dm_lua_error_asan(L);
+}
+
+#define lua_error dm_lua_error_asan
+#define luaL_error dm_luaL_error_asan
 #endif
 
 DM_PROPERTY_GROUP(rmtp_Script, "", 0);
@@ -1606,9 +1628,6 @@ namespace dmScript
         va_end(argp);
         lua_concat(m_L, 2);
         m_Diff = -0x800000;
-#if defined(DM_SANITIZE_ADDRESS)
-        __asan_handle_no_return(); // to make asan not throw stack allocated use-after-free issues
-#endif
         return lua_error(m_L);
     }
 
