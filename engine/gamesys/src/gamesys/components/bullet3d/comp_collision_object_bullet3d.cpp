@@ -65,6 +65,18 @@ namespace dmGameSystem
         dmPhysics::HCollisionShape3D* m_ShapeBuffer;
     };
 
+    static void RemoveComponentFromUpdate(CollisionWorldBullet3D* world, CollisionComponentBullet3D* component)
+    {
+        for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
+        {
+            if (world->m_Components[i] == component)
+            {
+                world->m_Components.EraseSwap(i);
+                return;
+            }
+        }
+    }
+
     struct DispatchContext
     {
         PhysicsContextBullet3D* m_PhysicsContext;
@@ -239,26 +251,18 @@ namespace dmGameSystem
             component->m_Object3D = 0;
         }
 
-        uint32_t num_components = world->m_Components.Size();
-        for (uint32_t i = 0; i < num_components; ++i)
-        {
-            CollisionComponentBullet3D* c = world->m_Components[i];
-            if (c == component)
-            {
-                world->m_Components.EraseSwap(i);
-                break;
-            }
-        }
-
         delete component;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollisionObjectBullet3DFinal(const dmGameObject::ComponentFinalParams& params)
     {
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
-        component->m_AddedToUpdate = false;
-        component->m_StartAsEnabled = true;
+        CollisionComponentBullet3D* component = (CollisionComponentBullet3D*)*params.m_UserData;
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)params.m_World;
+
+        RemoveComponentFromUpdate(world, component);
+        component->m_BaseComponent.m_AddedToUpdate = false;
+        component->m_BaseComponent.m_StartAsEnabled = true;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
