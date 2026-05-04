@@ -577,7 +577,6 @@ TEST_F(ScriptTestLua, TestNumberError)
 }
 
 static int AssertNilNilFunc(lua_State* L) {
-    // Test assert(nil, nil) which should call error(nil)
     lua_getglobal(L, "assert");
     lua_pushnil(L); // condition = nil (falsy)
     lua_pushnil(L); // message = nil
@@ -607,7 +606,7 @@ static int DeepLuaErrorFunc(lua_State* L) {
 
 TEST_F(ScriptTestLua, TestAssertNilNil)
 {
-    // Test the specific case: assert(nil, nil) which should error with "nil"
+    // Lua 5.1 treats nil assert messages as omitted and uses its default message.
     // https://github.com/defold/defold/issues/8540
     int top = lua_gettop(L);
 
@@ -625,9 +624,8 @@ TEST_F(ScriptTestLua, TestAssertNilNil)
     ASSERT_EQ(LUA_ERRRUN, result);
     ASSERT_EQ(top, lua_gettop(L));
 
-    // Check that the error message is "nil" (from tostring(nil))
     ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
-    ASSERT_TRUE(RunString(L, "assert(_error == \"nil\")"));
+    ASSERT_TRUE(RunString(L, "assert(_error == \"assertion failed!\")"));
     
     // Check that traceback exists and is a string
     // Note: traceback may be empty for simple C->Lua->error calls
