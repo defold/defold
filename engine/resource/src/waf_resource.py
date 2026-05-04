@@ -68,7 +68,7 @@ def apply_barchive_after(self):
             builder.set_run_after(task)
             builder.inputs.extend(task.outputs)
 
-    extensions = ['dmanifest', 'arci', 'arcd', 'public', 'manifest_hash']
+    extensions = ['dmanifest', 'arci', 'arcd', 'manifest_hash']
     if has_live_update:
         extensions.append('zip')
 

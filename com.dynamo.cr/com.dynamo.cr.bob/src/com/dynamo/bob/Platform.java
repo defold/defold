@@ -151,6 +151,10 @@ public class Platform {
         return this.osName;
     }
 
+    public String getArch() {
+        return this.arch;
+    }
+
     public String getExtenderPair() {
         return extenderPair;
     }

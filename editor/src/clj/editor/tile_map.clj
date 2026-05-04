@@ -33,6 +33,7 @@
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -459,7 +460,7 @@
   [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)
-          transform (doto (Matrix4d.) (.set (Vector3d. 0.0 0.0 z)))
+          layer-pose (pose/translation-pose 0.0 0.0 z)
 
           ;; The visibility-aabb is used to determine the scene extents. We use
           ;; it to adjust the camera near and far clip planes to encompass the
@@ -474,7 +475,7 @@
             aabb)]
       {:node-id _node-id
        :node-outline-key id
-       :transform transform
+       :pose layer-pose
        :aabb aabb
        :visibility-aabb visibility-aabb
        :renderable {:render-fn render-layer
@@ -1351,10 +1352,9 @@
       :palette (handle-input-palette self action state evaluation-context)
       :editor  (handle-input-editor self action state evaluation-context))))
 
-(defn make-input-handler
-  []
+(defn make-input-handler []
   (let [state (atom nil)]
-    (fn [self action _]
+    (fn [self _input-state action _]
       (handle-input self action state))))
 
 (defn- get-current-tile
@@ -1415,6 +1415,7 @@
   (output palette-renderables pass/RenderData produce-palette-renderables)
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly (make-input-handler)))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions mode palette-tile]
                             (case mode
                               :editor (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)]

@@ -83,19 +83,7 @@ These are not strictly required, but helps install some of the software you need
 
 <details><summary>Windows...</summary><p>
 
-* [Chocolatey](https://chocolatey.org/docs/installation) - Chocolatey is a package installer that will help install various helper tools such as python, ripgrep etc.
-
-Open a Command Prompt (cmd.exe) as administator and run:
-
-```sh
-@"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
-```
-
-Once this is done, you can install new packages which are added to the PATH, by running:
-
-```sh
-choco install <package_name>
-```
+* [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/) - Winget is a package installer that will help install various helper tools such as Python, Java, ripgrep etc. Winget is preinstalled on Windows.
 
 </p></details>
 
@@ -131,15 +119,14 @@ You can use a package manager or do a manual download and installation.
 
 <details><summary>Windows...</summary><p>
 
-Install [temurin jdk](https://adoptium.net/en-GB/installation/) using Chocolatey:
+Install [temurin jdk](https://adoptium.net/en-GB/installation/) using winget:
 
 ```sh
-choco install temurin25
+winget install --id EclipseAdoptium.Temurin.25.JDK -e
 ```
 
-*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-25_36*
+The JDK bin path is automatically added to PATH environment variable, but you need to sign out and sign in again for it to take effect.
 
-Once the Java SDK is installed you need to add java to PATH environment variable.
 
 </p></details>
 
@@ -217,10 +204,10 @@ Once Python has been installed you also need install certificates (for https req
 
 <details><summary>Windows...</summary><p>
 
-Install Python using Chocolatey:
+Install Python using winget:
 
 ```sh
-choco install python
+winget install -e --id Python.Python.3.12
 ```
 </p></details>
 
@@ -335,9 +322,9 @@ defold$ ./scripts/build.py check_sdk --verbose
 
 #### Visual C++ 2022 Community
 
-[Download](https://visualstudio.microsoft.com/vs/older-downloads/) the Community version or use the Professional or Enterprise version if you have the proper licence.
+[Download](https://visualstudio.microsoft.com/vs/older-downloads/) the [Visual Studio Community 2022](https://aka.ms/vs/17/release/vs_community.exe) version or use the Professional or Enterprise version if you have the proper licence.
 
-* When installing, select the "Desktop Development with C++" workload
+* When installing, in the "Workloads" tab, select the "Desktop Development with C++"
 
 * We also require Clang:
   * In Visual Studio Installer, under Individual components, select *C++ Clang Compiler for Windows* and *MSBuild support for LLVM (clang-cl) toolset*.
@@ -490,7 +477,7 @@ There are a few ways to install the DotNet sdk:
 * Install via your package manager
   * macOS: `brew search dotnet`
   * Linux: `apt-get install dotnet`
-  * Windows: `choco install dotnet`
+  * Windows: `winget install Microsoft.DotNet.SDK.9`
 
 * Install via [dotnet-install.sh](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script):
 
@@ -515,7 +502,7 @@ There are a few ways to install the DotNet sdk:
 </p></details>
 
 
-## Optional Software for external libraries
+## Additional Software for external libraries
 
 These are needed in some special build scripts (e.g. when rebuilding external source libraries).
 
@@ -543,9 +530,9 @@ These are needed in some special build scripts (e.g. when rebuilding external so
 
 <details><summary>Windows...</summary><p>
 
-  In powershell:
+  In powershell or bash:
   ```sh
-  choco install wget curl cmake patch
+  winget install wget curl cmake Ninja-build.Ninja GnuWin32.Patch 
   ````
 
 </p></details>
@@ -587,7 +574,7 @@ This is an optional tool to help speed up building the code by caching the resul
 
   In powershell:
   ```sh
-  > choco install ccache
+  > winget install ccache
   ```
 
   Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
@@ -629,7 +616,7 @@ They're mainly used to help unpack some archives and sync source code in a pl
 
   In powershell:
   ```sh
-  choco install 7z dos2unix
+  winget install 7z dos2unix
   ````
 
 </p></details>

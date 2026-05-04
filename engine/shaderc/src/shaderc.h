@@ -130,24 +130,33 @@ namespace dmShaderc
         IMAGE_ACCESS_QUALIFIER_READ_WRITE,
     };
 
+    enum ShaderPrecision
+    {
+        SHADER_PRECISION_MEDIUMP,
+        SHADER_PRECISION_HIGHP,
+    };
+
     struct ShaderCompilerOptions
     {
         ShaderCompilerOptions()
         : m_Version(330)
         , m_EntryPoint("main")
+        , m_GlslEsDefaultFloatPrecision(SHADER_PRECISION_MEDIUMP)
+        , m_GlslEsDefaultIntPrecision(SHADER_PRECISION_HIGHP)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(true)
         , m_GlslEs(false)
         {}
 
-        uint32_t    m_Version;
-        const char* m_EntryPoint;
-
-        uint8_t     m_RemoveUnusedVariables      : 1;
-        uint8_t     m_No420PackExtension         : 1;
-        uint8_t     m_GlslEmitUboAsPlainUniforms : 1;
-        uint8_t     m_GlslEs                     : 1;
+        uint32_t        m_Version;
+        const char*     m_EntryPoint;
+        ShaderPrecision m_GlslEsDefaultFloatPrecision;
+        ShaderPrecision m_GlslEsDefaultIntPrecision;
+        uint8_t         m_RemoveUnusedVariables      : 1;
+        uint8_t         m_No420PackExtension         : 1;
+        uint8_t         m_GlslEmitUboAsPlainUniforms : 1;
+        uint8_t         m_GlslEs                     : 1;
     };
 
     struct ResourceType

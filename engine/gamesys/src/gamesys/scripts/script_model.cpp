@@ -287,7 +287,10 @@ namespace dmGameSystem
         dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx);
         if (dmRig::RESULT_ANIM_NOT_FOUND == result)
         {
-            dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            if (callback_ctx->m_LuaCallback)
+            {
+                dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            }
             delete callback_ctx;
             dmLogError("'%s:%s#%s' has no animation named '%s'",
                     dmMessage::GetSocketName(receiver.m_Socket),
@@ -442,7 +445,10 @@ namespace dmGameSystem
         dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx);
         if (dmRig::RESULT_ANIM_NOT_FOUND == result)
         {
-            dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            if (callback_ctx->m_LuaCallback)
+            {
+                dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            }
             delete callback_ctx;
             dmLogError("'%s:%s#%s' has no animation named '%s'",
                     dmMessage::GetSocketName(receiver.m_Socket),

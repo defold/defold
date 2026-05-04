@@ -54,6 +54,7 @@
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
@@ -352,16 +353,17 @@
           (fn progress-fn [progress-message ^long node-index]
             (progress/make progress-message progress-size (inc node-index)))
           (fn indeterminate-progress-fn [progress-message ^long _node-index]
-            (progress/make-indeterminate progress-message)))]
-    (->> node-id+resource-pairs
-         (map-indexed vector)
-         (pmap (fn [[node-index [node-id resource]]]
-                 (let [proj-path (resource/proj-path resource)
-                       progress-message (localization/message "progress.reading-resource" {"resource" proj-path})
-                       progress (progress-fn progress-message node-index)]
-                   (render-progress! progress)
-                   (read-node-load-info node-id resource resource-metrics))))
-         (into []))))
+            (progress/make-indeterminate progress-message)))
+        progress-counter-atom (atom 0)]
+    (coll/pmapv
+      (fn [[node-id resource]]
+        (let [proj-path (resource/proj-path resource)
+              progress-message (localization/message "progress.reading-resource" {"resource" proj-path})
+              progress-index (dec (swap! progress-counter-atom inc))
+              progress (progress-fn progress-message progress-index)]
+          (render-progress! progress)
+          (read-node-load-info node-id resource resource-metrics)))
+      node-id+resource-pairs)))
 
 (defn node-load-infos->stored-disk-state [node-load-infos]
   (let [[disk-sha256s-by-node-id
@@ -924,7 +926,6 @@
       (g/construct node-type
         :_node-id node-id
         :resource resource))
-    (g/connect node-id :_node-id project :nodes)
     (g/connect node-id :node-id+resource project :node-id+resources)))
 
 (defn make-resource-nodes-tx-data [project node-id+resource-pairs]
@@ -961,7 +962,7 @@
   ([project render-progress!]
    (load-project! project render-progress! (g/node-value project :resources)))
   ([project render-progress! resources]
-   (assert (empty? (g/node-value project :nodes)) "load-project should only be used when loading an empty project")
+   (assert (empty? (g/node-value project :node-id+resources)) "load-project should only be used when loading an empty project")
    ;; Create nodes for all resources in the workspace.
    (let [process-metrics (du/make-metrics-collector)
          resource-metrics (du/make-metrics-collector)
@@ -995,12 +996,12 @@
 
          total-progress (progress/advance total-progress read-progress-span)
 
-         ;; We can disable change tracking on the initial load since we have
+         ;; We can use full invalidation on the initial load since we have
          ;; nothing in the cache and will reset the undo history afterward.
-         change-tracked-transact false
+         full-invalidation-transact true
 
          transact-opts {:metrics transaction-metrics
-                        :track-changes change-tracked-transact}
+                        :full-invalidation full-invalidation-transact}
 
          prelude-tx-data
          (e/concat
@@ -1024,14 +1025,6 @@
          (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
            (du/measuring process-metrics :load-new-nodes
              (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
-
-     ;; When we're not tracking changes, we will not evict stale values from the
-     ;; system cache. This means subsequent graph queries won't see the changes
-     ;; from the transaction if a value was previously cached. To be on the safe
-     ;; side, we clear the cache after each transaction we perform with change
-     ;; tracking disabled.
-     (when-not change-tracked-transact
-       (g/clear-system-cache!))
 
      (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
      (render-progress! progress/done)
@@ -1581,8 +1574,6 @@
      gl/linear-mipmap-linear :filter-mode-mag-linear)})
 
 (g/defnode Project
-  (inherits core/Scope)
-
   (property workspace g/Any)
 
   (property all-selections g/Any)
@@ -1596,7 +1587,7 @@
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
-  (input node-id+resources g/Any :array)
+  (input node-id+resources g/Any :array :cascade-delete)
   (input settings g/Any :substitute nil)
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
@@ -1638,6 +1629,8 @@
   (output display-height g/Num (g/fnk [settings]
                                   (double (or (get settings ["display" "height"]) 0))))
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
+  (output glsl-es-default-precision-float g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_float"])))
+  (output glsl-es-default-precision-int g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_int"])))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
   (output dependencies g/Any (gu/passthrough dependencies))
@@ -1707,7 +1700,6 @@
       (let [graph-id (g/node-id->graph-id project)
             node-type (resource-node-type resource)
             creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
-                               (g/connect resource-node-id :_node-id project :nodes)
                                (g/connect resource-node-id :node-id+resource project :node-id+resources))
             created-resource-node-id (first (g/tx-data-added-node-ids creation-tx-data))
             created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
@@ -1780,7 +1772,7 @@
                     load-tx-data
                     (gu/connect-existing-outputs node-type node-id consumer-node connections)))})))
 
-(deftype ProjectResourceListener [project-id]
+(defonce/type ProjectResourceListener [project-id]
   resource/ResourceListener
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))

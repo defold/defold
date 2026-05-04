@@ -34,11 +34,14 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.apache.commons.io.FileUtils;
+import com.dynamo.bob.pipeline.Shaderc;
 
 public class ShaderCompilePipeline {
     public static class Options {
         public boolean splitTextureSamplers;
         public ArrayList<String> defines = new ArrayList<>();
+        public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
     }
 
     public static class ShaderModuleDesc {
@@ -237,10 +240,12 @@ public class ShaderCompilePipeline {
         }
 
         Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
-        opts.version               = versionOut;
-        opts.entryPoint            = "main";
-        opts.removeUnusedVariables = 1;
-        opts.no420PackExtension    = 1;
+        opts.version                       = versionOut;
+        opts.entryPoint                    = "main";
+        opts.removeUnusedVariables         = 1;
+        opts.no420PackExtension            = 1;
+        opts.glslEsDefaultFloatPrecision   = this.options.glslEsDefaultFloatPrecision;
+        opts.glslEsDefaultIntPrecision     = this.options.glslEsDefaultIntPrecision;
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
             opts.glslEmitUboAsPlainUniforms = 1;
@@ -511,7 +516,7 @@ public class ShaderCompilePipeline {
     public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, ShaderModuleDesc desc, Options options) throws IOException, CompileExceptionError {
         ArrayList<ShaderModuleDesc> descs = new ArrayList<>();
         descs.add(desc);
-        return createShaderPipeline(pipeline, descs, options );
+        return createShaderPipeline(pipeline, descs, options);
     }
 
     public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, ArrayList<ShaderModuleDesc> descs, Options options) throws IOException, CompileExceptionError {

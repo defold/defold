@@ -15,6 +15,7 @@
 #ifndef GRAPHICS_DEVICE_WEBGPU
 #define GRAPHICS_DEVICE_WEBGPU
 
+#include <cstddef>
 #include <vector>
 
 #include <dlib/hashtable.h>
@@ -107,8 +108,10 @@ namespace dmGraphics
         WebGPUTexture()
         {
             memset(this, 0, sizeof(*this));
-            m_Type = TEXTURE_TYPE_2D;
-            m_GraphicsFormat = TEXTURE_FORMAT_RGBA;
+            m_Base.m_Type = TEXTURE_TYPE_2D;
+            m_Base.m_Format = TEXTURE_FORMAT_RGBA;
+            m_Base.m_MipMapCount = 1;
+            m_Base.m_NumTextureIds = 1;
             m_Format = WGPUTextureFormat_Undefined;
             m_UsageFlags = WGPUTextureUsage_None;
             m_Texture = NULL;
@@ -116,27 +119,18 @@ namespace dmGraphics
             m_Sampler = NULL;
         }
 
-        WGPUTexture           m_Texture;
-        WGPUTextureView       m_TextureView;
-        WGPUSampler           m_Sampler;
-        TextureType           m_Type;
-        TextureFormat         m_GraphicsFormat;
-        WGPUTextureFormat     m_Format;
+        Texture                 m_Base;
+        WGPUTexture             m_Texture;
+        WGPUTextureView         m_TextureView;
+        WGPUSampler             m_Sampler;
+        WGPUTextureFormat       m_Format;
 #if defined(DM_GRAPHICS_WEBGPU2)
-        WGPUTextureUsage      m_UsageFlags;
+        WGPUTextureUsage        m_UsageFlags;
 #else
-        WGPUTextureUsageFlags m_UsageFlags;
+        WGPUTextureUsageFlags   m_UsageFlags;
 #endif
-        uint32_t              m_Width;
-        uint32_t              m_Height;
-        uint32_t              m_OriginalWidth;
-        uint32_t              m_OriginalHeight;
-        uint16_t              m_Depth;
-        uint16_t              m_TextureSamplerIndex : 10;
-        uint16_t              m_MipMapCount : 5;
-        uint8_t               m_UsageHintFlags;
-        uint8_t               m_PageCount; // page count of texture array
-        uint8_t               m_Destroyed : 1;
+        uint16_t                m_TextureSamplerIndex;
+        uint8_t                 m_Destroyed : 1;
     };
 
     struct WebGPURenderTarget
@@ -190,26 +184,21 @@ namespace dmGraphics
 
     struct WebGPUContext
     {
+        GraphicsContext                    m_BaseContext;
         dmHashTable64<WGPURenderPipeline>  m_RenderPipelineCache;
         dmHashTable64<WGPUComputePipeline> m_ComputePipelineCache;
         dmHashTable64<WGPUBindGroup>       m_BindGroupCache;
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 
-        HWindow m_Window;
-
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
         VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         int32_t                            m_ScissorRect[4];
         int32_t                            m_ViewportRect[4];
 
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
         WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
-        uint64_t                           m_TextureFormatSupport;
 
-        TextureFilter                      m_DefaultTextureMinFilter;
-        TextureFilter                      m_DefaultTextureMagFilter;
         WebGPUTexture*                     m_DefaultTexture2D;
         WebGPUTexture*                     m_DefaultTexture2DArray;
         WebGPUTexture*                     m_DefaultTextureCubeMap;
@@ -244,10 +233,7 @@ namespace dmGraphics
 
         uint32_t            m_OriginalWidth;
         uint32_t            m_OriginalHeight;
-        uint32_t            m_Width;
-        uint32_t            m_Height;
 
-        uint32_t            m_PrintDeviceInfo : 1;
         uint32_t            m_ContextFeatures : 3;
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_InitComplete : 1;

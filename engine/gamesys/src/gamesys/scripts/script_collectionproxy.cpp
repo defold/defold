@@ -115,6 +115,7 @@ namespace dmGameSystem
     // See doc in comp_collection_proxy.cpp
     static int CollectionProxy_MissingResources(lua_State* L)
     {
+        dmLogOnceWarning("Function 'collectionproxy.missing_resources' is deprecated. It is tied to the legacy single-resource liveupdate flow.");
         return CollectionProxy_GetResourcesInternal(L, true);
     }
 
@@ -566,7 +567,9 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# return an array of missing resources for a collection proxy
+     
+    // Deprecated!
+    /* return an array of missing resources for a collection proxy
      *
      * return an array of missing resources for a collection proxy. Each
      * entry is a hexadecimal string that represents the data of the specific
@@ -592,7 +595,7 @@ namespace dmGameSystem
      *     local expected = self.resources[id]
      *     if response ~= nil and response.status == 200 then
      *         print("Successfully downloaded resource: " .. expected)
-     *         resource.store_resource(response.response)
+     *         -- Store or process the downloaded resource here.
      *     else
      *         print("Failed to download resource: " .. expected)
      *         -- error handling

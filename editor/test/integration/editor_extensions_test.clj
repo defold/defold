@@ -41,6 +41,7 @@
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.diff :as diff]
+            [util.eduction :as e]
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [java.nio.file.attribute PosixFilePermission]
@@ -1329,15 +1330,15 @@ openapi route has 200 => true
     (reload-editor-scripts! project)
     (g/with-auto-evaluation-context ec
       (let [{:keys [rt]} (extensions/ext-state project ec)]
-        (->> (g/node-value project :nodes ec)
-             (map #(g/node-value % :node-outline ec))
-             (mapcat #(tree-seq :children :children %))
-             (mapcat (fn [outline]
-                       (->> [(g/node-value (:node-id outline) :_properties ec)]
-                            properties/coalesce
-                            :properties
-                            vals
-                            (map #(assoc % :outline outline)))))
+        (->> (g/node-value project :node-id+resources ec)
+             (e/map #(g/node-value (% 0) :node-outline ec))
+             (e/mapcat #(tree-seq :children :children %))
+             (e/mapcat (fn [outline]
+                         (->> [(g/node-value (:node-id outline) :_properties ec)]
+                              properties/coalesce
+                              :properties
+                              vals
+                              (e/map #(assoc % :outline outline)))))
              (run! (fn [{:keys [outline key] :as p}]
                      (let [{:keys [node-id]} outline
                            ext-key (string/replace (name key) \- \_)]
@@ -2141,7 +2142,7 @@ emitters: 1
   modifiers: 1
     type: modifier-type-acceleration
     magnitude: {0, 1, 1, 0}
-    rotation: {0, 0, -180}
+    rotation: {0, 0, 180}
 Expected errors:
   empty points => {points = {}} does not satisfy any of its requirements:
     - {points = {}} is not a number

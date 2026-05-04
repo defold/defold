@@ -70,7 +70,7 @@
                                                        returnvalues))))))
                   functions)])]
     (with-open [w (io/writer (doto (io/file output-dir "editor.apidoc") io/make-parents))]
-      (write-as-comment w (format "Editor scripting documentation\n\n@document\n@name Editor\n@namespace editor"))
+      (write-as-comment w (format "Editor scripting documentation\n\n@document\n@name Editor\n@namespace editor\n@language Lua"))
       (doseq [{:keys [description type name] :as doc} docs
               :let [brief (->brief description)]]
         (case type

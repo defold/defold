@@ -123,6 +123,15 @@ def build(bld):
             ramp = True,
             rule = gen_dc)
 
+    bld(target = 'stereo_tone_440_96000_24000.wav',
+        tone = 440,
+        rate = 96000,
+        frames = 24000,
+        channels = 2,
+        ramp = False,
+        rule = gen_tone)
+    wavs.append('stereo_tone_440_96000_24000.wav')
+
     bld.add_group()
 
     embedded_wavs = bld.stlib(features = 'cxx embed test',

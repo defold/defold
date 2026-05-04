@@ -36,6 +36,7 @@
             [editor.pipeline :as pipeline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.render-util :as render-util]
@@ -80,11 +81,9 @@
   (let [page-margin 32]
     (+ (* page-margin page-index) (* layout-width page-index))))
 
-(defn- get-rect-transform [width page-index]
+(defn- get-rect-pose [width page-index]
   (let [page-offset (get-rect-page-offset width page-index)]
-    (doto (Matrix4d.)
-      (.setIdentity)
-      (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
+    (pose/translation-pose page-offset 0.0 0.0)))
 
 (defn- render-rect
   [^GL2 gl rect color offset-x]
@@ -165,9 +164,16 @@
 (defn- atlas-rect->editor-rect [rect]
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
 
-(g/defnk produce-image-scene
-  [_node-id image-resource order layout-size image-path->rect animation-updatable]
-  (let [path (resource/proj-path image-resource)
+(g/defnk produce-atlas-scene-info [layout-size image-path->rect]
+  {:layout-size layout-size
+   :image-path->rect image-path->rect})
+
+(g/defnk produce-animation-scene-info [atlas-scene-info updatable]
+  (assoc atlas-scene-info :updatable updatable))
+
+(g/defnk produce-image-scene [_node-id image-resource order scene-info]
+  (let [{:keys [layout-size image-path->rect updatable]} scene-info
+        path (resource/proj-path image-resource)
         rect (get image-path->rect path)
         editor-rect (atlas-rect->editor-rect rect)
         [layout-width layout-height] layout-size
@@ -193,7 +199,7 @@
                               :user-data {:rect rect
                                           :layout-width layout-width}
                               :passes [pass/selection]}}]
-     :updatable animation-updatable}))
+     :updatable updatable}))
 
 (defn make-animation [id images]
   (types/map->Animation {:id              id
@@ -275,16 +281,13 @@
                                                  maybe-image-resource)))
 
   (input maybe-image-size g/Any)
-  (input image-path->rect g/Any)
   (input rename-patterns g/Str)
 
   (input child->order g/Any)
   (output order g/Any (g/fnk [_node-id child->order]
                         (child->order _node-id)))
 
-  (input animation-updatable g/Any)
-
-  (input layout-size g/Any)
+  (input scene-info g/Any)
 
   (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size pivot-x pivot-y sprite-trim-mode]
                               (with-meta
@@ -341,11 +344,9 @@
     (g/connect image-node :image-resource   atlas-node :image-resources)
     (g/connect image-node :node-outline     atlas-node :child-outlines)
     (g/connect image-node :scene            atlas-node :child-scenes)
-    (g/connect atlas-node :layout-size      image-node :layout-size)
     (g/connect atlas-node :child->order     image-node :child->order)
     (g/connect atlas-node :id-counts        image-node :id-counts)
-    (g/connect atlas-node :image-path->rect image-node :image-path->rect)
-    (g/connect atlas-node :updatable        image-node :animation-updatable)
+    (g/connect atlas-node :scene-info       image-node :scene-info)
     (g/connect atlas-node :rename-patterns  image-node :rename-patterns)))
 
 (defn- attach-image-to-animation [animation-node image-node]
@@ -358,9 +359,7 @@
     (g/connect image-node     :node-outline     animation-node :child-outlines)
     (g/connect image-node     :scene            animation-node :child-scenes)
     (g/connect animation-node :child->order     image-node     :child->order)
-    (g/connect animation-node :image-path->rect image-node     :image-path->rect)
-    (g/connect animation-node :layout-size      image-node     :layout-size)
-    (g/connect animation-node :updatable        image-node     :animation-updatable)
+    (g/connect animation-node :scene-info       image-node     :scene-info)
     (g/connect animation-node :rename-patterns  image-node     :rename-patterns)))
 
 (defn- attach-animation-to-atlas [atlas-node animation-node]
@@ -377,8 +376,7 @@
     (g/connect atlas-node     :anim-data        animation-node :anim-data)
     (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
     (g/connect atlas-node     :id-counts        animation-node :id-counts)
-    (g/connect atlas-node     :layout-size      animation-node :layout-size)
-    (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)
+    (g/connect atlas-node     :scene-info       animation-node :atlas-scene-info)
     (g/connect atlas-node     :rename-patterns  animation-node :rename-patterns)))
 
 (defn render-animation
@@ -442,17 +440,13 @@
   (input child-build-errors g/Any :array)
   (input id-counts NameCounts)
   (input anim-data g/Any)
-  (input layout-size g/Any)
-  (output layout-size g/Any (gu/passthrough layout-size))
+  (input atlas-scene-info g/Any)
 
   (input rename-patterns g/Str)
   (output rename-patterns g/Str (gu/passthrough rename-patterns))
 
   (input image-resources g/Any :array)
   (output image-resources g/Any (gu/passthrough image-resources))
-
-  (input image-path->rect g/Any)
-  (output image-path->rect g/Any (gu/passthrough image-path->rect))
 
   (input gpu-texture g/Any)
 
@@ -471,6 +465,7 @@
                            :tx-attach-fn attach-image-to-animation}]}))
   (output ddf-message g/Any :cached produce-anim-ddf)
   (output updatable g/Any :cached produce-animation-updatable)
+  (output scene-info g/Any produce-animation-scene-info)
   (output scene g/Any :cached produce-animation-scene)
   (output own-build-errors g/Any (g/fnk [_node-id fps id id-counts]
                                    (g/package-errors _node-id
@@ -557,8 +552,8 @@
 
 (defn- make-page-scene
   [layout-width layout-height page-index gpu-texture]
-  (let [page-offset-transform (get-rect-transform layout-width page-index)]
-    (render-util/make-outlined-textured-quad-scene #{:atlas} page-offset-transform layout-width layout-height gpu-texture page-index)))
+  (let [page-offset-pose (get-rect-pose layout-width page-index)]
+    (render-util/make-outlined-textured-quad-scene #{:atlas} page-offset-pose layout-width layout-height gpu-texture page-index)))
 
 (g/defnk produce-scene
   [_node-id layout-rects layout-size gpu-texture child-scenes texture-profile]
@@ -696,11 +691,11 @@
 
 (s/defrecord AtlasRect
   [path     :- s/Any
-   x        :- types/Int32
-   y        :- types/Int32
-   width    :- types/Int32
-   height   :- types/Int32
-   page     :- types/Int32
+   x        :- types/TInt32
+   y        :- types/TInt32
+   width    :- types/TInt32
+   height   :- types/TInt32
+   page     :- types/TInt32
    geometry :- s/Any])
 
 (defn rotate-vertices-90-cw [vertices]
@@ -835,7 +830,7 @@
                                                                               :tx-attach-fn attach-animation-to-atlas}]}))
   (output save-value       g/Any          :cached produce-save-value)
   (output build-targets    g/Any          :cached produce-build-targets)
-  (output updatable        g/Any          (g/fnk [] nil))
+  (output scene-info       g/Any          produce-atlas-scene-info)
   (output scene            g/Any          :cached produce-scene)
   (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
                                             (g/package-errors _node-id
@@ -1174,7 +1169,7 @@
       (g/eager-tx-data
         (create-dropped-images parent image-resources evaluation-context)))))
 
-(defn handle-input [self action selection-data]
+(defn handle-input [self _input-state action selection-data]
   (case (:type action)
     :mouse-pressed (if (first (get selection-data self))
                      (do
@@ -1229,6 +1224,7 @@
   (output manip-delta g/Any :cached produce-manip-delta)
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/constantly nil)))
 
 (defn- get-animation-images [animation evaluation-context]

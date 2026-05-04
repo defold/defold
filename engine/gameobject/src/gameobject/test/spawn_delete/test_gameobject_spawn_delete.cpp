@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <map>
+#include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
@@ -40,6 +41,42 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
         return result;
     }
     return 0x0;
+}
+
+static dmGameObject::HInstance FactorySpawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t* out_id)
+{
+    uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+    if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+        return 0x0;
+
+    dmhash_t id = dmGameObject::CreateInstanceId();
+    dmGameObject::HInstance instance = Spawn(factory, collection, prototype_name, id, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    if (instance)
+    {
+        dmGameObject::AssignInstanceIndex(index, instance);
+        *out_id = id;
+    }
+    else
+    {
+        dmGameObject::ReleaseInstanceIndex(index, collection);
+    }
+
+    return instance;
+}
+
+static void PostSetParent(dmGameObject::HCollection collection, dmGameObject::HInstance child, dmGameObject::HInstance parent)
+{
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(collection);
+    receiver.m_Path = dmGameObject::GetIdentifier(child);
+    receiver.m_Fragment = 0;
+
+    dmGameObjectDDF::SetParent ddf;
+    ddf.m_ParentId = parent ? dmGameObject::GetIdentifier(parent) : 0;
+    ddf.m_KeepWorldTransform = 0;
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
+        (uintptr_t) child, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 }
 
 static int Lua_Spawn(lua_State* L) {
@@ -646,6 +683,69 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti2)
     Delete(go10);
     Update();
     PostUpdate();
+}
+
+// https://github.com/defold/defold/issues/12247
+TEST_F(SpawnDeleteTest, SetParentDeleteStress)
+{
+    dmGameObject::DeleteCollection(m_Collection);
+    dmGameObject::PostUpdate(m_Register);
+    m_Collection = NewCollection("collection", m_Factory, m_Register, 1024u, 0x0);
+
+    Init();
+
+    const uint32_t iteration_count = 1798;
+    dmArray<dmhash_t> ids;
+    ids.SetCapacity(iteration_count);
+    uint32_t state = 0x12247;
+
+    for (uint32_t i = 0; i < iteration_count; ++i)
+    {
+        Update();
+
+        state = state * 1664525u + 1013904223u;
+        uint32_t op = ids.Empty() ? 0 : state % 3;
+
+        if (op == 0)
+        {
+            dmhash_t id = 0;
+            dmGameObject::HInstance instance = FactorySpawn(m_Factory, m_Collection, "/a.goc", &id);
+            if (instance)
+            {
+                ids.Push(id);
+            }
+        }
+        else if (op == 1)
+        {
+            state = state * 1664525u + 1013904223u;
+            dmhash_t id = ids[state % ids.Size()];
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(m_Collection, id);
+            if (instance)
+            {
+                Delete(instance);
+            }
+        }
+        else
+        {
+            state = state * 1664525u + 1013904223u;
+            dmhash_t child_id = ids[state % ids.Size()];
+            state = state * 1664525u + 1013904223u;
+            dmhash_t parent_id = ids[state % ids.Size()];
+            dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(m_Collection, child_id);
+            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(m_Collection, parent_id);
+            // Steer the deterministic random sequence into the same failing deletion path as issue #12247.
+            if (i == 1797 && parent)
+            {
+                Delete(parent);
+            }
+            else if (child && parent && child != parent)
+            {
+                PostSetParent(m_Collection, child, parent);
+            }
+        }
+
+        PostUpdate();
+    }
 }
 
 

@@ -3550,16 +3550,16 @@
                                                 :rotation [0.0 0.0 90.0 0.0]
                                                 :scale [2.0 2.0 1.0 1.0]}}
               "Altered Parent" {"transformed/box" {:position [-10.0 0.0 0.0 1.0]
-                                                   :rotation [0.0 0.0 270.0 0.0]
+                                                   :rotation [0.0 0.0 -90.0 0.0]
                                                    :scale [6.0 6.0 1.0 1.0]}
                                 "untransformed/box" {:position [20.0 0.0 0.0 1.0]
                                                      :rotation [0.0 0.0 180.0 0.0]
                                                      :scale [3.0 3.0 1.0 1.0]}}
               "Altered Child" {"transformed/box" {:position [10.0 40.0 0.0 1.0]
-                                                  :rotation [0.0 0.0 270.0 0.0]
+                                                  :rotation [0.0 0.0 -90.0 0.0]
                                                   :scale [6.0 6.0 1.0 1.0]}
                                "untransformed/box" {:position [10.0 40.0 0.0 1.0]
-                                                    :rotation [0.0 0.0 270.0 0.0]
+                                                    :rotation [0.0 0.0 -90.0 0.0]
                                                     :scale [6.0 6.0 1.0 1.0]}}}
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value)

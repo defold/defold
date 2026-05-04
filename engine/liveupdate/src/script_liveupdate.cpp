@@ -407,32 +407,6 @@ namespace dmLiveUpdate
         {0, 0}
     };
 
-
-#define DEPRECATE_LU_FUNCTION(LUA_NAME, CPP_NAME) \
-    static int Deprecated_ ## CPP_NAME(lua_State* L) \
-    { \
-        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "resource", LUA_NAME, "liveupdate", LUA_NAME); \
-        return dmLiveUpdate:: CPP_NAME (L); \
-    }
-
-DEPRECATE_LU_FUNCTION("get_current_manifest", Resource_GetCurrentManifest);
-DEPRECATE_LU_FUNCTION("is_using_liveupdate_data", Resource_IsUsingLiveUpdateData);
-DEPRECATE_LU_FUNCTION("store_resource", Resource_StoreResource);
-DEPRECATE_LU_FUNCTION("store_manifest", Resource_StoreManifest);
-DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
-
-    // The deprecated ones
-    static const luaL_reg ResourceModule_methods[] =
-    {
-        {"get_current_manifest", Deprecated_Resource_GetCurrentManifest},
-        {"is_using_liveupdate_data", Deprecated_Resource_IsUsingLiveUpdateData},
-        {"store_resource", Deprecated_Resource_StoreResource},
-        {"store_manifest", Deprecated_Resource_StoreManifest},
-        {"store_archive", Deprecated_Resource_StoreArchive},
-        {0, 0}
-    };
-
-
 #define SETCONSTANT(_NAME) \
         lua_pushnumber(L, (lua_Number)dmLiveUpdate::RESULT_ ## _NAME); \
         lua_setfield(L, -2, "LIVEUPDATE_" #_NAME );\
@@ -457,17 +431,6 @@ DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
 
 #undef SETCONSTANT
 
-    // LiveUpdate functionality in resource namespace
-    static void LuaInitDeprecated(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        luaL_register(L, "resource", ResourceModule_methods); // get or create the resource module!
-        SetConstants(L);
-
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
-    }
-
     static void LuaInit(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -484,7 +447,5 @@ DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
         g_LUScriptCtx.m_Factory = factory;
 
         LuaInit(L);
-        LuaInitDeprecated(L);
     }
 };
-

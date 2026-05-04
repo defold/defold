@@ -330,11 +330,6 @@ namespace dmResource
     dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams* params, FGetDependency callback, void* callback_context);
 
     /**
-     * Returns the path to the public key, or null if it was not found
-     **/
-    const char* GetPublicKeyPath(HFactory factory);
-
-    /**
      * Returns the base archive mount. It is always of type "archive", or it will return 0.
      **/
     dmResourceProvider::HArchive GetBaseArchive(HFactory factory);

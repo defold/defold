@@ -67,6 +67,7 @@
 #include "test/stereo_tone_440_44100_11025.wav.embed.h"
 #include "test/stereo_tone_440_44100_88200.wav.embed.h"
 #include "test/stereo_tone_440_48000_12000.wav.embed.h"
+#include "test/stereo_tone_440_96000_24000.wav.embed.h"
 #include "test/stereo_tone_2000_48000_12000.wav.embed.h"
 
 #include "test/mono_tone_440_22050_44100.wav.embed.h"
@@ -2359,6 +2360,36 @@ static int PlaySound(const char* path, dmSound::SoundDataType type)
 
     dmMemory::AlignedFree(sound_data);
     return 0;
+}
+
+TEST(SoundSdk, HighSpeedPlaybackCompletes)
+{
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sd = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(STEREO_TONE_440_96000_24000_WAV, STEREO_TONE_440_96000_24000_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, &sd, dmHashString64("high_speed_wav")));
+
+    dmSound::HSoundInstance instance = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(5.0f, 0.0f, 0.0f, 0.0f)));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Play(instance));
+
+    for (uint32_t i = 0; i < 256 && dmSound::IsPlaying(instance); ++i)
+    {
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    }
+    ASSERT_FALSE(dmSound::IsPlaying(instance));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sd));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
 }
 
 // New tests for start_time/start_frame offset support

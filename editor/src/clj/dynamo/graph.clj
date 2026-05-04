@@ -296,29 +296,67 @@
         override-id-generator (is/override-id-generator system)
         tx-data-context-map (or (:tx-data-context-map opts) {})
         metrics-collector (:metrics opts)
-        track-changes (:track-changes opts true)]
-    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector track-changes)))
+        full-invalidation (:full-invalidation opts)]
+    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation)))
 
 (defn commit-tx-result!
   [tx-result transact-opts]
   (when (and (not (:dry-run transact-opts))
              (= :ok (:status tx-result)))
     (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result))
+    (when (:full-invalidation transact-opts)
+      (clear-system-cache!))
     nil))
 
 (defn transact
-  "Provides a way to run a transaction against the graph system.  It takes a list of transaction steps.
+  "Runs a transaction against the graph system.
+
+  Args:
+    opts    optional map with transaction settings:
+              :dry-run
+                Returns the tx report without committing to *the-system*.
+
+              :metrics
+                The metrics collector; results are returned in :metrics.
+
+              :full-invalidation
+                Defaults to false. When true, disables precise change
+                tracking and uses full invalidation instead of incremental
+                updates. The system cache is cleared automatically after
+                commit, but older evaluation contexts may still be stale and
+                must not be written back into the cache. Undo history is not
+                tracked accurately in this mode, so callers that need
+                consistent undo semantics must reset or otherwise manage
+                history explicitly.
+
+              :tx-data-context-map
+                Initial transaction data context map. The final value is
+                returned as :tx-data-context-map.
+    txs     sequence of transaction steps
 
   Example:
 
       (g/transact
-         [(g/connect n1 output-name n :xs)
+        [(g/connect n1 output-name n :xs)
          (g/connect n2 output-name n :xs)])
 
-  It returns the transaction result, (tx-result),  which is a map containing keys about the transaction.
-  Transaction result-keys:
-  `[:status :basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]`
-  "
+  Returns a transaction result, a map with the following keys:
+    :status                :empty if no transaction steps completed, otherwise
+                           :ok
+    :basis                 transaction basis after applying the transaction
+    :graphs-modified       modified graph ids, most useful when full
+                           invalidation is disabled
+    :nodes-added           added node ids
+    :nodes-modified        modified node ids when full invalidation is
+                           disabled
+    :nodes-deleted         deleted nodes by node id
+    :outputs-modified      modified endpoints when full invalidation is
+                           disabled
+    :label                 transaction label, if any
+    :sequence-label        transaction sequence label, if any
+    :tx-data-context-map   final transaction context map
+    :metrics               transaction metrics, when metrics collection is
+                           enabled"
   ([txs]
    (transact nil txs))
   ([opts txs]
@@ -343,6 +381,19 @@
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
+
+(defn tx-data?
+  "Returns true if the value is a (possibly nested) sequence of transaction
+  steps."
+  [value]
+  (and (seqable? value)
+       (coll/reduce-> value
+         false
+         coll/flatten-xf
+         (fn [_ item]
+           (if (it/tx-step? item)
+             true
+             (reduced false))))))
 
 (defn tx-data-step-types
   "Given a sequence of possibly nested transaction steps, returns a sequence of

@@ -14,6 +14,7 @@
 
 #include <dlib/math.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/atomic.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
@@ -22,17 +23,14 @@ namespace dmGraphics
 {
     void InitializeVulkanTexture(VulkanTexture* t)
     {
-        t->m_Type                = TEXTURE_TYPE_2D;
-        t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
-        t->m_DeviceBuffer        = 0;
-        t->m_Format              = VK_FORMAT_UNDEFINED;
-        t->m_Width               = 0;
-        t->m_Height              = 0;
-        t->m_OriginalWidth       = 0;
-        t->m_OriginalHeight      = 0;
-        t->m_MipMapCount         = 0;
-        t->m_TextureSamplerIndex = 0;
-        t->m_Destroyed           = 0;
+        memset(&t->m_Base, 0, sizeof(t->m_Base));
+        t->m_Base.m_Type                = TEXTURE_TYPE_2D;
+        t->m_Base.m_Format              = TEXTURE_FORMAT_RGBA;
+        dmAtomicStore32(&t->m_Base.m_DataState, 0);
+        t->m_DeviceBuffer               = 0;
+        t->m_Format                     = VK_FORMAT_UNDEFINED;
+        t->m_TextureSamplerIndex        = 0;
+        t->m_Destroyed                  = 0;
         memset(&t->m_Handle, 0, sizeof(t->m_Handle));
     }
 
@@ -520,7 +518,7 @@ namespace dmGraphics
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         VkFence fence;
-        VkResult res = SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
+        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
 
         // Wait for the copy command to finish
         vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
@@ -820,7 +818,7 @@ bail:
         VulkanTexture*        textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
-        TextureType tex_type = textureOut->m_Type;
+        TextureType tex_type = textureOut->m_Base.m_Type;
 
         VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
 
@@ -923,9 +921,9 @@ bail:
 
         if (imageMips == 0)
         {
-            textureOut->m_Width  = imageWidth;
-            textureOut->m_Height = imageHeight;
-            textureOut->m_Depth  = imageDepth;
+            textureOut->m_Base.m_Width  = imageWidth;
+            textureOut->m_Base.m_Height = imageHeight;
+            textureOut->m_Base.m_Depth  = imageDepth;
         }
 
         return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);

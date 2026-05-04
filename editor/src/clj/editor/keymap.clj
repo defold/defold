@@ -53,6 +53,13 @@
            ["Alt+Space" :code.show-completions]
            ["Alt+Up" :code.goto-line-start]
            ["Alt+Up" :edit.reorder-up]
+           ["W" :scene.free-camera.forward]
+           ["A" :scene.free-camera.left]
+           ["S" :scene.free-camera.backward]
+           ["D" :scene.free-camera.right]
+           ["Q" :scene.free-camera.down]
+           ["E" :scene.free-camera.up]
+           ["Shift+Back Quote" :scene.free-camera.activate]
            ["Backspace" :code.delete-previous-char]
            ["Backspace" :edit.delete]
            ["Ctrl+A" :code.goto-line-start]
@@ -179,6 +186,13 @@
            ["Alt+F9" :debugger.edit-breakpoint]
            ["Alt+R" :file.open-recent]
            ["Alt+Up" :edit.reorder-up]
+           ["W" :scene.free-camera.forward]
+           ["A" :scene.free-camera.left]
+           ["S" :scene.free-camera.backward]
+           ["D" :scene.free-camera.right]
+           ["Q" :scene.free-camera.down]
+           ["E" :scene.free-camera.up]
+           ["Shift+Back Quote" :scene.free-camera.activate]
            ["Backspace" :code.delete-previous-char]
            ["Ctrl+'+'" :code.zoom.increase]
            ["Ctrl+Add" :code.zoom.increase]
@@ -298,6 +312,13 @@
            ["Alt+F9" :debugger.edit-breakpoint]
            ["Alt+R" :file.open-recent]
            ["Alt+Up" :edit.reorder-up]
+           ["W" :scene.free-camera.forward]
+           ["A" :scene.free-camera.left]
+           ["S" :scene.free-camera.backward]
+           ["D" :scene.free-camera.right]
+           ["Q" :scene.free-camera.down]
+           ["E" :scene.free-camera.up]
+           ["Shift+Back Quote" :scene.free-camera.activate]
            ["Backspace" :code.delete-previous-char]
            ["Ctrl+'+'" :code.zoom.increase]
            ["Ctrl+Add" :code.zoom.increase]
@@ -804,6 +825,13 @@
                          (key-code->typable-char-strings code)
                          (.getName code)))))
      (.toString sb))))
+
+(defn shortcut-key-codes
+  "Returns a set of KeyCodes for a command's shortcuts, ignoring modifiers"
+  [keymap shortcuts]
+  (coll/into-> shortcuts #{}
+    (filter #(instance? KeyCodeCombination %))
+    (map #(.getCode ^KeyCodeCombination %))))
 
 ;; TODO: remove migration from legacy keymap file after sufficient time has passed (e.g. after 2026-04-08)
 

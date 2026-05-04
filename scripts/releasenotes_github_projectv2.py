@@ -100,7 +100,11 @@ QUERY_PULLREQUEST = r"""
         }
         closingIssuesReferences(first: 10) {
             nodes {
-                number
+                number,
+                repository {
+                    name,
+                    url
+                }
             }
         }
         timelineItems(first: 250) {
@@ -234,9 +238,9 @@ def get_issue_type_from_labels(labels):
     return TYPE_FIX
 
 def get_closing_issue(pr):
-    repository = pr.get("repository").get("name")
     for node in reversed(pr["closingIssuesReferences"]["nodes"]):
         issue_number = node["number"]
+        repository = node["repository"]["name"]
         return get_issue(issue_number, repository)
     return pr
 
@@ -341,7 +345,9 @@ def parse_github_project(version):
         elif item.get("type") == "PULL_REQUEST":
             pr = get_pullrequest(content.get("number"), repository = repository)
             issue = get_closing_issue(pr)
-            if pr.get("number") != issue.get("number"):
+            issue_number_matching = pr.get("number") == issue.get("number")
+            repository_matching = pr.get("repository").get("name") == issue.get("repository").get("name")
+            if repository_matching and not issue_number_matching:
                 yellow("IGNORED (both PR and issue #%s added to the project)" % issue.get("number"))
                 continue
 
@@ -379,7 +385,7 @@ def parse_github_project(version):
             "mergecommit": find_merge_commit(pr),
             "referencecommits": find_reference_commits(pr),
             "duplicate": duplicate,
-            "repository": repository
+            "repository": issue.get("repository").get("name")
         }
         # strip from match to end of file
         flags = re.DOTALL|re.IGNORECASE

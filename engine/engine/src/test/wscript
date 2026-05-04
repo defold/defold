@@ -53,9 +53,25 @@ def build(bld):
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable',
-                             'ResourceTypeOgg','ResourceTypeOpus', 'ResourceTypeWav', 'ResourceTypeFont', 'ResourceTypeTTF']
-    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound']
+                             'ResourceTypeOgg','ResourceTypeOpus', 'ResourceTypeWav', 'ResourceTypeFont', 'ResourceTypeTTF',
+                             'ResourceTypeLight']
+    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound', 'ComponentTypeLight']
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull', 'ScriptModelExt']
+
+    bld.add_group()
+    profiler_exported_symbols = ['ProfilerExt', 'ProfilerBasic', 'GraphicsAdapterNull']
+    profiler_test = bld(
+        features = 'c cxx cprogram test',
+        use = 'TESTMAIN APP RESOURCE DDF FONT GRAPHICS_NULL PLATFORM_NULL RENDER SOCKET SCRIPT LUA EXTENSION DLIB'.split() + additional_libs + ['PROFILE', 'PROFILEREXT'],
+        exported_symbols = profiler_exported_symbols,
+        web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+        includes = '../../proto .',
+        defines = defines,
+        source = ['test_profilerext_lua.cpp'],
+        target = 'test_profilerext_lua')
+
+    if 'win32' in bld.env.PLATFORM:
+        profiler_test.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
     bld.add_group()
     obj = bld(
@@ -65,7 +81,7 @@ def build(bld):
         web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
         includes = '../../proto .',
         defines = defines,
-        source = bld.path.ant_glob('**/*.cpp'),
+        source = bld.path.ant_glob('**/*.cpp', excl=['test_profilerext_lua.cpp']),
         target = 'test_engine')
 
     # Psapi.lib is needed by ProfilerExt

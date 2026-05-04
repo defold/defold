@@ -15,8 +15,9 @@
 (ns util.coll
   (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some update-vals])
   (:import [clojure.core Eduction Vec]
-           [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
+           [clojure.lang Cons Cycle IEditableCollection LazilyPersistentVector LazySeq MapEntry Repeat Var]
            [java.util ArrayList Arrays List]
+           [java.util.concurrent StructuredTaskScope StructuredTaskScope$FailedException StructuredTaskScope$Joiner]
            [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
@@ -1044,3 +1045,41 @@
    (mapv f coll))
   ([coll f & args]
    (mapv #(apply f % args) coll)))
+
+(defn pmapv
+  "Like core.pmap, but eagerly returns a vector, uses virtual threads, and
+  keeps a bounded number of tasks in flight. Fails fast by cancelling
+  remaining tasks on the first error."
+  ([f coll]
+   (let [items (if (vector? coll) coll (vec coll))
+         item-count (count items)]
+     (case item-count
+       0 []
+       1 [(f (items 0))]
+       (let [binding-frame (Var/cloneThreadBindingFrame)
+             results (object-array item-count)
+             next-index (AtomicInteger. 0)
+             worker-count (-> (.availableProcessors (Runtime/getRuntime))
+                              (* 2)
+                              (max 4)
+                              (min item-count))]
+         (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
+           (dotimes [_ worker-count]
+             (.fork
+               scope
+               ^Runnable
+               (fn []
+                 (do
+                   (Var/resetThreadBindingFrame binding-frame)
+                   (loop []
+                     (when-not (.isInterrupted (Thread/currentThread))
+                       (let [index (.getAndIncrement next-index)]
+                         (when (< index item-count)
+                           (aset results index (f (items index)))
+                           (recur)))))))))
+           (try
+             (.join scope)
+             (catch StructuredTaskScope$FailedException e (throw (.getCause e))))
+           (LazilyPersistentVector/createOwning results))))))
+  ([f coll & colls]
+   (pmapv #(apply f %) (apply mapv vector coll colls))))

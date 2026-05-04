@@ -1,0 +1,52 @@
+local function append_status(message)
+    print(message)
+    cp_status_log = cp_status_log or {}
+    table.insert(cp_status_log, message)
+end
+
+function init(self)
+    self.collection = "/collection_proxy/set_collection_chain_level1.collectionc"
+    self.state = "set_collection"
+
+    append_status("collectionproxy chain root init")
+    cp_chain_root_initialized = true
+end
+
+function update(self, dt)
+    if self.state == "set_collection" then
+        append_status("collectionproxy chain root set_collection " .. self.collection)
+        local ok, result = collectionproxy.set_collection("#collectionproxy", self.collection)
+        cp_chain_root_set_ok = ok
+        cp_chain_root_set_result = result
+        if ok then
+            append_status("collectionproxy chain root set_collection_ok")
+            self.state = "load"
+        else
+            append_status("collectionproxy chain root set_collection_failed " .. tostring(result))
+            cp_chain_cycle_rejected = true
+            self.state = "done"
+        end
+    elseif self.state == "load" then
+        msg.post("#collectionproxy", "load")
+        self.state = "wait_loaded"
+    elseif self.state == "init_enable" then
+        msg.post("#collectionproxy", "init")
+        msg.post("#collectionproxy", "enable")
+        self.state = "done"
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("proxy_loaded") then
+        append_status("collectionproxy chain root proxy_loaded")
+        cp_chain_root_proxy_loaded = true
+        self.state = "init_enable"
+    elseif message_id == hash("proxy_unloaded") then
+        append_status("collectionproxy chain root proxy_unloaded")
+    end
+end
+
+function final(self)
+    append_status("collectionproxy chain root final")
+    cp_chain_root_finalized = true
+end

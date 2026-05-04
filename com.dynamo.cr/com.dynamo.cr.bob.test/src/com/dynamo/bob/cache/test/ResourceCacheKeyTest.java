@@ -306,8 +306,6 @@ public class ResourceCacheKeyTest {
                 "keystore-alias",
                 "keystore-pass",
                 "liveupdate",
-                "manifest-private-key",
-                "manifest-public-key",
                 "max-cpu-threads",
                 "mobileprovisioning",
                 "ne-build-dir",

@@ -28,6 +28,7 @@
             [editor.math :as math]
             [editor.model-loader :as model-loader]
             [editor.model-util :as model-util]
+            [editor.pose :as pose]
             [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -472,7 +473,7 @@
 
 (defn- make-renderable-model [model model-request-id mesh-set mesh-material-index->material-name]
   (let [{:keys [translation rotation scale]} (:local model)
-        model-transform (math/clj->mat4 translation rotation scale)
+        model-pose (pose/make translation rotation scale)
 
         renderable-meshes
         (coll/into-> (:meshes model) []
@@ -487,7 +488,7 @@
                          geom/aabb-union
                          geom/null-aabb
                          renderable-meshes)]
-        {:transform model-transform
+        {:pose model-pose
          :aabb model-aabb
          :renderable-meshes renderable-meshes}))))
 
@@ -500,8 +501,8 @@
 
     (g/precluding-errors renderable-models
       (let [mesh-set-aabb (transduce
-                            (map (fn [{:keys [aabb transform]}]
-                                   (geom/aabb-transform aabb transform)))
+                            (map (fn [{:keys [aabb pose]}]
+                                   (geom/aabb-transform aabb (pose/matrix pose))))
                             geom/aabb-union
                             geom/null-aabb
                             renderable-models)]
@@ -557,10 +558,10 @@
      :renderable renderable}))
 
 (defn- make-model-scene [scene-node-id renderable-model]
-  (let [{:keys [transform aabb renderable-meshes]} renderable-model
+  (let [{:keys [pose aabb renderable-meshes]} renderable-model
         mesh-scenes (mapv #(make-mesh-scene scene-node-id %)
                           renderable-meshes)]
-    {:transform transform
+    {:pose pose
      :aabb aabb
      :children mesh-scenes}))
 

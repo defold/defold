@@ -72,7 +72,7 @@
            [editor.gl.texture TextureLifecycle]
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
-           [javax.vecmath Quat4d]
+           [javax.vecmath Quat4d Vector3d]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -1249,11 +1249,11 @@
   (output scene-renderable g/Any (g/constantly nil))
   (output scene-outline-renderable g/Any (g/constantly nil))
   (output color+alpha types/Color (g/fnk [color alpha] (assoc color 3 alpha)))
-  (output scene g/Any :cached (g/fnk [_node-id id aabb transform scene-children scene-renderable scene-outline-renderable scene-updatable]
+  (output scene g/Any :cached (g/fnk [_node-id id aabb pose scene-children scene-renderable scene-outline-renderable scene-updatable]
                                      (cond-> {:node-id _node-id
                                               :node-outline-key id
                                               :aabb aabb
-                                              :transform transform
+                                              :pose pose
                                               :renderable scene-renderable}
 
                                        scene-outline-renderable
@@ -1418,14 +1418,24 @@
   ;; from disk during resource-sync. The id must be unique within the gui scene.
   (g/node-value node-id :id evaluation-context))
 
-(defmethod scene-tools/manip-move ::GuiNode [evaluation-context node-id delta]
-  (basic-layout-property-update-in-current-layout evaluation-context node-id :position scene/apply-move-delta delta))
+(defn- manip-gui-node [node-id prop-kw apply-delta-fn vecmath-delta manip-phase initial-evaluation-context]
+  (case manip-phase
+    :manip-phase/commit
+    {:manip/tx-data (basic-layout-property-update-in-current-layout initial-evaluation-context node-id prop-kw apply-delta-fn vecmath-delta)}
 
-(defmethod scene-tools/manip-rotate ::GuiNode [evaluation-context node-id delta]
-  (basic-layout-property-update-in-current-layout evaluation-context node-id :rotation scene/apply-rotate-delta delta))
+    :manip-phase/preview
+    (let [old-value (g/node-value node-id prop-kw initial-evaluation-context)
+          new-value (apply-delta-fn old-value vecmath-delta)]
+      {:manip/prop-kw->override-value {prop-kw new-value}})))
 
-(defmethod scene-tools/manip-scale ::GuiNode [evaluation-context node-id delta]
-  (basic-layout-property-update-in-current-layout evaluation-context node-id :scale scene/apply-scale-delta delta))
+(defmethod scene-tools/manip-move ::GuiNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-gui-node node-id :position scene/apply-move-delta delta manip-phase initial-evaluation-context))
+
+(defmethod scene-tools/manip-rotate ::GuiNode [node-id ^Quat4d delta manip-phase initial-evaluation-context]
+  (manip-gui-node node-id :rotation scene/apply-rotate-delta delta manip-phase initial-evaluation-context))
+
+(defmethod scene-tools/manip-scale ::GuiNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-gui-node node-id :scale scene/apply-scale-delta delta manip-phase initial-evaluation-context))
 
 (defn- transfer-overrides-target-properties
   [target-node-id target-layout-name evaluation-context]
@@ -2452,7 +2462,7 @@
                        (if (some? source-scene)
                          (:aabb source-scene)
                          geom/empty-bounding-box)))
-  (output scene g/Any :cached (g/fnk [_node-id aabb transform source-scene scene-children color+alpha inherit-alpha visible enabled]
+  (output scene g/Any :cached (g/fnk [_node-id aabb pose source-scene scene-children color+alpha inherit-alpha visible enabled]
                                 (let [scene (if source-scene
                                               (if-some [updatable (some-> source-scene :updatable (assoc :node-id _node-id))]
                                                 (scene/map-scene #(assoc % :updatable updatable) source-scene)
@@ -2463,7 +2473,7 @@
                                       (assoc
                                         :node-id _node-id
                                         :aabb aabb
-                                        :transform transform
+                                        :pose pose
                                         :visible-self? (and visible enabled)
                                         :visible-children? enabled)
                                       (update :children coll/into-vector scene-children)))))

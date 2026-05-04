@@ -12,13 +12,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <math.h>
-
 #include "render.h"
 #include "render_private.h"
 
 namespace dmRender
 {
+    static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
+    static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
+
     static void CommitLightInstance(HRenderContext render_context, LightInstance* instance);
     static void CommitLightCount(HRenderContext render_context);
 
@@ -40,6 +41,13 @@ namespace dmRender
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params)
     {
         LightPrototype* lp = new LightPrototype;
+        SetLightPrototype(render_context, lp, params);
+        return lp;
+    }
+
+    void SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params)
+    {
+        LightPrototype* lp = (LightPrototype*) light_prototype;
         memset(lp, 0, sizeof(LightPrototype));
         lp->m_Type = params.m_Type;
         lp->m_Color = params.m_Color;
@@ -48,7 +56,6 @@ namespace dmRender
         lp->m_Range = params.m_Range;
         lp->m_InnerConeAngle = params.m_InnerConeAngle;
         lp->m_OuterConeAngle = params.m_OuterConeAngle;
-        return lp;
     }
 
     void DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype)
@@ -74,7 +81,7 @@ namespace dmRender
         }
 
         LightInstance* light_instance      = new LightInstance;
-        light_instance->m_Position         = dmVMath::Point3();
+        light_instance->m_Position         = dmVMath::Point3(0.0f, 0.0f, 0.0f);
         light_instance->m_Direction        = light_prototype->m_Direction;
         light_instance->m_LightPrototype   = light_prototype;
         light_instance->m_LightBufferIndex = render_context->m_RenderLightsIndices.Pop();
@@ -304,17 +311,31 @@ namespace dmRender
         return render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart || render_context->m_LightBufferDirtyCount;
     }
 
-    void InitializeLightData(HRenderContext render_context, uint32_t max_light_count)
+    void SetLightBufferCount(HRenderContext render_context, uint32_t max_lights)
     {
-        render_context->m_MaxLightCount = max_light_count;
-        render_context->m_LightUniformBuffer = 0;
+        assert(render_context);
+        assert(render_context->m_RenderLightsIndices.Size() == 0);
 
-        if (max_light_count > 0)
+        if (render_context->m_LightUniformBuffer)
         {
-            render_context->m_RenderLightsIndices.SetCapacity(max_light_count);
-            render_context->m_LightBufferScratch.SetCapacity(max_light_count);
-            GenerateUniformBuffer(render_context, max_light_count);
+            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
+            render_context->m_LightUniformBuffer = 0;
         }
+
+        render_context->m_MaxLightCount               = (uint16_t) max_lights;
+        render_context->m_LightBufferDirtyStart       = 0;
+        render_context->m_LightBufferDirtyEnd         = 0;
+        render_context->m_LightBufferDirtyCount       = 0;
+        render_context->m_LightBufferDataWriteStart   = 0;
+        render_context->m_LightBufferLastWrittenCount = 0;
+
+        if (render_context->m_RenderLightsIndices.Capacity() < max_lights)
+        {
+            render_context->m_RenderLightsIndices.SetCapacity(max_lights);
+        }
+        render_context->m_LightBufferScratch.SetCapacity(max_lights);
+        render_context->m_LightBufferScratch.SetSize(0);
+        GenerateUniformBuffer(render_context, (int) max_lights);
     }
 
     void FinalizeLightData(HRenderContext render_context)
@@ -325,19 +346,90 @@ namespace dmRender
         }
     }
 
+    struct LightBufferBindingCallbackContext
+    {
+        RenderContext* m_Context;
+        bool           m_HasLightBuffer;
+        uint16_t       m_Set;
+        uint16_t       m_Binding;
+    };
+
+    static void LightBufferBindingCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, void* user_data)
+    {
+        LightBufferBindingCallbackContext* cb_ctx = (LightBufferBindingCallbackContext*) user_data;
+
+        if (cb_ctx->m_HasLightBuffer || root_type->m_NameHash != LIGHT_BUFFER_TYPE)
+        {
+            return;
+        }
+
+        uint32_t ubo_light_count = 0;
+        for (uint32_t i = 0; i < root_type->m_MemberCount; ++i)
+        {
+            if (root_type->m_Members[i].m_NameHash == LIGHT_MEMBER_TYPE)
+            {
+                ubo_light_count = root_type->m_Members[i].m_ElementCount;
+                break;
+            }
+        }
+
+        if (cb_ctx->m_Context->m_MaxLightCount != ubo_light_count)
+        {
+            dmLogOnceWarning("The size of the light buffer must match the project configuration. You should use the same size everywhere for the uniform buffer!");
+            return;
+        }
+
+        cb_ctx->m_HasLightBuffer = true;
+        cb_ctx->m_Set            = set;
+        cb_ctx->m_Binding        = binding;
+    }
+
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding)
+    {
+        LightBufferBindingCallbackContext cb_ctx;
+        cb_ctx.m_Context         = render_context;
+        cb_ctx.m_HasLightBuffer  = false;
+        cb_ctx.m_Set             = 0;
+        cb_ctx.m_Binding         = 0;
+
+        dmGraphics::IterateProgramResourceBindings(program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, LightBufferBindingCallback, &cb_ctx);
+
+        *out_has_light_buffer = cb_ctx.m_HasLightBuffer;
+        if (cb_ctx.m_HasLightBuffer)
+        {
+            *out_set     = cb_ctx.m_Set;
+            *out_binding = cb_ctx.m_Binding;
+        }
+    }
+
+    static void ApplyLightBufferForBinding(HRenderContext render_context, uint16_t light_buffer_set, uint16_t light_buffer_binding)
+    {
+        if (IsLightBufferDirty(render_context))
+        {
+            WriteLightInstanceData(render_context);
+        }
+
+        dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext,
+                                        render_context->m_LightUniformBuffer,
+                                        light_buffer_set,
+                                        light_buffer_binding);
+    }
+
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material)
     {
-        if (material->m_HasLightBuffer)
+        if (!material->m_HasLightBuffer)
         {
-            if (IsLightBufferDirty(render_context))
-            {
-                WriteLightInstanceData(render_context);
-            }
-
-            dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext,
-                                            render_context->m_LightUniformBuffer,
-                                            material->m_LightBufferSet,
-                                            material->m_LightBufferBinding);
+            return;
         }
+        ApplyLightBufferForBinding(render_context, material->m_LightBufferSet, material->m_LightBufferBinding);
+    }
+
+    void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program)
+    {
+        if (!compute_program->m_HasLightBuffer)
+        {
+            return;
+        }
+        ApplyLightBufferForBinding(render_context, compute_program->m_LightBufferSet, compute_program->m_LightBufferBinding);
     }
 }

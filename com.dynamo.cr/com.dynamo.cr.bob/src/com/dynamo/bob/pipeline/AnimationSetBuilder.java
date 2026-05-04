@@ -128,6 +128,8 @@ public class AnimationSetBuilder extends Builder  {
                 throw new CompileExceptionError(animFile, e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
             } catch (LoaderException e) {
                 throw new CompileExceptionError(animFile, -1, "Failed to load animation: " + e.getLocalizedMessage(), e);
+            } catch (IOException e) {
+                throw new CompileExceptionError(animFile, -1, e.getMessage(), e);
             }
 
             animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());

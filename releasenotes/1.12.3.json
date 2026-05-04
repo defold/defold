@@ -300,8 +300,8 @@
             "url": "https://github.com/defold/defold/pull/11996"
         },
         {
-            "author": "JosephFerano",
-            "body": "Allow the compilation of shaders when a paged material exceeds the maximum allowed pages currently set to 8 when \"Exclude GLES 2.0\" is not checked in game.project > Shader setting.",
+            "author": "Jhonnyg",
+            "body": "We now use the 64-bit version of stat in the engine on windows. This means that we can load resources larger than 2gb.",
             "closed_issues": [
                 11923
             ],
@@ -309,17 +309,17 @@
             "issue_number": 11923,
             "labels": [
                 "bug",
-                "editor"
+                "editor",
+                "engine",
+                "windows"
             ],
-            "mergecommit": "2696aef3d0fd24c54b32aa7e04bfec84c7d31bf5",
-            "pr_number": 12065,
-            "referencecommits": [
-                "8cc1f82f629db455f6a0eb905fa231bd4681986d"
-            ],
+            "mergecommit": "66a097d1de9eded372ccc0c40e5be8939e9ad8cb",
+            "pr_number": 12021,
+            "referencecommits": [],
             "repository": "defold",
-            "title": "Editor fix: Allow shaders to compile with page count > 8",
+            "title": "Use stat64 on windows",
             "type": "FIX",
-            "url": "https://github.com/defold/defold/pull/12065"
+            "url": "https://github.com/defold/defold/pull/12021"
         },
         {
             "author": "AGulev",
@@ -482,28 +482,6 @@
             "title": "Fix for incorrect particlefx scale",
             "type": "FIX",
             "url": "https://github.com/defold/defold/pull/12039"
-        },
-        {
-            "author": "AGulev",
-            "body": "",
-            "closed_issues": [
-                12048
-            ],
-            "duplicate": false,
-            "issue_number": 12048,
-            "labels": [
-                "bug",
-                "triage"
-            ],
-            "mergecommit": "14cd9e98c3b66be8fafb7bdfd61eeb778579fb32",
-            "pr_number": 12053,
-            "referencecommits": [
-                "fe611352ee83b4636ebd5b89f9a9dbf01c3f0048"
-            ],
-            "repository": "defold",
-            "title": "Fix `model_animation_done` callback",
-            "type": "FIX",
-            "url": "https://github.com/defold/defold/pull/12053"
         },
         {
             "author": "britzl",
@@ -721,47 +699,8 @@
             "title": "Added experimental support for minification of internal resource paths to save memory ",
             "type": "NEW",
             "url": "https://github.com/defold/defold/pull/11906"
-        },
-        {
-            "author": "AGulev",
-            "body": "Cache the viewport rectangle to avoid unnecessary OpenGL calls. In some cases, it may be the cause of performance issues.",
-            "closed_issues": [
-                12052
-            ],
-            "duplicate": false,
-            "issue_number": 12052,
-            "labels": [
-                "bug",
-                "triage"
-            ],
-            "mergecommit": "94f563a1e58cee7823442932fde0d75db6e55724",
-            "pr_number": 12073,
-            "referencecommits": [
-                "790e32673807d8bb451599400242dfaec36d1fd4"
-            ],
-            "repository": "defold",
-            "title": "Cache the viewport rectangle to avoid potential performance issues on the HTML5 platform",
-            "type": "FIX",
-            "url": "https://github.com/defold/defold/pull/12073"
-        },
-        {
-            "author": "JCash",
-            "body": "This feature allows you to configure a specific Vulkan api version.\r\nGame.project now has two settings:\r\n* `graphics.vulkan_version_major` (default =1)\r\n* `graphics.vulkan_version_minor` (default = 0)",
-            "closed_issues": [
-                12070
-            ],
-            "duplicate": false,
-            "issue_number": 12070,
-            "labels": [],
-            "mergecommit": "cb3949eabbdbee0df1d1f328186d37401d43217e",
-            "pr_number": 12070,
-            "referencecommits": [],
-            "repository": "defold",
-            "title": "Added support to choose Vulkan api version from game.project ",
-            "type": "FIX",
-            "url": "https://github.com/defold/defold/pull/12070"
         }
     ],
-    "timestamp": 1774012657.6734788,
+    "timestamp": 1773819951.079793,
     "version": "1.12.3"
 }

@@ -14,6 +14,7 @@
 
 (ns integration.test-util
   (:require [clojure.java.io :as io]
+            [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [clojure.test :as test :refer [is testing]]
             [clojure.test.check.clojure-test]
@@ -31,6 +32,7 @@
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.input :as input]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.material :as material]
@@ -528,6 +530,7 @@
           (concat
             (g/connect node-id :_node-id view :resource-node)
             (g/connect node-id :valid-node-id+type+resource view :node-id+type+resource)
+            (g/connect app-view :selected-node-properties view :selected-node-properties)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])
@@ -753,7 +756,8 @@
                         {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
-     (scene/dispatch-input handlers action user-data))))
+     ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
+     (scene/dispatch-input handlers (input/make-input-state) action user-data))))
 
 (defn mouse-press!
   ([view x y]
@@ -794,19 +798,31 @@
   {:pre [(vector? offset-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-move evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath offset-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath offset-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-move scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-rotate! [scene-node-id euler-xyz]
   {:pre [(vector? euler-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-rotate evaluation-context scene-node-id (math/euler->quat euler-xyz)))))
+      (let [delta (math/euler->quat euler-xyz)]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-rotate scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-scale! [scene-node-id scale-xyz]
   {:pre [(vector? scale-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-scale evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath scale-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath scale-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-scale scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn dump-frame! [view path]
   (let [^BufferedImage image (g/node-value view :frame)]

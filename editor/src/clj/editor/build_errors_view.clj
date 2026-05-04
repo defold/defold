@@ -25,6 +25,7 @@
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
+            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll]
@@ -42,10 +43,12 @@
   (conj PersistentQueue/EMPTY item))
 
 (defn- openable-resource [evaluation-context node-id]
-  (when (g/node-instance? (:basis evaluation-context) resource/ResourceNode node-id)
-    (when-some [resource (g/node-value node-id :resource evaluation-context)]
-      (when (resource/openable-resource? resource)
-        resource))))
+  (let [basis (:basis evaluation-context)]
+    (when-let [owner-resource-node-id (resource-node/owner-resource-node-id basis node-id)]
+      (when-some [resource (g/node-value owner-resource-node-id :resource evaluation-context)]
+        (when (resource/openable-resource? resource)
+          {:node-id owner-resource-node-id
+           :resource resource})))))
 
 (defn- node-id-at-override-depth [override-depth node-id]
   (if (and (some? node-id) (pos? override-depth))
@@ -57,9 +60,7 @@
         (let [basis (:basis evaluation-context)]
           (when (or (nil? origin-override-id)
                     (not= origin-override-id (g/override-id basis node-id)))
-            (when-some [resource (openable-resource evaluation-context node-id)]
-              {:node-id (or (g/override-original basis node-id) node-id)
-               :resource resource}))))
+            (openable-resource evaluation-context node-id))))
       (when-some [remaining-errors (next errors)]
         (recur evaluation-context remaining-errors origin-override-depth origin-override-id))))
 

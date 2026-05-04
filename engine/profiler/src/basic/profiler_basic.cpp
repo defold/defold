@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dmsdk/dlib/configfile.h>
 #include <dmsdk/extension/extension.h>
 #include "../profiler_private.h"
 
@@ -68,7 +69,7 @@ struct Sample
 // to avoid dynamic allocations or other setup issues
 static int32_atomic_t g_PropertyInitialized = 0;
 static const uint32_t g_MaxPropertyCount = 256;
-static const uint32_t g_MaxSampleCount = 4096;
+static uint32_t       g_MaxSampleCount = 4096;
 static Property       g_Properties[g_MaxPropertyCount];
 static PropertyData   g_PropertyData[g_MaxPropertyCount];
 
@@ -111,6 +112,7 @@ struct ThreadData
     Sample*         m_CurrentSample;
     dmArray<Sample> m_SamplePool;
     int32_t         m_ThreadId;
+    uint32_t        m_OverflowDepth;
 
     ThreadData(int32_t thread_id)
         : m_ThreadId(thread_id)
@@ -128,11 +130,9 @@ struct ThreadData
 
 static Sample* AllocateNewSample(ThreadData* td)
 {
-    static Sample g_DummySample = { 0 };
-
     if (td->m_SamplePool.Full())
     {
-        return &g_DummySample;
+        return 0;
     }
 
     td->m_SamplePool.SetSize(td->m_SamplePool.Size() + 1);
@@ -145,6 +145,7 @@ static void ResetThreadData(ThreadData* td)
     td->m_Root.m_FirstChild = 0;
     td->m_Root.m_LastChild = 0;
     td->m_CurrentSample = &td->m_Root;
+    td->m_OverflowDepth = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -382,6 +383,10 @@ static Sample* AllocateSample(ThreadData* td, uint32_t name_hash)
     if (!sample)
     {
         sample = AllocateNewSample(td);
+        if (!sample)
+        {
+            return 0;
+        }
         memset(sample, 0, sizeof(Sample));
 
         sample->m_NameHash = name_hash;
@@ -573,11 +578,11 @@ namespace dmProfiler
 // ***************************************************************************************************************
 // Listener api
 
-static void SetThreadName(void* ctx, const char* name)
+static ProfileResult SetThreadName(void* ctx, const char* name)
 {
     (void)ctx;
     PropertyInitialize();
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
     int32_t      thread_id = GetThreadId();
     const char** existing = g_ProfileContext->m_ThreadNames.Get(thread_id);
@@ -592,6 +597,7 @@ static void SetThreadName(void* ctx, const char* name)
         g_ProfileContext->m_ThreadNames.SetCapacity((cap * 2) / 3, cap);
     }
     g_ProfileContext->m_ThreadNames.Put(thread_id, strdup(name));
+    return PROFILE_RESULT_OK;
 }
 
 static void* CreateListener()
@@ -620,17 +626,18 @@ static void DestroyListener(void* listener)
     g_Lock = 0;
 }
 
-static void FrameBegin(void* ctx)
+static ProfileResult FrameBegin(void* ctx)
 {
     (void)ctx;
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
+    return PROFILE_RESULT_OK;
 }
 
-static void FrameEnd(void* ctx)
+static ProfileResult FrameEnd(void* ctx)
 {
     (void)ctx;
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
     // For each top property
@@ -638,36 +645,58 @@ static void FrameEnd(void* ctx)
         g_PropertyTreeCallback(g_PropertyTreeCallbackCtx, 0); // 0 being the root index
 
     ResetProperties(g_ProfileContext);
+    return PROFILE_RESULT_OK;
 }
 
-static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
+static ProfileResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
 {
     (void)ctx;
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
-    uint64_t    tstart = dmTime::GetMonotonicTime();
-
-    InternalizeName(name, (uint32_t*)&name_hash);
-
     ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
-    Sample*     sample = AllocateSample(td, name_hash); // Adds it to the thread data
+    if (td->m_OverflowDepth != 0)
+    {
+        td->m_OverflowDepth++;
+        return PROFILE_RESULT_OUT_OF_SAMPLES;
+    }
+
+    uint64_t tstart = dmTime::GetMonotonicTime();
+    uint32_t sample_name_hash = GetOrCacheNameHash(name, (uint32_t*)&name_hash);
+    Sample* sample = AllocateSample(td, sample_name_hash); // Adds it to the thread data
+    if (!sample)
+    {
+        // Once the sample pool is exhausted we skip nested scopes until the stack is balanced
+        // again, instead of linking a shared sentinel node into the sample tree.
+        td->m_OverflowDepth = 1;
+        return PROFILE_RESULT_OUT_OF_SAMPLES;
+    }
+
+    InternalizeName(name, &sample_name_hash);
 
     if (sample->m_CallCount > 1) // we want to preserve the real start of this sample
         sample->m_TempStart = tstart;
     else
         sample->m_Start = tstart;
+
+    return PROFILE_RESULT_OK;
 }
 
-static void ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
+static ProfileResult ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
 {
     (void)ctx;
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
+
+    ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
+    if (td->m_OverflowDepth != 0)
+    {
+        td->m_OverflowDepth--;
+        return PROFILE_RESULT_OK;
+    }
 
     uint64_t    end = dmTime::GetMonotonicTime();
 
-    ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
     Sample*     sample = td->m_CurrentSample;
 
     uint64_t    length = 0;
@@ -706,6 +735,8 @@ static void ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
 
         ResetThreadData(td);
     }
+
+    return PROFILE_RESULT_OK;
 }
 
 // ***************************************************************************************************************
@@ -949,6 +980,8 @@ static ProfileListener g_Listener = {};
 
 static dmExtension::Result ProfilerBasic_AppInitialize(dmExtension::AppParams* params)
 {
+    g_MaxSampleCount = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.max_sample_count", g_MaxSampleCount);
+
     g_Listener.m_Create = CreateListener;
     g_Listener.m_Destroy = DestroyListener;
     g_Listener.m_SetThreadName = SetThreadName;

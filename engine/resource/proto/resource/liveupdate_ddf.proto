@@ -117,11 +117,15 @@ message ResourceEntry {
  *                              that version of the engine listed as a
  *                              supported engine.
  * - resources                : The resources that are part of the manifest.
+ * - has_excluded_resources   : True when the build produced one or more
+ *                              resources marked EXCLUDED, regardless of whether
+ *                              those entries are present in this manifest.
  */
 message ManifestData {
     required ManifestHeader     header = 1;
     repeated HashDigest         engine_versions = 2;
     repeated ResourceEntry      resources = 3;
+    optional bool               has_excluded_resources = 4 [default = false];
 }
 
 /*

@@ -18,21 +18,21 @@ namespace dmGameSystem
 {
     dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams* params)
     {
-        return dmResource::RESULT_OK;
+        return dmResource::RESULT_NOT_SUPPORTED;
     }
 
     dmResource::Result ResModelCreate(const dmResource::ResourceCreateParams* params)
     {
-        return dmResource::RESULT_OK;
+        return dmResource::RESULT_NOT_SUPPORTED;
     }
 
     dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        return dmResource::RESULT_OK;
+        return dmResource::RESULT_NOT_SUPPORTED;
     }
 
     dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        return dmResource::RESULT_OK;
+        return dmResource::RESULT_NOT_SUPPORTED;
     }
 }

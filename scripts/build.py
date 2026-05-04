@@ -121,6 +121,7 @@ PACKAGES_ALL=[
     "protobuf-3.20.1",
     "junit-4.6",
     "jsign-4.2",
+    "bundletool-all",
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
@@ -135,7 +136,7 @@ PACKAGES_ALL=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -154,7 +155,7 @@ PACKAGES_IOS_X86_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -169,7 +170,7 @@ PACKAGES_IOS_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -192,10 +193,17 @@ PACKAGES_MACOS_X86_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "codesign_allocate",
+    "ogg-1.1.1",
+    "strip",
+    "strip_android-12.0.9",
+    "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
@@ -214,10 +222,17 @@ PACKAGES_MACOS_ARM64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "codesign_allocate",
+    "ogg-1.1.1",
+    "strip",
+    "strip_android-12.0.9",
+    "zipalign"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
@@ -229,7 +244,7 @@ PACKAGES_WIN32=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -252,10 +267,16 @@ PACKAGES_WIN32_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "ogg-1.1.1",
+    "strip_android-12.0.9",
+    "strip_android_aarch64-12.0.9",
+    "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
@@ -275,10 +296,17 @@ PACKAGES_LINUX_X86_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "apkc-0.1.0",
+    "ogg-1.1.1",
+    "strip_android-12.0.9",
+    "strip_android_aarch64-12.0.9",
+    "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
@@ -297,10 +325,11 @@ PACKAGES_LINUX_ARM64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
     "protobuf-3.20.1",
@@ -311,7 +340,7 @@ PACKAGES_ANDROID=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -326,7 +355,7 @@ PACKAGES_ANDROID_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -340,7 +369,7 @@ PACKAGES_EMSCRIPTEN=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -1430,7 +1459,7 @@ class Configuration(object):
         self.full_archive_path = full_archive_path
 
         bin_dir = self.build_utility.get_binary_path()
-        lib_dir = self.target_platform
+        lib_dir = self.build_utility.get_library_path()
 
         # upload editor 2.0 launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -1444,6 +1473,14 @@ class Configuration(object):
             gdc_bin = join(bin_dir, gdc_name)
             gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
+
+        # upload mouse_capture lib on desktop platforms
+        if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
+            mouse_capture_name = format_lib("mouse_capture_shared", self.target_platform)
+            mouse_capture_lib = join(lib_dir, mouse_capture_name)
+            self._log(mouse_capture_lib)
+            self._log('%s/%s' % (full_archive_path, mouse_capture_name))
+            self.upload_to_archive(mouse_capture_lib, '%s/%s' % (full_archive_path, mouse_capture_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
@@ -1503,7 +1540,7 @@ class Configuration(object):
             libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
-                lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
+                lib_path = join(dynamo_home, 'lib', self.target_platform, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
         sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
@@ -1686,15 +1723,22 @@ class Configuration(object):
         else:  # Linux, macOS, or other Unix-like OS
             return join('.', 'gradlew')
 
+    def _run_bob_copy_script(self):
+        """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
+
+        Use sh (not bash): on Windows, `bash` in PATH is often WSL's stub (no distro).
+        Git for Windows provides sh.exe. Avoid shell=True so cmd.exe is not used."""
+        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        run.env_command(self._form_env(), ['sh', 'scripts/copy.sh'], cwd=bob_dir)
+
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
 
         sha1 = self._git_sha1()
-        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
-        else:
+        self._run_bob_copy_script()
+        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
@@ -1873,9 +1917,8 @@ class Configuration(object):
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()
-        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
-        else:
+        self._run_bob_copy_script()
+        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
@@ -2965,10 +3008,17 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'If used, outputs verbose logging')
 
+    parser.add_option('--size-analyze', dest='size_analyze',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
+
     options, all_args = parser.parse_args()
 
     args = list(filter(lambda x: x[:2] != '--', all_args))
     waf_options = list(filter(lambda x: x[:2] == '--', all_args))
+    if options.size_analyze:
+        waf_options.append('--size-analyze')
 
     if len(args) == 0:
         parser.error('No command specified')

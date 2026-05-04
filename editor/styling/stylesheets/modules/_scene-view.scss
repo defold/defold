@@ -134,17 +134,18 @@
         }
 
         .grid-settings {
-            -fx-pref-width: 200px;
             -fx-background-color: -df-component-dark;
             -fx-background-radius: 4px;
             -fx-padding: 12px;
 
             HBox {
                 -fx-pref-height: 28px;
+                -fx-alignment: center-left;
             }
 
             .label {
-                -fx-pref-width: 80px;
+                -fx-pref-width: 120px;
+                -fx-padding: 1px;
             }
 
             .text-input {

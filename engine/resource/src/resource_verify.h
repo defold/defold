@@ -25,9 +25,7 @@ namespace dmResource
 {
     typedef struct Manifest* HManifest;
 
-    //Result VerifyManifestReferences(const Manifest* manifest);
-    //Result VerifyManifest(const Manifest* manifest);
-    Result VerifyManifest(const dmResource::HManifest manifest, const char* public_key_path);
+    Result VerifyManifestSupportedEngineVersion(const dmResource::HManifest manifest);
 
     Result VerifyResource(const dmResource::HManifest manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length);
 
@@ -42,5 +40,4 @@ namespace dmResource
     int VerifyArchiveIndex(dmResourceArchive::HArchiveIndexContainer archive);
 }
 #endif // DM_RESOURCE_VERIFY_H
-
 

@@ -506,7 +506,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         String source;
         String expected;
 
-        source = ShaderUtil.Common.compileGLSL("", ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM330, true, false, false);
+        source = ShaderUtil.Common.compileGLSL(
+                "",
+                ShaderDesc.ShaderType.SHADER_TYPE_VERTEX,
+                ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
         expected =  "#version 330\n" +
                     "#ifndef GL_ES\n" +
                     "#define lowp\n" +
@@ -519,7 +527,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         source = "#extension GL_OES_standard_derivatives : enable\n" +
                  "varying highp vec2 var_texcoord0;";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM330, true, false, false);
+        source = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_VERTEX,
+                ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
         expected =  "#version 330\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
@@ -537,10 +553,23 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM100, true, false, false);
+        source = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
         expected =  "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "precision mediump float;\n" +
+                    "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                    "    precision highp int;\n" +
+                    "#else\n" +
+                    "    precision mediump int;\n" +
+                    "#endif\n" +
                     "#line 1\n" +
                     "void main() {\n" +
                     "    gl_FragColor = vec4(1.0);\n" +
@@ -551,11 +580,20 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM300, true, false, false);
+        source = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM300,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
         expected =  "#version 300 es\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "precision mediump float;\n" +
+                    "precision highp int;\n" +
                     "\n" +
                     "out vec4 _DMENGINE_GENERATED_gl_FragColor_0;\n" +
                     "#line 1\n" +
@@ -581,7 +619,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "   gl_FragColor = my_uniform + my_varying;\n" +
             "}\n";
 
-        ShaderUtil.ES2ToES3Converter.Result res = ShaderUtil.ES2ToES3Converter.transform(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, "", 140, true, false);
+        ShaderUtil.ES2ToES3Converter.Result res = ShaderUtil.ES2ToES3Converter.transform(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                "",
+                140,
+                true,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
 
         expected =
             "#version 140\n" +
@@ -598,6 +644,68 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "}\n";
 
         testOutput(expected, res.output);
+    }
+
+    @Test
+    public void testLegacyPipelinePrecisionOptions() throws Exception {
+        String source =
+            "#extension GL_OES_standard_derivatives : enable\n" +
+            "void main() {\n" +
+            "    gl_FragColor = vec4(1.0);\n" +
+            "}";
+
+        // GLES 100 profile with non-default precisions
+        String es100 = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP);
+
+        String expectedEs100 =
+            "#extension GL_OES_standard_derivatives : enable\n" +
+            "\n" +
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+            "    precision highp float;\n" +
+            "#else\n" +
+            "    precision mediump float;\n" +
+            "#endif\n" +
+            "precision mediump int;\n" +
+            "#line 1\n" +
+            "void main() {\n" +
+            "    gl_FragColor = vec4(1.0);\n" +
+            "}\n";
+
+        testOutput(expectedEs100, es100);
+
+        // GLES 300 es profile (legacy ES2 source goes through ES2ToES3Converter internally)
+        String es300 = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM300,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP);
+
+        String expectedEs300 =
+            "#version 300 es\n" +
+            "#extension GL_OES_standard_derivatives : enable\n" +
+            "\n" +
+            "precision highp float;\n" +
+            "precision mediump int;\n" +
+            "\n" +
+            "out vec4 _DMENGINE_GENERATED_gl_FragColor_0;\n" +
+            "#line 1\n" +
+            "void main() {\n" +
+            "    _DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);\n" +
+            "}\n";
+
+        testOutput(expectedEs300, es300);
     }
 
     private static ShaderDesc.Shader getShaderByLanguage(ShaderDesc shaderDesc, ShaderDesc.Language language) {
@@ -852,6 +960,59 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(3, res_position.location);
         assertEquals(4, res_normal.location);
         assertEquals(5, res_tex_coord.location);
+
+        ShadercJni.DeleteShaderContext(ctx);
+    }
+
+    @Test
+    public void testGlslEsPrecisionOptions() throws Exception {
+        byte[] spvReflection = getFile("simple.spv");
+        assertNotNull(spvReflection);
+
+        long ctx = ShadercJni.NewShaderContext(Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue(), spvReflection);
+        long compiler = ShadercJni.NewShaderCompiler(ctx, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
+
+        // Test mediump
+        Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
+        opts.version = 100;
+        opts.glslEs = 1;
+        opts.entryPoint = "main";
+        opts.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        opts.glslEsDefaultIntPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+
+        Shaderc.ShaderCompileResult result = ShadercJni.Compile(ctx, compiler, opts);
+        assertNotNull(result);
+        assertNotNull(result.data);
+
+        String src = new String(result.data);
+        String expectedMediumpPrecision =
+                "precision mediump float;\n" +
+                "precision mediump int;";
+        assertTrue(src.contains(expectedMediumpPrecision));
+
+        // Test highp
+        opts.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        opts.glslEsDefaultIntPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+
+        result = ShadercJni.Compile(ctx, compiler, opts);
+        assertNotNull(result);
+        assertNotNull(result.data);
+
+        src = new String(result.data);
+        String expectedFloatHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp float;\n" +
+                "#else\n" +
+                "    precision mediump float;\n" +
+                "#endif";
+        String expectedIntHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp int;\n" +
+                "#else\n" +
+                "    precision mediump int;\n" +
+                "#endif";
+        assertTrue(src.contains(expectedFloatHighpPrecision));
+        assertTrue(src.contains(expectedIntHighpPrecision));
 
         ShadercJni.DeleteShaderContext(ctx);
     }

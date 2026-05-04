@@ -18,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import java.io.File;
@@ -209,10 +210,14 @@ public class ModelUtilTest {
         }
     }
 
-   Modelimporter.Scene loadScene(String path) {
+    Modelimporter.Scene loadScene(String path) throws IOException {
+        File cwd = new File(".");
+        return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new Modelimporter.Options(), new ModelImporterJni.FileDataResolver(cwd));
+    }
+
+   Modelimporter.Scene loadSceneNoException(String path) {
         try {
-            File cwd = new File(".");
-            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new Modelimporter.Options(), new ModelImporterJni.FileDataResolver(cwd));
+            return loadScene(path);
         } catch (IOException e) {
             e.printStackTrace();
             return null;
@@ -223,7 +228,7 @@ public class ModelUtilTest {
                                          Rig.MeshSet.Builder meshSetBuilder,
                                          Rig.AnimationSet.Builder animSetBuilder,
                                          Rig.Skeleton.Builder skeletonBuilder) {
-        Modelimporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadSceneNoException(path);
         if (scene != null)
         {
             ModelUtil.loadModels(scene, meshSetBuilder);
@@ -237,14 +242,14 @@ public class ModelUtilTest {
 
     private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder) {
-        Modelimporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadSceneNoException(path);
         ModelUtil.loadModels(scene, meshSetBuilder);
         return scene;
     }
 
     private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.Skeleton.Builder skeletonBuilder) {
-        Modelimporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadSceneNoException(path);
         ModelUtil.loadSkeleton(scene, skeletonBuilder);
         return scene;
     }
@@ -287,7 +292,7 @@ public class ModelUtilTest {
      * Tests a collada file with fewer, and more, than 4 bone influences per vertex.
      */
     @Test
-    public void testBoneInfluences() throws Exception {
+    public void testBoneInfluences() {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -325,7 +330,7 @@ public class ModelUtilTest {
     }
 
     @Test
-    public void testSkeleton() throws Exception {
+    public void testSkeleton() {
 
         String[] boneIds   = {"root", "Middle", "Top"};
         String[] parentIds = {null,   "root", "Middle"};
@@ -352,7 +357,7 @@ public class ModelUtilTest {
      *  Tests a collada with two connected bones, each with their own animation track.
      */
     @Test
-    public void testTwoBoneAnimation() throws Exception {
+    public void testTwoBoneAnimation() {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -426,7 +431,7 @@ public class ModelUtilTest {
      * Collada file with a asset unit scale set to 0.01.
      */
     @Test
-    public void testAssetUnit() throws Exception {
+    public void testAssetUnit() {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -476,45 +481,58 @@ public class ModelUtilTest {
     }
 
     /*
-     * Tests that an invalid collada file is handled
+     * Tests that an invalid gltf file is handled
      */
     @Test
-    public void testInvalidFile() throws Exception {
+    public void testInvalidFile() {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         Modelimporter.Scene scene = loadBuiltScene("broken.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
-        assertTrue(scene == null);
+        assertNull(scene);
+    }
+
+    /**
+     * glTF allows multiple joint/weight attribute sets (JOINTS_0/WEIGHTS_0, JOINTS_1/WEIGHTS_1, ...).
+     * Defold only supports a single set; the native loader must fail with a clear error.
+     */
+    @Test
+    public void testMultipleJointWeightAttributeSetsRejected() {
+        try {
+            loadScene("multiple_joint_weight_sets.gltf");
+        } catch (IOException e) {
+            assertTrue(e.getMessage().contains("multiple joint/weight attribute sets"));
+        }
     }
 
     @Test
-    public void testVehicleGltfHierarchy() throws Exception {
+    public void testVehicleGltfHierarchy() {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Modelimporter.Scene scene = loadBuiltScene("vehicle.glb", meshSetBuilder);
-        
+
         // Validate scene loaded successfully
         assertNotNull("Vehicle scene should load", scene);
-        
+
         // Get all models from the meshset
         List<Rig.Model> models = meshSetBuilder.getModelsList();
-        
+
         // Check for duplicate models by collecting IDs
         Set<Long> modelIds = new HashSet<>();
-        
+
         for (Rig.Model model : models) {
             long id = model.getId();
             String name = "Model_" + id; // Since we hash the node name
-            
-            assertFalse("Model ID " + id + " should be unique (no duplicates)", 
+
+            assertFalse("Model ID " + id + " should be unique (no duplicates)",
                        modelIds.contains(id));
             modelIds.add(id);
-            
+
             // Validate model has meshes
-            assertTrue("Model should have at least one mesh", 
+            assertTrue("Model should have at least one mesh",
                       model.getMeshesCount() > 0);
         }
-        
+
         // Validate we have a reasonable number of models (not duplicated)
-        assertTrue("Should have at least 1 model", models.size() >= 1);
+        assertFalse("Should have at least 1 model", models.isEmpty());
     }
 }

@@ -100,7 +100,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
             int version = 430;
 
-            ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers);
+            ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers, this.options.glslEsDefaultFloatPrecision, this.options.glslEsDefaultIntPrecision);
 
             File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".cp");
             FileUtil.deleteOnExit(file_in_compute);
@@ -130,7 +130,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             // If the shader already has a version, we expect it to be already written in valid GLSL for that version
             if (shaderInfo == null) {
                 // Convert to ES3 (or GL 140+)
-                ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers);
+                ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers, this.options.glslEsDefaultFloatPrecision, this.options.glslEsDefaultIntPrecision);
 
                 // Update version for SPIR-V (GLES >= 310, Core >= 140)
                 es3Result.shaderVersion = es3Result.shaderVersion.isEmpty() ? "0" : es3Result.shaderVersion;
@@ -261,7 +261,15 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             }
             return result;
         } else if (CanBeCrossCompiled(shaderLanguage)) {
-            String compileResult = ShaderUtil.Common.compileGLSL(module.desc.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
+            String compileResult = ShaderUtil.Common.compileGLSL(
+                    module.desc.source,
+                    shaderType,
+                    shaderLanguage,
+                    false,
+                    false,
+                    this.options.splitTextureSamplers,
+                    this.options.glslEsDefaultFloatPrecision,
+                    this.options.glslEsDefaultIntPrecision);
             Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
             result.data = compileResult.getBytes();
             return result;

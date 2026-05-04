@@ -1,2 +1,2 @@
 prototype: "/factory/factory_resource.go"
-
+dynamic_prototype: true

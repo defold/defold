@@ -190,7 +190,7 @@ function M.start(port)
 
   -- mobdebug.onexit does os.exit which does not
   -- let the engine shut down properly. One step
-  -- skipped is SSDP Deannounce, which makes the
+  -- skipped is mDNS deannounce, which makes the
   -- target linger longer than necessary.
   mobdebug.onexit = onexit
   if jit then

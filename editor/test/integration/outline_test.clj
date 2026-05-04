@@ -117,9 +117,9 @@
 (deftest copy-paste-ref-component
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/logic/main.go")]
-      (is (= 5 (child-count root)))
+      (is (= 4 (child-count root)))
       (copy-paste! project app-view root [0])
-      (is (= 6 (child-count root))))))
+      (is (= 5 (child-count root))))))
 
 (deftest copy-paste-double-embed
   (test-util/with-loaded-project

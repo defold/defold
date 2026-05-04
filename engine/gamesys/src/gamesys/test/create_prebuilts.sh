@@ -72,3 +72,9 @@ cp build/default/model/dynamic_vertex_attributes.skeletonc ../model/dynamic_vert
 # Texture transform (models) - uses aabb_model.gltf mesh; meshsetc/skeletonc come from that gltf (aabb_model.*), already copied above
 cp build/default/model/texture_transform_model.modelc ../model/texture_transform_model.prebuilt_modelc
 cp build/default/model/texture_transform_model.rigscenec ../model/texture_transform_model.prebuilt_rigscenec
+
+# One mesh two materials (models)
+cp build/default/model/one_mesh_two_materials.modelc ../model/one_mesh_two_materials.prebuilt_modelc
+cp build/default/model/one_mesh_two_materials.rigscenec ../model/one_mesh_two_materials.prebuilt_rigscenec
+cp build/default/model/one_mesh_two_materials.meshsetc ../model/one_mesh_two_materials.prebuilt_meshsetc
+cp build/default/model/one_mesh_two_materials.skeletonc ../model/one_mesh_two_materials.prebuilt_skeletonc

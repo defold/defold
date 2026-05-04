@@ -67,7 +67,6 @@ welcome.new-project.rive-project.description = 此模板使用 rive 扩展来帮
 # Welcome -> New Project -> From Tutorial
 welcome.new-project.side-scroller-tutorial.title = 横版卷轴类游戏教程
 welcome.new-project.side-scroller-tutorial.description = 在这个初学者教程中，您将体验在 Defold 中构建简单横版卷轴类游戏。
-welcome.new-project.walking-astronaut-tutorial.title = 行走的宇航员 教程
 welcome.new-project.walking-astronaut-tutorial.description = 在这个初学者教程中，您将学习如何捕获玩家输入并使角色移动和播放动画。您还将了解 Defold 中的核心构建块：游戏对象、组件和集合。
 welcome.new-project.movement-tutorial.title = 角色移动 教程
 welcome.new-project.movement-tutorial.description = 在这个初学者教程中，您将学习如何使用向量和一些简单的向量运算来实现逼真的移动。
@@ -581,9 +580,12 @@ pane.curve-editor = 曲线编辑
 pane.build-errors = 构建错误
 pane.search-results = 查找结果
 pane.breakpoints = 断点
+pane.debugger.call-stack = 调用栈
+pane.debugger.variables = 变量
 
 # Assets
 
+assets.dependencies = 依赖项
 
 # Console
 
@@ -846,6 +848,10 @@ command.edit.add-embedded-component.variant.collision-object.option.box = 矩形
 command.edit.add-embedded-component.variant.collision-object.option.capsule = 胶囊
 command.edit.add-embedded-component.variant.collision-object.option.sphere = 球形
 command.edit.add-embedded-component.variant.game-object = 添加组件
+command.edit.add-embedded-component.variant.gui.option.textures = 纹理
+command.edit.add-embedded-component.variant.gui.option.materials = 材质
+command.edit.add-embedded-component.variant.gui.option.fonts = 字体
+command.edit.add-embedded-component.variant.gui.option.particlefx = 粒子效果
 command.edit.add-embedded-component.variant.particlefx = 添加触发器
 command.edit.add-embedded-component.variant.particlefx.option.circle = 圆形
 command.edit.add-embedded-component.variant.particlefx.option.sphere = 球形
@@ -962,6 +968,7 @@ command.help.open-logs = 显示日志
 command.file.create-desktop-entry = 创建桌面项
 command.help.open-documentation = 文档
 command.help.open-forum = 支持论坛
+command.help.open-editor-server = 打开编辑器服务
 command.help.open-asset-portal = 查找资产
 command.help.report-issue = 反馈问题
 command.help.report-suggestion = 报告建议
@@ -1100,6 +1107,8 @@ property.atlas.inner-padding = 内边距
 property.atlas.inner-padding.tooltip = 围绕每个图像填充的空白像素
 property.atlas.extrude-borders = 扩边像素
 property.atlas.extrude-borders.tooltip = 复制边缘像素向外扩展以避免图像之间的渗色
+property.atlas.max-page-width = 最大页面宽度
+property.atlas.max-page-height = 最大页面高度
 property.atlas.max-page-size = 最大页面尺寸
 property.atlas.max-page-size.tooltip = 多页面图集中每个页面的最大宽度和高度
 property.atlas.rename-patterns = 重命名模式
@@ -1358,6 +1367,8 @@ outline.gui.layouts = 布局
 outline.gui.layers = 图层
 outline.gui.materials = 材质
 outline.gui.nodes = 节点
+outline.gui.template = 模板
+outline.gui.text = 文本
 outline.gui.textures = 纹理
 outline.non-editable-collection = 不可编辑集合
 outline.non-editable-game-object = 不可编辑游戏对象
@@ -1394,6 +1405,7 @@ resource.type.compute = 计算机
 resource.type.convexshape = 凸形
 resource.type.cp = 计算机程序
 resource.type.cpp = C++
+resource.type.custom = 资源
 resource.type.cubemap = 立方体贴图
 resource.type.defignore = 应忽略
 resource.type.defunload = 可卸载
@@ -1431,6 +1443,7 @@ resource.type.mesh = 网格
 resource.type.model = 模型
 resource.type.model-scene = 模型场景
 resource.type.objective-c = Objective-C
+resource.type.particlefx = 粒子效果
 resource.type.plist = 属性列表
 resource.type.project = 项目
 resource.type.properties = 属性
@@ -1446,6 +1459,7 @@ resource.type.shared-editor-settings = 共享编辑器设置
 resource.type.sh = Shell 脚本
 resource.type.sound = 音效
 resource.type.sprite = 精灵
+resource.type.texture = 纹理
 resource.type.texture-profiles = 纹理配置
 resource.type.tilemap = 瓦片地图
 resource.type.tilesource = 瓦片源
@@ -1455,6 +1469,14 @@ resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Zig 对象标记
 
+resource.category.objects = 对象
+resource.category.scripts = 脚本
+resource.category.shaders = 着色器
+resource.category.components = 组件
+resource.category.editor = 编辑器
+resource.category.render = 渲染器
+resource.category.project_settings = 项目设置
+resource.category.other = 其他
 
 # Forms
 
@@ -1732,12 +1754,15 @@ form.help.project.model.max_bone_matrix_texture_width = 最大骨骼矩阵纹理
 form.label.project.model.max_bone_matrix_texture_height = 最大骨骼矩阵纹理高度
 form.help.project.model.max_bone_matrix_texture_height = 最大骨骼矩阵纹理高度，默认为 1024
 
+form.label.project.particle_fx = 粒子效果
 form.label.project.particle_fx.max_particle_count = 最大粒子数量
 form.help.project.particle_fx.max_particle_count = 粒子最大存活总数，限制 GPU 顶点缓冲区大小，默认为 1024
 form.label.project.particle_fx.max_particle_buffer_count = 最大粒子缓冲区数量
 form.help.project.particle_fx.max_particle_buffer_count = 单次 GPU 上传最大粒子数量，限制 CPU 内存使用，默认为 1024
 form.label.project.particle_fx.max_count = 最大数量
+form.help.project.particle_fx.max_count = 最大粒子特效数量，默认为 64
 form.label.project.particle_fx.max_emitter_count = 最大发射数量
+form.help.project.particle_fx.max_emitter_count = 最大粒子特效发射器数量，默认为 64
 
 form.label.project.script = 脚本
 form.help.project.script = 脚本系统设置
@@ -2001,6 +2026,7 @@ form.label.camera.orthographic-zoom = 正交缩放
 
 form.label.collectionproxy = 集合代理
 form.label.collectionproxy.collection = 集合
+form.label.collectionproxy.exclude = 排除
 
 form.label.render = 渲染
 form.label.render.script = 脚本
@@ -2119,10 +2145,8 @@ form.label.liveupdate.liveupdate.output-folder-name = 输出文件夹
 form.help.liveupdate.liveupdate.output-folder-name = 输出文件夹名称
 form.label.liveupdate.manifest = 清单
 form.label.liveupdate.liveupdate.publickey = 公钥
-form.help.liveupdate.liveupdate.publickey = 用于清单签名的公钥
 form.title.liveupdate.liveupdate.publickey = 选择清单公钥
 form.label.liveupdate.liveupdate.privatekey = 私钥
-form.help.liveupdate.liveupdate.privatekey = 用于清单签名的私钥
 form.title.liveupdate.liveupdate.privatekey = 选择清单私钥
 form.label.liveupdate.liveupdate.supported-versions = 支持的引擎版本
 form.help.liveupdate.liveupdate.supported-versions = 支持的引擎版本列表
@@ -2181,3 +2205,7 @@ quick-help.build-and-run-project = 构建并运行项目
 quick-help.start-or-attach-debugger = 启动或附加调试器
 
 # Error Messages
+error.sound.invalid-ogg-file = 无效的 Ogg 文件。
+error.sound.invalid-ogg-file-details = 无效的 Ogg 文件 (oggz-validate)\:\n{output}
+error.sound.could-not-read-audio-file = 不能读取音频文件 {resource}.
+error.unknown-source = 未知来源

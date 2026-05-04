@@ -76,8 +76,8 @@
 
                             {:name "welcome.new-project.walking-astronaut-tutorial.title"
                              :description "welcome.new-project.walking-astronaut-tutorial.description"
-                             :image "astronaut.png"
-                             :duration "Medium"
+                             :image "topdown_movement.png"
+                             :duration "Short"
                              :user-level "Beginner"
                              :zip-url "https://github.com/defold/tutorial-astronaut/archive/master.zip"
                              :skip-root? true}
