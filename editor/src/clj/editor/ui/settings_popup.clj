@@ -20,24 +20,22 @@
             [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.slider :as fx.slider]
             [clojure.string :as string]
-            [editor.colors :as colors]
             [editor.fxui :as fxui]
-            [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
-            [editor.os :as os]
             [editor.ui :as ui])
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
+           [javafx.beans.value ChangeListener]
            [javafx.css Styleable]
-           [javafx.event ActionEvent]
-           [javafx.geometry HPos Point2D Pos VPos]
+           [javafx.event ActionEvent EventHandler]
+           [javafx.geometry HPos Point2D VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control Button CheckBox Control Label PopupControl Separator Skin Slider TextField ToggleButton ToggleGroup]
-           [javafx.scene.layout HBox Priority Region StackPane]
-           [javafx.scene.paint Color]
-           [javafx.stage PopupWindow$AnchorLocation]))
+           [javafx.scene.control PopupControl Skin]
+           [javafx.scene.input KeyCode KeyEvent MouseEvent]
+           [javafx.scene.layout AnchorPane StackPane]
+           [javafx.scene.paint Color]))
 
 (set! *warn-on-reflection* true)
 
@@ -77,14 +75,12 @@
               {:fx/type fxui/label
                :style-class "accelerator-label"
                :text (or accelerator "")}
-              {:fx/type fxui/ext-ensure-focus-traversable
-               :desc
-               {:fx/type fx.check-box/lifecycle
-                :style-class ["slide-switch"]
-                :selected (key state)
-                :on-selected-changed (fn [v]
-                                       (swap-state assoc key v)
-                                       (on-selected-changed v))}}]})
+              {:fx/type fx.check-box/lifecycle
+               :style-class ["slide-switch"]
+               :selected (key state)
+               :on-selected-changed (fn [v]
+                                      (swap-state assoc key v)
+                                      (on-selected-changed v))}]})
 
 (defn- make-slider-row-fx [{:keys [key label min max snap-to state swap-state slider-value->string on-value-changed]}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
@@ -100,23 +96,14 @@
                 {:fx/type fxui/label
                  :style-class "slider-value-label"
                  :text (slider-value->string (key state))}
-                {:fx/type fxui/ext-ensure-focus-traversable
-                 :desc
-                 (cond-> {:fx/type fx.slider/lifecycle
-                          :min min
-                          :max max
-                          :value (key state)
-                          :block-increment 0.1
-                          :on-value-changed (fn [v]
-                                              (on-value-changed v)
-                                              (swap-state assoc key v))}
-                         snap-to
-                         (assoc :snap-to-ticks true :major-tick-unit snap-to
-                                :on-mouse-released (fn [^javafx.event.Event e]
-                                                     (let [slider ^javafx.scene.control.Slider (.getSource e)
-                                                           v (snap-fn (.getValue slider))]
-                                                       (on-value-changed v)
-                                                       (swap-state assoc key v)))))}]}))
+                {:fx/type fx.slider/lifecycle
+                 :min min
+                 :max max
+                 :value (key state)
+                 :block-increment 0.1
+                 #_#_:on-value-changed (fn [v]
+                                         (on-value-changed v)
+                                         (swap-state assoc key v))}]}))
 
 ;; `fxui/color-picker` is a compound component (an HBox containing a value-field and a JavaFX
 ;; ColorPicker), so we can't just wrap it the same way -- we need to reach into its internals to
@@ -157,19 +144,17 @@
                              [{:fx/type fxui/label
                                :text (string/upper-case (name axis))
                                :min-width :use-pref-size}
-                              {:fx/type fxui/ext-ensure-focus-traversable
-                               :desc
-                               {:fx/type fxui/value-field
-                                :value (get (key state) axis)
-                                :to-value (fn [s]
-                                            (try (let [v (Float/parseFloat s)]
-                                                   (when (pos? v) v))
-                                                 (catch Exception _ nil)))
-                                :on-value-changed (fn [v]
-                                                    (let [new-vec3 (assoc (key state) axis v)]
-                                                      (swap-state assoc key new-vec3)
-                                                      (when on-value-changed
-                                                        (on-value-changed new-vec3))))}}]))
+                              {:fx/type fxui/value-field
+                               :value (get (key state) axis)
+                               :to-value (fn [s]
+                                           (try (let [v (Float/parseFloat s)]
+                                                  (when (pos? v) v))
+                                                (catch Exception _ nil)))
+                               :on-value-changed (fn [v]
+                                                   (let [new-vec3 (assoc (key state) axis v)]
+                                                     (swap-state assoc key new-vec3)
+                                                     (when on-value-changed
+                                                       (on-value-changed new-vec3))))}]))
                    axes)})
 
 (defn- make-vec3-toggle-row-fx [{:keys [key label state swap-state on-value-changed]}]
@@ -179,30 +164,26 @@
                      :h-box/hgrow :always
                      :max-width Double/MAX_VALUE}]
                    (map (fn [axis]
-                          {:fx/type fxui/ext-ensure-focus-traversable
-                           :desc
-                           {:fx/type fxui/toggle-button
-                            :style-class ["toggle-button" "plane-toggle"]
-                            :text (string/upper-case (name axis))
-                            :selected (= axis (key state))
-                            :on-selected-changed (fn [selected?]
-                                                   (when selected?
-                                                     (swap-state assoc key axis)
-                                                     (when on-value-changed
-                                                       (on-value-changed axis))))}}))
+                          {:fx/type fxui/toggle-button
+                           :style-class ["toggle-button" "plane-toggle"]
+                           :text (string/upper-case (name axis))
+                           :selected (= axis (key state))
+                           :on-selected-changed (fn [selected?]
+                                                  (when selected?
+                                                    (swap-state assoc key axis)
+                                                    (when on-value-changed
+                                                      (on-value-changed axis))))}))
                    axes)})
 
 (defn- make-reset-button-fx [{:keys [text swap-state on-reset]}]
   {:fx/type fxui/horizontal
    :style-class "reset-button"
-   :children [{:fx/type fxui/ext-ensure-focus-traversable
-               :desc
-               {:fx/type fx.button/lifecycle
-                :text text
-                :max-width Double/MAX_VALUE
-                :on-action (fn [^javafx.event.ActionEvent e]
-                             (on-reset swap-state)
-                             (.requestFocus (.getParent ^Node (.getSource e))))}}]})
+   :children [{:fx/type fx.button/lifecycle
+               :text text
+               :max-width Double/MAX_VALUE
+               :on-action (fn [^javafx.event.ActionEvent e]
+                            (on-reset swap-state)
+                            (.requestFocus (.getParent ^Node (.getSource e))))}]})
 
 (defn- make-row-fx [keymap localization-state state swap-state descriptor]
   (case (:type descriptor)
@@ -281,6 +262,7 @@
   [{:keys [descriptors keymap state swap-state on-change localization-state]}]
   {:fx/type fxui/vertical
    :style-class "popup-settings"
+   :style "-fx-background-color: -df-component-dark;"
    :children (keep (fn [descriptor]
                      (make-row-fx keymap localization-state state swap-state descriptor))
                    descriptors)})
@@ -288,9 +270,24 @@
 (defn settings-visible? [^Parent owner]
   (some? (ui/user-data owner ::popup)))
 
+(defn- ancestor? [^Node ancestor ^Node node]
+  (loop [n node]
+    (cond
+      (nil? n) false
+      (identical? n ancestor) true
+      :else (recur (.getParent n)))))
+
 (defn- pref-popup-position
   ^Point2D [^Parent container width x-offset]
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
+
+(defn- pref-popup-position
+  ^Point2D [^AnchorPane host ^Parent owner width x-offset]
+  (let [owner-bounds (.localToScene owner (.getBoundsInLocal owner))
+        host-bounds-min (.sceneToLocal host (.getMinX owner-bounds) (.getMinY owner-bounds))
+        host-bounds-max-x (.getX (.sceneToLocal host (.getMaxX owner-bounds) 0.0))]
+    (Point2D. (- host-bounds-max-x width x-offset)
+              (+ (.getY host-bounds-min) (.getHeight (.getBoundsInLocal owner)) 10.0))))
 
 ;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `make-popup` above). PopupWindow has
 ;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
@@ -303,12 +300,45 @@
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings]
    (show! owner keymap localization state on-change width x-offset setting-descriptors hidden-settings nil))
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings on-closed]
-   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
-     (do (.hide popup) nil)
+   (if-let [existing ^Node (ui/user-data owner ::popup)]
+     (do
+       (when-let [hide-fn (ui/user-data existing ::hide-fn)]
+         (hide-fn))
+       nil)
      (let [visible-descriptors (remove #(contains? hidden-settings (:key %)) setting-descriptors)
+           ;; TODO JOE: For some reason, this doesn't work, but the below one does, it seems like there might be multiple?
+           host (.lookup (ui/main-scene) "#scene-view-anchor-pane")
+           ;; _ (println "host1" (.get (.getChildren host) 1))
+           host ^AnchorPane (loop [^Node n owner]
+                              (cond
+                                (nil? n) (throw (ex-info "No AnchorPane host found for popup" {}))
+                                (and (instance? AnchorPane n)
+                                     (= "scene-view-anchor-pane" (.getId ^Node n))) n
+                                :else (recur (.getParent n))))
+           ;; _ (println "host2" (.get(.getChildren host) 1))
            content (StackPane.)
-           popup (make-popup owner content)
-           anchor ^Point2D (pref-popup-position (.getParent owner) width x-offset)
+           anchor ^Point2D (pref-popup-position host owner width x-offset)
+           *hidden (atom false)
+           *listeners (atom {})
+           hide! (fn []
+                   (println "who?")
+                   (when-not @*hidden
+                     (reset! *hidden true)
+                     (let [{:keys [mouse key focus]} @*listeners
+                           scene (.getScene host)]
+                       (when (and scene mouse) (.removeEventFilter scene MouseEvent/MOUSE_PRESSED mouse))
+                       (when (and scene key) (.removeEventFilter scene KeyEvent/KEY_PRESSED key))
+                       (when (and scene focus) (.removeListener (.focusOwnerProperty scene) focus)))
+                     ;; (fxui/advance-ui-user-data-component! content ::popup nil)
+                     (println host)
+                     (println (.getChildren host))
+                     (.removeAll (.getChildren host) (filterv #(instance? StackPane %) (.getChildren host)))
+                     (println (.getChildren host))
+                     (ui/run-later
+                       (println (.getBoundsInParent (.lookup host "#toolbar"))))
+                     (ui/user-data! owner ::popup nil)
+                     (when on-closed (on-closed nil))
+                     (.requestFocus host)))
            advance! (fn [state]
                       (fxui/advance-ui-user-data-component!
                         content ::popup
@@ -322,16 +352,41 @@
                                              :localization localization
                                              :state state
                                              :on-change on-change}]}}))]
-       (.setPrefWidth content width)
+       (doto content
+         (.setPrefWidth width)
+         (.setLayoutX (.getX anchor))
+         (.setLayoutY (.getY anchor)))
+       (ui/user-data! content ::hide-fn hide!)
        (advance! state)
-       (ui/user-data! owner ::popup popup)
-       (doto popup
-         (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
-         (ui/on-closed! (fn [e]
-                          (fxui/advance-ui-user-data-component! content ::popup nil)
-                          (when on-closed (on-closed e))
-                          (ui/user-data! owner ::popup nil)))
-         (.show owner (.getX anchor) (.getY anchor)))
-       ;; Request focus so the first UI element loses focus
-       (.requestFocus content)
+       (.add (.getChildren host) content)
+       (ui/user-data! owner ::popup content)
+       (let [scene (.getScene host)
+             mouse-filter (reify EventHandler
+                            (handle [_ e]
+                              (let [t (.getTarget ^MouseEvent e)]
+                                (when (and (instance? Node t)
+                                           (not (ancestor? content t))
+                                           (not (ancestor? owner t))
+                                           (not= owner t))
+                                  (hide!)))))
+             key-filter (reify EventHandler
+                          (handle [_ e]
+                            (when (= KeyCode/ESCAPE (.getCode ^KeyEvent e))
+                              (hide!)
+                              (.consume ^KeyEvent e)
+                              (.requestFocus host))))
+             focus-listener (reify ChangeListener
+                              (changed [_ _ _ new-focus]
+                                ;; (println content)
+                                (when (or (nil? new-focus)
+                                          (not (ancestor? content new-focus)))
+                                  ;; Defer so click-to-focus on a child still works
+                                  (ui/run-later (when-not (.isFocused content) (hide!))))))]
+         (reset! *listeners {:mouse mouse-filter :key key-filter :focus focus-listener})
+         ;; (.addEventFilter scene MouseEvent/MOUSE_PRESSED mouse-filter)
+         (.addEventFilter scene KeyEvent/KEY_PRESSED key-filter)
+         (.addListener (.focusOwnerProperty scene) focus-listener))
+       (let [asdf (.get (.getChildren (.get (.getChildren (.get (.getChildren content) 1)) 0)) 0)]
+         ;; (println asdf)
+         (.requestFocus asdf))
        advance!))))
