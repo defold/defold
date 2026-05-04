@@ -18,6 +18,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
+#include <dlib/path.h>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <dlib/time.h>
@@ -42,7 +43,8 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/src/gameobject/test/script";
 
-        m_Factory = dmResource::NewFactory(&params, m_Path);
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), m_Path));
         ASSERT_NE((dmResource::HFactory)0, m_Factory);
 
         dmScript::ContextParams script_context_params = {};
