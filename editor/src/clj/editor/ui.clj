@@ -2090,7 +2090,7 @@
         hbox)
 
       :else
-      (let [{:keys [graphic-fn label icon tooltip more]} menu-item
+      (let [{:keys [graphic-fn label icon tooltip more button-id]} menu-item
             label (or (handler/label handler-ctx evaluation-context) label)
             button (doto (ToggleButton.)
                      (localization/localize! localization label)
@@ -2129,7 +2129,9 @@
                          (add-style! group "active")
                          (remove-style! group "active"))))
             group)
-          button)))))
+          (cond-> button
+                  button-id
+                  (doto (.setId (name button-id)))))))))
 
 (defn- refresh-toolbar [td command-contexts localization evaluation-context]
  (let [menu (handler/realize-menu (:menu-id td))

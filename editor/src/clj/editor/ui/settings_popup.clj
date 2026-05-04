@@ -275,6 +275,15 @@
       (identical? n ancestor) true
       :else (recur (.getParent n)))))
 
+(defn- find-ancestor-with-id [^Node node ^String id ^long limit]
+  (loop [n node
+         remaining limit]
+    (cond
+      (nil? n) nil
+      (zero? remaining) nil
+      (= id (.getId n)) n
+      :else (recur (.getParent n) (dec remaining)))))
+
 (defn- pref-popup-position
   ^Point2D [^Parent container width]
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 10.0 true))
@@ -305,7 +314,8 @@
                        (= "scene-view-anchor-pane" (.getId ^Node n))) n
                   :else (recur (.getParent n))))
          [owner-existing owner-hide-fn] (ui/user-data host ::popup)]
-     (if (= owner-existing owner)
+     (if (and owner-existing
+              (= (.getId owner-existing) (.getId owner)))
        (ui/user-data! host ::popup nil)
        (let [visible-descriptors (remove #(contains? hidden-settings (:key %)) setting-descriptors)
              ;; TODO JOE: For some reason, this doesn't work, but the below one does, it seems like there might be multiple?
@@ -361,7 +371,9 @@
                                   (when (and (instance? Node t)
                                              (not (ancestor? content t)))
                                     (hide!))
-                                  (when (not= t owner)
+                                  (when (and (instance? Node t)
+                                             (not= owner t)
+                                             (not (find-ancestor-with-id t (.getId owner) 3)))
                                     (ui/user-data! host ::popup nil)))))
                key-filter (reify EventHandler
                             (handle [_ e]
