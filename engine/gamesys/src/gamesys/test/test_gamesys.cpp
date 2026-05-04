@@ -6602,11 +6602,12 @@ TEST_F(ScriptImageTest, TestImageBuffer)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/image/test_image_buffer.goc", dmHashString64("/test_image"));
     ASSERT_NE((void*)0, go);
 
-    if (DM_HOSTFS)
+    if (strlen(DM_HOSTFS) != 0)
     {
-        char run_str[128];
-        dmSnPrintf(run_str, sizeof(run_str), "set_host_fs(%s)", DM_HOSTFS);
-        ASSERT_TRUE(RunString(L, run_str));
+        lua_getglobal(L, "set_host_fs");
+        ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
+        lua_pushstring(L, DM_HOSTFS);
+        ASSERT_EQ(0, dmScript::PCall(L, 1, 0));
     }
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
