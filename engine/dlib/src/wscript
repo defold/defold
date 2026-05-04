@@ -455,7 +455,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian_posix.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.hpp')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
@@ -528,12 +528,10 @@ def build(bld):
 
     # is this a private platform?
     if is_platform_private(bld.env.PLATFORM):
-        bld.install_files('${PREFIX}/include/dlib', 'dlib/endian_vendor.h')
         bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_vendor.h')
 
     for p in platforms:
         platform_include_dir = 'dlib/%s' % p
-        check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/endian.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/mutex.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/spinlocktypes.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/memory.h')

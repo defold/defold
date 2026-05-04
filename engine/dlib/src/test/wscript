@@ -157,7 +157,7 @@ def build(bld):
     create_test(bld, 'test_double_linked_list')
     create_test(bld, 'test_set')
     create_test(bld, 'test_indexpool')
-    create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
+    create_test(bld, 'test_dlib', extra_libs = ['THREAD'], extra_features = ['c'], extra_source = ['test_endian.c'])
     create_test(bld, 'test_hash', extra_libs = ['THREAD'], extra_features = ['c'], extra_source = ['test_hash.c'])
 
     create_test(bld, 'test_time')

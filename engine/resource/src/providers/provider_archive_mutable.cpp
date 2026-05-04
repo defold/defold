@@ -25,7 +25,7 @@
 
 #include <dlib/crypt/crypt.h>
 #include <dlib/dstrings.h>
-#include <dlib/endian.h>
+#include <dlib/endian.hpp>
 #include <dlib/log.h>
 #include <dlib/lz4.h>
 #include <dlib/math.h>
