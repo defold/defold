@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.app-manifest :as app-manifest]
             [editor.connection-properties :as connection-properties]
             [editor.defold-project :as project]
             [editor.engine.build-errors :as engine-build-errors]
@@ -176,18 +177,31 @@
 (defn- resource-node-last-modified [resource-node evaluation-context]
   (.lastModified (io/file (g/node-value resource-node :resource evaluation-context))))
 
+(defn- app-manifest-with-editor-build-context [manifest]
+  (when (and (map? manifest)
+             (or (not (contains? manifest "context"))
+                 (map? (get manifest "context"))))
+    (app-manifest/update-in-fixing
+      manifest map? {}
+      "context" map? {}
+      #(merge % editor-build-app-manifest-context))))
+
+(defn- dump-app-manifest-content ^bytes [manifest]
+  (let [^String content (yaml/dump manifest
+                                   :order-pattern ["context" "platforms"]
+                                   :indent 4)]
+    (.getBytes content StandardCharsets/UTF_8)))
+
 (defn- app-manifest-content ^bytes [app-manifest-resource-node evaluation-context]
-  (let [manifest (if app-manifest-resource-node
-                   (or (yaml/load (String. (resource-node-content app-manifest-resource-node evaluation-context)
-                                           StandardCharsets/UTF_8))
-                       {})
+  (let [^bytes original-content (when app-manifest-resource-node
+                                  (resource-node-content app-manifest-resource-node evaluation-context))
+        manifest (if original-content
+                   (yaml/load (String. original-content StandardCharsets/UTF_8))
                    {})
-        context (merge (get manifest "context")
-                       editor-build-app-manifest-context)]
-    (let [^String content (yaml/dump (assoc manifest "context" context)
-                                     :order-pattern ["context" "platforms"]
-                                     :indent 4)]
-      (.getBytes content StandardCharsets/UTF_8))))
+        manifest-with-context (app-manifest-with-editor-build-context manifest)]
+    (if manifest-with-context
+      (dump-app-manifest-content manifest-with-context)
+      original-content)))
 
 (defn- make-app-manifest-resource [app-manifest-resource-node evaluation-context]
   (reify ExtenderResource

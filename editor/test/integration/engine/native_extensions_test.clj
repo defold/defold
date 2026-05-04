@@ -107,6 +107,9 @@
 (defn- extender-resource [resources path]
   (some #(when (= path (.getPath ^ExtenderResource %)) %) resources))
 
+(defn- extender-resources [resources path]
+  (filter #(= path (.getPath ^ExtenderResource %)) resources))
+
 (defn- extender-resource-content [^ExtenderResource resource]
   (String. (.getContent resource) StandardCharsets/UTF_8))
 
@@ -136,6 +139,7 @@
             resources (make-extender-resources project "x86_64-macos")
             app-manifest-file (io/file (workspace/project-directory workspace) "checked.appmanifest")
             app-manifest (yaml/load (slurp app-manifest-file))]
+        (is (= 1 (count (extender-resources resources "_app/app.manifest"))))
         (is (= (assoc app-manifest "context" expected-editor-build-context)
                (extender-resource-yaml resources "_app/app.manifest"))))))
   (testing "configured app manifest in flow style is merged as yaml data"
@@ -147,7 +151,19 @@
         (let [resources (make-extender-resources project "wasm-web")]
           (is (= {"context" expected-editor-build-context
                   "platforms" {"wasm-web" {"context" {}}}}
-                 (extender-resource-yaml resources "_app/app.manifest"))))))))
+                 (extender-resource-yaml resources "_app/app.manifest")))))))
+  (doseq [content ["true\n"
+                   "null\n"
+                   "context: true\n"]]
+    (testing (str "configured invalid app manifest is uploaded unchanged: " (string/trim content))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
+              project (test-util/setup-project! workspace)
+              app-manifest (project/get-resource-node project "/checked.appmanifest")]
+          (test-util/set-code-editor-source! app-manifest content)
+          (let [resources (make-extender-resources project "x86_64-macos")]
+            (is (= content
+                   (extender-resource-content (extender-resource resources "_app/app.manifest"))))))))))
 
 (defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
 
