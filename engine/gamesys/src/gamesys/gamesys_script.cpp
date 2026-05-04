@@ -161,6 +161,7 @@ namespace dmGameSystem
     void UpdateScriptLibs(const ScriptLibContext& context)
     {
         ScriptSysGameSysUpdate(context);
+        ScriptResourceUpdate(context);
     }
 
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {

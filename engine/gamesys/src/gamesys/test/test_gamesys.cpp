@@ -634,7 +634,7 @@ static bool UpdateAndWaitUntilDone(
         frame_time = now;
 
         JobSystemUpdate(scriptlibcontext.m_JobContext, 0);
-        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
+        dmGameSystem::UpdateScriptLibs(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
         {
             dmLogError("Test failed on dmGameSystem::GetScriptSysGameSysLastUpdateResult()");
