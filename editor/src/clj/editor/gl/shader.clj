@@ -467,7 +467,7 @@ These forms should be quoted, as if they came from a macro."
    location+attribute-name-pairs
    array-sampler-name->uniform-names
    strip-resource-binding-namespace-regex-str
-   ^boolean uses-preview-light-buffer])
+   uses-preview-light-buffer])
 
 (defonce/record ShaderLifecycle
   [request-id
