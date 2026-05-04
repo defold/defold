@@ -23,6 +23,7 @@
             [editor.fs :as fs]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [editor.yaml :as yaml]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.repo :as repo])
@@ -109,30 +110,44 @@
 (defn- extender-resource-content [^ExtenderResource resource]
   (String. (.getContent resource) StandardCharsets/UTF_8))
 
+(defn- extender-resource-yaml [resources path]
+  (yaml/load (extender-resource-content (extender-resource resources path))))
+
 (defn- make-extender-resources [project platform]
   (g/with-auto-evaluation-context evaluation-context
     (#'native-extensions/make-extender-resources project platform evaluation-context)))
 
+(def ^:private expected-editor-build-context
+  {"baseVariant" "debug"
+   "withSymbols" true})
+
 (deftest ^:native-extensions app-manifest-context-test
-  (let [line-separator (System/lineSeparator)
-        expected-context (str "context:" line-separator
-                              "    baseVariant: debug" line-separator
-                              "    withSymbols: true" line-separator)]
-    (testing "app manifest is synthesized with editor build options"
-      (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
-              project (test-util/setup-project! workspace)
-              resources (make-extender-resources project "x86_64-macos")]
-          (is (= expected-context
-                 (extender-resource-content (extender-resource resources "_app/app.manifest")))))))
-    (testing "configured app manifest is prefixed with editor build options"
-      (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-              project (test-util/setup-project! workspace)
-              resources (make-extender-resources project "x86_64-macos")
-              app-manifest-file (io/file (workspace/project-directory workspace) "checked.appmanifest")]
-          (is (= (str expected-context (slurp app-manifest-file))
-                 (extender-resource-content (extender-resource resources "_app/app.manifest")))))))))
+  (testing "app manifest is synthesized with editor build options"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+            project (test-util/setup-project! workspace)
+            resources (make-extender-resources project "x86_64-macos")]
+        (is (= {"context" expected-editor-build-context}
+               (extender-resource-yaml resources "_app/app.manifest"))))))
+  (testing "configured app manifest is merged with editor build options"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
+            project (test-util/setup-project! workspace)
+            resources (make-extender-resources project "x86_64-macos")
+            app-manifest-file (io/file (workspace/project-directory workspace) "checked.appmanifest")
+            app-manifest (yaml/load (slurp app-manifest-file))]
+        (is (= (assoc app-manifest "context" expected-editor-build-context)
+               (extender-resource-yaml resources "_app/app.manifest"))))))
+  (testing "configured app manifest in flow style is merged as yaml data"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
+            project (test-util/setup-project! workspace)
+            app-manifest (project/get-resource-node project "/checked.appmanifest")]
+        (test-util/set-code-editor-source! app-manifest "{\"platforms\": {\"wasm-web\": {\"context\": {}}}}\n")
+        (let [resources (make-extender-resources project "wasm-web")]
+          (is (= {"context" expected-editor-build-context
+                  "platforms" {"wasm-web" {"context" {}}}}
+                 (extender-resource-yaml resources "_app/app.manifest"))))))))
 
 (defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
 

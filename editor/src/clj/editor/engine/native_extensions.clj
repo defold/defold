@@ -26,6 +26,7 @@
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.system :as system]
             [editor.workspace :as workspace]
+            [editor.yaml :as yaml]
             [util.coll :as coll])
   (:import [com.defold.extender.client ExtenderClient ExtenderClientCache ExtenderResource]
            [com.dynamo.bob Platform]
@@ -161,18 +162,9 @@
 
 (def ^:private app-manifest-upload-path "_app/app.manifest")
 
-(defn- app-manifest-context-prefix ^bytes []
-  (let [line-separator (System/lineSeparator)]
-    (.getBytes (str "context:" line-separator
-                    "    baseVariant: debug" line-separator
-                    "    withSymbols: true" line-separator)
-               StandardCharsets/UTF_8)))
-
-(defn- concat-byte-arrays ^bytes [^bytes a ^bytes b]
-  (let [result (byte-array (+ (alength a) (alength b)))]
-    (System/arraycopy a 0 result 0 (alength a))
-    (System/arraycopy b 0 result (alength a) (alength b))
-    result))
+(def ^:private editor-build-app-manifest-context
+  {"baseVariant" "debug"
+   "withSymbols" true})
 
 (defn- resource-node-content ^bytes [resource-node evaluation-context]
   (if-let [content (some-> (g/node-value resource-node :save-data evaluation-context)
@@ -184,14 +176,24 @@
 (defn- resource-node-last-modified [resource-node evaluation-context]
   (.lastModified (io/file (g/node-value resource-node :resource evaluation-context))))
 
+(defn- app-manifest-content ^bytes [app-manifest-resource-node evaluation-context]
+  (let [manifest (if app-manifest-resource-node
+                   (or (yaml/load (String. (resource-node-content app-manifest-resource-node evaluation-context)
+                                           StandardCharsets/UTF_8))
+                       {})
+                   {})
+        context (merge (get manifest "context")
+                       editor-build-app-manifest-context)]
+    (.getBytes (yaml/dump (assoc manifest "context" context)
+                          :order-pattern ["context" "platforms"]
+                          :indent 4)
+               StandardCharsets/UTF_8)))
+
 (defn- make-app-manifest-resource [app-manifest-resource-node evaluation-context]
   (reify ExtenderResource
     (getPath [_] app-manifest-upload-path)
     (getContent [_]
-      (let [context-prefix (app-manifest-context-prefix)]
-        (if app-manifest-resource-node
-          (concat-byte-arrays context-prefix (resource-node-content app-manifest-resource-node evaluation-context))
-          context-prefix)))
+      (app-manifest-content app-manifest-resource-node evaluation-context))
     (getLastModified [_]
       (if app-manifest-resource-node
         (resource-node-last-modified app-manifest-resource-node evaluation-context)
