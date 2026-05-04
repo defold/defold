@@ -184,10 +184,10 @@
                    {})
         context (merge (get manifest "context")
                        editor-build-app-manifest-context)]
-    (.getBytes (yaml/dump (assoc manifest "context" context)
-                          :order-pattern ["context" "platforms"]
-                          :indent 4)
-               StandardCharsets/UTF_8)))
+    (let [^String content (yaml/dump (assoc manifest "context" context)
+                                     :order-pattern ["context" "platforms"]
+                                     :indent 4)]
+      (.getBytes content StandardCharsets/UTF_8))))
 
 (defn- make-app-manifest-resource [app-manifest-resource-node evaluation-context]
   (reify ExtenderResource
