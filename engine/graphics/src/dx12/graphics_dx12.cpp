@@ -140,7 +140,7 @@ namespace dmGraphics
 
         // RGB isn't supported as a texture format, but we still need to supply it to the engine
         // Later when a texture is created, we will convert it internally to RGBA.
-        context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
 
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
         {
@@ -154,7 +154,7 @@ namespace dmGraphics
             if (SUCCEEDED(hr))
             {
                 // TODO: Check for more fine-grained support, i.e "query.Support1 & D3D12_FORMAT_SUPPORT1_TEXTURE2D"
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << texture_format;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << texture_format;
             }
         }
     }
@@ -3073,7 +3073,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static bool DX12IsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         DX12Context* context = (DX12Context*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0;
+        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
     }
 
     static uint32_t DX12GetMaxTextureSize(HContext context)

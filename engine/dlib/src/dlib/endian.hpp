@@ -12,13 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_MUTEX_EMPTY_H
-#define DM_MUTEX_EMPTY_H
+#ifndef DM_ENDIAN_HPP
+#define DM_ENDIAN_HPP
 
-namespace dmMutex
-{
-    struct Mutex
-    { };
-}
+#include <dmsdk/dlib/endian.hpp>
 
-#endif // DM_MUTEX_EMPTY_H
+#endif // DM_ENDIAN_HPP

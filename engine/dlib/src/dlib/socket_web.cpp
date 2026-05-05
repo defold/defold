@@ -12,31 +12,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "mutex.h"
+#include "socket.h"
 
-// empty implementation for Mutex. Applied to platforms that should be single threaded (some web targets)
-namespace dmMutex
+namespace dmSocket
 {
-    HMutex New()
+    void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
-        Mutex* mutex = new Mutex();
-        return mutex;
+        *count = 0;
     }
-
-    void Delete(HMutex mutex)
-    {
-        delete mutex;
-    }
-
-    void Lock(HMutex mutex)
-    { }
-
-    bool TryLock(HMutex mutex)
-    {
-        return true;
-    }
-
-    void Unlock(HMutex mutex)
-    { }
-
 }
+
+#include "socket_posix.cpp"
