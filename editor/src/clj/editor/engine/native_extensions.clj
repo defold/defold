@@ -16,7 +16,6 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.app-manifest :as app-manifest]
             [editor.connection-properties :as connection-properties]
             [editor.defold-project :as project]
             [editor.engine.build-errors :as engine-build-errors]
@@ -181,10 +180,7 @@
   (when (and (map? manifest)
              (or (not (contains? manifest "context"))
                  (map? (get manifest "context"))))
-    (app-manifest/update-in-fixing
-      manifest map? {}
-      "context" map? {}
-      #(merge % editor-build-app-manifest-context))))
+    (update manifest "context" merge editor-build-app-manifest-context)))
 
 (defn- dump-app-manifest-content ^bytes [manifest]
   (let [^String content (yaml/dump manifest
