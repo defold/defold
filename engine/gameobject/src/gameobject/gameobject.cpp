@@ -84,6 +84,28 @@ namespace dmGameObject
     PROP_VECTOR3(EULER, euler);
     PROP_VECTOR3(SCALE, scale);
 
+    bool IsGameObjectTransformProperty(dmhash_t property_id)
+    {
+        return property_id == PROP_POSITION ||
+               property_id == PROP_POSITION_X ||
+               property_id == PROP_POSITION_Y ||
+               property_id == PROP_POSITION_Z ||
+               property_id == PROP_ROTATION ||
+               property_id == PROP_ROTATION_X ||
+               property_id == PROP_ROTATION_Y ||
+               property_id == PROP_ROTATION_Z ||
+               property_id == PROP_ROTATION_W ||
+               property_id == PROP_EULER ||
+               property_id == PROP_EULER_X ||
+               property_id == PROP_EULER_Y ||
+               property_id == PROP_EULER_Z ||
+               property_id == PROP_SCALE ||
+               property_id == PROP_SCALE_XY ||
+               property_id == PROP_SCALE_X ||
+               property_id == PROP_SCALE_Y ||
+               property_id == PROP_SCALE_Z;
+    }
+
     static void ResourceReloadedCallback(const ResourceReloadedParams* params);
     static void DoDeleteInstance(Collection* collection, HInstance instance);
     static bool InitInstance(Collection* collection, HInstance instance);
@@ -2042,6 +2064,11 @@ namespace dmGameObject
         EraseSwapLevelIndex(collection, instance);
         MoveAllUp(collection, instance);
 
+        if (instance->m_FirstChildIndex != INVALID_INSTANCE_INDEX)
+        {
+            collection->m_DirtyTransforms = 1;
+        }
+
         if (prototype != &EMPTY_PROTOTYPE)
             dmResource::Release(factory, prototype);
         collection->m_InstanceIndices.Push(instance->m_Index);
@@ -2246,25 +2273,25 @@ namespace dmGameObject
         return instance->m_Bone;
     }
 
-    static uint32_t DoSetBoneTransforms(HCollection hcollection, dmTransform::Transform* component_transform, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
+    static uint32_t DoSetBoneTransforms(Collection* collection, dmTransform::Transform* component_transform, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
     {
         if (transform_count == 0)
             return 0;
         uint16_t current_index = first_index;
         uint32_t count = 0;
-        Collection* collection = hcollection->m_Collection;
         while (current_index != INVALID_INSTANCE_INDEX)
         {
             HInstance instance = collection->m_Instances[current_index];
             if (instance->m_Bone)
             {
                 instance->m_Transform = transforms[count++];
-                if (component_transform && count == 1) {
+                if (component_transform && count == 1)
+                {
                     instance->m_Transform = dmTransform::Mul(*component_transform, instance->m_Transform);
                 }
                 if (count < transform_count)
                 {
-                    count += DoSetBoneTransforms(hcollection, 0x0, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
+                    count += DoSetBoneTransforms(collection, 0x0, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
                 }
                 if (transform_count == count)
                 {
@@ -2278,7 +2305,10 @@ namespace dmGameObject
 
     uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count)
     {
-        return DoSetBoneTransforms(instance->m_Collection->m_HCollection, &component_transform, instance->m_Index, transforms, transform_count);
+        Collection* collection = instance->m_Collection;
+        uint32_t count = DoSetBoneTransforms(collection, &component_transform, instance->m_Index, transforms, transform_count);
+        collection->m_DirtyTransforms |= count > 0 ? 1 : 0;
+        return count;
     }
 
     static void DeleteBones(Collection* collection, uint16_t first_index) {
@@ -2350,24 +2380,27 @@ namespace dmGameObject
                         dmLogWarning("Could not find parent instance with id '%s'.", dmHashReverseSafe64(sp->m_ParentId));
 
                 }
-                Matrix4 parent_t = Matrix4::identity();
-
-                if (parent)
-                {
-                    parent_t = collection->m_WorldTransforms[parent->m_Index];
-                }
-
-                if (sp->m_KeepWorldTransform == 0)
-                {
-                    Matrix4& world = collection->m_WorldTransforms[instance->m_Index];
-                    world = parent_t * dmTransform::ToMatrix4(instance->m_Transform);
-                }
-                else
-                {
-                    instance->m_Transform = dmTransform::ToTransform(inverse(parent_t) * collection->m_WorldTransforms[instance->m_Index]);
-                }
+                uint16_t old_parent = instance->m_Parent;
 
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
+
+                if (result == dmGameObject::RESULT_OK && old_parent != instance->m_Parent)
+                {
+                    Matrix4 parent_t = Matrix4::identity();
+                    if (parent)
+                    {
+                        parent_t = collection->m_WorldTransforms[parent->m_Index];
+                    }
+
+                    if (sp->m_KeepWorldTransform == 0)
+                    {
+                        collection->m_WorldTransforms[instance->m_Index] = parent_t * dmTransform::ToMatrix4(instance->m_Transform);
+                    }
+                    else
+                    {
+                        instance->m_Transform = dmTransform::ToTransform(inverse(parent_t) * collection->m_WorldTransforms[instance->m_Index]);
+                    }
+                }
 
                 if (result != dmGameObject::RESULT_OK)
                     dmLogWarning("Error when setting parent of '%s' to '%s', error: %i.",
@@ -2507,7 +2540,6 @@ namespace dmGameObject
                 uint32_t message_count = dmMessage::Dispatch(sockets[i], &DispatchMessagesFunction, (void*) &ctx);
                 if (message_count)
                 {
-                    collection->m_DirtyTransforms = true;
                     iterate = true;
                 }
             }
@@ -2683,7 +2715,10 @@ namespace dmGameObject
 
                 // Mark the collections transforms as dirty if this component has updated
                 // them in its update function.
-                collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
+                if (update_result.m_TransformsUpdated)
+                {
+                    collection->m_DirtyTransforms = 1;
+                }
             }
 
             if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
@@ -3143,6 +3178,7 @@ namespace dmGameObject
     void SetPosition(HInstance instance, Point3 position)
     {
         instance->m_Transform.SetTranslation(Vector3(position));
+        instance->m_Collection->m_DirtyTransforms = 1;
     }
 
     Point3 GetPosition(HInstance instance)
@@ -3153,6 +3189,7 @@ namespace dmGameObject
     void SetRotation(HInstance instance, Quat rotation)
     {
         instance->m_Transform.SetRotation(rotation);
+        instance->m_Collection->m_DirtyTransforms = 1;
     }
 
     Quat GetRotation(HInstance instance)
@@ -3163,16 +3200,19 @@ namespace dmGameObject
     void SetScale(HInstance instance, float scale)
     {
         instance->m_Transform.SetUniformScale(scale);
+        instance->m_Collection->m_DirtyTransforms = 1;
     }
 
     void SetScale(HInstance instance, Vector3 scale)
     {
         instance->m_Transform.SetScale(scale);
+        instance->m_Collection->m_DirtyTransforms = 1;
     }
 
     void SetScaleXY(HInstance instance, float scale_x, float scale_y)
     {
         instance->m_Transform.SetScaleXY(scale_x, scale_y);
+        instance->m_Collection->m_DirtyTransforms = 1;
     }
 
     float GetUniformScale(HInstance instance)
@@ -3316,6 +3356,7 @@ namespace dmGameObject
             }
         }
 
+        collection->m_DirtyTransforms = 1;
         return RESULT_OK;
     }
 
@@ -3779,6 +3820,7 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
+            Collection* collection = instance->m_Collection;
             float* position = instance->m_Transform.GetPositionPtr();
             float* rotation = instance->m_Transform.GetRotationPtr();
             float* scale = instance->m_Transform.GetScalePtr();
@@ -3789,6 +3831,7 @@ namespace dmGameObject
                 position[0] = value.m_V4[0];
                 position[1] = value.m_V4[1];
                 position[2] = value.m_V4[2];
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_X)
@@ -3796,6 +3839,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 position[0] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_Y)
@@ -3803,6 +3847,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 position[1] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_Z)
@@ -3810,6 +3855,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 position[2] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_SCALE)
@@ -3819,6 +3865,7 @@ namespace dmGameObject
                     scale[0] = (float)value.m_Number;
                     scale[1] = scale[0];
                     scale[2] = scale[0];
+                    collection->m_DirtyTransforms = 1;
                     return PROPERTY_RESULT_OK;
                 }
                 else if (value.m_Type == PROPERTY_TYPE_VECTOR3)
@@ -3826,6 +3873,7 @@ namespace dmGameObject
                     scale[0] = value.m_V4[0];
                     scale[1] = value.m_V4[1];
                     scale[2] = value.m_V4[2];
+                    collection->m_DirtyTransforms = 1;
                     return PROPERTY_RESULT_OK;
                 }
                 return PROPERTY_RESULT_TYPE_MISMATCH;
@@ -3836,12 +3884,14 @@ namespace dmGameObject
                 {
                     scale[0] = (float)value.m_Number;
                     scale[1] = scale[0];
+                    collection->m_DirtyTransforms = 1;
                     return PROPERTY_RESULT_OK;
                 }
                 else if (value.m_Type == PROPERTY_TYPE_VECTOR3)
                 {
                     scale[0] = value.m_V4[0];
                     scale[1] = value.m_V4[1];
+                    collection->m_DirtyTransforms = 1;
                     return PROPERTY_RESULT_OK;
                 }
                 return PROPERTY_RESULT_TYPE_MISMATCH;
@@ -3851,6 +3901,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 scale[0] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_SCALE_Y)
@@ -3858,6 +3909,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 scale[1] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_SCALE_Z)
@@ -3865,6 +3917,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 scale[2] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION)
@@ -3875,6 +3928,7 @@ namespace dmGameObject
                 rotation[1] = value.m_V4[1];
                 rotation[2] = value.m_V4[2];
                 rotation[3] = value.m_V4[3];
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_X)
@@ -3882,6 +3936,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 rotation[0] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_Y)
@@ -3889,6 +3944,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 rotation[1] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_Z)
@@ -3896,6 +3952,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 rotation[2] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_W)
@@ -3903,6 +3960,7 @@ namespace dmGameObject
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 rotation[3] = (float)value.m_Number;
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER)
@@ -3911,6 +3969,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 instance->m_EulerRotation = Vector3(value.m_V4[0], value.m_V4[1], value.m_V4[2]);
                 UpdateEulerToRotation(instance);
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER_X)
@@ -3919,6 +3978,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 instance->m_EulerRotation.setX((float)value.m_Number);
                 UpdateEulerToRotation(instance);
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER_Y)
@@ -3927,6 +3987,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 instance->m_EulerRotation.setY((float)value.m_Number);
                 UpdateEulerToRotation(instance);
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER_Z)
@@ -3935,6 +3996,7 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 instance->m_EulerRotation.setZ((float)value.m_Number);
                 UpdateEulerToRotation(instance);
+                collection->m_DirtyTransforms = 1;
                 return PROPERTY_RESULT_OK;
             }
             else

@@ -230,6 +230,110 @@ static void CreateScriptFile(const char* file_name, const char* contents)
     assert(r == dmDDF::RESULT_OK);
 }
 
+TEST_F(ScriptTest, UpdateWithoutTransformChangeDoesNotRefreshWorldTransform)
+{
+    const char* go_resource_name = "/update_transform_cache_no_change.goc";
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
+    ASSERT_NE((dmGameObject::HInstance) 0, go);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    Point3 world_position = dmGameObject::GetWorldPosition(go);
+    ASSERT_EQ(42, world_position.getX());
+    ASSERT_EQ(43, world_position.getY());
+    ASSERT_EQ(44, world_position.getZ());
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
+TEST_F(ScriptTest, UpdateWithTransformChangeRefreshesWorldTransform)
+{
+    const char* go_resource_name = "/update_transform_cache_change.goc";
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
+    ASSERT_NE((dmGameObject::HInstance) 0, go);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    Point3 world_position = dmGameObject::GetWorldPosition(go);
+    ASSERT_EQ(1, world_position.getX());
+    ASSERT_EQ(2, world_position.getY());
+    ASSERT_EQ(3, world_position.getZ());
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
+TEST_F(ScriptTest, MessageWithoutTransformChangeDoesNotRefreshWorldTransform)
+{
+    const char* go_resource_name = "/message_transform_cache_no_change.goc";
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
+    ASSERT_NE((dmGameObject::HInstance) 0, go);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "message_go"));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_FALSE(m_Collection->m_Collection->m_DirtyTransforms);
+
+    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
+
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = dmHashString64("script");
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmHashString64("message"), 0, 0, 0x0, 0, 0));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    Point3 world_position = dmGameObject::GetWorldPosition(go);
+    ASSERT_EQ(42, world_position.getX());
+    ASSERT_EQ(43, world_position.getY());
+    ASSERT_EQ(44, world_position.getZ());
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
+TEST_F(ScriptTest, MessageWithTransformChangeRefreshesWorldTransform)
+{
+    const char* go_resource_name = "/message_transform_cache_change.goc";
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_resource_name);
+    ASSERT_NE((dmGameObject::HInstance) 0, go);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "message_transform_go"));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    m_Collection->m_Collection->m_WorldTransforms[go->m_Index] = Matrix4::translation(Vector3(42, 43, 44));
+
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = dmHashString64("script");
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmHashString64("message"), 0, 0, 0x0, 0, 0));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    Point3 world_position = dmGameObject::GetWorldPosition(go);
+    ASSERT_EQ(1, world_position.getX());
+    ASSERT_EQ(2, world_position.getY());
+    ASSERT_EQ(3, world_position.getZ());
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
 TEST_F(ScriptTest, TestReload)
 {
     const char* script_resource_name = "/__test__.scriptc";
