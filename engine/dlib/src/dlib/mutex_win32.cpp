@@ -14,9 +14,15 @@
 
 #include <assert.h>
 #include "mutex.h"
+#include "safe_windows.h"
 
 namespace dmMutex
 {
+    struct Mutex
+    {
+        CRITICAL_SECTION m_NativeHandle;
+    };
+
     HMutex New()
     {
         Mutex* mutex = new Mutex();
@@ -48,4 +54,10 @@ namespace dmMutex
         assert(mutex);
         LeaveCriticalSection(&mutex->m_NativeHandle);
     }
-}
+
+    void* GetNativeHandle(HMutex mutex)
+    {
+        assert(mutex);
+        return &mutex->m_NativeHandle;
+    }
+} // namespace dmMutex

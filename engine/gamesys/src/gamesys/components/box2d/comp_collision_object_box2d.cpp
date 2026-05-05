@@ -113,6 +113,18 @@ namespace dmGameSystem
         component->m_Object2D = 0;
     }
 
+    static void RemoveComponentFromUpdate(CollisionWorldBox2D* world, CollisionComponentBox2D* component)
+    {
+        for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
+        {
+            if (world->m_Components[i] == component)
+            {
+                world->m_Components.EraseSwap(i);
+                return;
+            }
+        }
+    }
+
     /// Joint entry that will keep track of joint connections from collision components.
     struct JointEntry
     {
@@ -453,26 +465,18 @@ namespace dmGameSystem
             DeleteCollisionObject(world, component);
         }
 
-        uint32_t num_components = world->m_Components.Size();
-        for (uint32_t i = 0; i < num_components; ++i)
-        {
-            CollisionComponentBox2D* c = world->m_Components[i];
-            if (c == component)
-            {
-                world->m_Components.EraseSwap(i);
-                break;
-            }
-        }
-
         delete component;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollisionObjectBox2DFinal(const dmGameObject::ComponentFinalParams& params)
     {
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
-        component->m_AddedToUpdate = false;
-        component->m_StartAsEnabled = true;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
+
+        RemoveComponentFromUpdate(world, component);
+        component->m_BaseComponent.m_AddedToUpdate = false;
+        component->m_BaseComponent.m_StartAsEnabled = true;
         return dmGameObject::CREATE_RESULT_OK;
     }
     dmGameObject::CreateResult CompCollisionObjectBox2DAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)

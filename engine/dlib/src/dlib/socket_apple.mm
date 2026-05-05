@@ -12,30 +12,40 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#import <Foundation/Foundation.h>
+
+#include <assert.h>
+#include <stdint.h>
 #include <strings.h>
-#include <fcntl.h>
-#include <arpa/inet.h>
-#include <net/if.h>
+#include <string.h>
 #include <ifaddrs.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <net/if.h>
 #include <net/if_dl.h>
 #include <netdb.h>
-
-#include "../log.h"
-#include "../socket.h"
-#include "../socket_private.h"
-#include "../dstrings.h"
+#include "log.h"
+#include "dstrings.h"
+#include "socket.h"
+#include "socket_private.h"
+#include "network_constants.h"
 
 namespace dmSocket
 {
-    static bool IncludeDevice(struct ifaddrs *ifaddr, ifaddrs* device) {
+    static bool IncludeDevice(struct ifaddrs *ifaddr, ifaddrs* device)
+    {
         bool has_link = false;
 
-        for (ifaddrs* ifa = ifaddr; ifa != 0; ifa = ifa->ifa_next) {
+        for (ifaddrs* ifa = ifaddr; ifa != 0; ifa = ifa->ifa_next)
+        {
             int family = ifa->ifa_addr->sa_family;
-            if (strcmp(device->ifa_name, ifa->ifa_name) == 0) {
-                if (family == AF_LINK) {
+            if (strcmp(device->ifa_name, ifa->ifa_name) == 0)
+            {
+                if (family == AF_LINK)
+                {
                     unsigned char* ptr = (unsigned char *)LLADDR((struct sockaddr_dl *)(ifa)->ifa_addr);
-                    if (ptr[0] || ptr[1] || ptr[2] || ptr[3] || ptr[4] || ptr[5]) {
+                    if (ptr[0] || ptr[1] || ptr[2] || ptr[3] || ptr[4] || ptr[5])
+                    {
                         has_link = true;
                     }
                 }
@@ -50,24 +60,31 @@ namespace dmSocket
         *count = 0;
         struct ifaddrs *ifaddr, *ifa;
 
-        if (getifaddrs(&ifaddr) < 0) {
+        if (getifaddrs(&ifaddr) < 0)
+        {
             return;
         }
 
-        for (ifa = ifaddr; ifa != 0 && *count < addresses_count; ifa = ifa->ifa_next) {
+        for (ifa = ifaddr; ifa != 0 && *count < addresses_count; ifa = ifa->ifa_next)
+        {
             if (ifa->ifa_addr == 0)
+            {
                 continue;
+            }
 
             int family = ifa->ifa_addr->sa_family;
-            if (!(family == AF_LINK || family == AF_INET || family == AF_INET6)) {
+            if (!(family == AF_LINK || family == AF_INET || family == AF_INET6))
+            {
                 continue;
             }
 
-            if (!IncludeDevice(ifaddr, ifa)) {
+            if (!IncludeDevice(ifaddr, ifa))
+            {
                 continue;
             }
 
-            if (*count >= addresses_count) {
+            if (*count >= addresses_count)
+            {
                 dmLogWarning("Can't fill all if-addresses. Supplied buffer too small.");
                 break;
             }
@@ -79,29 +96,37 @@ namespace dmSocket
 
             a->m_Address.m_family = DOMAIN_MISSING;
 
-            if (ifa->ifa_flags & IFF_UP) {
+            if (ifa->ifa_flags & IFF_UP)
+            {
                 a->m_Flags |= FLAGS_UP;
             }
 
-            if (ifa->ifa_flags & IFF_RUNNING) {
+            if (ifa->ifa_flags & IFF_RUNNING)
+            {
                 a->m_Flags |= FLAGS_RUNNING;
             }
 
-            if (family == AF_INET) {
+            if (family == AF_INET)
+            {
                 sockaddr_in* sock_addr = (sockaddr_in*) ifa->ifa_addr;
                 a->m_Flags |= FLAGS_INET;
                 a->m_Address.m_family = DOMAIN_IPV4;
                 *IPv4(&a->m_Address) = sock_addr->sin_addr.s_addr;
-            } else if (family == AF_INET6) {
+            }
+            else if (family == AF_INET6)
+            {
                 sockaddr_in6* sock_addr = (sockaddr_in6*) ifa->ifa_addr;
                 a->m_Flags |= FLAGS_INET;
                 a->m_Address.m_family = DOMAIN_IPV6;
                 memcpy(IPv6(&a->m_Address), &sock_addr->sin6_addr, sizeof(struct in6_addr));
-            } else if (family == AF_LINK) {
+            }
+            else if (family == AF_LINK)
+            {
                 a->m_Flags |= FLAGS_LINK;
 
                 unsigned char* ptr = (unsigned char *)LLADDR((struct sockaddr_dl *)(ifa)->ifa_addr);
-                if (ptr[0] || ptr[1] || ptr[2] || ptr[3] || ptr[4] || ptr[5]) {
+                if (ptr[0] || ptr[1] || ptr[2] || ptr[3] || ptr[4] || ptr[5])
+                {
                     a->m_MacAddress[0] = ptr[0];
                     a->m_MacAddress[1] = ptr[1];
                     a->m_MacAddress[2] = ptr[2];
@@ -112,6 +137,53 @@ namespace dmSocket
             }
         }
         freeifaddrs(ifaddr);
-        return;
+    }
+
+    Result GetLocalAddress(Address* address)
+    {
+        /*
+         * NOTE: The IP address lookup code is currently tailored
+         * for iOS as we assume en0 as adapter. This code doens't work for OSX in general
+         */
+        NSString *address_string = 0;
+        struct ifaddrs *interfaces = NULL;
+        struct ifaddrs *temp_addr = NULL;
+        int success = 0;
+
+        success = getifaddrs(&interfaces);
+        if (success == 0)
+        {
+            temp_addr = interfaces;
+            while(temp_addr != NULL)
+            {
+                if(temp_addr->ifa_addr->sa_family == AF_INET)
+                {
+                    if([[NSString stringWithUTF8String:temp_addr->ifa_name] isEqualToString:@"en0"])
+                    {
+                        address_string = [NSString stringWithUTF8String:inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_addr)->sin_addr)];
+                        break;
+                    }
+                }
+                temp_addr = temp_addr->ifa_next;
+            }
+        }
+
+        freeifaddrs(interfaces);
+
+        if (address_string)
+        {
+            char ip[255];
+            strcpy(ip, [address_string cStringUsingEncoding: NSISOLatin1StringEncoding]);
+            *address = AddressFromIPString(ip);
+            return RESULT_OK;
+        }
+        else
+        {
+            // We fallback to loopback address
+            *address = AddressFromIPString(DM_LOOPBACK_ADDRESS_IPV4);
+            return RESULT_OK;
+        }
     }
 }
+
+#include "socket_posix.cpp"
