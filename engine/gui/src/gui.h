@@ -34,6 +34,8 @@
 #include <dmsdk/render/render.h>
 #include <dmsdk/gameobject/gameobject.h>
 
+#include <dlib/safe_windows.h>
+
 /**
  * Defold GUI system
  *

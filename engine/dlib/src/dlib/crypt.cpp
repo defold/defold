@@ -14,7 +14,7 @@
 
 #include <string.h>
 #include <assert.h>
-#include "../shared_library.h"
+#include "shared_library.h"
 #include "crypt.h"
 
 #include <dlib/endian.hpp>

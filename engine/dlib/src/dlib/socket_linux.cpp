@@ -12,9 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "../socket.h"
-#include "../dstrings.h"
-#include "../log.h"
+#include "socket.h"
+#include "dstrings.h"
+#include "log.h"
 
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -93,7 +93,7 @@ namespace dmSocket
 
             if(ioctl(s, SIOCGIFFLAGS, r) < 0)
                 continue;
-            
+
             if (r->ifr_ifru.ifru_flags & IFF_UP) {
                 a->m_Flags |= FLAGS_UP;
             }
@@ -108,3 +108,5 @@ namespace dmSocket
         return;
     }
 }
+
+#include "socket_posix.cpp"

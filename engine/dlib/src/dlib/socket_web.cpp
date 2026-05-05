@@ -12,17 +12,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_MUTEX_POSIX_H
-#define DM_MUTEX_POSIX_H
+#include "socket.h"
 
-#include <pthread.h>
-
-namespace dmMutex
+namespace dmSocket
 {
-    struct Mutex
+    void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
-        pthread_mutex_t  m_NativeHandle;
-    };
+        *count = 0;
+    }
 }
 
-#endif // DM_MUTEX_POSIX_H
+#include "socket_posix.cpp"

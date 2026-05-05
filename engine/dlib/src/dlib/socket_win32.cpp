@@ -1,41 +1,143 @@
-#include <dmsdk/dlib/sockettypes.h>
-#include <dmsdk/dlib/log.h>
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include "socket.h"
+#include "socket_private.h"
+
+#include <dmsdk/dlib/log.h>
 
 #include <assert.h>
-#include <fcntl.h>
+#include <malloc.h> // malloc/free
+#include <stdlib.h> // wcstombs
 #include <string.h>
 
-#if defined(__linux__)
-#include <linux/if.h>
-#endif
+namespace dmSocket
+{
+    void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
+    {
+        *count = 0;
+        ULONG                 flags = GAA_FLAG_INCLUDE_PREFIX;
+        ULONG                 family = AF_INET;
 
-#if defined(__EMSCRIPTEN__)
-/// used for dmStrCpy
-#include <dlib/dstrings.h>
-#endif
+        ULONG                 out_buf_len;
+        PIP_ADAPTER_ADDRESSES paddresses = NULL;
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
-#include <unistd.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <netinet/tcp.h>
-#endif
+        // Ask for the length first
+        DWORD ret = GetAdaptersAddresses(family, flags, NULL, NULL, &out_buf_len);
 
-#include "socket_private.h"
+        if (ret == ERROR_BUFFER_OVERFLOW)
+        { // the address pointer is null ofc
+            paddresses = (IP_ADAPTER_ADDRESSES*)malloc(out_buf_len);
+            ret = GetAdaptersAddresses(family, flags, NULL, paddresses, &out_buf_len);
+        }
+
+        PIP_ADAPTER_ADDRESSES       pcurraddresses = NULL;
+        PIP_ADAPTER_UNICAST_ADDRESS punicast = NULL;
+
+        if (ret == NO_ERROR)
+        {
+            pcurraddresses = paddresses;
+            while (pcurraddresses && *count < addresses_count)
+            {
+                if (pcurraddresses->IfType != IF_TYPE_SOFTWARE_LOOPBACK)
+                {
+                    punicast = pcurraddresses->FirstUnicastAddress;
+                    if (punicast)
+                    {
+                        for (unsigned i = 0; punicast != NULL; i++)
+                        {
+                            IfAddr* a = &addresses[*count];
+                            memset(a, 0, sizeof(*a));
+
+                            wcstombs(a->m_Name, pcurraddresses->FriendlyName, sizeof(a->m_Name));
+                            a->m_Name[sizeof(a->m_Name) - 1] = 0;
+
+                            if (pcurraddresses->OperStatus == IfOperStatusUp)
+                            {
+                                a->m_Flags |= FLAGS_UP;
+                                a->m_Flags |= FLAGS_RUNNING;
+                            }
+
+                            if (punicast->Address.lpSockaddr->sa_family == AF_INET)
+                            {
+                                a->m_Flags |= FLAGS_INET;
+                                a->m_Address.m_family = DOMAIN_IPV4;
+                                sockaddr_in* ia = (sockaddr_in*)punicast->Address.lpSockaddr;
+                                *IPv4(&a->m_Address) = ia->sin_addr.s_addr;
+                            }
+                            else if (punicast->Address.lpSockaddr->sa_family == AF_INET6)
+                            {
+                                a->m_Flags |= FLAGS_INET;
+                                a->m_Address.m_family = DOMAIN_IPV6;
+                                sockaddr_in6* ia = (sockaddr_in6*)punicast->Address.lpSockaddr;
+                                memcpy(IPv6(&a->m_Address), &ia->sin6_addr, sizeof(struct in6_addr));
+                            }
+
+                            a->m_Flags |= FLAGS_LINK;
+                            a->m_MacAddress[0] = pcurraddresses->PhysicalAddress[0];
+                            a->m_MacAddress[1] = pcurraddresses->PhysicalAddress[1];
+                            a->m_MacAddress[2] = pcurraddresses->PhysicalAddress[2];
+                            a->m_MacAddress[3] = pcurraddresses->PhysicalAddress[3];
+                            a->m_MacAddress[4] = pcurraddresses->PhysicalAddress[4];
+                            a->m_MacAddress[5] = pcurraddresses->PhysicalAddress[5];
+
+                            punicast = punicast->Next;
+                            *count = *count + 1;
+                        }
+                    }
+                }
+                pcurraddresses = pcurraddresses->Next;
+            }
+        }
+        else
+        {
+            if (ret != ERROR_NO_DATA)
+            {
+                dmLogError("GetAdaptersAddresses failed (%d)\n", ret);
+            }
+        }
+
+        free(paddresses);
+        return;
+    }
+
+    Result PlatformInitialize()
+    {
+        WORD    version_requested = MAKEWORD(2, 2);
+        WSADATA wsa_data;
+        int     result = WSAStartup(version_requested, &wsa_data);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+    }
+
+    Result PlatformFinalize()
+    {
+        WSACleanup();
+        return RESULT_OK;
+    }
+} // namespace dmSocket
 
 // Helper and utility functions
 namespace dmSocket
 {
-    #define DM_SOCKET_NATIVE_TO_RESULT_CASE(x) case E##x: return RESULT_##x
+#define DM_SOCKET_NATIVE_TO_RESULT_CASE(x) \
+    case WSAE##x: \
+        return RESULT_##x
     Result NativeToResult(const char* filename, int line, int r)
     {
         switch (r)
         {
             DM_SOCKET_NATIVE_TO_RESULT_CASE(ACCES);
-            case EPERM: return RESULT_ACCES;
             DM_SOCKET_NATIVE_TO_RESULT_CASE(AFNOSUPPORT);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(WOULDBLOCK);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(BADF);
@@ -50,15 +152,14 @@ namespace dmSocket
             DM_SOCKET_NATIVE_TO_RESULT_CASE(MSGSIZE);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(NETDOWN);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(NETUNREACH);
-            //DM_SOCKET_NATIVE_TO_RESULT_CASE(NFILE);
+            // DM_SOCKET_NATIVE_TO_RESULT_CASE(NFILE);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(NOBUFS);
-            //DM_SOCKET_NATIVE_TO_RESULT_CASE(NOENT);
-            //DM_SOCKET_NATIVE_TO_RESULT_CASE(NOMEM);
+            // DM_SOCKET_NATIVE_TO_RESULT_CASE(NOENT);
+            // DM_SOCKET_NATIVE_TO_RESULT_CASE(NOMEM);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTCONN);
-            //DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTDIR);
+            // DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTDIR);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTSOCK);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(OPNOTSUPP);
-            DM_SOCKET_NATIVE_TO_RESULT_CASE(PIPE);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(PROTONOSUPPORT);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(PROTOTYPE);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(TIMEDOUT);
@@ -68,21 +169,25 @@ namespace dmSocket
             DM_SOCKET_NATIVE_TO_RESULT_CASE(ADDRINUSE);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(CONNABORTED);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(INPROGRESS);
-        default:
-            // TODO: Add log-domain support
-            dmLogError("%s( %d ): SOCKET: Unknown result code %d", filename, line, r);
-            return RESULT_UNKNOWN;
+            default:
+                // TODO: Add log-domain support
+                dmLogError("%s( %d ): SOCKET: Unknown result code %d", filename, line, r);
+                return RESULT_UNKNOWN;
         }
     }
-    #undef DM_SOCKET_NATIVE_TO_RESULT_CASE
+#undef DM_SOCKET_NATIVE_TO_RESULT_CASE
 
-    #define NATIVETORESULT(_R_) NativeToResult(__FILE__, __LINE__, _R_)
+#define NATIVETORESULT(_R_) NativeToResult(__FILE__, __LINE__, _R_)
 
-    // Use this function when socket timeout errors should be reported as would-block.
+    // Use this function for BSD socket compatibility
+    // However, don't use it blindly as we return code ETIMEDOUT is "lost".
+    // The background is that ETIMEDOUT is returned rather than EWOULDBLOCK on windows
+    // on socket timeout.
     static Result NativeToResultCompat(int r)
     {
         Result res = NativeToResult(__FILE__, __LINE__, r);
-        if (res == RESULT_TIMEDOUT) {
+        if (res == RESULT_TIMEDOUT)
+        {
             res = RESULT_WOULDBLOCK;
         }
         return res;
@@ -90,70 +195,70 @@ namespace dmSocket
 
     bool IsSocketIPv4(Socket socket)
     {
-        struct sockaddr_storage ss = { 0 };
-        socklen_t sslen = sizeof(ss);
-        int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
+        WSAPROTOCOL_INFO ss = { 0 };
+        socklen_t        sslen = sizeof(ss);
+        int              result = getsockopt(socket, SOL_SOCKET, SO_PROTOCOL_INFO, (char*)&ss, (int*)&sslen);
         if (result == 0)
         {
-            return ss.ss_family == AF_INET;
+            return ss.iAddressFamily == AF_INET;
         }
         dmLogError("Failed to retrieve address family (%d): %s",
-            NATIVETORESULT(DM_SOCKET_ERRNO), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
+                   NATIVETORESULT(DM_SOCKET_ERRNO),
+                   ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
 
         return false;
     }
 
     bool IsSocketIPv6(Socket socket)
     {
-        struct sockaddr_storage ss = { 0 };
-        socklen_t sslen = sizeof(ss);
-        int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
+        WSAPROTOCOL_INFO ss = { 0 };
+        socklen_t        sslen = sizeof(ss);
+        int              result = getsockopt(socket, SOL_SOCKET, SO_PROTOCOL_INFO, (char*)&ss, (int*)&sslen);
         if (result == 0)
         {
-            return ss.ss_family == AF_INET6;
+            return ss.iAddressFamily == AF_INET6;
         }
 
         dmLogError("Failed to retrieve address family (%d): %s",
-            NATIVETORESULT(DM_SOCKET_ERRNO), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
+                   NATIVETORESULT(DM_SOCKET_ERRNO),
+                   ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
         return false;
-    }
-
-    Result PlatformInitialize()
-    {
-        return RESULT_OK;
-    }
-
-    Result PlatformFinalize()
-    {
-        return RESULT_OK;
     }
 
     static int TypeToNative(Type type)
     {
-        switch(type)
+        switch (type)
         {
-            case TYPE_STREAM:  return SOCK_STREAM;
-            case TYPE_DGRAM:   return SOCK_DGRAM;
+            case TYPE_STREAM:
+                return SOCK_STREAM;
+            case TYPE_DGRAM:
+                return SOCK_DGRAM;
         }
         return 0;
     }
     static int ProtocolToNative(Protocol protocol)
     {
-        switch(protocol)
+        switch (protocol)
         {
-            case PROTOCOL_TCP:  return IPPROTO_TCP;
-            case PROTOCOL_UDP:  return IPPROTO_UDP;
+            case PROTOCOL_TCP:
+                return IPPROTO_TCP;
+            case PROTOCOL_UDP:
+                return IPPROTO_UDP;
         }
         return 0;
     }
     static int DomainToNative(Domain domain)
     {
-        switch(domain)
+        switch (domain)
         {
-            case DOMAIN_MISSING:  return 0x0;
-            case DOMAIN_IPV4:     return AF_INET;
-            case DOMAIN_IPV6:     return AF_INET6;
-            case DOMAIN_UNKNOWN:  return 0xff;
+            case DOMAIN_MISSING:
+                return 0x0;
+            case DOMAIN_IPV4:
+                return AF_INET;
+            case DOMAIN_IPV6:
+                return AF_INET6;
+            case DOMAIN_UNKNOWN:
+                return 0xff;
         }
         return 0;
     }
@@ -164,11 +269,6 @@ namespace dmSocket
         *socket = sock;
         if (sock >= 0)
         {
-#if defined(__MACH__)
-            int set = 1;
-            // Disable SIGPIPE on socket. On Linux MSG_NOSIGNAL is passed on send(.)
-            setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &set, sizeof(set));
-#endif
             return RESULT_OK;
         }
 
@@ -178,24 +278,14 @@ namespace dmSocket
 
     static Result SetSockoptBool(Socket socket, int level, int name, bool option)
     {
-#if defined(__EMSCRIPTEN__)
-        return NATIVETORESULT(DM_SOCKET_ERRNO);
-#else
-        int on = (int) option;
-        int ret = setsockopt(socket, level, name, (char *) &on, sizeof(on));
+        int on = (int)option;
+        int ret = setsockopt(socket, level, name, (char*)&on, sizeof(on));
         return ret >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
-#endif
     }
 
     Result SetReuseAddress(Socket socket, bool reuse)
     {
-        Result r = SetSockoptBool(socket, SOL_SOCKET, SO_REUSEADDR, reuse);
-#ifdef SO_REUSEPORT
-        if (r != RESULT_OK)
-            return r;
-        r = SetSockoptBool(socket, SOL_SOCKET, SO_REUSEPORT, reuse);
-#endif
-        return r;
+        return SetSockoptBool(socket, SOL_SOCKET, SO_REUSEADDR, reuse);
     }
 
     Result SetBroadcast(Socket socket, bool broadcast)
@@ -205,9 +295,6 @@ namespace dmSocket
 
     Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl)
     {
-#if defined(__EMSCRIPTEN__)
-        return RESULT_AFNOSUPPORT;
-#else
         int result = -1;
         if (IsSocketIPv4(socket))
         {
@@ -215,13 +302,14 @@ namespace dmSocket
             struct ip_mreq group;
             group.imr_multiaddr.s_addr = *IPv4(&multi_addr);
             group.imr_interface.s_addr = *IPv4(&interface_addr);
-            result = setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group));
+            result = setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&group, sizeof(group));
             if (result == 0)
             {
-                uint8_t ttl_byte = (uint8_t) ttl;
-                result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl_byte, sizeof(ttl_byte));
+                uint8_t ttl_byte = (uint8_t)ttl;
+                result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl_byte, sizeof(ttl_byte));
             }
-        } else if (IsSocketIPv6(socket))
+        }
+        else if (IsSocketIPv6(socket))
         {
             assert(multi_addr.m_family == DOMAIN_IPV6 && interface_addr.m_family == DOMAIN_IPV6);
             assert(false && "Interface membership not implemented for IPv6");
@@ -233,28 +321,24 @@ namespace dmSocket
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
-#endif
     }
 
     Result SetMulticastIf(Socket socket, Address address)
     {
-#if defined(__EMSCRIPTEN__)
-        return RESULT_AFNOSUPPORT;
-#else
         int result = -1;
         if (IsSocketIPv4(socket))
         {
             struct in_addr inaddr;
             memset(&inaddr, 0, sizeof(inaddr));
             inaddr.s_addr = *IPv4(&address);
-            result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
+            result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char*)&inaddr, sizeof(inaddr));
         }
 #if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
         {
             struct in6_addr inaddr;
             memcpy(&inaddr, IPv6(&address), sizeof(struct in6_addr));
-            result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
+            result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char*)&inaddr, sizeof(inaddr));
         }
 #endif // no ipv6
         else
@@ -264,7 +348,6 @@ namespace dmSocket
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
-#endif
     }
 
     Result Delete(Socket socket)
@@ -273,7 +356,7 @@ namespace dmSocket
         {
             return RESULT_BADF;
         }
-        int result = close(socket);
+        int result = closesocket(socket);
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
@@ -288,8 +371,8 @@ namespace dmSocket
         if (IsSocketIPv4(socket))
         {
             struct sockaddr_in sock_addr = { 0 };
-            socklen_t addr_len = sizeof(sock_addr);
-            result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
+            socklen_t          addr_len = sizeof(sock_addr);
+            result = accept(socket, (struct sockaddr*)&sock_addr, &addr_len);
             address->m_family = DOMAIN_IPV4;
             *IPv4(address) = sock_addr.sin_addr.s_addr;
         }
@@ -297,8 +380,8 @@ namespace dmSocket
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
-            socklen_t addr_len = sizeof(sock_addr);
-            result = accept(socket, (struct sockaddr *) &sock_addr, &addr_len);
+            socklen_t           addr_len = sizeof(sock_addr);
+            result = accept(socket, (struct sockaddr*)&sock_addr, &addr_len);
             address->m_family = DOMAIN_IPV6;
             memcpy(IPv6(address), &sock_addr.sin6_addr, sizeof(struct in6_addr));
         }
@@ -324,7 +407,7 @@ namespace dmSocket
             sock_addr.sin_family = AF_INET;
             sock_addr.sin_addr.s_addr = *IPv4(&address);
             sock_addr.sin_port = htons(port);
-            result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
+            result = bind(socket, (struct sockaddr*)&sock_addr, sizeof(sock_addr));
         }
 #if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
@@ -335,7 +418,7 @@ namespace dmSocket
             sock_addr.sin6_family = AF_INET6;
             memcpy(&sock_addr.sin6_addr, IPv6(&address), sizeof(struct in6_addr));
             sock_addr.sin6_port = htons(port);
-            result = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
+            result = bind(socket, (struct sockaddr*)&sock_addr, sizeof(sock_addr));
         }
 #endif // no ipv6
         else
@@ -358,7 +441,7 @@ namespace dmSocket
             sock_addr.sin_family = AF_INET;
             sock_addr.sin_addr.s_addr = *IPv4(&address);
             sock_addr.sin_port = htons(port);
-            result = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
+            result = connect(socket, (struct sockaddr*)&sock_addr, sizeof(sock_addr));
         }
 #if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
@@ -369,7 +452,7 @@ namespace dmSocket
             sock_addr.sin6_family = AF_INET6;
             memcpy(&sock_addr.sin6_addr, IPv6(&address), sizeof(struct in6_addr));
             sock_addr.sin6_port = htons(port);
-            result = connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
+            result = connect(socket, (struct sockaddr*)&sock_addr, sizeof(sock_addr));
         }
 #endif // no ipv6
         else
@@ -394,11 +477,14 @@ namespace dmSocket
 
     static int ShutdownTypeToNative(ShutdownType type)
     {
-        switch(type)
+        switch (type)
         {
-            case SHUTDOWNTYPE_READ:         return SHUT_RD;
-            case SHUTDOWNTYPE_WRITE:        return SHUT_WR;
-            case SHUTDOWNTYPE_READWRITE:    return SHUT_RDWR;
+            case SHUTDOWNTYPE_READ:
+                return SD_RECEIVE;
+            case SHUTDOWNTYPE_WRITE:
+                return SD_SEND;
+            case SHUTDOWNTYPE_READWRITE:
+                return SD_BOTH;
         }
         return 0;
     }
@@ -419,11 +505,7 @@ namespace dmSocket
     Result Send(Socket socket, const void* buffer, int length, int* sent_bytes)
     {
         *sent_bytes = 0;
-#if defined(__linux__)
-        ssize_t s = send(socket, buffer, length, MSG_NOSIGNAL);
-#else
-        ssize_t s = send(socket, buffer, length, 0);
-#endif
+        int s = send(socket, (const char*)buffer, length, 0);
         if (s < 0)
         {
             return NativeToResultCompat(DM_SOCKET_ERRNO);
@@ -447,7 +529,7 @@ namespace dmSocket
             sock_addr.sin_addr.s_addr = *IPv4(&to_addr);
             sock_addr.sin_port = htons(to_port);
 
-            result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
+            result = (int)sendto(socket, (const char*)buffer, length, 0, (const sockaddr*)&sock_addr, sizeof(sock_addr));
         }
 #if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
@@ -459,7 +541,7 @@ namespace dmSocket
             memcpy(&sock_addr.sin6_addr, IPv6(&to_addr), sizeof(struct in6_addr));
             sock_addr.sin6_port = htons(to_port);
 
-            result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
+            result = (int)sendto(socket, (const char*)buffer, length, 0, (const sockaddr*)&sock_addr, sizeof(sock_addr));
         }
 #endif // no ipv6
         else
@@ -475,7 +557,7 @@ namespace dmSocket
     Result Receive(Socket socket, void* buffer, int length, int* received_bytes)
     {
         *received_bytes = 0;
-        int r = recv(socket, buffer, length, 0);
+        int r = recv(socket, (char*)buffer, length, 0);
 
         if (r < 0)
         {
@@ -488,8 +570,7 @@ namespace dmSocket
         }
     }
 
-    Result ReceiveFrom(Socket socket, void* buffer, int length, int* received_bytes,
-                       Address* from_addr, uint16_t* from_port)
+    Result ReceiveFrom(Socket socket, void* buffer, int length, int* received_bytes, Address* from_addr, uint16_t* from_port)
     {
         int result = 0;
         *received_bytes = 0;
@@ -497,9 +578,9 @@ namespace dmSocket
         if (IsSocketIPv4(socket))
         {
             struct sockaddr_in sock_addr = { 0 };
-            socklen_t addr_len = sizeof(sock_addr);
+            socklen_t          addr_len = sizeof(sock_addr);
 
-            result = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
+            result = recvfrom(socket, (char*)buffer, length, 0, (struct sockaddr*)&sock_addr, &addr_len);
             if (result >= 0)
             {
                 from_addr->m_family = dmSocket::DOMAIN_IPV4;
@@ -512,9 +593,9 @@ namespace dmSocket
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
-            socklen_t addr_len = sizeof(sock_addr);
+            socklen_t           addr_len = sizeof(sock_addr);
 
-            result = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
+            result = recvfrom(socket, (char*)buffer, length, 0, (struct sockaddr*)&sock_addr, &addr_len);
             if (result >= 0)
             {
                 from_addr->m_family = dmSocket::DOMAIN_IPV6;
@@ -539,8 +620,8 @@ namespace dmSocket
         if (IsSocketIPv4(socket))
         {
             struct sockaddr_in sock_addr = { 0 };
-            socklen_t addr_len = sizeof(sock_addr);
-            result = getsockname(socket, (struct sockaddr *) &sock_addr, &addr_len);
+            socklen_t          addr_len = sizeof(sock_addr);
+            result = getsockname(socket, (struct sockaddr*)&sock_addr, &addr_len);
             if (result == 0)
             {
                 address->m_family = dmSocket::DOMAIN_IPV4;
@@ -552,8 +633,8 @@ namespace dmSocket
         else if (IsSocketIPv6(socket))
         {
             struct sockaddr_in6 sock_addr = { 0 };
-            socklen_t addr_len = sizeof(sock_addr);
-            result = getsockname(socket, (struct sockaddr *) &sock_addr, &addr_len);
+            socklen_t           addr_len = sizeof(sock_addr);
+            result = getsockname(socket, (struct sockaddr*)&sock_addr, &addr_len);
             if (result == 0)
             {
                 address->m_family = dmSocket::DOMAIN_IPV6;
@@ -573,71 +654,21 @@ namespace dmSocket
 
     Result GetHostname(char* hostname, int hostname_length)
     {
-#if defined(__EMSCRIPTEN__)
-        dmStrlCpy(hostname, "emscripten", hostname_length);
-        return RESULT_OK;
-#else
         int r = gethostname(hostname, hostname_length);
         if (hostname_length > 0)
             hostname[hostname_length - 1] = '\0';
         return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
-#endif
     }
 
-#if !defined(__APPLE__)
     Result GetLocalAddress(Address* address)
     {
-#ifdef __ANDROID__
-        // NOTE: This method should probably be used on Linux as well
-        // We just fall-back to localhost
-        dmSocket::GetHostByName("localhost", address);
-
-        struct ifreq *ifr;
-        struct ifconf ifc;
-        char buf[2048] = { 0 };
-        int s = socket(AF_INET, SOCK_DGRAM, 0);
-        if (s < 0) {
-            // We just fall-back to localhost
-            return RESULT_OK;
-        }
-
-        memset(&ifc, 0, sizeof(ifc));
-        ifr = (ifreq*) buf;
-        ifc.ifc_ifcu.ifcu_req = ifr;
-        ifc.ifc_len = sizeof(buf);
-        if (ioctl(s, SIOCGIFCONF, &ifc) < 0) {
-            // We just fall-back to localhost
-            return RESULT_OK;
-        }
-
-        // NOTE: This is not compatible with BSD. You can't assume
-        // equivalent size for all items
-        int numif = ifc.ifc_len / sizeof(struct ifreq);
-        for (int i = 0; i < numif; i++) {
-            struct ifreq *r = &ifr[i];
-            struct sockaddr_in *sin = (struct sockaddr_in *)&r->ifr_addr;
-            if (strcmp(r->ifr_name, "lo") != 0)
-            {
-                if (r->ifr_addr.sa_family == AF_INET)
-                {
-                    // Engine discovery currently uses this local address path,
-                    // and it only tracks IPv4 interfaces.
-                    address->m_family = DOMAIN_IPV4;
-                    *IPv4(address) = sin->sin_addr.s_addr;
-                }
-            }
-        }
-
-        close(s);
-        return RESULT_OK;
-#else
         /*
          * Get local address from reverse lookup of hostname
          * The method is potentially fragile. On iOS we iterate
          * over network adapter to the find actual address for en0
          * See socket_apple.mm
          */
-        char hostname[256] = { 0 };
+        char   hostname[256] = { 0 };
         Result r = dmSocket::GetHostname(hostname, sizeof(hostname));
         if (r != dmSocket::RESULT_OK)
             return r;
@@ -655,34 +686,28 @@ namespace dmSocket
         }
 
         return RESULT_OK;
-#endif
     }
-#endif
 
     Result SetBlocking(Socket socket, bool blocking)
     {
-        int flags = fcntl(socket, F_GETFL, 0);
-        if (flags < 0)
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-
+        u_long arg;
         if (blocking)
         {
-            flags &= ~O_NONBLOCK;
+            arg = 0;
         }
         else
         {
-            flags |= O_NONBLOCK;
+            arg = 1;
         }
 
-        if (fcntl(socket, F_SETFL, flags) < 0)
+        int ret = ioctlsocket(socket, FIONBIO, &arg);
+        if (ret == 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return RESULT_OK;
         }
         else
         {
-            return RESULT_OK;
+            return NATIVETORESULT(DM_SOCKET_ERRNO);
         }
     }
 
@@ -693,22 +718,18 @@ namespace dmSocket
 
     Result SetQuickAck(Socket socket, bool use_quick_ack)
     {
-#if defined(__MACH__)
         return RESULT_OK;
-#else
-        return SetSockoptBool(socket, IPPROTO_TCP, TCP_QUICKACK, use_quick_ack);
-#endif
     }
 
     static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
     {
-#if defined(__EMSCRIPTEN__)
-        return NATIVETORESULT(DM_SOCKET_ERRNO);
-#else
-        struct timeval timeval;
-        timeval.tv_sec = time / 1000000;
-        timeval.tv_usec = time % 1000000;
-        int ret = setsockopt(socket, level, name, (char *) &timeval, sizeof(timeval));
+        DWORD timeval = time / 1000;
+        if (time > 0 && timeval == 0)
+        {
+            dmLogWarning("Socket timeout requested less than 1ms. Timeout set to 1ms.");
+            timeval = 1;
+        }
+        int ret = setsockopt(socket, level, name, (char*)&timeval, sizeof(timeval));
         if (ret < 0)
         {
             return NATIVETORESULT(DM_SOCKET_ERRNO);
@@ -717,7 +738,6 @@ namespace dmSocket
         {
             return RESULT_OK;
         }
-#endif
     }
 
     Result SetSendTimeout(Socket socket, uint64_t timeout)
@@ -760,7 +780,7 @@ namespace dmSocket
         Result result = RESULT_HOST_NOT_FOUND;
 
         memset(address, 0x0, sizeof(Address));
-        struct addrinfo hints;
+        struct addrinfo  hints;
         struct addrinfo* res;
 
         memset(&hints, 0x0, sizeof(hints));
@@ -784,7 +804,7 @@ namespace dmSocket
                 // list of addresses and then try each of them until one succeeds.
                 if (ipv4 && iterator->ai_family == AF_INET)
                 {
-                    sockaddr_in* saddr = (struct sockaddr_in *) iterator->ai_addr;
+                    sockaddr_in* saddr = (struct sockaddr_in*)iterator->ai_addr;
                     address->m_family = dmSocket::DOMAIN_IPV4;
                     *IPv4(address) = saddr->sin_addr.s_addr;
                     result = RESULT_OK;
@@ -792,7 +812,7 @@ namespace dmSocket
 #if !defined(DM_IPV6_UNSUPPORTED)
                 else if (ipv6 && iterator->ai_family == AF_INET6)
                 {
-                    sockaddr_in6* saddr = (struct sockaddr_in6 *) iterator->ai_addr;
+                    sockaddr_in6* saddr = (struct sockaddr_in6*)iterator->ai_addr;
                     address->m_family = dmSocket::DOMAIN_IPV6;
                     memcpy(IPv6(address), &saddr->sin6_addr, sizeof(struct in6_addr));
                     result = RESULT_OK;
@@ -807,4 +827,4 @@ namespace dmSocket
 
         return result;
     }
-}
+} // namespace dmSocket
