@@ -19,6 +19,8 @@
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.slider :as fx.slider]
+            [cljfx.fx.toggle-button :as fx.toggle-button]
+            [cljfx.fx.toggle-group :as fx.toggle-group]
             [clojure.string :as string]
             [editor.fxui :as fxui]
             [editor.keymap :as keymap]
@@ -40,23 +42,6 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^List axes [:x :y :z])
-
-;; TODO JOE: Inline this
-(defn make-popup
-  ^PopupControl [^Styleable owner ^Node content]
-  (let [popup (proxy [PopupControl] []
-                (getStyleableParent [] owner))
-        *skinnable (atom popup)
-        popup-skin (reify Skin
-                     (getSkinnable [_] @*skinnable)
-                     (getNode [_] content)
-                     (dispose [_] (reset! *skinnable nil)))]
-    (doto popup
-      (.setSkin popup-skin)
-      (.setConsumeAutoHidingEvents false)
-      (.setAutoHide true)
-      (.setAutoFix true)
-      (.setHideOnEscape true))))
 
 (defn- make-toggle-row-fx [{:keys [key label accelerator state swap-state on-selected-changed style-class]}]
   {:fx/type fxui/horizontal
@@ -101,9 +86,9 @@
                  :max max
                  :value (key state)
                  :block-increment 0.1
-                 #_#_:on-value-changed (fn [v]
-                                         (on-value-changed v)
-                                         (swap-state assoc key v))}]}))
+                 :on-value-changed (fn [v]
+                                     (on-value-changed v)
+                                     (swap-state assoc key v))}]}))
 
 ;; `fxui/color-picker` is a compound component (an HBox containing a value-field and a JavaFX
 ;; ColorPicker), so we can't just wrap it the same way -- we need to reach into its internals to
@@ -156,22 +141,26 @@
                    axes)})
 
 (defn- make-vec3-toggle-row-fx [{:keys [key label state swap-state on-value-changed]}]
-  {:fx/type fxui/horizontal
-   :children (into [{:fx/type fxui/label
-                     :text (or label "")
-                     :h-box/hgrow :always
-                     :max-width Double/MAX_VALUE}]
-                   (map (fn [axis]
-                          {:fx/type fxui/toggle-button
-                           :style-class ["toggle-button" "plane-toggle"]
-                           :text (string/upper-case (name axis))
-                           :selected (= axis (key state))
-                           :on-selected-changed (fn [selected?]
-                                                  (when selected?
-                                                    (swap-state assoc key axis)
-                                                    (when on-value-changed
-                                                      (on-value-changed axis))))}))
-                   axes)})
+  {:fx/type fx/ext-let-refs
+   :refs {::toggle-group {:fx/type fx.toggle-group/lifecycle}}
+   :desc {:fx/type fxui/horizontal
+          :children (into [{:fx/type fxui/label
+                            :text (or label "")
+                            :h-box/hgrow :always
+                            :max-width Double/MAX_VALUE}]
+                          (map (fn [axis]
+                                 {:fx/type fx.toggle-button/lifecycle
+                                  :toggle-group {:fx/type fx/ext-get-ref
+                                                 :ref ::toggle-group}
+                                  :style-class ["toggle-button" "plane-toggle"]
+                                  :text (string/upper-case (name axis))
+                                  :selected (= axis (key state))
+                                  :on-selected-changed (fn [selected?]
+                                                         (when selected?
+                                                           (swap-state assoc key axis)
+                                                           (when on-value-changed
+                                                             (on-value-changed axis))))}))
+                          axes)}})
 
 (defn- make-reset-button-fx [{:keys [text swap-state on-reset]}]
   {:fx/type fxui/horizontal
@@ -296,11 +285,6 @@
     (Point2D. (- host-bounds-max-x width)
               (+ (.getY host-bounds-min) (.getHeight (.getBoundsInLocal owner)) 10.0))))
 
-;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `make-popup` above). PopupWindow has
-;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
-;; breaking Tab navigation inside the popup. For the simple controls we own (toggles, sliders, value
-;; fields), we wrap them in `fxui/ext-ensure-focus-traversable`, which observes the property and
-;; forces it back to true.
 (defn show!
   ([^Parent owner keymap localization state on-change width setting-descriptors]
    (show! owner keymap localization state on-change width setting-descriptors nil))
@@ -379,6 +363,7 @@
                             (handle [_ e]
                               (when (= KeyCode/ESCAPE (.getCode ^KeyEvent e))
                                 (hide!)
+                                (ui/user-data! host ::popup nil)
                                 (.consume ^KeyEvent e)
                                 (.requestFocus host))))]
            (reset! *listeners {:mouse mouse-filter :key key-filter})

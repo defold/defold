@@ -95,152 +95,6 @@
             }
         }
 
-        .popup-settings {
-            -fx-background-color: -df-component-dark;
-            -fx-background-radius: 4px;
-            -fx-padding: 0px 14px 7px 14px;
-
-            .label {
-                -fx-alignment: center-left;
-            }
-
-            HBox {
-                -fx-spacing: 5px;
-                -fx-pref-height: 38px;
-                -fx-alignment: center-left;
-            }
-
-            HBox.settings-divider-row {
-                -fx-padding: 0px -12px;
-                -fx-pref-height: 5px;
-            }
-
-            .ext-color-picker-field {
-                -fx-max-width: 85px;
-            }
-
-            .opacity-row {
-            }
-
-            .compact-toggle {
-                -fx-pref-height: 27px;
-            }
-
-            .accelerator-label {
-                -fx-text-fill: -df-text-dark;
-                -fx-padding: 0 3px 0 0;
-            }
-
-            .slider-value-label {
-                -fx-text-fill: -df-text-dark;
-            }
-
-            .plane-toggle {
-                -fx-text-fill: -df-text;
-                -fx-background-radius: 0;
-                -fx-border-radius: 0;
-                -fx-min-width: 35px;
-                -fx-min-height: 30px;
-            }
-
-            .text-input {
-                -fx-background-color: -df-background-light;
-                -fx-border-color: -df-component-light;
-
-                &:hover {
-                    -fx-border-color: -df-component-lighter;
-                }
-
-                &:focused {
-                    -fx-border-width: 1px 1px 2px 1px;
-                    -fx-background-color: -df-component-darker;
-                    -fx-border-color: -df-component-lighter -df-component-lighter -df-defold-orange -df-component-lighter;
-                }
-            }
-
-            .button, .toggle-button {
-                -fx-border-color: -df-component-lighter;
-
-                &:hover, &:focused {
-                    -fx-background-color: -df-component-light;
-                    -fx-text-fill: -df-text-selected;
-                }
-            }
-
-            .toggle-button {
-                -fx-border-width: 1px;
-                &:selected {
-                    -fx-text-fill: -df-text-selected;
-                    -fx-background-color: -df-background-light;
-                }
-
-                &:selected:hover {
-                    -fx-background-color: -df-background-light;
-                }
-
-                &:focused {
-                    -fx-border-color: -df-text;
-                }
-            }
-
-            .reset-button {
-                -fx-padding: 12px 0px 5px 0px;
-                .button {
-                    -fx-pref-width: 500px;
-                    &:pressed, &:armed {
-                        -fx-background-color: -df-component-lighter;
-                        -fx-text-fill: -df-text-selected;
-                    }
-                }
-            }
-
-            .toggle-row {
-                .slide-switch-label {
-                    -fx-hgrow: ALWAYS;
-                    -fx-padding: 0;
-                }
-            }
-
-            .slider {
-                -fx-pref-width: 115px;
-                .track {
-                    -fx-background-color: -df-background-light;
-                    -fx-border-color: -df-component-light;
-                }
-
-                .thumb {
-                    -fx-background-color: -df-component-light;
-
-                    &:hover,
-                    &:pressed {
-                        -fx-background-color: -df-component-lighter;
-                    }
-                }
-
-                &:focused .thumb {
-                    -fx-background-color: -df-component-lighter;
-                }
-            }
-        }
-
-        .popup-shadow {
-            -fx-background-color: rgba(0, 0, 0, 0.3);
-            -fx-background-radius: 6px;
-            -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 1.0), 14, 0, 0, 0);
-        }
-
-        SVGPath {
-            -fx-fill: -df-text;
-        }
-
-        .separator {
-            &:horizontal, &:vertical {
-                .line {
-                    -fx-border-color: -df-component-lighter;
-                }
-            }
-        }
-
         /* This is for the gui device picker that pops up when an .gui file is active */
         .cell {
             -fx-alignment: center;
@@ -277,6 +131,152 @@
                         -fx-text-fill: -df-text-selected;
                     }
                 }
+            }
+        }
+    }
+
+    .popup-settings {
+        -fx-background-color: -df-component-dark;
+        -fx-background-radius: 4px;
+        -fx-padding: 0px 14px 7px 14px;
+
+        .label {
+            -fx-alignment: center-left;
+        }
+
+        HBox {
+            -fx-spacing: 5px;
+            -fx-pref-height: 38px;
+            -fx-alignment: center-left;
+        }
+
+        HBox.settings-divider-row {
+            -fx-padding: 0px -12px;
+            -fx-pref-height: 5px;
+        }
+
+        .ext-color-picker-field {
+            -fx-max-width: 85px;
+        }
+
+        .opacity-row {
+        }
+
+        .compact-toggle {
+            -fx-pref-height: 27px;
+        }
+
+        .accelerator-label {
+            -fx-text-fill: -df-text-dark;
+            -fx-padding: 0 3px 0 0;
+        }
+
+        .slider-value-label {
+            -fx-text-fill: -df-text-dark;
+        }
+
+        .plane-toggle {
+            -fx-text-fill: -df-text;
+            -fx-background-radius: 0;
+            -fx-border-radius: 0;
+            -fx-min-width: 35px;
+            -fx-min-height: 30px;
+        }
+
+        .text-input {
+            -fx-background-color: -df-background-light;
+            -fx-border-color: -df-component-light;
+
+            &:hover {
+                -fx-border-color: -df-component-lighter;
+            }
+
+            &:focused {
+                -fx-border-width: 1px 1px 2px 1px;
+                -fx-background-color: -df-component-darker;
+                -fx-border-color: -df-component-lighter -df-component-lighter -df-defold-orange -df-component-lighter;
+            }
+        }
+
+        .button, .toggle-button {
+            -fx-border-color: -df-component-lighter;
+
+            &:hover, &:focused {
+                -fx-background-color: -df-component-light;
+                -fx-text-fill: -df-text-selected;
+            }
+        }
+
+        .toggle-button {
+            -fx-border-width: 1px;
+            &:selected {
+                -fx-text-fill: -df-text-selected;
+                -fx-background-color: -df-background-light;
+            }
+
+            &:selected:hover {
+                -fx-background-color: -df-background-light;
+            }
+
+            &:focused {
+                -fx-border-color: -df-text;
+            }
+        }
+
+        .reset-button {
+            -fx-padding: 12px 0px 5px 0px;
+            .button {
+                -fx-pref-width: 500px;
+                &:pressed, &:armed {
+                    -fx-background-color: -df-component-lighter;
+                    -fx-text-fill: -df-text-selected;
+                }
+            }
+        }
+
+        .toggle-row {
+            .slide-switch-label {
+                -fx-hgrow: ALWAYS;
+                -fx-padding: 0;
+            }
+        }
+
+        .slider {
+            -fx-pref-width: 115px;
+            .track {
+                -fx-background-color: -df-background-light;
+                -fx-border-color: -df-component-light;
+            }
+
+            .thumb {
+                -fx-background-color: -df-component-light;
+
+                &:hover,
+                &:pressed {
+                    -fx-background-color: -df-component-lighter;
+                }
+            }
+
+            &:focused .thumb {
+                -fx-background-color: -df-component-lighter;
+            }
+        }
+    }
+
+    .popup-shadow {
+        -fx-background-color: rgba(0, 0, 0, 0.3);
+        -fx-background-radius: 6px;
+        -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 1.0), 14, 0, 0, 0);
+    }
+
+    SVGPath {
+        -fx-fill: -df-text;
+    }
+
+    .separator {
+        &:horizontal, &:vertical {
+            .line {
+                -fx-border-color: -df-component-lighter;
             }
         }
     }
