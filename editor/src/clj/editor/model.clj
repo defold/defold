@@ -91,7 +91,7 @@
 (defn- resource-format-message [resource]
   (let [ext (resource/type-ext resource)]
     (if (str/blank? ext)
-      "no file extension"
+      (localization/message "error.no-file-extension")
       (str "." ext))))
 
 (defn- prop-resource-unsupported-format? [v name supported-exts]
