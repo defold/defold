@@ -119,13 +119,12 @@
    "windows-x64"      ["x86_64-win32"]})
 
 (defn jar-file
-  ^File [[artifact version & {:keys [classifier]} :as dependency]]
-  (io/file (str (System/getProperty "user.home")
-                "/.m2/repository/"
-                (str/replace (namespace artifact) "." "/")
-                "/" (name artifact)
-                "/" version
-                "/" (name artifact) "-" version
+  ^File [local-repo [artifact version & {:keys [classifier]}]]
+  (io/file local-repo
+           (str/replace (namespace artifact) "." "/")
+           (name artifact)
+           version
+           (str (name artifact) "-" version
                 (some->> classifier name (str "-")) ".jar")))
 
 (defn jogl-native-dep?
@@ -135,10 +134,10 @@
        classifier))
 
 (defn extract-jogl-native-dep
-  [[artifact version & {:keys [classifier]} :as dependency] pack-path selected-platforms]
+  [local-repo [_ _ & {:keys [classifier]} :as dependency] pack-path selected-platforms]
   (let [java-platform (str/replace-first classifier "natives-" "")
         natives-path (str "natives/" java-platform)]
-    (with-open [zip-file (ZipFile. (jar-file dependency))]
+    (with-open [zip-file (ZipFile. (jar-file local-repo dependency))]
       (doseq [^ZipEntry entry (enumeration-seq (.entries zip-file))]
         (when (.startsWith (.getName entry) natives-path)
           (let [libname (.getName (io/file (.getName entry)))]
@@ -150,9 +149,9 @@
                 (io/copy (.getInputStream zip-file entry) dest)))))))))
 
 (defn pack-jogl-natives
-  [pack-path dependencies selected-platforms]
+  [pack-path local-repo dependencies selected-platforms]
   (doseq [jogl-native-dep (filter jogl-native-dep? dependencies)]
-    (extract-jogl-native-dep jogl-native-dep pack-path selected-platforms)))
+    (extract-jogl-native-dep local-repo jogl-native-dep pack-path selected-platforms)))
 
 (defn pack-lua-language-server [pack-path lua-language-server-version selected-platforms]
   (let [release-path (-> (format "https://github.com/defold/lua-language-server/releases/download/%s/release.zip"
@@ -213,12 +212,14 @@
 
 (defn pack
   "Pack all files that need to be unpacked at runtime into `pack-path`."
-  [{:keys [dependencies packing] :as project} & [git-sha]]
+  [{:keys [dependencies local-repo packing] :as project} & [git-sha]]
   (let [sha (or git-sha (:engine project))
         archive-domain (get project :archive-domain)
         {:keys [pack-path lua-language-server-version target-platform]} packing
         platforms-to-pack (selected-platforms target-platform)]
+    (when-not local-repo
+      (throw (ex-info "Missing project :local-repo" {:task "pack"})))
     (FileUtils/deleteQuietly (io/file pack-path))
     (copy-artifacts pack-path archive-domain sha platforms-to-pack)
-    (pack-jogl-natives pack-path dependencies platforms-to-pack)
+    (pack-jogl-natives pack-path local-repo dependencies platforms-to-pack)
     (pack-lua-language-server pack-path lua-language-server-version platforms-to-pack)))
