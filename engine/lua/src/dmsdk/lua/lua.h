@@ -242,8 +242,11 @@ LUA_API int (lua_gc) (lua_State *L, int what, int data);
 
 LUA_API int   (lua_error) (lua_State *L);
 
-#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER) && !defined(lapi_c)
 LUA_API int   (dm_lua_error_asan) (lua_State *L);
+#ifdef lua_error
+#undef lua_error
+#endif
 #define lua_error dm_lua_error_asan
 #endif
 
