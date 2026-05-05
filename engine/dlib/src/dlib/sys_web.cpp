@@ -59,7 +59,7 @@ namespace dmSys
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         const char* const DeviceMount = dmSysGetUserPersistentDataRoot();
-        if (0 < strlen(DeviceMount))
+        if (DeviceMount && 0 < strlen(DeviceMount))
         {
             if (dmStrlCpy(path, DeviceMount, path_len) >= path_len)
                 return RESULT_INVAL;

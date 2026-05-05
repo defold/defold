@@ -30,6 +30,9 @@ var LibraryDmSys = {
         dmSysGetUserPersistentDataRoot: function() {
             if (null == DMSYS._cstr) {
                 var str = DMSYS.GetUserPersistentDataRoot();
+                if (str.length == 0) {
+                    return 0;
+                }
                 DMSYS._cstr = stringToNewUTF8(str);
             }
             return DMSYS._cstr;
