@@ -2359,6 +2359,53 @@ TEST_F(ParticleFxTest, GetSetProperties)
     dmResource::Release(m_Factory, material);
 }
 
+TEST_F(ParticleFxTest, PlayWithOverridesAfterComponentStorageGrowth)
+{
+    dmGameObject::DeleteCollections(m_Register);
+
+    dmGameObjectDDF::ComponenTypeDesc component_types[2] = {};
+    component_types[0].m_NameHash = dmHashString64("goc");
+    component_types[0].m_MaxCount = 32;
+    component_types[1].m_NameHash = dmHashString64("particlefxc");
+    component_types[1].m_MaxCount = 1;
+
+    dmGameObjectDDF::CollectionDesc collection_desc = {};
+    collection_desc.m_Name = "particlefx_low_component_capacity";
+    collection_desc.m_ComponentTypes.m_Data = component_types;
+    collection_desc.m_ComponentTypes.m_Count = sizeof(component_types) / sizeof(component_types[0]);
+
+    m_Collection = dmGameObject::NewCollection(collection_desc.m_Name, m_Factory, m_Register, m_projectOptions.m_MaxInstances, &collection_desc);
+    ASSERT_NE((void*)0, m_Collection);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    dmGameObject::PropertyOptions options;
+    ASSERT_TRUE(dmGameObject::AddPropertyOptionsKey(&options, dmHashString64("emitter")));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, dmHashString64("particlefx"), dmHashString64("animation"), options, dmGameObject::PropertyVar(dmHashString64("anim"))));
+
+    dmMessage::URL receiver;
+    receiver.m_Socket   = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path     = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = dmHashString64("particlefx");
+
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        dmMessage::Post(
+            0, &receiver,
+            dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash,
+            (uintptr_t)go,
+            (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor,
+            0, 0, 0);
+    }
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ParticleFxTest, FrustumCullsParticleEmitters)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
