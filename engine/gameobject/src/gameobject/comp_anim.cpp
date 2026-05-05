@@ -67,7 +67,7 @@ namespace dmGameObject
         uint16_t            m_Composite : 1;
         uint16_t            m_Backwards : 1;
         uint16_t            m_FirstUpdate : 1;
-        uint16_t            m_TransformsUpdated : 1;
+        uint16_t            m_IsGameObjectTransformProperty : 1;
     };
 
     struct AnimWorld
@@ -324,7 +324,7 @@ namespace dmGameObject
                     AddPropertyOptionsIndex(&property_opt, 0);
                     SetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, PropertyVar(v));
                 }
-                transforms_updated |= anim.m_TransformsUpdated;
+                transforms_updated |= anim.m_IsGameObjectTransformProperty;
             }
             if (completed)
             {
@@ -483,7 +483,7 @@ namespace dmGameObject
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
         animation.m_Composite = composite ? 1 : 0;
-        animation.m_TransformsUpdated = component_id == 0 && IsGameObjectTransformProperty(property_id) ? 1 : 0;
+        animation.m_IsGameObjectTransformProperty = component_id == 0 && IsGameObjectTransformProperty(property_id) ? 1 : 0;
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
             animation.m_Backwards = 1;
         animation.m_FirstUpdate = 1;

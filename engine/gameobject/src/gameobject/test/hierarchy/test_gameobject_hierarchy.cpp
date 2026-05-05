@@ -541,7 +541,7 @@ TEST_F(HierarchyTest, DirtyCollectionRefreshesAllWorldTransforms)
 
     SetCachedWorldTransform(m_Collection, parent, Matrix4::translation(Vector3(100, 100, 100)));
     SetCachedWorldTransform(m_Collection, child, Matrix4::translation(Vector3(200, 200, 200)));
-    m_Collection->m_Collection->m_DirtyTransforms = true;
+    m_Collection->m_Collection->m_DirtyTransforms = 1;
 
     dmGameObject::UpdateTransforms(m_Collection->m_Collection);
     AssertWorldPosition(parent, Point3(10, 0, 0));
