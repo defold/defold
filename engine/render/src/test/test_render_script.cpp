@@ -1741,6 +1741,7 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
         "    assert_near(camera.get_far_z(cams[1]), 100)\n"
         "    assert_near(camera.get_fov(cams[1]), 90)\n"
         "    assert_near(camera.get_orthographic_zoom(cams[1]), 1)\n"
+        "    assert_near(camera.get_orthographic_auto_zoom(cams[1]), 1)\n"
         // Test "set"
         "    camera.set_near_z(cams[1], -1)\n"
         "    assert_near(camera.get_near_z(cams[1]), -1)\n"
@@ -1749,6 +1750,9 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
         "    camera.set_fov(cams[1], 45)\n"
         "    assert_near(camera.get_fov(cams[1]), 45)\n"
         "    camera.set_orthographic_zoom(cams[1], 2)\n"
+        "    assert_near(camera.get_orthographic_zoom(cams[1]), 2)\n"
+        "    assert(pcall(camera.set_orthographic_zoom, cams[1], 0) == false)\n"
+        "    assert(pcall(camera.set_orthographic_zoom, cams[1], -1) == false)\n"
         "    assert_near(camera.get_orthographic_zoom(cams[1]), 2)\n"
         // Test set_camera()
         "    render.set_camera(cams[1])\n"

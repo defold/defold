@@ -271,6 +271,7 @@ namespace dmRender
         // based on the new parameters
         dmVMath::Point3  m_LastPosition;
         dmVMath::Quat    m_LastRotation;
+        float            m_OrthographicAutoZoom;
 
         RenderCameraData m_Data;
         uint8_t          m_UseFrustum : 1;
