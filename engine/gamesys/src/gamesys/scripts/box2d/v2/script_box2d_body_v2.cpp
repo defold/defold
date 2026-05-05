@@ -1144,6 +1144,7 @@ namespace dmGameSystem
  * @name b2d.body
  * @namespace b2d.body
  * @language Lua
+ * @version 2
  */
 
 /*# Static (immovable) body
