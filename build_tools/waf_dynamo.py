@@ -22,6 +22,7 @@ from waf_tests import get_test_harness
 from build_constants import TargetOS
 from cross import get_platform_file_fallback_tags, get_platform_file_tags, get_platform_roots, get_repo_root
 import sdk
+import wasm_runner
 
 if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
@@ -1610,9 +1611,8 @@ def run_tests(ctx, configfile = None, folders = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
 
-    if 'web' in ctx.env.PLATFORM and not ctx.env['NODEJS']:
-        Logs.info('Not running tests. node.js not found')
-        return
+    if 'web' in ctx.env.PLATFORM and not ctx.env['WASM_TEST_RUNNER']:
+        ctx.fatal('Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests.')
 
     harness = get_test_harness(ctx.env.PLATFORM)
     cwd = os.getcwd()
@@ -1686,7 +1686,7 @@ def linux_link_flags(self):
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
-def js_web_link_flags(self):
+def web_link_flags(self):
     platform = self.env['PLATFORM']
     if 'web' in platform and 'test' in self.features:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "web-pre.js")
@@ -2022,12 +2022,25 @@ def detect(conf):
         if emsdk is None:
             conf.fatal('EMSDK environment variable not found.')
 
-        if not conf.env['NODEJS']:
+        if not conf.env['WASM_TEST_RUNNER']:
             emsdk_node = sdkinfo['emsdk']['node']
-            path_list = None
-            if emsdk_node is not None and os.path.exists(emsdk_node):
-                path_list = [os.path.dirname(emsdk_node)]
-            conf.find_program('node', var='NODEJS', mandatory = False, path_list = path_list)
+            node_candidates = [emsdk_node] if emsdk_node is not None else []
+            runner, errors = wasm_runner.find_wasm_runner(node_candidates = node_candidates)
+            if runner:
+                conf.env['WASM_TEST_RUNNER'] = runner.command()
+                conf.env['WASM_TEST_RUNNER_NAME'] = runner.name
+                if runner.name == 'bun':
+                    conf.env['BUN'] = runner.command()
+                else:
+                    conf.env['NODEJS'] = runner.command()
+                Logs.info('Found wasm test runner: %s' % runner.description())
+            elif not Options.options.skip_tests:
+                message = 'Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests.'
+                if errors:
+                    message += '\nChecked runners:\n  ' + '\n  '.join(errors)
+                conf.fatal(message)
+            else:
+                Logs.warn('Bun or Node.js was not found. wasm-web tests will not run.')
 
         bin_dir = os.path.join(emsdk, 'upstream', 'emscripten')
 

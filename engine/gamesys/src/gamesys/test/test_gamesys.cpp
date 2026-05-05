@@ -649,7 +649,7 @@ static bool UpdateAndWaitUntilDone(
         frame_time = now;
 
         JobSystemUpdate(scriptlibcontext.m_JobContext, 0);
-        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
+        dmGameSystem::UpdateScriptLibs(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
         {
             dmLogError("Test failed on dmGameSystem::GetScriptSysGameSysLastUpdateResult()");
@@ -6664,11 +6664,12 @@ TEST_F(ScriptImageTest, TestImageBuffer)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/image/test_image_buffer.goc", dmHashString64("/test_image"));
     ASSERT_NE((void*)0, go);
 
-    if (DM_HOSTFS)
+    if (strlen(DM_HOSTFS) != 0)
     {
-        char run_str[128];
-        dmSnPrintf(run_str, sizeof(run_str), "set_host_fs(%s)", DM_HOSTFS);
-        ASSERT_TRUE(RunString(L, run_str));
+        lua_getglobal(L, "set_host_fs");
+        ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
+        lua_pushstring(L, DM_HOSTFS);
+        ASSERT_EQ(0, dmScript::PCall(L, 1, 0));
     }
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -8588,6 +8589,9 @@ TEST_F(SysTest, LoadBufferSync)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
+    lua_pushstring(m_Scriptlibcontext.m_LuaState, DM_HOSTFS);
+    lua_setglobal(m_Scriptlibcontext.m_LuaState, "test_host_fs");
+
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
@@ -8612,6 +8616,9 @@ static bool RunTestLoadBufferASync(int test_n,
 TEST_F(SysTest, LoadBufferASync)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    lua_pushstring(m_Scriptlibcontext.m_LuaState, DM_HOSTFS);
+    lua_setglobal(m_Scriptlibcontext.m_LuaState, "test_host_fs");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);

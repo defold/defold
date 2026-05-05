@@ -18,6 +18,8 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/easing.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include <dlib/time.h>
 
 #include "../../gameobject.h"
@@ -33,7 +35,8 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/anim");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/anim"));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);

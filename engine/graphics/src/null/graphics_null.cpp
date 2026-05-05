@@ -1949,6 +1949,10 @@ namespace dmGraphics
         else
         {
             SetTexture(context, texture, params);
+            if (callback)
+            {
+                callback(texture, user_data);
+            }
         }
     }
 
