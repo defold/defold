@@ -342,6 +342,8 @@ namespace dmRender
         Matrix4                     m_View;
         Matrix4                     m_Projection;
         Matrix4                     m_ViewProj;
+        Matrix4                     m_ProjectionAdjustedNDC;
+        Matrix4                     m_ViewProjAdjustedNDC;
         float                       m_Time;
         float                       m_Dt;
         dmGraphics::HContext        m_GraphicsContext;
@@ -358,6 +360,7 @@ namespace dmRender
         uint16_t                    m_OutOfResources                : 1;
         uint16_t                    m_StencilBufferCleared          : 1;
         uint16_t                    m_MultiBufferingRequired        : 1;
+        uint16_t                    m_UseAdjustedNDC               : 1;
         uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
         uint16_t                    m_IsRenderPaused                : 1;
     };
@@ -377,9 +380,11 @@ namespace dmRender
 
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
+    const Matrix4& GetProjectionMatrixForProgram(HRenderContext render_context);
+    const Matrix4& GetViewProjectionMatrixForProgram(HRenderContext render_context);
     void     GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out);
     void     SetProgramConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
-    void     SetProgramConstant(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& texture_matrix, dmGraphics::ShaderDesc::Language program_language, dmRenderDDF::MaterialDesc::ConstantType type, dmGraphics::HProgram program, dmGraphics::HUniformLocation location, HConstant constant);
+    void     SetProgramConstant(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& texture_matrix, dmRenderDDF::MaterialDesc::ConstantType type, dmGraphics::HUniformLocation location, HConstant constant);
     void     SetProgramRenderConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, const dmVMath::Vector4* values, uint32_t count);
     void     SetProgramConstantType(const dmArray<RenderConstant>& constants, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool     GetProgramConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, HConstant& out_value);

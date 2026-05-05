@@ -56,6 +56,15 @@ const static uint32_t COLOR_TRANSPARENT_RGBA = 0x00000000u;
 
 using namespace dmVMath;
 
+static void AssertMatrixUniformData(const dmVMath::Matrix4& expected, const float* actual)
+{
+    const float* expected_values = (const float*) &expected;
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        ASSERT_NEAR(expected_values[i], actual[i], EPSILON);
+    }
+}
+
 static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
 {
     dmRenderDDF::GlyphBank* bank = new dmRenderDDF::GlyphBank;
@@ -2576,8 +2585,28 @@ TEST(Constants, Constant)
     ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
-    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME);
-    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME, dmRender::GetConstantType(constant));
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
     dmRender::DeleteConstant(constant);
@@ -2623,9 +2652,7 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
                                  m_GraphicsContext,
                                  identity,
                                  identity,
-                                 dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
                                  dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME,
-                                 program,
                                  time_uniform->m_Location,
                                  0);
 
@@ -2635,6 +2662,86 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
     ASSERT_NEAR(dt,   written[1], EPSILON);
     ASSERT_NEAR(0.0f, written[2], EPSILON);
     ASSERT_NEAR(0.0f, written[3], EPSILON);
+
+    dmGraphics::DisableProgram(m_GraphicsContext);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+TEST_F(dmRenderTest, ConstantTypeInverseMatricesSetExpectedValues)
+{
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddTypeMember("matrix", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    shader_desc_builder.AddUniformBuffer("matrix", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_MAT4));
+
+    const char* vertex_data   = "";
+    const char* fragment_data = "";
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex_data, (uint32_t) strlen(vertex_data));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment_data, (uint32_t) strlen(fragment_data));
+
+    dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader, 0, 0);
+
+    const dmGraphics::Uniform* matrix_uniform = dmGraphics::GetUniform(program, dmHashString64("matrix"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, matrix_uniform->m_Location);
+
+    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
+    uint32_t set           = UNIFORM_LOCATION_GET_OP0(matrix_uniform->m_Location);
+    uint32_t binding       = UNIFORM_LOCATION_GET_OP1(matrix_uniform->m_Location);
+    uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(matrix_uniform->m_Location);
+    dmGraphics::ProgramResourceBinding& pgm_res = null_program->m_BaseProgram.m_ResourceBindings[set][binding];
+    uint32_t uniform_offset = pgm_res.m_UniformBufferOffset + buffer_offset;
+    float* written = (float*) (null_program->m_UniformData + uniform_offset);
+
+    dmVMath::Matrix4 world = dmVMath::Matrix4::translation(dmVMath::Vector3(2.0f, -3.0f, 4.0f)) * dmVMath::Matrix4::rotationZ(0.25f);
+    dmVMath::Matrix4 view = dmVMath::Matrix4::translation(dmVMath::Vector3(-1.0f, 2.0f, -5.0f)) * dmVMath::Matrix4::rotationY(0.5f);
+    dmVMath::Matrix4 projection = dmVMath::Matrix4::perspective(1.1f, 1.3f, 0.1f, 100.0f);
+    dmVMath::Matrix4 texture = dmVMath::Matrix4::identity();
+
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, projection);
+
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+
+    struct ConstantMatrixExpectation
+    {
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;
+        dmGraphics::ShaderDesc::Language        m_Language;
+        dmVMath::Matrix4                        m_Expected;
+    };
+
+    const dmVMath::Matrix4 view_projection = projection * view;
+    m_Context->m_UseAdjustedNDC = 1;
+    const dmVMath::Matrix4 adjusted_projection = dmRender::GetProjectionMatrixForProgram(m_Context);
+    const dmVMath::Matrix4 adjusted_view_projection = dmRender::GetViewProjectionMatrixForProgram(m_Context);
+    m_Context->m_UseAdjustedNDC = 0;
+
+    ConstantMatrixExpectation expectations[] =
+    {
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view_projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view * world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view_projection * world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_view_projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_view_projection * world) },
+    };
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(expectations); ++i)
+    {
+        const ConstantMatrixExpectation& expectation = expectations[i];
+        m_Context->m_UseAdjustedNDC = expectation.m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
+        dmRender::SetProgramConstant(m_Context,
+                                     m_GraphicsContext,
+                                     world,
+                                     texture,
+                                     expectation.m_Type,
+                                     matrix_uniform->m_Location,
+                                     0);
+        AssertMatrixUniformData(expectation.m_Expected, written);
+    }
+    m_Context->m_UseAdjustedNDC = 0;
 
     dmGraphics::DisableProgram(m_GraphicsContext);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
