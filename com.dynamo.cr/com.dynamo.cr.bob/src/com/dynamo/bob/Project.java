@@ -1957,12 +1957,23 @@ public class Project {
     }
 
     private static String libraryResultMessage(Library.Result dependency) {
-        return switch (dependency.problem()) {
+        var message = switch (dependency.problem()) {
             case Library.Problem.Missing _ -> "Missing library " + dependency.uri();
             case Library.Problem.FetchFailed _ -> "Failed to fetch library " + dependency.uri();
             case Library.Problem.InvalidArchive _ -> "The library " + dependency.uri() + " is not a valid Defold archive";
             case Library.Problem.DefoldMinVersion(var required) -> "The library " + dependency.uri() + " requires Defold " + required + " or newer";
             case Library.Problem.InstallFailed _ -> "Failed to install library " + dependency.uri();
+        };
+        var detail = libraryProblemDetail(dependency.problem());
+        return detail == null || detail.isBlank() ? message : message + ": " + detail;
+    }
+
+    private static String libraryProblemDetail(Library.Problem problem) {
+        return switch (problem) {
+            case Library.Problem.FetchFailed(var detail) -> detail;
+            case Library.Problem.InvalidArchive(var detail) -> detail;
+            case Library.Problem.InstallFailed(var detail) -> detail;
+            default -> null;
         };
     }
 

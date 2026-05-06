@@ -122,7 +122,7 @@ public final class Library {
                         results.add(tasks.get(i).get());
                     } catch (CancellationException e) {
                         var uri = uniqueUris.get(i);
-                        results.add(new Result(uri, cachedByUri.get(uri).result().archive(), new Problem.FetchFailed()));
+                        results.add(new Result(uri, cachedByUri.get(uri).result().archive(), new Problem.FetchFailed("cancelled while checking host availability")));
                     }
                 }
                 return results;
@@ -134,7 +134,7 @@ public final class Library {
                 }
                 var results = new ArrayList<Result>(uniqueUris.size());
                 for (var uri : uniqueUris) {
-                    results.add(new Result(uri, cachedByUri.get(uri).result().archive(), new Problem.FetchFailed()));
+                    results.add(new Result(uri, cachedByUri.get(uri).result().archive(), new Problem.FetchFailed(exceptionDetail(e))));
                 }
                 return results;
             } finally {
@@ -149,7 +149,7 @@ public final class Library {
     public static Archive readArchive(Path archivePath) throws IOException {
         var inspection = inspectArchive(archivePath);
         if (inspection.problem() != null) {
-            throw new IOException("Failed to inspect archive " + archivePath + ": " + inspection.problem());
+            throw new IOException("Failed to inspect archive " + archivePath + ": " + problemMessage(inspection.problem()));
         }
         return inspection.archive();
     }
@@ -209,7 +209,7 @@ public final class Library {
                         return cachedResult.result();
                     }
                     if (code >= 400) {
-                        return new Result(uri, cachedArchive, new Problem.FetchFailed());
+                        return new Result(uri, cachedArchive, new Problem.FetchFailed("HTTP " + code));
                     }
                     // Validate and inspect the downloaded archive before replacing the
                     // installed copy in the shared cache.
@@ -234,7 +234,7 @@ public final class Library {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            return new Result(uri, cachedResult.result().archive(), new Problem.FetchFailed());
+            return new Result(uri, cachedResult.result().archive(), new Problem.FetchFailed(exceptionDetail(e)));
         }
     }
 
@@ -252,10 +252,10 @@ public final class Library {
             return new Result(uri, installedArchive, null);
         } catch (IOException e) {
             if (previousArchive != null) {
-                return new Result(uri, previousArchive, new Problem.InstallFailed());
+                return new Result(uri, previousArchive, new Problem.InstallFailed(exceptionDetail(e)));
             }
             logger.log(Level.FINE, "Failed to install library " + uri, e);
-            return new Result(uri, null, new Problem.InstallFailed());
+            return new Result(uri, null, new Problem.InstallFailed(exceptionDetail(e)));
         }
     }
 
@@ -280,11 +280,11 @@ public final class Library {
         try (ZipFile archive = new ZipFile(archivePath.toFile())) {
             var baseDir = findBaseDir(archive);
             if (baseDir == null) {
-                return new ArchiveInspection(null, new Problem.InvalidArchive());
+                return new ArchiveInspection(null, new Problem.InvalidArchive("archive does not contain game.project"));
             }
             var projectEntry = archive.getEntry(baseDir.isEmpty() ? "game.project" : baseDir + "/game.project");
             if (projectEntry == null) {
-                return new ArchiveInspection(null, new Problem.InvalidArchive());
+                return new ArchiveInspection(null, new Problem.InvalidArchive("archive contains game.project at an unsupported path"));
             }
             var includeDirs = new TreeSet<String>();
             try (InputStream input = archive.getInputStream(projectEntry)) {
@@ -302,11 +302,11 @@ public final class Library {
                     }
                 }
             } catch (ParseException e) {
-                return new ArchiveInspection(null, new Problem.InvalidArchive());
+                return new ArchiveInspection(null, new Problem.InvalidArchive("failed to parse " + projectEntry.getName() + ": " + e.getMessage()));
             }
             return new ArchiveInspection(new Archive(archivePath, baseDir, Collections.unmodifiableSet(includeDirs)), null);
         } catch (IOException e) {
-            return new ArchiveInspection(null, new Problem.InvalidArchive());
+            return new ArchiveInspection(null, new Problem.InvalidArchive(exceptionDetail(e)));
         }
     }
 
@@ -438,6 +438,28 @@ public final class Library {
         return found ? result : 0;
     }
 
+    private static String exceptionDetail(Exception e) {
+        var message = e.getMessage();
+        if (message == null || message.isBlank()) {
+            return e.getClass().getSimpleName();
+        }
+        return e.getClass().getSimpleName() + ": " + message;
+    }
+
+    private static String problemMessage(Problem problem) {
+        return switch (problem) {
+            case Problem.Missing _ -> "missing";
+            case Problem.FetchFailed(var detail) -> appendDetail("fetch failed", detail);
+            case Problem.InvalidArchive(var detail) -> appendDetail("invalid archive", detail);
+            case Problem.DefoldMinVersion(var required) -> "requires Defold " + required + " or newer";
+            case Problem.InstallFailed(var detail) -> appendDetail("install failed", detail);
+        };
+    }
+
+    private static String appendDetail(String message, String detail) {
+        return detail == null || detail.isBlank() ? message : message + ": " + detail;
+    }
+
     private record TaggedPath(Path path, String tag) {
     }
 
@@ -477,11 +499,17 @@ public final class Library {
         }
 
         /// Refreshing the dependency failed during transport or HTTP fetch.
-        record FetchFailed() implements Problem {
+        record FetchFailed(String detail) implements Problem {
+            public FetchFailed() {
+                this(null);
+            }
         }
 
         /// The archive was present but unusable, for example due to invalid zip contents or missing required project metadata.
-        record InvalidArchive() implements Problem {
+        record InvalidArchive(String detail) implements Problem {
+            public InvalidArchive() {
+                this(null);
+            }
         }
 
         /// The dependency requires a newer Defold version than the current runtime.
@@ -491,7 +519,10 @@ public final class Library {
         }
 
         /// The dependency was fetched and validated, but committing it into the installed cache failed.
-        record InstallFailed() implements Problem {
+        record InstallFailed(String detail) implements Problem {
+            public InstallFailed() {
+                this(null);
+            }
         }
     }
 }

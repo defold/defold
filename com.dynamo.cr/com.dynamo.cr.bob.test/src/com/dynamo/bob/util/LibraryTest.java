@@ -16,6 +16,7 @@ package com.dynamo.bob.util;
 
 import org.junit.Test;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Set;
@@ -23,6 +24,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class LibraryTest {
 
@@ -35,6 +38,25 @@ public class LibraryTest {
         assertIncludeDirs("  ,, foo , bar ,,, baz  ", Set.of("foo", "bar", "baz"));
         assertIncludeDirs("\tfoo\t\tbar\tbaz", Set.of("foo", "bar", "baz"));
         assertIncludeDirs("im\\ possible", Set.of("im\\", "possible"));
+    }
+
+    @Test
+    public void testReadArchiveReportsMissingGameProject() throws Exception {
+        var archive = Files.createTempFile("library-test", ".zip");
+        try (var output = Files.newOutputStream(archive);
+             var zip = new ZipOutputStream(output)) {
+            zip.putNextEntry(new ZipEntry("README.md"));
+            zip.write("not a library".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+        try {
+            Library.readArchive(archive);
+            fail("Expected IOException");
+        } catch (IOException exception) {
+            assertTrue(exception.getMessage(), exception.getMessage().contains("archive does not contain game.project"));
+        } finally {
+            Files.deleteIfExists(archive);
+        }
     }
 
     private static void assertIncludeDirs(String includeDirs, Set<String> expected) throws Exception {
