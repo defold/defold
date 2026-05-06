@@ -12,14 +12,36 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_SCRIPT_RESOURCE_H
-#define DM_GAMESYS_SCRIPT_RESOURCE_H
-
-namespace dmGameSystem
+extern "C"
 {
-    void ScriptResourceRegister(const struct ScriptLibContext& context);
-    void ScriptResourceUpdate(const struct ScriptLibContext& context);
-    void ScriptResourceFinalize(const struct ScriptLibContext& context);
+#ifdef LUA_ANSI
+#undef LUA_ANSI
+#define LUA_ANSI
+#endif
+#include <lua/lua.h>
+#include <lua/lauxlib.h>
 }
 
-#endif // DM_GAMESYS_SCRIPT_RESOURCE_H
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+#undef lua_error
+#undef luaL_error
+
+extern "C" void __asan_handle_no_return();
+
+extern "C" int dm_lua_error_asan(lua_State* L)
+{
+    __asan_handle_no_return();
+    return DM_LUA_RENAME(lua_error)(L);
+}
+
+extern "C" int dm_luaL_error_asan(lua_State* L, const char* fmt, ...)
+{
+    va_list argp;
+    va_start(argp, fmt);
+    luaL_where(L, 1);
+    lua_pushvfstring(L, fmt, argp);
+    va_end(argp);
+    lua_concat(L, 2);
+    return dm_lua_error_asan(L);
+}
+#endif

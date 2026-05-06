@@ -18,6 +18,8 @@
 #include <dlib/math.h>
 #include <dlib/dlib.h>
 
+#include <emscripten/emscripten.h>
+
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -30,9 +32,24 @@ static bool g_CrashDumpEnabled = true;
 static dmCrash::FCallstackExtraInfoCallback g_CrashExtraInfoCallback = 0;
 static void*                                g_CrashExtraInfoCallbackCtx = 0;
 
+extern "C" void JSWriteDump(char* json_stacktrace);
+
 void dmCrash::WriteDump()
 {
-    // WriteDump is void for web builds, see JSWriteDump.
+    char* stacktrace = (char*) EM_ASM_INT({
+        var stacktrace = "";
+        try
+        {
+            throw new Error();
+        }
+        catch (err)
+        {
+            stacktrace = err && err.stack ? err.stack : "" + err;
+        }
+        return stringToNewUTF8(stacktrace);
+    });
+    JSWriteDump(stacktrace);
+    free(stacktrace);
 }
 
 void dmCrash::SetCrashFilename(const char*)

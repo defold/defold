@@ -340,6 +340,7 @@ namespace dmHttpService
         worker->m_RangeStart = 0;
         worker->m_RangeEnd = 0;
         worker->m_DocumentSize = 0;
+        worker->m_ReportProgress = false;
 
         if (request->m_ReportProgress)
         {
@@ -511,6 +512,7 @@ namespace dmHttpService
             worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
             worker->m_Canceled = 0;
+            worker->m_ReportProgress = false;
             service->m_Workers.Push(worker);
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
