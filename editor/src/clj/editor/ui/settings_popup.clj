@@ -41,23 +41,6 @@
 
 (defonce ^List axes [:x :y :z])
 
-;; TODO JOE: Inline this
-(defn make-popup
-  ^PopupControl [^Styleable owner ^Node content]
-  (let [popup (proxy [PopupControl] []
-                (getStyleableParent [] owner))
-        *skinnable (atom popup)
-        popup-skin (reify Skin
-                     (getSkinnable [_] @*skinnable)
-                     (getNode [_] content)
-                     (dispose [_] (reset! *skinnable nil)))]
-    (doto popup
-      (.setSkin popup-skin)
-      (.setConsumeAutoHidingEvents false)
-      (.setAutoHide true)
-      (.setAutoFix true)
-      (.setHideOnEscape true))))
-
 (defn- make-toggle-row-fx [{:keys [key label accelerator state swap-state on-selected-changed style-class]}]
   {:fx/type fxui/horizontal
    :style-class (cond-> ["toggle-row"]
@@ -65,8 +48,9 @@
    :alignment :center-left
    :on-mouse-clicked (fn [_]
                        (swap-state assoc key (not (boolean (key state))))
-                       (on-selected-changed (not (boolean (key state)))))
-   ;; :disable true
+                       (when on-selected-changed
+                         (on-selected-changed (not (boolean (key state))))))
+   :disable (contains? (:disabled state) key)
    :children [{:fx/type fxui/label
                :style-class "slide-switch-label"
                :text (or label "")
@@ -82,9 +66,10 @@
                 :selected (key state)
                 :on-selected-changed (fn [v]
                                        (swap-state assoc key v)
-                                       (on-selected-changed v))}}]})
+                                       (when on-selected-changed
+                                         (on-selected-changed v)))}}]})
 
-(defn- make-slider-row-fx [{:keys [key label min max snap-to state swap-state slider-value->string on-value-changed]}]
+(defn- make-slider-row-fx [{:keys [popup key label min max snap-to state swap-state slider-value->string on-value-changed]}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
         snap-fn (if snap-to
                   (fn [^double v]
@@ -100,21 +85,26 @@
                  :text (slider-value->string (key state))}
                 {:fx/type fxui/ext-ensure-focus-traversable
                  :desc
-                 (cond-> {:fx/type fx.slider/lifecycle
-                          :min min
-                          :max max
-                          :value (key state)
-                          :block-increment 0.1
-                          :on-value-changed (fn [v]
-                                              (on-value-changed v)
-                                              (swap-state assoc key v))}
-                         snap-to
-                         (assoc :snap-to-ticks true :major-tick-unit snap-to
-                                :on-mouse-released (fn [^javafx.event.Event e]
-                                                     (let [slider ^javafx.scene.control.Slider (.getSource e)
-                                                           v (snap-fn (.getValue slider))]
-                                                       (on-value-changed v)
-                                                       (swap-state assoc key v)))))}]}))
+                 {:fx/type fx/ext-on-instance-lifecycle
+                  :on-created (fn [^Slider slider]
+                                (.setOnMouseEntered slider (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
+                                (.setOnMouseExited slider (ui/event-handler _ (.setAutoHide ^PopupControl popup true))))
+                  :desc
+                  (cond-> {:fx/type fx.slider/lifecycle
+                           :min min
+                           :max max
+                           :value (key state)
+                           :block-increment 0.1
+                           :on-value-changed (fn [v]
+                                               (on-value-changed v)
+                                               (swap-state assoc key v))}
+                    snap-to
+                    (assoc :snap-to-ticks true :major-tick-unit snap-to
+                           :on-mouse-released (fn [^javafx.event.Event e]
+                                                (let [slider ^javafx.scene.control.Slider (.getSource e)
+                                                      v (snap-fn (.getValue slider))]
+                                                  (on-value-changed v)
+                                                  (swap-state assoc key v)))))}}]}))
 
 ;; `fxui/color-picker` is a compound component (an HBox containing a value-field and a JavaFX
 ;; ColorPicker), so we can't just wrap it the same way -- we need to reach into its internals to
@@ -206,84 +196,45 @@
                              (on-reset swap-state)
                              (.requestFocus (.getParent ^Node (.getSource e))))}}]})
 
-(defn- make-row-fx [keymap localization-state state swap-state descriptor]
-  (case (:type descriptor)
-    :toggle
-    {:fx/type make-toggle-row-fx
-     :label (localization-state (localization/message (:label descriptor)))
-     :accelerator (keymap/display-text keymap (:command descriptor) "")
-     :key (:key descriptor)
-     :state state
-     :swap-state swap-state
-     :style-class (:style-class descriptor)
-     :on-selected-changed #((:on-value-changed descriptor) %)}
+(defn- make-row-fx [popup keymap localization-state state swap-state descriptor]
+  (let [descriptor-with-state (merge descriptor {:state state :swap-state swap-state})
+        label #(localization-state (localization/message (:label descriptor)))]
+    (case (:type descriptor)
+      :toggle      (assoc descriptor-with-state
+                          :fx/type make-toggle-row-fx
+                          :label (label)
+                          :accelerator (keymap/display-text keymap (:command descriptor) "")
+                          :on-selected-changed (:on-value-changed descriptor))
+      :slider      (assoc descriptor-with-state :fx/type make-slider-row-fx :label (label) :popup popup)
+      :color       (assoc descriptor-with-state :fx/type make-color-row-fx  :label (label))
+      :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row-fx)
+      :vec3-toggle (assoc descriptor-with-state :fx/type make-vec3-toggle-row-fx :label (label))
+      :reset-all   {:fx/type make-reset-button-fx
+                    :text (localization-state (localization/message "scene-popup.reset-defaults-button"))
+                    :swap-state swap-state
+                    :on-reset (:on-reset descriptor)}
+      :space     {:fx/type fxui/horizontal :style-class "settings-divider-row"
+                  :children [{:fx/type fx.region/lifecycle}]}
+      :separator {:fx/type fxui/horizontal :style-class "settings-divider-row"
+                  :children [{:fx/type fx.separator/lifecycle :h-box/hgrow :always :max-width Double/MAX_VALUE}]}
+      nil)))
 
-    :slider
-    {:fx/type make-slider-row-fx
-     :label (localization-state (localization/message (:label descriptor)))
-     :min (:min descriptor)
-     :max (:max descriptor)
-     :snap-to (:snap-to descriptor)
-     :slider-value->string (:slider-value->string descriptor)
-     :key (:key descriptor)
-     :state state
-     :swap-state swap-state
-     :on-value-changed #((:on-value-changed descriptor) %)}
-
-    :color
-    {:fx/type make-color-row-fx
-     :label (localization-state (localization/message (:label descriptor)))
-     :key (:key descriptor)
-     :state state
-     :swap-state swap-state
-     :on-value-changed #((:on-value-changed descriptor) %)}
-
-    :vec3-floats
-    {:fx/type make-vec3-floats-row-fx
-     :key (:key descriptor)
-     :state state
-     :swap-state swap-state
-     :on-value-changed #((:on-value-changed descriptor) %)}
-
-    :vec3-toggle
-    {:fx/type make-vec3-toggle-row-fx
-     :label (localization-state (localization/message (:label descriptor)))
-     :key (:key descriptor)
-     :state state
-     :swap-state swap-state
-     :on-value-changed #((:on-value-changed descriptor) %)}
-
-    :reset-all
-    {:fx/type make-reset-button-fx
-     :text (localization-state (localization/message "scene-popup.reset-defaults-button"))
-     :swap-state swap-state
-     :on-reset (:on-reset descriptor)}
-
-    :space
-    {:fx/type fxui/horizontal
-     :style-class "settings-divider-row"
-     :children [{:fx/type fx.region/lifecycle}]}
-
-    :separator
-    {:fx/type fxui/horizontal
-     :style-class "settings-divider-row"
-     :children [{:fx/type fx.separator/lifecycle
-                 :h-box/hgrow :always
-                 :max-width Double/MAX_VALUE}]}
-
-    nil))
-
+;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `make-popup` above). PopupWindow has
+;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
+;; breaking Tab navigation inside the popup. For the simple controls we own (toggles, sliders, value
+;; fields), we wrap them in `fxui/ext-ensure-focus-traversable`, which observes the property and
+;; forces it back to true.
 (fxui/defc cljfx-popup-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
               :key :localization-state}
              {:fx/type fx/ext-state
               :initial-state (:state props)}]}
-  [{:keys [descriptors keymap state swap-state on-change localization-state]}]
+  [{:keys [popup descriptors keymap state swap-state on-change localization-state]}]
   {:fx/type fxui/vertical
    :style-class "popup-settings"
    :children (keep (fn [descriptor]
-                     (make-row-fx keymap localization-state state swap-state descriptor))
+                     (make-row-fx popup keymap localization-state state swap-state descriptor))
                    descriptors)})
 
 (defn settings-visible? [^Parent owner]
@@ -293,11 +244,22 @@
   ^Point2D [^Parent container width x-offset]
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
 
-;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `make-popup` above). PopupWindow has
-;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
-;; breaking Tab navigation inside the popup. For the simple controls we own (toggles, sliders, value
-;; fields), we wrap them in `fxui/ext-ensure-focus-traversable`, which observes the property and
-;; forces it back to true.
+(defn- make-popup
+  ^PopupControl [^Styleable owner ^Node content]
+  (let [popup (proxy [PopupControl] []
+                (getStyleableParent [] owner))
+        *skinnable (atom popup)
+        popup-skin (reify Skin
+                     (getSkinnable [_] @*skinnable)
+                     (getNode [_] content)
+                     (dispose [_] (reset! *skinnable nil)))]
+    (doto popup
+      (.setSkin popup-skin)
+      (.setConsumeAutoHidingEvents false)
+      (.setAutoHide true)
+      (.setAutoFix true)
+      (.setHideOnEscape true))))
+
 (defn show!
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors]
    (show! owner keymap localization state on-change width x-offset setting-descriptors nil))
@@ -320,6 +282,7 @@
                                             {:fx/type cljfx-popup-view
                                              :descriptors visible-descriptors
                                              :keymap keymap
+                                             :popup popup
                                              :localization localization
                                              :state state
                                              :on-change on-change}]}}))]

@@ -76,7 +76,6 @@
   (property app-view g/NodeID)
   (property visibility-filters-enabled? g/Bool (default true))
   (property filtered-renderable-tags types/RenderableTags (default #{:dev-visibility-bounds}))
-  (property popup-state-atom g/Any (default nil))
   (property popup-advance-fn g/Any (default nil))
 
   (input active-resource-node+type g/Any)
@@ -291,12 +290,6 @@
                     :on-value-changed (toggle-tag-visibility-fn scene-visibility :dev-visibility-bounds)
                     :appear-filtered false}]))))
 
-;; TODO JOE: We might not need this anymore?
-;; (def ^:private toggleable-filters
-;;   (coll/into-> renderable-tag-toggles-info #{}
-;;     (filter #(and (not (:always-enabled %)) (= (:type %) :toggle)))
-;;     (map :tag)))
-
 (defn- appear-filtered-renderable-tags [scene-visibility]
   (into #{}
         (keep (fn [{:keys [appear-filtered key]
@@ -305,14 +298,11 @@
                   key)))
         (renderable-tag-descriptors scene-visibility)))
 
-(defn toggle-button [app-view]
-  (some-> ^Tab (g/node-value app-view :active-tab)
-          .getContent
-          (.lookup "#visibility-settings-graphic")
-          .getParent))
-
 (defn sync-filter-button-style! [app-view scene-visibility evaluation-context]
-  (when-let [btn ^ToggleButton (toggle-button app-view)]
+  (when-let [btn ^ToggleButton (some-> ^Tab (g/node-value app-view :active-tab)
+                                       .getContent
+                                       (.lookup "#visibility-settings-graphic")
+                                       .getParent)]
     (if (and (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)
              (some (appear-filtered-renderable-tags scene-visibility)
                    (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)))
@@ -322,30 +312,32 @@
 (defn show-settings! [keymap localization ^Parent owner scene-visibility]
   (let [setting-descriptors (mapv #(dissoc % :always-enabled :appear-filtered)
                                   (renderable-tag-descriptors scene-visibility))
+        always-enabled-keys (into #{}
+                                  (keep (fn [d]
+                                          (when (:always-enabled d) (:key d))))
+                                  (renderable-tag-descriptors scene-visibility))
         keys (keep :key setting-descriptors)
-        state (into {} (map (fn [key]
-                              [key (if (= :visibility-filters-enabled? key)
-                                     (g/node-value scene-visibility :visibility-filters-enabled?)
-                                     (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) key)))]))
-                    keys)
+        compute-state (fn []
+                        (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
+                              filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)
+                              base (into {} (map (fn [key]
+                                                   [key (if (= :visibility-filters key)
+                                                          filters-enabled?
+                                                          (not (contains? filtered-tags key)))]))
+                                         keys)]
+                          (assoc base :disabled (if filters-enabled?
+                                                  #{}
+                                                  (into #{} (remove always-enabled-keys) keys)))))
         on-change (fn [key v]
-                    (if (= :visibility-filters-enabled? key)
+                    (if (= :visibility-filters key)
                       (g/set-property! scene-visibility :visibility-filters-enabled? v)
                       (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key))
                     (sync-popup-state! scene-visibility))
-        advance! (settings-popup/show! owner keymap localization state on-change 230 0.0 setting-descriptors nil
+        advance! (settings-popup/show! owner keymap localization (compute-state) on-change 230 0.0 setting-descriptors nil
                                        (fn [_]
                                          (g/set-property! scene-visibility :popup-advance-fn nil)
                                          (sync-popup-state! scene-visibility)))
-        advance-with-state! (fn []
-                              (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
-                                    filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)
-                                    new-state (into {} (map (fn [key]
-                                                              [key (if (= :visibility-filters-enabled? key)
-                                                                     filters-enabled?
-                                                                     (not (contains? filtered-tags key)))]))
-                                                    keys)]
-                                (advance! new-state)))]
+        advance-with-state! #(advance! (compute-state))]
     (when advance!
       (g/set-property! scene-visibility :popup-advance-fn advance-with-state!))))
 

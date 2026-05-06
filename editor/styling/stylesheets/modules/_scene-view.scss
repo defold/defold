@@ -199,6 +199,12 @@
                     -fx-hgrow: ALWAYS;
                     -fx-padding: 0;
                 }
+                .slide-switch:focused .mark {
+                    -fx-background-color: derive(-df-component-lighter, 15%);
+                }
+                .slide-switch:focused:selected .mark {
+                    -fx-background-color: derive(-df-defold-blue-lighter, 30%);
+                }
             }
 
             .slider {
