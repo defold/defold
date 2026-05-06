@@ -19,7 +19,7 @@ public class PackedResources {
     private static volatile boolean unpackStarted = false;
     private static volatile boolean unpackDone = false;
     private static final Object unpackLock = new Object();
-    private static JarFile jarFile;
+    private static final AtomicReference<Throwable> unpackError = new AtomicReference<>();
     private static final Class<?>[] NATIVE_LIB_CLASSES = new Class<?>[] {
             TexcLibraryJni.class,
             ShadercJni.class,
@@ -75,7 +75,7 @@ public class PackedResources {
         }
     }
 
-    private static void runUnpackAllLibsAsync(Platform platform, Thread[] nativeLibThreads, AtomicReference<Throwable> nativeLibError) throws IOException {
+    private static void runUnpackAllLibsAsync(Platform platform) throws IOException {
         TimeProfiler.start("runUnpackAllLibsAsync");
         String platformPair = platform.getPair();
         File targetDir = new File(Bob.getRootFolder(), platformPair);
@@ -99,35 +99,37 @@ public class PackedResources {
         if (libexecRoot.getProtocol().equals("jar")) {
             try {
                 JarURLConnection jarConnection = (JarURLConnection) libexecRoot.openConnection();
-                jarFile = jarConnection.getJarFile();
-                String basePath = "libexec/" + platformPair + "/";
-                String luaZip = "lib/luajit-share.zip";
-                jarFile.stream().forEach(entry -> {
-                    String name = entry.getName();
-                    if (!entry.isDirectory()) {
-                        if(name.startsWith(basePath) && !name.contains("dmengine")) {
-                            String relativeName = name.substring(basePath.length());
-                            File targetFile = new File(targetDir, relativeName);
-                            try {
-                                URL resourceUrl = Bob.class.getResource("/" + name);
-                                if (resourceUrl != null) {
-                                    Bob.atomicCopy(resourceUrl, targetFile, true);
+                jarConnection.setUseCaches(false);
+                try (JarFile jarFile = jarConnection.getJarFile()) {
+                    String basePath = "libexec/" + platformPair + "/";
+                    String luaZip = "lib/luajit-share.zip";
+                    jarFile.stream().forEach(entry -> {
+                        String name = entry.getName();
+                        if (!entry.isDirectory()) {
+                            if(name.startsWith(basePath) && !name.contains("dmengine")) {
+                                String relativeName = name.substring(basePath.length());
+                                File targetFile = new File(targetDir, relativeName);
+                                try {
+                                    URL resourceUrl = Bob.class.getResource("/" + name);
+                                    if (resourceUrl != null) {
+                                        Bob.atomicCopy(resourceUrl, targetFile, true);
+                                    }
+                                } catch (IOException e) {
+                                    throw new RuntimeException(String.format("Failed to copy packed tool '%s' to '%s'", name, targetFile.getAbsolutePath()), e);
                                 }
-                            } catch (IOException e) {
-                                throw new RuntimeException("Failed to copy tool: " + name, e);
+                            }
+                            else if (name.startsWith(luaZip)) {
+                                try {
+                                    Bob.extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(Bob.getRootFolder(), "share"));
+                                } catch (IOException e) {
+                                    throw new RuntimeException("Failed to extract packed LuaJIT share archive: " + name, e);
+                                }
                             }
                         }
-                        else if (name.startsWith(luaZip)) {
-                            try {
-                                Bob.extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(Bob.getRootFolder(), "share"));
-                            } catch (IOException e) {
-                                throw new RuntimeException("Failed to extract: " + name, e);
-                            }
-                        }
-                    }
-                });
+                    });
+                }
             } catch (IOException e) {
-                throw new IOException("Failed to unpack tools from /libexec/" + platformPair, e);
+                throw new IOException(String.format("Failed to unpack packed tools from /libexec/%s into '%s'", platformPair, targetDir.getAbsolutePath()), e);
             }
         } else if ("file".equals(libexecRoot.getProtocol())) {
             // Directory in file system case (e.g. during development)
@@ -141,7 +143,7 @@ public class PackedResources {
                         try {
                             Bob.atomicCopy(file.toURI().toURL(), targetFile, true);
                         } catch (IOException e) {
-                            throw new RuntimeException("Failed to copy tool: " + file.getName(), e);
+                            throw new RuntimeException(String.format("Failed to copy packed tool '%s' to '%s'", file.getName(), targetFile.getAbsolutePath()), e);
                         }
                     }
                 }
@@ -153,7 +155,7 @@ public class PackedResources {
                 try {
                     Bob.extract(luajitZip.toURI().toURL(), new File(Bob.getRootFolder(), "share"));
                 } catch (IOException e) {
-                    throw new RuntimeException("Failed to extract: " + luajitZip.getAbsolutePath(), e);
+                    throw new RuntimeException("Failed to extract packed LuaJIT share archive: " + luajitZip.getAbsolutePath(), e);
                 }
             }
         } else {
@@ -171,15 +173,16 @@ public class PackedResources {
                 return;
             }
             unpackStarted = true;
+            unpackError.set(null);
         }
-        final AtomicReference<Throwable> nativeLibError = new AtomicReference<>();
-        final Thread[] nativeLibThreads = startNativeLibLoads(nativeLibError);
         Thread unpackThread = new Thread(() -> {
             try {
-                runUnpackAllLibsAsync(platform, nativeLibThreads, nativeLibError);
+                runUnpackAllLibsAsync(platform);
+                AtomicReference<Throwable> nativeLibError = new AtomicReference<>();
+                Thread[] nativeLibThreads = startNativeLibLoads(nativeLibError);
                 awaitNativeLibLoads(nativeLibThreads, nativeLibError);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to unpack tools", e);
+            } catch (Throwable t) {
+                unpackError.compareAndSet(null, t);
             } finally {
                 synchronized (unpackLock) {
                     unpackDone = true;
@@ -206,14 +209,16 @@ public class PackedResources {
                     throw new RuntimeException("Interrupted while waiting for tool unpack", e);
                 }
             }
+            Throwable error = unpackError.get();
+            if (error != null) {
+                throw new RuntimeException("Failed to unpack bundled Bob tools", error);
+            }
         }
     }
 
     public static void reset() throws IOException {
         unpackStarted = false;
         unpackDone = false;
-        if (jarFile != null) {
-            jarFile.close();
-        }
+        unpackError.set(null);
     }
 }
