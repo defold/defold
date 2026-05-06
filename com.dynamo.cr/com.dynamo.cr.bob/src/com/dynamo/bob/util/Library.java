@@ -47,6 +47,7 @@ import java.util.zip.ZipFile;
 public final class Library {
     private static final Logger logger = Logger.getLogger(Library.class.getName());
     private static final int FETCHES_PER_HOST = 4;
+    private static long HOST_PROBE_TIMEOUT = 5000;
     private static HttpClient HTTP_CLIENT = httpClient(2000);
 
     private Library() {
@@ -54,6 +55,10 @@ public final class Library {
 
     public static void setConnectTimeout(long timeoutMillis) {
         HTTP_CLIENT = httpClient(timeoutMillis);
+    }
+
+    public static void setHostProbeTimeout(long timeoutMillis) {
+        HOST_PROBE_TIMEOUT = timeoutMillis;
     }
 
     /// Returns the dependency state currently available in the local library
@@ -164,10 +169,10 @@ public final class Library {
 
     private static void hostProbeTask(URI host, List<Future<Result>> downloadTasks, ExecutorService executor) {
         try {
-            var request = HttpRequest.newBuilder(host).method("HEAD", HttpRequest.BodyPublishers.noBody()).timeout(Duration.ofSeconds(5)).build();
-            // Unfortunately, 5 second timeout on an HTTP request does not mean that send will abort after
-            // 5 seconds, so we separately do a hard timeout
-            executor.submit(() -> HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding())).get(5, TimeUnit.SECONDS);
+            var request = HttpRequest.newBuilder(host).method("HEAD", HttpRequest.BodyPublishers.noBody()).timeout(Duration.ofMillis(HOST_PROBE_TIMEOUT)).build();
+            // Unfortunately, a timeout on an HTTP request does not mean that send will abort after
+            // that duration, so we separately do a hard timeout.
+            executor.submit(() -> HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding())).get(HOST_PROBE_TIMEOUT, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException | TimeoutException e) {
