@@ -1852,6 +1852,113 @@ static void LogFrameBufferError(GLenum status)
             context->m_BlendEquationMinMaxSupport = 1;
         }
 
+        // Populate the shared GraphicsContextLimits from runtime GL queries.
+        // Anything GL doesn't expose directly (or that has no clean equivalent) is
+        // commented inline so we can revisit later.
+        {
+            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+            GLint v = 0;
+
+            // GL has no concept of "max number of 2D/3D/Cube textures" — it
+            // exposes the maximum dimension instead. Reuse those values here
+            // for now; revisit if we want a true count.
+            // TODO(opengl): m_MaxTextureCount2D / m_MaxTextureCount3D / m_MaxTextureCountCube
+            //               — GL exposes GL_MAX_TEXTURE_SIZE / GL_MAX_3D_TEXTURE_SIZE
+            //               / GL_MAX_CUBE_MAP_TEXTURE_SIZE (max dimension, not count).
+            limits.m_MaxTextureCount2D   = (uint32_t) gl_max_texture_size;
+            limits.m_MaxTextureCount3D   = 0;
+            limits.m_MaxTextureCountCube = 0;
+        #ifdef GL_MAX_3D_TEXTURE_SIZE
+            if (context->m_3DTextureSupport)
+            {
+                v = 0; glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &v); CLEAR_GL_ERROR;
+                limits.m_MaxTextureCount3D = (uint32_t) v;
+            }
+        #endif
+        #ifdef GL_MAX_CUBE_MAP_TEXTURE_SIZE
+            v = 0; glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &v); CLEAR_GL_ERROR;
+            limits.m_MaxTextureCountCube = (uint32_t) v;
+        #endif
+
+        #ifdef GL_MAX_ARRAY_TEXTURE_LAYERS
+            limits.m_MaxTextureArrayLayers = 0;
+            if (context->m_TextureArraySupport)
+            {
+                v = 0; glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &v); CLEAR_GL_ERROR;
+                limits.m_MaxTextureArrayLayers = (uint32_t) v;
+            }
+        #else
+            // TODO(opengl): m_MaxTextureArrayLayers — GL_MAX_ARRAY_TEXTURE_LAYERS
+            //               not declared on this platform's headers.
+            limits.m_MaxTextureArrayLayers = 0;
+        #endif
+
+            // GL_MAX_TEXTURE_IMAGE_UNITS is the closest match for both
+            // "samplers per stage" and "sampled textures per stage" in GL —
+            // there's no separate count for samplers vs. sampled textures
+            // until ARB_separate_shader_objects-era APIs.
+            v = 0; glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &v); CLEAR_GL_ERROR;
+            limits.m_MaxSamplersPerStage = (uint32_t) v;
+            limits.m_MaxTexturesPerStage = (uint32_t) v;
+
+        #ifdef GL_MAX_COLOR_ATTACHMENTS
+            v = 0; glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &v); CLEAR_GL_ERROR;
+            limits.m_MaxColorAttachments = (uint32_t) v;
+        #else
+            // TODO(opengl): m_MaxColorAttachments — GL_MAX_COLOR_ATTACHMENTS
+            //               not declared on this platform's headers.
+            limits.m_MaxColorAttachments = 1;
+        #endif
+
+            limits.m_MaxComputeWorkgroupSizeX       = 0;
+            limits.m_MaxComputeWorkgroupSizeY       = 0;
+            limits.m_MaxComputeWorkgroupSizeZ       = 0;
+            limits.m_MaxComputeWorkgroupInvocations = 0;
+            limits.m_MaxComputeSharedMemorySize     = 0;
+        #if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+            if (context->m_ComputeSupport)
+            {
+                GLint wg = 0;
+                glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, &wg); CLEAR_GL_ERROR;
+                limits.m_MaxComputeWorkgroupSizeX = (uint32_t) wg;
+                glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, &wg); CLEAR_GL_ERROR;
+                limits.m_MaxComputeWorkgroupSizeY = (uint32_t) wg;
+                glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, &wg); CLEAR_GL_ERROR;
+                limits.m_MaxComputeWorkgroupSizeZ = (uint32_t) wg;
+
+                v = 0; glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &v); CLEAR_GL_ERROR;
+                limits.m_MaxComputeWorkgroupInvocations = (uint32_t) v;
+                v = 0; glGetIntegerv(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE, &v); CLEAR_GL_ERROR;
+                limits.m_MaxComputeSharedMemorySize = (uint32_t) v;
+            }
+        #else
+            // TODO(opengl): compute workgroup limits not available on this
+            //               GL/GLES profile. Requires GL 4.3 / GLES 3.1.
+        #endif
+
+        #ifdef GL_MAX_UNIFORM_BLOCK_SIZE
+            v = 0; glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &v); CLEAR_GL_ERROR;
+            limits.m_MaxUniformBufferSize = (uint32_t) v;
+        #else
+            // TODO(opengl): m_MaxUniformBufferSize — GL_MAX_UNIFORM_BLOCK_SIZE
+            //               requires GL 3.1 / GLES 3.0.
+            limits.m_MaxUniformBufferSize = 0;
+        #endif
+
+        #ifdef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
+            limits.m_MaxStorageBufferSize = 0;
+            if (context->m_ComputeSupport)
+            {
+                v = 0; glGetIntegerv(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, &v); CLEAR_GL_ERROR;
+                limits.m_MaxStorageBufferSize = (uint32_t) v;
+            }
+        #else
+            // TODO(opengl): m_MaxStorageBufferSize — GL_MAX_SHADER_STORAGE_BLOCK_SIZE
+            //               requires GL 4.3 / GLES 3.1 with SSBO support.
+            limits.m_MaxStorageBufferSize = 0;
+        #endif
+        }
+
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
             OpenGLPrintDeviceInfo(_context);

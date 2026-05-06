@@ -103,6 +103,25 @@ namespace dmGraphics
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_16BPP;
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
+
+        // Synthetic limits for the null adapter — these are not queried from any
+        // hardware, just generous defaults that match what tests expect to be
+        // "available". They roughly mirror Vulkan / D3D12 Feature Level 11_0
+        // guarantees so test code can assume a baseline modern profile.
+        m_BaseContext.m_Limits.m_MaxTextureCount2D              = 16384;
+        m_BaseContext.m_Limits.m_MaxTextureCount3D              = 2048;
+        m_BaseContext.m_Limits.m_MaxTextureCountCube            = 16384;
+        m_BaseContext.m_Limits.m_MaxTextureArrayLayers          = 2048;
+        m_BaseContext.m_Limits.m_MaxSamplersPerStage            = 16;
+        m_BaseContext.m_Limits.m_MaxTexturesPerStage            = 32;
+        m_BaseContext.m_Limits.m_MaxColorAttachments            = 8;
+        m_BaseContext.m_Limits.m_MaxComputeWorkgroupSizeX       = 1024;
+        m_BaseContext.m_Limits.m_MaxComputeWorkgroupSizeY       = 1024;
+        m_BaseContext.m_Limits.m_MaxComputeWorkgroupSizeZ       = 64;
+        m_BaseContext.m_Limits.m_MaxComputeWorkgroupInvocations = 1024;
+        m_BaseContext.m_Limits.m_MaxComputeSharedMemorySize     = 32 * 1024;
+        m_BaseContext.m_Limits.m_MaxUniformBufferSize           = 64 * 1024;
+        m_BaseContext.m_Limits.m_MaxStorageBufferSize           = 128 * 1024 * 1024;
     }
 
     static HContext NullNewContext(const ContextParams& params)

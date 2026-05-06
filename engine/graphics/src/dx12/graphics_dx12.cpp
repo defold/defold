@@ -397,6 +397,46 @@ namespace dmGraphics
 
         CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
+        // Populate the shared GraphicsContextLimits.
+        // D3D12 doesn't expose all of these as a single struct — many of the
+        // values below are the documented Resource Binding / Hardware Feature
+        // Level guarantees rather than queried numbers. Anything we want to
+        // refine via CheckFeatureSupport later is tagged with a TODO.
+        {
+            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+
+            // D3D12 guarantees these as the Feature Level 11_0+ minimums.
+            // TODO(dx12): query D3D12_FEATURE_DATA_D3D12_OPTIONS for the actual
+            //             tier and adjust based on D3D12_RESOURCE_BINDING_TIER.
+            limits.m_MaxTextureCount2D    = 16384; // FL 11_0+: max 2D texture dim
+            limits.m_MaxTextureCount3D    = 2048;  // FL 11_0+: max 3D texture dim
+            limits.m_MaxTextureCountCube  = 16384; // FL 11_0+: max cube face dim
+            limits.m_MaxTextureArrayLayers = 2048; // FL 11_0+: max array size
+
+            // Tier 1 binding guarantees.
+            // TODO(dx12): inspect D3D12_RESOURCE_BINDING_TIER and lift these
+            //             when running on Tier 2/3 hardware.
+            limits.m_MaxSamplersPerStage = 16;     // Tier 1 sampler heap per stage
+            limits.m_MaxTexturesPerStage = 128;    // Tier 1 SRV heap per stage
+            limits.m_MaxColorAttachments = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
+
+            // D3D12 spec-mandated compute limits (DX11.1+/FL 11_0+).
+            limits.m_MaxComputeWorkgroupSizeX       = D3D12_CS_THREAD_GROUP_MAX_X;
+            limits.m_MaxComputeWorkgroupSizeY       = D3D12_CS_THREAD_GROUP_MAX_Y;
+            limits.m_MaxComputeWorkgroupSizeZ       = D3D12_CS_THREAD_GROUP_MAX_Z;
+            limits.m_MaxComputeWorkgroupInvocations = D3D12_CS_THREAD_GROUP_MAX_THREADS_PER_GROUP;
+            limits.m_MaxComputeSharedMemorySize     = D3D12_CS_TGSM_REGISTER_COUNT * sizeof(uint32_t); // 32 KiB on FL 11_0+
+
+            // CB upper bound is 64 KiB (CBV size limit).
+            // SSBO/UAV upper bound is 2 GiB on resource size — clamp to UINT32_MAX
+            // for the uint32_t field below.
+            // TODO(dx12): m_MaxUniformBufferSize / m_MaxStorageBufferSize — D3D12
+            //             doesn't expose these as a single query; the values below
+            //             reflect API-level limits, not driver-reported ones.
+            limits.m_MaxUniformBufferSize = D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16; // 4096 * 16 = 64 KiB
+            limits.m_MaxStorageBufferSize = 0xFFFFFFFFu;
+        }
+
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
             dmLogInfo("Device: DirectX 12");

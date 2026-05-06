@@ -1296,6 +1296,38 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
 
+        // Populate the shared GraphicsContextLimits from VkPhysicalDeviceLimits.
+        // Anything not represented in core Vulkan limits is left commented for follow-up.
+        {
+            const VkPhysicalDeviceLimits& vk_limits = context->m_PhysicalDevice.m_Properties.limits;
+            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+
+            // Vulkan exposes max image dimension, not a count of how many can exist
+            // simultaneously. Reuse the dimension here for now; revisit if a real
+            // count is needed.
+            // TODO(vulkan): m_MaxTextureCount2D / m_MaxTextureCount3D / m_MaxTextureCountCube
+            //               — Vulkan exposes maxImageDimension2D / 3D / Cube (max dim, not count).
+            limits.m_MaxTextureCount2D    = vk_limits.maxImageDimension2D;
+            limits.m_MaxTextureCount3D    = vk_limits.maxImageDimension3D;
+            limits.m_MaxTextureCountCube  = vk_limits.maxImageDimensionCube;
+            limits.m_MaxTextureArrayLayers = vk_limits.maxImageArrayLayers;
+
+            limits.m_MaxSamplersPerStage = vk_limits.maxPerStageDescriptorSamplers;
+            limits.m_MaxTexturesPerStage = vk_limits.maxPerStageDescriptorSampledImages;
+            limits.m_MaxColorAttachments = vk_limits.maxColorAttachments;
+
+            limits.m_MaxComputeWorkgroupSizeX       = vk_limits.maxComputeWorkGroupSize[0];
+            limits.m_MaxComputeWorkgroupSizeY       = vk_limits.maxComputeWorkGroupSize[1];
+            limits.m_MaxComputeWorkgroupSizeZ       = vk_limits.maxComputeWorkGroupSize[2];
+            limits.m_MaxComputeWorkgroupInvocations = vk_limits.maxComputeWorkGroupInvocations;
+            limits.m_MaxComputeSharedMemorySize     = vk_limits.maxComputeSharedMemorySize;
+
+            // Vulkan reports the *binding* range, which is the practical upper
+            // bound for any single bind. The full backing buffer can be larger.
+            limits.m_MaxUniformBufferSize = vk_limits.maxUniformBufferRange;
+            limits.m_MaxStorageBufferSize = vk_limits.maxStorageBufferRange;
+        }
+
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
             VulkanPrintDeviceInfo(_context);
