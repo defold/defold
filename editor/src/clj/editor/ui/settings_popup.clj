@@ -19,23 +19,21 @@
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.slider :as fx.slider]
+            [cljfx.fx.toggle-button :as fx.toggle-button]
+            [cljfx.fx.toggle-group :as fx.toggle-group]
             [clojure.string :as string]
-            [editor.colors :as colors]
             [editor.fxui :as fxui]
-            [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
-            [editor.os :as os]
             [editor.ui :as ui])
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
            [javafx.css Styleable]
-           [javafx.event ActionEvent]
-           [javafx.geometry HPos Point2D Pos VPos]
+           [javafx.geometry HPos Point2D VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control Button CheckBox Control Label PopupControl Separator Skin Slider TextField ToggleButton ToggleGroup]
-           [javafx.scene.layout HBox Priority Region StackPane]
+           [javafx.scene.control PopupControl Skin]
+           [javafx.scene.layout StackPane]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]))
 
@@ -173,24 +171,28 @@
                    axes)})
 
 (defn- make-vec3-toggle-row-fx [{:keys [key label state swap-state on-value-changed]}]
-  {:fx/type fxui/horizontal
-   :children (into [{:fx/type fxui/label
-                     :text (or label "")
-                     :h-box/hgrow :always
-                     :max-width Double/MAX_VALUE}]
-                   (map (fn [axis]
-                          {:fx/type fxui/ext-ensure-focus-traversable
-                           :desc
-                           {:fx/type fxui/toggle-button
-                            :style-class ["toggle-button" "plane-toggle"]
-                            :text (string/upper-case (name axis))
-                            :selected (= axis (key state))
-                            :on-selected-changed (fn [selected?]
-                                                   (when selected?
-                                                     (swap-state assoc key axis)
-                                                     (when on-value-changed
-                                                       (on-value-changed axis))))}}))
-                   axes)})
+  {:fx/type fx/ext-let-refs
+   :refs {::toggle-group {:fx/type fx.toggle-group/lifecycle}}
+   :desc
+   {:fx/type fxui/horizontal
+    :children (into [{:fx/type fxui/label
+                      :text (or label "")
+                      :h-box/hgrow :always
+                      :max-width Double/MAX_VALUE}]
+                    (map (fn [axis]
+                           {:fx/type fxui/ext-ensure-focus-traversable
+                            :desc {:fx/type fx.toggle-button/lifecycle
+                             :toggle-group {:fx/type fx/ext-get-ref
+                                            :ref ::toggle-group}
+                             :style-class ["toggle-button" "plane-toggle"]
+                             :text (string/upper-case (name axis))
+                             :selected (= axis (key state))
+                             :on-selected-changed (fn [selected?]
+                                                    (when selected?
+                                                      (swap-state assoc key axis)
+                                                      (when on-value-changed
+                                                        (on-value-changed axis))))}}))
+                    axes)}})
 
 (defn- make-reset-button-fx [{:keys [text swap-state on-reset]}]
   {:fx/type fxui/horizontal
@@ -245,8 +247,7 @@
 
     :vec3-toggle
     {:fx/type make-vec3-toggle-row-fx
-     :label (when-let [l (:label descriptor)]
-              (localization-state (localization/message (:label descriptor))))
+     :label (localization-state (localization/message (:label descriptor)))
      :key (:key descriptor)
      :state state
      :swap-state swap-state
