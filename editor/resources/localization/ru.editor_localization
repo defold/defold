@@ -353,6 +353,8 @@ notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
 # Open custom editor notifications
 
+notification.open-custom-editor-failed.error = Не удалось запустить внешний редактор «{editor}».\n\nИсходная ошибка ОС\:\n{error}
+notification.open-custom-editor-failed.action.open-preferences = Открыть настройки…
 
 # Settings notifications
 
@@ -2312,10 +2314,12 @@ error.resource-is-a-broken-symlink = Символическая ссылка «{
 error.resource-not-loaded = Не удалось загрузить файл «{resource}».
 error.resource-not-loaded-with-error = Не удалось загрузить файл «{resource}»\: {error}
 error.resource-assignment-not-of-type = Значение свойства {property} «{resource}» имеет неподходящий тип\: ожидается {type}.
+error.no-file-extension = без расширения файла
 error.material-not-defined-in-mesh = Материал «{material}» не определён в меше. Используйте команду «Сбросить переопределение» в контекстном меню имени свойства, чтобы его удалить.
 error.material-expects-paged-atlas = Материал ожидает постраничный атлас, но значение свойства {property} не является постраничным.
 error.material-does-not-support-paged-atlases = Материал не поддерживает постраничные атласы, но значение свойства {property} является постраничным.
 error.material-max-page-count-insufficient = Значение «Макс. страницы атласа» в материале недостаточно для количества страниц в выбранном свойстве {property}.
+error.model-unsupported-file-format = Значение свойства {property} «{resource}» имеет неподдерживаемый формат {format}. Defold поддерживает только файлы {supported_formats} для свойства {property}.
 error.model-load-failed = Не удалось загрузить файл «{file}»\:\n{error}
 error.animation-not-found = В значении свойства «{property}» не найдена анимация «{animation}».
 error.buffer-syntax-error = Синтаксическая ошибка в файле буфера.
