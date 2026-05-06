@@ -300,4 +300,4 @@
           :slider-value->string (fn [^double v]
                                   (str (Math/round (* v 100)) "%"))}]
         initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
-    (settings-popup/show! owner keymap localization initial-state identity 240 0.0 descriptors)))
+    (settings-popup/show! owner keymap localization initial-state 240 0.0 descriptors)))

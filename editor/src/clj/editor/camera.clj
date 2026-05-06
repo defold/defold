@@ -1234,4 +1234,4 @@
           :value (prefs/get prefs prefs-key-walking-mode)
           :on-value-changed #(prefs/set! prefs prefs-key-walking-mode %)}]
         initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
-    (settings-popup/show! owner keymap localization initial-state identity 255 0.0 descriptors)))
+    (settings-popup/show! owner keymap localization initial-state 255 0.0 descriptors)))

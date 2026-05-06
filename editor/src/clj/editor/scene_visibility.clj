@@ -254,14 +254,14 @@
                       :label (str "scene-popup.scene-visibility." label)
                       :value (not (contains? filtered-tags key))
                       :on-value-changed (toggle-tag-visibility-fn scene-visibility key)
-                      :style-class "compact-toggle"})]
+                      :style-class "compact-toggle"
+                      :disabled? (fn [state] (not (:visibility-filters state)))})]
     (cond-> [{:key :visibility-filters :type :toggle :label "scene-popup.scene-visibility.visibility-filters"
               :value filters-enabled?
               :on-value-changed (fn [v]
                                   (g/set-property! scene-visibility :visibility-filters-enabled? v)
                                   (sync-popup-state! scene-visibility))
-              :command :scene.visibility.toggle-filters
-              :always-enabled true}
+              :command :scene.visibility.toggle-filters}
              {:type :space}
              (tag-toggle :collision-shape "collision-shapes")
              (tag-toggle :camera "camera")
@@ -281,14 +281,14 @@
              {:key :outline :type :toggle :label "scene-popup.scene-visibility.component-guides"
               :value (not (contains? filtered-tags :outline))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :outline)
-              :command :scene.visibility.toggle-component-guides
-              :always-enabled true}]
+              :command :scene.visibility.toggle-component-guides}]
             (system/defold-dev?)
             (into [{:type :separator}
                    {:key :dev-visibility-bounds :type :toggle :label "scene-popup.scene-visibility.scene-visibility-bounds"
                     :value (not (contains? filtered-tags :dev-visibility-bounds))
                     :on-value-changed (toggle-tag-visibility-fn scene-visibility :dev-visibility-bounds)
-                    :appear-filtered false}]))))
+                    :appear-filtered false
+                    :disabled? (fn [state] (not (:visibility-filters state)))}]))))
 
 (defn- appear-filtered-renderable-tags [scene-visibility]
   (into #{}
@@ -310,30 +310,18 @@
       (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active") false))))
 
 (defn show-settings! [keymap localization ^Parent owner scene-visibility]
-  (let [setting-descriptors (mapv #(dissoc % :always-enabled :appear-filtered)
-                                  (renderable-tag-descriptors scene-visibility))
-        always-enabled-keys (into #{}
-                                  (keep (fn [d]
-                                          (when (:always-enabled d) (:key d))))
+  (let [setting-descriptors (mapv #(dissoc % :appear-filtered)
                                   (renderable-tag-descriptors scene-visibility))
         keys (keep :key setting-descriptors)
         compute-state (fn []
                         (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
-                              filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)
-                              base (into {} (map (fn [key]
-                                                   [key (if (= :visibility-filters key)
-                                                          filters-enabled?
-                                                          (not (contains? filtered-tags key)))]))
-                                         keys)]
-                          (assoc base :disabled (if filters-enabled?
-                                                  #{}
-                                                  (into #{} (remove always-enabled-keys) keys)))))
-        on-change (fn [key v]
-                    (if (= :visibility-filters key)
-                      (g/set-property! scene-visibility :visibility-filters-enabled? v)
-                      (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key))
-                    (sync-popup-state! scene-visibility))
-        advance! (settings-popup/show! owner keymap localization (compute-state) on-change 230 0.0 setting-descriptors nil
+                              filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
+                          (into {} (map (fn [key]
+                                          [key (if (= :visibility-filters key)
+                                                 filters-enabled?
+                                                 (not (contains? filtered-tags key)))]))
+                                keys)))
+        advance! (settings-popup/show! owner keymap localization (compute-state) 230 0.0 setting-descriptors nil
                                        (fn [_]
                                          (g/set-property! scene-visibility :popup-advance-fn nil)
                                          (sync-popup-state! scene-visibility)))
@@ -352,15 +340,13 @@
   (active? [scene-visibility evaluation-context]
     (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility]
-    (g/update-property! scene-visibility :visibility-filters-enabled? not)
-    (sync-popup-state! scene-visibility)))
+    (g/update-property! scene-visibility :visibility-filters-enabled? not)))
 
 (handler/defhandler :scene.visibility.toggle-component-guides :workbench
   (active? [scene-visibility evaluation-context]
     (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility]
-    (toggle-tag-visibility! scene-visibility :outline)
-    (sync-popup-state! scene-visibility)))
+    (toggle-tag-visibility! scene-visibility :outline)))
 
 (handler/defhandler :scene.visibility.toggle-grid :workbench
   (active? [app-view scene-visibility evaluation-context]

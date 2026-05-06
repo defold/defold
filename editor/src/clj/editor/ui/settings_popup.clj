@@ -41,33 +41,41 @@
 
 (defonce ^List axes [:x :y :z])
 
-(defn- make-toggle-row-fx [{:keys [key label accelerator state swap-state on-selected-changed style-class]}]
-  {:fx/type fxui/horizontal
-   :style-class (cond-> ["toggle-row"]
-                  style-class (conj style-class))
-   :alignment :center-left
-   :on-mouse-clicked (fn [_]
-                       (swap-state assoc key (not (boolean (key state))))
-                       (when on-selected-changed
-                         (on-selected-changed (not (boolean (key state))))))
-   :disable (contains? (:disabled state) key)
-   :children [{:fx/type fxui/label
-               :style-class "slide-switch-label"
-               :text (or label "")
-               :h-box/hgrow :always
-               :max-width Double/MAX_VALUE}
-              {:fx/type fxui/label
-               :style-class "accelerator-label"
-               :text (or accelerator "")}
-              {:fx/type fxui/ext-ensure-focus-traversable
-               :desc
-               {:fx/type fx.check-box/lifecycle
-                :style-class ["slide-switch"]
-                :selected (key state)
-                :on-selected-changed (fn [v]
-                                       (swap-state assoc key v)
-                                       (when on-selected-changed
-                                         (on-selected-changed v)))}}]})
+(defn- make-toggle-row-fx [{:keys [key label accelerator command disabled? state swap-state on-selected-changed style-class]}]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [_]
+                 (when command
+                   (handler/add-listener! [::toggle-setting key] command #(swap-state update key not))))
+   :on-deleted (fn [_]
+                 (when command
+                   (handler/remove-listener! [::toggle-setting key] command)))
+   :desc
+   {:fx/type fxui/horizontal
+    :style-class (cond-> ["toggle-row"]
+                   style-class (conj style-class))
+    :alignment :center-left
+    :on-mouse-clicked (fn [_]
+                        (swap-state assoc key (not (boolean (key state))))
+                        (when on-selected-changed
+                          (on-selected-changed (not (boolean (key state))))))
+    :disable (boolean (when disabled? (disabled? state)))
+    :children [{:fx/type fxui/label
+                :style-class "slide-switch-label"
+                :text (or label "")
+                :h-box/hgrow :always
+                :max-width Double/MAX_VALUE}
+               {:fx/type fxui/label
+                :style-class "accelerator-label"
+                :text (or accelerator "")}
+               {:fx/type fxui/ext-ensure-focus-traversable
+                :desc
+                {:fx/type fx.check-box/lifecycle
+                 :style-class ["slide-switch"]
+                 :selected (key state)
+                 :on-selected-changed (fn [v]
+                                        (swap-state assoc key v)
+                                        (when on-selected-changed
+                                          (on-selected-changed v)))}}]}})
 
 (defn- make-slider-row-fx [{:keys [popup key label min max snap-to state swap-state slider-value->string on-value-changed]}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
@@ -230,7 +238,7 @@
               :key :localization-state}
              {:fx/type fx/ext-state
               :initial-state (:state props)}]}
-  [{:keys [popup descriptors keymap state swap-state on-change localization-state]}]
+  [{:keys [popup descriptors keymap state swap-state localization-state]}]
   {:fx/type fxui/vertical
    :style-class "popup-settings"
    :children (keep (fn [descriptor]
@@ -271,10 +279,8 @@
     keymap               keymap used to resolve accelerator labels for :toggle rows
     localization         localization watcher ref used for label translation
     state                initial state map, keyed by the :key of each descriptor.
-                         May include a :disabled set of keys whose rows are
+                         May include a :disabled set of keys for toggle-rows that are
                          grayed out
-    on-change            2-argument callback (key, value) called when any setting
-                         changes
     width                preferred width of the popup content in pixels
     x-offset             horizontal offset applied when positioning the popup
     setting-descriptors  sequence of row descriptor maps (see below)
@@ -293,18 +299,19 @@
                :reset-all    a button that resets all settings to defaults
                :space        an empty spacer row
                :separator    a horizontal rule divider
-    :label              localization message key for the row label
-    :command            for :toggle, keymap command used to display an accelerator
-    :min / :max         for :slider, numeric bounds
-    :snap-to            for :slider, snaps value to multiples of this number
+    :label                 localization message key for the row label
+    :command               for :toggle, keymap command used to display an accelerator
+    :min / :max            for :slider, numeric bounds
+    :snap-to               for :slider, snaps value to multiples of this number
     :slider-value->string  for :slider, 1-arg fn formatting the displayed value
-    :on-value-changed   1-arg callback invoked when this setting's value changes
-    :on-reset           for :reset-all, 1-arg callback receiving swap-state"
-  ([^Parent owner keymap localization state on-change width x-offset setting-descriptors]
-   (show! owner keymap localization state on-change width x-offset setting-descriptors nil))
-  ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings]
-   (show! owner keymap localization state on-change width x-offset setting-descriptors hidden-settings nil))
-  ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings on-closed]
+    :on-value-changed      1-arg callback invoked when this setting's value changes
+    :disabled?             1-arg fn of state returning truthy to disable the row
+    :on-reset              for :reset-all, 1-arg callback receiving swap-state"
+  ([^Parent owner keymap localization state width x-offset setting-descriptors]
+   (show! owner keymap localization state width x-offset setting-descriptors nil))
+  ([^Parent owner keymap localization state width x-offset setting-descriptors hidden-settings]
+   (show! owner keymap localization state width x-offset setting-descriptors hidden-settings nil))
+  ([^Parent owner keymap localization state width x-offset setting-descriptors hidden-settings on-closed]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (do (.hide popup) nil)
      (let [visible-descriptors (remove #(contains? hidden-settings (:key %)) setting-descriptors)
@@ -323,8 +330,7 @@
                                              :keymap keymap
                                              :popup popup
                                              :localization localization
-                                             :state state
-                                             :on-change on-change}]}}))]
+                                             :state state}]}}))]
        (.setPrefWidth content width)
        (advance! state)
        (ui/user-data! owner ::popup popup)
