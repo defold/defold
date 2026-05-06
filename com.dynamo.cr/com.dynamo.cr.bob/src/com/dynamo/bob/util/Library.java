@@ -47,12 +47,13 @@ import java.util.zip.ZipFile;
 public final class Library {
     private static final Logger logger = Logger.getLogger(Library.class.getName());
     private static final int FETCHES_PER_HOST = 4;
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofMillis(2000))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private static HttpClient HTTP_CLIENT = httpClient(2000);
 
     private Library() {
+    }
+
+    public static void setConnectTimeout(long timeoutMillis) {
+        HTTP_CLIENT = httpClient(timeoutMillis);
     }
 
     /// Returns the dependency state currently available in the local library
@@ -141,6 +142,13 @@ public final class Library {
                 executor.shutdownNow();
             }
         }
+    }
+
+    private static HttpClient httpClient(long connectTimeoutMillis) {
+        return HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(connectTimeoutMillis))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
     }
 
     /// Helper function to parse and validate project dependency ZIP

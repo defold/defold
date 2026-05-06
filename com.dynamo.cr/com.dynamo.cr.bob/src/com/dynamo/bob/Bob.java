@@ -68,6 +68,7 @@ import static com.dynamo.bob.Bob.CommandLineOption.ArgType.ABS_OR_CWD_REL_PATH;
 
 public class Bob {
     private static final Logger logger = Logger.getLogger(Bob.class.getName());
+    private static final long LIBRARY_CONNECT_TIMEOUT = 15000;
 
     public static final String VARIANT_DEBUG = "debug";
     public static final String VARIANT_RELEASE = "release";
@@ -540,6 +541,7 @@ public class Bob {
         Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
         project.setOption("email", email);
         project.setOption("auth", auth);
+        Library.setConnectTimeout(LIBRARY_CONNECT_TIMEOUT);
 
         return project;
     }
