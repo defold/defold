@@ -275,6 +275,7 @@
 (defn show-settings! [^Parent owner app-view prefs keymap localization]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
+        ;; TODO JOE: Investigate this because maybe this broke?
         ignore-options (g/node-value grid :options)
         value-changed-fn (fn [k v]
                            (prefs/set! prefs [:scene :grid k] v)

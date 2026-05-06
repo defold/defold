@@ -1211,7 +1211,7 @@
     (let [current-value (prefs/get prefs prefs-key-walking-mode)]
       (prefs/set! prefs prefs-key-walking-mode (not current-value)))))
 
-(defn show-settings! [^Parent owner camera-node prefs keymap localization]
+(defn show-settings! [^Parent owner prefs keymap localization]
   (let [descriptors
         [{:type :reset-all
           :on-reset (fn [swap-state]

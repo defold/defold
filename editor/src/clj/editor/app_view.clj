@@ -553,7 +553,7 @@
                               (get-settings-button "#show-perspective-camera-settings"))]
         (let [scene (scene/active-scene-view app-view evaluation-context)
               camera (scene/view->camera (:basis evaluation-context) scene)]
-          (camera/show-settings! btn camera prefs (g/node-value app-view :keymap) localization)))))
+          (camera/show-settings! btn prefs (g/node-value app-view :keymap) localization)))))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 

@@ -23,6 +23,7 @@
             [cljfx.fx.toggle-group :as fx.toggle-group]
             [clojure.string :as string]
             [editor.fxui :as fxui]
+            [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
@@ -32,7 +33,7 @@
            [javafx.css Styleable]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control PopupControl Skin]
+           [javafx.scene.control PopupControl Skin Slider]
            [javafx.scene.layout StackPane]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]))
