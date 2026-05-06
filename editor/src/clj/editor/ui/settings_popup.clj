@@ -261,6 +261,45 @@
       (.setHideOnEscape true))))
 
 (defn show!
+  "Shows a settings popup anchored to `owner`, or hides it if already visible.
+
+  Returns an `advance!` function that can be called with a new state map to
+  update the popup's displayed values, or nil if the popup was hidden.
+
+  Arguments:
+    owner                JavaFX Parent node the popup is anchored to
+    keymap               keymap used to resolve accelerator labels for :toggle rows
+    localization         localization watcher ref used for label translation
+    state                initial state map, keyed by the :key of each descriptor.
+                         May include a :disabled set of keys whose rows are
+                         grayed out
+    on-change            2-argument callback (key, value) called when any setting
+                         changes
+    width                preferred width of the popup content in pixels
+    x-offset             horizontal offset applied when positioning the popup
+    setting-descriptors  sequence of row descriptor maps (see below)
+    hidden-settings      optional set of :key values whose rows are omitted
+    on-closed            optional 0-or-1-argument callback invoked when the popup
+                         is closed
+
+  Row descriptor maps have the following shape (all keys optional unless noted):
+    :key     required for most types, keyword identifying this setting in state
+    :type    required, one of:
+               :toggle       a labeled checkbox row
+               :slider       a labeled slider with a value label
+               :color        a labeled color picker
+               :vec3-floats  three labeled float input fields for X/Y/Z
+               :vec3-toggle  a labeled group of X/Y/Z toggle buttons
+               :reset-all    a button that resets all settings to defaults
+               :space        an empty spacer row
+               :separator    a horizontal rule divider
+    :label              localization message key for the row label
+    :command            for :toggle, keymap command used to display an accelerator
+    :min / :max         for :slider, numeric bounds
+    :snap-to            for :slider, snaps value to multiples of this number
+    :slider-value->string  for :slider, 1-arg fn formatting the displayed value
+    :on-value-changed   1-arg callback invoked when this setting's value changes
+    :on-reset           for :reset-all, 1-arg callback receiving swap-state"
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors]
    (show! owner keymap localization state on-change width x-offset setting-descriptors nil))
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings]
