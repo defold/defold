@@ -96,7 +96,6 @@
 
 (defn- prop-resource-unsupported-format? [v name supported-exts]
   (when (and v
-             (resource/exists? v)
              (not (contains? (set supported-exts) (resource/type-ext v))))
     (localization/message "error.model-unsupported-file-format"
                           {"property" name
