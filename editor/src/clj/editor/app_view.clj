@@ -614,7 +614,6 @@
    {:id :visibility-settings
     :tooltip "Visibility settings"
     :graphic-fn make-visibility-settings-graphic
-    :button-id :visibility-settings-button
     :command :scene.visibility.show-settings}])
 
 (def ^:const prefs-window-dimensions [:window :dimensions])
