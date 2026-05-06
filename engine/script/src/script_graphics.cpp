@@ -736,24 +736,45 @@ namespace dmScript
                 dmGraphics::GetGraphicsContextLimits(context, limits);
             }
 
+            // Lua numbers are doubles, so uint64_t fields can lose precision above
+            // 2^53. The buffer ranges we report fit comfortably below that today,
+            // but cast through lua_Number deliberately so a future change shows
+            // up in code review.
         #define PUSH_LIMIT(field, key) \
             lua_pushnumber(L, (lua_Number) limits.field); \
             lua_setfield(L, -2, key);
 
-            PUSH_LIMIT(m_MaxTextureCount2D,              "max_texture_count_2d");
-            PUSH_LIMIT(m_MaxTextureCount3D,              "max_texture_count_3d");
-            PUSH_LIMIT(m_MaxTextureCountCube,            "max_texture_count_cube");
-            PUSH_LIMIT(m_MaxTextureArrayLayers,          "max_texture_array_layers");
-            PUSH_LIMIT(m_MaxSamplersPerStage,            "max_samplers_per_stage");
-            PUSH_LIMIT(m_MaxTexturesPerStage,            "max_textures_per_stage");
-            PUSH_LIMIT(m_MaxColorAttachments,            "max_color_attachments");
-            PUSH_LIMIT(m_MaxComputeWorkgroupSizeX,       "max_compute_workgroup_size_x");
-            PUSH_LIMIT(m_MaxComputeWorkgroupSizeY,       "max_compute_workgroup_size_y");
-            PUSH_LIMIT(m_MaxComputeWorkgroupSizeZ,       "max_compute_workgroup_size_z");
-            PUSH_LIMIT(m_MaxComputeWorkgroupInvocations, "max_compute_workgroup_invocations");
-            PUSH_LIMIT(m_MaxComputeSharedMemorySize,     "max_compute_shared_memory_size");
-            PUSH_LIMIT(m_MaxUniformBufferSize,           "max_uniform_buffer_size");
-            PUSH_LIMIT(m_MaxStorageBufferSize,           "max_storage_buffer_size");
+            // Texture limits
+            PUSH_LIMIT(m_MaxTextureSize2D,                "max_texture_size_2d");
+            PUSH_LIMIT(m_MaxTextureSize3D,                "max_texture_size_3d");
+            PUSH_LIMIT(m_MaxTextureSizeCube,              "max_texture_size_cube");
+            PUSH_LIMIT(m_MaxTextureArrayLayers,           "max_texture_array_layers");
+            PUSH_LIMIT(m_MaxAnisotropy,                   "max_anisotropy");
+
+            // Framebuffer limits
+            PUSH_LIMIT(m_MaxFramebufferWidth,             "max_framebuffer_width");
+            PUSH_LIMIT(m_MaxFramebufferHeight,            "max_framebuffer_height");
+            PUSH_LIMIT(m_MaxColorAttachments,             "max_color_attachments");
+
+            // Per-stage binding limits
+            PUSH_LIMIT(m_MaxSamplersPerStage,             "max_samplers_per_stage");
+            PUSH_LIMIT(m_MaxTexturesPerStage,             "max_textures_per_stage");
+            PUSH_LIMIT(m_MaxVertexAttributes,             "max_vertex_attributes");
+            PUSH_LIMIT(m_MaxVertexBuffers,                "max_vertex_buffers");
+
+            // Compute limits
+            PUSH_LIMIT(m_MaxComputeWorkgroupSizeX,        "max_compute_workgroup_size_x");
+            PUSH_LIMIT(m_MaxComputeWorkgroupSizeY,        "max_compute_workgroup_size_y");
+            PUSH_LIMIT(m_MaxComputeWorkgroupSizeZ,        "max_compute_workgroup_size_z");
+            PUSH_LIMIT(m_MaxComputeWorkgroupInvocations,  "max_compute_workgroup_invocations");
+            PUSH_LIMIT(m_MaxComputeSharedMemorySize,      "max_compute_shared_memory_size");
+
+            // Buffer limits
+            PUSH_LIMIT(m_MaxUniformBufferRange,           "max_uniform_buffer_range");
+            PUSH_LIMIT(m_MaxStorageBufferRange,           "max_storage_buffer_range");
+            PUSH_LIMIT(m_MaxPushConstantSize,             "max_push_constant_size");
+            PUSH_LIMIT(m_MinUniformBufferOffsetAlignment, "min_uniform_buffer_offset_alignment");
+            PUSH_LIMIT(m_MinStorageBufferOffsetAlignment, "min_storage_buffer_offset_alignment");
 
         #undef PUSH_LIMIT
 

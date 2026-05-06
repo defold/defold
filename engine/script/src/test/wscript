@@ -109,6 +109,15 @@ def build(bld):
                                        target = 'test_script_sys',
                                        source = 'test_script_sys.cpp scripts/test_sys.lua'.split())
 
+    test_script_graphics = bld.program(features = flist,
+                                       includes = '..',
+                                       use = libs,
+                                       web_libs = web_libs,
+                                       exported_symbols = exported_symbols,
+                                       proto_gen_py = True,
+                                       target = 'test_script_graphics',
+                                       source = 'test_script_graphics.cpp scripts/test_graphics.lua'.split())
+
     test_script = bld.program(features = flist,
                                         includes = '..',
                                         use = libs,

@@ -127,24 +127,38 @@ namespace dmGraphics
 
     struct GraphicsContextLimits
     {
-        // Texture limits
-        uint32_t    m_MaxTextureCount2D;
-        uint32_t    m_MaxTextureCount3D;
-        uint32_t    m_MaxTextureCountCube;
+        // Texture limits (max dimension in texels — APIs report a dim, not a count)
+        uint32_t    m_MaxTextureSize2D;
+        uint32_t    m_MaxTextureSize3D;
+        uint32_t    m_MaxTextureSizeCube;
         uint32_t    m_MaxTextureArrayLayers;
-        // Bindings limits
+        float       m_MaxAnisotropy;
+
+        // Framebuffer limits
+        uint32_t    m_MaxFramebufferWidth;
+        uint32_t    m_MaxFramebufferHeight;
+        uint32_t    m_MaxColorAttachments;
+
+        // Per-stage binding limits
         uint32_t    m_MaxSamplersPerStage;
         uint32_t    m_MaxTexturesPerStage;
-        uint32_t    m_MaxColorAttachments;
+        uint32_t    m_MaxVertexAttributes;
+        uint32_t    m_MaxVertexBuffers;
+
         // Compute limits
         uint32_t    m_MaxComputeWorkgroupSizeX;
         uint32_t    m_MaxComputeWorkgroupSizeY;
         uint32_t    m_MaxComputeWorkgroupSizeZ;
         uint32_t    m_MaxComputeWorkgroupInvocations;
         uint32_t    m_MaxComputeSharedMemorySize;
-        // Buffer limits
-        uint32_t    m_MaxUniformBufferSize;
-        uint32_t    m_MaxStorageBufferSize;
+
+        // Buffer limits — "Range" reflects what each backend reports: the max
+        // bindable range, not the underlying buffer object size.
+        uint64_t    m_MaxUniformBufferRange;
+        uint64_t    m_MaxStorageBufferRange;
+        uint32_t    m_MaxPushConstantSize;
+        uint32_t    m_MinUniformBufferOffsetAlignment;
+        uint32_t    m_MinStorageBufferOffsetAlignment;
     };
 
     // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).

@@ -399,42 +399,51 @@ namespace dmGraphics
 
         // Populate the shared GraphicsContextLimits.
         // D3D12 doesn't expose all of these as a single struct — many of the
-        // values below are the documented Resource Binding / Hardware Feature
-        // Level guarantees rather than queried numbers. Anything we want to
-        // refine via CheckFeatureSupport later is tagged with a TODO.
+        // values below are documented Feature Level 11_0+ / Resource Binding
+        // Tier guarantees rather than driver-queried numbers. Anything we
+        // want to refine via CheckFeatureSupport later is tagged TODO.
         {
             GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
 
-            // D3D12 guarantees these as the Feature Level 11_0+ minimums.
-            // TODO(dx12): query D3D12_FEATURE_DATA_D3D12_OPTIONS for the actual
-            //             tier and adjust based on D3D12_RESOURCE_BINDING_TIER.
-            limits.m_MaxTextureCount2D    = 16384; // FL 11_0+: max 2D texture dim
-            limits.m_MaxTextureCount3D    = 2048;  // FL 11_0+: max 3D texture dim
-            limits.m_MaxTextureCountCube  = 16384; // FL 11_0+: max cube face dim
-            limits.m_MaxTextureArrayLayers = 2048; // FL 11_0+: max array size
+            limits.m_MaxTextureSize2D                = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;     // 16384 on FL 11_0+
+            limits.m_MaxTextureSize3D                = D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;   // 2048
+            limits.m_MaxTextureSizeCube              = D3D12_REQ_TEXTURECUBE_DIMENSION;          // 16384
+            limits.m_MaxTextureArrayLayers           = D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION; // 2048
+            limits.m_MaxAnisotropy                   = (float) D3D12_MAX_MAXANISOTROPY;          // 16.0
+
+            limits.m_MaxFramebufferWidth             = D3D12_VIEWPORT_BOUNDS_MAX;
+            limits.m_MaxFramebufferHeight            = D3D12_VIEWPORT_BOUNDS_MAX;
+            limits.m_MaxColorAttachments             = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
 
             // Tier 1 binding guarantees.
             // TODO(dx12): inspect D3D12_RESOURCE_BINDING_TIER and lift these
             //             when running on Tier 2/3 hardware.
-            limits.m_MaxSamplersPerStage = 16;     // Tier 1 sampler heap per stage
-            limits.m_MaxTexturesPerStage = 128;    // Tier 1 SRV heap per stage
-            limits.m_MaxColorAttachments = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
+            limits.m_MaxSamplersPerStage             = 16;     // Tier 1 sampler heap per stage
+            limits.m_MaxTexturesPerStage             = 128;    // Tier 1 SRV heap per stage
+            limits.m_MaxVertexAttributes             = D3D12_VS_INPUT_REGISTER_COUNT;            // 32
+            limits.m_MaxVertexBuffers                = D3D12_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT; // 32
 
-            // D3D12 spec-mandated compute limits (DX11.1+/FL 11_0+).
-            limits.m_MaxComputeWorkgroupSizeX       = D3D12_CS_THREAD_GROUP_MAX_X;
-            limits.m_MaxComputeWorkgroupSizeY       = D3D12_CS_THREAD_GROUP_MAX_Y;
-            limits.m_MaxComputeWorkgroupSizeZ       = D3D12_CS_THREAD_GROUP_MAX_Z;
-            limits.m_MaxComputeWorkgroupInvocations = D3D12_CS_THREAD_GROUP_MAX_THREADS_PER_GROUP;
-            limits.m_MaxComputeSharedMemorySize     = D3D12_CS_TGSM_REGISTER_COUNT * sizeof(uint32_t); // 32 KiB on FL 11_0+
+            limits.m_MaxComputeWorkgroupSizeX        = D3D12_CS_THREAD_GROUP_MAX_X;
+            limits.m_MaxComputeWorkgroupSizeY        = D3D12_CS_THREAD_GROUP_MAX_Y;
+            limits.m_MaxComputeWorkgroupSizeZ        = D3D12_CS_THREAD_GROUP_MAX_Z;
+            limits.m_MaxComputeWorkgroupInvocations  = D3D12_CS_THREAD_GROUP_MAX_THREADS_PER_GROUP;
+            limits.m_MaxComputeSharedMemorySize      = D3D12_CS_TGSM_REGISTER_COUNT * sizeof(uint32_t); // 32 KiB
 
-            // CB upper bound is 64 KiB (CBV size limit).
-            // SSBO/UAV upper bound is 2 GiB on resource size — clamp to UINT32_MAX
-            // for the uint32_t field below.
-            // TODO(dx12): m_MaxUniformBufferSize / m_MaxStorageBufferSize — D3D12
-            //             doesn't expose these as a single query; the values below
-            //             reflect API-level limits, not driver-reported ones.
-            limits.m_MaxUniformBufferSize = D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16; // 4096 * 16 = 64 KiB
-            limits.m_MaxStorageBufferSize = 0xFFFFFFFFu;
+            // CBV bind range is 64 KiB. UAV bind range can hit 2 GiB on
+            // typed/structured resources; reporting that directly here.
+            // TODO(dx12): m_MaxUniformBufferRange / m_MaxStorageBufferRange —
+            //             refine if D3D12_FEATURE_DATA_D3D12_OPTIONS reports
+            //             higher tiers that allow larger binds.
+            limits.m_MaxUniformBufferRange           = (uint64_t) D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16; // 64 KiB
+            limits.m_MaxStorageBufferRange           = 1ull << 31; // 2 GiB (D3D12 resource size cap on FL 11_0+)
+
+            // D3D12 root constants approximate Vulkan push constants. The root
+            // signature is 64 DWORDs total (256 B); reserving some for tables,
+            // 128 B is a typical safe budget.
+            limits.m_MaxPushConstantSize             = 128;
+
+            limits.m_MinUniformBufferOffsetAlignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT; // 256
+            limits.m_MinStorageBufferOffsetAlignment = D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT;               // 16
         }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)

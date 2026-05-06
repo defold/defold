@@ -1247,30 +1247,43 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 
         GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
 
-        // WebGPU exposes max texture *dimension*, not a count of how many
-        // textures can exist. Reuse here so the value is non-zero; revisit if
-        // a true count becomes meaningful.
-        // TODO(webgpu): m_MaxTextureCount2D / m_MaxTextureCount3D / m_MaxTextureCountCube
-        //               — WebGPU exposes maxTextureDimension2D/3D (max dim, not count).
-        limits.m_MaxTextureCount2D    = (uint32_t) DEV_LIMIT(maxTextureDimension2D);
-        limits.m_MaxTextureCount3D    = (uint32_t) DEV_LIMIT(maxTextureDimension3D);
-        limits.m_MaxTextureCountCube  = (uint32_t) DEV_LIMIT(maxTextureDimension2D); // cube faces share 2D limit
-        limits.m_MaxTextureArrayLayers = (uint32_t) DEV_LIMIT(maxTextureArrayLayers);
+        limits.m_MaxTextureSize2D                = (uint32_t) DEV_LIMIT(maxTextureDimension2D);
+        limits.m_MaxTextureSize3D                = (uint32_t) DEV_LIMIT(maxTextureDimension3D);
+        limits.m_MaxTextureSizeCube              = (uint32_t) DEV_LIMIT(maxTextureDimension2D); // cube faces share 2D limit
+        limits.m_MaxTextureArrayLayers           = (uint32_t) DEV_LIMIT(maxTextureArrayLayers);
 
-        limits.m_MaxSamplersPerStage = (uint32_t) DEV_LIMIT(maxSamplersPerShaderStage);
-        limits.m_MaxTexturesPerStage = (uint32_t) DEV_LIMIT(maxSampledTexturesPerShaderStage);
-        limits.m_MaxColorAttachments = (uint32_t) DEV_LIMIT(maxColorAttachments);
+        // WebGPU has no spec-level max anisotropy field; modern implementations
+        // generally support up to 16x. Use the conservative fixed value.
+        // TODO(webgpu): m_MaxAnisotropy — no equivalent in WGPULimits today.
+        limits.m_MaxAnisotropy                   = 16.0f;
 
-        limits.m_MaxComputeWorkgroupSizeX       = (uint32_t) DEV_LIMIT(maxComputeWorkgroupSizeX);
-        limits.m_MaxComputeWorkgroupSizeY       = (uint32_t) DEV_LIMIT(maxComputeWorkgroupSizeY);
-        limits.m_MaxComputeWorkgroupSizeZ       = (uint32_t) DEV_LIMIT(maxComputeWorkgroupSizeZ);
-        limits.m_MaxComputeWorkgroupInvocations = (uint32_t) DEV_LIMIT(maxComputeInvocationsPerWorkgroup);
-        limits.m_MaxComputeSharedMemorySize     = (uint32_t) DEV_LIMIT(maxComputeWorkgroupStorageSize);
+        // TODO(webgpu): m_MaxFramebufferWidth/Height — WebGPU has no direct
+        //               framebuffer size limit; falling back to max 2D dim.
+        limits.m_MaxFramebufferWidth             = (uint32_t) DEV_LIMIT(maxTextureDimension2D);
+        limits.m_MaxFramebufferHeight            = (uint32_t) DEV_LIMIT(maxTextureDimension2D);
+        limits.m_MaxColorAttachments             = (uint32_t) DEV_LIMIT(maxColorAttachments);
 
-        // WebGPU exposes the max single binding size, not the underlying
-        // buffer size. That's the practical limit for any UBO/SSBO bind.
-        limits.m_MaxUniformBufferSize = (uint32_t) DEV_LIMIT(maxUniformBufferBindingSize);
-        limits.m_MaxStorageBufferSize = (uint32_t) DEV_LIMIT(maxStorageBufferBindingSize);
+        limits.m_MaxSamplersPerStage             = (uint32_t) DEV_LIMIT(maxSamplersPerShaderStage);
+        limits.m_MaxTexturesPerStage             = (uint32_t) DEV_LIMIT(maxSampledTexturesPerShaderStage);
+        limits.m_MaxVertexAttributes             = (uint32_t) DEV_LIMIT(maxVertexAttributes);
+        limits.m_MaxVertexBuffers                = (uint32_t) DEV_LIMIT(maxVertexBuffers);
+
+        limits.m_MaxComputeWorkgroupSizeX        = (uint32_t) DEV_LIMIT(maxComputeWorkgroupSizeX);
+        limits.m_MaxComputeWorkgroupSizeY        = (uint32_t) DEV_LIMIT(maxComputeWorkgroupSizeY);
+        limits.m_MaxComputeWorkgroupSizeZ        = (uint32_t) DEV_LIMIT(maxComputeWorkgroupSizeZ);
+        limits.m_MaxComputeWorkgroupInvocations  = (uint32_t) DEV_LIMIT(maxComputeInvocationsPerWorkgroup);
+        limits.m_MaxComputeSharedMemorySize      = (uint32_t) DEV_LIMIT(maxComputeWorkgroupStorageSize);
+
+        limits.m_MaxUniformBufferRange           = (uint64_t) DEV_LIMIT(maxUniformBufferBindingSize);
+        limits.m_MaxStorageBufferRange           = (uint64_t) DEV_LIMIT(maxStorageBufferBindingSize);
+
+        // WebGPU does not expose push constants — the closest concept (push
+        // constants extension) is not in the core spec.
+        // TODO(webgpu): m_MaxPushConstantSize — not in core WGPULimits.
+        limits.m_MaxPushConstantSize             = 0;
+
+        limits.m_MinUniformBufferOffsetAlignment = (uint32_t) DEV_LIMIT(minUniformBufferOffsetAlignment);
+        limits.m_MinStorageBufferOffsetAlignment = (uint32_t) DEV_LIMIT(minStorageBufferOffsetAlignment);
 
     #undef DEV_LIMIT
     }

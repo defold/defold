@@ -1853,31 +1853,24 @@ static void LogFrameBufferError(GLenum status)
         }
 
         // Populate the shared GraphicsContextLimits from runtime GL queries.
-        // Anything GL doesn't expose directly (or that has no clean equivalent) is
-        // commented inline so we can revisit later.
+        // Anything GL doesn't expose directly is commented inline.
         {
             GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
             GLint v = 0;
 
-            // GL has no concept of "max number of 2D/3D/Cube textures" — it
-            // exposes the maximum dimension instead. Reuse those values here
-            // for now; revisit if we want a true count.
-            // TODO(opengl): m_MaxTextureCount2D / m_MaxTextureCount3D / m_MaxTextureCountCube
-            //               — GL exposes GL_MAX_TEXTURE_SIZE / GL_MAX_3D_TEXTURE_SIZE
-            //               / GL_MAX_CUBE_MAP_TEXTURE_SIZE (max dimension, not count).
-            limits.m_MaxTextureCount2D   = (uint32_t) gl_max_texture_size;
-            limits.m_MaxTextureCount3D   = 0;
-            limits.m_MaxTextureCountCube = 0;
+            limits.m_MaxTextureSize2D   = (uint32_t) gl_max_texture_size;
+            limits.m_MaxTextureSize3D   = 0;
+            limits.m_MaxTextureSizeCube = 0;
         #ifdef GL_MAX_3D_TEXTURE_SIZE
             if (context->m_3DTextureSupport)
             {
                 v = 0; glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &v); CLEAR_GL_ERROR;
-                limits.m_MaxTextureCount3D = (uint32_t) v;
+                limits.m_MaxTextureSize3D = (uint32_t) v;
             }
         #endif
         #ifdef GL_MAX_CUBE_MAP_TEXTURE_SIZE
             v = 0; glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &v); CLEAR_GL_ERROR;
-            limits.m_MaxTextureCountCube = (uint32_t) v;
+            limits.m_MaxTextureSizeCube = (uint32_t) v;
         #endif
 
         #ifdef GL_MAX_ARRAY_TEXTURE_LAYERS
@@ -1893,13 +1886,23 @@ static void LogFrameBufferError(GLenum status)
             limits.m_MaxTextureArrayLayers = 0;
         #endif
 
-            // GL_MAX_TEXTURE_IMAGE_UNITS is the closest match for both
-            // "samplers per stage" and "sampled textures per stage" in GL —
-            // there's no separate count for samplers vs. sampled textures
-            // until ARB_separate_shader_objects-era APIs.
-            v = 0; glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &v); CLEAR_GL_ERROR;
-            limits.m_MaxSamplersPerStage = (uint32_t) v;
-            limits.m_MaxTexturesPerStage = (uint32_t) v;
+            // m_MaxAnisotropy is queried separately (with EXT extension fallback)
+            // earlier in this function. Mirror it into the shared limits.
+            limits.m_MaxAnisotropy = context->m_AnisotropySupport ? context->m_MaxAnisotropy : 1.0f;
+
+        #ifdef GL_MAX_VIEWPORT_DIMS
+            {
+                GLint dims[2] = { 0, 0 };
+                glGetIntegerv(GL_MAX_VIEWPORT_DIMS, dims); CLEAR_GL_ERROR;
+                limits.m_MaxFramebufferWidth  = (uint32_t) dims[0];
+                limits.m_MaxFramebufferHeight = (uint32_t) dims[1];
+            }
+        #else
+            // TODO(opengl): m_MaxFramebufferWidth/Height — GL_MAX_VIEWPORT_DIMS
+            //               not declared on this platform's headers.
+            limits.m_MaxFramebufferWidth  = (uint32_t) gl_max_texture_size;
+            limits.m_MaxFramebufferHeight = (uint32_t) gl_max_texture_size;
+        #endif
 
         #ifdef GL_MAX_COLOR_ATTACHMENTS
             v = 0; glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &v); CLEAR_GL_ERROR;
@@ -1908,6 +1911,28 @@ static void LogFrameBufferError(GLenum status)
             // TODO(opengl): m_MaxColorAttachments — GL_MAX_COLOR_ATTACHMENTS
             //               not declared on this platform's headers.
             limits.m_MaxColorAttachments = 1;
+        #endif
+
+            // GL_MAX_TEXTURE_IMAGE_UNITS is the closest match for both
+            // "samplers per stage" and "sampled textures per stage" in GL —
+            // there's no separate count for samplers vs. sampled textures
+            // until ARB_separate_shader_objects-era APIs.
+            v = 0; glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &v); CLEAR_GL_ERROR;
+            limits.m_MaxSamplersPerStage = (uint32_t) v;
+            limits.m_MaxTexturesPerStage = (uint32_t) v;
+
+            v = 0; glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &v); CLEAR_GL_ERROR;
+            limits.m_MaxVertexAttributes = (uint32_t) v;
+
+            // GL has no separate "max vertex buffer bindings" before
+            // GL 4.3 (GL_MAX_VERTEX_ATTRIB_BINDINGS); fall back to attrib count.
+        #ifdef GL_MAX_VERTEX_ATTRIB_BINDINGS
+            v = 0; glGetIntegerv(GL_MAX_VERTEX_ATTRIB_BINDINGS, &v); CLEAR_GL_ERROR;
+            limits.m_MaxVertexBuffers = (uint32_t) v;
+        #else
+            // TODO(opengl): m_MaxVertexBuffers — GL_MAX_VERTEX_ATTRIB_BINDINGS
+            //               requires GL 4.3 / GLES 3.1.
+            limits.m_MaxVertexBuffers = limits.m_MaxVertexAttributes;
         #endif
 
             limits.m_MaxComputeWorkgroupSizeX       = 0;
@@ -1938,24 +1963,45 @@ static void LogFrameBufferError(GLenum status)
 
         #ifdef GL_MAX_UNIFORM_BLOCK_SIZE
             v = 0; glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &v); CLEAR_GL_ERROR;
-            limits.m_MaxUniformBufferSize = (uint32_t) v;
+            limits.m_MaxUniformBufferRange = (uint64_t) v;
         #else
-            // TODO(opengl): m_MaxUniformBufferSize — GL_MAX_UNIFORM_BLOCK_SIZE
+            // TODO(opengl): m_MaxUniformBufferRange — GL_MAX_UNIFORM_BLOCK_SIZE
             //               requires GL 3.1 / GLES 3.0.
-            limits.m_MaxUniformBufferSize = 0;
+            limits.m_MaxUniformBufferRange = 0;
         #endif
 
         #ifdef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
-            limits.m_MaxStorageBufferSize = 0;
+            limits.m_MaxStorageBufferRange = 0;
             if (context->m_ComputeSupport)
             {
                 v = 0; glGetIntegerv(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, &v); CLEAR_GL_ERROR;
-                limits.m_MaxStorageBufferSize = (uint32_t) v;
+                // GL_MAX_SHADER_STORAGE_BLOCK_SIZE is reported as a signed GLint64
+                // in spec — but glGetIntegerv truncates. Drivers commonly clamp
+                // anyway; revisit with glGetInteger64v if the truncation hurts.
+                limits.m_MaxStorageBufferRange = (uint64_t)(uint32_t) v;
             }
         #else
-            // TODO(opengl): m_MaxStorageBufferSize — GL_MAX_SHADER_STORAGE_BLOCK_SIZE
+            // TODO(opengl): m_MaxStorageBufferRange — GL_MAX_SHADER_STORAGE_BLOCK_SIZE
             //               requires GL 4.3 / GLES 3.1 with SSBO support.
-            limits.m_MaxStorageBufferSize = 0;
+            limits.m_MaxStorageBufferRange = 0;
+        #endif
+
+            // GL has no push constants — closest equivalent is uniform locations
+            // updated via glUniform*. Leave as 0 to indicate "not applicable".
+            // TODO(opengl): m_MaxPushConstantSize — GL has no push constant concept.
+            limits.m_MaxPushConstantSize = 0;
+
+        #ifdef GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT
+            v = 0; glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &v); CLEAR_GL_ERROR;
+            limits.m_MinUniformBufferOffsetAlignment = (uint32_t) v;
+        #else
+            limits.m_MinUniformBufferOffsetAlignment = 256;
+        #endif
+        #ifdef GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT
+            v = 0; glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &v); CLEAR_GL_ERROR;
+            limits.m_MinStorageBufferOffsetAlignment = (uint32_t) v;
+        #else
+            limits.m_MinStorageBufferOffsetAlignment = 256;
         #endif
         }
 
