@@ -43,7 +43,7 @@
 
 (defonce ^List axes [:x :y :z])
 
-(defn- make-toggle-row-fx [{:keys [key label accelerator command disabled? state swap-state on-selected-changed style-class]}]
+(defn- make-toggle-row [{:keys [key label accelerator command disabled? state swap-state on-selected-changed style-class]}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [_]
                  (when command
@@ -115,7 +115,7 @@
    :on-created install-thumb-drag-guard!
    :desc (assoc props :fx/type fx.slider/lifecycle)})
 
-(defn- make-slider-row-fx [{:keys [popup key label min max snap-to state swap-state slider-value->string on-value-changed]}]
+(defn- make-slider-row [{:keys [popup key label min max snap-to state swap-state slider-value->string on-value-changed]}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
         snap-fn (if snap-to
                   (fn [^double v]
@@ -178,7 +178,7 @@
                        (.setOnHidden  cp (fn [_] (.setAutoHide ^PopupControl popup true)))))))
    :desc desc})
 
-(defn- make-color-row-fx [{:keys [popup key label state swap-state on-value-changed]}]
+(defn- make-color-row [{:keys [popup key label state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
    :children [{:fx/type fxui/label
                :text (or label "")
@@ -196,7 +196,7 @@
                                       (on-value-changed color)))
                 :ignore-alpha false}}]})
 
-(defn- make-vec3-floats-row-fx [{:keys [key state swap-state on-value-changed]}]
+(defn- make-vec3-floats-row [{:keys [key state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
    :children (into []
                    (mapcat (fn [axis]
@@ -218,7 +218,7 @@
                                                         (on-value-changed new-vec3))))}}]))
                    axes)})
 
-(defn- make-vec3-toggle-row-fx [{:keys [key label state swap-state on-value-changed]}]
+(defn- make-vec3-toggle-row [{:keys [key label state swap-state on-value-changed]}]
   {:fx/type fx/ext-let-refs
    :refs {::toggle-group {:fx/type fx.toggle-group/lifecycle}}
    :desc
@@ -242,7 +242,7 @@
                                                         (on-value-changed axis))))}}))
                     axes)}})
 
-(defn- make-reset-button-fx [{:keys [text swap-state on-reset]}]
+(defn- make-reset-button [{:keys [text swap-state on-reset]}]
   {:fx/type fxui/horizontal
    :style-class "reset-button"
    :children [{:fx/type fxui/ext-ensure-focus-traversable
@@ -254,20 +254,20 @@
                              (on-reset swap-state)
                              (.requestFocus (.getParent ^Node (.getSource e))))}}]})
 
-(defn- make-row-fx [popup keymap localization-state state swap-state descriptor]
+(defn- make-row [popup keymap localization-state state swap-state descriptor]
   (let [descriptor-with-state (merge descriptor {:state state :swap-state swap-state :popup popup})
         label #(localization-state (localization/message (:label descriptor)))]
     (case (:type descriptor)
       :toggle      (assoc descriptor-with-state
-                          :fx/type make-toggle-row-fx
+                          :fx/type make-toggle-row
                           :label (label)
                           :accelerator (keymap/display-text keymap (:command descriptor) "")
                           :on-selected-changed (:on-value-changed descriptor))
-      :slider      (assoc descriptor-with-state :fx/type make-slider-row-fx :label (label))
-      :color       (assoc descriptor-with-state :fx/type make-color-row-fx  :label (label))
-      :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row-fx)
-      :vec3-toggle (assoc descriptor-with-state :fx/type make-vec3-toggle-row-fx :label (label))
-      :reset-all   {:fx/type make-reset-button-fx
+      :slider      (assoc descriptor-with-state :fx/type make-slider-row :label (label))
+      :color       (assoc descriptor-with-state :fx/type make-color-row  :label (label))
+      :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row)
+      :vec3-toggle (assoc descriptor-with-state :fx/type make-vec3-toggle-row :label (label))
+      :reset-all   {:fx/type make-reset-button
                     :text (localization-state (localization/message "scene-popup.reset-defaults-button"))
                     :swap-state swap-state
                     :on-reset (:on-reset descriptor)}
@@ -287,7 +287,7 @@
   {:fx/type fxui/vertical
    :style-class "popup-settings"
    :children (keep (fn [descriptor]
-                     (make-row-fx popup keymap localization-state state swap-state descriptor))
+                     (make-row popup keymap localization-state state swap-state descriptor))
                    descriptors)})
 
 (defn settings-visible? [^Parent owner]
