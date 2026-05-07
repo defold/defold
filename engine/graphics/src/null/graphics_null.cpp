@@ -113,7 +113,6 @@ namespace dmGraphics
         limits.m_MaxTextureSize3D                = 2048;
         limits.m_MaxTextureSizeCube              = 16384;
         limits.m_MaxTextureArrayLayers           = 2048;
-        limits.m_MaxAnisotropy                   = 16.0f;
 
         limits.m_MaxFramebufferWidth             = 16384;
         limits.m_MaxFramebufferHeight            = 16384;
@@ -132,9 +131,9 @@ namespace dmGraphics
 
         limits.m_MaxUniformBufferRange           = 64 * 1024;
         limits.m_MaxStorageBufferRange           = 128ull * 1024 * 1024;
-        limits.m_MaxPushConstantSize             = 128;
-        limits.m_MinUniformBufferOffsetAlignment = 256;
-        limits.m_MinStorageBufferOffsetAlignment = 256;
+
+        m_BaseContext.m_AdapterVersionMajor = 0;
+        m_BaseContext.m_AdapterVersionMinor = 0;
     }
 
     static HContext NullNewContext(const ContextParams& params)

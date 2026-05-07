@@ -158,6 +158,8 @@ namespace dmGraphics
     struct GraphicsContext
     {
         GraphicsContextLimits              m_Limits;
+        uint16_t                           m_AdapterVersionMajor;
+        uint16_t                           m_AdapterVersionMinor;
         HWindow                            m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         dmMutex::HMutex                    m_AssetHandleContainerMutex;

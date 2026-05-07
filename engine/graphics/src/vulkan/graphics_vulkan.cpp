@@ -1305,7 +1305,6 @@ namespace dmGraphics
             limits.m_MaxTextureSize3D                = vk_limits.maxImageDimension3D;
             limits.m_MaxTextureSizeCube              = vk_limits.maxImageDimensionCube;
             limits.m_MaxTextureArrayLayers           = vk_limits.maxImageArrayLayers;
-            limits.m_MaxAnisotropy                   = vk_limits.maxSamplerAnisotropy;
 
             limits.m_MaxFramebufferWidth             = vk_limits.maxFramebufferWidth;
             limits.m_MaxFramebufferHeight            = vk_limits.maxFramebufferHeight;
@@ -1324,9 +1323,13 @@ namespace dmGraphics
 
             limits.m_MaxUniformBufferRange           = vk_limits.maxUniformBufferRange;
             limits.m_MaxStorageBufferRange           = vk_limits.maxStorageBufferRange;
-            limits.m_MaxPushConstantSize             = vk_limits.maxPushConstantsSize;
-            limits.m_MinUniformBufferOffsetAlignment = (uint32_t) vk_limits.minUniformBufferOffsetAlignment;
-            limits.m_MinStorageBufferOffsetAlignment = (uint32_t) vk_limits.minStorageBufferOffsetAlignment;
+        }
+
+        // Adapter API version
+        {
+            uint32_t api = context->m_PhysicalDevice.m_Properties.apiVersion;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) VK_VERSION_MAJOR(api);
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) VK_VERSION_MINOR(api);
         }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)

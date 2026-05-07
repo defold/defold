@@ -1252,11 +1252,6 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         limits.m_MaxTextureSizeCube              = (uint32_t) DEV_LIMIT(maxTextureDimension2D); // cube faces share 2D limit
         limits.m_MaxTextureArrayLayers           = (uint32_t) DEV_LIMIT(maxTextureArrayLayers);
 
-        // WebGPU has no spec-level max anisotropy field; modern implementations
-        // generally support up to 16x. Use the conservative fixed value.
-        // TODO(webgpu): m_MaxAnisotropy — no equivalent in WGPULimits today.
-        limits.m_MaxAnisotropy                   = 16.0f;
-
         // TODO(webgpu): m_MaxFramebufferWidth/Height — WebGPU has no direct
         //               framebuffer size limit; falling back to max 2D dim.
         limits.m_MaxFramebufferWidth             = (uint32_t) DEV_LIMIT(maxTextureDimension2D);
@@ -1277,16 +1272,12 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         limits.m_MaxUniformBufferRange           = (uint64_t) DEV_LIMIT(maxUniformBufferBindingSize);
         limits.m_MaxStorageBufferRange           = (uint64_t) DEV_LIMIT(maxStorageBufferBindingSize);
 
-        // WebGPU does not expose push constants — the closest concept (push
-        // constants extension) is not in the core spec.
-        // TODO(webgpu): m_MaxPushConstantSize — not in core WGPULimits.
-        limits.m_MaxPushConstantSize             = 0;
-
-        limits.m_MinUniformBufferOffsetAlignment = (uint32_t) DEV_LIMIT(minUniformBufferOffsetAlignment);
-        limits.m_MinStorageBufferOffsetAlignment = (uint32_t) DEV_LIMIT(minStorageBufferOffsetAlignment);
-
     #undef DEV_LIMIT
     }
+
+    // WebGPU has no runtime-queryable API version; use 1.0 (core spec).
+    context->m_BaseContext.m_AdapterVersionMajor = 1;
+    context->m_BaseContext.m_AdapterVersionMinor = 0;
 
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB; // Transcoded
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA;

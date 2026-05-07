@@ -132,7 +132,6 @@ namespace dmGraphics
         uint32_t    m_MaxTextureSize3D;
         uint32_t    m_MaxTextureSizeCube;
         uint32_t    m_MaxTextureArrayLayers;
-        float       m_MaxAnisotropy;
 
         // Framebuffer limits
         uint32_t    m_MaxFramebufferWidth;
@@ -152,13 +151,9 @@ namespace dmGraphics
         uint32_t    m_MaxComputeWorkgroupInvocations;
         uint32_t    m_MaxComputeSharedMemorySize;
 
-        // Buffer limits — "Range" reflects what each backend reports: the max
-        // bindable range, not the underlying buffer object size.
+        // Buffer limits — max bindable range, not the underlying buffer object size.
         uint64_t    m_MaxUniformBufferRange;
         uint64_t    m_MaxStorageBufferRange;
-        uint32_t    m_MaxPushConstantSize;
-        uint32_t    m_MinUniformBufferOffsetAlignment;
-        uint32_t    m_MinStorageBufferOffsetAlignment;
     };
 
     // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).
@@ -364,6 +359,14 @@ namespace dmGraphics
      * @param limits  Output. Will be populated with the current context's limits.
      */
     void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits);
+
+    /**
+     * Get the installed graphics adapter's API version.
+     * @param context Graphics context handle
+     * @param major   Output. Major version number.
+     * @param minor   Output. Minor version number.
+     */
+    void GetAdapterVersion(HContext context, uint16_t& major, uint16_t& minor);
 
     /**
      * Retrieve current state of the opened window, if any.

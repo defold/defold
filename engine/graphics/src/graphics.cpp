@@ -1858,6 +1858,12 @@ namespace dmGraphics
         GraphicsContext* gc = (GraphicsContext*) context;
         limits = gc->m_Limits;
     }
+    void GetAdapterVersion(HContext context, uint16_t& major, uint16_t& minor)
+    {
+        GraphicsContext* gc = (GraphicsContext*) context;
+        major = gc->m_AdapterVersionMajor;
+        minor = gc->m_AdapterVersionMinor;
+    }
     uint32_t GetWidth(HContext context)
     {
         return g_functions.m_GetWidth(context);

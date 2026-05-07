@@ -1888,10 +1888,6 @@ static void LogFrameBufferError(GLenum status)
             limits.m_MaxTextureArrayLayers = 0;
         #endif
 
-            // m_MaxAnisotropy is queried separately (with EXT extension fallback)
-            // earlier in this function. Mirror it into the shared limits.
-            limits.m_MaxAnisotropy = context->m_AnisotropySupport ? context->m_MaxAnisotropy : 1.0f;
-
         #ifdef GL_MAX_VIEWPORT_DIMS
             {
                 GLint dims[2] = { 0, 0 };
@@ -1987,24 +1983,15 @@ static void LogFrameBufferError(GLenum status)
             //               requires GL 4.3 / GLES 3.1 with SSBO support.
             limits.m_MaxStorageBufferRange = 0;
         #endif
+        }
 
-            // GL has no push constants — closest equivalent is uniform locations
-            // updated via glUniform*. Leave as 0 to indicate "not applicable".
-            // TODO(opengl): m_MaxPushConstantSize — GL has no push constant concept.
-            limits.m_MaxPushConstantSize = 0;
-
-        #ifdef GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT
-            v = 0; glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &v); CLEAR_GL_ERROR;
-            limits.m_MinUniformBufferOffsetAlignment = (uint32_t) v;
-        #else
-            limits.m_MinUniformBufferOffsetAlignment = 256;
-        #endif
-        #ifdef GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT
-            v = 0; glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &v); CLEAR_GL_ERROR;
-            limits.m_MinStorageBufferOffsetAlignment = (uint32_t) v;
-        #else
-            limits.m_MinStorageBufferOffsetAlignment = 256;
-        #endif
+        // Adapter API version
+        {
+            GLint gl_major = 0, gl_minor = 0;
+            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major); CLEAR_GL_ERROR;
+            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor); CLEAR_GL_ERROR;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) gl_major;
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) gl_minor;
         }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)

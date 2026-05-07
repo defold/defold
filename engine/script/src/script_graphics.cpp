@@ -646,6 +646,62 @@ namespace dmScript
      * @constant
      */
 
+    /*#
+     * Context feature flag indicating support for rendering to multiple color targets simultaneously.
+     * @name graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for texture arrays.
+     * @name graphics.CONTEXT_FEATURE_TEXTURE_ARRAY
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for compute shaders.
+     * @name graphics.CONTEXT_FEATURE_COMPUTE_SHADER
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for storage buffers.
+     * @name graphics.CONTEXT_FEATURE_STORAGE_BUFFER
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for vertical sync (vsync).
+     * @name graphics.CONTEXT_FEATURE_VSYNC
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for hardware instancing.
+     * @name graphics.CONTEXT_FEATURE_INSTANCING
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for 3D (volume) textures.
+     * @name graphics.CONTEXT_FEATURE_3D_TEXTURES
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for ASTC compressed 2D array textures.
+     * Some WebGL/GLES drivers fail array texture ASTC uploads while 2D ASTC works.
+     * @name graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for min/max blend equations.
+     * Requires GLES3+ or EXT_blend_minmax.
+     * @name graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX
+     * @constant
+     */
+
     // Returns the short, lowercase Lua-facing name for an adapter family
     // ("opengl", "vulkan", ...). Returns "<unsupported>" for values not
     // covered below — never returns null.
@@ -702,7 +758,9 @@ namespace dmScript
      * @name graphics.get_adapter_info
      * @return info [type:table] table with the following fields:
      *
-     *   `family`     [type:string]  adapter family name (e.g. "opengl", "vulkan")
+     *   `family`         [type:string]   adapter family name (e.g. "opengl", "vulkan")
+     *   `version_major`  [type:number]   adapter API major version (e.g. 1 for Vulkan 1.4)
+     *   `version_minor`  [type:number]   adapter API minor version (e.g. 4 for Vulkan 1.4)
      *   `limits`     [type:table]   hardware/driver limits, snake_case keys
      *   `extensions` [type:table]   array of extension name strings
      *   `features`   [type:table]   array of supported `CONTEXT_FEATURE_*` ids
@@ -724,6 +782,19 @@ namespace dmScript
             }
             lua_pushstring(L, family_name);
             lua_setfield(L, -2, "family");
+        }
+
+        // adapter API version
+        {
+            uint16_t major = 0, minor = 0;
+            if (context)
+            {
+                dmGraphics::GetAdapterVersion(context, major, minor);
+            }
+            lua_pushinteger(L, (lua_Integer) major);
+            lua_setfield(L, -2, "version_major");
+            lua_pushinteger(L, (lua_Integer) minor);
+            lua_setfield(L, -2, "version_minor");
         }
 
         // limits sub-table
@@ -749,7 +820,6 @@ namespace dmScript
             PUSH_LIMIT(m_MaxTextureSize3D,                "max_texture_size_3d");
             PUSH_LIMIT(m_MaxTextureSizeCube,              "max_texture_size_cube");
             PUSH_LIMIT(m_MaxTextureArrayLayers,           "max_texture_array_layers");
-            PUSH_LIMIT(m_MaxAnisotropy,                   "max_anisotropy");
 
             // Framebuffer limits
             PUSH_LIMIT(m_MaxFramebufferWidth,             "max_framebuffer_width");
@@ -772,9 +842,6 @@ namespace dmScript
             // Buffer limits
             PUSH_LIMIT(m_MaxUniformBufferRange,           "max_uniform_buffer_range");
             PUSH_LIMIT(m_MaxStorageBufferRange,           "max_storage_buffer_range");
-            PUSH_LIMIT(m_MaxPushConstantSize,             "max_push_constant_size");
-            PUSH_LIMIT(m_MinUniformBufferOffsetAlignment, "min_uniform_buffer_offset_alignment");
-            PUSH_LIMIT(m_MinStorageBufferOffsetAlignment, "min_storage_buffer_offset_alignment");
 
         #undef PUSH_LIMIT
 
