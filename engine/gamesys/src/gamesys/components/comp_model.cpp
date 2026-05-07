@@ -119,6 +119,7 @@ namespace dmGameSystem
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
         dmGraphics::HTexture        m_MorphTargetTexture;
+        dmGraphics::HUniformBuffer  m_PBRMaterialUniformBuffer;
         HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
@@ -177,6 +178,7 @@ namespace dmGameSystem
     {
         dmObjectPool<ModelComponent*>    m_Components;
         dmArray<dmRender::RenderObject>  m_RenderObjects;
+        dmGraphics::HContext             m_GraphicsContext;
         DynamicAttributePool             m_DynamicVertexAttributePool;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexDeclaration   m_VertexDeclarationSkinned;
@@ -236,6 +238,7 @@ namespace dmGameSystem
         }
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        world->m_GraphicsContext = graphics_context;
 
         uint32_t max_texture_size = dmGraphics::GetMaxTextureSize(graphics_context);
         world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth = dmMath::Min(max_texture_size, (uint32_t) context->m_MaxBoneMatrixTextureWidth);
@@ -329,6 +332,15 @@ namespace dmGameSystem
         rd->m_RenderItemIndex = 0;
         rd->m_LastUsedFrame   = 0;
         rd->m_Initialized     = false;
+    }
+
+    static void ReleaseRenderItemResources(ModelWorld* world, MeshRenderItem* item)
+    {
+        if (item->m_PBRMaterialUniformBuffer)
+        {
+            dmGraphics::DeleteUniformBuffer(world->m_GraphicsContext, item->m_PBRMaterialUniformBuffer);
+            item->m_PBRMaterialUniformBuffer = 0;
+        }
     }
 
     dmGameObject::CreateResult CompModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
@@ -1053,8 +1065,13 @@ namespace dmGameSystem
         }
     }
 
-    static void SetupRenderItems(ModelComponent* component, ModelResource* resource)
+    static void SetupRenderItems(ModelWorld* world, ModelComponent* component, ModelResource* resource)
     {
+        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            ReleaseRenderItemResources(world, &component->m_RenderItems[i]);
+        }
+
         component->m_RenderItems.SetCapacity(resource->m_Meshes.Size());
         component->m_RenderItems.SetSize(0);
 
@@ -1072,6 +1089,7 @@ namespace dmGameSystem
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
             item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture;
+            item.m_PBRMaterialUniformBuffer = 0;
             item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
@@ -1200,7 +1218,7 @@ namespace dmGameSystem
             return res;
         }
 
-        SetupRenderItems(component, resource);
+        SetupRenderItems(world, component, resource);
 
         component->m_ReHash = 1;
 
@@ -1238,6 +1256,8 @@ namespace dmGameSystem
 
         for (int i = 0; i < component->m_RenderItems.Size(); ++i)
         {
+            ReleaseRenderItemResources(world, &component->m_RenderItems[i]);
+
             if (component->m_RenderItems[i].m_RenderConstants)
             {
                 dmGameSystem::DestroyRenderConstants(component->m_RenderItems[i].m_RenderConstants);
@@ -1290,6 +1310,289 @@ namespace dmGameSystem
         }
     }
     #endif
+
+    enum PBRMaterialUniformBufferSlots
+    {
+        PBR_MATERIAL_SLOT_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT = 0,
+        PBR_MATERIAL_SLOT_COMMON_TEXTURES,
+        PBR_MATERIAL_SLOT_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR,
+        PBR_MATERIAL_SLOT_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR,
+        PBR_MATERIAL_SLOT_METALLIC_ROUGHNESS_TEXTURES,
+        PBR_MATERIAL_SLOT_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR,
+        PBR_MATERIAL_SLOT_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR,
+        PBR_MATERIAL_SLOT_SPECULAR_GLOSSINESS_TEXTURES,
+        PBR_MATERIAL_SLOT_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR,
+        PBR_MATERIAL_SLOT_CLEAR_COAT_TEXTURES,
+        PBR_MATERIAL_SLOT_TRANSMISSION_TRANSMISSION_FACTOR,
+        PBR_MATERIAL_SLOT_TRANSMISSION_TEXTURES,
+        PBR_MATERIAL_SLOT_IOR_IOR,
+        PBR_MATERIAL_SLOT_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR,
+        PBR_MATERIAL_SLOT_SPECULAR_TEXTURES,
+        PBR_MATERIAL_SLOT_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR,
+        PBR_MATERIAL_SLOT_VOLUME_ATTENUATION_DISTANCE,
+        PBR_MATERIAL_SLOT_VOLUME_TEXTURES,
+        PBR_MATERIAL_SLOT_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR,
+        PBR_MATERIAL_SLOT_SHEEN_TEXTURES,
+        PBR_MATERIAL_SLOT_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH,
+        PBR_MATERIAL_SLOT_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX,
+        PBR_MATERIAL_SLOT_IRIDESCENCE_TEXTURES,
+        PBR_MATERIAL_UNIFORM_BUFFER_VEC4_COUNT
+    };
+
+    struct PBRMaterialUniformBufferData
+    {
+        dmVMath::Vector4 m_Data[PBR_MATERIAL_UNIFORM_BUFFER_VEC4_COUNT];
+    };
+
+    DM_STATIC_ASSERT(sizeof(PBRMaterialUniformBufferData) == sizeof(dmVMath::Vector4) * PBR_MATERIAL_UNIFORM_BUFFER_VEC4_COUNT, Invalid_Struct_Size);
+
+    static void SetPBRMaterialVec4Member(dmGraphics::ShaderResourceMember* member, const char* name)
+    {
+        member->m_Name                = name;
+        member->m_NameHash            = dmHashString64(name);
+        member->m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        member->m_Type.m_UseTypeIndex = 0;
+        member->m_ElementCount        = 1;
+    }
+
+    static void SetPBRMaterialStructMember(dmGraphics::ShaderResourceMember* member, const char* name, uint32_t type_index)
+    {
+        member->m_Name                = name;
+        member->m_NameHash            = dmHashString64(name);
+        member->m_Type.m_TypeIndex    = type_index;
+        member->m_Type.m_UseTypeIndex = 1;
+        member->m_ElementCount        = 1;
+    }
+
+    static void SetPBRMaterialTypeInfo(dmGraphics::ShaderResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderResourceMember* members, uint32_t member_count)
+    {
+        type_info->m_Name        = (char*) name;
+        type_info->m_NameHash    = dmHashString64(name);
+        type_info->m_Members     = members;
+        type_info->m_MemberCount = member_count;
+    }
+
+    static dmGraphics::UniformBufferLayout GetPBRMaterialUniformBufferLayout()
+    {
+        enum PBRMaterialUniformBufferType
+        {
+            PBR_MATERIAL_TYPE_ROOT = 0,
+            PBR_MATERIAL_TYPE_METALLIC_ROUGHNESS,
+            PBR_MATERIAL_TYPE_SPECULAR_GLOSSINESS,
+            PBR_MATERIAL_TYPE_CLEAR_COAT,
+            PBR_MATERIAL_TYPE_TRANSMISSION,
+            PBR_MATERIAL_TYPE_IOR,
+            PBR_MATERIAL_TYPE_SPECULAR,
+            PBR_MATERIAL_TYPE_VOLUME,
+            PBR_MATERIAL_TYPE_SHEEN,
+            PBR_MATERIAL_TYPE_EMISSIVE_STRENGTH,
+            PBR_MATERIAL_TYPE_IRIDESCENCE,
+            PBR_MATERIAL_TYPE_COUNT
+        };
+
+        dmGraphics::ShaderResourceMember root_members[12];
+        dmGraphics::ShaderResourceMember metallic_roughness_members[3];
+        dmGraphics::ShaderResourceMember specular_glossiness_members[3];
+        dmGraphics::ShaderResourceMember clear_coat_members[2];
+        dmGraphics::ShaderResourceMember transmission_members[2];
+        dmGraphics::ShaderResourceMember ior_members[1];
+        dmGraphics::ShaderResourceMember specular_members[2];
+        dmGraphics::ShaderResourceMember volume_members[3];
+        dmGraphics::ShaderResourceMember sheen_members[2];
+        dmGraphics::ShaderResourceMember emissive_strength_members[1];
+        dmGraphics::ShaderResourceMember iridescence_members[2];
+        dmGraphics::ShaderResourceTypeInfo types[PBR_MATERIAL_TYPE_COUNT];
+
+        memset(root_members, 0, sizeof(root_members));
+        memset(metallic_roughness_members, 0, sizeof(metallic_roughness_members));
+        memset(specular_glossiness_members, 0, sizeof(specular_glossiness_members));
+        memset(clear_coat_members, 0, sizeof(clear_coat_members));
+        memset(transmission_members, 0, sizeof(transmission_members));
+        memset(ior_members, 0, sizeof(ior_members));
+        memset(specular_members, 0, sizeof(specular_members));
+        memset(volume_members, 0, sizeof(volume_members));
+        memset(sheen_members, 0, sizeof(sheen_members));
+        memset(emissive_strength_members, 0, sizeof(emissive_strength_members));
+        memset(iridescence_members, 0, sizeof(iridescence_members));
+        memset(types, 0, sizeof(types));
+
+        SetPBRMaterialVec4Member(&root_members[0], "pbrAlphaCutoffAndDoubleSidedAndIsUnlit");
+        SetPBRMaterialVec4Member(&root_members[1], "pbrCommonTextures");
+        SetPBRMaterialStructMember(&root_members[2], "pbrMetallicRoughness", PBR_MATERIAL_TYPE_METALLIC_ROUGHNESS);
+        SetPBRMaterialStructMember(&root_members[3], "pbrSpecularGlossiness", PBR_MATERIAL_TYPE_SPECULAR_GLOSSINESS);
+        SetPBRMaterialStructMember(&root_members[4], "pbrClearCoat", PBR_MATERIAL_TYPE_CLEAR_COAT);
+        SetPBRMaterialStructMember(&root_members[5], "pbrTransmission", PBR_MATERIAL_TYPE_TRANSMISSION);
+        SetPBRMaterialStructMember(&root_members[6], "pbrIor", PBR_MATERIAL_TYPE_IOR);
+        SetPBRMaterialStructMember(&root_members[7], "pbrSpecular", PBR_MATERIAL_TYPE_SPECULAR);
+        SetPBRMaterialStructMember(&root_members[8], "pbrVolume", PBR_MATERIAL_TYPE_VOLUME);
+        SetPBRMaterialStructMember(&root_members[9], "pbrSheen", PBR_MATERIAL_TYPE_SHEEN);
+        SetPBRMaterialStructMember(&root_members[10], "pbrEmissiveStrength", PBR_MATERIAL_TYPE_EMISSIVE_STRENGTH);
+        SetPBRMaterialStructMember(&root_members[11], "pbrIridescence", PBR_MATERIAL_TYPE_IRIDESCENCE);
+
+        SetPBRMaterialVec4Member(&metallic_roughness_members[0], "baseColorFactor");
+        SetPBRMaterialVec4Member(&metallic_roughness_members[1], "metallicAndRoughnessFactor");
+        SetPBRMaterialVec4Member(&metallic_roughness_members[2], "metallicRoughnessTextures");
+
+        SetPBRMaterialVec4Member(&specular_glossiness_members[0], "diffuseFactor");
+        SetPBRMaterialVec4Member(&specular_glossiness_members[1], "specularAndSpecularGlossinessFactor");
+        SetPBRMaterialVec4Member(&specular_glossiness_members[2], "specularGlossinessTextures");
+
+        SetPBRMaterialVec4Member(&clear_coat_members[0], "clearCoatAndClearCoatRoughnessFactor");
+        SetPBRMaterialVec4Member(&clear_coat_members[1], "clearCoatTextures");
+
+        SetPBRMaterialVec4Member(&transmission_members[0], "transmissionFactor");
+        SetPBRMaterialVec4Member(&transmission_members[1], "transmissionTextures");
+
+        SetPBRMaterialVec4Member(&ior_members[0], "ior");
+
+        SetPBRMaterialVec4Member(&specular_members[0], "specularColorAndSpecularFactor");
+        SetPBRMaterialVec4Member(&specular_members[1], "specularTextures");
+
+        SetPBRMaterialVec4Member(&volume_members[0], "thicknessFactorAndAttenuationColor");
+        SetPBRMaterialVec4Member(&volume_members[1], "attenuationDistance");
+        SetPBRMaterialVec4Member(&volume_members[2], "volumeTextures");
+
+        SetPBRMaterialVec4Member(&sheen_members[0], "sheenColorAndRoughnessFactor");
+        SetPBRMaterialVec4Member(&sheen_members[1], "sheenTextures");
+
+        SetPBRMaterialVec4Member(&emissive_strength_members[0], "emissiveStrength");
+
+        SetPBRMaterialVec4Member(&iridescence_members[0], "iridescenceFactorAndIorAndThicknessMinMax");
+        SetPBRMaterialVec4Member(&iridescence_members[1], "iridescenceTextures");
+
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_ROOT], "PbrMaterial", root_members, DM_ARRAY_SIZE(root_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_METALLIC_ROUGHNESS], "PbrMetallicRoughness", metallic_roughness_members, DM_ARRAY_SIZE(metallic_roughness_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_SPECULAR_GLOSSINESS], "PbrSpecularGlossiness", specular_glossiness_members, DM_ARRAY_SIZE(specular_glossiness_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_CLEAR_COAT], "PbrClearCoat", clear_coat_members, DM_ARRAY_SIZE(clear_coat_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_TRANSMISSION], "PbrTransmission", transmission_members, DM_ARRAY_SIZE(transmission_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_IOR], "PbrIor", ior_members, DM_ARRAY_SIZE(ior_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_SPECULAR], "PbrSpecular", specular_members, DM_ARRAY_SIZE(specular_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_VOLUME], "PbrVolume", volume_members, DM_ARRAY_SIZE(volume_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_SHEEN], "PbrSheen", sheen_members, DM_ARRAY_SIZE(sheen_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_EMISSIVE_STRENGTH], "PbrEmissiveStrength", emissive_strength_members, DM_ARRAY_SIZE(emissive_strength_members));
+        SetPBRMaterialTypeInfo(&types[PBR_MATERIAL_TYPE_IRIDESCENCE], "PbrIridescence", iridescence_members, DM_ARRAY_SIZE(iridescence_members));
+
+        dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
+
+        dmGraphics::UniformBufferLayout layout;
+        dmGraphics::GetUniformBufferLayout(PBR_MATERIAL_TYPE_ROOT, types, DM_ARRAY_SIZE(types), &layout);
+        return layout;
+    }
+
+    static dmGraphics::HUniformBuffer GetPBRMaterialUniformBuffer(ModelWorld* world, ModelComponent* component, MeshRenderItem* render_item, dmRender::HMaterial material, uint32_t material_index)
+    {
+        dmRenderDDF::MaterialDesc::PbrParameters parameters;
+        if (!dmRender::GetMaterialPBRParameters(material, &parameters))
+        {
+            return 0;
+        }
+
+        if (!dmGraphics::IsContextFeatureSupported(world->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
+        {
+            return 0;
+        }
+
+        uint16_t binding = 0;
+        uint16_t set     = 0;
+        if (!dmRender::GetMaterialPBRMaterialBufferBinding(material, &binding, &set))
+        {
+            return 0;
+        }
+
+        if (render_item->m_PBRMaterialUniformBuffer)
+        {
+            return render_item->m_PBRMaterialUniformBuffer;
+        }
+
+        const dmRigDDF::Material& ddf_material = component->m_Resource->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[material_index];
+
+        PBRMaterialUniformBufferData data;
+        memset(&data, 0, sizeof(data));
+
+        data.m_Data[PBR_MATERIAL_SLOT_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT] = dmVMath::Vector4(ddf_material.m_Alphacutoff, ddf_material.m_Doublesided ? 1.0f : 0.0f, ddf_material.m_Unlit ? 1.0f : 0.0f, 0.0f);
+        data.m_Data[PBR_MATERIAL_SLOT_COMMON_TEXTURES] = dmVMath::Vector4(
+            ddf_material.m_Normaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Occlusiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Emissivetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR] = dmVMath::Vector4(
+            ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor.getX(),
+            ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor.getY(),
+            ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor.getZ(),
+            ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor.getW());
+        data.m_Data[PBR_MATERIAL_SLOT_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR] = dmVMath::Vector4(ddf_material.m_Pbrmetallicroughness.m_Metallicfactor, ddf_material.m_Pbrmetallicroughness.m_Roughnessfactor, 0.0f, 0.0f);
+        data.m_Data[PBR_MATERIAL_SLOT_METALLIC_ROUGHNESS_TEXTURES] = dmVMath::Vector4(
+            ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR] = dmVMath::Vector4(
+            ddf_material.m_Pbrspecularglossiness.m_Diffusefactor.getX(),
+            ddf_material.m_Pbrspecularglossiness.m_Diffusefactor.getY(),
+            ddf_material.m_Pbrspecularglossiness.m_Diffusefactor.getZ(),
+            ddf_material.m_Pbrspecularglossiness.m_Diffusefactor.getW());
+        data.m_Data[PBR_MATERIAL_SLOT_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR] = dmVMath::Vector4(ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getX(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getY(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getZ(), ddf_material.m_Pbrspecularglossiness.m_Glossinessfactor);
+        data.m_Data[PBR_MATERIAL_SLOT_SPECULAR_GLOSSINESS_TEXTURES] = dmVMath::Vector4(
+            ddf_material.m_Pbrspecularglossiness.m_Diffusetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Pbrspecularglossiness.m_Specularglossinesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR] = dmVMath::Vector4(ddf_material.m_Clearcoat.m_Clearcoatfactor, ddf_material.m_Clearcoat.m_Clearcoatroughnessfactor, 0.0f, 0.0f);
+        data.m_Data[PBR_MATERIAL_SLOT_CLEAR_COAT_TEXTURES] = dmVMath::Vector4(
+            ddf_material.m_Clearcoat.m_Clearcoattexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Clearcoat.m_Clearcoatroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Clearcoat.m_Clearcoatnormaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_TRANSMISSION_TRANSMISSION_FACTOR] = dmVMath::Vector4(ddf_material.m_Transmission.m_Transmissionfactor, 0.0f, 0.0f, 0.0f);
+        data.m_Data[PBR_MATERIAL_SLOT_TRANSMISSION_TEXTURES] = dmVMath::Vector4(ddf_material.m_Transmission.m_Transmissiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_IOR_IOR] = dmVMath::Vector4(ddf_material.m_Ior.m_Ior, 0.0f, 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR] = dmVMath::Vector4(ddf_material.m_Specular.m_Specularcolorfactor.getX(), ddf_material.m_Specular.m_Specularcolorfactor.getY(), ddf_material.m_Specular.m_Specularcolorfactor.getZ(), ddf_material.m_Specular.m_Specularfactor);
+        data.m_Data[PBR_MATERIAL_SLOT_SPECULAR_TEXTURES] = dmVMath::Vector4(
+            ddf_material.m_Specular.m_Speculartexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Specular.m_Specularcolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR] = dmVMath::Vector4(ddf_material.m_Volume.m_Thicknessfactor, ddf_material.m_Volume.m_Attenuationcolor.getX(), ddf_material.m_Volume.m_Attenuationcolor.getY(), ddf_material.m_Volume.m_Attenuationcolor.getZ());
+        data.m_Data[PBR_MATERIAL_SLOT_VOLUME_ATTENUATION_DISTANCE] = dmVMath::Vector4(ddf_material.m_Volume.m_Attenuationdistance, 0.0f, 0.0f, 0.0f);
+        data.m_Data[PBR_MATERIAL_SLOT_VOLUME_TEXTURES] = dmVMath::Vector4(ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR] = dmVMath::Vector4(ddf_material.m_Sheen.m_Sheencolorfactor.getX(), ddf_material.m_Sheen.m_Sheencolorfactor.getY(), ddf_material.m_Sheen.m_Sheencolorfactor.getZ(), ddf_material.m_Sheen.m_Sheenroughnessfactor);
+        data.m_Data[PBR_MATERIAL_SLOT_SHEEN_TEXTURES] = dmVMath::Vector4(
+            ddf_material.m_Sheen.m_Sheencolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Sheen.m_Sheenroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH] = dmVMath::Vector4(ddf_material.m_Emissivestrength.m_Emissivestrength, 0.0f, 0.0f, 0.0f);
+
+        data.m_Data[PBR_MATERIAL_SLOT_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX] = dmVMath::Vector4(ddf_material.m_Iridescence.m_Iridescencefactor, ddf_material.m_Iridescence.m_Iridescenceior, ddf_material.m_Iridescence.m_Iridescencethicknessmin, ddf_material.m_Iridescence.m_Iridescencethicknessmax);
+        data.m_Data[PBR_MATERIAL_SLOT_IRIDESCENCE_TEXTURES] = dmVMath::Vector4(
+            ddf_material.m_Iridescence.m_Iridescencetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Iridescence.m_Iridescencethicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+
+        dmGraphics::UniformBufferLayout layout = GetPBRMaterialUniformBufferLayout();
+        render_item->m_PBRMaterialUniformBuffer = dmGraphics::NewUniformBuffer(world->m_GraphicsContext, layout);
+        dmGraphics::SetUniformBuffer(world->m_GraphicsContext, render_item->m_PBRMaterialUniformBuffer, 0, sizeof(data), &data);
+        return render_item->m_PBRMaterialUniformBuffer;
+    }
+
+    static bool BindPBRMaterialUniformBuffer(ModelWorld* world, dmRender::RenderObject* ro, ModelComponent* component, MeshRenderItem* render_item, dmRender::HMaterial material, uint32_t material_index)
+    {
+        uint16_t binding = 0;
+        uint16_t set     = 0;
+        if (!dmRender::GetMaterialPBRMaterialBufferBinding(material, &binding, &set))
+        {
+            return false;
+        }
+
+        dmGraphics::HUniformBuffer uniform_buffer = GetPBRMaterialUniformBuffer(world, component, render_item, material, material_index);
+        if (!uniform_buffer)
+        {
+            return false;
+        }
+
+        ro->m_UniformBuffers[0]       = uniform_buffer;
+        ro->m_UniformBufferBindings[0] = binding;
+        ro->m_UniformBufferSets[0]     = set;
+        return true;
+    }
 
     static bool FillPBRConstants(ModelComponent* component, MeshRenderItem* render_item, dmRender::HMaterial material, uint32_t material_index)
     {
@@ -1773,6 +2076,7 @@ namespace dmGameSystem
         dmGraphics::VertexAttributeInfos* attribute_infos = 0;
 
         int32_t first_free_index = FillTextures(&ro, component, material_index);
+        bool has_pbr_material_uniform_buffer = BindPBRMaterialUniformBuffer(world, &ro, component, render_item, render_material, material_index);
 
 
         for (uint32_t *i=begin;i!=end;i++)
@@ -1890,7 +2194,7 @@ namespace dmGameSystem
         // Otherwise, each render item will overwrite the component render constants with new values
         // before the render object is processed and the draw call is dispatched.
         HComponentRenderConstants constants = component->m_RenderConstants;
-        if (FillPBRConstants(component, render_item, render_material, material_index))
+        if (!has_pbr_material_uniform_buffer && FillPBRConstants(component, render_item, render_material, material_index))
         {
             CopyRenderConstants(render_item->m_RenderConstants, constants);
             constants = render_item->m_RenderConstants;
@@ -2006,6 +2310,7 @@ namespace dmGameSystem
             }
 
             int32_t first_free_index = FillTextures(&ro, component, material_index);
+            bool has_pbr_material_uniform_buffer = BindPBRMaterialUniformBuffer(world, &ro, component, render_item, render_material, material_index);
             HComponentRenderConstants constants = component->m_RenderConstants;
 
             if (IsRenderItemSkinned(component, render_item))
@@ -2040,7 +2345,7 @@ namespace dmGameSystem
             // If the material supports PBR data, we need to use the render item's constants.
             // Otherwise, each render item will overwrite the component render constants with new values
             // before the render object is processed and the draw call is dispatched.
-            if (FillPBRConstants(component, render_item, render_material, material_index))
+            if (!has_pbr_material_uniform_buffer && FillPBRConstants(component, render_item, render_material, material_index))
             {
                 CopyRenderConstants(render_item->m_RenderConstants, constants);
                 constants = render_item->m_RenderConstants;
@@ -2211,8 +2516,8 @@ namespace dmGameSystem
     {
         DM_PROFILE("RenderBatchWorld");
 
-        const MeshRenderItem* render_item      = (MeshRenderItem*) buf[*begin].m_UserData;
-        const ModelComponent* component        = render_item->m_Component;
+        MeshRenderItem* render_item            = (MeshRenderItem*) buf[*begin].m_UserData;
+        ModelComponent* component              = render_item->m_Component;
         uint32_t material_index                = render_item->m_MaterialIndex;
         dmRender::HMaterial material           = GetRenderMaterial(render_context_material, component, component->m_Resource, material_index);
         // vx_decl is the _shared_ vertex declaration here since we can't use instancing for WorldVs batches
@@ -2300,6 +2605,7 @@ namespace dmGameSystem
         ro.m_WorldTransform        = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
         FillTextures(&ro, component, material_index);
+        BindPBRMaterialUniformBuffer(world, &ro, component, render_item, material, material_index);
 
         if (component->m_RenderConstants)
         {
@@ -2890,7 +3196,7 @@ namespace dmGameSystem
             return false;
         }
 
-        SetupRenderItems(component, component->m_Resource);
+        SetupRenderItems(world, component, component->m_Resource);
 
         component->m_ReHash = 1;
 
@@ -3305,6 +3611,18 @@ namespace dmGameSystem
         }
 
         *render_constants = component->m_RenderItems[render_item_ix].m_RenderConstants;
+    }
+
+    void GetModelComponentPBRMaterialUniformBuffer(void* model_component, int render_item_ix, dmGraphics::HUniformBuffer* uniform_buffer)
+    {
+        ModelComponent* component = (ModelComponent*) model_component;
+        if (render_item_ix < 0 || render_item_ix >= component->m_RenderItems.Size())
+        {
+            *uniform_buffer = 0x0;
+            return;
+        }
+
+        *uniform_buffer = component->m_RenderItems[render_item_ix].m_PBRMaterialUniformBuffer;
     }
 
     void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl)

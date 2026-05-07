@@ -101,14 +101,15 @@ namespace dmGraphics
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
         CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
-        CONTEXT_FEATURE_VSYNC                  = 4,
-        CONTEXT_FEATURE_INSTANCING             = 5,
-        CONTEXT_FEATURE_3D_TEXTURES            = 6,
+        CONTEXT_FEATURE_UNIFORM_BUFFER         = 4,
+        CONTEXT_FEATURE_VSYNC                  = 5,
+        CONTEXT_FEATURE_INSTANCING             = 6,
+        CONTEXT_FEATURE_3D_TEXTURES            = 7,
         // ASTC for 2D array textures (paged atlases). Some WebGL/GLES drivers
         // fail array texture ASTC uploads while 2D ASTC works.
-        CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
+        CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 8,
         // GL_MIN/GL_MAX blend equations require GLES3+ or EXT_blend_minmax.
-        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
+        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 9,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -409,7 +410,7 @@ namespace dmGraphics
     HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
     void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
-    void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
+    void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t set, uint32_t binding);
     void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

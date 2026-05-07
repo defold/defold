@@ -85,6 +85,13 @@ namespace dmGraphics
     typedef uintptr_t HStorageBuffer;
 
     /*#
+     * Uniform buffer handle
+     * @typedef
+     * @name HUniformBuffer
+     */
+    typedef struct UniformBuffer* HUniformBuffer;
+
+    /*#
      * Uniform location handle
      * @typedef
      * @name HUniformLocation

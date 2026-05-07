@@ -196,8 +196,9 @@ namespace dmRender
         RenderObject();
         void Init();
 
-        static const uint32_t MAX_TEXTURE_COUNT       = 16;
-        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
+        static const uint32_t MAX_TEXTURE_COUNT        = 16;
+        static const uint32_t MAX_VERTEX_BUFFER_COUNT  = 3;
+        static const uint32_t MAX_UNIFORM_BUFFER_COUNT = 1;
 
         HNamedConstantBuffer            m_ConstantBuffer;
         dmVMath::Matrix4                m_WorldTransform;
@@ -216,6 +217,9 @@ namespace dmRender
         dmGraphics::HIndexBuffer        m_IndexBuffer;
         HMaterial                       m_Material;
         dmGraphics::HTexture            m_Textures[MAX_TEXTURE_COUNT];
+        dmGraphics::HUniformBuffer      m_UniformBuffers[MAX_UNIFORM_BUFFER_COUNT];
+        uint16_t                        m_UniformBufferBindings[MAX_UNIFORM_BUFFER_COUNT];
+        uint16_t                        m_UniformBufferSets[MAX_UNIFORM_BUFFER_COUNT];
         dmGraphics::PrimitiveType       m_PrimitiveType;
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;

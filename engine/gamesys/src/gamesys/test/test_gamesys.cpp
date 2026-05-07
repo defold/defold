@@ -106,6 +106,7 @@ namespace dmGameSystem
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
     extern void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count);
     extern void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants);
+    extern void GetModelComponentPBRMaterialUniformBuffer(void* model_component, int render_item_ix, dmGraphics::HUniformBuffer* uniform_buffer);
     extern void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl);
     extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
     extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
@@ -8965,6 +8966,148 @@ TEST_F(ModelTest, MeshAttributeRenderDataPurge)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+enum PBRMaterialUniformBufferTestSlots
+{
+    PBR_MATERIAL_TEST_SLOT_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT = 0,
+    PBR_MATERIAL_TEST_SLOT_COMMON_TEXTURES,
+    PBR_MATERIAL_TEST_SLOT_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR,
+    PBR_MATERIAL_TEST_SLOT_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR,
+    PBR_MATERIAL_TEST_SLOT_METALLIC_ROUGHNESS_TEXTURES,
+    PBR_MATERIAL_TEST_SLOT_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR,
+    PBR_MATERIAL_TEST_SLOT_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR,
+    PBR_MATERIAL_TEST_SLOT_SPECULAR_GLOSSINESS_TEXTURES,
+    PBR_MATERIAL_TEST_SLOT_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR,
+    PBR_MATERIAL_TEST_SLOT_CLEAR_COAT_TEXTURES,
+    PBR_MATERIAL_TEST_SLOT_TRANSMISSION_TRANSMISSION_FACTOR,
+    PBR_MATERIAL_TEST_SLOT_TRANSMISSION_TEXTURES,
+    PBR_MATERIAL_TEST_SLOT_IOR_IOR,
+    PBR_MATERIAL_TEST_SLOT_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR,
+    PBR_MATERIAL_TEST_SLOT_SPECULAR_TEXTURES,
+    PBR_MATERIAL_TEST_SLOT_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR,
+    PBR_MATERIAL_TEST_SLOT_VOLUME_ATTENUATION_DISTANCE,
+    PBR_MATERIAL_TEST_SLOT_VOLUME_TEXTURES,
+    PBR_MATERIAL_TEST_SLOT_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR,
+    PBR_MATERIAL_TEST_SLOT_SHEEN_TEXTURES,
+    PBR_MATERIAL_TEST_SLOT_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH,
+    PBR_MATERIAL_TEST_SLOT_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX,
+    PBR_MATERIAL_TEST_SLOT_IRIDESCENCE_TEXTURES,
+    PBR_MATERIAL_TEST_UNIFORM_BUFFER_VEC4_COUNT
+};
+
+static void AssertPBRMaterialUniformBuffer(dmGraphics::HUniformBuffer uniform_buffer, const dmVMath::Vector4** values)
+{
+    ASSERT_NE((dmGraphics::HUniformBuffer)0, uniform_buffer);
+
+    dmGraphics::NullUniformBuffer* null_ubo = (dmGraphics::NullUniformBuffer*) uniform_buffer;
+    ASSERT_TRUE(null_ubo->m_UsedInDraw);
+    ASSERT_EQ((uint32_t) sizeof(dmVMath::Vector4) * PBR_MATERIAL_TEST_UNIFORM_BUFFER_VEC4_COUNT, null_ubo->m_BufferSize);
+
+    *values = (const dmVMath::Vector4*) null_ubo->m_Buffer;
+}
+
+static void RenderModelCollection(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
+{
+    dmRender::RenderListBegin(render_context);
+    dmGameObject::Render(collection);
+    dmRender::RenderListEnd(render_context);
+    dmRender::DrawRenderList(render_context, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+}
+
+TEST_F(ModelTest, PbrPropertiesUniformBuffer)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/pbr_properties.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    RenderModelCollection(m_RenderContext, m_Collection);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    dmGraphics::HUniformBuffer uniform_buffer;
+    const dmVMath::Vector4* values = 0;
+    dmVMath::Vector4 exp;
+
+    dmGameObject::Result res = dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world);
+    ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    dmGameSystem::GetModelComponentPBRMaterialUniformBuffer(component, 0, &uniform_buffer);
+    AssertPBRMaterialUniformBuffer(uniform_buffer, &values);
+
+    exp = dmVMath::Vector4(0.25f, 1.0f, 1.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT]);
+
+    exp = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_COMMON_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_METALLIC_ROUGHNESS_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_SPECULAR_GLOSSINESS_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_CLEAR_COAT_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_TRANSMISSION_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_SPECULAR_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_VOLUME_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_SHEEN_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_IRIDESCENCE_TEXTURES]);
+
+    exp = dmVMath::Vector4(0.10f, 0.0f, 0.0f, 0.19f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR]);
+
+    exp = dmVMath::Vector4(0.12f, 0.135f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR]);
+
+    exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR]);
+
+    exp = dmVMath::Vector4(0.16f, 0.165f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR]);
+
+    exp = dmVMath::Vector4(0.175f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_TRANSMISSION_TRANSMISSION_FACTOR]);
+
+    exp = dmVMath::Vector4(1.17f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_IOR_IOR]);
+
+    exp = dmVMath::Vector4(0.2f, 0.205f, 0.210f, 0.215f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR]);
+
+    exp = dmVMath::Vector4(0.22f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_VOLUME_ATTENUATION_DISTANCE]);
+
+    exp = dmVMath::Vector4(0.225f, 0.230f, 0.235f, 0.240f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR]);
+
+    exp = dmVMath::Vector4(0.245f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH]);
+
+    exp = dmVMath::Vector4(0.25f, 1.255f, 0.260f, 0.265f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX]);
+
+    res = dmGameObject::GetComponent(go, dmHashString64("model_textured"), &component_type, &component, &world);
+    ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    dmGameSystem::GetModelComponentPBRMaterialUniformBuffer(component, 0, &uniform_buffer);
+    AssertPBRMaterialUniformBuffer(uniform_buffer, &values);
+
+    exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_COMMON_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_CLEAR_COAT_TEXTURES]);
+
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_METALLIC_ROUGHNESS_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_SPECULAR_GLOSSINESS_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_SPECULAR_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_SHEEN_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_IRIDESCENCE_TEXTURES]);
+
+    exp = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_TRANSMISSION_TEXTURES]);
+    ASSERT_VEC4(exp, values[PBR_MATERIAL_TEST_SLOT_VOLUME_TEXTURES]);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, PbrProperties)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/pbr_properties.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -8973,11 +9116,7 @@ TEST_F(ModelTest, PbrProperties)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
-    dmRender::RenderListBegin(m_RenderContext);
-    dmGameObject::Render(m_Collection);
-
-    dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    RenderModelCollection(m_RenderContext, m_Collection);
 
     uint32_t component_type;
     dmGameObject::HComponent component;
@@ -8989,6 +9128,14 @@ TEST_F(ModelTest, PbrProperties)
     ///////////////////////////////
     dmGameObject::Result res = dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world);
     ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    dmGraphics::HUniformBuffer uniform_buffer = 0;
+    dmGameSystem::GetModelComponentPBRMaterialUniformBuffer(component, 0, &uniform_buffer);
+    if (uniform_buffer)
+    {
+        ASSERT_TRUE(dmGameObject::Final(m_Collection));
+        return;
+    }
 
     GetModelComponentRenderConstants(component, 0, &render_constants);
     ASSERT_NE((dmGameSystem::HComponentRenderConstants)0, render_constants);

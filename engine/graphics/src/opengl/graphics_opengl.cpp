@@ -1131,6 +1131,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
             case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
             case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
+            case CONTEXT_FEATURE_UNIFORM_BUFFER:         return context->m_IsGles3Version;
             case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
             case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
             case CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES:    return context->m_ASTCArrayTextureSupport;

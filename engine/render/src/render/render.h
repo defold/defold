@@ -413,7 +413,8 @@ namespace dmRender
      *
      */
     void SetMaterialPBRParameters(HMaterial material, const dmRenderDDF::MaterialDesc::PbrParameters* parameters);
-    void GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters);
+    bool GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters);
+    bool GetMaterialPBRMaterialBufferBinding(HMaterial material, uint16_t* out_binding, uint16_t* out_set);
 
     /** Buffered render buffers
      * A render buffer is a thin wrapper around vertex and index buffers that, depending on graphics context,

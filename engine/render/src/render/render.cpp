@@ -1231,6 +1231,14 @@ namespace dmRender
                 }
             }
 
+            for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
+            {
+                if (ro->m_UniformBuffers[i])
+                {
+                    dmGraphics::EnableUniformBuffer(context, ro->m_UniformBuffers[i], ro->m_UniformBufferSets[i], ro->m_UniformBufferBindings[i]);
+                }
+            }
+
             ApplyMaterialProgramLightBuffers(render_context, material);
 
             dmGraphics::HProgram material_program = GetMaterialProgram(material);
@@ -1278,6 +1286,14 @@ namespace dmRender
                         dmGraphics::DisableTexture(context, next_texture_unit, texture);
                         next_texture_unit++;
                     }
+                }
+            }
+
+            for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
+            {
+                if (ro->m_UniformBuffers[i])
+                {
+                    dmGraphics::DisableUniformBuffer(context, ro->m_UniformBuffers[i]);
                 }
             }
         }

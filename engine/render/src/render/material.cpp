@@ -301,6 +301,46 @@ namespace dmRender
         material->m_HasMorphTargetsSampler = material->m_NameHashToLocation.Get(SAMPLER_MORPH_TARGETS) != 0x0;
     }
 
+    static const dmhash_t PBR_MATERIAL_BUFFER_TYPE = dmHashString64("PbrMaterial");
+
+    struct PbrMaterialBufferBindingCallbackContext
+    {
+        bool     m_HasPbrMaterialBuffer;
+        uint16_t m_Set;
+        uint16_t m_Binding;
+    };
+
+    static void PbrMaterialBufferBindingCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, void* user_data)
+    {
+        PbrMaterialBufferBindingCallbackContext* cb_ctx = (PbrMaterialBufferBindingCallbackContext*) user_data;
+
+        if (cb_ctx->m_HasPbrMaterialBuffer || root_type->m_NameHash != PBR_MATERIAL_BUFFER_TYPE)
+        {
+            return;
+        }
+
+        cb_ctx->m_HasPbrMaterialBuffer = true;
+        cb_ctx->m_Set                  = set;
+        cb_ctx->m_Binding              = binding;
+    }
+
+    static void GetProgramPbrMaterialBufferBinding(dmGraphics::HProgram program, bool* out_has_pbr_material_buffer, uint16_t* out_set, uint16_t* out_binding)
+    {
+        PbrMaterialBufferBindingCallbackContext cb_ctx;
+        cb_ctx.m_HasPbrMaterialBuffer = false;
+        cb_ctx.m_Set                  = 0;
+        cb_ctx.m_Binding              = 0;
+
+        dmGraphics::IterateProgramResourceBindings(program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, PbrMaterialBufferBindingCallback, &cb_ctx);
+
+        *out_has_pbr_material_buffer = cb_ctx.m_HasPbrMaterialBuffer;
+        if (cb_ctx.m_HasPbrMaterialBuffer)
+        {
+            *out_set     = cb_ctx.m_Set;
+            *out_binding = cb_ctx.m_Binding;
+        }
+    }
+
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
@@ -328,6 +368,14 @@ namespace dmRender
         m->m_HasLightBuffer     = has_light_buffer;
         m->m_LightBufferSet     = light_buffer_set;
         m->m_LightBufferBinding = light_buffer_binding;
+
+        bool has_pbr_material_buffer = false;
+        uint16_t pbr_material_buffer_set = 0;
+        uint16_t pbr_material_buffer_binding = 0;
+        GetProgramPbrMaterialBufferBinding(m->m_Program, &has_pbr_material_buffer, &pbr_material_buffer_set, &pbr_material_buffer_binding);
+        m->m_HasPbrMaterialBuffer     = has_pbr_material_buffer;
+        m->m_PbrMaterialBufferSet     = pbr_material_buffer_set;
+        m->m_PbrMaterialBufferBinding = pbr_material_buffer_binding;
 
         return (HMaterial)m;
     }
@@ -680,9 +728,22 @@ namespace dmRender
         material->m_PbrParameters = *parameters;
     }
 
-    void GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters)
+    bool GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters)
     {
         *parameters = material->m_PbrParameters;
+        return parameters->m_HasParameters;
+    }
+
+    bool GetMaterialPBRMaterialBufferBinding(HMaterial material, uint16_t* out_binding, uint16_t* out_set)
+    {
+        if (!material->m_HasPbrMaterialBuffer)
+        {
+            return false;
+        }
+
+        *out_binding = material->m_PbrMaterialBufferBinding;
+        *out_set     = material->m_PbrMaterialBufferSet;
+        return true;
     }
 
     uint32_t GetMaterialTagListKey(HMaterial material)

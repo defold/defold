@@ -104,7 +104,10 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
         uint16_t                                    m_LightBufferSet;
         uint16_t                                    m_LightBufferBinding;
+        uint16_t                                    m_PbrMaterialBufferSet;
+        uint16_t                                    m_PbrMaterialBufferBinding;
         uint8_t                                     m_HasLightBuffer : 1;
+        uint8_t                                     m_HasPbrMaterialBuffer : 1;
         uint8_t                                     m_InstancingSupported : 1;
         uint8_t                                     m_HasSkinnedAttributes : 1;
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
