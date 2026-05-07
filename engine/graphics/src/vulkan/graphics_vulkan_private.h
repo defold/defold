@@ -329,7 +329,7 @@ namespace dmGraphics
             e.m_AllocatorGeneration = allocator_generation;
             e.m_DescriptorSetCount  = descriptor_set_count;
             e.m_Valid               = 1;
-            for (uint8_t i = 0; i < descriptor_set_count; ++i)
+            for (uint32_t i = 0; i < descriptor_set_count; ++i)
             {
                 e.m_DescriptorSets[i] = sets[i];
             }

@@ -1017,7 +1017,9 @@ bail:
             attachment_depth.samples        = vk_sample_flags;
             attachment_depth.loadOp         = depthStencilAttachment->m_LoadOp;
             attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment_depth.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            // Keep depth and stencil load ops in sync for packed depth/stencil attachments so
+            // the render-pass CLEAR fast path actually clears stencil too.
+            attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
             attachment_depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             attachment_depth.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_depth.finalLayout    = depthStencilAttachment->m_ImageLayout;
