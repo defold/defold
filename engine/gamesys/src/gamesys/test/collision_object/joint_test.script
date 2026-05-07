@@ -35,8 +35,73 @@ local function assert_near(a, b, eps)
     end
 end
 
+local function assert_vec3_near(a, b, eps)
+    assert_near(a.x, b.x, eps)
+    assert_near(a.y, b.y, eps)
+    assert_near(a.z, b.z, eps)
+end
+
 -- reusable zero point
 local zp = vmath.vector3(0)
+
+local function test_native_b2d_joints(self)
+    if b2d == nil then
+        return
+    end
+
+    local body_a = b2d.get_body(self.a_coll)
+    local body_b = b2d.get_body(self.b_coll)
+    assert(body_a ~= nil)
+    assert(body_b ~= nil)
+
+    local managed_joint_id = "native_managed_joint"
+    physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, managed_joint_id, zp, self.b_coll, zp)
+    assert(#b2d.body.get_joints(body_a) == 0)
+    physics.destroy_joint(self.a_coll, managed_joint_id)
+
+    local joint = b2d.joint.create_distance(body_a, body_b, {
+        local_anchor_a = vmath.vector3(1, 2, 0),
+        local_anchor_b = vmath.vector3(3, 4, 0),
+        length = 5,
+        collide_connected = false,
+    })
+    assert(joint ~= nil)
+    assert(b2d.joint.get_type(joint) == b2d.joint.JOINT_TYPE_DISTANCE)
+    assert(b2d.joint.get_body_a(joint) == body_a)
+    assert(b2d.joint.get_body_b(joint) == body_b)
+    assert(not b2d.joint.get_collide_connected(joint))
+    assert_vec3_near(b2d.joint.get_local_anchor_a(joint), vmath.vector3(1, 2, 0))
+    assert_vec3_near(b2d.joint.get_local_anchor_b(joint), vmath.vector3(3, 4, 0))
+    assert(b2d.joint.get_reaction_force(joint) ~= nil)
+    assert(type(b2d.joint.get_reaction_torque(joint)) == "number")
+
+    local joints = b2d.body.get_joints(body_a)
+    local found = false
+    for _, body_joint in ipairs(joints) do
+        if body_joint == joint then
+            found = true
+            break
+        end
+    end
+    assert(found)
+
+    if PHYSICS == "box2dv3" then
+        b2d.joint.set_collide_connected(joint, true)
+        assert(b2d.joint.get_collide_connected(joint))
+    else
+        assert_error(function() b2d.joint.set_collide_connected(joint, true) end)
+    end
+
+    local mouse_joint = b2d.joint.create_mouse(body_a, body_b, {
+        target = vmath.vector3(5, 6, 0),
+        max_force = 10,
+    })
+    b2d.joint.set_mouse_target(mouse_joint, vmath.vector3(7, 8, 0))
+    b2d.joint.destroy(mouse_joint)
+
+    b2d.joint.destroy(joint)
+    assert_error(function() b2d.joint.get_type(joint) end)
+end
 
 function init(self)
 
@@ -47,6 +112,8 @@ function init(self)
     self.b = "joint_test_b"
     self.b_coll = self.b .. "#collisionobject"
     self.joint_id = "test_joint"
+
+    test_native_b2d_joints(self)
 
     -- FAIL, test invalid parameters
     assert_error(function() physics.create_joint() end)
@@ -94,7 +161,7 @@ function init(self)
     physics.destroy_joint(self.a_coll, self.joint_id)
 
     if PHYSICS=="box2dv3" then
-        physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 0.95 * 3.1415927410126, enable_limit = true })
+        physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 0.94 * 3.1415927410126, enable_limit = true })
     else
         physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
     end
