@@ -156,28 +156,36 @@
                                                   (on-value-changed v)
                                                   (swap-state assoc key v)))))}}]}))
 
-;; `fxui/color-picker` is a compound component (an HBox containing a value-field and a JavaFX
-;; ColorPicker), so we can't just wrap it the same way -- we need to reach into its internals to
-;; find the text input. Rather than modifying fxui to expose this, we use
-;; `fx/ext-on-instance-lifecycle` here to look up the inner text field by style class and apply the
-;; same focus-traversable workaround.
-(defn- ext-color-picker-focus-traversable [{:keys [desc]}]
+;; The focus-traversable part: `fxui/color-picker` is a compound component (an HBox containing a value-field and a
+;; JavaFX ColorPicker), so we can't just wrap it the same way; we need to reach into its internals to find the text
+;; input. Rather than modifying fxui to expose this, we use `fx/ext-on-instance-lifecycle` here to look up the inner
+;; text field by style class and apply the same focus-traversable workaround.
+;;
+;; The setAutoHide part: The popup loses focus when we open the "Custom Color..." color picker window, so
+;; we apply the same workaround the slider's get by disabling auto-hide and enabling it once it closes.
+(defn- ext-color-picker-focus-traversable [{:keys [desc popup]}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [^javafx.scene.Node node]
                  (when-let [tf (.lookup node ".ext-color-picker-field")]
                    (ui/observe (.focusTraversableProperty tf)
                      (fn [_ _ _]
                        (.setFocusTraversable tf true)))
-                   (.setFocusTraversable tf true)))
+                   (.setFocusTraversable tf true))
+                 (when-let [cp (.lookup node ".ext-color-picker-icon")]
+                   (when (instance? javafx.scene.control.ColorPicker cp)
+                     (let [^javafx.scene.control.ColorPicker cp cp]
+                       (.setOnShowing cp (fn [_] (.setAutoHide ^PopupControl popup false)))
+                       (.setOnHidden  cp (fn [_] (.setAutoHide ^PopupControl popup true)))))))
    :desc desc})
 
-(defn- make-color-row-fx [{:keys [key label state swap-state on-value-changed]}]
+(defn- make-color-row-fx [{:keys [popup key label state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
    :children [{:fx/type fxui/label
                :text (or label "")
                :h-box/hgrow :always
                :max-width Double/MAX_VALUE}
               {:fx/type ext-color-picker-focus-traversable
+               :popup popup
                :desc
                {:fx/type fxui/color-picker
                 :value (let [[r g b a] (key state)]
@@ -247,7 +255,7 @@
                              (.requestFocus (.getParent ^Node (.getSource e))))}}]})
 
 (defn- make-row-fx [popup keymap localization-state state swap-state descriptor]
-  (let [descriptor-with-state (merge descriptor {:state state :swap-state swap-state})
+  (let [descriptor-with-state (merge descriptor {:state state :swap-state swap-state :popup popup})
         label #(localization-state (localization/message (:label descriptor)))]
     (case (:type descriptor)
       :toggle      (assoc descriptor-with-state
@@ -255,7 +263,7 @@
                           :label (label)
                           :accelerator (keymap/display-text keymap (:command descriptor) "")
                           :on-selected-changed (:on-value-changed descriptor))
-      :slider      (assoc descriptor-with-state :fx/type make-slider-row-fx :label (label) :popup popup)
+      :slider      (assoc descriptor-with-state :fx/type make-slider-row-fx :label (label))
       :color       (assoc descriptor-with-state :fx/type make-color-row-fx  :label (label))
       :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row-fx)
       :vec3-toggle (assoc descriptor-with-state :fx/type make-vec3-toggle-row-fx :label (label))
