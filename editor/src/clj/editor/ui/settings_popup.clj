@@ -27,6 +27,7 @@
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.os :as os]
             [editor.ui :as ui])
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
@@ -67,6 +68,7 @@
                 :max-width Double/MAX_VALUE}
                {:fx/type fxui/label
                 :style-class "accelerator-label"
+                :style (if (os/is-mac-os?) "-fx-font-family: 'Lucida Grande';" "")
                 :text (or accelerator "")}
                {:fx/type fxui/ext-ensure-focus-traversable
                 :desc
