@@ -12,11 +12,22 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if !defined(DM_NO_THREAD_SUPPORT)
+
+// We have thread support
+#include "mutex_posix.cpp"
+
+#else
+
 #include "mutex.h"
 
-// empty implementation for Mutex. Applied to platforms that should be single threaded (some web targets)
+// Empty implementation for Mutex. Applied to web targets without thread support.
 namespace dmMutex
 {
+    struct Mutex
+    {
+    };
+
     HMutex New()
     {
         Mutex* mutex = new Mutex();
@@ -29,7 +40,8 @@ namespace dmMutex
     }
 
     void Lock(HMutex mutex)
-    { }
+    {
+    }
 
     bool TryLock(HMutex mutex)
     {
@@ -37,6 +49,14 @@ namespace dmMutex
     }
 
     void Unlock(HMutex mutex)
-    { }
+    {
+    }
 
-}
+    void* GetNativeHandle(HMutex mutex)
+    {
+        (void)mutex;
+        return 0;
+    }
+} // namespace dmMutex
+
+#endif

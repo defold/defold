@@ -20,7 +20,9 @@ from waflib.Logs import error
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
+from cross import get_platform_file_fallback_tags, get_platform_file_tags, get_platform_roots, get_repo_root
 import sdk
+import wasm_runner
 
 if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
@@ -98,6 +100,139 @@ def platform_setup_vars(ctx, build_util):
 
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
+
+def find_platform_file(bld, platform, path, public_fallback = True, private_roots = True):
+    repo_root = get_repo_root()
+    base_path = os.path.relpath(bld.path.abspath(), repo_root)
+    if private_roots:
+        for root in get_platform_roots(platform):
+            absolute_path = os.path.join(root, base_path, path)
+            if os.path.exists(absolute_path):
+                node = bld.root.find_node(absolute_path)
+                if node:
+                    return node
+                return absolute_path
+
+    if public_fallback:
+        return bld.path.find_node(path)
+    return None
+
+def source_file_path(source):
+    if hasattr(source, 'abspath'):
+        return source.abspath()
+    return source
+
+def remove_source_files(sources, remove_sources):
+    remove_paths = set(source_file_path(x) for x in remove_sources)
+    return [x for x in sources if source_file_path(x) not in remove_paths]
+
+def get_feature_extra_tags(platform, extra_tags):
+    if not extra_tags:
+        return []
+
+    target = platform
+    if '-' in platform:
+        target = platform.split('-')[-1]
+
+    if isinstance(extra_tags, dict):
+        if platform in extra_tags:
+            extra_tags = extra_tags[platform]
+        elif target in extra_tags:
+            extra_tags = extra_tags[target]
+        else:
+            extra_tags = extra_tags.get('*', [])
+    if isinstance(extra_tags, str):
+        extra_tags = [extra_tags]
+
+    tags = []
+    def append_tag(tag):
+        if tag and tag not in tags:
+            tags.append(tag)
+
+    for tag in extra_tags:
+        append_tag(tag)
+    return tags
+
+def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred_tags = None):
+    """Return (selected_files, feature_files) for feature_name.
+
+    Rules:
+    * feature_files contains <feature>.<ext> and <feature>_*.ext when found.
+    * selected_files contains all <feature>.<ext> core files when found.
+    * selected_files contains all matching <feature>_<tag>.ext files for the platform.
+    * preferred_tags may be a list for all platforms, or a dict where platform/target override '*'.
+    * preferred tag matches replace platform tag matches when found.
+    * extra_tags may be a list for all platforms, or a dict where platform/target override '*'.
+    * extra tag matches are appended to platform tag matches before fallback tags.
+    * fallback tags and default are used only when no platform tag matched.
+    * platform roots are searched before the public repo for platform tag matches.
+    * missing feature files or missing selected files fail the build.
+    """
+    files = []
+    feature_files = []
+
+    def find_file(path, public_fallback = True, private_roots = True):
+        return find_platform_file(bld, platform, path, public_fallback, private_roots)
+
+    def append_file(files, node):
+        if node and source_file_path(node) not in [source_file_path(x) for x in files]:
+            files.append(node)
+
+    feature_base, extension = os.path.splitext(feature_name)
+    extensions = ['.cpp', '.c', '.cc', '.cxx', '.mm', '.m']
+    if extension:
+        extensions = [extension]
+
+    feature_patterns = []
+    for extension in extensions:
+        feature_patterns += [feature_base + extension,
+                             feature_base + '_*' + extension]
+    for node in bld.path.ant_glob(feature_patterns):
+        append_file(feature_files, node)
+
+    # Core implementation: <feature>.<ext> is shared by all platforms.
+    for extension in extensions:
+        node = find_file(feature_base + extension, True, False)
+        if node:
+            append_file(files, node)
+            append_file(feature_files, node)
+
+    # Preferred tags: explicit feature choices such as mbedtls override platform tags.
+    tag_files = []
+    for tag in get_feature_extra_tags(platform, preferred_tags):
+        for extension in extensions:
+            node = find_file('%s_%s%s' % (feature_base, tag, extension))
+            if node:
+                append_file(tag_files, node)
+                append_file(feature_files, node)
+
+    # Platform tags: target-specific files, optionally extended with feature tags.
+    if not tag_files:
+        for tag in get_platform_file_tags(platform) + get_feature_extra_tags(platform, extra_tags):
+            for extension in extensions:
+                node = find_file('%s_%s%s' % (feature_base, tag, extension))
+                if node:
+                    append_file(tag_files, node)
+                    append_file(feature_files, node)
+
+    # Fallback tags: public shared implementations used when no platform file matched.
+    if not tag_files:
+        for tag in get_platform_file_fallback_tags(platform) + ['default']:
+            for extension in extensions:
+                node = find_file('%s_%s%s' % (feature_base, tag, extension), True, False)
+                if node:
+                    append_file(tag_files, node)
+                    append_file(feature_files, node)
+
+    for node in tag_files:
+        append_file(files, node)
+
+    if not feature_files:
+        bld.fatal('Could not find any source files for feature %s' % feature_name)
+    if not files:
+        bld.fatal('Could not find selected source files for feature %s on platform %s' % (feature_name, platform))
+
+    return files, feature_files
 
 def platform_glfw_version(platform):
     if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux']:
@@ -1476,9 +1611,8 @@ def run_tests(ctx, configfile = None, folders = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
 
-    if 'web' in ctx.env.PLATFORM and not ctx.env['NODEJS']:
-        Logs.info('Not running tests. node.js not found')
-        return
+    if 'web' in ctx.env.PLATFORM and not ctx.env['WASM_TEST_RUNNER']:
+        ctx.fatal('Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests.')
 
     harness = get_test_harness(ctx.env.PLATFORM)
     cwd = os.getcwd()
@@ -1552,7 +1686,7 @@ def linux_link_flags(self):
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
-def js_web_link_flags(self):
+def web_link_flags(self):
     platform = self.env['PLATFORM']
     if 'web' in platform and 'test' in self.features:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "web-pre.js")
@@ -1888,12 +2022,25 @@ def detect(conf):
         if emsdk is None:
             conf.fatal('EMSDK environment variable not found.')
 
-        if not conf.env['NODEJS']:
+        if not conf.env['WASM_TEST_RUNNER']:
             emsdk_node = sdkinfo['emsdk']['node']
-            path_list = None
-            if emsdk_node is not None and os.path.exists(emsdk_node):
-                path_list = [os.path.dirname(emsdk_node)]
-            conf.find_program('node', var='NODEJS', mandatory = False, path_list = path_list)
+            node_candidates = [emsdk_node] if emsdk_node is not None else []
+            runner, errors = wasm_runner.find_wasm_runner(node_candidates = node_candidates)
+            if runner:
+                conf.env['WASM_TEST_RUNNER'] = runner.command()
+                conf.env['WASM_TEST_RUNNER_NAME'] = runner.name
+                if runner.name == 'bun':
+                    conf.env['BUN'] = runner.command()
+                else:
+                    conf.env['NODEJS'] = runner.command()
+                Logs.info('Found wasm test runner: %s' % runner.description())
+            elif not Options.options.skip_tests:
+                message = 'Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests.'
+                if errors:
+                    message += '\nChecked runners:\n  ' + '\n  '.join(errors)
+                conf.fatal(message)
+            else:
+                Logs.warn('Bun or Node.js was not found. wasm-web tests will not run.')
 
         bin_dir = os.path.join(emsdk, 'upstream', 'emscripten')
 
@@ -2084,6 +2231,7 @@ def detect(conf):
 
     if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
+        conf.env['LINKFLAGS_DLIB']      = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']

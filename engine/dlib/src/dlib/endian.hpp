@@ -12,17 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_MUTEX_POSIX_H
-#define DM_MUTEX_POSIX_H
+#ifndef DM_ENDIAN_HPP
+#define DM_ENDIAN_HPP
 
-#include <pthread.h>
+#include <dmsdk/dlib/endian.hpp>
 
-namespace dmMutex
-{
-    struct Mutex
-    {
-        pthread_mutex_t  m_NativeHandle;
-    };
-}
-
-#endif // DM_MUTEX_POSIX_H
+#endif // DM_ENDIAN_HPP

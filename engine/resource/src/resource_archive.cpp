@@ -22,9 +22,9 @@
 #include "resource_private.h"
 #include "resource_util.h"
 #include "resource_archive_private.h"
-#include <dlib/crypt/crypt.h>
+#include <dlib/crypt.h>
 #include <dlib/dstrings.h>
-#include <dlib/endian.h>
+#include <dlib/endian.hpp>
 #include <dlib/log.h>
 #include <dlib/lz4.h>
 #include <dlib/memory.h>
