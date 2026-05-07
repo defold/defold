@@ -240,6 +240,10 @@ namespace dmGameSystem
         {
             return luaL_error(L, "Cannot destroy a joint not created by b2d.joint.");
         }
+        if (b2World_IsLocked(b2Joint_GetWorld(luajoint->m_Joint)))
+        {
+            return luaL_error(L, "Could not destroy joint. The world is locked.");
+        }
         UntrackJoint(luajoint->m_Joint);
         b2DestroyJoint(luajoint->m_Joint);
         luajoint->m_Joint = b2_nullJointId;
