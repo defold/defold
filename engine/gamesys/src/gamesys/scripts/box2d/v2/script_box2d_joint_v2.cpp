@@ -1363,3 +1363,516 @@ namespace dmGameSystem
  * @name b2Joint
  * @param value [type:userdata]
  */
+
+/*# Unknown joint type.
+ * @name b2d.joint.JOINT_TYPE_UNKNOWN
+ * @constant
+ */
+
+/*# Revolute joint type.
+ * @name b2d.joint.JOINT_TYPE_REVOLUTE
+ * @constant
+ */
+
+/*# Prismatic joint type.
+ * @name b2d.joint.JOINT_TYPE_PRISMATIC
+ * @constant
+ */
+
+/*# Distance joint type.
+ * @name b2d.joint.JOINT_TYPE_DISTANCE
+ * @constant
+ */
+
+/*# Pulley joint type.
+ * @name b2d.joint.JOINT_TYPE_PULLEY
+ * @constant
+ */
+
+/*# Mouse joint type.
+ * @name b2d.joint.JOINT_TYPE_MOUSE
+ * @constant
+ */
+
+/*# Gear joint type.
+ * @name b2d.joint.JOINT_TYPE_GEAR
+ * @constant
+ */
+
+/*# Wheel joint type.
+ * @name b2d.joint.JOINT_TYPE_WHEEL
+ * @constant
+ */
+
+/*# Weld joint type.
+ * @name b2d.joint.JOINT_TYPE_WELD
+ * @constant
+ */
+
+/*# Friction joint type.
+ * @name b2d.joint.JOINT_TYPE_FRICTION
+ * @constant
+ */
+
+/*# Rope joint type.
+ * @name b2d.joint.JOINT_TYPE_ROPE
+ * @constant
+ */
+
+/*# Inactive limit state.
+ * @name b2d.joint.LIMIT_STATE_INACTIVE
+ * @constant
+ */
+
+/*# At lower limit state.
+ * @name b2d.joint.LIMIT_STATE_AT_LOWER
+ * @constant
+ */
+
+/*# At upper limit state.
+ * @name b2d.joint.LIMIT_STATE_AT_UPPER
+ * @constant
+ */
+
+/*# Equal limits state.
+ * @name b2d.joint.LIMIT_STATE_EQUAL
+ * @constant
+ */
+
+/*# Destroy a joint created by `b2d.joint`.
+ * @name b2d.joint.destroy
+ * @param joint [type: b2Joint] joint
+ */
+
+/*# Get the joint type.
+ * @name b2d.joint.get_type
+ * @param joint [type: b2Joint] joint
+ * @return type [type: number] one of the `JOINT_TYPE_*` constants
+ */
+
+/*# Get the first body connected to a joint.
+ * @name b2d.joint.get_body_a
+ * @param joint [type: b2Joint] joint
+ * @return body [type: b2Body] body A
+ */
+
+/*# Get the second body connected to a joint.
+ * @name b2d.joint.get_body_b
+ * @param joint [type: b2Joint] joint
+ * @return body [type: b2Body] body B
+ */
+
+/*# Get the local anchor on body A.
+ * @name b2d.joint.get_local_anchor_a
+ * @param joint [type: b2Joint] joint
+ * @return anchor [type: vector3] local anchor
+ */
+
+/*# Get the local anchor on body B.
+ * @name b2d.joint.get_local_anchor_b
+ * @param joint [type: b2Joint] joint
+ * @return anchor [type: vector3] local anchor
+ */
+
+/*# Get the world anchor on body A.
+ * @name b2d.joint.get_anchor_a
+ * @param joint [type: b2Joint] joint
+ * @return anchor [type: vector3] world anchor
+ */
+
+/*# Get the world anchor on body B.
+ * @name b2d.joint.get_anchor_b
+ * @param joint [type: b2Joint] joint
+ * @return anchor [type: vector3] world anchor
+ */
+
+/*# Get whether the joint is active.
+ * @name b2d.joint.is_active
+ * @param joint [type: b2Joint] joint
+ * @return active [type: boolean] true if the joint is active
+ */
+
+/*# Get whether connected bodies can collide.
+ * @name b2d.joint.get_collide_connected
+ * @param joint [type: b2Joint] joint
+ * @return collide [type: boolean] true if connected bodies can collide
+ */
+
+/*# Set the target for a mouse joint.
+ * @name b2d.joint.set_mouse_target
+ * @param joint [type: b2Joint] mouse joint
+ * @param target [type: vector3] world target
+ */
+
+/*# Get the target for a mouse joint.
+ * @name b2d.joint.get_mouse_target
+ * @param joint [type: b2Joint] mouse joint
+ * @return target [type: vector3] world target
+ */
+
+/*# Set the distance joint length.
+ * @name b2d.joint.set_length
+ * @param joint [type: b2Joint] distance joint
+ * @param length [type: number] length in project units
+ */
+
+/*# Get the distance joint length.
+ * @name b2d.joint.get_length
+ * @param joint [type: b2Joint] distance joint
+ * @return length [type: number] length in project units
+ */
+
+/*# Set spring frequency.
+ * @name b2d.joint.set_frequency
+ * @param joint [type: b2Joint] distance, mouse, weld, or wheel joint
+ * @param frequency [type: number] frequency in hertz
+ */
+
+/*# Get spring frequency.
+ * @name b2d.joint.get_frequency
+ * @param joint [type: b2Joint] distance, mouse, weld, or wheel joint
+ * @return frequency [type: number] frequency in hertz
+ */
+
+/*# Alias for `b2d.joint.set_frequency`.
+ * @name b2d.joint.set_hertz
+ * @param joint [type: b2Joint] distance, mouse, weld, or wheel joint
+ * @param hertz [type: number] frequency in hertz
+ */
+
+/*# Alias for `b2d.joint.get_frequency`.
+ * @name b2d.joint.get_hertz
+ * @param joint [type: b2Joint] distance, mouse, weld, or wheel joint
+ * @return hertz [type: number] frequency in hertz
+ */
+
+/*# Set spring damping ratio.
+ * @name b2d.joint.set_damping_ratio
+ * @param joint [type: b2Joint] distance, mouse, weld, or wheel joint
+ * @param ratio [type: number] damping ratio
+ */
+
+/*# Get spring damping ratio.
+ * @name b2d.joint.get_damping_ratio
+ * @param joint [type: b2Joint] distance, mouse, weld, or wheel joint
+ * @return ratio [type: number] damping ratio
+ */
+
+/*# Alias for `b2d.joint.set_damping_ratio`.
+ * @name b2d.joint.set_spring_damping_ratio
+ * @param joint [type: b2Joint] distance, mouse, weld, or wheel joint
+ * @param ratio [type: number] damping ratio
+ */
+
+/*# Alias for `b2d.joint.get_damping_ratio`.
+ * @name b2d.joint.get_spring_damping_ratio
+ * @param joint [type: b2Joint] distance, mouse, weld, or wheel joint
+ * @return ratio [type: number] damping ratio
+ */
+
+/*# Get the local axis on body A.
+ * @name b2d.joint.get_local_axis_a
+ * @param joint [type: b2Joint] prismatic or wheel joint
+ * @return axis [type: vector3] local axis
+ */
+
+/*# Get the reference angle.
+ * @name b2d.joint.get_reference_angle
+ * @param joint [type: b2Joint] prismatic, revolute, or weld joint
+ * @return angle [type: number] reference angle in radians
+ */
+
+/*# Get joint translation.
+ * @name b2d.joint.get_joint_translation
+ * @param joint [type: b2Joint] prismatic or wheel joint
+ * @return translation [type: number] translation in project units
+ */
+
+/*# Get joint speed.
+ * @name b2d.joint.get_joint_speed
+ * @param joint [type: b2Joint] prismatic, revolute, or wheel joint
+ * @return speed [type: number] joint speed
+ */
+
+/*# Get revolute joint angle.
+ * @name b2d.joint.get_joint_angle
+ * @param joint [type: b2Joint] revolute joint
+ * @return angle [type: number] angle in radians
+ */
+
+/*# Enable or disable joint limits.
+ * @name b2d.joint.enable_limit
+ * @param joint [type: b2Joint] prismatic or revolute joint
+ * @param enable [type: boolean] true to enable limits
+ */
+
+/*# Get whether joint limits are enabled.
+ * @name b2d.joint.is_limit_enabled
+ * @param joint [type: b2Joint] prismatic or revolute joint
+ * @return enabled [type: boolean] true if limits are enabled
+ */
+
+/*# Set joint limits.
+ * @name b2d.joint.set_limits
+ * @param joint [type: b2Joint] prismatic or revolute joint
+ * @param lower [type: number] lower limit
+ * @param upper [type: number] upper limit
+ */
+
+/*# Get the lower joint limit.
+ * @name b2d.joint.get_lower_limit
+ * @param joint [type: b2Joint] prismatic or revolute joint
+ * @return lower [type: number] lower limit
+ */
+
+/*# Get the upper joint limit.
+ * @name b2d.joint.get_upper_limit
+ * @param joint [type: b2Joint] prismatic or revolute joint
+ * @return upper [type: number] upper limit
+ */
+
+/*# Enable or disable the joint motor.
+ * @name b2d.joint.enable_motor
+ * @param joint [type: b2Joint] prismatic, revolute, or wheel joint
+ * @param enable [type: boolean] true to enable the motor
+ */
+
+/*# Get whether the joint motor is enabled.
+ * @name b2d.joint.is_motor_enabled
+ * @param joint [type: b2Joint] prismatic, revolute, or wheel joint
+ * @return enabled [type: boolean] true if the motor is enabled
+ */
+
+/*# Set motor speed.
+ * @name b2d.joint.set_motor_speed
+ * @param joint [type: b2Joint] prismatic, revolute, or wheel joint
+ * @param speed [type: number] motor speed
+ */
+
+/*# Get motor speed.
+ * @name b2d.joint.get_motor_speed
+ * @param joint [type: b2Joint] prismatic, revolute, or wheel joint
+ * @return speed [type: number] motor speed
+ */
+
+/*# Set maximum motor force.
+ * @name b2d.joint.set_max_motor_force
+ * @param joint [type: b2Joint] prismatic joint
+ * @param force [type: number] maximum motor force
+ */
+
+/*# Get maximum motor force.
+ * @name b2d.joint.get_max_motor_force
+ * @param joint [type: b2Joint] prismatic joint
+ * @return force [type: number] maximum motor force
+ */
+
+/*# Get current motor force.
+ * @name b2d.joint.get_motor_force
+ * @param joint [type: b2Joint] prismatic joint
+ * @param inv_dt [type: number] inverse time step
+ * @return force [type: number] motor force
+ */
+
+/*# Set maximum motor torque.
+ * @name b2d.joint.set_max_motor_torque
+ * @param joint [type: b2Joint] revolute or wheel joint
+ * @param torque [type: number] maximum motor torque
+ */
+
+/*# Get maximum motor torque.
+ * @name b2d.joint.get_max_motor_torque
+ * @param joint [type: b2Joint] revolute or wheel joint
+ * @return torque [type: number] maximum motor torque
+ */
+
+/*# Get current motor torque.
+ * @name b2d.joint.get_motor_torque
+ * @param joint [type: b2Joint] revolute or wheel joint
+ * @param inv_dt [type: number] inverse time step
+ * @return torque [type: number] motor torque
+ */
+
+/*# Set maximum force.
+ * @name b2d.joint.set_max_force
+ * @param joint [type: b2Joint] mouse or friction joint
+ * @param force [type: number] maximum force
+ */
+
+/*# Get maximum force.
+ * @name b2d.joint.get_max_force
+ * @param joint [type: b2Joint] mouse or friction joint
+ * @return force [type: number] maximum force
+ */
+
+/*# Set maximum torque.
+ * @name b2d.joint.set_max_torque
+ * @param joint [type: b2Joint] friction joint
+ * @param torque [type: number] maximum torque
+ */
+
+/*# Get maximum torque.
+ * @name b2d.joint.get_max_torque
+ * @param joint [type: b2Joint] friction joint
+ * @return torque [type: number] maximum torque
+ */
+
+/*# Set rope maximum length.
+ * @name b2d.joint.set_max_length
+ * @param joint [type: b2Joint] rope joint
+ * @param length [type: number] maximum length in project units
+ */
+
+/*# Get rope maximum length.
+ * @name b2d.joint.get_max_length
+ * @param joint [type: b2Joint] rope joint
+ * @return length [type: number] maximum length in project units
+ */
+
+/*# Get rope limit state.
+ * @name b2d.joint.get_limit_state
+ * @param joint [type: b2Joint] rope joint
+ * @return state [type: number] one of the `LIMIT_STATE_*` constants
+ */
+
+/*# Get pulley ground anchor A.
+ * @name b2d.joint.get_ground_anchor_a
+ * @param joint [type: b2Joint] pulley joint
+ * @return anchor [type: vector3] world anchor
+ */
+
+/*# Get pulley ground anchor B.
+ * @name b2d.joint.get_ground_anchor_b
+ * @param joint [type: b2Joint] pulley joint
+ * @return anchor [type: vector3] world anchor
+ */
+
+/*# Get pulley segment length A.
+ * @name b2d.joint.get_length_a
+ * @param joint [type: b2Joint] pulley joint
+ * @return length [type: number] length in project units
+ */
+
+/*# Get pulley segment length B.
+ * @name b2d.joint.get_length_b
+ * @param joint [type: b2Joint] pulley joint
+ * @return length [type: number] length in project units
+ */
+
+/*# Set gear joint ratio.
+ * @name b2d.joint.set_ratio
+ * @param joint [type: b2Joint] gear joint
+ * @param ratio [type: number] gear ratio
+ */
+
+/*# Get joint ratio.
+ * @name b2d.joint.get_ratio
+ * @param joint [type: b2Joint] pulley or gear joint
+ * @return ratio [type: number] joint ratio
+ */
+
+/*# Get the first joint connected to a gear joint.
+ * @name b2d.joint.get_joint1
+ * @param joint [type: b2Joint] gear joint
+ * @return joint1 [type: b2Joint] first connected joint
+ */
+
+/*# Get the second joint connected to a gear joint.
+ * @name b2d.joint.get_joint2
+ * @param joint [type: b2Joint] gear joint
+ * @return joint2 [type: b2Joint] second connected joint
+ */
+
+/*# Get reaction force.
+ * @name b2d.joint.get_reaction_force
+ * @param joint [type: b2Joint] joint
+ * @param inv_dt [type: number] inverse time step
+ * @return force [type: vector3] reaction force
+ */
+
+/*# Get reaction torque.
+ * @name b2d.joint.get_reaction_torque
+ * @param joint [type: b2Joint] joint
+ * @param inv_dt [type: number] inverse time step
+ * @return torque [type: number] reaction torque
+ */
+
+/*# Create a distance joint.
+ * @name b2d.joint.create_distance
+ * @param body_a [type: b2Body] first body
+ * @param body_b [type: b2Body] second body
+ * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `length`, `frequency`, `damping_ratio`, and `collide_connected`
+ * @return joint [type: b2Joint] created joint
+ */
+
+/*# Create a mouse joint.
+ * @name b2d.joint.create_mouse
+ * @param body_a [type: b2Body] first body
+ * @param body_b [type: b2Body] second body
+ * @param definition [type: table] optional definition with `target`, `max_force`, `frequency`, `damping_ratio`, and `collide_connected`
+ * @return joint [type: b2Joint] created joint
+ */
+
+/*# Create a prismatic joint.
+ * @name b2d.joint.create_prismatic
+ * @param body_a [type: b2Body] first body
+ * @param body_b [type: b2Body] second body
+ * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `local_axis_a`, `reference_angle`, `enable_limit`, `lower_translation`, `upper_translation`, `enable_motor`, `max_motor_force`, `motor_speed`, and `collide_connected`
+ * @return joint [type: b2Joint] created joint
+ */
+
+/*# Create a revolute joint.
+ * @name b2d.joint.create_revolute
+ * @param body_a [type: b2Body] first body
+ * @param body_b [type: b2Body] second body
+ * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `reference_angle`, `enable_limit`, `lower_angle`, `upper_angle`, `enable_motor`, `max_motor_torque`, `motor_speed`, and `collide_connected`
+ * @return joint [type: b2Joint] created joint
+ */
+
+/*# Create a weld joint.
+ * @name b2d.joint.create_weld
+ * @param body_a [type: b2Body] first body
+ * @param body_b [type: b2Body] second body
+ * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `reference_angle`, `frequency`, `damping_ratio`, and `collide_connected`
+ * @return joint [type: b2Joint] created joint
+ */
+
+/*# Create a wheel joint.
+ * @name b2d.joint.create_wheel
+ * @param body_a [type: b2Body] first body
+ * @param body_b [type: b2Body] second body
+ * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `local_axis_a`, `enable_motor`, `max_motor_torque`, `motor_speed`, `frequency`, `damping_ratio`, and `collide_connected`
+ * @return joint [type: b2Joint] created joint
+ */
+
+/*# Create a friction joint.
+ * @name b2d.joint.create_friction
+ * @param body_a [type: b2Body] first body
+ * @param body_b [type: b2Body] second body
+ * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `max_force`, `max_torque`, and `collide_connected`
+ * @return joint [type: b2Joint] created joint
+ */
+
+/*# Create a rope joint.
+ * @name b2d.joint.create_rope
+ * @param body_a [type: b2Body] first body
+ * @param body_b [type: b2Body] second body
+ * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `max_length`, and `collide_connected`
+ * @return joint [type: b2Joint] created joint
+ */
+
+/*# Create a pulley joint.
+ * @name b2d.joint.create_pulley
+ * @param body_a [type: b2Body] first body
+ * @param body_b [type: b2Body] second body
+ * @param definition [type: table] optional definition with `ground_anchor_a`, `ground_anchor_b`, `local_anchor_a`, `local_anchor_b`, `length_a`, `length_b`, `ratio`, and `collide_connected`
+ * @return joint [type: b2Joint] created joint
+ */
+
+/*# Create a gear joint.
+ * @name b2d.joint.create_gear
+ * @param joint1 [type: b2Joint] first revolute or prismatic joint
+ * @param joint2 [type: b2Joint] second revolute or prismatic joint
+ * @param definition [type: table] optional definition with `ratio`
+ * @return joint [type: b2Joint] created joint
+ */

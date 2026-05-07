@@ -1576,10 +1576,10 @@ namespace dmGameSystem
  * @return enabled [type: boolean] is the rotation fixed
  */
 
-/** Get the list of all joints attached to this body.
- * @name b2d.body.get_joint_list
+/*# Get the joints attached to this body.
+ * @name b2d.body.get_joints
  * @param body [type: b2Body] body
- * @return edge [type: b2JointEdge] the first joint
+ * @return joints [type: table] array of `b2Joint` handles created by `b2d.joint`
  */
 
 /** Get the list of all contacts attached to this body.
