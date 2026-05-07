@@ -25,6 +25,7 @@ import build_android
 import run
 import s3
 import sdk
+import wasm_runner
 import release_to_github
 import release_to_steam
 import release_to_egs
@@ -560,6 +561,7 @@ class Configuration(object):
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
         self.target_platform = target_platform
+        self.sdk_info = None
 
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
@@ -952,19 +954,44 @@ class Configuration(object):
                 return fullpath
         return None
 
+    def _get_emsdk_node_candidate(self):
+        if not wasm_runner.is_web_platform(self.target_platform):
+            return None
+
+        sdk_info = self.sdk_info
+        if not sdk_info:
+            sdkfolder = join(self.ext, 'SDKs')
+            sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, False)
+
+        if not sdk_info:
+            return None
+
+        return sdk_info.get('emsdk', {}).get('node')
+
+    def _find_wasm_test_runner(self):
+        node_candidate = self._get_emsdk_node_candidate()
+        node_candidates = [node_candidate] if node_candidate else []
+        return wasm_runner.find_wasm_runner(node_candidates = node_candidates)
+
+    def _format_wasm_runner_error(self, errors):
+        message = "Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests."
+        if errors:
+            message += "\nChecked runners:\n  " + "\n  ".join(errors)
+        return message
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
-        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, True)
+        self.sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, True)
 
         # TODO: Make sure this check works for all platforms
         if not self.sdk_info:
             if not self.verbose:
                 # Do it again, with verbose on, so that we can get more info straight away:
-                sdk.get_sdk_info(sdkfolder, target_platform, True)
+                sdk.get_sdk_info(sdkfolder, self.target_platform, True)
 
             url = "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks"
-            self._log(f"Failed to get sdk info for platform {target_platform}.")
+            self._log(f"Failed to get sdk info for platform {self.target_platform}.")
             self._log(f" * Is the local sdk setup correctly?")
             self._log(f" * Or have you called `install_sdk`?")
             self._log(f"We recommend you follow the setup guide found here: {url}")
@@ -975,9 +1002,18 @@ class Configuration(object):
             pprint.pprint(self.sdk_info)
 
 
-        result = sdk.test_sdk(target_platform, self.sdk_info, verbose = self.verbose)
+        result = sdk.test_sdk(self.target_platform, self.sdk_info, verbose = self.verbose)
         if not result:
             self.fatal("Failed sdk check")
+
+        if wasm_runner.is_web_platform(self.target_platform):
+            runner, errors = self._find_wasm_test_runner()
+            if runner:
+                self._log("Found wasm test runner: %s" % runner.description())
+            elif self.skip_tests:
+                self._log("Warning: %s" % self._format_wasm_runner_error(errors))
+            else:
+                self.fatal(self._format_wasm_runner_error(errors))
 
         cmake = shutil.which('cmake')
         if not cmake:
@@ -1569,7 +1605,20 @@ class Configuration(object):
                 supported_tests['x86_64-linux'].extend(android_tests)
                 supported_tests['x86_64-win32'].extend(android_tests)
 
-        return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+        can_run_platform = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+        if not can_run_platform:
+            return False
+
+        if wasm_runner.is_web_platform(self.target_platform):
+            if self.skip_tests:
+                return False
+
+            runner, errors = self._find_wasm_test_runner()
+            if not runner:
+                self.fatal(self._format_wasm_runner_error(errors))
+            self._log("Found wasm test runner: %s" % runner.description())
+
+        return True
 
     def _get_build_flags(self):
         supports_tests = self._can_run_tests()

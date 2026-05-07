@@ -25,7 +25,7 @@
 #include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dlib/sys.h>
-#include <algorithm> // std::sort
+#include <stdlib.h> // qsort
 
 namespace dmResourceMounts
 {
@@ -93,17 +93,20 @@ void Destroy(HContext ctx)
     delete ctx;
 }
 
-struct MountSortPred
+static int MountSortCompare(const void* a, const void* b)
 {
-    bool operator ()(const ArchiveMount& a, const ArchiveMount& b) const
+    const ArchiveMount* mount_a = (const ArchiveMount*) a;
+    const ArchiveMount* mount_b = (const ArchiveMount*) b;
+    if (mount_a->m_Priority != mount_b->m_Priority)
     {
-        return a.m_Priority > b.m_Priority; // largest priority first
+        return mount_a->m_Priority > mount_b->m_Priority ? -1 : 1; // largest priority first
     }
-};
+    return 0;
+}
 
 static void SortMounts(dmArray<ArchiveMount>& mounts)
 {
-    std::sort(mounts.Begin(), mounts.End(), MountSortPred());
+    qsort(mounts.Begin(), mounts.Size(), sizeof(ArchiveMount), MountSortCompare);
 }
 
 static void AddMountInternal(HContext ctx, const ArchiveMount& mount)

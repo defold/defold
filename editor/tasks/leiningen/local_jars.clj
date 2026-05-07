@@ -27,12 +27,6 @@
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
 
-(def ^:private jar-decls
-  [{:artifact-id "openmali"
-    :group-id "com.defold.lib"
-    :jar-file "../com.dynamo.cr/com.dynamo.cr.bob/lib/openmali.jar"
-    :version "1.0"}])
-
 (defn- clean-icu4j-data
   ;; Useful link:
   ;; https://unicode-org.github.io/icu/userguide/icu_data/buildtool.html#file-slicing-coarse-grained-features
@@ -91,27 +85,30 @@
     :out
     string/trim))
 
-(defn bob-artifact-file ^File
-  [archive git-sha]
+(defn bob-artifact-file
+  ^File [archive git-sha]
   (let [f (when git-sha
             (http-cache/download (format "https://%s/archive/%s/bob/bob.jar" archive git-sha)))]
     (or f (io/file (dynamo-home) "share/java/bob.jar"))))
 
 (defn local-jars
-  "Install local jar dependencies into the ~/.m2 Maven repository."
+  "Install custom-built jar dependencies into the project's local Maven repository."
   [project & [git-sha]]
-  (let [sha (or git-sha (:engine project))
+  (let [local-repo (:local-repo project)
+        sha (or git-sha (:engine project))
         archive-domain (get project :archive-domain)
-        jar-decls (conj jar-decls
-                        {:artifact-id "bob"
-                         :group-id "com.defold.lib"
-                         :jar-file (.getAbsolutePath (bob-artifact-file archive-domain sha))
-                         :version "1.0"}
-                        {:artifact-id "icu4j"
-                         :group-id "com.defold.lib"
-                         :version "1.0"
-                         :jar-file (str (clean-icu4j-data (:icu4j project)))})]
+        jar-decls [{:artifact-id "bob"
+                    :group-id "com.defold.lib"
+                    :jar-file (.getAbsolutePath (bob-artifact-file archive-domain sha))
+                    :version "1.0"}
+                   {:artifact-id "icu4j"
+                    :group-id "com.defold.lib"
+                    :version "1.0"
+                    :jar-file (str (clean-icu4j-data (:icu4j project)))}]]
+    (when-not local-repo
+      (throw (ex-info "Missing project :local-repo" {:task "local-jars"})))
     (doseq [{:keys [group-id artifact-id version jar-file]} (sort-by :jar-file jar-decls)]
       (main/info (format "Installing %s as [%s \"%s\"]" jar-file (symbol group-id artifact-id) version))
       (aether/install-artifacts
+        :local-repo local-repo
         :files {[(symbol group-id artifact-id) version] jar-file}))))

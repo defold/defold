@@ -12,12 +12,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "../socket.h"
+#include "socket.h"
 
 namespace dmSocket
 {
     void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
-    	*count = 0;
+        *count = 0;
     }
 }
+
+#include "socket_posix.cpp"

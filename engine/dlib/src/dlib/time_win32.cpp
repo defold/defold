@@ -14,7 +14,7 @@
 
 #include "time.h"
 
-#include "../safe_windows.h"
+#include "safe_windows.h"
 #include <stdint.h>
 #include <time.h>
 

@@ -113,6 +113,23 @@ namespace dmGameSystem
 
     static void DestroyComponent(ParticleFXWorld* world, ParticleFXComponent* component);
 
+    static void UpdateComponentUserData(ParticleFXWorld* world, ParticleFXComponent* component)
+    {
+        if (component->m_Overrides && component->m_ParticleInstance != dmParticle::INVALID_INSTANCE)
+        {
+            dmParticle::SetInstanceUserData(world->m_ParticleContext, component->m_ParticleInstance, component);
+        }
+    }
+
+    static void UpdateAllComponentUserData(ParticleFXWorld* world)
+    {
+        uint32_t component_count = world->m_Components.Size();
+        for (uint32_t i = 0; i < component_count; ++i)
+        {
+            UpdateComponentUserData(world, &world->m_Components[i]);
+        }
+    }
+
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         assert(params.m_Context);
@@ -301,6 +318,10 @@ namespace dmGameSystem
                 DestroyComponent(w, &c);
                 components.EraseSwap(i);
                 --count;
+                if (i < count)
+                {
+                    UpdateComponentUserData(w, &components[i]);
+                }
             }
             else
             {
@@ -659,6 +680,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             world->m_Components.OffsetCapacity(4);
+            UpdateAllComponentUserData(world);
         }
 
         uint32_t count = world->m_Components.Size();
@@ -704,7 +726,7 @@ namespace dmGameSystem
                 component->m_Overrides = component_overrides;
             }
 
-            dmParticle::SetInstanceUserData(world->m_ParticleContext, component->m_ParticleInstance, component);
+            UpdateComponentUserData(world, component);
         }
 
         world->m_EmitterCount += dmParticle::GetEmitterCount(component->m_ParticlePrototype);
@@ -715,6 +737,11 @@ namespace dmGameSystem
     {
         if (component->m_Overrides)
         {
+            if (component->m_ParticleInstance != dmParticle::INVALID_INSTANCE)
+            {
+                dmParticle::SetInstanceUserData(world->m_ParticleContext, component->m_ParticleInstance, 0);
+            }
+
             uint32_t num_overrides = component->m_Overrides->m_EmitterOverrides.Size();
             for (int i = 0; i < num_overrides; ++i)
             {

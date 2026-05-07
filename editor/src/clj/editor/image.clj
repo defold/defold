@@ -20,6 +20,8 @@
             [editor.image-util :as image-util]
             [editor.localization :as localization]
             [editor.pipeline.tex-gen :as tex-gen]
+            [editor.pose :as pose]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -89,6 +91,14 @@
                   :compress? (:compress-textures? build-settings false)
                   :texture-profile texture-profile}})])
 
+(g/defnk produce-scene [_node-id size gpu-texture texture-profile]
+  (g/precluding-errors
+    [size gpu-texture]
+    (let [{:keys [width height]} size]
+      (assoc (render-util/make-outlined-textured-quad-scene #{:image} pose/default width height gpu-texture 0)
+        :node-id _node-id
+        :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))))))
+
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
 
@@ -125,6 +135,7 @@
                                    :uv-transforms [(TextureSetGenerator$UVTransform.)])}))
 
   (output texture-page-count g/Int (g/constantly texture/non-paged-page-count))
+  (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-image
@@ -143,5 +154,5 @@
                                       :node-type ImageNode
                                       :load-fn load-image
                                       :stateless? true
-                                      :view-types [:default])
+                                      :view-types [:scene :default])
     (workspace/register-resource-type workspace :ext "texture")))

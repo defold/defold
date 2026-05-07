@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "../file_descriptor.h"
+#include "file_descriptor.h"
 #include <winsock2.h>
 #include <assert.h>
 
@@ -22,10 +22,15 @@ namespace dmFileDescriptor
     {
         switch (event)
         {
-            case EVENT_READ: return POLLRDNORM;
-            case EVENT_WRITE: return POLLWRNORM;
-            case EVENT_ERROR: return POLLRDBAND;
-            default: assert(false); return -1;
+            case EVENT_READ:
+                return POLLRDNORM;
+            case EVENT_WRITE:
+                return POLLWRNORM;
+            case EVENT_ERROR:
+                return POLLRDBAND;
+            default:
+                assert(false);
+                return -1;
         }
         return -1; // silence warning
     }
@@ -33,10 +38,15 @@ namespace dmFileDescriptor
     {
         switch (event)
         {
-            case EVENT_READ: return POLLRDNORM;
-            case EVENT_WRITE: return POLLWRNORM;
-            case EVENT_ERROR: return POLLHUP | POLLERR | POLLNVAL | POLLRDBAND;
-            default: assert(false); return -1;
+            case EVENT_READ:
+                return POLLRDNORM;
+            case EVENT_WRITE:
+                return POLLWRNORM;
+            case EVENT_ERROR:
+                return POLLHUP | POLLERR | POLLNVAL | POLLRDBAND;
+            default:
+                assert(false);
+                return -1;
         }
         return -1; // silence warning
     }
@@ -46,4 +56,4 @@ namespace dmFileDescriptor
         int r = WSAPoll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
         return r;
     }
-}
+} // namespace dmFileDescriptor
