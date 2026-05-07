@@ -223,15 +223,69 @@ namespace dmGameSystem
         return (b2Joint*)joint_ptr;
     }
 
-    static B2DJointMeta* GetJointMeta(lua_State* L, B2DLuaJoint* luajoint)
+    static b2Joint* CheckJoint(lua_State* L, int index, HOpaqueHandle* out_handle)
     {
-        B2DJointMeta* joint_meta = g_JointMeta.Get(luajoint->m_Handle);
-        if (!joint_meta)
+        B2DLuaJoint* luajoint = CheckJointInternal(L, index);
+        uintptr_t* joint_ptr = g_JointHandles.Get(luajoint->m_Handle);
+        if (!joint_ptr)
         {
             luaL_error(L, "Invalid b2joint handle.");
             return 0;
         }
-        return joint_meta;
+
+        if (out_handle)
+        {
+            *out_handle = luajoint->m_Handle;
+        }
+
+        return (b2Joint*)joint_ptr;
+    }
+
+    static b2Joint* CheckJoint(lua_State* L, int index, B2DJointMeta** out_joint_meta)
+    {
+        B2DLuaJoint* luajoint = CheckJointInternal(L, index);
+        uintptr_t* joint_ptr = g_JointHandles.Get(luajoint->m_Handle);
+        if (!joint_ptr)
+        {
+            luaL_error(L, "Invalid b2joint handle.");
+            return 0;
+        }
+
+        if (out_joint_meta)
+        {
+            *out_joint_meta = g_JointMeta.Get(luajoint->m_Handle);
+            if (!*out_joint_meta)
+            {
+                luaL_error(L, "Invalid b2joint handle.");
+                return 0;
+            }
+        }
+
+        return (b2Joint*)joint_ptr;
+    }
+
+    static b2Joint* CheckJointType(lua_State* L, int index, B2DJointMeta** out_joint_meta, b2JointType joint_type, const char* function_name, const char* joint_type_name)
+    {
+        b2Joint* joint = CheckJoint(L, index, out_joint_meta);
+        if (joint->GetType() != joint_type)
+        {
+            luaL_error(L, "b2d.joint.%s can only be used with %s joints.", function_name, joint_type_name);
+            return 0;
+        }
+        return joint;
+    }
+
+    static b2Joint* CheckJointType(lua_State* L, int index, b2JointType joint_type, const char* function_name, const char* joint_type_name)
+    {
+        return CheckJointType(L, index, 0, joint_type, function_name, joint_type_name);
+    }
+
+    static void CheckJointWorldUnlocked(lua_State* L, b2Joint* joint, const char* function_name)
+    {
+        if (joint->GetBodyA()->GetWorld()->IsLocked())
+        {
+            luaL_error(L, "Could not call b2d.joint.%s. The world is locked.", function_name);
+        }
     }
 
     static B2DLuaJoint* ToJoint(lua_State* L, int index)
@@ -274,15 +328,15 @@ namespace dmGameSystem
     static int Joint_Destroy(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        B2DLuaJoint* luajoint = CheckJointInternal(L, 1);
-        b2Joint* joint = CheckJoint(L, 1);
+        HOpaqueHandle joint_handle = INVALID_OPAQUE_HANDLE;
+        b2Joint* joint = CheckJoint(L, 1, &joint_handle);
         b2World* world = joint->GetBodyA()->GetWorld();
         if (world->IsLocked())
         {
             return luaL_error(L, "Could not destroy joint. The world is locked.");
         }
         world->DestroyJoint(joint);
-        InvalidateJointHandle(luajoint->m_Handle);
+        InvalidateJointHandle(joint_handle);
         return 0;
     }
 
@@ -296,9 +350,8 @@ namespace dmGameSystem
     static int Joint_GetBodyA(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DLuaJoint* luajoint = CheckJointInternal(L, 1);
-        B2DJointMeta* joint_meta = GetJointMeta(L, luajoint);
-        b2Body* body = CheckJoint(L, 1)->GetBodyA();
+        B2DJointMeta* joint_meta = 0;
+        b2Body* body = CheckJoint(L, 1, &joint_meta)->GetBodyA();
         PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyInstanceId(body));
         return 1;
     }
@@ -306,9 +359,8 @@ namespace dmGameSystem
     static int Joint_GetBodyB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DLuaJoint* luajoint = CheckJointInternal(L, 1);
-        B2DJointMeta* joint_meta = GetJointMeta(L, luajoint);
-        b2Body* body = CheckJoint(L, 1)->GetBodyB();
+        B2DJointMeta* joint_meta = 0;
+        b2Body* body = CheckJoint(L, 1, &joint_meta)->GetBodyB();
         PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyInstanceId(body));
         return 1;
     }
@@ -326,6 +378,27 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         b2Joint* joint = CheckJoint(L, 1);
         dmScript::PushVector3(L, FromB2(joint->GetBodyB()->GetLocalPoint(joint->GetAnchorB()), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Joint_GetAnchorA(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmScript::PushVector3(L, FromB2(CheckJoint(L, 1)->GetAnchorA(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Joint_GetAnchorB(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmScript::PushVector3(L, FromB2(CheckJoint(L, 1)->GetAnchorB(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Joint_IsActive(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushboolean(L, CheckJoint(L, 1)->IsActive());
         return 1;
     }
 
@@ -351,6 +424,499 @@ namespace dmGameSystem
         }
         ((b2MouseJoint*)joint)->SetTarget(CheckVec2(L, 2, GetPhysicsScale()));
         return 0;
+    }
+
+    static int Joint_GetMouseTarget(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2MouseJoint* joint = (b2MouseJoint*)CheckJointType(L, 1, e_mouseJoint, "get_mouse_target", "mouse");
+        dmScript::PushVector3(L, FromB2(joint->GetTarget(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Joint_SetLength(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2DistanceJoint* joint = (b2DistanceJoint*)CheckJointType(L, 1, e_distanceJoint, "set_length", "distance");
+        CheckJointWorldUnlocked(L, joint, "set_length");
+        joint->SetLength((float)luaL_checknumber(L, 2) * GetPhysicsScale());
+        return 0;
+    }
+
+    static int Joint_GetLength(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2DistanceJoint* joint = (b2DistanceJoint*)CheckJointType(L, 1, e_distanceJoint, "get_length", "distance");
+        lua_pushnumber(L, joint->GetLength() * GetInvPhysicsScale());
+        return 1;
+    }
+
+    static int Joint_SetFrequency(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Joint* joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "set_frequency");
+        float frequency = (float)luaL_checknumber(L, 2);
+        switch (joint->GetType())
+        {
+            case e_distanceJoint: ((b2DistanceJoint*)joint)->SetFrequency(frequency); break;
+            case e_mouseJoint: ((b2MouseJoint*)joint)->SetFrequency(frequency); break;
+            case e_weldJoint: ((b2WeldJoint*)joint)->SetFrequency(frequency); break;
+            case e_wheelJoint: ((b2WheelJoint*)joint)->SetSpringFrequencyHz(frequency); break;
+            default: return luaL_error(L, "b2d.joint.set_frequency can only be used with distance, mouse, weld, or wheel joints.");
+        }
+        return 0;
+    }
+
+    static int Joint_GetFrequency(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_distanceJoint: lua_pushnumber(L, ((b2DistanceJoint*)joint)->GetFrequency()); break;
+            case e_mouseJoint: lua_pushnumber(L, ((b2MouseJoint*)joint)->GetFrequency()); break;
+            case e_weldJoint: lua_pushnumber(L, ((b2WeldJoint*)joint)->GetFrequency()); break;
+            case e_wheelJoint: lua_pushnumber(L, ((b2WheelJoint*)joint)->GetSpringFrequencyHz()); break;
+            default: return luaL_error(L, "b2d.joint.get_frequency can only be used with distance, mouse, weld, or wheel joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_SetDampingRatio(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Joint* joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "set_damping_ratio");
+        float damping_ratio = (float)luaL_checknumber(L, 2);
+        switch (joint->GetType())
+        {
+            case e_distanceJoint: ((b2DistanceJoint*)joint)->SetDampingRatio(damping_ratio); break;
+            case e_mouseJoint: ((b2MouseJoint*)joint)->SetDampingRatio(damping_ratio); break;
+            case e_weldJoint: ((b2WeldJoint*)joint)->SetDampingRatio(damping_ratio); break;
+            case e_wheelJoint: ((b2WheelJoint*)joint)->SetSpringDampingRatio(damping_ratio); break;
+            default: return luaL_error(L, "b2d.joint.set_damping_ratio can only be used with distance, mouse, weld, or wheel joints.");
+        }
+        return 0;
+    }
+
+    static int Joint_GetDampingRatio(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_distanceJoint: lua_pushnumber(L, ((b2DistanceJoint*)joint)->GetDampingRatio()); break;
+            case e_mouseJoint: lua_pushnumber(L, ((b2MouseJoint*)joint)->GetDampingRatio()); break;
+            case e_weldJoint: lua_pushnumber(L, ((b2WeldJoint*)joint)->GetDampingRatio()); break;
+            case e_wheelJoint: lua_pushnumber(L, ((b2WheelJoint*)joint)->GetSpringDampingRatio()); break;
+            default: return luaL_error(L, "b2d.joint.get_damping_ratio can only be used with distance, mouse, weld, or wheel joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_GetLocalAxisA(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: dmScript::PushVector3(L, FromB2(((b2PrismaticJoint*)joint)->GetLocalAxisA(), 1.0f)); break;
+            case e_wheelJoint: dmScript::PushVector3(L, FromB2(((b2WheelJoint*)joint)->GetLocalAxisA(), 1.0f)); break;
+            default: return luaL_error(L, "b2d.joint.get_local_axis_a can only be used with prismatic or wheel joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_GetReferenceAngle(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: lua_pushnumber(L, ((b2PrismaticJoint*)joint)->GetReferenceAngle()); break;
+            case e_revoluteJoint: lua_pushnumber(L, ((b2RevoluteJoint*)joint)->GetReferenceAngle()); break;
+            case e_weldJoint: lua_pushnumber(L, ((b2WeldJoint*)joint)->GetReferenceAngle()); break;
+            default: return luaL_error(L, "b2d.joint.get_reference_angle can only be used with prismatic, revolute, or weld joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_GetJointTranslation(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: lua_pushnumber(L, ((b2PrismaticJoint*)joint)->GetJointTranslation() * GetInvPhysicsScale()); break;
+            case e_wheelJoint: lua_pushnumber(L, ((b2WheelJoint*)joint)->GetJointTranslation() * GetInvPhysicsScale()); break;
+            default: return luaL_error(L, "b2d.joint.get_joint_translation can only be used with prismatic or wheel joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_GetJointSpeed(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: lua_pushnumber(L, ((b2PrismaticJoint*)joint)->GetJointSpeed() * GetInvPhysicsScale()); break;
+            case e_revoluteJoint: lua_pushnumber(L, ((b2RevoluteJoint*)joint)->GetJointSpeed()); break;
+            case e_wheelJoint: lua_pushnumber(L, ((b2WheelJoint*)joint)->GetJointSpeed() * GetInvPhysicsScale()); break;
+            default: return luaL_error(L, "b2d.joint.get_joint_speed can only be used with prismatic, revolute, or wheel joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_GetJointAngle(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2RevoluteJoint* joint = (b2RevoluteJoint*)CheckJointType(L, 1, e_revoluteJoint, "get_joint_angle", "revolute");
+        lua_pushnumber(L, joint->GetJointAngle());
+        return 1;
+    }
+
+    static int Joint_EnableLimit(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Joint* joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "enable_limit");
+        bool enable_limit = lua_toboolean(L, 2);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: ((b2PrismaticJoint*)joint)->EnableLimit(enable_limit); break;
+            case e_revoluteJoint: ((b2RevoluteJoint*)joint)->EnableLimit(enable_limit); break;
+            default: return luaL_error(L, "b2d.joint.enable_limit can only be used with prismatic or revolute joints.");
+        }
+        return 0;
+    }
+
+    static int Joint_IsLimitEnabled(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: lua_pushboolean(L, ((b2PrismaticJoint*)joint)->IsLimitEnabled()); break;
+            case e_revoluteJoint: lua_pushboolean(L, ((b2RevoluteJoint*)joint)->IsLimitEnabled()); break;
+            default: return luaL_error(L, "b2d.joint.is_limit_enabled can only be used with prismatic or revolute joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_SetLimits(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Joint* joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "set_limits");
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint:
+                ((b2PrismaticJoint*)joint)->SetLimits((float)luaL_checknumber(L, 2) * GetPhysicsScale(), (float)luaL_checknumber(L, 3) * GetPhysicsScale());
+                break;
+            case e_revoluteJoint:
+                ((b2RevoluteJoint*)joint)->SetLimits((float)luaL_checknumber(L, 2), (float)luaL_checknumber(L, 3));
+                break;
+            default: return luaL_error(L, "b2d.joint.set_limits can only be used with prismatic or revolute joints.");
+        }
+        return 0;
+    }
+
+    static int Joint_GetLowerLimit(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: lua_pushnumber(L, ((b2PrismaticJoint*)joint)->GetLowerLimit() * GetInvPhysicsScale()); break;
+            case e_revoluteJoint: lua_pushnumber(L, ((b2RevoluteJoint*)joint)->GetLowerLimit()); break;
+            default: return luaL_error(L, "b2d.joint.get_lower_limit can only be used with prismatic or revolute joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_GetUpperLimit(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: lua_pushnumber(L, ((b2PrismaticJoint*)joint)->GetUpperLimit() * GetInvPhysicsScale()); break;
+            case e_revoluteJoint: lua_pushnumber(L, ((b2RevoluteJoint*)joint)->GetUpperLimit()); break;
+            default: return luaL_error(L, "b2d.joint.get_upper_limit can only be used with prismatic or revolute joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_EnableMotor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Joint* joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "enable_motor");
+        bool enable_motor = lua_toboolean(L, 2);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: ((b2PrismaticJoint*)joint)->EnableMotor(enable_motor); break;
+            case e_revoluteJoint: ((b2RevoluteJoint*)joint)->EnableMotor(enable_motor); break;
+            case e_wheelJoint: ((b2WheelJoint*)joint)->EnableMotor(enable_motor); break;
+            default: return luaL_error(L, "b2d.joint.enable_motor can only be used with prismatic, revolute, or wheel joints.");
+        }
+        return 0;
+    }
+
+    static int Joint_IsMotorEnabled(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: lua_pushboolean(L, ((b2PrismaticJoint*)joint)->IsMotorEnabled()); break;
+            case e_revoluteJoint: lua_pushboolean(L, ((b2RevoluteJoint*)joint)->IsMotorEnabled()); break;
+            case e_wheelJoint: lua_pushboolean(L, ((b2WheelJoint*)joint)->IsMotorEnabled()); break;
+            default: return luaL_error(L, "b2d.joint.is_motor_enabled can only be used with prismatic, revolute, or wheel joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_SetMotorSpeed(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Joint* joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "set_motor_speed");
+        float motor_speed = (float)luaL_checknumber(L, 2);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: ((b2PrismaticJoint*)joint)->SetMotorSpeed(motor_speed * GetPhysicsScale()); break;
+            case e_revoluteJoint: ((b2RevoluteJoint*)joint)->SetMotorSpeed(motor_speed); break;
+            case e_wheelJoint: ((b2WheelJoint*)joint)->SetMotorSpeed(motor_speed); break;
+            default: return luaL_error(L, "b2d.joint.set_motor_speed can only be used with prismatic, revolute, or wheel joints.");
+        }
+        return 0;
+    }
+
+    static int Joint_GetMotorSpeed(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_prismaticJoint: lua_pushnumber(L, ((b2PrismaticJoint*)joint)->GetMotorSpeed() * GetInvPhysicsScale()); break;
+            case e_revoluteJoint: lua_pushnumber(L, ((b2RevoluteJoint*)joint)->GetMotorSpeed()); break;
+            case e_wheelJoint: lua_pushnumber(L, ((b2WheelJoint*)joint)->GetMotorSpeed()); break;
+            default: return luaL_error(L, "b2d.joint.get_motor_speed can only be used with prismatic, revolute, or wheel joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_SetMaxMotorForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2PrismaticJoint* joint = (b2PrismaticJoint*)CheckJointType(L, 1, e_prismaticJoint, "set_max_motor_force", "prismatic");
+        CheckJointWorldUnlocked(L, joint, "set_max_motor_force");
+        joint->SetMaxMotorForce((float)luaL_checknumber(L, 2) * GetPhysicsScale());
+        return 0;
+    }
+
+    static int Joint_GetMaxMotorForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2PrismaticJoint* joint = (b2PrismaticJoint*)CheckJointType(L, 1, e_prismaticJoint, "get_max_motor_force", "prismatic");
+        lua_pushnumber(L, joint->GetMaxMotorForce() * GetInvPhysicsScale());
+        return 1;
+    }
+
+    static int Joint_GetMotorForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2PrismaticJoint* joint = (b2PrismaticJoint*)CheckJointType(L, 1, e_prismaticJoint, "get_motor_force", "prismatic");
+        float inv_dt = (float)luaL_optnumber(L, 2, 1.0);
+        lua_pushnumber(L, joint->GetMotorForce(inv_dt) * GetInvPhysicsScale());
+        return 1;
+    }
+
+    static int Joint_SetMaxMotorTorque(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Joint* joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "set_max_motor_torque");
+        float max_motor_torque = (float)luaL_checknumber(L, 2) * GetPhysicsScale();
+        switch (joint->GetType())
+        {
+            case e_revoluteJoint: ((b2RevoluteJoint*)joint)->SetMaxMotorTorque(max_motor_torque); break;
+            case e_wheelJoint: ((b2WheelJoint*)joint)->SetMaxMotorTorque(max_motor_torque); break;
+            default: return luaL_error(L, "b2d.joint.set_max_motor_torque can only be used with revolute or wheel joints.");
+        }
+        return 0;
+    }
+
+    static int Joint_GetMaxMotorTorque(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_revoluteJoint: lua_pushnumber(L, ((b2RevoluteJoint*)joint)->GetMaxMotorTorque() * GetInvPhysicsScale()); break;
+            case e_wheelJoint: lua_pushnumber(L, ((b2WheelJoint*)joint)->GetMaxMotorTorque() * GetInvPhysicsScale()); break;
+            default: return luaL_error(L, "b2d.joint.get_max_motor_torque can only be used with revolute or wheel joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_GetMotorTorque(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        float inv_dt = (float)luaL_optnumber(L, 2, 1.0);
+        switch (joint->GetType())
+        {
+            case e_revoluteJoint: lua_pushnumber(L, ((b2RevoluteJoint*)joint)->GetMotorTorque(inv_dt) * GetInvPhysicsScale()); break;
+            case e_wheelJoint: lua_pushnumber(L, ((b2WheelJoint*)joint)->GetMotorTorque(inv_dt) * GetInvPhysicsScale()); break;
+            default: return luaL_error(L, "b2d.joint.get_motor_torque can only be used with revolute or wheel joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_SetMaxForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Joint* joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "set_max_force");
+        float max_force = (float)luaL_checknumber(L, 2) * GetPhysicsScale();
+        switch (joint->GetType())
+        {
+            case e_mouseJoint: ((b2MouseJoint*)joint)->SetMaxForce(max_force); break;
+            case e_frictionJoint: ((b2FrictionJoint*)joint)->SetMaxForce(max_force); break;
+            default: return luaL_error(L, "b2d.joint.set_max_force can only be used with mouse or friction joints.");
+        }
+        return 0;
+    }
+
+    static int Joint_GetMaxForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_mouseJoint: lua_pushnumber(L, ((b2MouseJoint*)joint)->GetMaxForce() * GetInvPhysicsScale()); break;
+            case e_frictionJoint: lua_pushnumber(L, ((b2FrictionJoint*)joint)->GetMaxForce() * GetInvPhysicsScale()); break;
+            default: return luaL_error(L, "b2d.joint.get_max_force can only be used with mouse or friction joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_SetMaxTorque(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2FrictionJoint* joint = (b2FrictionJoint*)CheckJointType(L, 1, e_frictionJoint, "set_max_torque", "friction");
+        CheckJointWorldUnlocked(L, joint, "set_max_torque");
+        joint->SetMaxTorque((float)luaL_checknumber(L, 2) * GetPhysicsScale());
+        return 0;
+    }
+
+    static int Joint_GetMaxTorque(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2FrictionJoint* joint = (b2FrictionJoint*)CheckJointType(L, 1, e_frictionJoint, "get_max_torque", "friction");
+        lua_pushnumber(L, joint->GetMaxTorque() * GetInvPhysicsScale());
+        return 1;
+    }
+
+    static int Joint_SetMaxLength(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2RopeJoint* joint = (b2RopeJoint*)CheckJointType(L, 1, e_ropeJoint, "set_max_length", "rope");
+        CheckJointWorldUnlocked(L, joint, "set_max_length");
+        joint->SetMaxLength((float)luaL_checknumber(L, 2) * GetPhysicsScale());
+        return 0;
+    }
+
+    static int Joint_GetMaxLength(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2RopeJoint* joint = (b2RopeJoint*)CheckJointType(L, 1, e_ropeJoint, "get_max_length", "rope");
+        lua_pushnumber(L, joint->GetMaxLength() * GetInvPhysicsScale());
+        return 1;
+    }
+
+    static int Joint_GetLimitState(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2RopeJoint* joint = (b2RopeJoint*)CheckJointType(L, 1, e_ropeJoint, "get_limit_state", "rope");
+        lua_pushinteger(L, joint->GetLimitState());
+        return 1;
+    }
+
+    static int Joint_GetGroundAnchorA(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2PulleyJoint* joint = (b2PulleyJoint*)CheckJointType(L, 1, e_pulleyJoint, "get_ground_anchor_a", "pulley");
+        dmScript::PushVector3(L, FromB2(joint->GetGroundAnchorA(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Joint_GetGroundAnchorB(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2PulleyJoint* joint = (b2PulleyJoint*)CheckJointType(L, 1, e_pulleyJoint, "get_ground_anchor_b", "pulley");
+        dmScript::PushVector3(L, FromB2(joint->GetGroundAnchorB(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Joint_GetLengthA(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2PulleyJoint* joint = (b2PulleyJoint*)CheckJointType(L, 1, e_pulleyJoint, "get_length_a", "pulley");
+        lua_pushnumber(L, joint->GetLengthA() * GetInvPhysicsScale());
+        return 1;
+    }
+
+    static int Joint_GetLengthB(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2PulleyJoint* joint = (b2PulleyJoint*)CheckJointType(L, 1, e_pulleyJoint, "get_length_b", "pulley");
+        lua_pushnumber(L, joint->GetLengthB() * GetInvPhysicsScale());
+        return 1;
+    }
+
+    static int Joint_SetRatio(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2GearJoint* joint = (b2GearJoint*)CheckJointType(L, 1, e_gearJoint, "set_ratio", "gear");
+        CheckJointWorldUnlocked(L, joint, "set_ratio");
+        joint->SetRatio((float)luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Joint_GetRatio(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Joint* joint = CheckJoint(L, 1);
+        switch (joint->GetType())
+        {
+            case e_gearJoint: lua_pushnumber(L, ((b2GearJoint*)joint)->GetRatio()); break;
+            case e_pulleyJoint: lua_pushnumber(L, ((b2PulleyJoint*)joint)->GetRatio()); break;
+            default: return luaL_error(L, "b2d.joint.get_ratio can only be used with gear or pulley joints.");
+        }
+        return 1;
+    }
+
+    static int Joint_GetJoint1(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        B2DJointMeta* joint_meta = 0;
+        b2GearJoint* joint = (b2GearJoint*)CheckJointType(L, 1, &joint_meta, e_gearJoint, "get_joint1", "gear");
+        PushJoint(L, joint->GetJoint1(), joint_meta ? joint_meta->m_Collection : 0);
+        return 1;
+    }
+
+    static int Joint_GetJoint2(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        B2DJointMeta* joint_meta = 0;
+        b2GearJoint* joint = (b2GearJoint*)CheckJointType(L, 1, &joint_meta, e_gearJoint, "get_joint2", "gear");
+        PushJoint(L, joint->GetJoint2(), joint_meta ? joint_meta->m_Collection : 0);
+        return 1;
     }
 
     static int Joint_GetReactionForce(lua_State* L)
@@ -465,7 +1031,7 @@ namespace dmGameSystem
         def.lowerAngle = GetNumberField(L, def_index, "lower_angle", def.lowerAngle);
         def.upperAngle = GetNumberField(L, def_index, "upper_angle", def.upperAngle);
         def.enableMotor = GetBoolField(L, def_index, "enable_motor", def.enableMotor);
-        def.maxMotorTorque = GetNumberField(L, def_index, "max_motor_torque", def.maxMotorTorque);
+        def.maxMotorTorque = GetNumberField(L, def_index, "max_motor_torque", def.maxMotorTorque) * GetPhysicsScale();
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed);
 
         PushJoint(L, world->CreateJoint(&def), collection);
@@ -512,7 +1078,7 @@ namespace dmGameSystem
         ReadCommonAnchoredDef(L, def_index, &def.localAnchorA, &def.localAnchorB);
         def.localAxisA = GetVec2Field(L, def_index, "local_axis_a", def.localAxisA, 1.0f);
         def.enableMotor = GetBoolField(L, def_index, "enable_motor", def.enableMotor);
-        def.maxMotorTorque = GetNumberField(L, def_index, "max_motor_torque", def.maxMotorTorque);
+        def.maxMotorTorque = GetNumberField(L, def_index, "max_motor_torque", def.maxMotorTorque) * GetPhysicsScale();
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed);
         def.frequencyHz = GetNumberField(L, def_index, HasField(L, def_index, "frequency") ? "frequency" : "hertz", def.frequencyHz);
         def.dampingRatio = GetNumberField(L, def_index, HasField(L, def_index, "damping") ? "damping" : "damping_ratio", def.dampingRatio);
@@ -537,7 +1103,7 @@ namespace dmGameSystem
         ReadCommonDef(L, def_index, &def);
         ReadCommonAnchoredDef(L, def_index, &def.localAnchorA, &def.localAnchorB);
         def.maxForce = GetNumberField(L, def_index, "max_force", def.maxForce) * GetPhysicsScale();
-        def.maxTorque = GetNumberField(L, def_index, "max_torque", def.maxTorque);
+        def.maxTorque = GetNumberField(L, def_index, "max_torque", def.maxTorque) * GetPhysicsScale();
 
         PushJoint(L, world->CreateJoint(&def), collection);
         return 1;
@@ -592,9 +1158,8 @@ namespace dmGameSystem
     static int Joint_CreateGear(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DLuaJoint* luajoint = CheckJointInternal(L, 1);
-        B2DJointMeta* joint_meta = GetJointMeta(L, luajoint);
-        b2Joint* joint1 = CheckJoint(L, 1);
+        B2DJointMeta* joint_meta = 0;
+        b2Joint* joint1 = CheckJoint(L, 1, &joint_meta);
         b2Joint* joint2 = CheckJoint(L, 2);
         b2World* world = joint1->GetBodyA()->GetWorld();
         if (world != joint2->GetBodyA()->GetWorld())
@@ -608,6 +1173,7 @@ namespace dmGameSystem
         int def_index = CheckDefinitionTable(L, 3);
 
         b2GearJointDef def;
+        ReadCommonDef(L, def_index, &def);
         def.bodyA = joint1->GetBodyA();
         def.bodyB = joint2->GetBodyB();
         def.joint1 = joint1;
@@ -653,8 +1219,57 @@ namespace dmGameSystem
         {"get_body_b", Joint_GetBodyB},
         {"get_local_anchor_a", Joint_GetLocalAnchorA},
         {"get_local_anchor_b", Joint_GetLocalAnchorB},
+        {"get_anchor_a", Joint_GetAnchorA},
+        {"get_anchor_b", Joint_GetAnchorB},
+        {"is_active", Joint_IsActive},
         {"get_collide_connected", Joint_GetCollideConnected},
         {"set_mouse_target", Joint_SetMouseTarget},
+        {"get_mouse_target", Joint_GetMouseTarget},
+        {"set_length", Joint_SetLength},
+        {"get_length", Joint_GetLength},
+        {"set_frequency", Joint_SetFrequency},
+        {"get_frequency", Joint_GetFrequency},
+        {"set_hertz", Joint_SetFrequency},
+        {"get_hertz", Joint_GetFrequency},
+        {"set_damping_ratio", Joint_SetDampingRatio},
+        {"get_damping_ratio", Joint_GetDampingRatio},
+        {"set_spring_damping_ratio", Joint_SetDampingRatio},
+        {"get_spring_damping_ratio", Joint_GetDampingRatio},
+        {"get_local_axis_a", Joint_GetLocalAxisA},
+        {"get_reference_angle", Joint_GetReferenceAngle},
+        {"get_joint_translation", Joint_GetJointTranslation},
+        {"get_joint_speed", Joint_GetJointSpeed},
+        {"get_joint_angle", Joint_GetJointAngle},
+        {"enable_limit", Joint_EnableLimit},
+        {"is_limit_enabled", Joint_IsLimitEnabled},
+        {"set_limits", Joint_SetLimits},
+        {"get_lower_limit", Joint_GetLowerLimit},
+        {"get_upper_limit", Joint_GetUpperLimit},
+        {"enable_motor", Joint_EnableMotor},
+        {"is_motor_enabled", Joint_IsMotorEnabled},
+        {"set_motor_speed", Joint_SetMotorSpeed},
+        {"get_motor_speed", Joint_GetMotorSpeed},
+        {"set_max_motor_force", Joint_SetMaxMotorForce},
+        {"get_max_motor_force", Joint_GetMaxMotorForce},
+        {"get_motor_force", Joint_GetMotorForce},
+        {"set_max_motor_torque", Joint_SetMaxMotorTorque},
+        {"get_max_motor_torque", Joint_GetMaxMotorTorque},
+        {"get_motor_torque", Joint_GetMotorTorque},
+        {"set_max_force", Joint_SetMaxForce},
+        {"get_max_force", Joint_GetMaxForce},
+        {"set_max_torque", Joint_SetMaxTorque},
+        {"get_max_torque", Joint_GetMaxTorque},
+        {"set_max_length", Joint_SetMaxLength},
+        {"get_max_length", Joint_GetMaxLength},
+        {"get_limit_state", Joint_GetLimitState},
+        {"get_ground_anchor_a", Joint_GetGroundAnchorA},
+        {"get_ground_anchor_b", Joint_GetGroundAnchorB},
+        {"get_length_a", Joint_GetLengthA},
+        {"get_length_b", Joint_GetLengthB},
+        {"set_ratio", Joint_SetRatio},
+        {"get_ratio", Joint_GetRatio},
+        {"get_joint1", Joint_GetJoint1},
+        {"get_joint2", Joint_GetJoint2},
         {"get_reaction_force", Joint_GetReactionForce},
         {"get_reaction_torque", Joint_GetReactionTorque},
         {"create_distance", Joint_CreateDistance},
@@ -692,6 +1307,10 @@ namespace dmGameSystem
         SET_CONSTANT(e_weldJoint, "JOINT_TYPE_WELD");
         SET_CONSTANT(e_frictionJoint, "JOINT_TYPE_FRICTION");
         SET_CONSTANT(e_ropeJoint, "JOINT_TYPE_ROPE");
+        SET_CONSTANT(e_inactiveLimit, "LIMIT_STATE_INACTIVE");
+        SET_CONSTANT(e_atLowerLimit, "LIMIT_STATE_AT_LOWER");
+        SET_CONSTANT(e_atUpperLimit, "LIMIT_STATE_AT_UPPER");
+        SET_CONSTANT(e_equalLimits, "LIMIT_STATE_EQUAL");
 
 #undef SET_CONSTANT
 

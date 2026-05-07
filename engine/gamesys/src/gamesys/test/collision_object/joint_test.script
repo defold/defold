@@ -97,7 +97,151 @@ local function test_native_b2d_joints(self)
         max_force = 10,
     })
     b2d.joint.set_mouse_target(mouse_joint, vmath.vector3(7, 8, 0))
+    assert_vec3_near(b2d.joint.get_mouse_target(mouse_joint), vmath.vector3(7, 8, 0))
+    b2d.joint.set_max_force(mouse_joint, 11)
+    assert_near(b2d.joint.get_max_force(mouse_joint), 11)
+    b2d.joint.set_frequency(mouse_joint, 12)
+    assert_near(b2d.joint.get_frequency(mouse_joint), 12)
+    b2d.joint.set_damping_ratio(mouse_joint, 0.7)
+    assert_near(b2d.joint.get_damping_ratio(mouse_joint), 0.7)
     b2d.joint.destroy(mouse_joint)
+
+    b2d.joint.set_length(joint, 6)
+    assert_near(b2d.joint.get_length(joint), 6)
+    assert(b2d.joint.get_anchor_a(joint) ~= nil)
+    assert(b2d.joint.get_anchor_b(joint) ~= nil)
+
+    local prismatic_joint = b2d.joint.create_prismatic(body_a, body_b, {
+        local_axis_a = vmath.vector3(1, 0, 0),
+    })
+    b2d.joint.enable_limit(prismatic_joint, true)
+    assert(b2d.joint.is_limit_enabled(prismatic_joint))
+    b2d.joint.set_limits(prismatic_joint, -1, 2)
+    assert_near(b2d.joint.get_lower_limit(prismatic_joint), -1)
+    assert_near(b2d.joint.get_upper_limit(prismatic_joint), 2)
+    b2d.joint.enable_motor(prismatic_joint, true)
+    assert(b2d.joint.is_motor_enabled(prismatic_joint))
+    b2d.joint.set_motor_speed(prismatic_joint, 3)
+    assert_near(b2d.joint.get_motor_speed(prismatic_joint), 3)
+    b2d.joint.set_max_motor_force(prismatic_joint, 4)
+    assert_near(b2d.joint.get_max_motor_force(prismatic_joint), 4)
+    assert(type(b2d.joint.get_motor_force(prismatic_joint)) == "number")
+    assert(type(b2d.joint.get_joint_translation(prismatic_joint)) == "number")
+    assert(type(b2d.joint.get_joint_speed(prismatic_joint)) == "number")
+    b2d.joint.destroy(prismatic_joint)
+
+    local revolute_joint = b2d.joint.create_revolute(body_a, body_b)
+    b2d.joint.enable_limit(revolute_joint, true)
+    b2d.joint.set_limits(revolute_joint, -0.5, 0.5)
+    assert_near(b2d.joint.get_lower_limit(revolute_joint), -0.5)
+    assert_near(b2d.joint.get_upper_limit(revolute_joint), 0.5)
+    b2d.joint.enable_motor(revolute_joint, true)
+    b2d.joint.set_motor_speed(revolute_joint, 6)
+    assert_near(b2d.joint.get_motor_speed(revolute_joint), 6)
+    b2d.joint.set_max_motor_torque(revolute_joint, 7)
+    assert_near(b2d.joint.get_max_motor_torque(revolute_joint), 7)
+    assert(type(b2d.joint.get_motor_torque(revolute_joint)) == "number")
+    assert(type(b2d.joint.get_joint_angle(revolute_joint)) == "number")
+    b2d.joint.destroy(revolute_joint)
+
+    local weld_joint = b2d.joint.create_weld(body_a, body_b, {
+        reference_angle = 0.25,
+    })
+    assert_near(b2d.joint.get_reference_angle(weld_joint), 0.25)
+    b2d.joint.destroy(weld_joint)
+
+    local wheel_joint = b2d.joint.create_wheel(body_a, body_b, {
+        local_axis_a = vmath.vector3(0, 1, 0),
+    })
+    b2d.joint.enable_motor(wheel_joint, true)
+    b2d.joint.set_motor_speed(wheel_joint, 8)
+    assert_near(b2d.joint.get_motor_speed(wheel_joint), 8)
+    b2d.joint.set_max_motor_torque(wheel_joint, 9)
+    assert_near(b2d.joint.get_max_motor_torque(wheel_joint), 9)
+    b2d.joint.destroy(wheel_joint)
+
+    if PHYSICS == "box2dv3" then
+        b2d.joint.enable_spring(joint, true)
+        assert(b2d.joint.is_spring_enabled(joint))
+        b2d.joint.set_spring_hertz(joint, 13)
+        assert_near(b2d.joint.get_spring_hertz(joint), 13)
+        b2d.joint.set_spring_damping_ratio(joint, 0.8)
+        assert_near(b2d.joint.get_spring_damping_ratio(joint), 0.8)
+        b2d.joint.set_length_range(joint, 2, 7)
+        assert_near(b2d.joint.get_min_length(joint), 2)
+        assert_near(b2d.joint.get_max_length(joint), 7)
+        assert(type(b2d.joint.get_current_length(joint)) == "number")
+
+        local motor_joint = b2d.joint.create_motor(body_a, body_b)
+        b2d.joint.set_linear_offset(motor_joint, vmath.vector3(1, 2, 0))
+        assert_vec3_near(b2d.joint.get_linear_offset(motor_joint), vmath.vector3(1, 2, 0))
+        b2d.joint.set_angular_offset(motor_joint, 0.3)
+        assert_near(b2d.joint.get_angular_offset(motor_joint), 0.3)
+        b2d.joint.set_max_force(motor_joint, 14)
+        assert_near(b2d.joint.get_max_force(motor_joint), 14)
+        b2d.joint.set_max_torque(motor_joint, 15)
+        assert_near(b2d.joint.get_max_torque(motor_joint), 15)
+        b2d.joint.set_correction_factor(motor_joint, 0.4)
+        assert_near(b2d.joint.get_correction_factor(motor_joint), 0.4)
+        b2d.joint.destroy(motor_joint)
+
+        local weld_v3_joint = b2d.joint.create_weld(body_a, body_b)
+        b2d.joint.set_reference_angle(weld_v3_joint, 0.6)
+        assert_near(b2d.joint.get_reference_angle(weld_v3_joint), 0.6)
+        b2d.joint.set_linear_hertz(weld_v3_joint, 16)
+        assert_near(b2d.joint.get_linear_hertz(weld_v3_joint), 16)
+        b2d.joint.set_angular_hertz(weld_v3_joint, 17)
+        assert_near(b2d.joint.get_angular_hertz(weld_v3_joint), 17)
+        b2d.joint.set_linear_damping_ratio(weld_v3_joint, 0.5)
+        assert_near(b2d.joint.get_linear_damping_ratio(weld_v3_joint), 0.5)
+        b2d.joint.set_angular_damping_ratio(weld_v3_joint, 0.6)
+        assert_near(b2d.joint.get_angular_damping_ratio(weld_v3_joint), 0.6)
+        b2d.joint.destroy(weld_v3_joint)
+    else
+        assert(b2d.joint.enable_spring == nil)
+
+        local friction_joint = b2d.joint.create_friction(body_a, body_b)
+        b2d.joint.set_max_force(friction_joint, 18)
+        assert_near(b2d.joint.get_max_force(friction_joint), 18)
+        b2d.joint.set_max_torque(friction_joint, 19)
+        assert_near(b2d.joint.get_max_torque(friction_joint), 19)
+        b2d.joint.destroy(friction_joint)
+
+        local rope_joint = b2d.joint.create_rope(body_a, body_b, {
+            max_length = 3,
+        })
+        b2d.joint.set_max_length(rope_joint, 4)
+        assert_near(b2d.joint.get_max_length(rope_joint), 4)
+        assert(type(b2d.joint.get_limit_state(rope_joint)) == "number")
+        b2d.joint.destroy(rope_joint)
+
+        local pulley_joint = b2d.joint.create_pulley(body_a, body_b, {
+            ground_anchor_a = vmath.vector3(-1, 0, 0),
+            ground_anchor_b = vmath.vector3(1, 0, 0),
+            length_a = 2,
+            length_b = 3,
+            ratio = 1.5,
+        })
+        assert_vec3_near(b2d.joint.get_ground_anchor_a(pulley_joint), vmath.vector3(-1, 0, 0))
+        assert_vec3_near(b2d.joint.get_ground_anchor_b(pulley_joint), vmath.vector3(1, 0, 0))
+        assert(type(b2d.joint.get_length_a(pulley_joint)) == "number")
+        assert(type(b2d.joint.get_length_b(pulley_joint)) == "number")
+        assert_near(b2d.joint.get_ratio(pulley_joint), 1.5)
+        b2d.joint.destroy(pulley_joint)
+
+        local gear_revolute_joint = b2d.joint.create_revolute(body_a, body_b)
+        local gear_prismatic_joint = b2d.joint.create_prismatic(body_a, body_b)
+        local gear_joint = b2d.joint.create_gear(gear_revolute_joint, gear_prismatic_joint, {
+            ratio = 2,
+        })
+        b2d.joint.set_ratio(gear_joint, 3)
+        assert_near(b2d.joint.get_ratio(gear_joint), 3)
+        assert(b2d.joint.get_joint1(gear_joint) == gear_revolute_joint)
+        assert(b2d.joint.get_joint2(gear_joint) == gear_prismatic_joint)
+        b2d.joint.destroy(gear_joint)
+        b2d.joint.destroy(gear_prismatic_joint)
+        b2d.joint.destroy(gear_revolute_joint)
+    end
 
     b2d.joint.destroy(joint)
     assert_error(function() b2d.joint.get_type(joint) end)
