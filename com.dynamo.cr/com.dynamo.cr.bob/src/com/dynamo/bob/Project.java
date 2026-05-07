@@ -1957,24 +1957,14 @@ public class Project {
     }
 
     private static String libraryResultMessage(Library.Result dependency) {
-        var message = switch (dependency.problem()) {
+        return switch (dependency.problem()) {
             case Library.Problem.Missing _ -> "Missing library " + dependency.uri();
-            case Library.Problem.FetchFailed _,
-                 Library.Problem.FailedHTTPRequest _,
-                 Library.Problem.HttpConnectTimeout _ -> "Failed to fetch library " + dependency.uri();
+            case Library.Problem.FetchFailed _ -> "Failed to fetch library " + dependency.uri();
+            case Library.Problem.FailedHTTPRequest(var status) -> "Failed to fetch library " + dependency.uri() + ": HTTP " + status;
+            case Library.Problem.HttpConnectTimeout _ -> "Failed to fetch library " + dependency.uri() + ": HTTP connect timed out";
             case Library.Problem.InvalidArchive _ -> "The library " + dependency.uri() + " is not a valid Defold archive";
             case Library.Problem.DefoldMinVersion(var required) -> "The library " + dependency.uri() + " requires Defold " + required + " or newer";
             case Library.Problem.InstallFailed _ -> "Failed to install library " + dependency.uri();
-        };
-        var detail = libraryProblemDetail(dependency.problem());
-        return detail == null || detail.isBlank() ? message : message + ": " + detail;
-    }
-
-    private static String libraryProblemDetail(Library.Problem problem) {
-        return switch (problem) {
-            case Library.Problem.FailedHTTPRequest(var status) -> "HTTP " + status;
-            case Library.Problem.HttpConnectTimeout _ -> "HTTP connect timed out";
-            default -> null;
         };
     }
 
