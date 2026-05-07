@@ -53,7 +53,7 @@ public class LibraryTest {
             Library.readArchive(archive);
             fail("Expected IOException");
         } catch (IOException exception) {
-            assertTrue(exception.getMessage(), exception.getMessage().contains("archive does not contain game.project"));
+            assertTrue(exception.getMessage(), exception.getMessage().contains("invalid archive"));
         } finally {
             Files.deleteIfExists(archive);
         }

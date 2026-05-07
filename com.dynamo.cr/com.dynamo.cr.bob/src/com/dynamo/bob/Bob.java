@@ -540,8 +540,6 @@ public class Bob {
         Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
         project.setOption("email", email);
         project.setOption("auth", auth);
-        Library.setConnectTimeout(15000);
-        Library.setHostProbeTimeout(15000);
 
         return project;
     }
