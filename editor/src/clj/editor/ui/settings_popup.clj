@@ -78,6 +78,41 @@
                                         (when on-selected-changed
                                           (on-selected-changed v)))}}]}})
 
+(defn- install-thumb-drag-guard!
+  "Workaround for JDK-8095717 / JDK-8293916: the slider thumb can receive a MOUSE_DRAGGED before MOUSE_PRESSED
+  (especially inside popups or with touch / multi-button input), causing an NPE in SliderSkin because dragStart is null.
+  Track press state and consume stray drag events until we've seen a press."
+  [^Slider slider]
+  (let [pressed? (volatile! false)
+        install! (fn [^Node thumb]
+                   (.addEventFilter thumb javafx.scene.input.MouseEvent/MOUSE_PRESSED
+                                    (ui/event-handler _ (vreset! pressed? true)))
+                   (.addEventFilter thumb javafx.scene.input.MouseEvent/MOUSE_RELEASED
+                                    (ui/event-handler _ (vreset! pressed? false)))
+                   (.addEventFilter thumb javafx.scene.input.MouseEvent/MOUSE_DRAGGED
+                                    (ui/event-handler e
+                                      (when-not @pressed?
+                                        (.consume ^javafx.event.Event e)))))
+        try-install! (fn []
+                       (when-let [thumb (.lookup slider ".thumb")]
+                         (install! thumb)
+                         true))]
+    (when-not (try-install!)
+      ;; Skin/thumb not yet present; install once it appears.
+      (.addListener (.skinProperty slider)
+                    (reify javafx.beans.value.ChangeListener
+                      (changed [this _ _ _]
+                        (when (try-install!)
+                          (.removeListener (.skinProperty slider) this))))))))
+
+(defn- ext-safe-slider
+  "Drop-in replacement for fx.slider/lifecycle that guards against the SliderSkin NPE (JDK-8095717 / JDK-8293916) caused
+  by stray MOUSE_DRAGGED events arriving before MOUSE_PRESSED. Accepts the same props as fx.slider/lifecycle."
+  [props]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created install-thumb-drag-guard!
+   :desc (assoc props :fx/type fx.slider/lifecycle)})
+
 (defn- make-slider-row-fx [{:keys [popup key label min max snap-to state swap-state slider-value->string on-value-changed]}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
         snap-fn (if snap-to
@@ -95,11 +130,15 @@
                 {:fx/type fxui/ext-ensure-focus-traversable
                  :desc
                  {:fx/type fx/ext-on-instance-lifecycle
-                  :on-created (fn [^Slider slider]
-                                (.setOnMouseEntered slider (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
-                                (.setOnMouseExited slider (ui/event-handler _ (.setAutoHide ^PopupControl popup true))))
+                  :on-created
+                  (fn [^Slider slider]
+                    ;; WORKAROUND: While the mouse is over the slider, disable the popup's auto-hide behavior. Without
+                    ;; this, dragging the slider thumb can cause it to misbehave as it becomes sluggish or
+                    ;; unresponsive, and other controls can steal focus mid-drag. Renable when done.
+                    (.setOnMouseEntered slider (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
+                    (.setOnMouseExited slider (ui/event-handler _ (.setAutoHide ^PopupControl popup true))))
                   :desc
-                  (cond-> {:fx/type fx.slider/lifecycle
+                  (cond-> {:fx/type ext-safe-slider
                            :min min
                            :max max
                            :value (key state)
@@ -228,11 +267,6 @@
                   :children [{:fx/type fx.separator/lifecycle :h-box/hgrow :always :max-width Double/MAX_VALUE}]}
       nil)))
 
-;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `make-popup` above). PopupWindow has
-;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
-;; breaking Tab navigation inside the popup. For the simple controls we own (toggles, sliders, value
-;; fields), we wrap them in `fxui/ext-ensure-focus-traversable`, which observes the property and
-;; forces it back to true.
 (fxui/defc cljfx-popup-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
@@ -269,6 +303,11 @@
       (.setAutoFix true)
       (.setHideOnEscape true))))
 
+;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `make-popup` above). PopupWindow has
+;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
+;; breaking Tab navigation inside the popup. For the simple controls we own (toggles, sliders, value
+;; fields), we wrap them in `fxui/ext-ensure-focus-traversable`, which observes the property and
+;; forces it back to true.
 (defn show!
   "Shows a settings popup anchored to `owner`, or hides it if already visible.
 
