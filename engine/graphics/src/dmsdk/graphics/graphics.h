@@ -1675,11 +1675,11 @@ namespace dmGraphics
      * Gets the adapter family from a string name.
      *
      * Converts a string identifier to the corresponding AdapterFamily enum value.
-     * @name GetAdapterFamily
+     * @name GetAdapterFamilyFromString
      * @param adapter_name [type:const char*] String name of the adapter (e.g., "opengl", "vulkan")
      * @return family [type:dmGraphics::AdapterFamily] Corresponding adapter family enum value
      */
-    AdapterFamily GetAdapterFamily(const char* adapter_name);
+    AdapterFamily GetAdapterFamilyFromString(const char* adapter_name);
 
     /*#
      * Begins frame rendering.

@@ -332,6 +332,13 @@ namespace dmGraphics
     const HGraphicsAdapter GetRegisteredAdapter(uint32_t index);
 
     /**
+     * Gets the adapter family for a registered graphics adapter.
+     * @param adapter The graphics adapter handle to inspect.
+     * @return The adapter family for the supplied adapter, or ADAPTER_FAMILY_NONE if the handle is NULL.
+     */
+    AdapterFamily GetAdapterFamily(HGraphicsAdapter adapter);
+
+    /**
      * Get the window refresh rate
      * @params context Graphics context handle
      * @return The window refresh rate, 0 if refresh rate could not be read.

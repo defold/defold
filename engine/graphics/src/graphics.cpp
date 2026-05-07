@@ -107,7 +107,7 @@ namespace dmGraphics
         return true;
     }
 
-    AdapterFamily GetAdapterFamily(const char* adapter_name)
+    AdapterFamily GetAdapterFamilyFromString(const char* adapter_name)
     {
         if (adapter_name == 0)
             return ADAPTER_FAMILY_NONE;
