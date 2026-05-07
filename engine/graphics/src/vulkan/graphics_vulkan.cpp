@@ -266,7 +266,7 @@ namespace dmGraphics
         {
             DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
             RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-            has_pending_clear = rt && rt->m_HasPendingClearColor;
+            has_pending_clear = rt && (rt->m_HasPendingClearColor || rt->m_HasPendingClearDepth);
         }
 
         if (has_pending_clear)
@@ -504,24 +504,32 @@ namespace dmGraphics
             vk_clear_values[i].color.float32[3] = rt->m_ColorAttachmentClearValue[i][3];
         }
 
-        // Clear depth: placed at attachment index m_ColorAttachmentCount (depth always follows
-        // the color attachments in the render pass). Using index 1 here happens to be correct
-        // for single-color RTs but clobbers color[1]'s clear value for MRTs, which becomes a
-        // real issue for MRT offscreens once they use LOAD_OP_CLEAR via the CLEAR variant.
-        const uint32_t depth_clear_index                  = rt->m_ColorAttachmentCount;
+        // Depth clear value: placed at attachment index m_ColorAttachmentCount (depth always
+        // follows the color attachments in the render pass). Defaults to 1.0/0; overridden below
+        // when a pending depth clear was recorded by VulkanClear.
+        const uint32_t depth_clear_index = rt->m_ColorAttachmentCount;
         vk_clear_values[depth_clear_index].depthStencil.depth   = 1.0f;
         vk_clear_values[depth_clear_index].depthStencil.stencil = 0;
+        if (rt->m_HasPendingClearDepth)
+        {
+            vk_clear_values[depth_clear_index].depthStencil.depth   = rt->m_DepthAttachmentClearValue;
+            vk_clear_values[depth_clear_index].depthStencil.stencil = rt->m_StencilAttachmentClearValue;
+        }
 
         // Render pass selection:
-        // 1. A pending clear (recorded by VulkanClear before any work was emitted on this RT)
-        //    takes precedence and uses the LOAD_OP_CLEAR variant. The clear values come from
-        //    m_ColorAttachmentClearValue, which VulkanClear already wrote.
-        // 2. For the main render target, subsequent rebinds within a frame must preserve the
+        // 1. Both color and depth pending clears: use the color+depth CLEAR variant so both
+        //    attachments are initialized via load op with the requested clear values.
+        // 2. Color-only pending clear: use the color CLEAR variant (depth stays DONT_CARE).
+        // 3. For the main render target, subsequent rebinds within a frame must preserve the
         //    previously rendered contents, so we fall back to m_MainRenderPassLoad.
-        // 3. Otherwise we use the RT's default render pass (honoring the user-configured load ops).
+        // 4. Otherwise use the RT's default render pass (honoring user-configured load ops).
         VkRenderPass vk_render_pass = rt->m_Handle.m_RenderPass;
         const bool is_main_rt = (render_target == context->m_MainRenderTarget);
-        if (rt->m_HasPendingClearColor && rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE)
+        if (rt->m_HasPendingClearColor && rt->m_HasPendingClearDepth && rt->m_Handle.m_RenderPassClearColorDepth != VK_NULL_HANDLE)
+        {
+            vk_render_pass = rt->m_Handle.m_RenderPassClearColorDepth;
+        }
+        else if (rt->m_HasPendingClearColor && rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE)
         {
             vk_render_pass = rt->m_Handle.m_RenderPassClear;
         }
@@ -530,6 +538,7 @@ namespace dmGraphics
             vk_render_pass = context->m_MainRenderPassLoad;
         }
         rt->m_HasPendingClearColor = 0;
+        rt->m_HasPendingClearDepth = 0;
 
         VkRenderPassBeginInfo vk_render_pass_begin_info;
         vk_render_pass_begin_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -745,10 +754,11 @@ namespace dmGraphics
         }
 
         rt->m_Handle.m_RenderPass      = context->m_MainRenderPass;
-        // Main RT's default render pass already uses LOAD_OP_CLEAR on first begin-of-frame, so
-        // the CLEAR variant is the same render pass. Aliasing avoids an extra vkCreateRenderPass
-        // and is recognised by DestroyRenderTarget to avoid a double-destroy.
-        rt->m_Handle.m_RenderPassClear = context->m_MainRenderPass;
+        // Main RT's render pass already uses LOAD_OP_CLEAR on both color and depth, so all three
+        // variants alias to the same object. DestroyRenderTarget recognises the aliasing and
+        // avoids a double-destroy.
+        rt->m_Handle.m_RenderPassClear           = context->m_MainRenderPass;
+        rt->m_Handle.m_RenderPassClearColorDepth = context->m_MainRenderPass;
         rt->m_Handle.m_Framebuffer     = context->m_MainFrameBuffers[0];
         rt->m_Extent                   = context->m_SwapChain->m_ImageExtent;
         rt->m_ColorAttachmentCount     = 1;
@@ -856,12 +866,12 @@ namespace dmGraphics
         CHECK_VK_ERROR(res);
 
 
-        // Create scratch buffer and descriptor allocators, one for each swap chain image
-        //   Note: These constants are guessed and equals roughly 256 draw calls and 64kb
-        //         of uniform memory per scratch buffer. The scratch buffer can dynamically
-        //         grow, this is just a starting point.
+        // Create scratch buffer and descriptor allocators, one for each swap chain image.
+        // The scratch buffer can dynamically grow, but resizing mid-frame is expensive
+        // (triggers vkAllocateMemory + deferred destroy), so we start large enough to
+        // cover most 3D scenes without a resize on the first frame.
         const uint16_t descriptor_count_per_pool = 512;
-        const uint32_t buffer_size               = 256 * descriptor_count_per_pool;
+        const uint32_t buffer_size               = 512 * 1024; // 512KB
 
         res = CreateMainScratchBuffers(context->m_PhysicalDevice.m_Device, vk_device, DM_MAX_FRAMES_IN_FLIGHT, buffer_size, descriptor_count_per_pool, context->m_MainDescriptorAllocators, context->m_MainScratchBuffers);
         CHECK_VK_ERROR(res);
@@ -1423,6 +1433,12 @@ namespace dmGraphics
         context->m_TextureSamplers.SetCapacity(4);
         context->m_FenceResourcesToDestroy.Allocate(8);
 
+        // Pre-allocate the dynamic offset buffer to the maximum possible size.
+        // This avoids malloc/realloc in the per-draw PrepareScratchBuffer path.
+        context->m_DynamicOffsetBufferSize = MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT;
+        context->m_DynamicOffsetBuffer     = (uint32_t*) malloc(sizeof(uint32_t) * context->m_DynamicOffsetBufferSize);
+        memset(context->m_DynamicOffsetBuffer, 0, sizeof(uint32_t) * context->m_DynamicOffsetBufferSize);
+
         context->m_AsyncProcessingSupport = context->m_JobContext != 0x0 && dmThread::PlatformHasThreadSupport();
         if (context->m_AsyncProcessingSupport)
         {
@@ -1824,17 +1840,15 @@ bail:
         const bool rt_has_ds         = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil != 0;
         const bool clear_ds          = rt_has_ds && ((flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) != 0);
         const bool has_clear_variant = current_rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE;
-        bool all_colors_in_flags     = current_rt->m_ColorAttachmentCount > 0;
-        for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
-        {
-            if (!(flags & color_buffers[i]))
-            {
-                all_colors_in_flags = false;
-                break;
-            }
-        }
+        // COLOR0_BIT signals that all color attachments should be cleared to the same value.
+        // Individual COLOR1/2/3 bits are ignored for the fast-path check; the slow path also
+        // treats COLOR0_BIT as "clear all" to keep the semantics consistent.
+        const bool all_colors_in_flags = current_rt->m_ColorAttachmentCount > 0 &&
+                                         (flags & BUFFER_TYPE_COLOR0_BIT) != 0;
 
-        if (pass_not_bound && has_clear_variant && all_colors_in_flags && !clear_ds)
+        const bool has_color_depth_variant = current_rt->m_Handle.m_RenderPassClearColorDepth != VK_NULL_HANDLE;
+
+        if (pass_not_bound && has_clear_variant && all_colors_in_flags && (!clear_ds || has_color_depth_variant))
         {
             // Record clear colors on the RT; BeginRenderPass reads these into pClearValues.
             for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
@@ -1845,6 +1859,13 @@ bail:
                 current_rt->m_ColorAttachmentClearValue[i][3] = a;
             }
             current_rt->m_HasPendingClearColor = 1;
+            current_rt->m_HasPendingClearDepth = 0;
+            if (clear_ds)
+            {
+                current_rt->m_DepthAttachmentClearValue   = depth;
+                current_rt->m_StencilAttachmentClearValue = stencil;
+                current_rt->m_HasPendingClearDepth        = 1;
+            }
             return;
         }
 
@@ -1866,17 +1887,10 @@ bail:
         bool has_depth_stencil_texture = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil;
         bool clear_depth_stencil       = clear_ds;
 
-        // If the pass was just opened via the CLEAR variant above (pending-clear was consumed),
-        // the color attachments are already cleared by load op; skip the redundant
-        // vkCmdClearAttachments on color in that case. This happens when e.g. the caller does
-        // render.clear(COLOR | DEPTH) on a RT that has both: color folds, depth doesn't.
-        // We detect "was pending" by the fact that we just cleared m_HasPendingClearColor in
-        // BeginRenderPass; re-checking here would require an extra flag, so for simplicity we
-        // always emit the color clear too when taking this slow path. The cost is one extra
-        // attachment entry which is negligible.
+        const bool clear_all_colors = (flags & BUFFER_TYPE_COLOR0_BIT) != 0;
         for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
         {
-            if (flags & color_buffers[i])
+            if (clear_all_colors || (flags & color_buffers[i]))
             {
                 VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
                 vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2820,33 +2834,27 @@ bail:
 
         const uint8_t frame_index = (uint8_t) context->m_CurrentFrameInFlight;
 
-        DescriptorSetCacheEntry* cache_entry = 0x0;
+        DescriptorSetCache* cache = 0x0;
         if (bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS)
         {
-            cache_entry = &program_ptr->m_GraphicsDescriptorCache[frame_index];
+            cache = &program_ptr->m_GraphicsDescriptorCache[frame_index];
         }
         else if (bind_point == VK_PIPELINE_BIND_POINT_COMPUTE)
         {
-            cache_entry = &program_ptr->m_ComputeDescriptorCache[frame_index];
+            cache = &program_ptr->m_ComputeDescriptorCache[frame_index];
         }
 
-        const uint32_t allocator_generation = context->m_DescriptorAllocatorGeneration[frame_index];
+        const uint32_t allocator_generation  = context->m_DescriptorAllocatorGeneration[frame_index];
+        const uint32_t descriptor_set_count  = program_ptr->m_Handle.m_DescriptorSetLayoutsCount;
         uint64_t binding_signature = 0;
 
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
         VkResult res = VK_SUCCESS;
 
-        if (cache_entry)
+        if (cache)
         {
             binding_signature = GetDescriptorBindingSignature(context, program_ptr, scratch_buffer);
-
-            if (cache_entry->m_Valid &&
-                cache_entry->m_AllocatorGeneration == allocator_generation &&
-                cache_entry->m_BindingSignature == binding_signature &&
-                cache_entry->m_DescriptorSetCount == program_ptr->m_Handle.m_DescriptorSetLayoutsCount)
-            {
-                vk_descriptor_set_list = cache_entry->m_DescriptorSets;
-            }
+            vk_descriptor_set_list = cache->Find(binding_signature, allocator_generation, descriptor_set_count);
         }
 
         const bool cache_hit = vk_descriptor_set_list != 0;
@@ -2856,7 +2864,7 @@ bail:
             res = scratch_buffer->m_DescriptorAllocator->Allocate(
                 vk_device,
                 program_ptr->m_Handle.m_DescriptorSetLayouts,
-                program_ptr->m_Handle.m_DescriptorSetLayoutsCount,
+                descriptor_set_count,
                 num_descriptors,
                 &vk_descriptor_set_list);
             if (res != VK_SUCCESS)
@@ -2866,17 +2874,9 @@ bail:
 
             UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, true);
 
-            if (cache_entry)
+            if (cache)
             {
-                cache_entry->m_DescriptorSetCount    = program_ptr->m_Handle.m_DescriptorSetLayoutsCount;
-                cache_entry->m_BindingSignature      = binding_signature;
-                cache_entry->m_AllocatorGeneration   = allocator_generation;
-                cache_entry->m_Valid                 = 1;
-
-                for (uint8_t i = 0; i < program_ptr->m_Handle.m_DescriptorSetLayoutsCount; ++i)
-                {
-                    cache_entry->m_DescriptorSets[i] = vk_descriptor_set_list[i];
-                }
+                cache->Insert(binding_signature, allocator_generation, descriptor_set_count, vk_descriptor_set_list);
             }
         }
         else
@@ -2916,30 +2916,21 @@ bail:
 
         if (resize_scratch_buffer)
         {
-            const uint8_t descriptor_increase = 32;
-            const uint32_t bytes_increase = 256 * descriptor_increase;
-            VkResult res = ResizeScratchBuffer(context, scratchBuffer->m_DeviceBuffer.m_MemorySize + bytes_increase, scratchBuffer);
+            // Double the buffer size, or grow to fit the current program's needs,
+            // whichever is larger. This avoids repeated small resizes when many
+            // materials with large uniform blocks are drawn in the same frame.
+            const uint32_t current_size = scratchBuffer->m_DeviceBuffer.m_MemorySize;
+            const uint32_t needed_size  = scratchBuffer->m_MappedDataCursor + program_ptr->m_UniformDataSizeAligned;
+            const uint32_t new_size     = dmMath::Max(current_size * 2, needed_size);
+            VkResult res = ResizeScratchBuffer(context, new_size, scratchBuffer);
             CHECK_VK_ERROR(res);
         }
 
-        // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this dispatch call
-        if (context->m_DynamicOffsetBufferSize < num_uniform_buffers)
-        {
-            const size_t offset_buffer_size = sizeof(uint32_t) * num_uniform_buffers;
-
-            if (context->m_DynamicOffsetBuffer == 0x0)
-            {
-                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(offset_buffer_size);
-            }
-            else
-            {
-                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, offset_buffer_size);
-            }
-
-            memset(context->m_DynamicOffsetBuffer, 0, offset_buffer_size);
-
-            context->m_DynamicOffsetBufferSize = num_uniform_buffers;
-        }
+        // The dynamic offset buffer is pre-allocated at context init to
+        // MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT, which is the upper bound
+        // for any program. Assert rather than silently reallocating.
+        assert(context->m_DynamicOffsetBuffer != 0x0);
+        assert(context->m_DynamicOffsetBufferSize >= num_uniform_buffers);
     }
 
     static void DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)
@@ -3992,9 +3983,12 @@ bail:
                 fb_height = rtOut->m_DepthStencilTextureParams.m_Height;
             }
 
-            rp_attachment_depth_stencil                = &rp_attachments[fb_attachment_count];
-            rp_attachment_depth_stencil->m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            rp_attachment_depth_stencil->m_Format      = depth_stencil_texture_ptr->m_Format;
+            rp_attachment_depth_stencil                    = &rp_attachments[fb_attachment_count];
+            rp_attachment_depth_stencil->m_ImageLayout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            rp_attachment_depth_stencil->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+            rp_attachment_depth_stencil->m_Format          = depth_stencil_texture_ptr->m_Format;
+            rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            rp_attachment_depth_stencil->m_StoreOp         = VK_ATTACHMENT_STORE_OP_STORE;
 
             fb_attachments[fb_attachment_count++] = depth_stencil_texture_ptr->m_Handle.m_ImageView;
         }
@@ -4005,11 +3999,13 @@ bail:
             return res;
         }
 
-        // Create a second, render-pass-compatible variant with LOAD_OP_CLEAR on all color
-        // attachments. Used by BeginRenderPass when VulkanClear was called before any work was
-        // recorded on this RT, so the clear happens via the attachment load op instead of a
-        // follow-up vkCmdClearAttachments. Render-pass compatibility is preserved because only
-        // the load op differs, so pipelines created against m_RenderPass remain valid.
+        // Create additional render-pass variants with LOAD_OP_CLEAR to avoid vkCmdClearAttachments
+        // when VulkanClear is called before any work on this RT. Only the load op differs from
+        // m_RenderPass, so pipelines compiled against m_RenderPass remain compatible.
+        //
+        // Two variants are created:
+        //   m_RenderPassClear          - CLEAR on all colors, DONT_CARE on depth/stencil
+        //   m_RenderPassClearColorDepth - CLEAR on all colors AND depth/stencil (when DS present)
         if (num_color_textures > 0)
         {
             bool needs_clear_variant = false;
@@ -4019,7 +4015,8 @@ bail:
                 {
                     needs_clear_variant = true;
                 }
-                rp_attachments[i].m_LoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+                rp_attachments[i].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_CLEAR;
+                rp_attachments[i].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
             }
             if (needs_clear_variant)
             {
@@ -4034,6 +4031,20 @@ bail:
                 // All color attachments already clear by default; the CLEAR variant is identical
                 // to the normal one, so alias it to avoid creating a duplicate render pass.
                 rtOut->m_Handle.m_RenderPassClear = rtOut->m_Handle.m_RenderPass;
+            }
+
+            // Color+depth CLEAR variant: same as above but depth also uses LOAD_OP_CLEAR.
+            if (rp_attachment_depth_stencil != 0)
+            {
+                rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_CLEAR;
+                rp_attachment_depth_stencil->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+                res = CreateRenderPass(context->m_LogicalDevice.m_Device, VK_SAMPLE_COUNT_1_BIT, rp_attachments, num_color_textures, rp_attachment_depth_stencil, 0, &rtOut->m_Handle.m_RenderPassClearColorDepth);
+                if (res != VK_SUCCESS)
+                {
+                    return res;
+                }
+                // Restore depth load op so subsequent use of rp_attachment_depth_stencil is clean.
+                rp_attachment_depth_stencil->m_LoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             }
         }
 
@@ -4061,10 +4072,12 @@ bail:
     static void DestroyRenderTarget(VulkanContext* context, RenderTarget* renderTarget)
     {
         DestroyResourceDeferred(context, renderTarget);
-        renderTarget->m_Handle.m_Framebuffer     = VK_NULL_HANDLE;
-        renderTarget->m_Handle.m_RenderPass      = VK_NULL_HANDLE;
-        renderTarget->m_Handle.m_RenderPassClear = VK_NULL_HANDLE;
-        renderTarget->m_HasPendingClearColor     = 0;
+        renderTarget->m_Handle.m_Framebuffer               = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPass                = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPassClear           = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPassClearColorDepth = VK_NULL_HANDLE;
+        renderTarget->m_HasPendingClearColor               = 0;
+        renderTarget->m_HasPendingClearDepth               = 0;
     }
 
     static inline VkImageUsageFlags GetVulkanUsageFromHints(uint8_t hint_bits)
