@@ -42,10 +42,12 @@
                    (localization/message "notification.fetch-libraries.problem.fetch-failed")
 
                    Library$Problem$FailedHTTPRequest
-                   (localization/message "notification.fetch-libraries.problem.fetch-failed")
+                   (localization/message
+                     "notification.fetch-libraries.problem.failed-http-request"
+                     {"status" (.status ^Library$Problem$FailedHTTPRequest problem)})
 
                    Library$Problem$HttpConnectTimeout
-                   (localization/message "notification.fetch-libraries.problem.fetch-failed")
+                   (localization/message "notification.fetch-libraries.problem.http-connect-timeout")
 
                    Library$Problem$InvalidArchive
                    (localization/message "notification.fetch-libraries.problem.invalid-archive")
