@@ -33,8 +33,9 @@
            [com.sun.javafx.util Utils]
            [javafx.css Styleable]
            [javafx.geometry HPos Point2D VPos]
-           [javafx.scene Node Parent]
+           [javafx.scene Cursor Node Parent]
            [javafx.scene.control PopupControl Skin Slider]
+           [javafx.scene.input MouseEvent]
            [javafx.scene.layout StackPane]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]))
@@ -391,6 +392,16 @@
                           (when on-closed (on-closed e))
                           (ui/user-data! owner ::popup nil)))
          (.show owner (.getX anchor) (.getY anchor)))
+       ;; HACK: scene-visibility opens the popup right next to the outline's split pane divider, when you mouse over
+       ;; the edge, the cursor gets set to H_RESIZE. If you move your cursor fast enough from the divider to the popup, the H_RESIZE
+       ;; persists and only gets reset to DEFAULT when you leave the popup and reenter. The scene apparently still thinks it's
+       ;; the DEFAULT cursor, so if you set it to DEFAULT, it's a NOOP, so we set it to NONE first, then DEFAULT, and it works.
+       ;; Note that this might just be linux specific, but wouldn't hurt to just do it for everyone.
+       (.addEventHandler content MouseEvent/MOUSE_ENTERED
+                         (ui/event-handler e
+                                           (let [scene (.getScene owner)]
+                                             (.setCursor scene Cursor/NONE)
+                                             (.setCursor scene Cursor/DEFAULT))))
        ;; Request focus so the first UI element loses focus
        (.requestFocus content)
        advance!))))
