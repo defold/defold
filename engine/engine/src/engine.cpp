@@ -2591,7 +2591,7 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 {
     const char* arg_adapter_name = ParseArgOneOperand("--graphics-adapter", argc, argv);
 
-    if (!dmGraphics::InstallAdapter(dmGraphics::GetAdapterFamilyFromString(arg_adapter_name)))
+    if (!dmGraphics::InstallAdapter(dmGraphics::GetAdapterFamily(arg_adapter_name)))
     {
         return 0;
     }
