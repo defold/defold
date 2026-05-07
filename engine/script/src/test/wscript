@@ -37,7 +37,7 @@ def build(bld):
 
     web_libs = ['library_sys.js', 'library_script.js']
     libs = 'TESTMAIN SOCKET APP THREAD EXTENSION RESOURCE GRAPHICS_NULL PLATFORM_NULL DDF DLIB PROFILE_NULL LUA script test_script'
-    exported_symbols = ['ResourceProviderFile']
+    exported_symbols = ['ResourceProviderFile', 'GraphicsAdapterNull']
 
     test_script_ddf = bld.program(features = flist,
                                   includes = '..',
