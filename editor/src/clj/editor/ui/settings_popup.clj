@@ -32,6 +32,7 @@
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
            [javafx.css Styleable]
+           [javafx.event Event]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Cursor Node Parent]
            [javafx.scene.control PopupControl Skin Slider]
@@ -81,40 +82,31 @@
                                         (when on-selected-changed
                                           (on-selected-changed v)))}}]}})
 
-(defn- install-thumb-drag-guard!
-  "Workaround for JDK-8095717 / JDK-8293916: the slider thumb can receive a MOUSE_DRAGGED before MOUSE_PRESSED
-  (especially inside popups or with touch / multi-button input), causing an NPE in SliderSkin because dragStart is null.
-  Track press state and consume stray drag events until we've seen a press."
-  [^Slider slider]
-  (let [pressed? (volatile! false)
-        install! (fn [^Node thumb]
-                   (.addEventFilter thumb javafx.scene.input.MouseEvent/MOUSE_PRESSED
-                                    (ui/event-handler _ (vreset! pressed? true)))
-                   (.addEventFilter thumb javafx.scene.input.MouseEvent/MOUSE_RELEASED
-                                    (ui/event-handler _ (vreset! pressed? false)))
-                   (.addEventFilter thumb javafx.scene.input.MouseEvent/MOUSE_DRAGGED
-                                    (ui/event-handler e
-                                      (when-not @pressed?
-                                        (.consume ^javafx.event.Event e)))))
-        try-install! (fn []
-                       (when-let [thumb (.lookup slider ".thumb")]
-                         (install! thumb)
-                         true))]
-    (when-not (try-install!)
-      ;; Skin/thumb not yet present; install once it appears.
-      (.addListener (.skinProperty slider)
-                    (reify javafx.beans.value.ChangeListener
-                      (changed [this _ _ _]
-                        (when (try-install!)
-                          (.removeListener (.skinProperty slider) this))))))))
-
-(defn- ext-safe-slider
-  "Drop-in replacement for fx.slider/lifecycle that guards against the SliderSkin NPE (JDK-8095717 / JDK-8293916) caused
-  by stray MOUSE_DRAGGED events arriving before MOUSE_PRESSED. Accepts the same props as fx.slider/lifecycle."
-  [props]
+(defn- ext-safe-popup-slider
+  [{:keys [popup] :as props}]
   {:fx/type fx/ext-on-instance-lifecycle
-   :on-created install-thumb-drag-guard!
-   :desc (assoc props :fx/type fx.slider/lifecycle)})
+   :on-created (fn [^Slider slider]
+                 (let [pressed? (volatile! false)
+                       install! (fn [^Node thumb]
+                                  (doto thumb
+                                    (.addEventFilter MouseEvent/MOUSE_PRESSED  (ui/event-handler _ (vreset! pressed? true)))
+                                    (.addEventFilter MouseEvent/MOUSE_RELEASED (ui/event-handler _ (vreset! pressed? false)))
+                                    (.addEventFilter MouseEvent/MOUSE_DRAGGED  (ui/event-handler e (when-not @pressed?
+                                                                                                     (.consume ^Event e))))))
+                       try-install! (fn []
+                                      (when-let [thumb (.lookup slider ".thumb")]
+                                        (install! thumb)
+                                        true))]
+                   (when-not (try-install!)
+                     (.addListener (.skinProperty slider)
+                                   (reify javafx.beans.value.ChangeListener
+                                     (changed [this _ _ _]
+                                       (when (try-install!)
+                                         (.removeListener (.skinProperty slider) this)))))))
+                 (doto slider
+                   (.setOnMouseEntered (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
+                   (.setOnMouseExited  (ui/event-handler _ (.setAutoHide ^PopupControl popup true)))))
+   :desc (assoc (dissoc props :popup) :fx/type fx.slider/lifecycle)})
 
 (defn- make-slider-row [{:keys [popup key label min max snap-to state swap-state slider-value->string on-value-changed]}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
@@ -132,30 +124,24 @@
                  :text (slider-value->string (key state))}
                 {:fx/type fxui/ext-ensure-focus-traversable
                  :desc
-                 {:fx/type fx/ext-on-instance-lifecycle
-                  :on-created
-                  (fn [^Slider slider]
-                    ;; WORKAROUND: While the mouse is over the slider, disable the popup's auto-hide behavior. Without
-                    ;; this, dragging the slider thumb can cause it to misbehave as it becomes sluggish or
-                    ;; unresponsive, and other controls can steal focus mid-drag. Renable when done.
-                    (.setOnMouseEntered slider (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
-                    (.setOnMouseExited slider (ui/event-handler _ (.setAutoHide ^PopupControl popup true))))
-                  :desc
-                  (cond-> {:fx/type ext-safe-slider
-                           :min min
-                           :max max
-                           :value (key state)
-                           :block-increment 0.1
-                           :on-value-changed (fn [v]
-                                               (on-value-changed v)
-                                               (swap-state assoc key v))}
-                    snap-to
-                    (assoc :snap-to-ticks true :major-tick-unit snap-to
-                           :on-mouse-released (fn [^javafx.event.Event e]
-                                                (let [slider ^javafx.scene.control.Slider (.getSource e)
-                                                      v (snap-fn (.getValue slider))]
-                                                  (on-value-changed v)
-                                                  (swap-state assoc key v)))))}}]}))
+                 (cond-> {:fx/type ext-safe-popup-slider
+                          :popup popup
+                          :min min
+                          :max max
+                          :value (key state)
+                          :block-increment 0.1
+                          :on-value-changed (fn [v]
+                                              (on-value-changed v)
+                                              (swap-state assoc key v))}
+                   snap-to
+                   (assoc :snap-to-ticks true
+                          :major-tick-unit snap-to
+                          :minor-tick-count 0
+                          :show-tick-marks true
+                          :on-mouse-released (fn [^Event e]
+                                               (let [v (snap-fn (.getValue ^Slider (.getSource e)))]
+                                                 (on-value-changed v)
+                                                 (swap-state assoc key v)))))}]}))
 
 ;; The focus-traversable part: `fxui/color-picker` is a compound component (an HBox containing a value-field and a
 ;; JavaFX ColorPicker), so we can't just wrap it the same way; we need to reach into its internals to find the text
