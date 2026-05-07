@@ -317,6 +317,13 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Joint_WakeBodies(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Joint_WakeBodies(CheckJoint(L, 1));
+        return 0;
+    }
+
     static int Joint_SetMouseTarget(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -1196,6 +1203,7 @@ namespace dmGameSystem
         {"get_anchor_b", Joint_GetAnchorB},
         {"get_collide_connected", Joint_GetCollideConnected},
         {"set_collide_connected", Joint_SetCollideConnected},
+        {"wake_bodies", Joint_WakeBodies},
         {"set_mouse_target", Joint_SetMouseTarget},
         {"get_mouse_target", Joint_GetMouseTarget},
         {"set_length", Joint_SetLength},

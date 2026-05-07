@@ -88,8 +88,10 @@ local function test_native_b2d_joints(self)
     if PHYSICS == "box2dv3" then
         b2d.joint.set_collide_connected(joint, true)
         assert(b2d.joint.get_collide_connected(joint))
+        b2d.joint.wake_bodies(joint)
     else
         assert(b2d.joint.set_collide_connected == nil)
+        assert(b2d.joint.wake_bodies == nil)
     end
 
     local mouse_joint = b2d.joint.create_mouse(body_a, body_b, {
