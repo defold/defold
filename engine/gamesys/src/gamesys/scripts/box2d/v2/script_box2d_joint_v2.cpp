@@ -336,13 +336,6 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Joint_SetCollideConnected(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-        CheckJoint(L, 1);
-        return luaL_error(L, "b2d.joint.set_collide_connected is only supported by Box2D v3.");
-    }
-
     static int Joint_SetMouseTarget(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -661,7 +654,6 @@ namespace dmGameSystem
         {"get_local_anchor_a", Joint_GetLocalAnchorA},
         {"get_local_anchor_b", Joint_GetLocalAnchorB},
         {"get_collide_connected", Joint_GetCollideConnected},
-        {"set_collide_connected", Joint_SetCollideConnected},
         {"set_mouse_target", Joint_SetMouseTarget},
         {"get_reaction_force", Joint_GetReactionForce},
         {"get_reaction_torque", Joint_GetReactionTorque},

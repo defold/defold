@@ -89,7 +89,7 @@ local function test_native_b2d_joints(self)
         b2d.joint.set_collide_connected(joint, true)
         assert(b2d.joint.get_collide_connected(joint))
     else
-        assert_error(function() b2d.joint.set_collide_connected(joint, true) end)
+        assert(b2d.joint.set_collide_connected == nil)
     end
 
     local mouse_joint = b2d.joint.create_mouse(body_a, body_b, {
