@@ -171,6 +171,15 @@ public class Bob {
         return rootFolder;
     }
 
+    private static File resolveArchiveEntry(File toFolder, String entryName) throws IOException {
+        File canonicalFolder = toFolder.getCanonicalFile();
+        File dstFile = new File(canonicalFolder, entryName).getCanonicalFile();
+        if (!dstFile.toPath().startsWith(canonicalFolder.toPath())) {
+            throw new IOException(String.format("Archive entry '%s' resolves outside of '%s'", entryName, canonicalFolder.getAbsolutePath()));
+        }
+        return dstFile;
+    }
+
     public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
         TimeProfiler.start("extractToFolder %s", toFolder.toString());
         TimeProfiler.addData("url", url.toString());
@@ -182,7 +191,7 @@ public class Bob {
             {
                 if (!entry.isDirectory()) {
 
-                    File dstFile = new File(toFolder, entry.getName());
+                    File dstFile = resolveArchiveEntry(toFolder, entry.getName());
                     if (deleteOnExit)
                         FileUtil.deleteOnExit(dstFile);
                     dstFile.getParentFile().mkdirs();

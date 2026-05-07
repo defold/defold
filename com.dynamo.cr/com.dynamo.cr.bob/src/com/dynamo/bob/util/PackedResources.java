@@ -75,6 +75,15 @@ public class PackedResources {
         }
     }
 
+    private static File resolvePackedResourceTarget(File targetDir, String relativeName) throws IOException {
+        File canonicalTargetDir = targetDir.getCanonicalFile();
+        File targetFile = new File(canonicalTargetDir, relativeName).getCanonicalFile();
+        if (!targetFile.toPath().startsWith(canonicalTargetDir.toPath())) {
+            throw new IOException(String.format("Packed resource '%s' resolves outside of '%s'", relativeName, canonicalTargetDir.getAbsolutePath()));
+        }
+        return targetFile;
+    }
+
     private static void runUnpackAllLibsAsync(Platform platform) throws IOException {
         TimeProfiler.start("runUnpackAllLibsAsync");
         String platformPair = platform.getPair();
@@ -108,14 +117,14 @@ public class PackedResources {
                         if (!entry.isDirectory()) {
                             if(name.startsWith(basePath) && !name.contains("dmengine")) {
                                 String relativeName = name.substring(basePath.length());
-                                File targetFile = new File(targetDir, relativeName);
                                 try {
+                                    File targetFile = resolvePackedResourceTarget(targetDir, relativeName);
                                     URL resourceUrl = Bob.class.getResource("/" + name);
                                     if (resourceUrl != null) {
                                         Bob.atomicCopy(resourceUrl, targetFile, true);
                                     }
                                 } catch (IOException e) {
-                                    throw new RuntimeException(String.format("Failed to copy packed tool '%s' to '%s'", name, targetFile.getAbsolutePath()), e);
+                                    throw new RuntimeException(String.format("Failed to copy packed tool '%s'", name), e);
                                 }
                             }
                             else if (name.startsWith(luaZip)) {
