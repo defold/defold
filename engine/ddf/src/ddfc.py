@@ -335,7 +335,7 @@ def to_cxx_default_value_string(context, f):
             tmp = struct.pack('<' + form, func(f.default_value))
             return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(chr(x)), tmp))
 
-def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespace_lst):
+def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespace_lst, registered_descriptors):
     namespace = "_".join(namespace_lst)
     pp_h.p('extern dmDDF::Descriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
 
@@ -344,7 +344,7 @@ def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespa
     context.set_message_type_defined(dot_to_cxx_namespace(mt_type_name))
 
     for nt in message_type.nested_type:
-        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
+        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, nt, namespace_lst + [message_type.name], registered_descriptors)
 
     for f in message_type.field:
         default = to_cxx_default_value_string(context, f)
@@ -408,16 +408,22 @@ def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespa
             pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s, %d, %d},'  % (name, number, type, label, msg_desc, offset, default_value, one_of_index, fully_defined_type))
 
         pp_cpp.end()
+        fields_descriptor = '%s_%s_FIELDS_DESCRIPTOR' % (namespace, message_type.name)
+        fields_count = 'sizeof(%s)/sizeof(dmDDF::FieldDescriptor)' % fields_descriptor
     else:
-        pp_cpp.p("dmDDF::FieldDescriptor* %s_%s_FIELDS_DESCRIPTOR = 0x0;", namespace, message_type.name)
+        fields_descriptor = '0x0'
+        fields_count = '0'
 
     if len(oneof_scope_names) > 0:
         pp_cpp.p('uint32_t %s_%s_ONEOF_OFFSETS[] = {', namespace, message_type.name)
         for name in oneof_scope_names:
             pp_cpp.p('    (uint32_t)DDF_OFFSET_OF(%s::%s, m_%sOneOfIndex),' % (namespace.replace("_", "::"), message_type.name, name))
         pp_cpp.p('};')
+        oneof_offsets = '%s_%s_ONEOF_OFFSETS' % (namespace, message_type.name)
+        oneof_offsets_count = 'sizeof(%s)/sizeof(uint32_t)' % oneof_offsets
     else:
-        pp_cpp.p('uint32_t* %s_%s_ONEOF_OFFSETS = 0x0;', namespace, message_type.name)
+        oneof_offsets = '0x0'
+        oneof_offsets_count = '0'
 
     pp_cpp.begin("dmDDF::Descriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.p('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
@@ -426,18 +432,12 @@ def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespa
     pp_cpp.p('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
 
     # Descriptors
-    pp_cpp.p('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
-    if len(lst) > 0:
-        pp_cpp.p('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(dmDDF::FieldDescriptor),', namespace, message_type.name)
-    else:
-        pp_cpp.p('0,')
+    pp_cpp.p('%s,', fields_descriptor)
+    pp_cpp.p('%s,', fields_count)
 
     # One-of offsets
-    pp_cpp.p('%s_%s_ONEOF_OFFSETS,', namespace, message_type.name)
-    if len(oneof_scope_names) > 0:
-        pp_cpp.p('sizeof(%s_%s_ONEOF_OFFSETS)/sizeof(uint32_t),', namespace, message_type.name)
-    else:
-        pp_cpp.p('0,')
+    pp_cpp.p('%s,', oneof_offsets)
+    pp_cpp.p('%s,', oneof_offsets_count)
 
     # Contains dynamic fields
     pp_cpp.p('%d,', contains_dynamic_fields and 1 or 0)
@@ -451,7 +451,7 @@ def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespa
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
     pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XULL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
 
-    pp_cpp.p('dmDDF::InternalRegisterDescriptor g_Register_%s_%s(&%s_%s_DESCRIPTOR);' % (namespace, message_type.name, namespace, message_type.name))
+    registered_descriptors.append('%s_%s_DESCRIPTOR' % (namespace, message_type.name))
 
     pp_cpp.p('')
 
@@ -835,8 +835,18 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     # Build mapping of C++ type to descriptor
     cpp_desc_map = build_cpp_desc_map_for_file(file_desc, file_desc.package)
 
+    registered_descriptors = []
     for mt in file_desc.message_type:
-        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, mt, [file_desc.package])
+        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, mt, [file_desc.package], registered_descriptors)
+
+    if len(registered_descriptors) > 0:
+        register_name = 'g_Register_%s_DESCRIPTORS' % base_name.replace('.', '_').replace('-', '_')
+        pp_cpp.begin('dmDDF::Descriptor* %s[] = ' % register_name)
+        for descriptor_name in registered_descriptors:
+            pp_cpp.p('&%s,' % descriptor_name)
+        pp_cpp.end()
+        pp_cpp.p('dmDDF::InternalRegisterDescriptor g_Register_%s(%s, sizeof(%s)/sizeof(dmDDF::Descriptor*));' % (base_name.replace('.', '_').replace('-', '_'), register_name, register_name))
+        pp_cpp.p('')
 
     pp_h.p("#endif")
 
