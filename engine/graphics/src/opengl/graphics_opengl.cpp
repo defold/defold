@@ -3230,17 +3230,35 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static inline char* GetBaseUniformName(char* str, uint32_t len)
+    static inline char* GetBaseUniformName(char* str, uint32_t len, bool strip_namespace)
     {
         char* ptr = str;
-        for (int i = len - 1; i >= 0; i--)
+        char* write = ptr;
+        for (uint32_t i = 0; i < len && ptr[i]; ++i)
         {
-            // For arrays, OpenGL returns the name as `name[0]`
             if (ptr[i] == '[')
             {
-                ptr[i] = 0;
+                while (i < len && ptr[i] && ptr[i] != ']')
+                {
+                    ++i;
+                }
             }
-            else if (ptr[i] == '.')
+            else
+            {
+                *write++ = ptr[i];
+            }
+        }
+        *write = 0;
+
+        if (!strip_namespace)
+        {
+            return ptr;
+        }
+
+        uint32_t normalized_len = strlen(ptr);
+        for (int i = (int) normalized_len - 1; i >= 0; i--)
+        {
+            if (ptr[i] == '.')
             {
                 return &ptr[i+1];
             }
@@ -3591,7 +3609,7 @@ static void LogFrameBufferError(GLenum status)
                 uniform_location = (HUniformLocation) glGetUniformLocation(program_handle, uniform_name_buffer);
             }
 
-            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
+            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length, uniform_block_index == -1);
             uniform_name_length = strlen(uniform_name);
 
             // These are temporary strings, we need copies of them.
