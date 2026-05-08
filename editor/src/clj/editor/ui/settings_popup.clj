@@ -31,6 +31,7 @@
             [editor.ui :as ui])
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
+           [javafx.beans.value ChangeListener]
            [javafx.css Styleable]
            [javafx.event Event]
            [javafx.geometry HPos Point2D VPos]
@@ -99,7 +100,7 @@
                                         true))]
                    (when-not (try-install!)
                      (.addListener (.skinProperty slider)
-                                   (reify javafx.beans.value.ChangeListener
+                                   (reify ChangeListener
                                      (changed [this _ _ _]
                                        (when (try-install!)
                                          (.removeListener (.skinProperty slider) this)))))))
