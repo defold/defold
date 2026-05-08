@@ -1709,8 +1709,25 @@ bail:
         uint32_t swapchainImageIndex = context->m_SwapChain->m_ImageIndex;
         VkSemaphore renderFinishedSemaphore = context->m_SwapChain->m_RenderFinishedSemaphores[swapchainImageIndex];
 
+        FlushPendingRenderTargetClear(context, context->m_CurrentRenderTarget);
+
         // End the current render pass
         EndRenderPass(context);
+
+        // Present still requires a valid swapchain image layout even on frames that never
+        // materialized the main render pass.
+        if (!context->m_MainRTBegunThisFrame)
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+            TransitionImageLayoutWithCmdBuffer(
+                context->m_MainCommandBuffers[frameInFlight],
+                tex_sc,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                0,
+                1);
+        }
 
         // Finish recording the command buffer for this frame-in-flight
         VkCommandBuffer cmd = context->m_MainCommandBuffers[frameInFlight];
@@ -2692,6 +2709,9 @@ bail:
                             0,
                             bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
+
+                        dynamic_offsets[dynamic_offset_index] = 0;
+                        dynamic_offset_index++;
                     }
                     else
                     {
