@@ -41,7 +41,7 @@
             [editor.workspace :as workspace]
             [schema.core :as schema]
             [service.log :as log])
-  (:import [com.dynamo.bob.font BMFont]
+  (:import [com.dynamo.bob.font BMFont Fontc]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -652,7 +652,8 @@
     (make-font-map _node-id font type font-desc (make-font-resource-resolver font font-resource-map))))
 
 (defn- build-glyph-bank [resource _dep-resources user-data]
-  (let [{:keys [font-map]} user-data]
+  (let [{:keys [font-desc font font-resource-map type digest-ignored/node-id]} user-data
+        font-map (make-font-map node-id font type font-desc (make-font-resource-resolver font font-resource-map))]
     (g/precluding-errors
       [font-map]
       (let [compressed-font-map (font-gen/compress font-map)]
@@ -666,47 +667,64 @@
      :build-fn build-glyph-bank
      :user-data user-data}))
 
-(g/defnk produce-build-targets [_node-id resource cache-width cache-height font-map material dep-build-targets runtime-generation-build-target]
+(g/defnk produce-build-targets [_node-id resource font save-value material dep-build-targets runtime-generation-build-target font-resource-map]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)]
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
-      (let [workspace (resource/workspace resource)
-            pb-map (protobuf/make-map-without-defaults Font$FontMap
-                     :material material
-                     :size (:size font-map)
-                     :antialias (:antialias font-map)
-                     :shadow-x (:shadow-x font-map)
-                     :shadow-y (:shadow-y font-map)
-                     :shadow-blur (:shadow-blur font-map)
-                     :shadow-alpha (:shadow-alpha font-map)
-                     :alpha (:alpha font-map)
-                     :outline-alpha (:outline-alpha font-map)
-                     :outline-width (:outline-width font-map)
-                     :layer-mask (:layer-mask font-map)
-                     :output-format (:output-format font-map)
-                     :render-mode (:render-mode font-map)
-                     :all-chars (:all-chars font-map)
-                     :characters (:characters font-map)
-                     :cache-width cache-width
-                     :cache-height cache-height
-                     :sdf-spread (:sdf-spread font-map)
-                     :sdf-outline (:sdf-outline font-map)
-                     :sdf-shadow (:sdf-shadow font-map))
+      (let [font-desc (protobuf/inject-defaults Font$FontDesc save-value)
+            font-desc-pb (protobuf/map->pb Font$FontDesc font-desc)
+            workspace (resource/workspace resource)
+            output-format (:output-format font-desc)
+            type (font-type font output-format)
+            is-distance-field (= :type-distance-field output-format)
+            pb-map (cond-> (protobuf/make-map-without-defaults Font$FontMap
+                             :material material
+                             :size (:size font-desc)
+                             :antialias (:antialias font-desc)
+                             :shadow-x (:shadow-x font-desc)
+                             :shadow-y (:shadow-y font-desc)
+                             :shadow-blur (:shadow-blur font-desc)
+                             :shadow-alpha (:shadow-alpha font-desc)
+                             :alpha (:alpha font-desc)
+                             :outline-alpha (:outline-alpha font-desc)
+                             :outline-width (:outline-width font-desc)
+                             :layer-mask (Fontc/GetFontMapLayerMask font-desc-pb)
+                             :output-format output-format
+                             :render-mode (:render-mode font-desc)
+                             :all-chars (:all-chars font-desc)
+                             :characters (:characters font-desc)
+                             :cache-width (:cache-width font-desc)
+                             :cache-height (:cache-height font-desc))
 
-            [pb-map dep-build-targets]
-            (if (and runtime-generation-build-target
-                     (= :type-distance-field (:output-format font-map))) ; Currently, only distance field fonts can be runtime-generated.
-              [(assoc pb-map :font (:resource runtime-generation-build-target))
-               (conj dep-build-targets runtime-generation-build-target)]
-              (let [glyph-bank-pb-fields (protobuf/field-key-set Font$GlyphBank)
-                    glyph-bank-user-data {:font-map (select-keys font-map glyph-bank-pb-fields)}
-                    glyph-bank-build-target (make-glyph-bank-build-target workspace _node-id glyph-bank-user-data)]
-                [(assoc pb-map :glyph-bank (:resource glyph-bank-build-target))
-                 (conj dep-build-targets glyph-bank-build-target)]))]
-
-        [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap pb-map dep-build-targets)])))
+                           is-distance-field
+                           (assoc :sdf-spread (Fontc/GetFontMapSdfSpread font-desc-pb)
+                                  :sdf-outline (Fontc/GetFontMapSdfOutline font-desc-pb)
+                                  :sdf-shadow (Fontc/GetFontMapSdfShadow font-desc-pb)))]
+        (if (and runtime-generation-build-target
+                 ;; Currently, only distance field fonts can be runtime-generated.
+                 is-distance-field)
+          [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap
+             (assoc pb-map :font (:resource runtime-generation-build-target))
+             (conj dep-build-targets runtime-generation-build-target))]
+          (let [source-sha1s (into (sorted-map)
+                                   (comp (filter #(and (some? %) (resource/exists? %)))
+                                         (map (juxt resource/proj-path
+                                                    resource/resource->path-inclusive-sha1-hex)))
+                                   (cons font (vals font-resource-map)))
+                glyph-bank-build-target (make-glyph-bank-build-target
+                                          workspace
+                                          _node-id
+                                          {:font-desc font-desc
+                                           :font font
+                                           :font-resource-map font-resource-map
+                                           :digest-ignored/node-id _node-id
+                                           :type type
+                                           :source-sha1s source-sha1s})]
+            [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap
+               (assoc pb-map :glyph-bank (:resource glyph-bank-build-target))
+               (conj dep-build-targets glyph-bank-build-target))])))))
 
 (g/defnode BitmapFontSourceNode
   (inherits resource-node/ResourceNode)
