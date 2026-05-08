@@ -634,6 +634,13 @@ namespace dmPlatform
 
     const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
     {
+#if defined(__EMSCRIPTEN__)
+        char* device_guid = 0;
+        if (glfwGetJoystickDeviceGuid(joystick_index, &device_guid))
+        {
+            return (const char*) device_guid;
+        }
+#endif
         return 0;
     }
 
