@@ -412,8 +412,8 @@ namespace dmGraphics
             limits.m_MaxTextureSize3D      = D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;   // 2048
             limits.m_MaxTextureSizeCube    = D3D12_REQ_TEXTURECUBE_DIMENSION;          // 16384
             limits.m_MaxTextureArrayLayers = D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION; // 2048
-            limits.m_MaxFramebufferWidth   = D3D12_VIEWPORT_BOUNDS_MAX;
-            limits.m_MaxFramebufferHeight  = D3D12_VIEWPORT_BOUNDS_MAX;
+            limits.m_MaxFramebufferWidth   = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+            limits.m_MaxFramebufferHeight  = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
             limits.m_MaxColorAttachments   = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
 
             // Binding limits — scale with D3D12_RESOURCE_BINDING_TIER.

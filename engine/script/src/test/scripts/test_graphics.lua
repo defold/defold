@@ -117,7 +117,7 @@ local function test_adapter_family_is_known()
     -- through to "<unsupported>".
     local known = {
         none = true, ["null"] = true, opengl = true, opengles = true,
-        vulkan = true, vendor = true, webgpu = true, directx = true
+        vulkan = true, vendor = true, webgpu = true, dx12 = true
     }
 
     local info = graphics.get_adapter_info()

@@ -718,7 +718,7 @@ namespace dmScript
         // TODO: For vendor platforms, we should probably return the actual platform literal.
         ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_VENDOR,   "vendor");
         ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_WEBGPU,   "webgpu");
-        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_DIRECTX,  "directx");
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_DIRECTX,  "dx12");
         default: break;
         }
     #undef ADAPTER_FAMILY_CASE
