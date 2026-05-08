@@ -173,6 +173,7 @@ static AppleGamepadDriver* g_AppleGamepadDriver = 0;
 
 static void GetGamepadDeviceNameInternal(HContext context, int gamepad_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
 static bool GetGamepadDeviceGuidInternal(HContext context, int gamepad_id, GamepadGuid* guid);
+static void CreateAppleGameControllerGUID(GCController* controller, const char* fallback_name, GamepadGuid* guid);
 
 // Controller-family predicates used to normalize Apple's product categories into
 // stable vendor/product pairs for GUID generation and legacy remapping.
@@ -705,6 +706,13 @@ static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controll
 
     CFRelease(devices);
     return found_guid;
+}
+#else
+static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controller, const char* fallback_name, GamepadGuid* guid)
+{
+    (void) driver;
+    CreateAppleGameControllerGUID(controller, fallback_name, guid);
+    return true;
 }
 #endif
 
