@@ -93,6 +93,28 @@ public class ProtoBuilders {
         return ResourceUtil.minifyPathAndReplaceExt(str, suffix, replacement);
     }
 
+    private static Data.Builder transformLight(Data.Builder messageBuilder, String... tags) {
+        messageBuilder.clearTags();
+        for (String tag : tags) {
+            messageBuilder.addTags(tag);
+        }
+        return messageBuilder;
+    }
+
+    private static String lightTypeTagFromResource(IResource resource) {
+        String ext = FilenameUtils.getExtension(resource.getPath());
+        switch (ext) {
+            case "point_light":
+                return "point_light";
+            case "directional_light":
+                return "directional_light";
+            case "spot_light":
+                return "spot_light";
+            default:
+                throw new IllegalArgumentException("Unsupported light resource extension: " + ext);
+        }
+    }
+
     private static MaterialDesc.Builder getMaterialBuilderFromResource(IResource res) throws IOException {
         if (res.getPath().isEmpty()) {
             return null;
@@ -446,10 +468,12 @@ public class ProtoBuilders {
     @BuilderParams(name="Data", inExts=".data", outExt=".datac")
     public static class DataBuilder extends ProtoBuilder<Data.Builder> {}
 
-    // .light is the same backing data type as the data resource.
-    // Using an alias approach has mostly semantic value for users,
-    // as the intent is more clear.
     @ProtoParams(srcClass = Data.class, messageClass = Data.class)
-    @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
-    public static class LightBuilder extends ProtoBuilder<Data.Builder> {}
+    @BuilderParams(name="Light", inExts={".point_light", ".directional_light", ".spot_light"}, outExt=".lightc")
+    public static class LightBuilder extends ProtoBuilder<Data.Builder> {
+        @Override
+        protected Data.Builder transform(Task task, IResource resource, Data.Builder messageBuilder) throws IOException, CompileExceptionError {
+            return transformLight(messageBuilder, "light", lightTypeTagFromResource(resource));
+        }
+    }
 }

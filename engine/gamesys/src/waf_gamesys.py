@@ -131,7 +131,9 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.collisionobject', '.collisionobjectc')
         c.component = c.component.replace('.particlefx', '.particlefxc')
         c.component = c.component.replace('.gui', '.guic')
-        c.component = c.component.replace('.light', '.lightc')
+        c.component = c.component.replace('.point_light', '.lightc')
+        c.component = c.component.replace('.directional_light', '.lightc')
+        c.component = c.component.replace('.spot_light', '.lightc')
         c.component = c.component.replace('.model', '.modelc')
         c.component = c.component.replace('.animationset', '.animationsetc')
         c.component = c.component.replace('.script', '.scriptc')
@@ -147,6 +149,13 @@ def transform_gameobject(task, msg):
 
         transform_properties(c.properties, c.property_decls)
     return msg
+
+def transform_light(tags):
+    def _transform_light(task, msg):
+        del msg.tags[:]
+        msg.tags.extend(tags)
+        return msg
+    return _transform_light
 
 def compile_model(task):
 
@@ -512,7 +521,9 @@ proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', t
 proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transform_mesh)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 proto_compile_task('data', 'data_ddf_pb2', 'Data', '.data', '.datac')
-proto_compile_task('light', 'data_ddf_pb2', 'Data', '.light', '.lightc')
+proto_compile_task('point_light', 'data_ddf_pb2', 'Data', '.point_light', '.lightc', transform_light(['light', 'point_light']))
+proto_compile_task('directional_light', 'data_ddf_pb2', 'Data', '.directional_light', '.lightc', transform_light(['light', 'directional_light']))
+proto_compile_task('spot_light', 'data_ddf_pb2', 'Data', '.spot_light', '.lightc', transform_light(['light', 'spot_light']))
 
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('glsl', '.glsl', '.glslc')

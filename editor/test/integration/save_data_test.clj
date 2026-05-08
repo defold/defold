@@ -504,27 +504,35 @@
    {:default
     {"skeleton" :deprecated}} ; Non-default depth/stencil format not supported yet.
 
-   ;; .light component data uses dmStructDDF.Value for struct fields; in practice only
+   ;; Light component data uses dmStructDDF.Value for struct fields; in practice only
    ;; struct / number / list variants appear. Other oneof branches are never written.
    'dmStructDDF.Value
-   {[["light" "data"]]
+   {[["point_light" "data"]
+     ["directional_light" "data"]
+     ["spot_light" "data"]]
     {"null" :unused
      "bool" :unused
      "number" :unused
      "string" :unused
      "list" :unused}
-    [["light" "data" "struct" "fields" "value"]]
+    [["point_light" "data" "struct" "fields" "value"]
+     ["directional_light" "data" "struct" "fields" "value"]
+     ["spot_light" "data" "struct" "fields" "value"]]
     {"null" :unused
      "bool" :unused
      "string" :unused
      "struct" :unused}
-    [["light" "data" "struct" "fields" "value" "list" "values"]]
+    [["point_light" "data" "struct" "fields" "value" "list" "values"]
+     ["directional_light" "data" "struct" "fields" "value" "list" "values"]
+     ["spot_light" "data" "struct" "fields" "value" "list" "values"]]
     {"null" :unused
      "bool" :unused
      "string" :unused
      "struct" :unused
      "list" :unused}
-    [["light" "data" "struct" "fields" "value" "list" "values" "list" "values"]]
+    [["point_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["directional_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["spot_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]]
     {"null" :unused
      "bool" :unused
      "string" :unused

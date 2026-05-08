@@ -1,5 +1,3 @@
-tags: "light"
-tags: "spot_light"
 data {
   struct {
     fields {
@@ -24,6 +22,10 @@ data {
     fields {
       key: "inner_cone_angle"
       value { number: 15.0 }
+    }
+    fields {
+      key: "outer_cone_angle"
+      value { number: 30.0 }
     }
   }
 }

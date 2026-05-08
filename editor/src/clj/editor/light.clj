@@ -55,7 +55,7 @@
   (vec2 texcoord0)
   (vec4 color))
 
-(def ^:private light-component-type-ext "light")
+(def ^:private light-component-type-exts #{"point_light" "directional_light" "spot_light"})
 (def ^:private light-range-scale-manips [:scale-uniform])
 (def ^:private default-component-scale-manips [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
 
@@ -83,11 +83,6 @@
 (def ^:private icon-spot-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-spot-gpu-texture "icons/scene/light_spot.png"))
 (def ^:private icon-sun-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-sun-gpu-texture "icons/scene/light_sun.png"))
 
-(def ^:private light-type-options
-  [[:point "Point"]
-   [:directional "Directional"]
-   [:spot "Spot"]])
-
 (defn- list-field-vec4 [v]
   {:list {:values (mapv (fn [x] {:number (double x)}) v)}})
 
@@ -101,17 +96,11 @@
                  [(if (keyword? k) (name k) k) v]))
           raw)))
 
-(defn- tags->light-type [tags]
-  (cond
-    (some #{"directional_light"} tags) :directional
-    (some #{"spot_light"} tags) :spot
-    :else :point))
-
-(defn- light-type->tags [light-type]
-  (case light-type
-    :directional ["light" "directional_light"]
-    :spot ["light" "spot_light"]
-    ["light" "point_light"]))
+(defn- ext->light-type [ext]
+  (case ext
+    "directional_light" :directional
+    "spot_light" :spot
+    :point))
 
 (defn- get-number [fields key default]
   (double (or (get-in fields [key :number]) default)))
@@ -135,11 +124,9 @@
 (defn- non-negative [v]
   (max 0.0 (double v)))
 
-(defn- parse-data-desc [light-desc]
+(defn- parse-data-desc [light-type light-desc]
   ;; GameObject$Data in map format.
-  (let [tags (vec (:tags light-desc))
-        light-type (tags->light-type tags)
-        fields (struct-fields light-desc)]
+  (let [fields (struct-fields light-desc)]
     {:light-type light-type
      :color (get-vec4 fields "color")
      :intensity (non-negative (get-number fields "intensity" 1.0))
@@ -151,7 +138,6 @@
   (let [intensity (non-negative intensity)
         range (non-negative range)
         [inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
-        tags (light-type->tags light-type)
         c4 (vec (take 4 (concat color (repeat 1.0))))
         fields (case light-type
                  :point {"color" (list-field-vec4 c4)
@@ -165,7 +151,6 @@
                         "inner_cone_angle" (field-num inner-cone-angle)
                         "outer_cone_angle" (field-num outer-cone-angle)})]
     (protobuf/make-map-without-defaults DataProto$Data
-      :tags tags
       :data {:struct {:fields fields}})))
 
 (defn- build-light [build-resource _dep-resources user-data]
@@ -741,12 +726,7 @@
                 :set protobuf-forms-util/set-form-op
                 :clear protobuf-forms-util/clear-form-op}
      :sections [{:localization-key "light"
-                 :fields [{:path [:light-type]
-                           :localization-key "light.type"
-                           :type :choicebox
-                           :options light-type-options
-                           :default :point}
-                          {:path [:color]
+                 :fields [{:path [:color]
                            :localization-key "light.color"
                            :type :vec4
                            :default [1.0 1.0 1.0 1.0]}
@@ -775,16 +755,15 @@
                            :min inner-cone-angle
                            :max max-spot-cone-angle
                            :hidden hidden-cones}]}]
-     :values {[:light-type] light-type
-              [:color] color
+     :values {[:color] color
               [:intensity] intensity
               [:range] range
               [:inner-cone-angle] inner-cone-angle
               [:outer-cone-angle] outer-cone-angle}}))
 
-(defn- canonicalize-light-read [light-desc]
+(defn- canonicalize-light-read [light-type light-desc]
   {:pre [(map? light-desc)]}
-  (let [m (parse-data-desc light-desc)]
+  (let [m (parse-data-desc light-type light-desc)]
     (build-data-desc (:light-type m)
                      (:color m)
                      (:intensity m)
@@ -792,17 +771,15 @@
                      (:inner-cone-angle m)
                      (:outer-cone-angle m))))
 
-(defn load-light [_project self _resource light-desc]
+(defn load-light [light-type _project self _resource light-desc]
   {:pre [(map? light-desc)]} ; DataProto$Data in map format.
-  (let [m (parse-data-desc light-desc)]
+  (let [m (parse-data-desc light-type light-desc)]
     (apply g/set-properties self (apply concat m))))
 
 (g/defnode LightNode
   (inherits resource-node/ResourceNode)
 
-  (property light-type g/Keyword (default :point)
-            (dynamic label (properties/label-dynamic :light :type))
-            (dynamic edit-type (g/constantly {:type :choicebox :options light-type-options})))
+  (property light-type g/Keyword (default :point))
   (property color types/Color (default [1.0 1.0 1.0 1.0])
             (dynamic label (properties/label-dynamic :light :color))
             (dynamic tooltip (properties/tooltip-dynamic :light :color)))
@@ -842,7 +819,7 @@
                          (g/set-property self :outer-cone-angle outer-cone-angle))))))
             (dynamic visible (g/fnk [light-type] (= :spot light-type))))
 
-  (display-order [:light-type :color :intensity :range :inner-cone-angle :outer-cone-angle])
+  (display-order [:color :intensity :range :inner-cone-angle :outer-cone-angle])
 
   (output form-data g/Any :cached produce-form-data)
   (output save-value g/Any :cached produce-save-value)
@@ -854,9 +831,9 @@
   (if (some? value) value original-value))
 
 (defn- light-component-range-property [component-node-id evaluation-context]
-  (when (= light-component-type-ext
-           (some-> (g/node-value component-node-id :source-resource evaluation-context)
-                   resource/type-ext))
+  (when (contains? light-component-type-exts
+                   (some-> (g/node-value component-node-id :source-resource evaluation-context)
+                           resource/type-ext))
     (let [range-property (get-in (g/node-value component-node-id :_properties evaluation-context)
                                  [:properties :range])]
       (when (and (map? range-property)
@@ -909,21 +886,24 @@
     (scene/manip-scale-scene-node node-id delta manip-phase initial-evaluation-context)))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext light-component-type-ext
-    :node-type LightNode
-    :ddf-type DataProto$Data
-    :load-fn load-light
-    ;; After :read-fn (read-map-without-defaults), normalize to the same map
-    ;; produce-save-value emits. Empty/sparse files become {} in the first step;
-    ;; without this, :source-value (disk) and :save-value (graph) disagree and
-    ;; sparse-protobuf-test / dirty checks fail. Not for migrating legacy formats.
-    :sanitize-fn canonicalize-light-read
-    :icon outline-icon
-    :icon-class :property
-    :category (localization/message "resource.category.components")
-    :view-types [:cljfx-form-view :text]
-    :view-opts {}
-    :tags #{:component}
-    :tag-opts {:component {:transform-properties #{}}}
-    :label (localization/message "resource.type.light")))
+  (mapcat (fn [ext]
+            (let [light-type (ext->light-type ext)]
+              (resource-node/register-ddf-resource-type workspace
+                :ext ext
+                :node-type LightNode
+                :ddf-type DataProto$Data
+                :load-fn (partial load-light light-type)
+                ;; After :read-fn (read-map-without-defaults), normalize to the same map
+                ;; produce-save-value emits. Empty/sparse files become {} in the first step;
+                ;; without this, :source-value (disk) and :save-value (graph) disagree and
+                ;; sparse-protobuf-test / dirty checks fail. Not for migrating legacy formats.
+                :sanitize-fn (partial canonicalize-light-read light-type)
+                :icon outline-icon
+                :icon-class :property
+                :category (localization/message "resource.category.components")
+                :view-types [:cljfx-form-view :text]
+                :view-opts {}
+                :tags #{:component}
+                :tag-opts {:component {:transform-properties #{}}}
+                :label (localization/message "resource.type.light"))))
+          ["point_light" "directional_light" "spot_light"]))

@@ -1,5 +1,3 @@
-tags: "light"
-tags: "point_light"
 data {
   struct {
     fields {
@@ -12,14 +10,6 @@ data {
           values { number: 1.0 }
         }
       }
-    }
-    fields {
-      key: "intensity"
-      value { number: 1.0 }
-    }
-    fields {
-      key: "range"
-      value { number: 10.0 }
     }
   }
 }
