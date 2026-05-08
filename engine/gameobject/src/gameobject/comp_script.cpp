@@ -667,7 +667,7 @@ namespace dmGameObject
                 lua_settable(L, action_table);
             }
 
-            if (params.m_InputAction->m_Count > 0 && !params.m_InputAction->m_HasText)
+            if (params.m_InputAction->m_Count > 0 && !params.m_InputAction->m_HasText && !params.m_InputAction->m_GamepadConnected)
             {
                 int tc = params.m_InputAction->m_Count;
                 lua_pushliteral(L, "touch");

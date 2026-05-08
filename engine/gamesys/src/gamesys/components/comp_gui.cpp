@@ -2923,7 +2923,12 @@ namespace dmGameSystem
             gui_input_action.m_TouchCount = 0;
             gui_input_action.m_TextCount = 0;
 
-            if (params.m_InputAction->m_Count > 0)
+            if (gui_input_action.m_GamepadConnected)
+            {
+                size_t text_count = dmStrlCpy(gui_input_action.m_Text, params.m_InputAction->m_Text, sizeof(gui_input_action.m_Text));
+                gui_input_action.m_TextCount = text_count;
+            }
+            else if (params.m_InputAction->m_Count > 0)
             {
                 if (!gui_input_action.m_HasText)
                 {
