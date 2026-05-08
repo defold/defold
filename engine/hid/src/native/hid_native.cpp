@@ -128,7 +128,7 @@ namespace dmHID
 
         if (gamepad->m_Connected != connection_status)
         {
-            if (context->m_GamepadConnectivityCallback)
+            if (!context->m_Finalizing && context->m_GamepadConnectivityCallback)
             {
                 if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
                 {
@@ -137,7 +137,9 @@ namespace dmHID
                     dmLogWarning("The connection for '%s' was ignored by the callback function!", device_name);
                     return;
                 }
-            } else {
+            }
+            else if (!context->m_Finalizing)
+            {
                 dmLogWarning("There was no callback function set to handle the gamepad connection!");
             }
 
@@ -193,6 +195,7 @@ namespace dmHID
 #endif
 
             assert(context->m_NativeContextUserData == 0);
+            context->m_Finalizing = 0;
             context->m_NativeContextUserData = new NativeContextUserData();
 
             InitializeGamepads(context);
@@ -206,6 +209,7 @@ namespace dmHID
     {
         if (context)
         {
+            context->m_Finalizing = 1;
             NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
             if (user_data)
             {

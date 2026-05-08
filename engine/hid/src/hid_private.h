@@ -86,6 +86,7 @@ namespace dmHID
         void*              m_NativeContextUserData;
         dmhash_t           m_StateHash;
 
+        uint32_t m_Finalizing : 1;
         uint32_t m_AccelerometerConnected : 1;
         uint32_t m_IgnoreMouse : 1;
         uint32_t m_IgnoreKeyboard : 1;
@@ -93,7 +94,7 @@ namespace dmHID
         uint32_t m_IgnoreTouchDevice : 1;
         uint32_t m_IgnoreAcceleration : 1;
         uint32_t m_FlipScrollDirection : 1;
-        uint32_t : 25;
+        uint32_t : 24;
     };
 
     // TODO: start using the dmUser namespace
