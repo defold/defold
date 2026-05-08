@@ -107,6 +107,8 @@ namespace dmGraphics
         // ASTC for 2D array textures (paged atlases). Some WebGL/GLES drivers
         // fail array texture ASTC uploads while 2D ASTC works.
         CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
+        // GL_MIN/GL_MAX blend equations require GLES3+ or EXT_blend_minmax.
+        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType

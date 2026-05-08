@@ -1327,7 +1327,7 @@ namespace dmGameSystem
         {
             if (layout)
             {
-                TextLayoutFree(layout);
+                TextLayoutRelease(layout);
             }
             dmGui::TextLayout empty_text_layout = {};
             dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
@@ -1337,8 +1337,11 @@ namespace dmGameSystem
         dmGui::TextLayout new_text_layout = {};
         new_text_layout.m_Handle = layout;
         new_text_layout.m_Key = cache_key;
+        // SetNodeTextLayout() acquires a node-owned reference, so we release the
+        // temporary ownership from TextLayoutCreate() after storing the handle.
         dmGui::SetNodeTextLayout(scene, node, new_text_layout);
-        return layout;
+        TextLayoutRelease(layout);
+        return new_text_layout.m_Handle;
     }
 
     static void RenderTextNodes(dmGui::HScene scene,
@@ -1498,6 +1501,8 @@ namespace dmGameSystem
             // we can't use transform.GetUniformScale() since the z-component is ignored by the gui
             float scale = dmMath::Min(transform.GetScalePtr()[0], transform.GetScalePtr()[1]);
             dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, scale);
+            // GUI applies transform overrides in the render path, so refresh the cached particle render state in-frame.
+            dmParticle::UpdateRenderData(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, gui_world->m_DT);
         }
 
         vertex_count = dmMath::Min(vertex_count, vb_max_size / (uint32_t)sizeof(ParticleGuiVertex));
@@ -1520,7 +1525,6 @@ namespace dmGameSystem
             uint32_t vb_generate_size = 0;
             dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexData(
                 gui_world->m_ParticleContext,
-                gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
                 gui_world->m_ParticleAttributeInfos,

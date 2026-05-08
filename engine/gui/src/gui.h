@@ -34,6 +34,8 @@
 #include <dmsdk/render/render.h>
 #include <dmsdk/gameobject/gameobject.h>
 
+#include <dlib/safe_windows.h>
+
 /**
  * Defold GUI system
  *
@@ -1073,7 +1075,9 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    // Returns the node-owned text layout as a borrowed handle.
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
+    // Stores a node-owned text layout reference. The incoming handle remains owned by the caller.
     void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);

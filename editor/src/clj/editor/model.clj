@@ -88,6 +88,24 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
+(defn- resource-format-message [resource]
+  (let [ext (resource/type-ext resource)]
+    (if (str/blank? ext)
+      (localization/message "error.no-file-extension")
+      (str "." ext))))
+
+(defn- prop-resource-unsupported-format? [v name supported-exts]
+  (when (and v
+             (not (contains? (set supported-exts) (resource/type-ext v))))
+    (localization/message "error.model-unsupported-file-format"
+                          {"property" name
+                           "resource" (resource/resource->proj-path v)
+                           "format" (resource-format-message v)
+                           "supported_formats" (validation/format-ext-message supported-exts)})))
+
+(defn- prop-resource-format-error [_node-id prop-kw prop-value prop-name supported-exts]
+  (validation/prop-error :fatal _node-id prop-kw prop-resource-unsupported-format? prop-value prop-name supported-exts))
+
 (defn- validate-default-animation [_node-id default-animation animation-ids]
   (when (not (str/blank? default-animation))
     (validation/prop-error :fatal _node-id :default-animation validation/prop-member-of? default-animation (set animation-ids)
@@ -122,8 +140,11 @@
 
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh skeleton create-go-bones]
   (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh mesh-message)
+                      (prop-resource-format-error _node-id :mesh mesh mesh-message model-scene/model-file-types)
                       (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton skeleton-message)
+                      (prop-resource-format-error _node-id :skeleton skeleton skeleton-message model-scene/model-file-types)
                       (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message)
+                      (prop-resource-format-error _node-id :animations animations animations-message model-scene/animation-file-types)
                       (validate-default-animation _node-id default-animation animation-ids)
                       (validation/prop-error :fatal _node-id :materials validation/prop-empty? (:materials pb-msg) material-message)]
                      (map (fn [{:keys [name material]}]
@@ -431,7 +452,8 @@
             (dynamic error (g/fnk [_node-id mesh ^:try scene]
                              (if (g/error-value? scene)
                                scene
-                               (prop-resource-error :fatal _node-id :mesh mesh mesh-message))))
+                               (or (prop-resource-error :fatal _node-id :mesh mesh mesh-message)
+                                   (prop-resource-format-error _node-id :mesh mesh mesh-message model-scene/model-file-types)))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types}))
             (dynamic label (properties/label-dynamic :model :mesh))
@@ -473,7 +495,8 @@
             (dynamic error (g/fnk [_node-id skeleton ^:try skeleton-bones]
                              (if (g/error-value? skeleton-bones)
                                skeleton-bones
-                               (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton skeleton-message))))
+                               (or (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton skeleton-message)
+                                   (prop-resource-format-error _node-id :skeleton skeleton skeleton-message model-scene/model-file-types)))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types}))
             (dynamic label (properties/label-dynamic :model :skeleton))
@@ -490,7 +513,8 @@
             (dynamic error (g/fnk [_node-id animations ^:try animations-bones]
                              (if (g/error-value? animations-bones)
                                animations-bones
-                               (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message))))
+                               (or (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message)
+                                   (prop-resource-format-error _node-id :animations animations animations-message model-scene/animation-file-types)))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/animation-file-types}))
             (dynamic label (properties/label-dynamic :model :animations))

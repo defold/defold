@@ -41,7 +41,7 @@ namespace
 {
     // NOTE: we don't generate actual bytecode for this test-data, so
     // just pass in regular lua source instead.
-    dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
+    dmLuaDDF::LuaSource *LuaSourceFromStringAndFilename(const char *source, const char* filename)
     {
         static dmLuaDDF::LuaSource tmp;
         memset(&tmp, 0x00, sizeof(tmp));
@@ -51,8 +51,13 @@ namespace
         tmp.m_Bytecode.m_Count = strlen(source);
         tmp.m_Bytecode64.m_Data = (uint8_t*)source;
         tmp.m_Bytecode64.m_Count = strlen(source);
-        tmp.m_Filename = "render-dummy";
+        tmp.m_Filename = filename;
         return &tmp;
+    }
+
+    dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
+    {
+        return LuaSourceFromStringAndFilename(source, "render-dummy");
     }
 }
 
@@ -235,6 +240,40 @@ TEST_F(dmRenderScriptTest, TestReload)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// https://github.com/defold/defold/issues/12218
+TEST_F(dmRenderScriptTest, TestReloadPreservesInstanceReferenceAndUpdatesSourceFileName)
+{
+    const char* script_a =
+        "function init(self)\n"
+        "end\n";
+    const char* script_b =
+        "function update(self, dt)\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromStringAndFilename(script_a, "render-a"));
+    ASSERT_NE((void*)0, render_script);
+
+    int instance_reference = render_script->m_InstanceReference;
+    const char* initial_source_file_name = render_script->m_SourceFileName;
+    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+
+    ASSERT_NE(LUA_NOREF, instance_reference);
+    ASSERT_STREQ("render-a", initial_source_file_name);
+
+    ASSERT_TRUE(dmRender::ReloadRenderScript(m_Context, render_script, LuaSourceFromStringAndFilename(script_b, "render-b")));
+
+    ASSERT_EQ(instance_reference, render_script->m_InstanceReference);
+    ASSERT_NE((const char*)0, render_script->m_SourceFileName);
+    ASSERT_STREQ("render-b", render_script->m_SourceFileName);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+    ASSERT_TRUE(lua_isuserdata(L, -1));
+    ASSERT_EQ((void*)render_script, lua_touserdata(L, -1));
+    lua_pop(L, 1);
+
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
@@ -458,6 +497,102 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestSetBlendFuncSeparate)
+{
+    const char* script =
+    "function update(self)\n"
+    "    render.set_blend_func_separate(graphics.BLEND_FACTOR_SRC_ALPHA,\n"
+    "                                   graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,\n"
+    "                                   graphics.BLEND_FACTOR_ONE,\n"
+    "                                   graphics.BLEND_FACTOR_ZERO)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, command->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_SRC_ALPHA,              (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,    (int32_t)command->m_Operands[1]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,                    (int32_t)command->m_Operands[2]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ZERO,                   (int32_t)command->m_Operands[3]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestSetBlendEquationSeparate)
+{
+    const char* script =
+    "function update(self)\n"
+    "    render.set_blend_equation_separate(graphics.BLEND_EQUATION_ADD,\n"
+    "                                       graphics.BLEND_EQUATION_REVERSE_SUBTRACT)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, command->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD,              (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_REVERSE_SUBTRACT, (int32_t)command->m_Operands[1]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestSetBlendFuncAndEquationSeparate)
+{
+    const char* script =
+    "function update(self)\n"
+    "    render.set_blend_func_separate(graphics.BLEND_FACTOR_ZERO,\n"
+    "                                   graphics.BLEND_FACTOR_ONE,\n"
+    "                                   graphics.BLEND_FACTOR_ONE,\n"
+    "                                   graphics.BLEND_FACTOR_ONE)\n"
+    "    render.set_blend_equation_separate(graphics.BLEND_EQUATION_SUBTRACT,\n"
+    "                                       graphics.BLEND_EQUATION_ADD)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(2u, commands.Size());
+
+    dmRender::Command* cmd_func = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, cmd_func->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ZERO, (int32_t)cmd_func->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,  (int32_t)cmd_func->m_Operands[1]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,  (int32_t)cmd_func->m_Operands[2]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,  (int32_t)cmd_func->m_Operands[3]);
+
+    dmRender::Command* cmd_eq = &commands[1];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, cmd_eq->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_SUBTRACT, (int32_t)cmd_eq->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD,      (int32_t)cmd_eq->m_Operands[1]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
 {
     const char* script =
@@ -525,7 +660,11 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetSetSizeInvalid)
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
     "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
-    "    render.set_render_target_size(self.rt, %s, 4)\n"
+    "    local ok, err = pcall(render.set_render_target_size, self.rt, %s, 4)\n"
+    "    render.delete_render_target(self.rt)\n"
+    "    self.rt = nil\n"
+    "    assert(not ok, \"expected render.set_render_target_size to fail\")\n"
+    "    error(err, 0)\n"
     "end\n";
 
     const char* invalid_widths[] = { "0", "-1", "1000000000" };
@@ -1317,6 +1456,50 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_InvalidUsage)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+// Test that constant buffers passed to render.draw() as locals survive garbage
+// collection between command creation and command parsing.
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
+{
+    // Create multiple constant buffers as locals only — no reference
+        // from self, so they become eligible for GC after the loop.
+    const char* script =
+        "function init(self)\n"
+        "    self.pred = render.predicate({\"tag\"})\n"
+        "    for i = 1, 5 do\n"
+        "        local cb = render.constant_buffer()\n"
+        "        cb.tint = vmath.vector4(i, 0, 0, 1)\n"
+        "        render.draw(self.pred, { constants = cb })\n"
+        "    end\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    // init() creates the draw commands but does NOT call ParseCommands.
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(5u, commands.Size());
+
+    // Force a full garbage collection cycle from C++
+    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
+    for (uint32_t i = 0; i < commands.Size(); ++i)
+    {
+        ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, commands[i].m_Type);
+        dmRender::HNamedConstantBuffer cb = (dmRender::HNamedConstantBuffer)commands[i].m_Operands[1];
+        ASSERT_NE((dmRender::HNamedConstantBuffer)0, cb);
+        ASSERT_EQ(1u, dmRender::GetNamedConstantCount(cb));
+    }
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestAssetHandlesValidRenderTarget)
 {
     const char* script =
@@ -1558,6 +1741,7 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
         "    assert_near(camera.get_far_z(cams[1]), 100)\n"
         "    assert_near(camera.get_fov(cams[1]), 90)\n"
         "    assert_near(camera.get_orthographic_zoom(cams[1]), 1)\n"
+        "    assert_near(camera.get_orthographic_auto_zoom(cams[1]), 1)\n"
         // Test "set"
         "    camera.set_near_z(cams[1], -1)\n"
         "    assert_near(camera.get_near_z(cams[1]), -1)\n"
@@ -1566,6 +1750,9 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
         "    camera.set_fov(cams[1], 45)\n"
         "    assert_near(camera.get_fov(cams[1]), 45)\n"
         "    camera.set_orthographic_zoom(cams[1], 2)\n"
+        "    assert_near(camera.get_orthographic_zoom(cams[1]), 2)\n"
+        "    assert(pcall(camera.set_orthographic_zoom, cams[1], 0) == false)\n"
+        "    assert(pcall(camera.set_orthographic_zoom, cams[1], -1) == false)\n"
         "    assert_near(camera.get_orthographic_zoom(cams[1]), 2)\n"
         // Test set_camera()
         "    render.set_camera(cams[1])\n"

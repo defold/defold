@@ -203,7 +203,7 @@ public class BundleHelperTest {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogHTML5.txt");
             String log = new String(resource.getContent());
             List<ResourceInfo> issues = new ArrayList<ResourceInfo>();
-            BundleHelper.parseLog("js-web", log, issues);
+            BundleHelper.parseLog("wasm-web", log, issues);
 
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "unknown type name 'ubar'\nubar g_foo = 0;"));
         }

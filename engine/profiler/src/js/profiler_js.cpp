@@ -368,6 +368,49 @@ static void ProfilePropertyReset(void*, ProfileIdx idx)
 static const char* g_ProfilerName = "ProfilerJS";
 static ProfileListener g_Listener = {};
 
+struct ProfileListenerInitializer
+{
+    ProfileListenerInitializer()
+    {
+        g_Listener.m_Create = CreateListener;
+        g_Listener.m_Destroy = DestroyListener;
+        g_Listener.m_SetThreadName = SetThreadName;
+
+        g_Listener.m_FrameBegin = FrameBegin;
+        g_Listener.m_FrameEnd = FrameEnd;
+        g_Listener.m_ScopeBegin = ScopeBegin;
+        g_Listener.m_ScopeEnd = ScopeEnd;
+
+        g_Listener.m_LogText = 0;
+
+        g_Listener.m_CreatePropertyGroup = ProfileCreatePropertyGroup;
+        g_Listener.m_CreatePropertyBool = ProfileCreatePropertyBool;
+        g_Listener.m_CreatePropertyS32 = ProfileCreatePropertyS32;
+        g_Listener.m_CreatePropertyU32 = ProfileCreatePropertyU32;
+        g_Listener.m_CreatePropertyF32 = ProfileCreatePropertyF32;
+        g_Listener.m_CreatePropertyS64 = ProfileCreatePropertyS64;
+        g_Listener.m_CreatePropertyU64 = ProfileCreatePropertyU64;
+        g_Listener.m_CreatePropertyF64 = ProfileCreatePropertyF64;
+
+        g_Listener.m_PropertySetBool = ProfilePropertySetBool;
+        g_Listener.m_PropertySetS32 = ProfilePropertySetS32;
+        g_Listener.m_PropertySetU32 = ProfilePropertySetU32;
+        g_Listener.m_PropertySetF32 = ProfilePropertySetF32;
+        g_Listener.m_PropertySetS64 = ProfilePropertySetS64;
+        g_Listener.m_PropertySetU64 = ProfilePropertySetU64;
+        g_Listener.m_PropertySetF64 = ProfilePropertySetF64;
+        g_Listener.m_PropertyAddS32 = ProfilePropertyAddS32;
+        g_Listener.m_PropertyAddU32 = ProfilePropertyAddU32;
+        g_Listener.m_PropertyAddF32 = ProfilePropertyAddF32;
+        g_Listener.m_PropertyAddS64 = ProfilePropertyAddS64;
+        g_Listener.m_PropertyAddU64 = ProfilePropertyAddU64;
+        g_Listener.m_PropertyAddF64 = ProfilePropertyAddF64;
+        g_Listener.m_PropertyReset = ProfilePropertyReset;
+    }
+};
+
+static ProfileListenerInitializer g_ProfileListenerInitializer;
+
 static dmExtension::Result ProfilerJS_AppInitialize(dmExtension::AppParams* params)
 {
     const char* perf_timeline_enabled_key = "profiler.performance_timeline_enabled";
@@ -377,41 +420,6 @@ static dmExtension::Result ProfilerJS_AppInitialize(dmExtension::AppParams* para
         dmLogInfo("Skipped %s profiler due to setting %s", g_ProfilerName, perf_timeline_enabled_key);
         return dmExtension::RESULT_OK;
     }
-
-    g_Listener.m_Create = CreateListener;
-    g_Listener.m_Destroy = DestroyListener;
-    g_Listener.m_SetThreadName = SetThreadName;
-
-    g_Listener.m_FrameBegin = FrameBegin;
-    g_Listener.m_FrameEnd = FrameEnd;
-    g_Listener.m_ScopeBegin = ScopeBegin;
-    g_Listener.m_ScopeEnd = ScopeEnd;
-
-    g_Listener.m_LogText = 0;
-
-    g_Listener.m_CreatePropertyGroup = ProfileCreatePropertyGroup;
-    g_Listener.m_CreatePropertyBool = ProfileCreatePropertyBool;
-    g_Listener.m_CreatePropertyS32 = ProfileCreatePropertyS32;
-    g_Listener.m_CreatePropertyU32 = ProfileCreatePropertyU32;
-    g_Listener.m_CreatePropertyF32 = ProfileCreatePropertyF32;
-    g_Listener.m_CreatePropertyS64 = ProfileCreatePropertyS64;
-    g_Listener.m_CreatePropertyU64 = ProfileCreatePropertyU64;
-    g_Listener.m_CreatePropertyF64 = ProfileCreatePropertyF64;
-
-    g_Listener.m_PropertySetBool = ProfilePropertySetBool;
-    g_Listener.m_PropertySetS32 = ProfilePropertySetS32;
-    g_Listener.m_PropertySetU32 = ProfilePropertySetU32;
-    g_Listener.m_PropertySetF32 = ProfilePropertySetF32;
-    g_Listener.m_PropertySetS64 = ProfilePropertySetS64;
-    g_Listener.m_PropertySetU64 = ProfilePropertySetU64;
-    g_Listener.m_PropertySetF64 = ProfilePropertySetF64;
-    g_Listener.m_PropertyAddS32 = ProfilePropertyAddS32;
-    g_Listener.m_PropertyAddU32 = ProfilePropertyAddU32;
-    g_Listener.m_PropertyAddF32 = ProfilePropertyAddF32;
-    g_Listener.m_PropertyAddS64 = ProfilePropertyAddS64;
-    g_Listener.m_PropertyAddU64 = ProfilePropertyAddU64;
-    g_Listener.m_PropertyAddF64 = ProfilePropertyAddF64;
-    g_Listener.m_PropertyReset = ProfilePropertyReset;
 
     ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
     return dmExtension::RESULT_OK;

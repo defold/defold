@@ -1,0 +1,3 @@
+name: "morph_blend_weights"
+mesh: "/model/morph_weights_anim.gltf"
+material: "/mesh/mesh.material"

@@ -146,7 +146,7 @@ namespace dmGraphics
         uint32_t                           m_AsyncProcessingSupport : 1;
         uint32_t                           m_UseAsyncTextureLoad    : 1;
         uint32_t                           m_RequestWindowClose     : 1;
-        uint32_t                           m_ContextFeatures        : 8;
+        uint32_t                           m_ContextFeatures        : 9;
     };
 }
 

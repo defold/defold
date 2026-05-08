@@ -17,24 +17,20 @@
 #include "shared_library.h"
 #include "crypt.h"
 
-#include <dlib/endian.h>
-#include <mbedtls/md5.h>
-#include <mbedtls/base64.h>
-#include <mbedtls/sha1.h>
-#include <mbedtls/sha256.h>
-#include <mbedtls/sha512.h>
+#include <dlib/endian.hpp>
 
 namespace dmCrypt
 {
     const uint32_t NUM_ROUNDS = 32;
 
-    static inline uint64_t EncryptXTea(uint64_t v, uint32_t* key)
+    static inline uint64_t EncryptXTea(uint64_t v, const uint32_t* key)
     {
         uint32_t v0 = (uint32_t) (v >> 32);
         uint32_t v1 = (uint32_t) (v & 0xffffffff);
 
         uint32_t sum = 0, delta = 0x9e3779b9;
-        for (uint32_t i = 0; i < NUM_ROUNDS; i++) {
+        for (uint32_t i = 0; i < NUM_ROUNDS; i++)
+        {
             v0 += (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + dmEndian::ToHost(key[sum & 3]));
             sum += delta;
             v1 += (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + dmEndian::ToHost(key[(sum>>11) & 3]));
@@ -49,22 +45,28 @@ namespace dmCrypt
         const uint32_t block_len = 8;
         uint8_t paddedkey[16] = {0};
         memcpy(paddedkey, key, keylen);
+        uint32_t key_words[4];
+        memcpy(key_words, paddedkey, sizeof(key_words));
 
         uint64_t counter = 0;
 
         uint32_t i = 0;
-        uint64_t* d = (uint64_t*) data;
-        for (i = 0; i < datalen / block_len; i++) {
-            uint64_t enc_counter = EncryptXTea(counter, (uint32_t*) paddedkey);
-            d[i] ^= enc_counter;
+        for (i = 0; i < datalen / block_len; i++)
+        {
+            uint64_t enc_counter = EncryptXTea(counter, key_words);
+            uint64_t block;
+            memcpy(&block, data, sizeof(block));
+            block ^= enc_counter;
+            memcpy(data, &block, sizeof(block));
             data += block_len;
             counter++;
         }
 
-        uint64_t enc_counter = EncryptXTea(counter, (uint32_t*) paddedkey);
+        uint64_t enc_counter = EncryptXTea(counter, key_words);
         uint32_t rest = datalen & (block_len - 1);
         uint8_t* ec = (uint8_t*) &enc_counter;
-        for (uint32_t j = 0; j < rest; j++) {
+        for (uint32_t j = 0; j < rest; j++)
+        {
             data[j] ^= ec[j];
         }
     }
@@ -81,74 +83,6 @@ namespace dmCrypt
         return RESULT_OK;
     }
 
-    void HashSha1(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
-    {
-        mbedtls_sha1_context ctx;
-        mbedtls_sha1_init(&ctx);
-        mbedtls_sha1_starts_ret(&ctx);
-        mbedtls_sha1_update_ret(&ctx, (const unsigned char*)buf, (size_t)buflen);
-        int ret = mbedtls_sha1_finish_ret(&ctx, (unsigned char*)digest);
-        mbedtls_sha1_free(&ctx);
-        if (ret != 0) {
-            memset(digest, 0, 20);
-        }
-    }
-
-    void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
-    {
-        int ret = mbedtls_sha256_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
-        if (ret != 0) {
-            memset(digest, 0, 32);
-        }
-    }
-
-    void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
-    {
-        int ret = mbedtls_sha512_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
-        if (ret != 0) {
-            memset(digest, 0, 64);
-        }
-    }
-
-    void HashMd5(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
-    {
-        int ret = mbedtls_md5_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest);
-        if (ret != 0) {
-            memset(digest, 0, 16);
-        }
-    }
-
-    bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
-    {
-        size_t out_len = 0;
-        int r = mbedtls_base64_encode(dst, *dst_len, &out_len, src, src_len);
-        if (r != 0)
-        {
-            if (*dst_len == 0)
-                *dst_len = (uint32_t)out_len; // Seems to return 1 more than necessary, but better to err on the safe side! (see test_crypt.cpp)
-            else
-                *dst_len = 0xFFFFFFFF;
-            return false;
-        }
-        *dst_len = (uint32_t)out_len;
-        return true;
-    }
-
-    bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
-    {
-        size_t out_len = 0;
-        int r = mbedtls_base64_decode(dst, *dst_len, &out_len, src, src_len);
-        if (r != 0)
-        {
-            if (*dst_len == 0)
-                *dst_len = (uint32_t)out_len;
-            else
-                *dst_len = 0xFFFFFFFF;
-            return false;
-        }
-        *dst_len = (uint32_t)out_len;
-        return true;
-    }
 }
 
 extern "C" {

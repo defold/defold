@@ -21,6 +21,7 @@
 #include <dmsdk/gameobject/script.h>
 
 #include <ddf/ddf.h>
+#include <dlib/align.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/http_cache.h>
@@ -189,8 +190,9 @@ namespace dmGameSystem
                 }
                 lua_pop(L, 1);
 
-                headers = (char*) malloc(h.Size());
+                headers = (char*) malloc(h.Size() + 1);
                 memcpy(headers, h.Begin(), h.Size());
+                headers[h.Size()] = '\0';
                 headers_length = h.Size();
             }
 
@@ -248,7 +250,8 @@ namespace dmGameSystem
             }
 
             // ddf + max method and url string lengths incl. null character
-            char buf[sizeof(dmHttpDDF::HttpRequest) + max_method_len + 1 + max_url_len + 1];
+            // The buffer is overlaid with HttpRequest before posting, so it must satisfy the struct alignment.
+            char DM_ALIGNED(alignof(dmHttpDDF::HttpRequest)) buf[sizeof(dmHttpDDF::HttpRequest) + max_method_len + 1 + max_url_len + 1];
             char* string_buf = buf + sizeof(dmHttpDDF::HttpRequest);
             dmStrlCpy(string_buf, method, method_len + 1);
             dmStrlCpy(string_buf + method_len + 1, url, url_len + 1);

@@ -552,7 +552,7 @@
                                       :passes [pass/outline]}}
                         {:aabb aabb
                          :renderable {:render-fn render-tile-source-hulls
-                                      :tags #{:tile-source :collision-shape}
+                                      :tags #{:tile-source :collision-shape :gizmo}
                                       :user-data user-data
                                       :passes [pass/outline]}}]
                        child-scenes)})))

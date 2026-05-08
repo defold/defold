@@ -1,0 +1,1570 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#include <stdio.h>
+#include <Box2D/Dynamics/b2Body.h>
+#include <Box2D/Dynamics/b2Fixture.h>
+#include <Box2D/Dynamics/Joints/b2Joint.h>
+
+#include <dlib/log.h>
+#include <dlib/opaque_handle_container.h>
+#include <dmsdk/dlib/hashtable.h>
+#include <gameobject/script.h>
+
+#include "gamesys.h"
+#include "gamesys_private.h"
+#include "components/comp_collision_object.h"
+
+#include "script_box2d_v2.h"
+
+extern "C"
+{
+#include <lua/lauxlib.h>
+#include <lua/lualib.h>
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// b2Body
+namespace dmGameSystem
+{
+
+    static uint32_t TYPE_HASH_BODY = 0;
+
+    #define BOX2D_TYPE_NAME_BODY "b2body"
+
+    struct B2DLuaBody
+    {
+        HOpaqueHandle             m_Handle;
+    };
+
+    struct B2DBodyMeta
+    {
+        dmGameObject::HCollection m_Collection;
+        dmhash_t                  m_InstanceId;
+        uint32_t                  m_InstanceGeneration;
+    };
+
+    static dmOpaqueHandleContainer<uintptr_t> g_BodyHandles;
+    static dmHashTable64<HOpaqueHandle>       g_BodyToHandle;
+    static dmHashTable32<B2DBodyMeta>         g_BodyMeta;
+    // Defold's Box2D V2 fork stores fixture shapes by raw pointer instead of cloning them.
+    // Script-created fixtures therefore need an owned heap shape that lives until the fixture dies.
+    static dmHashTable64<FixtureShapeDef*>    g_FixtureShapes;
+
+    static uint64_t BodyPtrToKey(const b2Body* body)
+    {
+        return (uint64_t)(uintptr_t)body;
+    }
+
+    static uint64_t FixturePtrToKey(const b2Fixture* fixture)
+    {
+        return (uint64_t)(uintptr_t)fixture;
+    }
+
+    static uint32_t GetBodyInstanceGeneration(b2Body* body);
+
+    static void EnsureBodyHandleCapacity()
+    {
+        if (g_BodyHandles.Full())
+        {
+            g_BodyHandles.Allocate(32);
+            g_BodyToHandle.OffsetCapacity(32);
+            g_BodyMeta.OffsetCapacity(32);
+        }
+    }
+
+    static void EnsureFixtureShapeCapacity()
+    {
+        if (g_FixtureShapes.Full())
+        {
+            g_FixtureShapes.OffsetCapacity(32);
+        }
+        else if (g_FixtureShapes.Capacity() == 0)
+        {
+            g_FixtureShapes.SetCapacity(32);
+        }
+    }
+
+    static void ClearBodyHandles()
+    {
+        for (uint32_t i = 0; i < g_BodyHandles.Capacity(); ++i)
+        {
+            if (g_BodyHandles.GetByIndex(i))
+            {
+                g_BodyHandles.Release(g_BodyHandles.IndexToHandle(i));
+            }
+        }
+    }
+
+    static void ClearFixtureShapes()
+    {
+        if (g_FixtureShapes.Capacity() == 0)
+        {
+            return;
+        }
+
+        dmHashTable64<FixtureShapeDef*>::Iterator iter = g_FixtureShapes.GetIterator();
+        while (iter.Next())
+        {
+            FixtureShapeDef* shape_def = iter.GetValue();
+            delete shape_def;
+        }
+        g_FixtureShapes.Clear();
+    }
+
+    static void InvalidateBodyHandle(HOpaqueHandle handle)
+    {
+        uintptr_t* body_ptr = g_BodyHandles.Get(handle);
+        if (!body_ptr)
+            return;
+
+        const uint64_t key = BodyPtrToKey((b2Body*)body_ptr);
+        HOpaqueHandle* mapped_handle = g_BodyToHandle.Get(key);
+        if (mapped_handle && *mapped_handle == handle)
+        {
+            g_BodyToHandle.Erase(key);
+        }
+
+        B2DBodyMeta* body_meta = g_BodyMeta.Get(handle);
+        if (body_meta)
+        {
+            g_BodyMeta.Erase(handle);
+        }
+        g_BodyHandles.Release(handle);
+    }
+
+    static void RegisterBodyHandle(b2Body* body, dmGameObject::HCollection collection, dmhash_t instance_id, uint32_t instance_generation, HOpaqueHandle* out_handle)
+    {
+        assert(body);
+        EnsureBodyHandleCapacity();
+
+        const uint64_t key = BodyPtrToKey(body);
+        HOpaqueHandle* existing_handle = g_BodyToHandle.Get(key);
+        if (existing_handle)
+        {
+            uintptr_t* body_ptr = g_BodyHandles.Get(*existing_handle);
+            if (body_ptr)
+            {
+                B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
+                if (body_meta && body_meta->m_InstanceId)
+                {
+                    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(body_meta->m_Collection, body_meta->m_InstanceId);
+                    if (!instance || dmGameObject::GetGeneration(instance) != body_meta->m_InstanceGeneration)
+                    {
+                        InvalidateBodyHandle(*existing_handle);
+                        existing_handle = 0;
+                        body_ptr = 0;
+                    }
+                }
+            }
+
+            if (body_ptr)
+            {
+                B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
+                if (body_meta)
+                {
+                    body_meta->m_Collection = collection;
+                    body_meta->m_InstanceId = instance_id;
+                    body_meta->m_InstanceGeneration = instance_generation;
+                }
+                else
+                {
+                    B2DBodyMeta new_body_meta = {};
+                    new_body_meta.m_Collection = collection;
+                    new_body_meta.m_InstanceId = instance_id;
+                    new_body_meta.m_InstanceGeneration = instance_generation;
+                    g_BodyMeta.Put(*existing_handle, new_body_meta);
+                }
+
+                *out_handle = *existing_handle;
+                return;
+            }
+
+            // stale reverse mapping
+            g_BodyToHandle.Erase(key);
+        }
+
+        HOpaqueHandle handle = g_BodyHandles.Put((uintptr_t*) body);
+        g_BodyToHandle.Put(key, handle);
+
+        B2DBodyMeta body_meta = {};
+        body_meta.m_Collection = collection;
+        body_meta.m_InstanceId = instance_id;
+        body_meta.m_InstanceGeneration = instance_generation;
+        g_BodyMeta.Put(handle, body_meta);
+
+        *out_handle = handle;
+    }
+
+    static void PushBodyInternal(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id, uint32_t instance_generation)
+    {
+        B2DLuaBody* luabody = (B2DLuaBody*)lua_newuserdata(L, sizeof(B2DLuaBody));
+
+        RegisterBodyHandle((b2Body*)body, collection, instance_id, instance_generation, &luabody->m_Handle);
+
+        luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
+        lua_setmetatable(L, -2);
+    }
+
+    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    {
+        PushBodyInternal(L, body, collection, instance_id, GetBodyInstanceGeneration((b2Body*)body));
+    }
+
+    void PushBox2DVersion(lua_State* L)
+    {
+        lua_newtable(L);
+
+        lua_pushfstring(L, "%d.%d.%d", b2_version.major, b2_version.minor, b2_version.revision);
+        lua_setfield(L, -2, "version");
+
+        lua_pushinteger(L, b2_version.major);
+        lua_setfield(L, -2, "major");
+
+        lua_pushinteger(L, b2_version.minor);
+        lua_setfield(L, -2, "middle");
+
+        lua_pushinteger(L, b2_version.revision);
+        lua_setfield(L, -2, "minor");
+    }
+
+    void TrackOwnedFixtureShape(b2Fixture* fixture, FixtureShapeDef* shape_def)
+    {
+        assert(fixture);
+        assert(shape_def);
+        EnsureFixtureShapeCapacity();
+
+        const uint64_t key = FixturePtrToKey(fixture);
+        FixtureShapeDef** previous_shape_def = g_FixtureShapes.Get(key);
+        if (previous_shape_def)
+        {
+            delete *previous_shape_def;
+        }
+        g_FixtureShapes.Put(key, shape_def);
+    }
+
+    void ReleaseOwnedFixtureShape(b2Fixture* fixture)
+    {
+        if (!fixture)
+        {
+            return;
+        }
+
+        FixtureShapeDef** shape_def = g_FixtureShapes.Get(FixturePtrToKey(fixture));
+        if (!shape_def)
+        {
+            return;
+        }
+
+        delete *shape_def;
+        g_FixtureShapes.Erase(FixturePtrToKey(fixture));
+    }
+
+    static b2Vec2 CheckVec2(lua_State* L, int index, float scale)
+    {
+        dmVMath::Vector3* v = dmScript::CheckVector3(L, index);
+        return b2Vec2(v->getX() * scale, v->getY() * scale);
+    }
+
+    static dmVMath::Vector3 FromB2(const b2Vec2& p, float inv_scale)
+    {
+        return dmVMath::Vector3(p.x * inv_scale, p.y * inv_scale, 0);
+    }
+
+    static void PushMassData(lua_State* L, const b2MassData& mass_data)
+    {
+        lua_newtable(L);
+
+        lua_pushnumber(L, mass_data.mass);
+        lua_setfield(L, -2, "mass");
+
+        dmScript::PushVector3(L, FromB2(mass_data.center, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "center");
+
+        lua_pushnumber(L, mass_data.I);
+        lua_setfield(L, -2, "inertia");
+    }
+
+    static b2MassData CheckMassData(lua_State* L, int index)
+    {
+        luaL_checktype(L, index, LUA_TTABLE);
+
+        b2MassData mass_data = {};
+
+        lua_getfield(L, index, "mass");
+        mass_data.mass = luaL_checknumber(L, -1);
+        lua_pop(L, 1);
+
+        lua_getfield(L, index, "center");
+        mass_data.center = CheckVec2(L, -1, GetPhysicsScale());
+        lua_pop(L, 1);
+
+        lua_getfield(L, index, "inertia");
+        mass_data.I = luaL_checknumber(L, -1);
+        lua_pop(L, 1);
+
+        return mass_data;
+    }
+
+    // Returns the raw Lua userdata wrapper without touching the native handle.
+    // Callers that need the actual Box2D body must follow this with VerifyBodyInternal()
+    // so stale handles and dead game object instances are rejected consistently.
+    static B2DLuaBody* CheckBodyInternal(lua_State* L, int index)
+    {
+        return (B2DLuaBody*)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
+    }
+
+    static b2Body* VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody, B2DBodyMeta** out_body_meta)
+    {
+        uintptr_t* body_ptr = g_BodyHandles.Get(luabody->m_Handle);
+        if (!body_ptr)
+        {
+            luaL_error(L, "Invalid b2body handle.");
+            return 0;
+        }
+
+        B2DBodyMeta* body_meta = g_BodyMeta.Get(luabody->m_Handle);
+        if (!body_meta)
+        {
+            InvalidateBodyHandle(luabody->m_Handle);
+            luaL_error(L, "Invalid b2body handle.");
+            return 0;
+        }
+
+        dmhash_t instance_id = body_meta->m_InstanceId;
+        if (instance_id) // check if the instance is alive
+        {
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(body_meta->m_Collection, instance_id);
+            if (!instance || dmGameObject::GetGeneration(instance) != body_meta->m_InstanceGeneration)
+            {
+                InvalidateBodyHandle(luabody->m_Handle);
+                luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(instance_id));
+                return 0;
+            }
+        }
+
+        if (out_body_meta)
+        {
+            *out_body_meta = body_meta;
+        }
+
+        return (b2Body*) body_ptr;
+    }
+
+    b2Body* CheckBody(lua_State* L, int index)
+    {
+        B2DLuaBody* luabody = CheckBodyInternal(L, index);
+        return VerifyBodyInternal(L, luabody, 0);
+    }
+
+    static dmhash_t GetBodyInstanceId(b2Body* body)
+    {
+        void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
+
+        dmGameObject::HInstance instance = 0;
+        if (user_data)
+        {
+            instance = dmGameSystem::CompCollisionObjectGetInstance(user_data);
+        }
+
+        return instance ? dmGameObject::GetIdentifier(instance) : 0;
+    }
+
+    static uint32_t GetBodyInstanceGeneration(b2Body* body)
+    {
+        void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
+
+        dmGameObject::HInstance instance = 0;
+        if (user_data)
+        {
+            instance = dmGameSystem::CompCollisionObjectGetInstance(user_data);
+        }
+
+        return instance ? dmGameObject::GetGeneration(instance) : 0;
+    }
+
+    b2Fixture* GetFixtureByIndex(b2Body* body, int fixture_index)
+    {
+        if (fixture_index <= 0)
+        {
+            return 0;
+        }
+
+        b2Fixture* fixture = body->GetFixtureList();
+        int current_index = 1;
+        while (fixture)
+        {
+            if (current_index == fixture_index)
+            {
+                return fixture;
+            }
+            fixture = fixture->GetNext();
+            ++current_index;
+        }
+
+        return 0;
+    }
+
+    // Reuses the collection context from an existing Lua body handle when pushing a related
+    // native body. This keeps new handles tied to the same collection while deriving the
+    // instance id from the target body itself when that body belongs to a collision object.
+    void PushBodyFromReference(lua_State* L, b2Body* body, int reference_index)
+    {
+        B2DLuaBody* reference_body = CheckBodyInternal(L, reference_index);
+        B2DBodyMeta* body_meta = 0;
+        VerifyBodyInternal(L, reference_body, &body_meta);
+        PushBodyInternal(L, body, body_meta->m_Collection, GetBodyInstanceId(body), GetBodyInstanceGeneration(body));
+    }
+
+    static void PushFixtureInfo(lua_State* L, b2Fixture* fixture, int fixture_index)
+    {
+        lua_newtable(L);
+
+        lua_pushinteger(L, fixture_index);
+        lua_setfield(L, -2, "index");
+
+        lua_pushinteger(L, fixture->GetType());
+        lua_setfield(L, -2, "type");
+
+        lua_pushboolean(L, fixture->IsSensor());
+        lua_setfield(L, -2, "sensor");
+
+        lua_pushnumber(L, fixture->GetDensity());
+        lua_setfield(L, -2, "density");
+
+        lua_pushnumber(L, fixture->GetFriction());
+        lua_setfield(L, -2, "friction");
+
+        lua_pushnumber(L, fixture->GetRestitution());
+        lua_setfield(L, -2, "restitution");
+
+        lua_pushinteger(L, fixture->GetShape()->GetChildCount());
+        lua_setfield(L, -2, "child_count");
+    }
+
+    static int GetFixtureIndex(b2Body* body, const b2Fixture* fixture)
+    {
+        int fixture_index = 1;
+        for (b2Fixture* current = body->GetFixtureList(); current; current = current->GetNext(), ++fixture_index)
+        {
+            if (current == fixture)
+            {
+                return fixture_index;
+            }
+        }
+        return 0;
+    }
+
+    static B2DLuaBody* ToBody(lua_State* L, int index)
+    {
+        return (B2DLuaBody*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
+    }
+
+    static int Body_GetPosition(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(body->GetPosition(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetTransform(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+
+        lua_newtable(L);
+
+        dmScript::PushVector3(L, FromB2(body->GetPosition(), GetInvPhysicsScale()));
+        lua_setfield(L, -2, "position");
+
+        lua_pushnumber(L, body->GetAngle());
+        lua_setfield(L, -2, "angle");
+
+        return 1;
+    }
+
+    static int Body_SetTransform(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 position = CheckVec2(L, 2, GetPhysicsScale());
+        float angle = luaL_checknumber(L, 3);
+        body->SetTransform(position, angle);
+        return 0;
+    }
+
+    static int Body_ApplyForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 force = CheckVec2(L, 2, GetPhysicsScale());
+        b2Vec2 position = CheckVec2(L, 3, GetPhysicsScale());
+        body->ApplyForce(force, position);
+        return 0;
+    }
+
+    static int Body_ApplyForceToCenter(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 force = CheckVec2(L, 2, GetPhysicsScale());
+        body->ApplyForceToCenter(force);
+        return 0;
+    }
+
+    static int Body_ApplyTorque(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->ApplyTorque(luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Body_ApplyLinearImpulse(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 impulse = CheckVec2(L, 2, GetPhysicsScale());
+        b2Vec2 position = CheckVec2(L, 3, GetPhysicsScale()); // position relative center of body
+        body->ApplyLinearImpulse(impulse, position);
+        return 0;
+    }
+
+    static int Body_ApplyAngularImpulse(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->ApplyAngularImpulse(luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Body_GetMass(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetMass());
+        return 1;
+    }
+
+    static int Body_GetInertia(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetInertia());
+        return 1;
+    }
+
+    static int Body_GetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+
+        b2MassData mass_data = {};
+        body->GetMassData(&mass_data);
+        PushMassData(L, mass_data);
+        return 1;
+    }
+
+    static int Body_SetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2MassData mass_data = CheckMassData(L, 2);
+        body->SetMassData(&mass_data);
+        return 0;
+    }
+
+    static int Body_ResetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->ResetMassData();
+        return 0;
+    }
+
+    static int Body_GetFixtures(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+
+        lua_newtable(L);
+
+        b2Fixture* fixture = body->GetFixtureList();
+        int fixture_index = 1;
+        while (fixture)
+        {
+            PushFixtureInfo(L, fixture, fixture_index);
+            lua_rawseti(L, -2, fixture_index);
+            fixture = fixture->GetNext();
+            ++fixture_index;
+        }
+
+        return 1;
+    }
+
+    static int Body_CreateFixture(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+
+        FixtureShapeDef* shape_def = new FixtureShapeDef;
+        b2FixtureDef fixture_def;
+        CheckFixtureDef(L, 2, shape_def, &fixture_def);
+        fixture_def.userData = body->GetUserData();
+        b2Fixture* fixture = body->CreateFixture(&fixture_def);
+        if (!fixture)
+        {
+            delete shape_def;
+            return luaL_error(L, "Could not create fixture. The world may be locked.");
+        }
+
+        TrackOwnedFixtureShape(fixture, shape_def);
+
+        int fixture_index = GetFixtureIndex(body, fixture);
+        if (fixture_index == 0)
+        {
+            body->DestroyFixture(fixture);
+            ReleaseOwnedFixtureShape(fixture);
+            return luaL_error(L, "Could not resolve created fixture.");
+        }
+
+        PushFixtureInfo(L, fixture, fixture_index);
+        return 1;
+    }
+
+    static int Body_DestroyFixture(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        int fixture_index = luaL_checkinteger(L, 2);
+        b2Fixture* fixture = GetFixtureByIndex(body, fixture_index);
+        if (!fixture)
+        {
+            return luaL_error(L, "fixture_index %d out of range.", fixture_index);
+        }
+        // Release the owned script shape after Box2D destroys the fixture, since DestroyFixture()
+        // still reads the shape while tearing down proxies and filters.
+        body->DestroyFixture(fixture);
+        ReleaseOwnedFixtureShape(fixture);
+        return 0;
+    }
+
+    static int Body_GetAngle(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetAngle());
+        return 1;
+    }
+
+    static int Body_GetWorldCenter(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(body->GetWorldCenter(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetLocalCenter(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(body->GetLocalCenter(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(body->GetForce(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetLinearVelocity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(body->GetLinearVelocity(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_SetLinearVelocity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 velocity = CheckVec2(L, 2, GetPhysicsScale());
+        body->SetLinearVelocity(velocity);
+        return 0;
+    }
+
+    static int Body_GetAngularVelocity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetAngularVelocity());
+        return 1;
+    }
+
+    static int Body_SetAngularVelocity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->SetAngularVelocity(luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Body_GetLinearDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetLinearDamping());
+        return 1;
+    }
+
+    static int Body_SetLinearDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->SetLinearDamping(luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Body_GetAngularDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetAngularDamping());
+        return 1;
+    }
+
+    static int Body_SetAngularDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->SetAngularDamping(luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Body_GetGravityScale(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetGravityScale());
+        return 1;
+    }
+
+    static int Body_SetGravityScale(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->SetGravityScale(luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Body_GetType(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetType());
+        return 1;
+    }
+
+    static int Body_SetType(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->SetType((b2BodyType)luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Body_IsBullet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsBullet());
+        return 1;
+    }
+
+    static int Body_SetBullet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetBullet(enable);
+        return 0;
+    }
+
+    static int Body_IsAwake(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsAwake());
+        return 1;
+    }
+
+    static int Body_SetAwake(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetAwake(enable);
+        return 0;
+    }
+
+    static int Body_IsFixedRotation(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsFixedRotation());
+        return 1;
+    }
+
+    static int Body_SetFixedRotation(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetFixedRotation(enable);
+        return 0;
+    }
+
+    static int Body_IsSleepingAllowed(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsSleepingAllowed());
+        return 1;
+    }
+
+    static int Body_SetSleepingAllowed(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetSleepingAllowed(enable);
+        return 0;
+    }
+
+    static int Body_IsActive(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsActive());
+        return 1;
+    }
+
+    static int Body_SetActive(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetActive(enable);
+        return 0;
+    }
+
+    static int Body_GetWorldPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        dmScript::PushVector3(L, FromB2(body->GetWorldPoint(p), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetWorldVector(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        dmScript::PushVector3(L, FromB2(body->GetWorldVector(p), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetLocalPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        dmScript::PushVector3(L, FromB2(body->GetLocalPoint(p), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetLocalVector(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        dmScript::PushVector3(L, FromB2(body->GetLocalVector(p), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetLinearVelocityFromWorldPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        dmScript::PushVector3(L, FromB2(body->GetLinearVelocityFromWorldPoint(p), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetLinearVelocityFromLocalPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        dmScript::PushVector3(L, FromB2(body->GetLinearVelocityFromLocalPoint(p), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetWorld(lua_State *L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        PushWorld(L, (void*) body->GetWorld());
+        return 1;
+    }
+
+    static int Body_GetNext(lua_State *L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        B2DLuaBody* luabody = CheckBodyInternal(L, 1);
+        b2Body* body = VerifyBodyInternal(L, luabody, 0);
+
+        b2Body* next = body->GetNext();
+        if (next)
+        {
+            PushBodyFromReference(L, next, 1);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
+    static int Body_Dump(lua_State *L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->Dump();
+        return 0;
+    }
+
+    static int Body_tostring(lua_State *L)
+    {
+        b2Body* body = CheckBody(L, 1);
+        lua_pushfstring(L, "Box2D.%s = %p", BOX2D_TYPE_NAME_BODY, body);
+        return 1;
+    }
+
+    static int Body_eq(lua_State *L)
+    {
+        B2DLuaBody* a = ToBody(L, 1);
+        B2DLuaBody* b = ToBody(L, 2);
+        lua_pushboolean(L, a && b && a->m_Handle == b->m_Handle);
+        return 1;
+    }
+
+    static const luaL_reg Body_methods[] =
+    {
+        {0,0}
+    };
+
+    static const luaL_reg Body_meta[] =
+    {
+        {"__tostring", Body_tostring},
+        {"__eq", Body_eq},
+        {0,0}
+    };
+
+    static const luaL_reg Body_functions[] =
+    {
+        {"create_fixture", Body_CreateFixture},
+        {"get_transform", Body_GetTransform},
+        {"get_position", Body_GetPosition},
+        {"set_transform", Body_SetTransform},
+
+        {"get_mass", Body_GetMass},
+        {"get_inertia", Body_GetInertia},
+        {"get_mass_data", Body_GetMassData},
+        {"set_mass_data", Body_SetMassData},
+        {"reset_mass_data", Body_ResetMassData},
+        {"get_fixtures", Body_GetFixtures},
+        {"destroy_fixture", Body_DestroyFixture},
+        {"get_angle", Body_GetAngle},
+
+        // {"synchronize_fixtures", SynchronizeFixtures},
+        // SynchronizeSingle(b2Shape* shape, int32 index)
+
+        {"get_force", Body_GetForce},
+
+        {"get_linear_velocity", Body_GetLinearVelocity},
+        {"set_linear_velocity", Body_SetLinearVelocity},
+
+        {"get_angular_velocity", Body_GetAngularVelocity},
+        {"set_angular_velocity", Body_SetAngularVelocity},
+
+        {"get_linear_damping", Body_GetLinearDamping},
+        {"set_linear_damping", Body_SetLinearDamping},
+
+        {"get_angular_damping", Body_GetAngularDamping},
+        {"set_angular_damping", Body_SetAngularDamping},
+
+        {"is_bullet", Body_IsBullet},
+        {"set_bullet", Body_SetBullet},
+
+        {"is_awake", Body_IsAwake},
+        {"set_awake", Body_SetAwake},
+
+        {"is_fixed_rotation", Body_IsFixedRotation},
+        {"set_fixed_rotation", Body_SetFixedRotation},
+
+        {"is_sleeping_allowed", Body_IsSleepingAllowed},
+        {"set_sleeping_allowed", Body_SetSleepingAllowed},
+
+        {"is_active", Body_IsActive},
+        {"set_active", Body_SetActive},
+
+        {"get_gravity_scale", Body_GetGravityScale},
+        {"set_gravity_scale", Body_SetGravityScale},
+
+        {"get_type", Body_GetType},
+        {"set_type", Body_SetType},
+
+        {"get_world_center", Body_GetWorldCenter},
+        {"get_local_center", Body_GetLocalCenter},
+
+        {"get_world_point", Body_GetWorldPoint},
+        {"get_world_vector", Body_GetWorldVector},
+
+        {"get_local_point", Body_GetLocalPoint},
+        {"get_local_vector", Body_GetLocalVector},
+
+        {"get_linear_velocity_from_world_point", Body_GetLinearVelocityFromWorldPoint},
+        {"get_linear_velocity_from_local_point", Body_GetLinearVelocityFromLocalPoint},
+
+        {"apply_force", Body_ApplyForce},
+        {"apply_force_to_center", Body_ApplyForceToCenter},
+        {"apply_torque", Body_ApplyTorque},
+
+        {"apply_linear_impulse", Body_ApplyLinearImpulse},
+        {"apply_angular_impulse", Body_ApplyAngularImpulse},
+
+        {"get_next", Body_GetNext},
+
+        // {"GetFixtureList",GetFixtureList},
+        // {"GetContactList",GetContactList},
+        // {"GetJointList",GetJointList},
+
+        {"get_world", Body_GetWorld},
+        {"dump", Body_Dump},
+
+        {0,0}
+    };
+
+    void ScriptBox2DInitializeBody(struct lua_State* L)
+    {
+        TYPE_HASH_BODY = dmScript::RegisterUserType(L, BOX2D_TYPE_NAME_BODY, Body_methods, Body_meta);
+
+        lua_newtable(L);
+        luaL_register(L, 0, Body_functions);
+
+#define SET_CONSTANT(NAME, CUSTOM_NAME) \
+        lua_pushnumber(L, (lua_Number) NAME); \
+        lua_setfield(L, -2, CUSTOM_NAME);
+
+        SET_CONSTANT(b2_staticBody, "B2_STATIC_BODY");
+        SET_CONSTANT(b2_kinematicBody, "B2_KINEMATIC_BODY");
+        SET_CONSTANT(b2_dynamicBody, "B2_DYNAMIC_BODY");
+
+#undef SET_CONSTANT
+
+        lua_setfield(L, -2, "body");
+
+        ScriptBox2DInitializeFixture(L);
+        ScriptBox2DInitializeShape(L);
+    }
+
+    void ScriptBox2DInvalidateBody(void* body)
+    {
+        b2Body* b2_body = (b2Body*) body;
+        if (!b2_body)
+        {
+            return;
+        }
+
+        b2Fixture* fixture = b2_body->GetFixtureList();
+        while (fixture)
+        {
+            b2Fixture* next_fixture = fixture->GetNext();
+            if (g_FixtureShapes.Get(FixturePtrToKey(fixture)))
+            {
+                b2_body->DestroyFixture(fixture);
+                ReleaseOwnedFixtureShape(fixture);
+            }
+            fixture = next_fixture;
+        }
+
+        HOpaqueHandle* handle = g_BodyToHandle.Get(BodyPtrToKey(b2_body));
+        if (handle)
+        {
+            InvalidateBodyHandle(*handle);
+        }
+    }
+
+    void ScriptBox2DFinalizeBody()
+    {
+        TYPE_HASH_BODY = 0;
+
+        ClearBodyHandles();
+        ClearFixtureShapes();
+        g_BodyToHandle.Clear();
+        g_BodyMeta.Clear();
+    }
+}
+
+/*# Box2D b2Body documentation
+ *
+ * Functions for interacting with Box2D bodies.
+ *
+ * @document
+ * @name b2d.body
+ * @namespace b2d.body
+ * @language Lua
+ * @version 2
+ */
+
+/*# Static (immovable) body
+ *
+ * @name b2d.body.B2_STATIC_BODY
+ * @constant
+ */
+/*# Kinematic body
+ *
+ * @name b2d.body.B2_KINEMATIC_BODY
+ * @constant
+ */
+/*# Dynamic body
+ *
+ * @name b2d.body.B2_DYNAMIC_BODY
+ * @constant
+ */
+
+/**
+ * Creates a fixture and attach it to this body. Use this function if you need
+ * to set some fixture parameters, like friction. Otherwise you can create the
+ * fixture directly from a shape.
+ * If the density is non-zero, this function automatically updates the mass of the body.
+ * Contacts are not created until the next time step.
+ * @warning This function is locked during callbacks.
+ * @name b2d.body.create_fixture
+ * @param body [type: b2Body] body
+ * @param definition [type: table] fixture definition table with:
+ * `shape` = shape table, `friction` = number, `restitution` = number,
+ * `density` = number, `sensor` = boolean, and optional `filter` table.
+ * Supported shape tables are:
+ * `circle` = `{ type = b2d.shape.SHAPE_TYPE_CIRCLE, radius = number, center = vector3_or_nil }`
+ * `edge` = `{ type = b2d.shape.SHAPE_TYPE_EDGE, v1 = vector3, v2 = vector3, v0 = vector3_or_nil, v3 = vector3_or_nil }`
+ * `polygon` = `{ type = b2d.shape.SHAPE_TYPE_POLYGON, vertices = { vector3, ... } }`
+ * `box` = `{ type = b2d.shape.SHAPE_TYPE_BOX, hx = number, hy = number, center = vector3_or_nil, angle = radians_or_nil }`
+ * `chain` = `{ type = b2d.shape.SHAPE_TYPE_CHAIN, vertices = { vector3, ... }, loop = boolean_or_nil, prev_vertex = vector3_or_nil, next_vertex = vector3_or_nil }`
+ * @return fixture [type: table] fixture info table with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ *
+ * local triangle = b2d.body.create_fixture(body, {
+ *     density = 1.0,
+ *     friction = 0.3,
+ *     shape = {
+ *         type = b2d.shape.SHAPE_TYPE_POLYGON,
+ *         vertices = {
+ *             vmath.vector3(-16, -16, 0),
+ *             vmath.vector3( 16, -16, 0),
+ *             vmath.vector3(  0,  16, 0),
+ *         },
+ *     },
+ * })
+ * ```
+ */
+
+/**
+ * Creates a fixture from a shape and attach it to this body.
+ * This is a convenience function. Use b2FixtureDef if you need to set parameters
+ * like friction, restitution, user data, or filtering.
+ * If the density is non-zero, this function automatically updates the mass of the body.
+ * @warning This function is locked during callbacks.
+ * @name b2d.body.create_fixture
+ * @param body [type: b2Body] body
+ * @param shape  [type: b2Shape] the shape to be cloned.
+ * @param density [type: number] the shape density (set to zero for static bodies).
+ */
+
+/*#
+ * Set the position of the body's origin and rotation.
+ * This breaks any contacts and wakes the other bodies.
+ * Manipulating a body's transform may cause non-physical behavior.
+ * @name b2d.body.set_transform
+ * @param body [type: b2Body] body
+ * @param position [type: vector3] the world position of the body's local origin.
+ * @param angle [type: number] the world position of the body's local origin.
+ */
+
+/** Get the body transform for the body's origin.
+ * @name b2d.body.get_transform
+ * @param body [type: b2Body] body
+ * @return transform [type: table] table with `position` and `angle` in radians.
+ */
+
+/*# Get the world body origin position.
+ * @name b2d.body.get_position
+ * @param body [type: b2Body] body
+ * @return position [type: vector3] the world position of the body's origin.
+ */
+
+/*# Get the angle in radians.
+ * @name b2d.body.get_world_center
+ * @param body [type: b2Body] body
+ * @return angle [type: number] the current world rotation angle in radians.
+ */
+
+/*# Get the world position of the center of mass.
+ * @name b2d.body.get_world_center
+ * @param body [type: b2Body] body
+ * @return center [type: vector3] Get the world position of the center of mass.
+ */
+
+/*# Get the local position of the center of mass.
+ * @name b2d.body.get_local_center
+ * @param body [type: b2Body] body
+ * @return center [type: vector3] Get the local position of the center of mass.
+ */
+
+/*# Set the linear velocity of the center of mass.
+ * @name b2d.body.set_linear_velocity
+ * @param body [type: b2Body] body
+ * @param velocity [type: vector3] the new linear velocity of the center of mass.
+ */
+
+/*# Get the linear velocity of the center of mass.
+ * @name b2d.body.get_linear_velocity
+ * @param body [type: b2Body] body
+ * @return velocity [type: vector3] the linear velocity of the center of mass.
+ */
+
+/*# Set the angular velocity.
+ * @name b2d.body.set_angular_velocity
+ * @param body [type: b2Body] body
+ * @param omega [type: number] the new angular velocity in radians/second.
+ */
+
+/*# Get the angular velocity.
+ * @name b2d.body.get_angular_velocity
+ * @param body [type: b2Body] body
+ * @return velocity [type: number] the angular velocity in radians/second.
+ */
+
+/*#
+ * Apply a force at a world point. If the force is not
+ * applied at the center of mass, it will generate a torque and
+ * affect the angular velocity. This wakes up the body.
+ * @name b2d.body.apply_force
+ * @param body [type: b2Body] body
+ * @param force [type: vector3] the world force vector, usually in Newtons (N).
+ * @param point [type: vector3] the world position of the point of application.
+ */
+
+/*# Apply a force to the center of mass. This wakes up the body.
+ * @name b2d.body.apply_force_to_center
+ * @param body [type: b2Body] body
+ * @param force [type: vector3] the world force vector, usually in Newtons (N).
+ */
+
+/*#
+ * Apply a torque. This affects the angular velocity
+ * without affecting the linear velocity of the center of mass.
+ * This wakes up the body.
+ * @name b2d.body.apply_torque
+ * @param body [type: b2Body] body
+ * @param torque [type: number] torque about the z-axis (out of the screen), usually in N-m.
+ */
+
+/*#
+ * Apply an impulse at a point. This immediately modifies the velocity.
+ * It also modifies the angular velocity if the point of application
+ * is not at the center of mass. This wakes up the body.
+ * @name b2d.body.apply_linear_impulse
+ * @param body [type: b2Body] body
+ * @param impulse [type: vector3] the world impulse vector, usually in N-seconds or kg-m/s.
+ * @param point [type: vector3] the world position of the point of application.
+ */
+
+/*# Apply an angular impulse.
+ * @name b2d.body.apply_angular_impulse
+ * @param body [type: b2Body] body
+ * @param impulse [type: number] impulse the angular impulse in units of kg*m*m/s
+ */
+
+/*# Get the total mass of the body.
+ * @name b2d.body.get_mass
+ * @param body [type: b2Body] body
+ * @return mass [type: number] the mass, usually in kilograms (kg).
+ */
+
+/*# Get the rotational inertia of the body about the local origin.
+ * @name b2d.body.get_inertia
+ * @param body [type: b2Body] body
+ * @return inertia [type: number] the rotational inertia, usually in kg-m^2.
+ */
+
+/**
+ * Get the mass data of the body.
+ * @name b2d.body.get_mass_data
+ * @param body [type: b2Body] body
+ * @return data [type: table] table with `mass`, `center` in local coordinates, and `inertia`.
+ */
+
+/**
+ * Set the mass properties to override the mass properties of the fixtures.
+ * @note This function has no effect if the body isn't dynamic.
+ * @note This changes the center of mass position.
+ * @note Creating or destroying fixtures can also alter the mass.
+ * @name b2d.body.set_mass_data
+ * @param body [type: b2Body] body
+ * @param data [type: table] table with `mass`, `center` in local coordinates, and `inertia`.
+ */
+
+/*#
+ * This resets the mass properties to the sum of the mass properties of the fixtures.
+ * This normally does not need to be called unless you called SetMassData to override
+ * @name b2d.body.reset_mass_data
+ * @param body [type: b2Body] body
+ */
+
+/*# Get the fixtures attached to this body.
+ * @name b2d.body.get_fixtures
+ * @param body [type: b2Body] body
+ * @return fixtures [type: table] array of fixture info tables with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
+ */
+
+/*# Destroy a fixture from a body.
+ * @name b2d.body.destroy_fixture
+ * @param body [type: b2Body] body
+ * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ */
+
+/*# Get the world coordinates of a point given the local coordinates.
+ * @name b2d.body.get_world_point
+ * @param body [type: b2Body] body
+ * @param local_vector [type: vector3] localPoint a point on the body measured relative the the body's origin.
+ * @return vector [type: vector3] the same point expressed in world coordinates.
+ */
+
+/*# Get the world coordinates of a vector given the local coordinates.
+ * @name b2d.body.get_world_vector
+ * @param body [type: b2Body] body
+ * @param local_vector [type: vector3] a vector fixed in the body.
+ * @return vector [type: vector3] the same vector expressed in world coordinates.
+ */
+
+/*# Gets a local point relative to the body's origin given a world point.
+ * @name b2d.body.get_local_point
+ * @param body [type: b2Body] body
+ * @param world_point [type: vector3] a point in world coordinates.
+ * @return vector [type: vector3] the corresponding local point relative to the body's origin.
+ */
+
+/*# Gets a local vector given a world vector.
+ * @name b2d.body.get_local_vector
+ * @param body [type: b2Body] body
+ * @param world_vector [type: vector3] a vector in world coordinates.
+ * @return vector [type: vector3] the corresponding local vector.
+ */
+
+/*# Get the world linear velocity of a world point attached to this body.
+ * @name b2d.body.get_linear_velocity_from_world_point
+ * @param body [type: b2Body] body
+ * @param world_point [type: vector3] a point in world coordinates.
+ * @return velocity [type: vector3] the world velocity of a point.
+ */
+
+/*# Get the world velocity of a local point.
+ * @name b2d.body.get_linear_velocity_from_local_point
+ * @param body [type: b2Body] body
+ * @param local_point [type: vector3] a point in local coordinates.
+ * @return velocity [type: vector3] the world velocity of a point.
+ */
+
+/*# Set the linear damping of the body.
+ * @name b2d.body.set_linear_damping
+ * @param body [type: b2Body] body
+ * @param damping [type: number] the damping
+ */
+
+/*# Get the linear damping of the body.
+ * @name b2d.body.get_linear_damping
+ * @param body [type: b2Body] body
+ * @return damping [type: number] the damping
+ */
+
+/*# Set the angular damping of the body.
+ * @name b2d.body.set_angular_damping
+ * @param body [type: b2Body] body
+ * @param damping [type: number] the damping
+ */
+
+/*# Get the angular damping of the body.
+ * @name b2d.body.get_angular_damping
+ * @param body [type: b2Body] body
+ * @return damping [type: number] the damping
+ */
+
+/*# Set the gravity scale of the body.
+ * @name b2d.body.set_gravity_scale
+ * @param body [type: b2Body] body
+ * @param scale [type: number] the scale
+ */
+
+/*# Get the gravity scale of the body.
+ * @name b2d.body.get_gravity_scale
+ * @param body [type: b2Body] body
+ * @return scale [type: number] the scale
+ */
+
+/*# Set the type of this body. This may alter the mass and velocity.
+ * @name b2d.body.set_type
+ * @param body [type: b2Body] body
+ * @param type [type: b2BodyType] the body type
+ */
+
+/*# Get the type of this body.
+ * @name b2d.body.get_type
+ * @param body [type: b2Body] body
+ * @return type [type: b2BodyType] the body type
+ */
+
+
+/*# Should this body be treated like a bullet for continuous collision detection?
+ * @name b2d.body.set_bullet
+ * @param body [type: b2Body] body
+ * @param enable [type: boolean] if true, the body will be in bullet mode
+ */
+
+/*# Is this body in bullet mode
+ * @name b2d.body.is_bullet
+ * @param body [type: b2Body] body
+ * @return enabled [type: boolean] true if the body is in bullet mode
+ */
+
+/*# You can disable sleeping on this body. If you disable sleeping, the body will be woken.
+ * @name b2d.body.set_sleeping_allowed
+ * @param body [type: b2Body] body
+ * @param enable [type: boolean] if false, the body will never sleep, and consume more CPU
+ */
+
+/*# Is this body allowed to sleep
+ * @name b2d.body.is_sleeping_allowed
+ * @param body [type: b2Body] body
+ * @return enabled [type: boolean] true if the body is allowed to sleep
+ */
+
+/*# Set the sleep state of the body. A sleeping body has very low CPU cost.
+ * @name b2d.body.set_awake
+ * @param body [type: b2Body] body
+ * @param enable [type: boolean] flag set to false to put body to sleep, true to wake it.
+ */
+
+/*# Get the sleeping state of this body.
+ * @name b2d.body.is_awake
+ * @param body [type: b2Body] body
+ * @return enabled [type: boolean] true if the body is awake, false if it's sleeping.
+ */
+
+/*# Set the active state of the body
+ * Set the active state of the body. An inactive body is not
+ * simulated and cannot be collided with or woken up.
+ * If you pass a flag of true, all fixtures will be added to the
+ * broad-phase.
+ * If you pass a flag of false, all fixtures will be removed from
+ * the broad-phase and all contacts will be destroyed.
+ * Fixtures and joints are otherwise unaffected. You may continue
+ * to create/destroy fixtures and joints on inactive bodies.
+ * Fixtures on an inactive body are implicitly inactive and will
+ * not participate in collisions, ray-casts, or queries.
+ * Joints connected to an inactive body are implicitly inactive.
+ * An inactive body is still owned by a b2World object and remains
+ * in the body list.
+ *
+ * @name b2d.body.set_active
+ * @param body [type: b2Body] body
+ * @param enable [type: boolean] true if the body should be active
+ */
+
+/*# Get the active state of the body.
+ * @name b2d.body.is_active
+ * @param body [type: b2Body] body
+ * @return enabled [type: boolean] is the body active
+ */
+
+
+/*# Set this body to have fixed rotation. This causes the mass to be reset.
+ * @name b2d.body.set_fixed_rotation
+ * @param body [type: b2Body] body
+ * @param enable [type: boolean] true if the rotation should be fixed
+ */
+
+/*# Does this body have fixed rotation?
+ * @name b2d.body.is_fixed_rotation
+ * @param body [type: b2Body] body
+ * @return enabled [type: boolean] is the rotation fixed
+ */
+
+/** Get the list of all joints attached to this body.
+ * @name b2d.body.get_joint_list
+ * @param body [type: b2Body] body
+ * @return edge [type: b2JointEdge] the first joint
+ */
+
+/** Get the list of all contacts attached to this body.
+ * @name b2d.body.get_contact_list
+ * @param body [type: b2Body] body
+ * @return edge [type: b2ContactEdge] the first edge
+ */
+
+/*# Get the next body in the world's body list.
+ * @name b2d.body.get_next
+ * @param body [type: b2Body] body
+ * @return body [type: b2Body] the next body
+ */
+
+/*# Get the parent world of this body.
+ * @name b2d.body.get_world
+ * @param body [type: b2Body] body
+ * @return world [type: b2World]
+ */
+
+/*# Print the body representation to the log output
+ * @param body [type: b2Body] body
+ * @name b2d.body.dump
+ */
+
+/** Get the total force currently applied on this object
+ * @name b2d.body.get_force
+ * @note Defold Specific
+ * @param body [type: b2Body] body
+ * @return force [type: vector3]
+ */

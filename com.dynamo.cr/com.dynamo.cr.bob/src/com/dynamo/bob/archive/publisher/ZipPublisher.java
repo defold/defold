@@ -34,6 +34,7 @@ import java.util.zip.ZipOutputStream;
 public class ZipPublisher extends Publisher {
 
     private static Logger logger = Logger.getLogger(ZipPublisher.class.getName());
+    private static final long DETERMINISTIC_ZIP_ENTRY_TIME = 0L;
 
     private File tempZipFile = null;
     private File destZipFile = null;
@@ -126,6 +127,7 @@ public class ZipPublisher extends Publisher {
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
+            currentEntry.setTime(DETERMINISTIC_ZIP_ENTRY_TIME);
             synchronized (zipOutputStream) {
                 zipOutputStream.putNextEntry(currentEntry);
                 zipOutputStream.write(entry.getHeader());
@@ -151,6 +153,7 @@ public class ZipPublisher extends Publisher {
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
+            currentEntry.setTime(DETERMINISTIC_ZIP_ENTRY_TIME);
             synchronized (zipOutputStream) {
                 zipOutputStream.putNextEntry(currentEntry);
                 zipOutputStream.write(entry.getHeader());

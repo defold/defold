@@ -149,4 +149,12 @@ namespace dmRig
 
     void CopyBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose)
     { }
+
+    const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count)
+    {
+        return 0x0;
+    }
+
+    void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count)
+    { }
 }

@@ -336,11 +336,9 @@ dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}
 
 # Fetch libraries notification
 
-notification.fetch-libraries.dependencies-changed.prompt = 项目依赖项已更改。您想现在获取库吗？
-notification.fetch-libraries.dependencies-changed.action.fetch = 获取库
-notification.fetch-libraries.dependencies-missing.warning = 以下依赖项缺失：\n{dependencies}\n缺少这些依赖项，项目可能无法正常运行。\n如需下载，请连接互联网并获取相关库。
-notification.fetch-libraries.dependencies-error.error = 无法安装以下依赖：\n{dependencies}
-notification.fetch-libraries.dependencies-error.action.open-game-project = 打开 game.project
+notification.fetch-libraries.changed = 项目依赖项已更改。您想现在获取库吗？
+notification.fetch-libraries.action.fetch = 获取库
+notification.fetch-libraries.action.open-game-project = 打开 game.project
 
 # Settings notifications
 
@@ -506,7 +504,6 @@ dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
 dialog.bundle.option.architecture.x86_64-ios = 模拟器 (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
-dialog.bundle.option.architecture.js-web = asm.js
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + 线程支持
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
@@ -731,7 +728,6 @@ progress.cleaning = 正在清理…
 progress.generating-report = 正在生成报告…
 progress.working = 正在处理…
 progress.reading-classes = 正在读取类…
-progress.downloading-archives = 正在下载归档文件…
 progress.launching-engine = 正在启动引擎…
 progress.launched-engine = 已启动 {engine}
 progress.engine-launch-failed = 启动失败
@@ -1042,6 +1038,9 @@ operation.drop = 拖放
 operation.paste = 粘贴
 operation.select = 选择
 operation.tile-map.add-layer = 添加图层
+
+# Scene View Popups
+
 
 # Properties
 

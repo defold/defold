@@ -24,8 +24,8 @@ def build(bld):
         sources  = bld.path.ant_glob(['*.c', 'win32/*.c'])
         includes = '. win32'
     elif 'web' in platform:
-        sources  = bld.path.ant_glob('js-web/*.c')
-        includes = '. js-web'
+        sources  = bld.path.ant_glob('web/*.c')
+        includes = '. web'
 
     dmglfw = bld.stlib(features     = 'c',
                        source       = sources,

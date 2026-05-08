@@ -74,7 +74,7 @@ class DefaultTestHarness(TestHarness):
 
 class Html5TestHarness(DefaultTestHarness):
     def run_test(self, program, configfile, env, argv):
-        argv = [env['NODEJS'][0]] + argv
+        argv = [env['WASM_TEST_RUNNER'][0]] + argv
         return super(Html5TestHarness, self).run_test(program, configfile, env, argv)
 
 

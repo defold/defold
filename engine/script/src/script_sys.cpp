@@ -62,7 +62,7 @@ static int g_DebuggerLightweightHook = 0;
 
 union SaveLoadBuffer
 {
-    uint32_t m_alignment; // This alignment is required for js-web
+    uint32_t m_alignment; // This alignment is required for web targets
     char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
 } DM_ALIGNED(16) g_saveload;
 
@@ -129,9 +129,26 @@ union SaveLoadBuffer
 
     static int Sys_Save(lua_State* L)
     {
-        const char* filename = luaL_checkstring(L, 1);
+        size_t filename_len = 0;
+        const char* filename = luaL_checklstring(L, 1, &filename_len);
+
+        if (filename_len >= DMPATH_MAX_PATH)
+        {
+            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
+        }
 
         luaL_checktype(L, 2, LUA_TTABLE);
+
+        char tmp_filename[DMPATH_MAX_PATH];
+        // The counter and hash are there to make the files unique enough to avoid that the user
+        // accidentally writes to it.
+        static int save_counter = 0;
+        uint32_t hash = dmHashString32(filename);
+        int res = dmSnPrintf(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
+        if (res == -1)
+        {
+            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
+        }
 
         uint32_t table_size = CheckTableSize(L, 2);
 
@@ -143,19 +160,6 @@ union SaveLoadBuffer
         uint32_t n_used = CheckTable(L, buffer, table_size, 2);
 
 #if !defined(__EMSCRIPTEN__)
-
-        char tmp_filename[DMPATH_MAX_PATH];
-        // The counter and hash are there to make the files unique enough to avoid that the user
-        // accidentally writes to it.
-        static int save_counter = 0;
-        uint32_t hash = dmHashString32(filename);
-        int res = dmSnPrintf(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
-        if (res == -1)
-        {
-            Sys_FreeTableSerializationBuffer(buffer);
-            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
-        }
-
         FILE* file = fopen(tmp_filename, "wb");
         if (!file)
         {

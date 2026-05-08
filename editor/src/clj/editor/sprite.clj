@@ -508,6 +508,21 @@
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
   (property default-animation g/Str ; Required protobuf field.
+            ;; NOTE: There's an edge case where if the user sets :sprite-mode-manual before having selected the default animation,
+            ;; manual-size won't get set because it can't know the size of the sprite, so add a check to set it here
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [size-mode (g/node-value self :size-mode evaluation-context)
+                         manual-size (g/node-value self :manual-size evaluation-context)]
+                     (when (and (= :size-mode-manual size-mode)
+                                (= [0.0 0.0 0.0] manual-size))
+                       (let [texture-binding-infos (g/node-value self :texture-binding-infos evaluation-context)]
+                         (when-some [animation (some (fn [info]
+                                                       (get (:anim-data info) new-value))
+                                                     texture-binding-infos)]
+                           (g/set-property self :manual-size
+                                           [(double (:width animation))
+                                            (double (:height animation))
+                                            0.0])))))))
             (dynamic label (properties/label-dynamic :sprite :default-animation))
             (dynamic tooltip (properties/tooltip-dynamic :sprite :default-animation))
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]

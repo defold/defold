@@ -1,0 +1,16 @@
+name: "set_collection_cpp_cycle_level2"
+instances {
+  id: "go"
+  prototype: "/collection_proxy/set_collection_cpp_cycle_proxy.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}

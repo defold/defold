@@ -44,7 +44,6 @@ public class PlatformTest {
         testPlatformGet(Platform.Arm64Linux);
         testPlatformGet(Platform.Armv7Android);
         testPlatformGet(Platform.Arm64Android);
-        testPlatformGet(Platform.JsWeb);
         testPlatformGet(Platform.WasmWeb);
         testPlatformGet(Platform.WasmPthreadWeb);
     }
@@ -63,7 +62,6 @@ public class PlatformTest {
         assertTrue(Platform.get("armv7-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
         assertTrue(Platform.get("arm64-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
 
-        assertTrue(Platform.get("js-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
         assertTrue(Platform.get("wasm-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
         assertTrue(Platform.get("wasm_pthread-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
 
@@ -112,7 +110,6 @@ public class PlatformTest {
         assertTrue(Platform.Armv7Android.matchesOS(PlatformProfile.OS.OS_ID_ANDROID));
         assertTrue(Platform.Arm64Android.matchesOS(PlatformProfile.OS.OS_ID_ANDROID));
 
-        assertTrue(Platform.JsWeb.matchesOS(PlatformProfile.OS.OS_ID_WEB));
         assertTrue(Platform.WasmWeb.matchesOS(PlatformProfile.OS.OS_ID_WEB));
         assertTrue(Platform.WasmPthreadWeb.matchesOS(PlatformProfile.OS.OS_ID_WEB));
     }

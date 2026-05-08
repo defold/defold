@@ -39,6 +39,7 @@ namespace dmGraphics
         , m_TextureDepthStencil(0)
         , m_Id(rtId)
         , m_IsBound(0)
+        , m_HasPendingClearColor(0)
         , m_SubPassCount(0)
         , m_SubPassIndex(0)
     {
@@ -453,6 +454,12 @@ namespace dmGraphics
             case VK_IMAGE_LAYOUT_GENERAL:
                 return { VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // conservative
+
+            case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+                // Presentation happens outside the graphics pipeline, so there is no matching
+                // access mask to wait on. BOTTOM_OF_PIPE is a conservative stage for transitions
+                // to and from the present engine.
+                return { 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT };
 
             default:
                 assert(false && "Unsupported VkImageLayout in GetAccessMaskAndStage");
@@ -1164,6 +1171,14 @@ bail:
         VK_BLEND_FACTOR_SRC_ALPHA_SATURATE
     };
 
+    static const VkBlendOp g_vk_blend_equations[] = {
+        VK_BLEND_OP_ADD,
+        VK_BLEND_OP_SUBTRACT,
+        VK_BLEND_OP_REVERSE_SUBTRACT,
+        VK_BLEND_OP_MIN,
+        VK_BLEND_OP_MAX
+    };
+
     static const VkStencilOp g_vk_stencil_ops[] = {
         VK_STENCIL_OP_KEEP,
         VK_STENCIL_OP_ZERO,
@@ -1186,7 +1201,7 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreateComputePipeline(VkDevice vk_device, VulkanProgram* program, Pipeline* pipelineOut)
+    VkResult CreateComputePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VulkanProgram* program, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1198,10 +1213,10 @@ bail:
         vk_pipeline_create_info.layout             = program->m_Handle.m_PipelineLayout;
         vk_pipeline_create_info.pNext              = 0;
         vk_pipeline_create_info.stage              = program->m_ComputeModule->m_PipelineStageInfo;
-        return vkCreateComputePipelines(vk_device, 0, 1, &vk_pipeline_create_info, 0, pipelineOut);
+        return vkCreateComputePipelines(vk_device, vk_pipeline_cache, 1, &vk_pipeline_create_info, 0, pipelineOut);
     }
 
-    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
+    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
         RenderTarget* render_target, Pipeline* pipelineOut)
     {
@@ -1317,10 +1332,10 @@ bail:
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
             blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+            blend_attachment.colorBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationColor];
+            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactorAlpha];
+            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactorAlpha];
+            blend_attachment.alphaBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationAlpha];
         }
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;
@@ -1406,12 +1421,13 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
+
         vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
         vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 
-        return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, pipelineOut);
+        return vkCreateGraphicsPipelines(vk_device, vk_pipeline_cache, 1, &vk_pipeline_info, 0, pipelineOut);
     }
 
     void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
@@ -1499,8 +1515,15 @@ bail:
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
         DestroyRenderPass(vk_device, handle->m_RenderPass);
-        handle->m_Framebuffer = VK_NULL_HANDLE;
-        handle->m_RenderPass = VK_NULL_HANDLE;
+        // Only destroy the CLEAR variant if it's a distinct object. For the main RT it aliases
+        // context->m_MainRenderPass, which is destroyed by the context teardown instead.
+        if (handle->m_RenderPassClear != VK_NULL_HANDLE && handle->m_RenderPassClear != handle->m_RenderPass)
+        {
+            DestroyRenderPass(vk_device, handle->m_RenderPassClear);
+        }
+        handle->m_Framebuffer     = VK_NULL_HANDLE;
+        handle->m_RenderPass      = VK_NULL_HANDLE;
+        handle->m_RenderPassClear = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)

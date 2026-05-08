@@ -22,7 +22,7 @@ import com.dynamo.bob.util.BobNLS;
 
 public class BuilderUtil {
 
-    // Returns "dae" from "path/to.dae"
+    // Returns "gltf" from "path/to.gltf"
     public static String getSuffix(String path) {
         return path.substring(path.lastIndexOf(".") + 1);
     }

@@ -99,6 +99,7 @@ namespace dmGameObject
             m_PrevEulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_Prototype = prototype;
             m_IdentifierIndex = INVALID_INSTANCE_POOL_INDEX;
+            m_Generation = 0;
             m_Identifier = UNNAMED_IDENTIFIER;
             dmHashInit64(&m_CollectionPathHashState, false);
             m_Depth = 0;
@@ -132,6 +133,7 @@ namespace dmGameObject
         Prototype*      m_Prototype;
 
         uint32_t        m_IdentifierIndex;
+        uint32_t        m_Generation;
         dmhash_t        m_Identifier;
 
         // Collection path hash-state. Used for calculating global identifiers. Contains the hash-state for the collection-path to the instance.
@@ -265,7 +267,7 @@ namespace dmGameObject
 
         dmMutex::HMutex          m_Mutex;
 
-        // Counter for generating instance ids, protected by m_Mutex
+        // Counter for generating instance generations, protected by m_Mutex
         uint32_t                 m_GenInstanceCounter;
         uint32_t                 m_GenCollectionInstanceCounter;
         dmIndexPool32            m_InstanceIdPool;
@@ -308,6 +310,7 @@ namespace dmGameObject
     void Delete(Collection* collection, HInstance instance, bool recursive);
     void UpdateTransforms(Collection* collection);
     void UpdateTransformsForInstance(Collection* collection, Instance* instance);
+    bool IsGameObjectTransformProperty(dmhash_t property_id);
     void DeleteCollection(Collection* collection);
     bool IsCollectionInitialized(Collection* collection);
     Result AttachCollection(Collection* collection, const char* name, dmResource::HFactory factory, HRegister regist, HCollection hcollection);

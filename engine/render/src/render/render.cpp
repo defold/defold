@@ -38,6 +38,23 @@ namespace dmRender
 {
     using namespace dmVMath;
 
+    static void UpdateRenderContextMatrices(HRenderContext render_context, const Matrix4& view, const Matrix4& projection)
+    {
+        static const Matrix4 adjusted_ndc_matrix = []()
+        {
+            Matrix4 ndc_matrix = Matrix4::identity();
+            ndc_matrix.setElem(2, 2, 0.5f);
+            ndc_matrix.setElem(3, 2, 0.5f);
+            return ndc_matrix;
+        }();
+
+        render_context->m_View = view;
+        render_context->m_Projection = projection;
+        render_context->m_ViewProj = projection * view;
+        render_context->m_ProjectionAdjustedNDC = adjusted_ndc_matrix * projection;
+        render_context->m_ViewProjAdjustedNDC = adjusted_ndc_matrix * render_context->m_ViewProj;
+    }
+
     const char* RENDER_SOCKET_NAME = "@render";
 
     // Declararions are in render.h
@@ -55,6 +72,8 @@ namespace dmRender
     const dmhash_t VERTEX_STREAM_ANIMATION_DATA       = dmHashString64("animation_data");
     const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D = dmHashString64("texture_transform_2d");
     const dmhash_t SAMPLER_POSE_MATRIX_CACHE          = dmHashString64("pose_matrix_cache");
+    const dmhash_t SAMPLER_MORPH_TARGETS              = dmHashString64("morph_targets");
+    const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS     = dmHashString64("morph_targets_weights");
     const dmhash_t FRUSTUM_HASH_UNINITIALIZED         = 0;
 
     StencilTestParams::StencilTestParams() {
@@ -127,9 +146,7 @@ namespace dmRender
         context->m_Material = 0;
         context->m_CurrentRenderCamera = 0;
 
-        context->m_View = Matrix4::identity();
-        context->m_Projection = Matrix4::identity();
-        context->m_ViewProj = context->m_Projection * context->m_View;
+        UpdateRenderContextMatrices(context, Matrix4::identity(), Matrix4::identity());
         context->m_Time = 0.0f;
         context->m_Dt = 0.0f;
 
@@ -163,6 +180,11 @@ namespace dmRender
         {
             context->m_MultiBufferingRequired = 1;
         }
+
+        context->m_UseAdjustedNDC = installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
+                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
+                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR;
 
         context->m_RenderListDispatch.SetCapacity(255);
 
@@ -346,14 +368,12 @@ namespace dmRender
 
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
     {
-        render_context->m_View = view;
-        render_context->m_ViewProj = render_context->m_Projection * view;
+        UpdateRenderContextMatrices(render_context, view, render_context->m_Projection);
     }
 
     void SetProjectionMatrix(HRenderContext render_context, const Matrix4& projection)
     {
-        render_context->m_Projection = projection;
-        render_context->m_ViewProj = projection * render_context->m_View;
+        UpdateRenderContextMatrices(render_context, render_context->m_View, projection);
     }
 
     void SetFrameTime(HRenderContext render_context, float time, float dt)
@@ -389,7 +409,7 @@ namespace dmRender
         // Also see FontRenderListDispatch in font_renderer.cpp
         context->m_TextContext.m_Frame += 1;
         context->m_TextContext.m_TextBuffer.SetSize(0);
-        context->m_TextContext.m_TextEntries.SetSize(0);
+        ClearTextEntries(context);
 
         return RESULT_OK;
     }
@@ -400,9 +420,21 @@ namespace dmRender
     {
         #define HAS_CHANGED(name) (ps_now.name != ps_orig.name)
 
-        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor) ||
+            HAS_CHANGED(m_BlendSrcFactorAlpha) || HAS_CHANGED(m_BlendDstFactorAlpha))
         {
-            dmGraphics::SetBlendFunc(graphics_context, (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor);
+            dmGraphics::SetBlendFuncSeparate(graphics_context,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactorAlpha,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactorAlpha);
+        }
+
+        if (HAS_CHANGED(m_BlendEquationColor) || HAS_CHANGED(m_BlendEquationAlpha))
+        {
+            dmGraphics::SetBlendEquationSeparate(graphics_context,
+                (dmGraphics::BlendEquation) ps_orig.m_BlendEquationColor,
+                (dmGraphics::BlendEquation) ps_orig.m_BlendEquationAlpha);
         }
 
         if (HAS_CHANGED(m_FaceWinding))
@@ -461,8 +493,10 @@ namespace dmRender
 
         if (ro->m_SetBlendFactors)
         {
-            ps_now.m_BlendSrcFactor = ro->m_SourceBlendFactor;
-            ps_now.m_BlendDstFactor = ro->m_DestinationBlendFactor;
+            ps_now.m_BlendSrcFactor      = ro->m_SourceBlendFactor;
+            ps_now.m_BlendDstFactor      = ro->m_DestinationBlendFactor;
+            ps_now.m_BlendSrcFactorAlpha = ro->m_SourceBlendFactor;
+            ps_now.m_BlendDstFactorAlpha = ro->m_DestinationBlendFactor;
         }
 
         if (ro->m_SetFaceWinding)
@@ -934,9 +968,7 @@ namespace dmRender
                     UpdateRenderCamera(context, context->m_CurrentRenderCamera, &camera->m_LastPosition, &camera->m_LastRotation);
                 }
 
-                context->m_View       = camera->m_View;
-                context->m_Projection = camera->m_Projection;
-                context->m_ViewProj   = camera->m_ViewProjection;
+                UpdateRenderContextMatrices(context, camera->m_View, camera->m_Projection);
 
                 if (context->m_CurrentRenderCameraUseFrustum)
                 {

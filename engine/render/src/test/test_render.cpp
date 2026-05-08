@@ -56,6 +56,15 @@ const static uint32_t COLOR_TRANSPARENT_RGBA = 0x00000000u;
 
 using namespace dmVMath;
 
+static void AssertMatrixUniformData(const dmVMath::Matrix4& expected, const float* actual)
+{
+    const float* expected_values = (const float*) &expected;
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        ASSERT_NEAR(expected_values[i], actual[i], EPSILON);
+    }
+}
+
 static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
 {
     dmRenderDDF::GlyphBank* bank = new dmRenderDDF::GlyphBank;
@@ -349,6 +358,90 @@ TEST_F(dmRenderTest, TestRenderCameraEffectiveAspectRatio)
 
     effective_aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera);
     ASSERT_NEAR(5.0f, effective_aspect_ratio, EPSILON); // Should use stored value now
+
+    dmRender::DeleteRenderCamera(m_Context, camera);
+}
+
+TEST_F(dmRenderTest, TestRenderCameraOrthographicAutoZoom)
+{
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_BaseContext.m_Width = 10;
+    null_context->m_BaseContext.m_Height = 10;
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport               = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_AspectRatio            = 1.0f;
+    data.m_Fov                    = M_PI / 4.0f;
+    data.m_NearZ                  = 0.1f;
+    data.m_FarZ                   = 100.0f;
+    data.m_OrthographicZoom       = 3.0f;
+    data.m_OrthographicProjection = true;
+    data.m_OrthographicMode       = dmRender::ORTHO_MODE_AUTO_COVER;
+
+    dmRender::RenderCameraData invalid_data = data;
+    invalid_data.m_OrthographicZoom = 0.0f;
+    dmRender::SetRenderCameraData(m_Context, camera, &invalid_data);
+    dmRender::RenderCameraData sanitized_data = {};
+    dmRender::GetRenderCameraData(m_Context, camera, &sanitized_data);
+    ASSERT_NEAR(1.0f, sanitized_data.m_OrthographicZoom, EPSILON);
+
+    invalid_data.m_OrthographicZoom = -1.0f;
+    dmRender::SetRenderCameraData(m_Context, camera, &invalid_data);
+    dmRender::GetRenderCameraData(m_Context, camera, &sanitized_data);
+    ASSERT_NEAR(1.0f, sanitized_data.m_OrthographicZoom, EPSILON);
+
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    ASSERT_NEAR(1.0f, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
+
+    float display_scale = dmGraphics::GetDisplayScaleFactor(m_GraphicsContext);
+    if (display_scale <= 0.0f)
+    {
+        display_scale = 1.0f;
+    }
+    float width         = (float) dmGraphics::GetWindowWidth(m_GraphicsContext);
+    float height        = (float) dmGraphics::GetWindowHeight(m_GraphicsContext);
+    float proj_width    = (float) dmGraphics::GetWidth(m_GraphicsContext);
+    float proj_height   = (float) dmGraphics::GetHeight(m_GraphicsContext);
+    float zx            = width / (display_scale * proj_width);
+    float zy            = height / (display_scale * proj_height);
+    float auto_cover    = zx > zy ? zx : zy;
+    float auto_fit      = zx < zy ? zx : zy;
+
+    dmVMath::Point3 position(0.0f, 0.0f, 0.0f);
+    dmVMath::Quat rotation(0.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
+    ASSERT_NEAR(auto_cover, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
+
+    dmVMath::Matrix4 projection;
+    dmRender::GetRenderCameraProjection(m_Context, camera, &projection);
+
+    float effective_zoom = auto_cover * data.m_OrthographicZoom;
+    float zoomed_width   = width / display_scale / effective_zoom;
+    float zoomed_height  = height / display_scale / effective_zoom;
+    dmVMath::Matrix4 expected_projection = dmVMath::Matrix4::orthographic(
+        -zoomed_width / 2.0f, zoomed_width / 2.0f,
+        -zoomed_height / 2.0f, zoomed_height / 2.0f,
+        data.m_NearZ, data.m_FarZ);
+
+    for (int row = 0; row < 4; ++row)
+    {
+        for (int col = 0; col < 4; ++col)
+        {
+            ASSERT_NEAR(expected_projection.getElem(row, col), projection.getElem(row, col), EPSILON);
+        }
+    }
+
+    data.m_OrthographicMode = dmRender::ORTHO_MODE_AUTO_FIT;
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
+    ASSERT_NEAR(auto_fit, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
+
+    data.m_OrthographicMode = dmRender::ORTHO_MODE_FIXED;
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
+    ASSERT_NEAR(1.0f, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
 
     dmRender::DeleteRenderCamera(m_Context, camera);
 }
@@ -1921,7 +2014,7 @@ TEST_F(dmRenderTest, GetPreparedTextMetrics)
     ASSERT_EQ(raw_metrics.m_MaxDescent, prepared_metrics.m_MaxDescent);
     ASSERT_EQ(raw_metrics.m_LineCount, prepared_metrics.m_LineCount);
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
     dmRender::DestroyFontRenderBackend(font_backend);
 }
 
@@ -1986,7 +2079,7 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
     ASSERT_EQ(raw_count, prepared_count);
     ASSERT_EQ(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
     dmRender::DestroyFontRenderBackend(font_backend);
 }
 
@@ -2039,7 +2132,7 @@ TEST_F(dmRenderTest, CreateFontVertexDataUsesPreparedTextLayout)
     ASSERT_EQ(raw_count, prepared_count);
     ASSERT_NE(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
 
-    TextLayoutFree(wrapped_layout);
+    TextLayoutRelease(wrapped_layout);
     dmRender::DestroyFontRenderBackend(font_backend);
 }
 
@@ -2112,8 +2205,74 @@ TEST_F(dmRenderTest, DrawTextUsesPreparedTextLayoutThroughRenderQueue)
     ASSERT_NE(raw_radius_sq, prepared_radius_sq);
     ASSERT_EQ(0u, m_Context->m_TextContext.m_TextBuffer.Size());
 
-    TextLayoutFree(wrapped_layout);
+    TextLayoutRelease(wrapped_layout);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    dmRender::SetFontMapMaterial(m_SystemFontMap, old_material);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
+{
+    // Once DrawText queues a prepared layout, the render queue must keep it
+    // alive until ClearRenderObjects drops the queued text entries.
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial old_material = dmRender::GetFontMapMaterial(m_SystemFontMap);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmRender::SetFontMapMaterial(m_SystemFontMap, material);
+
+    TextLayoutSettings settings = {};
+    settings.m_Width = 16.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Tracking = 0.0f;
+    settings.m_LineBreak = true;
+
+    HTextLayout layout = CreateTextLayout(m_SystemFontMap, "Hello World Bonanza", settings);
+    ASSERT_NE((HTextLayout)0, layout);
+
+    TextLayoutAcquire(layout);
+    ASSERT_EQ(2u, layout->m_RefCount);
+
+    dmRender::DrawTextParams params;
+    params.m_Text = 0;
+    params.m_TextLayout = layout;
+    params.m_Width = settings.m_Width;
+    params.m_Height = 0.0f;
+    params.m_Leading = settings.m_Leading;
+    params.m_Tracking = settings.m_Tracking;
+    params.m_LineBreak = settings.m_LineBreak;
+    params.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(layout, m_Context->m_TextContext.m_TextEntries[0].m_TextLayout);
+    ASSERT_EQ(3u, layout->m_RefCount);
+
+    TextLayoutRelease(layout);
+    ASSERT_EQ(2u, layout->m_RefCount);
+
+    dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(2u, layout->m_RefCount);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    ASSERT_EQ(1u, layout->m_RefCount);
+
+    TextLayoutRelease(layout);
     dmRender::SetFontMapMaterial(m_SystemFontMap, old_material);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
@@ -2426,8 +2585,28 @@ TEST(Constants, Constant)
     ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
-    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME);
-    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME, dmRender::GetConstantType(constant));
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
     dmRender::DeleteConstant(constant);
@@ -2473,9 +2652,7 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
                                  m_GraphicsContext,
                                  identity,
                                  identity,
-                                 dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
                                  dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME,
-                                 program,
                                  time_uniform->m_Location,
                                  0);
 
@@ -2485,6 +2662,86 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
     ASSERT_NEAR(dt,   written[1], EPSILON);
     ASSERT_NEAR(0.0f, written[2], EPSILON);
     ASSERT_NEAR(0.0f, written[3], EPSILON);
+
+    dmGraphics::DisableProgram(m_GraphicsContext);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+TEST_F(dmRenderTest, ConstantTypeInverseMatricesSetExpectedValues)
+{
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddTypeMember("matrix", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    shader_desc_builder.AddUniformBuffer("matrix", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_MAT4));
+
+    const char* vertex_data   = "";
+    const char* fragment_data = "";
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex_data, (uint32_t) strlen(vertex_data));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment_data, (uint32_t) strlen(fragment_data));
+
+    dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader, 0, 0);
+
+    const dmGraphics::Uniform* matrix_uniform = dmGraphics::GetUniform(program, dmHashString64("matrix"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, matrix_uniform->m_Location);
+
+    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
+    uint32_t set           = UNIFORM_LOCATION_GET_OP0(matrix_uniform->m_Location);
+    uint32_t binding       = UNIFORM_LOCATION_GET_OP1(matrix_uniform->m_Location);
+    uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(matrix_uniform->m_Location);
+    dmGraphics::ProgramResourceBinding& pgm_res = null_program->m_BaseProgram.m_ResourceBindings[set][binding];
+    uint32_t uniform_offset = pgm_res.m_UniformBufferOffset + buffer_offset;
+    float* written = (float*) (null_program->m_UniformData + uniform_offset);
+
+    dmVMath::Matrix4 world = dmVMath::Matrix4::translation(dmVMath::Vector3(2.0f, -3.0f, 4.0f)) * dmVMath::Matrix4::rotationZ(0.25f);
+    dmVMath::Matrix4 view = dmVMath::Matrix4::translation(dmVMath::Vector3(-1.0f, 2.0f, -5.0f)) * dmVMath::Matrix4::rotationY(0.5f);
+    dmVMath::Matrix4 projection = dmVMath::Matrix4::perspective(1.1f, 1.3f, 0.1f, 100.0f);
+    dmVMath::Matrix4 texture = dmVMath::Matrix4::identity();
+
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, projection);
+
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+
+    struct ConstantMatrixExpectation
+    {
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;
+        dmGraphics::ShaderDesc::Language        m_Language;
+        dmVMath::Matrix4                        m_Expected;
+    };
+
+    const dmVMath::Matrix4 view_projection = projection * view;
+    m_Context->m_UseAdjustedNDC = 1;
+    const dmVMath::Matrix4 adjusted_projection = dmRender::GetProjectionMatrixForProgram(m_Context);
+    const dmVMath::Matrix4 adjusted_view_projection = dmRender::GetViewProjectionMatrixForProgram(m_Context);
+    m_Context->m_UseAdjustedNDC = 0;
+
+    ConstantMatrixExpectation expectations[] =
+    {
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view_projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view * world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmVMath::Inverse(view_projection * world) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_view_projection) },
+        { dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmVMath::Inverse(adjusted_view_projection * world) },
+    };
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(expectations); ++i)
+    {
+        const ConstantMatrixExpectation& expectation = expectations[i];
+        m_Context->m_UseAdjustedNDC = expectation.m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
+        dmRender::SetProgramConstant(m_Context,
+                                     m_GraphicsContext,
+                                     world,
+                                     texture,
+                                     expectation.m_Type,
+                                     matrix_uniform->m_Location,
+                                     0);
+        AssertMatrixUniformData(expectation.m_Expected, written);
+    }
+    m_Context->m_UseAdjustedNDC = 0;
 
     dmGraphics::DisableProgram(m_GraphicsContext);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);

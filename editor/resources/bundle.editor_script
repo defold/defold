@@ -71,7 +71,6 @@ local html5_bundle_dialog = editor.ui.component(function(props)
     local architecture_error = html5_errors(config)
     return editor.bundle.dialog(localization.message("dialog.bundle.header.html5"), config, nil, architecture_error, {
         editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "js-web", localization.message("dialog.bundle.option.architecture.js-web"), architecture_error),
             editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", localization.message("dialog.bundle.option.architecture.wasm-web"), architecture_error),
             editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm_pthread-web", localization.message("dialog.bundle.option.architecture.wasm_pthread-web"), architecture_error)
         }),
@@ -83,18 +82,15 @@ end)
 
 local function bundle_html5(show_dialog)
     local config = editor.bundle.config(show_dialog, "bundle.html5", html5_bundle_dialog, html5_errors)
-    local js = config.architectures["js-web"]
     local wasm = config.architectures["wasm-web"]
     local wasm_pthread = config.architectures["wasm_pthread-web"]
-    local has_wasm = wasm or wasm_pthread
-    local output_subdir = (js and has_wasm and "universal-web") or (has_wasm and "wasm-web") or "js-web"
+    local output_subdir = (wasm and wasm_pthread and "universal-web") or (wasm_pthread and "wasm_pthread-web") or "wasm-web"
     local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
     local architectures = {}
-    table.insert(architectures, js and "js-web" or nil)
     table.insert(architectures, wasm and "wasm-web" or nil)
     table.insert(architectures, wasm_pthread and "wasm_pthread-web" or nil)
     local architectures_str = table.concat(architectures, ',')
-    editor.bundle.create(config, output_directory, {platform = "js-web", architectures = architectures_str})
+    editor.bundle.create(config, output_directory, {platform = "wasm-web", architectures = architectures_str})
 end
 
 --- WINDOWS
@@ -570,7 +566,7 @@ function M.get_prefs_schema()
         }),
         ["bundle.html5"] = editor.bundle.config_schema(editor.bundle.common_variant_schema, {
             architectures = editor.prefs.schema.set({
-                item = editor.prefs.schema.enum({values = {"js-web", "wasm-web", "wasm_pthread-web"}}),
+                item = editor.prefs.schema.enum({values = {"wasm-web", "wasm_pthread-web"}}),
                 default = {["wasm-web"] = true}
             })
         }),

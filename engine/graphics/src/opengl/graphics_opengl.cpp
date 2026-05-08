@@ -113,6 +113,8 @@
     typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
     typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
     typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+    typedef void (APIENTRY * PFNGLBLENDFUNCSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+    typedef void (APIENTRY * PFNGLBLENDEQUATIONSEPARATEPROC) (GLenum, GLenum);
     typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei, const GLenum*);
     typedef GLint (APIENTRY * PFNGLGETFRAGDATALOCATIONPROC) (GLuint, const char*);
     typedef void (APIENTRY * PFNGLBINDFRAGDATALOCATIONPROC) (GLuint, GLuint, const char*);
@@ -142,6 +144,8 @@
     PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
     PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate = NULL;
     PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate = NULL;
+    PFNGLBLENDFUNCSEPARATEPROC glBlendFuncSeparate = NULL;
+    PFNGLBLENDEQUATIONSEPARATEPROC glBlendEquationSeparate = NULL;
 
     PFNGLGETACTIVEATTRIBPROC glGetActiveAttrib = NULL;
     PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
@@ -534,7 +538,7 @@ static void LogFrameBufferError(GLenum status)
         m_BaseContext.m_Width                   = params.m_Width;
         m_BaseContext.m_Height                  = params.m_Height;
         m_BaseContext.m_Window                  = params.m_Window;
-        m_JobContext              = params.m_JobContext;
+        m_JobContext                            = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
         if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -691,6 +695,21 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static inline GLenum GetOpenGLBlendEquation(BlendEquation equation)
+    {
+        switch (equation)
+        {
+            case BLEND_EQUATION_ADD:              return GL_FUNC_ADD;
+            case BLEND_EQUATION_SUBTRACT:         return GL_FUNC_SUBTRACT;
+            case BLEND_EQUATION_REVERSE_SUBTRACT: return GL_FUNC_REVERSE_SUBTRACT;
+            case BLEND_EQUATION_MIN:              return GL_MIN;
+            case BLEND_EQUATION_MAX:              return GL_MAX;
+            default:
+                assert(0 && "Unsupported blend equation");
+                return GL_FUNC_ADD;
+        }
+    }
+
     static void ApplyPipelineState(OpenGLContext* context)
     {
         PipelineState& ps_applied = context->m_PipelineState;
@@ -780,10 +799,21 @@ static void LogFrameBufferError(GLenum status)
         }
 
         // Blend factors
-        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor) ||
+            HAS_CHANGED(m_BlendSrcFactorAlpha) || HAS_CHANGED(m_BlendDstFactorAlpha))
         {
-            glBlendFunc(GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactor),
-                        GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactor));
+            glBlendFuncSeparate(GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactor),
+                                GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactor),
+                                GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactorAlpha),
+                                GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactorAlpha));
+            CHECK_GL_ERROR;
+        }
+
+        // Blend equations
+        if (HAS_CHANGED(m_BlendEquationColor) || HAS_CHANGED(m_BlendEquationAlpha))
+        {
+            glBlendEquationSeparate(GetOpenGLBlendEquation((BlendEquation) ps_dirty.m_BlendEquationColor),
+                                    GetOpenGLBlendEquation((BlendEquation) ps_dirty.m_BlendEquationAlpha));
             CHECK_GL_ERROR;
         }
 
@@ -1104,6 +1134,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
             case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
             case CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES:    return context->m_ASTCArrayTextureSupport;
+            case CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX: return context->m_BlendEquationMinMaxSupport;
             case CONTEXT_FEATURE_VSYNC:
                 break;
         }
@@ -1343,6 +1374,8 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
         GET_PROC_ADDRESS(glStencilOpSeparate, "glStencilOpSeparate", PFNGLSTENCILOPSEPARATEPROC);
         GET_PROC_ADDRESS(glStencilFuncSeparate, "glStencilFuncSeparate", PFNGLSTENCILFUNCSEPARATEPROC);
+        GET_PROC_ADDRESS(glBlendFuncSeparate, "glBlendFuncSeparate", PFNGLBLENDFUNCSEPARATEPROC);
+        GET_PROC_ADDRESS(glBlendEquationSeparate, "glBlendEquationSeparate", PFNGLBLENDEQUATIONSEPARATEPROC);
         GET_PROC_ADDRESS(glTexSubImage3D, "glTexSubImage3D", PFNGLTEXSUBIMAGE3DPROC);
         GET_PROC_ADDRESS(glTexImage3D, "glTexImage3D", PFNGLTEXIMAGE3DPROC);
         GET_PROC_ADDRESS(glCompressedTexImage3D, "glCompressedTexImage3D", PFNGLCOMPRESSEDTEXIMAGE3DPROC);
@@ -1527,27 +1560,27 @@ static void LogFrameBufferError(GLenum status)
         if (OpenGLIsExtensionSupported(_context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_pvrtc"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
 
         if (OpenGLIsExtensionSupported(_context, "GL_OES_compressed_ETC1_RGB8_texture") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_etc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_etc1"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
         if (OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_s3tc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_s3tc"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1; // DXT1
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_BC1; // DXT1
             // We'll use BC3 for this
-            //context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC2; // DXT3
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3; // DXT5
+            //context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC2; // DXT3
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC3; // DXT5
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
@@ -1555,8 +1588,8 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(_context, "EXT_texture_compression_rgtc"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R_BC4;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG_BC5;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_bptc.txt
@@ -1564,13 +1597,13 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_bptc") ||
             OpenGLIsExtensionSupported(_context, "EXT_texture_compression_bptc") )
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC7;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
         if (OpenGLIsExtensionSupported(_context, "GL_ARB_ES3_compatibility"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ETC2;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
@@ -1586,14 +1619,14 @@ static void LogFrameBufferError(GLenum status)
         // Check if we're using a recent enough OpenGL version
         if (context->m_IsGles3Version)
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R16F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG32F;
 
             context->m_InstancingSupport = 1;
 
@@ -1608,15 +1641,15 @@ static void LogFrameBufferError(GLenum status)
             // https://registry.khronos.org/OpenGL/extensions/EXT/EXT_color_buffer_half_float.txt
             if (OpenGLIsExtensionSupported(_context, "EXT_color_buffer_half_float"))
             {
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB16F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA16F;
             }
 
             // https://registry.khronos.org/webgl/extensions/WEBGL_color_buffer_float/
             if (OpenGLIsExtensionSupported(_context, "WEBGL_color_buffer_float"))
             {
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB32F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
             }
 
             // https://registry.khronos.org/webgl/extensions/ANGLE_instanced_arrays/
@@ -1674,7 +1707,7 @@ static void LogFrameBufferError(GLenum status)
                 {
                     switch (pCompressedFormats[i])
                     {
-                        #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_BaseContext.m_TextureFormatSupport |= 1 << _NAME2; break;
+                        #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_BaseContext.m_TextureFormatSupport |= 1ULL << _NAME2; break;
                         CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC, TEXTURE_FORMAT_RGBA_ETC2);
                         CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC, TEXTURE_FORMAT_R_ETC2);
                         CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC, TEXTURE_FORMAT_RG_ETC2);
@@ -1739,7 +1772,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (OpenGLIsExtensionSupported(_context, "GL_OES_compressed_ETC1_RGB8_texture"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         }
 
         if (OpenGLIsExtensionSupported(_context, "GL_EXT_texture_filter_anisotropic"))
@@ -1806,6 +1839,18 @@ static void LogFrameBufferError(GLenum status)
 
         #undef COMPUTE_VERSION_NEEDED
     #endif
+
+        // GL_MIN/GL_MAX blend equations are core in GLES3+ and desktop GL.
+        // On GLES2/WebGL1 they require EXT_blend_minmax.
+        if (context->m_IsGles3Version)
+        {
+            context->m_BlendEquationMinMaxSupport = 1;
+        }
+        else if (OpenGLIsExtensionSupported(_context, "GL_EXT_blend_minmax") ||
+                 OpenGLIsExtensionSupported(_context, "EXT_blend_minmax"))
+        {
+            context->m_BlendEquationMinMaxSupport = 1;
+        }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
@@ -4509,7 +4554,7 @@ static void LogFrameBufferError(GLenum status)
     static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
+        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext _context)
@@ -5259,8 +5304,32 @@ static void LogFrameBufferError(GLenum status)
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        context->m_PipelineStateDirty.m_BlendSrcFactor = source_factor;
-        context->m_PipelineStateDirty.m_BlendDstFactor = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendSrcFactor      = source_factor;
+        context->m_PipelineStateDirty.m_BlendDstFactor      = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendSrcFactorAlpha = source_factor;
+        context->m_PipelineStateDirty.m_BlendDstFactorAlpha = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        context->m_PipelineStateDirty.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void OpenGLSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        context->m_PipelineStateDirty.m_BlendSrcFactor      = src_factor_color;
+        context->m_PipelineStateDirty.m_BlendDstFactor      = dst_factor_color;
+        context->m_PipelineStateDirty.m_BlendSrcFactorAlpha = src_factor_alpha;
+        context->m_PipelineStateDirty.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void OpenGLSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        context->m_PipelineStateDirty.m_BlendEquationColor  = equation_color;
+        context->m_PipelineStateDirty.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void OpenGLSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)
