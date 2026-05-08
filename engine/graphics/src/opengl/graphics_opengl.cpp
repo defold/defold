@@ -181,6 +181,7 @@
     // Uniform buffer objects
     PFNGLBINDBUFFERBASEPROC          glBindBufferBase          = NULL;
     PFNGLBUFFERDATAPROC              glBufferData              = NULL;
+    PFNGLGETINTEGERI_VPROC           glGetIntegeri_v           = NULL;
     PFNGLGETUNIFORMBLOCKINDEXPROC    glGetUniformBlockIndex    = NULL;
     PFNGLGETACTIVEUNIFORMBLOCKIVPROC glGetActiveUniformBlockiv = NULL;
     PFNGLGETACTIVEUNIFORMSIVPROC     glGetActiveUniformsiv     = NULL;
@@ -315,7 +316,6 @@ static void OpenGLClearGLError()
 }
 
 #define CLEAR_GL_ERROR { if(g_Context->m_BaseContext.m_VerifyGraphicsCalls) OpenGLClearGLError(); }
-
 
 static void LogFrameBufferError(GLenum status)
 {
@@ -480,6 +480,24 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
     OpenGLContext* g_Context = 0x0;
+
+    static inline GLint OpenGLGetInteger(GLenum pname)
+    {
+        GLint v = 0;
+        glGetIntegerv(pname, &v);
+        CLEAR_GL_ERROR;
+        return v;
+    }
+
+#if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+    static inline GLint OpenGLGetInteger(GLenum pname, GLuint index)
+    {
+        GLint v = 0;
+        glGetIntegeri_v(pname, index, &v);
+        CLEAR_GL_ERROR;
+        return v;
+    }
+#endif
 
     static HOpenglID AddNewGLHandle(OpenGLContext* context, GLuint handle)
     {
@@ -1387,6 +1405,7 @@ static void LogFrameBufferError(GLenum status)
 
         GET_PROC_ADDRESS(glBindBufferBase, "glBindBufferBase", PFNGLBINDBUFFERBASEPROC);
         GET_PROC_ADDRESS(glBufferData, "glBufferData", PFNGLBUFFERDATAPROC);
+        GET_PROC_ADDRESS(glGetIntegeri_v, "glGetIntegeri_v", PFNGLGETINTEGERI_VPROC);
         GET_PROC_ADDRESS(glGetUniformBlockIndex, "glGetUniformBlockIndex", PFNGLGETUNIFORMBLOCKINDEXPROC);
         GET_PROC_ADDRESS(glGetActiveUniformBlockiv, "glGetActiveUniformBlockiv", PFNGLGETACTIVEUNIFORMBLOCKIVPROC);
         GET_PROC_ADDRESS(glGetActiveUniformsiv, "glGetActiveUniformsiv", PFNGLGETACTIVEUNIFORMSIVPROC);
@@ -1850,6 +1869,99 @@ static void LogFrameBufferError(GLenum status)
                  OpenGLIsExtensionSupported(_context, "EXT_blend_minmax"))
         {
             context->m_BlendEquationMinMaxSupport = 1;
+        }
+
+        // Populate the shared GraphicsContextLimits from runtime GL queries.
+        // Defaults below describe unsupported or unavailable limits for older GL/GLES profiles.
+        {
+            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+            memset(&limits, 0, sizeof(limits));
+
+            limits.m_MaxTextureSize2D     = (uint32_t) gl_max_texture_size;
+            limits.m_MaxFramebufferWidth  = (uint32_t) gl_max_texture_size;
+            limits.m_MaxFramebufferHeight = (uint32_t) gl_max_texture_size;
+            limits.m_MaxColorAttachments  = 1;
+
+            // GL_MAX_TEXTURE_IMAGE_UNITS is the closest match for both
+            // "samplers per stage" and "sampled textures per stage" in GL —
+            // there's no separate count for samplers vs. sampled textures
+            // until ARB_separate_shader_objects-era APIs.
+            limits.m_MaxSamplersPerStage = (uint32_t) OpenGLGetInteger(GL_MAX_TEXTURE_IMAGE_UNITS);
+            limits.m_MaxTexturesPerStage = limits.m_MaxSamplersPerStage;
+            limits.m_MaxVertexAttributes = (uint32_t) OpenGLGetInteger(GL_MAX_VERTEX_ATTRIBS);
+            limits.m_MaxVertexBuffers    = limits.m_MaxVertexAttributes;
+
+        #ifdef GL_MAX_3D_TEXTURE_SIZE
+            if (context->m_3DTextureSupport)
+            {
+                limits.m_MaxTextureSize3D = (uint32_t) OpenGLGetInteger(GL_MAX_3D_TEXTURE_SIZE);
+            }
+        #endif
+
+        #ifdef GL_MAX_CUBE_MAP_TEXTURE_SIZE
+            limits.m_MaxTextureSizeCube = (uint32_t) OpenGLGetInteger(GL_MAX_CUBE_MAP_TEXTURE_SIZE);
+        #endif
+
+        #ifdef GL_MAX_ARRAY_TEXTURE_LAYERS
+            if (context->m_TextureArraySupport)
+            {
+                limits.m_MaxTextureArrayLayers = (uint32_t) OpenGLGetInteger(GL_MAX_ARRAY_TEXTURE_LAYERS);
+            }
+        #endif
+
+        #ifdef GL_MAX_VIEWPORT_DIMS
+            {
+                GLint dims[2] = { 0, 0 };
+                glGetIntegerv(GL_MAX_VIEWPORT_DIMS, dims); CLEAR_GL_ERROR;
+                limits.m_MaxFramebufferWidth  = (uint32_t) dims[0];
+                limits.m_MaxFramebufferHeight = (uint32_t) dims[1];
+            }
+        #endif
+
+        #ifdef GL_MAX_COLOR_ATTACHMENTS
+            limits.m_MaxColorAttachments = (uint32_t) OpenGLGetInteger(GL_MAX_COLOR_ATTACHMENTS);
+        #endif
+
+            // GL has no separate "max vertex buffer bindings" before
+            // GL 4.3 (GL_MAX_VERTEX_ATTRIB_BINDINGS); fall back to attrib count.
+        #ifdef GL_MAX_VERTEX_ATTRIB_BINDINGS
+            limits.m_MaxVertexBuffers = (uint32_t) OpenGLGetInteger(GL_MAX_VERTEX_ATTRIB_BINDINGS);
+        #endif
+
+        #if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+            if (context->m_ComputeSupport)
+            {
+                limits.m_MaxComputeWorkgroupSizeX = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0);
+                limits.m_MaxComputeWorkgroupSizeY = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1);
+                limits.m_MaxComputeWorkgroupSizeZ = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2);
+
+                limits.m_MaxComputeWorkgroupInvocations = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS);
+                limits.m_MaxComputeSharedMemorySize = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE);
+            }
+        #endif
+
+        #ifdef GL_MAX_UNIFORM_BLOCK_SIZE
+            limits.m_MaxUniformBufferRange = (uint64_t) OpenGLGetInteger(GL_MAX_UNIFORM_BLOCK_SIZE);
+        #endif
+
+        #ifdef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
+            if (context->m_ComputeSupport)
+            {
+                // GL_MAX_SHADER_STORAGE_BLOCK_SIZE is reported as a signed GLint64
+                // in spec — but glGetIntegerv truncates. Drivers commonly clamp
+                // anyway; revisit with glGetInteger64v if the truncation hurts.
+                limits.m_MaxStorageBufferRange = (uint64_t)(uint32_t) OpenGLGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
+            }
+        #endif
+        }
+
+        // Adapter API version
+        {
+            GLint gl_major = 0, gl_minor = 0;
+            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major); CLEAR_GL_ERROR;
+            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor); CLEAR_GL_ERROR;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) gl_major;
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) gl_minor;
         }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)

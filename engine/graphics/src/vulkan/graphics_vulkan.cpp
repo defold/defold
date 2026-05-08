@@ -1306,6 +1306,42 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
 
+        // Populate the shared GraphicsContextLimits from VkPhysicalDeviceLimits.
+        {
+            const VkPhysicalDeviceLimits& vk_limits = context->m_PhysicalDevice.m_Properties.limits;
+            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+
+            limits.m_MaxTextureSize2D                = vk_limits.maxImageDimension2D;
+            limits.m_MaxTextureSize3D                = vk_limits.maxImageDimension3D;
+            limits.m_MaxTextureSizeCube              = vk_limits.maxImageDimensionCube;
+            limits.m_MaxTextureArrayLayers           = vk_limits.maxImageArrayLayers;
+
+            limits.m_MaxFramebufferWidth             = vk_limits.maxFramebufferWidth;
+            limits.m_MaxFramebufferHeight            = vk_limits.maxFramebufferHeight;
+            limits.m_MaxColorAttachments             = vk_limits.maxColorAttachments;
+
+            limits.m_MaxSamplersPerStage             = vk_limits.maxPerStageDescriptorSamplers;
+            limits.m_MaxTexturesPerStage             = vk_limits.maxPerStageDescriptorSampledImages;
+            limits.m_MaxVertexAttributes             = vk_limits.maxVertexInputAttributes;
+            limits.m_MaxVertexBuffers                = vk_limits.maxVertexInputBindings;
+
+            limits.m_MaxComputeWorkgroupSizeX        = vk_limits.maxComputeWorkGroupSize[0];
+            limits.m_MaxComputeWorkgroupSizeY        = vk_limits.maxComputeWorkGroupSize[1];
+            limits.m_MaxComputeWorkgroupSizeZ        = vk_limits.maxComputeWorkGroupSize[2];
+            limits.m_MaxComputeWorkgroupInvocations  = vk_limits.maxComputeWorkGroupInvocations;
+            limits.m_MaxComputeSharedMemorySize      = vk_limits.maxComputeSharedMemorySize;
+
+            limits.m_MaxUniformBufferRange           = vk_limits.maxUniformBufferRange;
+            limits.m_MaxStorageBufferRange           = vk_limits.maxStorageBufferRange;
+        }
+
+        // Adapter API version
+        {
+            uint32_t api = context->m_PhysicalDevice.m_Properties.apiVersion;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) VK_VERSION_MAJOR(api);
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) VK_VERSION_MINOR(api);
+        }
+
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
             VulkanPrintDeviceInfo(_context);
