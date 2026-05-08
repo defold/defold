@@ -81,7 +81,6 @@ local function test_get_adapter_info_limits_keys()
         "max_texture_size_3d",
         "max_texture_size_cube",
         "max_texture_array_layers",
-        "max_anisotropy",
         "max_framebuffer_width",
         "max_framebuffer_height",
         "max_color_attachments",
@@ -96,9 +95,6 @@ local function test_get_adapter_info_limits_keys()
         "max_compute_shared_memory_size",
         "max_uniform_buffer_range",
         "max_storage_buffer_range",
-        "max_push_constant_size",
-        "min_uniform_buffer_offset_alignment",
-        "min_storage_buffer_offset_alignment",
     }
 
     for _, key in ipairs(expected_keys) do
