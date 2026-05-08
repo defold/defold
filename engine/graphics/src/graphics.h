@@ -127,6 +127,10 @@ namespace dmGraphics
 
     struct GraphicsContextLimits
     {
+        // Buffer limits — max bindable range, not the underlying buffer object size.
+        uint64_t    m_MaxUniformBufferRange;
+        uint64_t    m_MaxStorageBufferRange;
+
         // Texture limits (max dimension in texels — APIs report a dim, not a count)
         uint32_t    m_MaxTextureSize2D;
         uint32_t    m_MaxTextureSize3D;
@@ -150,10 +154,6 @@ namespace dmGraphics
         uint32_t    m_MaxComputeWorkgroupSizeZ;
         uint32_t    m_MaxComputeWorkgroupInvocations;
         uint32_t    m_MaxComputeSharedMemorySize;
-
-        // Buffer limits — max bindable range, not the underlying buffer object size.
-        uint64_t    m_MaxUniformBufferRange;
-        uint64_t    m_MaxStorageBufferRange;
     };
 
     // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).
