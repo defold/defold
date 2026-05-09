@@ -453,6 +453,18 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
     }
 }
 
+// DEFOLD
+GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceGuid( int joy, char** device_guid )
+{
+    if( !glfwAndroidJoystickPresent( joy ) )
+    {
+        return GL_FALSE;
+    }
+
+    *device_guid = (char*) _glfwJoy[ joy ].DeviceGuid;
+    return GL_TRUE;
+}
+
 void _glfwTerminateJoysticks( void )
 {
     LOGI("_glfwTerminateJoysticks");

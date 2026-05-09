@@ -577,9 +577,9 @@ namespace dmPlatform
         return false;
     }
 
-    const char* GetJoystickDeviceName(HWindow window, uint32_t gamepad_index)
+    const char* GetJoystickDeviceName(HWindow window, uint32_t joystick_index)
     {
-        return glfwGetJoystickName((int) gamepad_index);
+        return glfwGetJoystickName((int) joystick_index);
     }
 
     const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
