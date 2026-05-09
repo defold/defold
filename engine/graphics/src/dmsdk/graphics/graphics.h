@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/jobsystem.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/platform/window.h>
 
 #include <graphics/graphics_ddf.h>
@@ -1734,6 +1735,20 @@ namespace dmGraphics
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     /*#
+     * Sets the scissor rectangle for rendering.
+     *
+     * Defines the rectangular pixel region that rendering is clipped to when
+     * `STATE_SCISSOR_TEST` is enabled.
+     * @name SetScissor
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param x [type:int32_t] X coordinate of the scissor rectangle's origin (in pixels)
+     * @param y [type:int32_t] Y coordinate of the scissor rectangle's origin (in pixels)
+     * @param width [type:int32_t] Width of the scissor rectangle (in pixels)
+     * @param height [type:int32_t] Height of the scissor rectangle (in pixels)
+     */
+    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
+
+    /*#
      * Activates a shader program for rendering.
      *
      * Binds the specified program to the graphics pipeline, making it the active program
@@ -1817,6 +1832,48 @@ namespace dmGraphics
      * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
      */
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+
+    /*#
+     * Draws indexed primitives.
+     *
+     * Renders geometry using indices from the supplied index buffer. The `first`
+     * argument is a byte offset into the index buffer.
+     * @name DrawElements
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param prim_type [type:dmGraphics::PrimitiveType] Type of primitives to draw
+     * @param first [type:uint32_t] Byte offset of the first index to draw
+     * @param count [type:uint32_t] Number of indices to draw
+     * @param type [type:dmGraphics::Type] Index element type
+     * @param index_buffer [type:dmGraphics::HIndexBuffer] Index buffer handle
+     * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
+     */
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
+
+    /*#
+     * Sets one or more vec4 uniform values.
+     *
+     * Updates a shader uniform or uniform-buffer member starting at the supplied
+     * uniform location.
+     * @name SetConstantV4
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param data [type:const dmVMath::Vector4*] Vector data to upload
+     * @param count [type:int] Number of vec4 values to upload
+     * @param base_location [type:dmGraphics::HUniformLocation] Uniform location
+     */
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+
+    /*#
+     * Sets one or more mat4 uniform values.
+     *
+     * Updates a shader uniform or uniform-buffer member starting at the supplied
+     * uniform location. Each matrix is provided as four consecutive `dmVMath::Vector4` values.
+     * @name SetConstantM4
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param data [type:const dmVMath::Vector4*] Matrix data to upload
+     * @param count [type:int] Number of mat4 values to upload
+     * @param base_location [type:dmGraphics::HUniformLocation] Uniform location
+     */
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
 
     /*#
      * Binds a texture sampler to a texture unit.
