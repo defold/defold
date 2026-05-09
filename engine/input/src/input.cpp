@@ -845,7 +845,9 @@ namespace dmInput
 
                                         // TODO: Check if it's a legacy mapping or not, and choose the old or new controller name
 
-                                        dmHID::GetGamepadDeviceGuid(binding->m_Context->m_HidContext, gamepad, &action->m_GamepadGuid);
+                                        dmHID::GamepadGuid gamepad_guid = {};
+                                        dmHID::GetGamepadDeviceGuid(binding->m_Context->m_HidContext, gamepad, &gamepad_guid);
+                                        action->m_GamepadGuid = gamepad_guid;
 
                                         action->m_Count = (int16_t) dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
                                         action->m_HasText = action->m_Count > 0;
