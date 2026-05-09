@@ -3734,7 +3734,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         // Defer the update to when we actually draw, since we *might* need to invert the viewport
-        // depending on wether or not we have set a different rendertarget from when
+        // depending on whether or not we have set a different rendertarget from when
         // this call was made.
         Viewport& viewport = context->m_MainViewport;
         viewport.m_X       = (uint16_t) x;
