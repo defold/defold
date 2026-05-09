@@ -606,6 +606,34 @@ public class DefoldActivity extends NativeActivity {
     }
 
     /**
+     * Method to get controller vendor id
+     * Called from glfwAndroid.
+     * @param deviceId
+     * @return Device vendor id
+     */
+    public int getGameControllerDeviceVendorId(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            return device.getVendorId();
+        }
+        return 0;
+    }
+
+    /**
+     * Method to get controller product id
+     * Called from glfwAndroid.
+     * @param deviceId
+     * @return Device product id
+     */
+    public int getGameControllerDeviceProductId(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            return device.getProductId();
+        }
+        return 0;
+    }
+
+    /**
      * Method to get meta-data value by key from AndroidManifest.xml
      * @param key
      * @return String

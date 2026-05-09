@@ -17,7 +17,39 @@
 #include "android_jni.h"
 #include "android_log.h"
 
+#include <stdint.h>
+
 #define DEVICE_ID_NONE (-1000)
+#define SDL_ANDROID_GAMEPAD_BUS 0x0005 // Bluetooth
+
+static void glfwAndroidAppendGuidByte(char* guid, int* offset, uint32_t value)
+{
+    static const char hex[] = "0123456789abcdef";
+    guid[(*offset)++] = hex[(value >> 4) & 0x0f];
+    guid[(*offset)++] = hex[value & 0x0f];
+}
+
+static void glfwAndroidAppendGuidWord(char* guid, int* offset, uint32_t value)
+{
+    glfwAndroidAppendGuidByte(guid, offset, value & 0xff);
+    glfwAndroidAppendGuidByte(guid, offset, (value >> 8) & 0xff);
+}
+
+static void glfwAndroidCreateJoystickGuid(uint32_t vendorId, uint32_t productId, char guid[DEVICE_GUID_LENGTH + 1])
+{
+    int offset = 0;
+
+    glfwAndroidAppendGuidWord(guid, &offset, SDL_ANDROID_GAMEPAD_BUS);
+    glfwAndroidAppendGuidWord(guid, &offset, 0);
+    glfwAndroidAppendGuidWord(guid, &offset, vendorId);
+    glfwAndroidAppendGuidWord(guid, &offset, 0);
+    glfwAndroidAppendGuidWord(guid, &offset, productId);
+    glfwAndroidAppendGuidWord(guid, &offset, 0);
+    glfwAndroidAppendGuidWord(guid, &offset, 0);
+    glfwAndroidAppendGuidWord(guid, &offset, 0);
+
+    guid[offset] = '\0';
+}
 
 static int glfwAndroidJoystickPresent( int joy )
 {
@@ -41,9 +73,8 @@ static int glfwAndroidFindJoystick(const int32_t deviceId)
     return -1;
 }
 
-static int32_t glfwAndroidConnectJoystick(int32_t deviceId, char* deviceName)
+static int32_t glfwAndroidConnectJoystick(int32_t deviceId, const char* deviceName, const char* deviceGuid)
 {
-    int n;
     int32_t joystickIndex = -1;
     for (joystickIndex = 0; joystickIndex <= GLFW_JOYSTICK_LAST; joystickIndex++)
     {
@@ -53,9 +84,12 @@ static int32_t glfwAndroidConnectJoystick(int32_t deviceId, char* deviceName)
             _glfwJoy[joystickIndex].DeviceId = deviceId;
             _glfwJoy[joystickIndex].NumAxes = GLFW_ANDROID_GAMEPAD_NUMAXIS;
             _glfwJoy[joystickIndex].NumButtons = GLFW_ANDROID_GAMEPAD_NUMBUTTONS;
-            strncpy(&_glfwJoy[joystickIndex].DeviceName, deviceName, DEVICE_NAME_LENGTH);
-            memset(_glfwJoy[joystickIndex].Axis, 0, sizeof(_glfwJoy[joystickIndex].Axis) * GLFW_ANDROID_GAMEPAD_NUMAXIS);
-            memset(_glfwJoy[joystickIndex].Button, 0, sizeof(_glfwJoy[joystickIndex].Button) * GLFW_ANDROID_GAMEPAD_NUMBUTTONS);
+            strncpy(_glfwJoy[joystickIndex].DeviceName, deviceName, DEVICE_NAME_LENGTH - 1);
+            _glfwJoy[joystickIndex].DeviceName[DEVICE_NAME_LENGTH - 1] = '\0';
+            strncpy(_glfwJoy[joystickIndex].DeviceGuid, deviceGuid, DEVICE_GUID_LENGTH);
+            _glfwJoy[joystickIndex].DeviceGuid[DEVICE_GUID_LENGTH] = '\0';
+            memset(_glfwJoy[joystickIndex].Axis, 0, sizeof(_glfwJoy[joystickIndex].Axis));
+            memset(_glfwJoy[joystickIndex].Button, 0, sizeof(_glfwJoy[joystickIndex].Button));
 
             _glfwWin.gamepadCallback(joystickIndex, 1);
             break;
@@ -290,6 +324,8 @@ void glfwAndroidDiscoverJoysticks()
         jobject native_activity = g_AndroidApp->activity->clazz;
         jmethodID get_game_controller_device_ids = JNIGetMethodID(env, native_activity, "getGameControllerDeviceIds", "()[I");
         jmethodID get_game_controller_device_name = JNIGetMethodID(env, native_activity, "getGameControllerDeviceName", "(I)Ljava/lang/String;");
+        jmethodID get_game_controller_device_vendor_id = JNIGetMethodID(env, native_activity, "getGameControllerDeviceVendorId", "(I)I");
+        jmethodID get_game_controller_device_product_id = JNIGetMethodID(env, native_activity, "getGameControllerDeviceProductId", "(I)I");
         jintArray device_ids = (*env)->CallObjectMethod(env, native_activity, get_game_controller_device_ids);
         jsize len = (*env)->GetArrayLength(env, device_ids);
         jint *elements = (*env)->GetIntArrayElements(env, device_ids, 0);
@@ -301,8 +337,13 @@ void glfwAndroidDiscoverJoysticks()
             {
                 jint jni_device_id = deviceId;
                 jstring jni_device_name = (*env)->CallObjectMethod(env, native_activity, get_game_controller_device_name, jni_device_id);
+                jint vendor_id = (*env)->CallIntMethod(env, native_activity, get_game_controller_device_vendor_id, jni_device_id);
+                jint product_id = (*env)->CallIntMethod(env, native_activity, get_game_controller_device_product_id, jni_device_id);
+                char deviceGuid[DEVICE_GUID_LENGTH + 1];
                 const char *deviceName = (*env)->GetStringUTFChars(env, jni_device_name, 0);
-                deviceIndex = glfwAndroidConnectJoystick(deviceId, deviceName);
+
+                glfwAndroidCreateJoystickGuid((uint32_t) vendor_id, (uint32_t) product_id, deviceGuid);
+                deviceIndex = glfwAndroidConnectJoystick(deviceId, deviceName, deviceGuid);
                 (*env)->ReleaseStringUTFChars(env, jni_device_name, deviceName);
             }
             else
