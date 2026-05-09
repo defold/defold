@@ -861,7 +861,7 @@
                                                                       preview-light-hidden-renderable-tags
                                                                       hidden-node-outline-key-paths
                                                                       view-matrix))]
-            (light/packed-lights-from-scene preview-light-renderables)))]
+            (light/packed-lights-from-scene preview-light-renderables camera)))]
     (into {}
           (map (fn [pass]
                  [pass (assoc (pass-render-args viewport camera pass)

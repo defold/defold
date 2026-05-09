@@ -17,9 +17,10 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.math :as math]
-            [editor.scene-cache :as scene-cache])
+            [editor.scene-cache :as scene-cache]
+            [editor.types :as types])
   (:import [com.jogamp.opengl GL2]
-           [javax.vecmath Matrix4d Vector3d Vector4d]))
+           [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -91,7 +92,13 @@
        :direction_range (Vector4d. 0.0 0.0 0.0 0.0)
        :params (Vector4d. type-index light-intensity 0.0 0.0)})))
 
-(defn packed-lights-from-scene [renderables-by-pass]
+(defn- light-camera-distance-squared ^double [camera renderable]
+  (let [camera-position (types/position camera)
+        ^Vector3d world-translation (or (:world-translation renderable)
+                                        (Vector3d. 0.0 0.0 0.0))]
+    (.distanceSquared camera-position world-translation)))
+
+(defn packed-lights-from-scene [renderables-by-pass camera]
   "Turns the editor scene's light renderables into a small, stable, engine-shaped list so
   the viewport shaders can produce light data consistently with the runtime layout."
   (let [visible-with-preview (filterv #(get-in % [:user-data :editor-preview-light])
@@ -102,7 +109,9 @@
                                               visible-with-preview))]
     (mapv renderable->std140-light
           (take default-max-preview-lights
-                (sort-by (comp vec :node-id-path) deduped-visible-preview)))))
+                (sort-by (juxt #(light-camera-distance-squared camera %)
+                               (comp vec :node-id-path))
+                         deduped-visible-preview)))))
 
 (defn- gl-light-uniform-name [^long i field]
   (str "lights[" i "]." (case field

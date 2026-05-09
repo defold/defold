@@ -12,7 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import waflib.Task, waflib.TaskGen, waflib.Utils, re, os, sys
+import waflib.Task, waflib.TaskGen, waflib.Utils, re, os, sys, math
 from waflib.TaskGen import extension
 from waf_content import proto_compile_task
 from threading import Lock
@@ -150,10 +150,60 @@ def transform_gameobject(task, msg):
         transform_properties(c.properties, c.property_decls)
     return msg
 
-def transform_light(tags):
+def _light_payload_struct(task, msg):
+    if not msg.HasField('data') or msg.data.WhichOneof('kind') != 'struct':
+        raise Exception("%s: light data must contain a struct payload" % task.inputs[0].srcpath())
+    return msg.data.struct
+
+def _require_light_field(task, fields, field_name):
+    if field_name not in fields:
+        raise Exception("%s: missing required field '%s'" % (task.inputs[0].srcpath(), field_name))
+    return fields[field_name]
+
+def _require_light_number(task, fields, field_name):
+    value = _require_light_field(task, fields, field_name)
+    if value.WhichOneof('kind') != 'number':
+        raise Exception("%s: field '%s' must be a number" % (task.inputs[0].srcpath(), field_name))
+    return float(value.number)
+
+def _validate_light_color(task, fields):
+    color_value = _require_light_field(task, fields, 'color')
+    if color_value.WhichOneof('kind') != 'list':
+        raise Exception("%s: field 'color' must be a list of 3 or 4 numbers" % task.inputs[0].srcpath())
+
+    values = color_value.list.values
+    if len(values) < 3 or len(values) > 4:
+        raise Exception("%s: field 'color' must contain 3 or 4 numbers" % task.inputs[0].srcpath())
+
+    for component in values:
+        if component.WhichOneof('kind') != 'number':
+            raise Exception("%s: field 'color' must contain only numbers" % task.inputs[0].srcpath())
+
+def _set_light_number(fields, field_name, number):
+    value = fields[field_name]
+    value.Clear()
+    value.number = number
+
+def transform_light(light_type_tag):
     def _transform_light(task, msg):
+        fields = _light_payload_struct(task, msg).fields
+        _validate_light_color(task, fields)
+
+        intensity = max(0.0, _require_light_number(task, fields, 'intensity'))
+        _set_light_number(fields, 'intensity', intensity)
+
+        if light_type_tag in ('point_light', 'spot_light'):
+            range_value = max(0.0, _require_light_number(task, fields, 'range'))
+            _set_light_number(fields, 'range', range_value)
+
+        if light_type_tag == 'spot_light':
+            outer_deg = min(180.0, max(0.0, _require_light_number(task, fields, 'outer_cone_angle')))
+            inner_deg = min(outer_deg, max(0.0, _require_light_number(task, fields, 'inner_cone_angle')))
+            _set_light_number(fields, 'inner_cone_angle', math.radians(inner_deg))
+            _set_light_number(fields, 'outer_cone_angle', math.radians(outer_deg))
+
         del msg.tags[:]
-        msg.tags.extend(tags)
+        msg.tags.extend(['light', light_type_tag])
         return msg
     return _transform_light
 
@@ -521,9 +571,9 @@ proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', t
 proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transform_mesh)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 proto_compile_task('data', 'data_ddf_pb2', 'Data', '.data', '.datac')
-proto_compile_task('point_light', 'data_ddf_pb2', 'Data', '.point_light', '.lightc', transform_light(['light', 'point_light']))
-proto_compile_task('directional_light', 'data_ddf_pb2', 'Data', '.directional_light', '.lightc', transform_light(['light', 'directional_light']))
-proto_compile_task('spot_light', 'data_ddf_pb2', 'Data', '.spot_light', '.lightc', transform_light(['light', 'spot_light']))
+proto_compile_task('point_light', 'data_ddf_pb2', 'Data', '.point_light', '.lightc', transform_light('point_light'))
+proto_compile_task('directional_light', 'data_ddf_pb2', 'Data', '.directional_light', '.lightc', transform_light('directional_light'))
+proto_compile_task('spot_light', 'data_ddf_pb2', 'Data', '.spot_light', '.lightc', transform_light('spot_light'))
 
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('glsl', '.glsl', '.glslc')
