@@ -41,13 +41,11 @@
 #include "hid_private.h"
 #include "hid_native_private.h"
 
-#if TARGET_OS_OSX
 #define _GLFW_COCOA 1
 #define _glfwDefaultMappings dmHIDAppleGamepadDefaultMappings
 #include "../external/glfw/mappings.h"
 #undef _glfwDefaultMappings
 #undef _GLFW_COCOA
-#endif
 
 namespace dmHID
 {
@@ -1013,7 +1011,6 @@ static void PostProcessLegacyPacket(AppleGamepadDevice* apple_device, GCControll
     }
 }
 
-#if TARGET_OS_OSX
 // Parses a single SDL mapping target token such as "a3", "+a2", "b5", or
 // "h0.4" into a raw packet destination.
 static bool ParseLegacyMappingTarget(const char* target, AppleGamepadLegacyElement* element)
@@ -1206,35 +1203,65 @@ static bool BuildLegacyMappingFromGuid(AppleGamepadDevice* device, const char gu
 
     return false;
 }
-#endif
 
 // Chooses the packet remap strategy for the device: database-driven legacy
-// mapping on macOS when available, otherwise the default semantic layout.
+// mapping on Apple platforms when available, otherwise the default semantic layout.
 static void BuildDeviceRemap(AppleGamepadDevice* device, const GamepadGuid* guid)
 {
     ResetLegacyMapping(device);
 
-#if TARGET_OS_OSX
     char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1];
     FormatGamepadGuid(guid, guid_string);
     if (BuildLegacyMappingFromGuid(device, guid_string))
         return;
-#else
-    (void) guid;
-#endif
 
     BuildDefaultDeviceRemap(device);
 }
 
 // Prevents the OS from consuming guide/menu button presses that the engine
 // wants to observe itself.
-static void DisableSystemGesture(GCControllerButtonInput* button)
+static void DisableSystemGesture(GCControllerElement* element)
 {
     if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
     {
-        if (button != nil)
-            button.preferredSystemGestureState = GCSystemGestureStateDisabled;
+        if (element != nil)
+            element.preferredSystemGestureState = GCSystemGestureStateDisabled;
     }
+}
+
+// Applies the system-gesture preference as soon as a controller is registered,
+// before the first button press can race with the per-frame polling path.
+static void DisableControllerSystemGestures(GCController* controller)
+{
+    if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
+    {
+        GCPhysicalInputProfile* profile = controller.physicalInputProfile;
+        if (profile != nil)
+        {
+            for (GCControllerElement* element in profile.elements.allValues)
+            {
+                if (element.boundToSystemGesture)
+                    DisableSystemGesture(element);
+            }
+        }
+    }
+
+    GCExtendedGamepad* gamepad = controller.extendedGamepad;
+    if (gamepad != nil)
+    {
+        if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
+        {
+            DisableSystemGesture(gamepad.buttonMenu);
+            DisableSystemGesture(gamepad.buttonOptions);
+        }
+        if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
+        {
+            DisableSystemGesture(gamepad.buttonHome);
+        }
+    }
+
+    DisableSystemGesture(GetGuideButton(controller));
+    DisableSystemGesture(GetCaptureButton(controller));
 }
 
 // Writes the modern SDL-style packet layout directly from the extended gamepad
@@ -1682,6 +1709,8 @@ static Gamepad* EnsureAllocatedGamepad(AppleGamepadDriver* driver, int gamepad_i
         ReleaseGamepad(driver->m_HidContext, gp);
         return 0;
     }
+
+    DisableControllerSystemGestures(controller);
 
     new_device.m_Id = gamepad_id;
     new_device.m_Gamepad = gp;
