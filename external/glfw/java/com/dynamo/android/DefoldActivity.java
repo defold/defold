@@ -572,11 +572,12 @@ public class DefoldActivity extends NativeActivity {
         for (int deviceId : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(deviceId);
             int sources = device.getSources();
-            // filter out only gamepads, joysticks and things which has a dpad
+            // Filter game controller discovery to gamepads and joysticks. DPAD-only devices
+            // are still handled as key input in android_init.c, but should not be registered
+            // as gamepads here.
             if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
-                ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) ||
-                ((sources & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD)) {
-                    mGameControllerDeviceIds.add(deviceId);
+                ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK)) {
+                mGameControllerDeviceIds.add(deviceId);
             }
         }
 
