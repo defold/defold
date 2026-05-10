@@ -278,6 +278,22 @@ public class ProjectBuildTest {
     }
 
     @Test
+    public void testArchiveBuildMergesExtensionCustomResources() throws IOException, CompileExceptionError, MultipleCompileException {
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources = /project_resource.txt\n");
+        createFile(contentRoot, "project_resource.txt", "project");
+        createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
+        createFile(contentRoot, "extension1/ext.properties", "[project]\ncustom_resources.default = /extension_resource.txt\n");
+        createFile(contentRoot, "extension_resource.txt", "extension");
+
+        buildArchive(false);
+
+        Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
+        assertTrue(hasResource(bundledManifestData, "/project_resource.txt"));
+        assertTrue(hasResource(bundledManifestData, "/extension_resource.txt"));
+    }
+
+    @Test
     public void testArchiveBuildStripsExcludedEntriesFromBundledManifestByDefault() throws IOException, CompileExceptionError, MultipleCompileException {
         createExcludedLiveUpdateProject(null);
 

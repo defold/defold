@@ -117,6 +117,22 @@ public class BobProjectPropertiesTest {
         assertEquals(false, properties.isPrivate("project", "custom_property"));
     }
 
+    @Test
+    public void testMergedStringArrayValueIncludesExtensionDefaults() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_resources = /project_resource");
+        createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_resources.default = /extension_resource");
+
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.loadProjectFile(true);
+        BobProjectProperties properties = project.getProjectProperties();
+
+        String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
+        assertEquals(2, customResources.length);
+        assertEquals("/extension_resource", customResources[0]);
+        assertEquals("/project_resource", customResources[1]);
+    }
+
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
         FileUtil.deleteOnExit(file);

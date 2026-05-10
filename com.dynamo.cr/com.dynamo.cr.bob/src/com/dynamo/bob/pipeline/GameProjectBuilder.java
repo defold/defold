@@ -222,7 +222,7 @@ public class GameProjectBuilder extends Builder {
 
     private Set<IResource> getCustomResources(Project project) {
         Set<IResource> resources = new HashSet<>();
-        String[] custom_resources = project.getProjectProperties().getStringValue("project", "custom_resources", "").split(",");
+        String[] custom_resources = project.getProjectProperties().getStringArrayValueMerged("project", "custom_resources", new String[0]);
         for (String s : custom_resources) {
             s = s.trim();
             if (!s.isEmpty()) {

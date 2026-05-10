@@ -27,7 +27,7 @@ public class CopyCustomResourcesBuilder extends Builder {
     public Task create(IResource input) throws CompileExceptionError {
         BobProjectProperties properties = this.project.getProjectProperties();
 
-        String[] resources = properties.getStringArrayValue("project", "custom_resources", new String[0]);
+        String[] resources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
 
         TaskBuilder b = Task.newBuilder(this)
                 .setName("Copy Custom Resources");
