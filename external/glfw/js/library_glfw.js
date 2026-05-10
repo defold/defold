@@ -1112,6 +1112,72 @@ var LibraryGLFW = {
     }
   },
 
+  glfwCreateJoystickDeviceGuid: function(bus, vendor, product, version, vendor_name, product_name, driver_signature, driver_data, guid) {
+    function crc16ForByte(value) {
+      var crc = 0;
+      for (var bit = 0; bit < 8; ++bit) {
+        crc = ((((crc ^ value) & 1) ? 0xA001 : 0) ^ (crc >> 1)) & 0xffff;
+        value >>= 1;
+      }
+      return crc;
+    }
+    function crc16(crc, string) {
+      if (string) {
+        for (var i = 0; i < string.length; ++i) {
+          crc = (crc16ForByte((crc & 0xff) ^ string.charCodeAt(i)) ^ (crc >> 8)) & 0xffff;
+        }
+      }
+      return crc;
+    }
+    function setGuidWord(guidData, offset, value) {
+      guidData[offset + 0] = value & 0xff;
+      guidData[offset + 1] = (value >> 8) & 0xff;
+    }
+
+    var vendorName = vendor_name ? UTF8ToString(vendor_name) : null;
+    var productName = product_name ? UTF8ToString(product_name) : null;
+    var guidData = new Array(16).fill(0);
+    var crc = 0;
+
+    if (vendorName && vendorName.length && productName && productName.length) {
+      crc = crc16(crc, vendorName);
+      crc = crc16(crc, ' ');
+      crc = crc16(crc, productName);
+    } else if (productName) {
+      crc = crc16(crc, productName);
+    }
+
+    setGuidWord(guidData, 0, bus);
+    setGuidWord(guidData, 2, crc);
+
+    if (vendor) {
+      setGuidWord(guidData, 4, vendor);
+      setGuidWord(guidData, 8, product);
+      setGuidWord(guidData, 12, version);
+      guidData[14] = driver_signature;
+      guidData[15] = driver_data;
+    } else {
+      var availableSpace = guidData.length - 4;
+      if (driver_signature) {
+        availableSpace -= 2;
+        guidData[14] = driver_signature;
+        guidData[15] = driver_data;
+      }
+      if (productName) {
+        for (var j = 0; j + 1 < availableSpace && j < productName.length; ++j) {
+          guidData[4 + j] = productName.charCodeAt(j);
+        }
+      }
+    }
+
+    var hex = '0123456789abcdef';
+    for (var k = 0; k < guidData.length; ++k) {
+      setValue(guid + k * 2 + 0, hex.charCodeAt((guidData[k] >> 4) & 0x0f), 'i8');
+      setValue(guid + k * 2 + 1, hex.charCodeAt(guidData[k] & 0x0f), 'i8');
+    }
+    setValue(guid + 32, 0, 'i8');
+  },
+
   /* Time */
   glfwGetTime: function() {
     return (Date.now()/1000) - GLFW.initTime;
