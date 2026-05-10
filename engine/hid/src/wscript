@@ -6,6 +6,9 @@ from BuildUtility import create_build_utility
 def options(opt):
     pass
 
+def configure(conf):
+    conf.recurse('test')
+
 def build(bld):
     build_util = create_build_utility(bld.env)
 
@@ -32,13 +35,11 @@ def build(bld):
     if target_os in ('macos','ios'):
         hid.source = [x for x in hid.source if not 'glfw' in x.name]
 
-    print(f"MAWE {target_os} source", hid.source)
-
     hid_null = bld.stlib(features = 'cxx',
                          includes = [platform_folder, '.', 'null', 'external'],
                          proto_gen_py = True,
                          target = 'hid_null',
-                         source = bld.path.ant_glob(['hid.cpp', 'hid_null.cpp']))
+                         source = bld.path.ant_glob(['hid.cpp', 'hid_guid.cpp', 'hid_null.cpp']))
 
     bld.add_group()
     bld.recurse('test')
@@ -46,6 +47,3 @@ def build(bld):
     bld.install_files('${PREFIX}/include/hid', 'hid.h')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
-
-def configure(conf):
-    pass

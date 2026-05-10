@@ -26,6 +26,7 @@
 #include <TargetConditionals.h>
 #if TARGET_OS_OSX
 #include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/hid/IOHIDKeys.h>
 #include <IOKit/hid/IOHIDManager.h>
 #include <Kernel/IOKit/hidsystem/IOHIDUsageTables.h>
 #endif
@@ -49,6 +50,9 @@
 
 namespace dmHID
 {
+
+static const uint16_t SDL_HARDWARE_BUS_USB       = 0x0003;
+static const uint16_t SDL_HARDWARE_BUS_BLUETOOTH = 0x0005;
 
 enum AppleGamepadHatState
 {
@@ -171,7 +175,7 @@ static AppleGamepadDriver* g_AppleGamepadDriver = 0;
 
 static void GetGamepadDeviceNameInternal(HContext context, int gamepad_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
 static bool GetGamepadDeviceGuidInternal(HContext context, int gamepad_id, GamepadGuid* guid);
-static void CreateAppleGameControllerGUID(GCController* controller, const char* fallback_name, GamepadGuid* guid);
+static void CreateAppleGameControllerGUID(GCController* controller, const char* fallback_name, uint16_t bus, GamepadGuid* guid);
 
 // Controller-family predicates used to normalize Apple's product categories into
 // stable vendor/product pairs for GUID generation and legacy remapping.
@@ -539,6 +543,18 @@ static bool GetDeviceNumberProperty(IOHIDDeviceRef device_ref, CFStringRef key, 
     return CFNumberGetValue((CFNumberRef) property, kCFNumberSInt32Type, value);
 }
 
+static uint16_t GetDeviceBus(IOHIDDeviceRef device_ref)
+{
+    CFTypeRef property = IOHIDDeviceGetProperty(device_ref, CFSTR(kIOHIDTransportKey));
+    if (property != 0 && CFGetTypeID(property) == CFStringGetTypeID())
+    {
+        if (CFStringHasPrefix((CFStringRef) property, CFSTR(kIOHIDTransportBluetoothValue)))
+            return SDL_HARDWARE_BUS_BLUETOOTH;
+    }
+
+    return SDL_HARDWARE_BUS_USB;
+}
+
 // Extracts the raw USB identity fields from a HID device for GUID generation.
 static bool GetDeviceIdentity(IOHIDDeviceRef device_ref, uint32_t* vendor, uint32_t* product, uint32_t* version)
 {
@@ -551,14 +567,6 @@ static bool GetDeviceIdentity(IOHIDDeviceRef device_ref, uint32_t* vendor, uint3
     GetDeviceNumberProperty(device_ref, CFSTR(kIOHIDVersionNumberKey), version);
 
     return *vendor != 0 && *product != 0;
-}
-
-// Converts raw vendor/product/version values to the parsed SDL GUID struct.
-static bool BuildGamepadGUID(uint32_t vendor, uint32_t product, uint32_t version, GamepadGuid* guid)
-{
-    char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1];
-    CreateGUIDFromProduct((uint16_t) vendor, (uint16_t) product, (uint16_t) version, guid_string);
-    return ParseGamepadGuid(guid_string, guid);
 }
 
 // Checks whether a candidate HID device identity is plausible for the supplied
@@ -687,6 +695,8 @@ static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controll
                     if (!MatchesControllerHIDDevice(controller, vendor, product))
                         continue;
 
+                    uint16_t bus = GetDeviceBus(device_ref);
+
                     ++matching_device_count;
                     if (matching_device_count > 1)
                     {
@@ -694,7 +704,8 @@ static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controll
                         break;
                     }
 
-                    found_guid = BuildGamepadGUID(vendor, product, version, guid);
+                    *guid = CreateGUID(bus, (uint16_t) vendor, (uint16_t) product, (uint16_t) version, 0, 0, 0, 0);
+                    found_guid = true;
                 }
             }
         }
@@ -709,7 +720,7 @@ static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controll
 static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controller, const char* fallback_name, GamepadGuid* guid)
 {
     (void) driver;
-    CreateAppleGameControllerGUID(controller, fallback_name, guid);
+    CreateAppleGameControllerGUID(controller, fallback_name, SDL_HARDWARE_BUS_BLUETOOTH, guid);
     return true;
 }
 #endif
@@ -1496,7 +1507,7 @@ static bool SupportsController(GCController* controller, AppleGamepadDevice* dev
 
 // Builds a synthetic GUID from the GameController profile when the platform
 // does not expose a unique HID device match.
-static void CreateAppleGameControllerGUID(GCController* controller, const char* fallback_name, GamepadGuid* guid)
+static void CreateAppleGameControllerGUID(GCController* controller, const char* fallback_name, uint16_t bus, GamepadGuid* guid)
 {
     GamepadIdentity identity = {};
     ClassifyController(controller, &identity);
@@ -1549,9 +1560,7 @@ static void CreateAppleGameControllerGUID(GCController* controller, const char* 
     }
 
     const uint16_t button_mask = GetLegacyButtonMask(controller);
-    char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1];
-    CreateGUIDFromIdentity(identity, fallback_name, axis_keys, axis_count, button_keys, button_count, button_mask, guid_string);
-    ParseGamepadGuid(guid_string, guid);
+    *guid = CreateGUIDFromIdentity(bus, identity, fallback_name, axis_keys, axis_count, button_keys, button_count, button_mask);
 }
 
 // Driver-local lookup helpers for devices and their owning Gamepad handles.
@@ -1654,7 +1663,7 @@ static Gamepad* EnsureAllocatedGamepad(AppleGamepadDriver* driver, int gamepad_i
 
     if (!CreateGamePadGuid(driver, controller, new_device.m_Name, &new_device.m_Guid))
     {
-        CreateAppleGameControllerGUID(controller, new_device.m_Name, &new_device.m_Guid);
+        CreateAppleGameControllerGUID(controller, new_device.m_Name, SDL_HARDWARE_BUS_BLUETOOTH, &new_device.m_Guid);
     }
 
     BuildDeviceRemap(&new_device, &new_device.m_Guid);

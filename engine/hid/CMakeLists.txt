@@ -54,6 +54,7 @@ target_include_directories(hid PUBLIC
 
 defold_add_library(hid_null STATIC
     "${HID_SRC_DIR}/hid.cpp"
+    "${HID_SRC_DIR}/hid_guid.cpp"
     "${HID_SRC_DIR}/hid_null.cpp"
 )
 target_include_directories(hid_null PUBLIC
@@ -87,6 +88,12 @@ if(BUILD_TESTS)
 
     defold_target_link_glfw(test_hid "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_hid "${TARGET_PLATFORM}" PRIVATE)
+
+    if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+        target_link_options(test_hid PRIVATE
+            "--js-library" "${CMAKE_CURRENT_LIST_DIR}/../../external/glfw/js/library_glfw.js"
+            "--js-library" "${DEFOLD_LIB_DIR}/js/library_sys.js")
+    endif()
 
     # Register into global build_tests and run_tests
     defold_register_test_target(test_hid ON "${CMAKE_CURRENT_LIST_DIR}"
