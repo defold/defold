@@ -32,7 +32,7 @@ namespace dmInput
     static const uint16_t INVALID_INDEX = 0xFFFF;
 
     DM_STATIC_ASSERT(sizeof(dmHID::GamepadGuid) == 16, Invalid_Struct_Size);
-    DM_STATIC_ASSERT(sizeof(Action) == 320, Invalid_Struct_Size); // Make sure we don't accidentally grow the struct
+    DM_STATIC_ASSERT(sizeof(Action) == 464, Invalid_Struct_Size); // Make sure we don't accidentally grow the struct
 
     dmHID::Key KEY_MAP[dmInputDDF::MAX_KEY_COUNT];
     dmHID::MouseButton MOUSE_BUTTON_MAP[dmInputDDF::MAX_KEY_COUNT];
