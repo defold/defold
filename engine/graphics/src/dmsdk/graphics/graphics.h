@@ -19,10 +19,22 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/jobsystem.h>
-#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/platform/window.h>
 
 #include <graphics/graphics_ddf.h>
+
+namespace Vectormath
+{
+    namespace Aos
+    {
+        class Vector4;
+    }
+}
+
+namespace dmVMath
+{
+    typedef Vectormath::Aos::Vector4 Vector4;
+}
 
 /*# Graphics API documentation
  *
