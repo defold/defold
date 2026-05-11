@@ -80,11 +80,11 @@ namespace dmLiveUpdate
  *
  * @note The request is asynchronous
  * @note Mounts are active for the current session only
- * @note Names cannot start with '_'
+ * @note Names cannot be '_base' or '_builtin'
  * @note Priority must be >= 0
  *
  * @name liveupdate.add_mount
- * @param name [type:string] Unique name of the mount
+ * @param name [type:string|hash] Unique name of the mount
  * @param uri [type:string] The uri of the mount, including the scheme. Currently supported schemes are 'zip' and 'archive'.
  * @param priority [type:number] Priority of mount. Larger priority takes prescedence
  * @param callback [type:function(self, name, uri, result)] Callback after the asynchronous request completed
@@ -112,9 +112,10 @@ namespace dmLiveUpdate
  * Removing a mount does not affect any loaded resources.
  *
  * @note The call is synchronous
+ * @note Names cannot be '_base' or '_builtin'
  *
  * @name liveupdate.remove_mount
- * @param name [type:string] Unique name of the mount
+ * @param name [type:string|hash] Unique name of the mount
  * @return result [type:number] The result of the call
  *
  * @examples

@@ -195,7 +195,7 @@ namespace dmLiveUpdate
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
-    Result RemoveMountSync(const char* name)
+    Result RemoveMountSync(dmhash_t name_hash)
     {
         if (!IsLiveupdateEnabled())
             return RESULT_NOT_INITIALIZED;
@@ -204,10 +204,10 @@ namespace dmLiveUpdate
         dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
         DM_MUTEX_SCOPED_LOCK(mutex);
 
-        dmResource::Result result = dmResourceMounts::RemoveAndUnmountByNameHash(mounts, dmHashString64(name));
+        dmResource::Result result = dmResourceMounts::RemoveAndUnmountByNameHash(mounts, name_hash);
         if (result != dmResource::RESULT_OK)
         {
-            dmLogError("Failed to remove mount '%s': %s (%d)", name, dmResource::ResultToString(result), result);
+            dmLogError("Failed to remove mount " DM_HASH_FMT ": %s (%d)", name_hash, dmResource::ResultToString(result), result);
             return dmLiveUpdate::ResourceResultToLiveupdateResult(result);
         }
 

@@ -35,6 +35,11 @@ namespace dmLiveUpdate
 
     // *********************
 
+    static bool IsReservedMountName(dmhash_t name_hash)
+    {
+        return name_hash == dmHashString64("_base") || name_hash == dmHashString64("_builtin");
+    }
+
     static int Resource_GetMounts(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -84,12 +89,12 @@ namespace dmLiveUpdate
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const char* name = luaL_checkstring(L, 1);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 1);
 
-        if (name[0] == '_')
-            return DM_LUA_ERROR("Cannot remove base mounts: %s", name);
+        if (IsReservedMountName(name_hash))
+            return DM_LUA_ERROR("Cannot remove reserved mount: " DM_HASH_FMT, name_hash);
 
-        dmLiveUpdate::Result result = dmLiveUpdate::RemoveMountSync(name);
+        dmLiveUpdate::Result result = dmLiveUpdate::RemoveMountSync(name_hash);
         lua_pushinteger(L, result);
         return 1;
     }
@@ -126,7 +131,7 @@ namespace dmLiveUpdate
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        const char* name = luaL_checkstring(L, 1);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 1);
         const char* uri = luaL_checkstring(L, 2);
         int priority = luaL_checkinteger(L, 3);
 
@@ -134,16 +139,16 @@ namespace dmLiveUpdate
         if (priority < 0)
             return DM_LUA_ERROR("Priority needs to be a positive number: %d", priority);
 
-        if (name[0] == '_')
-            return DM_LUA_ERROR("Name must not start with '_': %s", name);
+        if (IsReservedMountName(name_hash))
+            return DM_LUA_ERROR("Cannot add reserved mount: " DM_HASH_FMT, name_hash);
 
         // options at #5
 
         dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 4);
-        dmLiveUpdate::Result res = dmLiveUpdate::AddMountAsync(dmHashString64(name), uri, priority, Callback_AddMount, cbk);
+        dmLiveUpdate::Result res = dmLiveUpdate::AddMountAsync(name_hash, uri, priority, Callback_AddMount, cbk);
         if (dmLiveUpdate::RESULT_OK != res)
         {
-            dmLogError("The liveupdate mount '%s' - '%s' was not stored: %s", name, uri, dmLiveUpdate::ResultToString(res));
+            dmLogError("The liveupdate mount " DM_HASH_FMT " - '%s' was not stored: %s", name_hash, uri, dmLiveUpdate::ResultToString(res));
             dmScript::DestroyCallback(cbk);
         }
 

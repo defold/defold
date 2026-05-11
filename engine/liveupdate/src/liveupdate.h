@@ -52,7 +52,7 @@ namespace dmLiveUpdate
     Result ResourceResultToLiveupdateResult(dmResource::Result r);
 
     Result AddMountAsync(dmhash_t name_hash, const char* uri, int priority, void (*callback)(dmhash_t, const char*, int, void*), void* cbk_ctx);
-    Result RemoveMountSync(const char* name);
+    Result RemoveMountSync(dmhash_t name_hash);
 
     bool IsBuiltWithExcludedFiles();
 };

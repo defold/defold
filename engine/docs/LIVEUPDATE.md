@@ -72,7 +72,7 @@ Most notably, it contains some dependencies between resources, in order for the 
 The mount scripting api consists of three main functions: `liveupdate.add_mount()`/`liveupdate.remove_mount()`/`liveupdate.get_mounts()`
 Mounts are active for the current session only. Applications that need mounts after restart must add them again.
 
-Mount names are accepted as strings by `liveupdate.add_mount()` and `liveupdate.remove_mount()`, and stored internally as hashes. The `name` field returned by `liveupdate.get_mounts()` is a hash, and the `liveupdate.add_mount()` callback receives `(self, name, uri, result)`, where `name` is the mount name hash.
+Mount names are accepted as strings or hashes by `liveupdate.add_mount()` and `liveupdate.remove_mount()`, and stored internally as hashes. The reserved base mount names `_base` and `_builtin` cannot be added or removed from script. The `name` field returned by `liveupdate.get_mounts()` is a hash, and the `liveupdate.add_mount()` callback receives `(self, name, uri, result)`, where `name` is the mount name hash.
 
 The api also exposes `liveupdate.is_built_with_excluded_files()`, which reports whether the bundled manifest was produced with excluded resources. This is a build metadata check, not a check for currently mounted or downloaded content.
 
