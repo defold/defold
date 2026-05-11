@@ -192,14 +192,10 @@ namespace dmLiveUpdate
 
         if (archive)
         {
-            dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, LIVEUPDATE_LEGACY_MOUNT_NAME, archive, LIVEUPDATE_LEGACY_MOUNT_PRIORITY, true);
+            dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, LIVEUPDATE_LEGACY_MOUNT_NAME, archive, LIVEUPDATE_LEGACY_MOUNT_PRIORITY);
             if (dmResource::RESULT_OK != result)
             {
                 dmLogError("Failed to mount legacy archive '%s': %s", archive_uri, dmResource::ResultToString(result));
-            }
-            else {
-                // Flush the resource mounts to disc
-                dmResourceMounts::SaveMounts(g_LiveUpdate.m_ResourceMounts, g_LiveUpdate.m_AppSupportPath);
             }
         }
 
@@ -331,8 +327,7 @@ namespace dmLiveUpdate
         return 0;
     }
 
-    // The idea with this solution is to convert old formats into new mount format.
-    // We do this by adding them to the mount system with a specific name.
+    // The idea with this solution is to mount old formats with a specific name.
     static dmResourceProvider::HArchive LegacyLoadArchive(dmResourceMounts::HContext mounts, dmResourceProvider::HArchive base_archive, const char* app_support_path)
     {
         dmResourceProvider::HArchive archive = LegacyLoadZipArchive(app_support_path, base_archive);
@@ -347,20 +342,14 @@ namespace dmLiveUpdate
             archive = LegacyLoadMutableArchive(app_support_path, base_archive);
         }
 
-        // We have no need for the .ref file anymore, since we'll store it in liveupdate.mounts instead
         LegacyCleanOldZipMountFormats(app_support_path);
 
         if (archive)
         {
-            dmResource::Result result = dmResourceMounts::AddMount(mounts, LIVEUPDATE_LEGACY_MOUNT_NAME, archive, LIVEUPDATE_LEGACY_MOUNT_PRIORITY, true);
+            dmResource::Result result = dmResourceMounts::AddMount(mounts, LIVEUPDATE_LEGACY_MOUNT_NAME, archive, LIVEUPDATE_LEGACY_MOUNT_PRIORITY);
             if (dmResource::RESULT_OK != result)
             {
                 dmLogError("Failed to mount legacy archive: %s", dmResource::ResultToString(result));
-            }
-            else
-            {
-                // Flush the resource mounts to disc
-                dmResourceMounts::SaveMounts(g_LiveUpdate.m_ResourceMounts, g_LiveUpdate.m_AppSupportPath);
             }
         }
 
@@ -673,15 +662,10 @@ namespace dmLiveUpdate
 
         if (archive)
         {
-            dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, job->m_Name, archive, job->m_Priority, true);
+            dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, job->m_Name, archive, job->m_Priority);
             if (dmResource::RESULT_OK != result)
             {
                 dmLogError("Failed to mount zip archive: %s", dmResource::ResultToString(result));
-            }
-            else
-            {
-                // Flush the resource mounts to disc
-                dmResourceMounts::SaveMounts(g_LiveUpdate.m_ResourceMounts, g_LiveUpdate.m_AppSupportPath);
             }
         }
 
@@ -770,15 +754,10 @@ namespace dmLiveUpdate
 
         if (archive)
         {
-            dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, job->m_Name, archive, job->m_Priority, true);
+            dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, job->m_Name, archive, job->m_Priority);
             if (dmResource::RESULT_OK != result)
             {
                 dmLogError("Failed to add mount for '%s': %s", job->m_Uri, dmResource::ResultToString(result));
-            }
-            else
-            {
-                // Flush the resource mounts to disc
-                dmResourceMounts::SaveMounts(g_LiveUpdate.m_ResourceMounts, g_LiveUpdate.m_AppSupportPath);
             }
         }
 
@@ -824,17 +803,10 @@ namespace dmLiveUpdate
         dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
         DM_MUTEX_SCOPED_LOCK(mutex);
 
-        dmResource::Result result = dmResourceMounts::RemoveAndUnmountByName(mounts, name);
+        dmResource::Result result = dmResourceMounts::RemoveAndUnmountByNameHash(mounts, dmHashString64(name));
         if (result != dmResource::RESULT_OK)
         {
             dmLogError("Failed to remove mount '%s': %s (%d)", name, dmResource::ResultToString(result), result);
-            return dmLiveUpdate::ResourceResultToLiveupdateResult(result);
-        }
-
-        result = dmResourceMounts::SaveMounts(mounts, g_LiveUpdate.m_AppSupportPath);
-        if (result != dmResource::RESULT_OK)
-        {
-            dmLogError("Failed to save mounts file");
             return dmLiveUpdate::ResourceResultToLiveupdateResult(result);
         }
 
@@ -845,10 +817,10 @@ namespace dmLiveUpdate
     // ** LiveUpdate utility functions
     // ******************************************************************
 
-    static dmResourceProvider::HArchive FindLiveupdateArchiveMount(dmResourceMounts::HContext mounts, const char* name)
+    static dmResourceProvider::HArchive FindLiveupdateArchiveMount(dmResourceMounts::HContext mounts, dmhash_t name_hash)
     {
         dmResourceMounts::SGetMountResult info;
-        dmResource::Result result = dmResourceMounts::GetMountByName(mounts, name, &info);
+        dmResource::Result result = dmResourceMounts::GetMountByNameHash(mounts, name_hash, &info);
         if (dmResource::RESULT_OK == result)
         {
             return info.m_Archive;
@@ -904,7 +876,7 @@ namespace dmLiveUpdate
             return dmExtension::RESULT_INIT_ERROR;
         }
 
-        g_LiveUpdate.m_LiveupdateArchive = FindLiveupdateArchiveMount(g_LiveUpdate.m_ResourceMounts, LIVEUPDATE_LEGACY_MOUNT_NAME);
+        g_LiveUpdate.m_LiveupdateArchive = FindLiveupdateArchiveMount(g_LiveUpdate.m_ResourceMounts, dmHashString64(LIVEUPDATE_LEGACY_MOUNT_NAME));
         if (!g_LiveUpdate.m_LiveupdateArchive)
         {
             g_LiveUpdate.m_LiveupdateArchive = LegacyLoadArchive(g_LiveUpdate.m_ResourceMounts, g_LiveUpdate.m_ResourceBaseArchive, g_LiveUpdate.m_AppSupportPath);

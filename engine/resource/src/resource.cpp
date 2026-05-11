@@ -195,7 +195,7 @@ static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
         return RESULT_NOT_LOADED;
     }
 
-    dmResourceMounts::AddMount(factory->m_Mounts, "_builtin", factory->m_BuiltinMount, -5, false);
+    dmResourceMounts::AddMount(factory->m_Mounts, "_builtin", factory->m_BuiltinMount, -5);
     return RESULT_OK;
 }
 
@@ -227,7 +227,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     factory->m_Mounts = 0;
 
-    // Mount the base archive, regardless of the liveupdate.mounts
+    // Mount the base archive
     struct SchemeMountTypePair
     {
         const char* m_Scheme;
@@ -279,7 +279,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 factory->m_Mounts = dmResourceMounts::Create(archive);
             }
 
-            dmResourceMounts::AddMount(factory->m_Mounts, "_base", archive, -10, false);
+            dmResourceMounts::AddMount(factory->m_Mounts, "_base", archive, -10);
 
             if (strcmp("archive", type_pairs[i].m_ProviderType) == 0)
             {
@@ -299,26 +299,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         DeleteFactory(factory);
         dmMessage::DeleteSocket(socket);
         return 0;
-    }
-
-    if (factory->m_BaseArchiveMount)
-    {
-        if (params->m_Flags & RESOURCE_FACTORY_FLAGS_LIVE_UPDATE_MOUNTS_ON_START)
-        {
-            dmResource::HManifest manifest;
-            if (dmResourceProvider::RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
-            {
-                char app_support_path[DMPATH_MAX_PATH];
-                if (RESULT_OK == dmResource::GetApplicationSupportPath(manifest, app_support_path, sizeof(app_support_path)))
-                {
-                    dmResourceMounts::LoadMounts(factory->m_Mounts, app_support_path);
-                }
-            }
-        }
-        else
-        {
-            dmLogInfo("LiveUpdate resource mounts disabled.");
-        }
     }
 
     dmLogDebug("Created resource factory with uri %s\n", uri);

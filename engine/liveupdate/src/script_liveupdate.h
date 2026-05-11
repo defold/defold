@@ -314,12 +314,12 @@ namespace dmLiveUpdate
  * DEBUG:SCRIPT: MOUNTS,
  * { --[[0x119667bf0]]
  *   1 = { --[[0x119667c50]]
- *     name = "liveupdate",
+ *     name = hash: [liveupdate],
  *     uri = "zip:/device/path/to/acchives/liveupdate.zip",
  *     priority = 5
  *   },
  *   2 = { --[[0x119667d50]]
- *     name = "_base",
+ *     name = hash: [_base],
  *     uri = "archive:build/default/game.dmanifest",
  *     priority = -10
  *   }
@@ -330,11 +330,10 @@ namespace dmLiveUpdate
 /*# Add resource mount
  *
  * Adds a resource mount to the resource system.
- * The mounts are persisted between sessions.
- *
  * After the mount succeeded, the resources are available to load. (i.e. no reboot required)
  *
  * @note The request is asynchronous
+ * @note Mounts are active for the current session only
  * @note Names cannot start with '_'
  * @note Priority must be >= 0
  *
@@ -361,8 +360,6 @@ namespace dmLiveUpdate
 /*# Remove resource mount
  *
  * Remove a mount the resource system.
- * The remaining mounts are persisted between sessions.
- *
  * Removing a mount does not affect any loaded resources.
  *
  * @note The call is synchronous
