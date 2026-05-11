@@ -2222,7 +2222,7 @@ class Configuration(object):
             self._log("No --save-env-path set when trying to save environment export")
             return
 
-        env = self._form_env()
+        env = self._form_env(inherit = False)
         res = ""
         for key in env:
             if bool(re.match('^[a-zA-Z0-9_]+$', key)):
@@ -2866,8 +2866,8 @@ class Configuration(object):
             f()
         self.futures = []
 
-    def _form_env(self):
-        env = os.environ.copy()
+    def _form_env(self, inherit = True):
+        env = os.environ.copy() if inherit else {}
 
         host = self.host
 
@@ -2903,13 +2903,13 @@ class Configuration(object):
                                       '%s/ext/bin' % self.dynamo_home,
                                       '%s/ext/bin/%s' % (self.dynamo_home, host)])
 
-        env['PATH'] = paths + os.path.pathsep + env['PATH']
+        env['PATH'] = paths + os.path.pathsep + os.environ['PATH']
 
         # This trickery is needed for the bash to properly inherit the PATH that we've set here
         # See /etc/profile for further details
-        is_mingw = env.get('MSYSTEM', '') in ('MINGW64',)
+        is_mingw = os.environ.get('MSYSTEM', '') in ('MINGW64',)
         if is_mingw:
-            env['ORIGINAL_PATH'] = env['PATH']
+            env['ORIGINAL_PATH'] = os.environ['PATH']
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
@@ -2925,8 +2925,8 @@ class Configuration(object):
 
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
-        if 'NODE_PATH' in env:
-            env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
+        if 'NODE_PATH' in os.environ:
+            env['NODE_PATH'] = xhr2_path + os.path.pathsep + os.environ['NODE_PATH']
         else:
             env['NODE_PATH'] = xhr2_path
 

@@ -343,6 +343,7 @@
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
                                                     "-Ddefold.dev=true"
+                                                    "-Djavafx.cachedir=.openjfx/cache"
                                                     ;"-Djogl.verbose=true"
                                                     ;"-Djogl.debug=true"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
