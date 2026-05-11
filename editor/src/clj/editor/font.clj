@@ -699,9 +699,10 @@
                              :cache-height (:cache-height font-desc))
 
                            is-distance-field
-                           (assoc :sdf-spread (Fontc/GetFontMapSdfSpread font-desc-pb)
-                                  :sdf-outline (Fontc/GetFontMapSdfOutline font-desc-pb)
-                                  :sdf-shadow (Fontc/GetFontMapSdfShadow font-desc-pb)))]
+                           (merge (protobuf/make-map-without-defaults Font$FontMap
+                                    :sdf-spread (Fontc/GetFontMapSdfSpread font-desc-pb)
+                                    :sdf-outline (Fontc/GetFontMapSdfOutline font-desc-pb)
+                                    :sdf-shadow (Fontc/GetFontMapSdfShadow font-desc-pb))))]
         (if (and runtime-generation-build-target
                  ;; Currently, only distance field fonts can be runtime-generated.
                  is-distance-field)
