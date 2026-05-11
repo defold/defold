@@ -29,6 +29,9 @@
 (defn- ^Matrix4d identity-m4 []
   (doto (Matrix4d.) (.setIdentity)))
 
+(defn- test-camera []
+  (camera/make-camera))
+
 (deftest renderable->std140-point-red-test
   (let [m (light/renderable->std140-light
             {:world-translation (Vector3d. 3.0 4.0 5.0)
@@ -55,7 +58,7 @@
                                               :direction [0.0 0.0 -1.0]
                                               :inner-cone-angle 0.0
                                               :outer-cone-angle 45.0}}}
-        pl (light/packed-lights-from-scene {pass/transparent [r]})]
+        pl (light/packed-lights-from-scene {pass/transparent [r]} (test-camera))]
     (is (= 1 (count pl)))
     (is (< (Math/abs (- 1.0 (.x ^Vector4d (:color (first pl))))) 1e-6))))
 
@@ -69,9 +72,9 @@
                                               :range 10.0
                                               :inner-cone-angle 0.0
                                               :outer-cone-angle 45.0}}}]
-    (is (= [] (light/packed-lights-from-scene {pass/outline [r]})))
-    (is (= [] (light/packed-lights-from-scene {pass/selection [r]})))
-    (is (= [] (light/packed-lights-from-scene {})))))
+    (is (= [] (light/packed-lights-from-scene {pass/outline [r]} (test-camera))))
+    (is (= [] (light/packed-lights-from-scene {pass/selection [r]} (test-camera))))
+    (is (= [] (light/packed-lights-from-scene {} (test-camera))))))
 
 (deftest packed-lights-from-scene-dedupes-by-node-id-path-test
   (let [preview {:light-type :point
@@ -88,7 +91,7 @@
             :world-translation (Vector3d. 2.0 0.0 0.0)
             :world-transform (identity-m4)
             :user-data {:editor-preview-light preview}}
-        pl (light/packed-lights-from-scene {pass/transparent [r1 r2]})]
+        pl (light/packed-lights-from-scene {pass/transparent [r1 r2]} (test-camera))]
     (is (= 1 (count pl)))
     (is (< (Math/abs (- 1.0 (.x ^Vector4d (:position (first pl))))) 1e-6))))
 
@@ -105,7 +108,7 @@
                              :world-transform (identity-m4)
                              :user-data {:editor-preview-light preview}})
                           (range (+ 4 (long light/default-max-preview-lights))))
-        pl (light/packed-lights-from-scene {pass/transparent renderables})]
+        pl (light/packed-lights-from-scene {pass/transparent renderables} (test-camera))]
     (is (= (long light/default-max-preview-lights) (count pl)))))
 
 (deftest point-light-preview-updates-shader-range-test
