@@ -1538,8 +1538,9 @@
 
 (handler/defhandler :project.clean-build :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane localization]
-    (when (dialogs/make-confirmation-dialog localization clean-build-dialog-info)
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane localization user-data]
+    (when (or (:skip-confirmation user-data)
+              (dialogs/make-confirmation-dialog localization clean-build-dialog-info))
       (debug-view/detach! debug-view)
       (workspace/clear-build-cache! workspace)
       (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane))))
