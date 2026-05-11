@@ -1659,7 +1659,8 @@
           (if (or (nil? options)
                   (and key-combo (not (:expand item))))
             (make-menu-command scene id label localization icon style key-combo user-data command enabled? check)
-            (if (some-> options meta :layout (= :grid))
+            (if (and (some-> options meta :layout (= :grid))
+                     (:expand item))
               (let [grid-menu (make-grid-menu scene localization options command-contexts evaluation-context)]
                 (make-submenu id label localization icon style [grid-menu] #(focus-first-grid-menu-item grid-menu)))
               (make-submenu id label localization icon style
