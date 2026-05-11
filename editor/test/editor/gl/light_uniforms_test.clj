@@ -188,6 +188,18 @@
     (is (= [] (get (:renderables scene-render-data) pass/transparent [])))
     (is (= 1 (count (:editor/preview-lights (get pass->render-args pass/transparent)))))))
 
+(deftest camera-inset-render-args-include-preview-lights-test
+  (let [camera (camera/make-camera)
+        viewport (types/->Region 0 100 0 100)
+        preview-lights [{:position (Vector4d. 0.0 0.0 0.0 1.0)}]
+        pass->render-args (#'scene/pass->render-args-with-preview-lights viewport
+                                                                        camera
+                                                                        [pass/background pass/opaque pass/transparent]
+                                                                        preview-lights)]
+    (is (= preview-lights (:editor/preview-lights (get pass->render-args pass/background))))
+    (is (= preview-lights (:editor/preview-lights (get pass->render-args pass/opaque))))
+    (is (= preview-lights (:editor/preview-lights (get pass->render-args pass/transparent))))))
+
 (deftest bind-preview-lights-for-shader-skips-shaders-without-preview-light-uniforms-test
   (let [request-object-call-count (atom 0)
         test-shader (shader/make-shader

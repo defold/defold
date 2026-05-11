@@ -102,6 +102,12 @@
     "spot_light" :spot
     :point))
 
+(defn- ext->resource-type-label [ext]
+  (case ext
+    "point_light" (localization/message "resource.type.point-light")
+    "directional_light" (localization/message "resource.type.directional-light")
+    "spot_light" (localization/message "resource.type.spot-light")))
+
 (defn- get-number [fields key default]
   (double (or (get-in fields [key :number]) default)))
 
@@ -905,5 +911,6 @@
                 :view-opts {}
                 :tags #{:component}
                 :tag-opts {:component {:transform-properties #{}}}
-                :label (localization/message "resource.type.light"))))
+                :build-ext "lightc"
+                :label (ext->resource-type-label ext))))
           ["point_light" "directional_light" "spot_light"]))

@@ -713,6 +713,15 @@
     (let [content (get content-by-source "/game.project")]
       (is (some? (re-find #"/main/main\.collectionc" (String. content "UTF-8")))))))
 
+(deftest light-resource-types-build-to-shared-lightc-extension
+  (with-loaded-project project-path
+    (doseq [[ext expected-label] {"point_light" "Point Light"
+                                  "directional_light" "Directional Light"
+                                  "spot_light" "Spot Light"}]
+      (let [resource-type (workspace/get-resource-type workspace ext)]
+        (is (= "lightc" (:build-ext resource-type)))
+        (is (= expected-label (test-util/localization (:label resource-type))))))))
+
 (deftest build-game-project-with-error
   (with-loaded-project project-path
     (let [path                "/game.project"

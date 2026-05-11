@@ -447,6 +447,31 @@
            :camera camera
            :viewport viewport)))
 
+(declare flatten-scene)
+
+(defn- collect-preview-lights
+  "Collect scene-derived preview lights for material shaders. Light gizmos can be
+  hidden without disabling their lighting contribution."
+  [scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths view-camera light-camera]
+  (if (:error scene)
+    []
+    (let [preview-light-hidden-renderable-tags (disj (or hidden-renderable-tags #{}) :light)
+          view-matrix (c/camera-view-matrix view-camera)
+          preview-light-renderables (:renderables (flatten-scene scene
+                                                                preview-overrides
+                                                                #{}
+                                                                preview-light-hidden-renderable-tags
+                                                                hidden-node-outline-key-paths
+                                                                view-matrix))]
+      (light/packed-lights-from-scene preview-light-renderables light-camera))))
+
+(defn- pass->render-args-with-preview-lights [^Region viewport ^Camera camera passes preview-lights]
+  (into {}
+        (map (fn [pass]
+               [pass (assoc (pass-render-args viewport camera pass)
+                            :editor/preview-lights preview-lights)]))
+        passes))
+
 (defn- assoc-updatable-states
   [renderables updatable-states]
   (mapv (fn [renderable]
@@ -502,13 +527,21 @@
         (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
         (batch-render gl pass-render-args pass-renderables batch-key)))))
 
-(g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable]
+(g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable
+                                    scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths]
   (when-some [{:keys [camera clear-color display-width display-height render-width render-height]} (make-camera-inset-render-data scene-render-data)]
     (when camera-inset-drawable
       (let [camera-inset-viewport (types/->Region 0 render-width 0 render-height)
-            camera-inset-pass->render-args (into {}
-                                                 (map (juxt identity (partial pass-render-args camera-inset-viewport camera)))
-                                                 camera-inset-passes)
+            preview-lights (collect-preview-lights scene
+                                                   preview-overrides
+                                                   hidden-renderable-tags
+                                                   hidden-node-outline-key-paths
+                                                   camera
+                                                   camera)
+            camera-inset-pass->render-args (pass->render-args-with-preview-lights camera-inset-viewport
+                                                                                  camera
+                                                                                  camera-inset-passes
+                                                                                  preview-lights)
             scene-renderables (make-camera-inset-renderables scene-render-data camera)
             camera-inset-frame (gl/with-drawable-as-current camera-inset-drawable
                                  (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
@@ -850,23 +883,13 @@
   so preview overrides are reflected immediately, and we ignore the `:light`
   visibility tag here since hiding light gizmos should not disable lighting."
   [^Region viewport camera scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths local-camera]
-  (let [preview-lights
-        (if-let [error (:error scene)]
-          []
-          (let [preview-light-hidden-renderable-tags (disj (or hidden-renderable-tags #{}) :light)
-                view-matrix (c/camera-view-matrix local-camera)
-                preview-light-renderables (:renderables (flatten-scene scene
-                                                                      preview-overrides
-                                                                      #{}
-                                                                      preview-light-hidden-renderable-tags
-                                                                      hidden-node-outline-key-paths
-                                                                      view-matrix))]
-            (light/packed-lights-from-scene preview-light-renderables camera)))]
-    (into {}
-          (map (fn [pass]
-                 [pass (assoc (pass-render-args viewport camera pass)
-                              :editor/preview-lights preview-lights)]))
-          pass/all-passes)))
+  (let [preview-lights (collect-preview-lights scene
+                                               preview-overrides
+                                               hidden-renderable-tags
+                                               hidden-node-outline-key-paths
+                                               local-camera
+                                               camera)]
+    (pass->render-args-with-preview-lights viewport camera pass/all-passes preview-lights)))
 
 (g/defnk produce-renderables-aabb+picking-node-id [scene-render-data]
   (let [renderables-by-pass (:renderables scene-render-data)]
