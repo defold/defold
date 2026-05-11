@@ -15,6 +15,7 @@
 #include "gui.h"
 
 #include <string.h>
+#include <stdlib.h>
 #include <new>
 #include <algorithm>
 
@@ -99,6 +100,74 @@ namespace dmGui
             TextLayoutRelease(text_layout->m_Handle);
         }
         ResetTextLayout(text_layout);
+    }
+
+    static void FreeCustomProperty(CustomProperty* property)
+    {
+        if (property->m_Type == CUSTOM_PROPERTY_TYPE_STRING)
+        {
+            free((void*)property->m_String);
+            property->m_String = 0;
+        }
+    }
+
+    static void FreeCustomProperties(CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        if (!properties)
+        {
+            return;
+        }
+        for (uint32_t i = 0; i < property_count; ++i)
+        {
+            FreeCustomProperty(&properties[i].m_Property);
+        }
+        free(properties);
+    }
+
+    static void FreeCustomProperties(Node* node)
+    {
+        FreeCustomProperties(node->m_CustomProperties, node->m_CustomPropertyCount);
+        node->m_CustomProperties = 0;
+        node->m_CustomPropertyCount = 0;
+    }
+
+    static Result CopyCustomProperty(CustomProperty* dst, const CustomProperty* src)
+    {
+        CustomProperty copy = *src;
+        if (src->m_Type == CUSTOM_PROPERTY_TYPE_STRING)
+        {
+            const char* string_value = src->m_String ? src->m_String : "";
+            copy.m_String = strdup(string_value);
+            if (!copy.m_String)
+            {
+                return RESULT_OUT_OF_RESOURCES;
+            }
+        }
+        *dst = copy;
+        return RESULT_OK;
+    }
+
+    static int CompareCustomProperties(const void* a, const void* b)
+    {
+        dmhash_t key_a = ((const CustomPropertyDesc*)a)->m_Key;
+        dmhash_t key_b = ((const CustomPropertyDesc*)b)->m_Key;
+        if (key_a < key_b)
+            return -1;
+        if (key_a > key_b)
+            return 1;
+        return 0;
+    }
+
+    static CustomPropertyDesc* FindCustomProperty(Node* node, dmhash_t key)
+    {
+        if (node->m_CustomPropertyCount == 0)
+        {
+            return 0;
+        }
+
+        CustomPropertyDesc search = {};
+        search.m_Key = key;
+        return (CustomPropertyDesc*)bsearch(&search, node->m_CustomProperties, node->m_CustomPropertyCount, sizeof(CustomPropertyDesc), CompareCustomProperties);
     }
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
@@ -671,6 +740,8 @@ namespace dmGui
 
         free((void*)n->m_Node.m_Text);
         n->m_Node.m_Text = 0;
+
+        FreeCustomProperties(&n->m_Node);
 
         free(n->m_Node.m_ResetPointProperties);
         n->m_Node.m_ResetPointProperties = 0;
@@ -2741,6 +2812,88 @@ namespace dmGui
         return n->m_NameHash;
     }
 
+    Result SetNodeCustomProperties(HScene scene, HNode node, const CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        InternalNode* n = GetNode(scene, node);
+        Node* node_data = &n->m_Node;
+
+        if (property_count == 0)
+        {
+            FreeCustomProperties(node_data);
+            return RESULT_OK;
+        }
+        if (property_count > 255)
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+
+        CustomPropertyDesc* copied_properties = (CustomPropertyDesc*)realloc(0, sizeof(CustomPropertyDesc) * property_count);
+        if (!copied_properties)
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        memcpy(copied_properties, properties, sizeof(CustomPropertyDesc) * property_count);
+
+        for (uint32_t i = 0; i < property_count; ++i)
+        {
+            CustomProperty* property = &copied_properties[i].m_Property;
+            if (property->m_Type == CUSTOM_PROPERTY_TYPE_STRING)
+            {
+                const char* string_value = property->m_String ? property->m_String : "";
+                property->m_String = strdup(string_value);
+                if (!property->m_String)
+                {
+                    FreeCustomProperties(copied_properties, i);
+                    return RESULT_OUT_OF_RESOURCES;
+                }
+            }
+        }
+
+        qsort(copied_properties, property_count, sizeof(CustomPropertyDesc), CompareCustomProperties);
+
+        FreeCustomProperties(node_data);
+        node_data->m_CustomProperties = copied_properties;
+        node_data->m_CustomPropertyCount = (uint8_t) property_count;
+        return RESULT_OK;
+    }
+
+    Result GetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, CustomProperty* prop)
+    {
+        InternalNode* n = GetNode(scene, node);
+        CustomPropertyDesc* property = FindCustomProperty(&n->m_Node, key);
+        if (!property)
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+        *prop = property->m_Property;
+        return RESULT_OK;
+    }
+
+    Result SetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, const CustomProperty* prop)
+    {
+        InternalNode* n = GetNode(scene, node);
+        CustomPropertyDesc* property = FindCustomProperty(&n->m_Node, key);
+        if (!property)
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+        if (property->m_Property.m_Type != prop->m_Type)
+        {
+            return RESULT_WRONG_TYPE;
+        }
+
+        CustomProperty copy;
+        Result result = CopyCustomProperty(&copy, prop);
+        if (result != RESULT_OK)
+        {
+            return result;
+        }
+
+        FreeCustomProperty(&property->m_Property);
+        property->m_Property = copy;
+        return RESULT_OK;
+    }
+
     HNode GetNodeById(HScene scene, const char* id)
     {
         dmhash_t name_hash = dmHashString64(id);
@@ -2870,6 +3023,7 @@ namespace dmGui
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
         free(n->m_Node.m_ResetPointProperties);
+        FreeCustomProperties(&n->m_Node);
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
     }
@@ -4626,9 +4780,29 @@ namespace dmGui
         out_n->m_Node = n->m_Node;
         out_n->m_Node.m_HasResetPoint = 0;
         out_n->m_Node.m_ResetPointProperties = 0;
+        out_n->m_Node.m_CustomProperties = 0;
+        out_n->m_Node.m_CustomPropertyCount = 0;
         ResetTextLayout(&out_n->m_Node.m_TextLayout);
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
+
+        out_n->m_NameHash = dmHashString64(name);
+        out_n->m_Version = version;
+        out_n->m_Index = index;
+        out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;
+        out_n->m_PrevIndex = INVALID_INDEX;
+        out_n->m_NextIndex = INVALID_INDEX;
+        out_n->m_ParentIndex = INVALID_INDEX;
+        out_n->m_ChildHead = INVALID_INDEX;
+        out_n->m_ChildTail = INVALID_INDEX;
+
+        Result result = SetNodeCustomProperties(scene, *out_node, n->m_Node.m_CustomProperties, n->m_Node.m_CustomPropertyCount);
+        if (result != RESULT_OK)
+        {
+            ResetInternalNode(scene, out_n);
+            *out_node = INVALID_HANDLE;
+            return result;
+        }
         
         // Handle render constants - clone them if callback is available and source has them
         if (n->m_Node.m_RenderConstants && scene->m_CloneRenderConstantsCallback)
@@ -4641,15 +4815,6 @@ namespace dmGui
             out_n->m_Node.m_RenderConstants = 0x0;
             out_n->m_Node.m_RenderConstantsHash = 0;
         }
-        out_n->m_NameHash = dmHashString64(name);
-        out_n->m_Version = version;
-        out_n->m_Index = index;
-        out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;
-        out_n->m_PrevIndex = INVALID_INDEX;
-        out_n->m_NextIndex = INVALID_INDEX;
-        out_n->m_ParentIndex = INVALID_INDEX;
-        out_n->m_ChildHead = INVALID_INDEX;
-        out_n->m_ChildTail = INVALID_INDEX;
         scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
 
         if (n->m_Node.m_CustomType != 0)

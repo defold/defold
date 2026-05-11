@@ -211,6 +211,94 @@ namespace dmGameSystem
         }
     }
 
+    static bool DDFPropertyToCustomProperty(const dmGuiDDF::Property& ddf_property, dmGui::CustomPropertyDesc* out_property)
+    {
+        out_property->m_Key = ddf_property.m_IdHash != 0 ? (dmhash_t)ddf_property.m_IdHash : dmHashString64(ddf_property.m_Id ? ddf_property.m_Id : "");
+        dmGui::CustomProperty* property = &out_property->m_Property;
+
+        switch (ddf_property.m_Type)
+        {
+            case dmGuiDDF::Property::TYPE_NUMBER:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_NUMBER;
+                property->m_Number = ddf_property.m_Value.m_Number;
+            break;
+
+            case dmGuiDDF::Property::TYPE_BOOLEAN:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN;
+                property->m_Boolean = ddf_property.m_Value.m_Boolean;
+            break;
+
+            case dmGuiDDF::Property::TYPE_HASH:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_HASH;
+                property->m_Hash = (dmhash_t)ddf_property.m_Value.m_Hash;
+            break;
+
+            case dmGuiDDF::Property::TYPE_STRING:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
+                property->m_String = ddf_property.m_Value.m_StringValue ? ddf_property.m_Value.m_StringValue : "";
+            break;
+
+            case dmGuiDDF::Property::TYPE_VECTOR3:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3;
+                property->m_Vector3 = ddf_property.m_Value.m_Vector3;
+            break;
+
+            case dmGuiDDF::Property::TYPE_VECTOR4:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_VECTOR4;
+                property->m_Vector4 = ddf_property.m_Value.m_Vector4;
+            break;
+
+            case dmGuiDDF::Property::TYPE_QUAT:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_QUAT;
+                property->m_Quat = ddf_property.m_Value.m_Quat;
+            break;
+
+            default:
+                return false;
+        }
+
+        return true;
+    }
+
+    static bool SetCustomProperties(const dmGui::HScene scene, dmGui::HNode node, const dmGuiDDF::NodeDesc* node_desc)
+    {
+        uint32_t custom_property_count = node_desc->m_CustomProperties.m_Count;
+        if (custom_property_count == 0)
+        {
+            return true;
+        }
+
+        const uint32_t max_stack_custom_properties = 20;
+        dmGui::CustomPropertyDesc stack_custom_properties[max_stack_custom_properties];
+        dmArray<dmGui::CustomPropertyDesc> custom_properties;
+        if (custom_property_count < max_stack_custom_properties)
+        {
+            custom_properties.Set(stack_custom_properties, custom_property_count, max_stack_custom_properties, true);
+        }
+        else
+        {
+            custom_properties.SetCapacity(custom_property_count);
+            custom_properties.SetSize(custom_property_count);
+        }
+
+        for (uint32_t i = 0; i < custom_property_count; ++i)
+        {
+            if (!DDFPropertyToCustomProperty(node_desc->m_CustomProperties[i], &custom_properties[i]))
+            {
+                dmLogError("The custom property for '%s' has an invalid type: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", node_desc->m_CustomProperties[i].m_Type);
+                return false;
+            }
+        }
+
+        if (dmGui::SetNodeCustomProperties(scene, node, custom_properties.Begin(), custom_property_count) != dmGui::RESULT_OK)
+        {
+            dmLogError("The custom properties could not be set for '%s'.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed");
+            return false;
+        }
+
+        return true;
+    }
+
     static dmGui::NodeType DDFNodeTypeToGuiNodeType(dmGuiDDF::NodeDesc::Type type)
     {
         switch (type)
@@ -649,7 +737,7 @@ namespace dmGameSystem
             break;
 
 
-            case dmGui::NODE_TYPE_CUSTOM:
+            case dmGuiDDF::NodeDesc::TYPE_CUSTOM:
             {
                 GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
                 uint32_t custom_type = dmGui::GetNodeCustomType(scene, n);
@@ -939,6 +1027,8 @@ namespace dmGameSystem
             {
                 if (node_desc->m_Id)
                     dmGui::SetNodeId(scene, n, node_desc->m_Id);
+                if (!SetCustomProperties(scene, n, node_desc))
+                    return false;
                 if(!SetNode(scene, n, node_desc))
                     return false;
                 if(layouts_count != 0)

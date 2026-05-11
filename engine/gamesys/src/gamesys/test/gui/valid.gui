@@ -42,5 +42,11 @@ nodes {
   blend_mode: BLEND_MODE_ALPHA
   texture: "test_texture"
   font: "test_font"
+  id: "custom_props"
+  custom_properties {
+    id: "test_custom_string"
+    type: TYPE_STRING
+    string_value: "component"
+  }
 }
 material: "/gui/gui.material"

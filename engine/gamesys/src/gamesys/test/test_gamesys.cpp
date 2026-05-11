@@ -9323,6 +9323,27 @@ TEST_F(GuiTest, PerPropertyPrecedence)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GuiCustomPropertiesFromDDF)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0x0, gui_component);
+
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "custom_props");
+    ASSERT_NE(dmGui::INVALID_HANDLE, node);
+
+    dmGui::CustomProperty property = {};
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("component", property.m_String);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
