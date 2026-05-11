@@ -225,13 +225,6 @@ def build(bld):
                 target       = 'test_provider_archive',
                 source       = 'test_provider_archive.cpp')
 
-    bld.program(features = 'cxx test',
-                includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource embedded_resources',
-                exported_symbols = ['ResourceProviderArchive', 'ResourceProviderArchiveMutable'],
-                target       = 'test_provider_archive_mutable',
-                source       = 'test_provider_archive_mutable.cpp')
-
     bld.program(features     = ['cxx', 'test'] + skip_http_test,
                 includes     = '.. ../../proto',
                 defines      = defines,

@@ -37,7 +37,7 @@ namespace dmResourceMounts
     dmMutex::HMutex GetMutex(HContext ctx);
 
     // Does not call Unmount on the archives
-    dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority);
+    dmResource::Result AddMount(HContext ctx, dmhash_t name_hash, dmResourceProvider::HArchive archive, int priority);
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
 
     // Also calls Unmount on the archive
