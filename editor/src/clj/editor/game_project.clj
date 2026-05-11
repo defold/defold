@@ -111,6 +111,31 @@
   (let [paths (remove string/blank? (map string/trim (string/split (or cr-setting "")  #",")))]
     (map (comp strip-trailing-slash fs/with-leading-slash) paths)))
 
+(defn- merge-custom-resource-path-settings [& settings]
+  (->> settings
+       (mapcat parse-custom-resource-paths)
+       distinct
+       (string/join ", ")))
+
+(defn- ext-properties-proj-path? [proj-path]
+  (or (= "/ext.properties" proj-path)
+      (string/ends-with? proj-path "/ext.properties")))
+
+(defn- game-properties-proj-path? [proj-path]
+  (= "/game.properties" proj-path))
+
+(defn- meta-info-resource? [proj-path]
+  (or (ext-properties-proj-path? proj-path)
+      (game-properties-proj-path? proj-path)))
+
+(defn- load-meta-info-resource [resource]
+  (with-open [rdr (io/reader resource)]
+    (settings-core/load-meta-properties rdr)))
+
+(defn- meta-info-custom-resources-default [meta-info]
+  (some->> (settings-core/get-default-setting (:settings meta-info) ["project" "custom_resources"])
+           str))
+
 (def ^:private resource-setting-connections-template
   {["display" "display_profiles"] [[:build-targets :dep-build-targets]
                                    [:profile-data :display-profiles-data]]
@@ -122,7 +147,7 @@
    ["input" "gamepads"] [[:build-targets :dep-build-targets]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets custom-resources-setting resource-settings dep-build-targets]
   (g/precluding-errors (some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
      (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
            deps-by-source (into {} (map
@@ -139,7 +164,7 @@
           {:node-id _node-id
            :resource (workspace/make-build-resource resource)
            :build-fn build-game-project
-           :user-data {:settings-map settings-map
+           :user-data {:settings-map (assoc settings-map ["project" "custom_resources"] custom-resources-setting)
                        :meta-settings (:settings meta-info)
                        :path->built-resource-settings path->built-resource-settings}
            :deps dep-build-targets})])))
@@ -155,7 +180,9 @@
 
   (input settings-map g/Any)
   ;; settings-map already cached in SettingsNode
-  (output settings-map g/Any (gu/passthrough settings-map))
+  (output settings-map g/Any :cached
+          (g/fnk [settings-map custom-resources-setting]
+            (assoc settings-map ["project" "custom_resources"] custom-resources-setting)))
 
   (input form-data g/Any)
   (output form-data g/Any :cached (gu/passthrough form-data))
@@ -170,6 +197,27 @@
 
   (input build-errors g/Any :array)
 
+  (output custom-resources-setting g/Any :cached
+          (g/fnk [_node-id raw-settings resource-map resource-snapshot]
+            ;; Depend on the resource-snapshot so edits to ext.properties contents
+            ;; invalidate this cached value even when the resource-map shape is unchanged.
+            resource-snapshot
+            (let [meta-resource-defaults
+                  (coll/into-> resource-map []
+                    (keep (fn [[proj-path resource]]
+                            (when (meta-info-resource? proj-path)
+                              (try
+                                (meta-info-custom-resources-default (load-meta-info-resource resource))
+                                (catch Throwable error
+                                  (g/map->error
+                                    {:_node-id _node-id
+                                     :severity :fatal
+                                     :message (ex-message error)})))))))]
+              (g/precluding-errors meta-resource-defaults
+                (apply merge-custom-resource-path-settings
+                       (concat meta-resource-defaults
+                               [(settings-core/get-setting raw-settings ["project" "custom_resources"])]))))))
+
   (output ssl-certificates-directory-resource g/Any
           (g/fnk [_node-id settings-map]
             (let [directory-resource (get settings-map ["network" "ssl_certificates"])]
@@ -182,9 +230,8 @@
                    :message (format "SSL certificates directory not found: '%s'" (resource/proj-path directory-resource))})))))
 
   (output custom-resources-directory-resources g/Any
-          (g/fnk [_node-id resource-map settings-map]
-            (let [custom-resources-setting (get settings-map ["project" "custom_resources"])
-                  directory-proj-paths (parse-custom-resource-paths custom-resources-setting)
+          (g/fnk [_node-id resource-map custom-resources-setting]
+            (let [directory-proj-paths (parse-custom-resource-paths custom-resources-setting)
 
                   directory-resources
                   (coll/into-> directory-proj-paths []

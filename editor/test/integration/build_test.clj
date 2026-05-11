@@ -840,6 +840,48 @@
           (is (g/error? build-error))
           (is (= "Custom resources directory not found: '/nonexistent_path'" error-message)))))))))
 
+(deftest build-with-custom-resources-from-ext-properties-default
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+          ext-dir (io/file (abs-project-path workspace "ext"))
+          ext-properties-file (io/file ext-dir "ext.properties")]
+      (.mkdirs ext-dir)
+      (spit ext-properties-file "[project]\ncustom_resources.default = assets\n")
+      (workspace/resource-sync! workspace)
+        (let [project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")]
+        (project-build! project game-project)
+        (is (string/includes? (slurp (build-path workspace "game.projectc"))
+                              "custom_resources = /assets"))
+        (check-file-contents workspace
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]])))))
+
+(deftest build-with-custom-resources-from-updated-ext-properties-default
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+          ext-dir (io/file (abs-project-path workspace "ext"))
+          ext-properties-file (io/file ext-dir "ext.properties")]
+      (.mkdirs ext-dir)
+      (spit ext-properties-file "[project]\ncustom_resources.default = assets\n")
+      (workspace/resource-sync! workspace)
+      (let [project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")]
+        (project-build! project game-project)
+        (check-file-contents workspace
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]])
+
+        (spit ext-properties-file "[project]\ncustom_resources.default = more_assets\n")
+        (workspace/resource-sync! workspace)
+
+        (project-build! project game-project)
+        (is (string/includes? (slurp (build-path workspace "game.projectc"))
+                              "custom_resources = /more_assets"))
+        (check-file-contents workspace
+                             [["more_assets/some_more.stuff" "some_more.stuff"]
+                              ["more_assets/some_more2.stuff" "some_more2.stuff"]])))))
+
 (deftest build-with-ssl-certificates
   (with-loaded-project "test/resources/custom_resources_project"
     (let [game-project (test-util/resource-node project "/game.project")]
