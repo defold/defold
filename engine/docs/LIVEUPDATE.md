@@ -34,7 +34,6 @@ At engine start, we create the mounts:
 ```
     Create "_base" mount from project URI
     Create "_builtin" archive using embedded connect project
-    Create user defined mounts from "liveupdate.mounts"
 ```
 
 These mounts are held by an instance of `dmResourceMounts::HContext` from `resource_mounts.h`.
@@ -74,14 +73,9 @@ Most notably, it contains some dependencies between resources, in order for the 
 ### User defined mounts
 
 The mount scripting api consists of three main functions: `liveupdate.add_mount()`/`liveupdate.remove_mount()`/`liveupdate.get_mounts()`
-When the developer calls to add/remove a mount, we store a file on disc `liveupdate.mounts`
+Mounts are active for the current session only. Applications that need mounts after restart must add them again.
 
 The api also exposes `liveupdate.is_built_with_excluded_files()`, which reports whether the bundled manifest was produced with excluded resources. This is a build metadata check, not a check for currently mounted or downloaded content.
-
-#### liveupdate.mounts
-
-The user defined mounts are stored in `liveupdate.mounts`.
-It is a CSV file, and is located in the project_id folder, which is the SHA1 hash of the game setting `project.title`.
 
 ### Missing resources
 

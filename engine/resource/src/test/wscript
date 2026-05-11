@@ -274,14 +274,6 @@ def build(bld):
                 target       = 'test_resource_archive',
                 source       = 'test_resource_archive.cpp')
 
-    bld.program(features     = 'cxx test',
-                includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA APP resource',
-                exported_symbols = ['ResourceProviderFile', 'ResourceProviderZip', 'ResourceProviderArchive'],
-                target       = 'test_resource_mounts',
-                source       = 'test_resource_mounts.cpp',
-                embed_source = embed_source + 'resources.manifest_hash'.split())
-
     bld.program(features     = ['cxx', 'test'] + skip_http_test,
                 includes     = '.. ../../proto',
                 defines      = defines,

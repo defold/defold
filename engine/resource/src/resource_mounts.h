@@ -37,15 +37,11 @@ namespace dmResourceMounts
     dmMutex::HMutex GetMutex(HContext ctx);
 
     // Does not call Unmount on the archives
-    dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist);
+    dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority);
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
 
     // Also calls Unmount on the archive
-    dmResource::Result RemoveAndUnmountByName(HContext ctx, const char* name);
-
-    // Loads and mounts archives
-    dmResource::Result LoadMounts(HContext ctx, const char* app_support_path);
-    dmResource::Result SaveMounts(HContext ctx, const char* app_support_path);
+    dmResource::Result RemoveAndUnmountByNameHash(HContext ctx, dmhash_t name_hash);
 
     dmResource::Result ResourceExists(HContext ctx, dmhash_t path_hash);
     dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size);
@@ -55,14 +51,13 @@ namespace dmResourceMounts
 
     struct SGetMountResult
     {
-        const char*                  m_Name;
+        dmhash_t                     m_NameHash;
         dmResourceProvider::HArchive m_Archive;
         int                          m_Priority;
-        uint8_t                      m_Persist:1;
     };
 
     uint32_t GetNumMounts(HContext ctx);
-    dmResource::Result GetMountByName(HContext ctx, const char* name, SGetMountResult* mount_info);
+    dmResource::Result GetMountByNameHash(HContext ctx, dmhash_t name_hash, SGetMountResult* mount_info);
     dmResource::Result GetMountByIndex(HContext ctx, uint32_t index, SGetMountResult* mount_info);
 
     // See notes in dmsdk/resource/resource.h

@@ -289,7 +289,7 @@ namespace dmLiveUpdate
                     lua_pushinteger(L, info.m_Priority);
                     lua_setfield(L, -2, "priority");
 
-                    lua_pushstring(L, info.m_Name);
+                    dmScript::PushHash(L, info.m_NameHash);
                     lua_setfield(L, -2, "name");
 
                     if (uri.m_Location[0] == '\0')
