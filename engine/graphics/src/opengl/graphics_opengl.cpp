@@ -168,6 +168,15 @@
     PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
     PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
+#if defined(USE_DEBUG_TIMINGS)
+    PFNGLGENQUERIESPROC glGenQueries = NULL;
+    PFNGLDELETEQUERIESPROC glDeleteQueries = NULL;
+    PFNGLBEGINQUERYPROC glBeginQuery = NULL;
+    PFNGLENDQUERYPROC glEndQuery = NULL;
+    PFNGLGETQUERYOBJECTUIVPROC glGetQueryObjectuiv = NULL;
+    PFNGLGETQUERYOBJECTUI64VPROC glGetQueryObjectui64v = NULL;
+#endif
+
     PFNGLTEXSUBIMAGE3DPROC           glTexSubImage3D = NULL;
     PFNGLTEXIMAGE3DPROC              glTexImage3D = NULL;
     PFNGLCOMPRESSEDTEXIMAGE3DPROC    glCompressedTexImage3D = NULL;
@@ -228,6 +237,24 @@
         #define glBindVertexArray glBindVertexArrayOES
         #define glGenVertexArrays glGenVertexArraysOES
     #endif
+#endif
+
+#if defined(USE_DEBUG_TIMINGS)
+    #ifndef GL_TIME_ELAPSED
+        #define GL_TIME_ELAPSED 0x88BF
+    #endif
+    #ifndef GL_QUERY_RESULT
+        #define GL_QUERY_RESULT 0x8866
+    #endif
+    #ifndef GL_QUERY_RESULT_AVAILABLE
+        #define GL_QUERY_RESULT_AVAILABLE 0x8867
+    #endif
+#endif
+
+#if defined(USE_DEBUG_TIMINGS) && (defined(_WIN32) || defined(DM_PLATFORM_MACOS))
+    #define DM_OPENGL_USE_DEBUG_TIMINGS 1
+#else
+    #define DM_OPENGL_USE_DEBUG_TIMINGS 0
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
@@ -305,6 +332,15 @@ namespace dmGraphics
 #endif
 
 static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format);
+#if defined(USE_DEBUG_TIMINGS)
+static void OpenGLDebugTimingInitialize(OpenGLContext* context);
+static void OpenGLDebugTimingFinalize(OpenGLContext* context);
+static void OpenGLDebugTimingBeginFrame(OpenGLContext* context);
+static void OpenGLDebugTimingFlip(OpenGLContext* context);
+static void OpenGLDebugTimingBeginPass(OpenGLContext* context);
+static void OpenGLDebugTimingEndPass(OpenGLContext* context);
+static void OpenGLDebugTimingAddDraw(OpenGLContext* context);
+#endif
 
 static void OpenGLClearGLError()
 {
@@ -1070,6 +1106,10 @@ static void LogFrameBufferError(GLenum status)
             AcquireAuxContextOnThread(context, false);
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
 
+#if defined(USE_DEBUG_TIMINGS)
+            OpenGLDebugTimingFinalize(context);
+#endif
+
             if (context->m_GLHandlesData.m_Mutex)
             {
                 dmMutex::Delete(context->m_GLHandlesData.m_Mutex);
@@ -1139,6 +1179,203 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         return context->m_Extensions[index];
     }
+
+#if defined(USE_DEBUG_TIMINGS)
+    static void DebugTimingResetAccumulator(DebugTimingAccumulator* accumulator)
+    {
+        uint64_t last_log_time = dmTime::GetTime();
+        memset(accumulator, 0, sizeof(DebugTimingAccumulator));
+        accumulator->m_LastLogTime = last_log_time;
+    }
+
+    static void OpenGLDebugTimingLogIfNeeded(OpenGLContext* context)
+    {
+        DebugTimingAccumulator* accumulator = &context->m_DebugTimingAccumulator;
+        uint64_t now = dmTime::GetTime();
+        if (accumulator->m_Frames == 0 || now - accumulator->m_LastLogTime < DM_DEBUG_TIMING_LOG_INTERVAL)
+        {
+            return;
+        }
+
+        char line[1024];
+        uint32_t offset = dmSnPrintf(line, sizeof(line), "OpenGL GPU timing avg_us frame(pass-sum)=%llu max=%llu frames=%u",
+            (unsigned long long) (accumulator->m_FrameTotalUs / accumulator->m_Frames),
+            (unsigned long long) accumulator->m_FrameMaxUs,
+            accumulator->m_Frames);
+
+        for (uint32_t i = 0; i < DM_DEBUG_TIMING_MAX_PASSES && offset < sizeof(line); ++i)
+        {
+            if (accumulator->m_PassSamples[i])
+            {
+                offset += dmSnPrintf(line + offset, sizeof(line) - offset, " p%u=%llu/%llu draws=%llu",
+                    i,
+                    (unsigned long long) (accumulator->m_PassTotalUs[i] / accumulator->m_PassSamples[i]),
+                    (unsigned long long) accumulator->m_PassMaxUs[i],
+                    (unsigned long long) (accumulator->m_PassDraws[i] / accumulator->m_PassSamples[i]));
+            }
+        }
+
+        dmLogInfo("%s", line);
+        DebugTimingResetAccumulator(accumulator);
+    }
+
+    static bool OpenGLDebugTimingCollectFrame(OpenGLContext* context, uint8_t frame_slot)
+    {
+#if DM_OPENGL_USE_DEBUG_TIMINGS
+        uint8_t pass_count = context->m_DebugTimingPassCounts[frame_slot];
+        if (!context->m_DebugTimingSupported || pass_count == 0)
+        {
+            return true;
+        }
+
+        for (uint32_t i = 0; i < pass_count; ++i)
+        {
+            GLuint available = 0;
+            glGetQueryObjectuiv(context->m_DebugTimingQueries[frame_slot][i], GL_QUERY_RESULT_AVAILABLE, &available);
+            if (!available)
+            {
+                return false;
+            }
+        }
+
+        uint64_t frame_us = 0;
+        DebugTimingAccumulator* accumulator = &context->m_DebugTimingAccumulator;
+        accumulator->m_Frames++;
+
+        for (uint32_t i = 0; i < pass_count; ++i)
+        {
+            GLuint64 elapsed_ns = 0;
+            glGetQueryObjectui64v(context->m_DebugTimingQueries[frame_slot][i], GL_QUERY_RESULT, &elapsed_ns);
+
+            uint64_t elapsed_us = (uint64_t) (elapsed_ns / 1000);
+            frame_us += elapsed_us;
+            accumulator->m_PassTotalUs[i] += elapsed_us;
+            accumulator->m_PassMaxUs[i] = dmMath::Max(accumulator->m_PassMaxUs[i], elapsed_us);
+            accumulator->m_PassDraws[i] += context->m_DebugTimingPassDraws[frame_slot][i];
+            accumulator->m_PassSamples[i]++;
+        }
+
+        accumulator->m_FrameTotalUs += frame_us;
+        accumulator->m_FrameMaxUs = dmMath::Max(accumulator->m_FrameMaxUs, frame_us);
+        context->m_DebugTimingPassCounts[frame_slot] = 0;
+        OpenGLDebugTimingLogIfNeeded(context);
+        return true;
+#else
+        (void) context;
+        (void) frame_slot;
+        return true;
+#endif
+    }
+
+    static void OpenGLDebugTimingInitialize(OpenGLContext* context)
+    {
+        DebugTimingResetAccumulator(&context->m_DebugTimingAccumulator);
+        context->m_DebugTimingPassActive = 0;
+        context->m_DebugTimingSupported = 0;
+
+#if DM_OPENGL_USE_DEBUG_TIMINGS
+    #if defined(_WIN32)
+        if (glGenQueries == 0 || glDeleteQueries == 0 || glBeginQuery == 0 || glEndQuery == 0 || glGetQueryObjectuiv == 0 || glGetQueryObjectui64v == 0)
+        {
+            dmLogWarning("OpenGL debug timings disabled: timer query functions are unavailable.");
+            return;
+        }
+    #endif
+
+        glGenQueries(DM_DEBUG_TIMING_FRAME_LAG * DM_DEBUG_TIMING_MAX_PASSES, &context->m_DebugTimingQueries[0][0]);
+        context->m_DebugTimingSupported = 1;
+        dmLogInfo("OpenGL debug timings enabled.");
+#else
+        dmLogWarning("OpenGL debug timings disabled: this platform is not wired for timer queries.");
+#endif
+    }
+
+    static void OpenGLDebugTimingFinalize(OpenGLContext* context)
+    {
+#if DM_OPENGL_USE_DEBUG_TIMINGS
+        if (context->m_DebugTimingSupported)
+        {
+            if (context->m_DebugTimingPassActive)
+            {
+                glEndQuery(GL_TIME_ELAPSED);
+                context->m_DebugTimingPassActive = 0;
+            }
+            glDeleteQueries(DM_DEBUG_TIMING_FRAME_LAG * DM_DEBUG_TIMING_MAX_PASSES, &context->m_DebugTimingQueries[0][0]);
+            memset(context->m_DebugTimingQueries, 0, sizeof(context->m_DebugTimingQueries));
+            context->m_DebugTimingSupported = 0;
+        }
+#else
+        (void) context;
+#endif
+    }
+
+    static void OpenGLDebugTimingBeginPass(OpenGLContext* context)
+    {
+#if DM_OPENGL_USE_DEBUG_TIMINGS
+        if (!context->m_DebugTimingSupported || context->m_DebugTimingPassActive || context->m_DebugTimingPassIndex >= DM_DEBUG_TIMING_MAX_PASSES)
+        {
+            return;
+        }
+
+        context->m_DebugTimingCurrentPassDraws = 0;
+        glBeginQuery(GL_TIME_ELAPSED, context->m_DebugTimingQueries[context->m_DebugTimingFrameIndex][context->m_DebugTimingPassIndex]);
+        context->m_DebugTimingPassActive = 1;
+#else
+        (void) context;
+#endif
+    }
+
+    static void OpenGLDebugTimingEndPass(OpenGLContext* context)
+    {
+#if DM_OPENGL_USE_DEBUG_TIMINGS
+        if (!context->m_DebugTimingSupported || !context->m_DebugTimingPassActive)
+        {
+            return;
+        }
+
+        glEndQuery(GL_TIME_ELAPSED);
+        context->m_DebugTimingPassDraws[context->m_DebugTimingFrameIndex][context->m_DebugTimingPassIndex] = context->m_DebugTimingCurrentPassDraws;
+        context->m_DebugTimingPassCounts[context->m_DebugTimingFrameIndex] = context->m_DebugTimingPassIndex + 1;
+        context->m_DebugTimingPassIndex++;
+        context->m_DebugTimingPassActive = 0;
+#else
+        (void) context;
+#endif
+    }
+
+    static void OpenGLDebugTimingBeginFrame(OpenGLContext* context)
+    {
+        if (!context->m_DebugTimingSupported)
+        {
+            return;
+        }
+
+        uint8_t frame_slot = context->m_DebugTimingFrameIndex;
+        if (!OpenGLDebugTimingCollectFrame(context, frame_slot))
+        {
+            context->m_DebugTimingPassIndex = DM_DEBUG_TIMING_MAX_PASSES;
+            return;
+        }
+        memset(context->m_DebugTimingPassDraws[frame_slot], 0, sizeof(context->m_DebugTimingPassDraws[frame_slot]));
+        context->m_DebugTimingPassCounts[frame_slot] = 0;
+        context->m_DebugTimingPassIndex = 0;
+        OpenGLDebugTimingBeginPass(context);
+    }
+
+    static void OpenGLDebugTimingFlip(OpenGLContext* context)
+    {
+        OpenGLDebugTimingEndPass(context);
+        context->m_DebugTimingFrameIndex = (context->m_DebugTimingFrameIndex + 1) % DM_DEBUG_TIMING_FRAME_LAG;
+    }
+
+    static void OpenGLDebugTimingAddDraw(OpenGLContext* context)
+    {
+        if (context->m_DebugTimingSupported && context->m_DebugTimingPassActive)
+        {
+            context->m_DebugTimingCurrentPassDraws++;
+        }
+    }
+#endif
 
     static bool OpenGLIsContextFeatureSupported(HContext _context, ContextFeature feature)
     {
@@ -1399,6 +1636,15 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glCompressedTexImage3D, "glCompressedTexImage3D", PFNGLCOMPRESSEDTEXIMAGE3DPROC);
         GET_PROC_ADDRESS(glCompressedTexSubImage3D, "glCompressedTexSubImage3D", PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC);
 
+#if defined(USE_DEBUG_TIMINGS)
+        GET_PROC_ADDRESS_OPTIONAL(glGenQueries, "glGenQueries", PFNGLGENQUERIESPROC);
+        GET_PROC_ADDRESS_OPTIONAL(glDeleteQueries, "glDeleteQueries", PFNGLDELETEQUERIESPROC);
+        GET_PROC_ADDRESS_OPTIONAL(glBeginQuery, "glBeginQuery", PFNGLBEGINQUERYPROC);
+        GET_PROC_ADDRESS_OPTIONAL(glEndQuery, "glEndQuery", PFNGLENDQUERYPROC);
+        GET_PROC_ADDRESS_OPTIONAL(glGetQueryObjectuiv, "glGetQueryObjectuiv", PFNGLGETQUERYOBJECTUIVPROC);
+        GET_PROC_ADDRESS_OPTIONAL(glGetQueryObjectui64v, "glGetQueryObjectui64v", PFNGLGETQUERYOBJECTUI64VPROC);
+#endif
+
         GET_PROC_ADDRESS_OPTIONAL(glDispatchCompute,  "glDispatchCompute",  PFNGLDISPATCHCOMPUTEPROC);
         GET_PROC_ADDRESS_OPTIONAL(glMemoryBarrier,    "glMemoryBarrier",    PFNGLMEMORYBARRIERPROC);
         GET_PROC_ADDRESS_OPTIONAL(glBindImageTexture, "glBindImageTexture", PFNGLBINDIMAGETEXTUREPROC);
@@ -1575,6 +1821,10 @@ static void LogFrameBufferError(GLenum status)
     #endif
 
     #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
+
+#if defined(USE_DEBUG_TIMINGS)
+        OpenGLDebugTimingInitialize(context);
+#endif
 
         if (OpenGLIsExtensionSupported(_context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_pvrtc"))
@@ -2143,12 +2393,18 @@ static void LogFrameBufferError(GLenum status)
         dmPlatform::AndroidBeginFrame(context->m_BaseContext.m_Window);
 #endif
         glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
+#if defined(USE_DEBUG_TIMINGS)
+        OpenGLDebugTimingBeginFrame((OpenGLContext*) _context);
+#endif
     }
 
     static void OpenGLFlip(HContext _context)
     {
         DM_PROFILE(__FUNCTION__);
         OpenGLContext* context = (OpenGLContext*) _context;
+#if defined(USE_DEBUG_TIMINGS)
+        OpenGLDebugTimingFlip(context);
+#endif
         PostDeleteTextures(context, false);
         dmPlatform::SwapBuffers(context->m_BaseContext.m_Window);
         CHECK_GL_ERROR;
@@ -3068,6 +3324,9 @@ static void LogFrameBufferError(GLenum status)
             glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
             CHECK_GL_ERROR
         }
+#if defined(USE_DEBUG_TIMINGS)
+        OpenGLDebugTimingAddDraw(context);
+#endif
     }
 
     static void OpenGLDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -3089,6 +3348,9 @@ static void LogFrameBufferError(GLenum status)
             glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
             CHECK_GL_ERROR
         }
+#if defined(USE_DEBUG_TIMINGS)
+        OpenGLDebugTimingAddDraw(context);
+#endif
     }
 
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -4520,6 +4782,10 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLRenderTarget* rt = 0;
 
+#if defined(USE_DEBUG_TIMINGS)
+        OpenGLDebugTimingEndPass(context);
+#endif
+
         if (render_target != 0)
         {
             rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
@@ -4560,6 +4826,9 @@ static void LogFrameBufferError(GLenum status)
         }
         glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : GetGLHandle(context, rt->m_Id));
         CHECK_GL_ERROR;
+#if defined(USE_DEBUG_TIMINGS)
+        OpenGLDebugTimingBeginPass(context);
+#endif
 
     #if __EMSCRIPTEN__
         #define DRAW_BUFFERS_FN glDrawBuffers

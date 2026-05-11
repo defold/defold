@@ -535,6 +535,17 @@ namespace dmGraphics
         // See OpenGL backend: separate flag for ASTC array textures
         uint32_t                        m_ASTCArrayTextureSupport : 1;
         uint32_t                        m_AsyncProcessingSupport : 1;
+
+#if defined(USE_DEBUG_TIMINGS)
+        VkQueryPool                     m_DebugTimingQueryPool;
+        DebugTimingAccumulator          m_DebugTimingAccumulator;
+        uint32_t                        m_DebugTimingPassDraws[DM_MAX_FRAMES_IN_FLIGHT][DM_DEBUG_TIMING_MAX_PASSES];
+        uint8_t                         m_DebugTimingFrameValid[DM_MAX_FRAMES_IN_FLIGHT];
+        uint8_t                         m_DebugTimingPassCounts[DM_MAX_FRAMES_IN_FLIGHT];
+        uint8_t                         m_DebugTimingActivePassIndex;
+        uint32_t                        m_DebugTimingCurrentPassDraws;
+        float                           m_DebugTimingTimestampPeriod;
+#endif
     };
 
     // Implemented in graphics_vulkan_context.cpp

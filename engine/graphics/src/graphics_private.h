@@ -23,6 +23,10 @@
 
 namespace dmGraphics
 {
+    // Enables lightweight GPU pass timing logs in the OpenGL and Vulkan adapters.
+    // Intended for local adapter comparisons; comment out for normal builds.
+    #define USE_DEBUG_TIMINGS
+
     // Shared texture metadata embedded as m_Base in each backend texture struct (OpenGLTexture, VulkanTexture, etc.).
     // Each adapter keeps Texture as the first non-vtable member so the asset pointer aliases m_Base and
     // GetAssetFromContainer<Texture>(container, handle) is valid alongside GetAssetFromContainer<BackendTexture>(...).
@@ -50,6 +54,24 @@ namespace dmGraphics
     const static uint8_t MAX_STORAGE_BUFFERS           = 4;
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t UNUSED_BINDING_OR_SET         = 0xFF;
+
+#if defined(USE_DEBUG_TIMINGS)
+    const static uint8_t  DM_DEBUG_TIMING_MAX_PASSES = 32;
+    const static uint8_t  DM_DEBUG_TIMING_FRAME_LAG  = 3;
+    const static uint64_t DM_DEBUG_TIMING_LOG_INTERVAL = 1000000;
+
+    struct DebugTimingAccumulator
+    {
+        uint64_t m_LastLogTime;
+        uint64_t m_FrameTotalUs;
+        uint64_t m_FrameMaxUs;
+        uint64_t m_PassTotalUs[DM_DEBUG_TIMING_MAX_PASSES];
+        uint64_t m_PassMaxUs[DM_DEBUG_TIMING_MAX_PASSES];
+        uint64_t m_PassDraws[DM_DEBUG_TIMING_MAX_PASSES];
+        uint32_t m_PassSamples[DM_DEBUG_TIMING_MAX_PASSES];
+        uint32_t m_Frames;
+    };
+#endif
 
     // In OpenGL, there is a single global resource identifier between
     // fragment and vertex uniforms for a single program. In Vulkan,

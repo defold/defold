@@ -213,6 +213,18 @@ namespace dmGraphics
         uint32_t                m_ASTCArrayTextureSupport          : 1;
         uint32_t                m_3DTextureSupport                 : 1;
         uint32_t                m_BlendEquationMinMaxSupport       : 1;
+
+#if defined(USE_DEBUG_TIMINGS)
+        GLuint                  m_DebugTimingQueries[DM_DEBUG_TIMING_FRAME_LAG][DM_DEBUG_TIMING_MAX_PASSES];
+        uint32_t                m_DebugTimingPassDraws[DM_DEBUG_TIMING_FRAME_LAG][DM_DEBUG_TIMING_MAX_PASSES];
+        uint8_t                 m_DebugTimingPassCounts[DM_DEBUG_TIMING_FRAME_LAG];
+        uint8_t                 m_DebugTimingFrameIndex;
+        uint8_t                 m_DebugTimingPassIndex;
+        uint8_t                 m_DebugTimingPassActive;
+        uint8_t                 m_DebugTimingSupported;
+        uint32_t                m_DebugTimingCurrentPassDraws;
+        DebugTimingAccumulator  m_DebugTimingAccumulator;
+#endif
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

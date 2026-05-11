@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/jobsystem.h>
 #include <dlib/thread.h>
+#include <dlib/time.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
@@ -450,6 +451,236 @@ namespace dmGraphics
         return -1;
     }
 
+#if defined(USE_DEBUG_TIMINGS)
+    static const uint32_t VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME = 2 + DM_DEBUG_TIMING_MAX_PASSES * 2;
+    static const uint8_t  VULKAN_DEBUG_TIMING_NO_PASS           = 0xff;
+
+    static uint32_t VulkanDebugTimingQueryBase(uint8_t frame_index)
+    {
+        return frame_index * VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME;
+    }
+
+    static uint32_t VulkanDebugTimingPassStartQuery(uint8_t frame_index, uint8_t pass_index)
+    {
+        return VulkanDebugTimingQueryBase(frame_index) + 2 + pass_index * 2;
+    }
+
+    static uint32_t VulkanDebugTimingPassEndQuery(uint8_t frame_index, uint8_t pass_index)
+    {
+        return VulkanDebugTimingPassStartQuery(frame_index, pass_index) + 1;
+    }
+
+    static void DebugTimingResetAccumulator(DebugTimingAccumulator* accumulator)
+    {
+        uint64_t last_log_time = dmTime::GetTime();
+        memset(accumulator, 0, sizeof(DebugTimingAccumulator));
+        accumulator->m_LastLogTime = last_log_time;
+    }
+
+    static uint64_t VulkanDebugTimingTicksToUs(VulkanContext* context, uint64_t ticks)
+    {
+        return (uint64_t) (((double) ticks * (double) context->m_DebugTimingTimestampPeriod) / 1000.0);
+    }
+
+    static void VulkanDebugTimingLogIfNeeded(VulkanContext* context)
+    {
+        DebugTimingAccumulator* accumulator = &context->m_DebugTimingAccumulator;
+        uint64_t now = dmTime::GetTime();
+        if (accumulator->m_Frames == 0 || now - accumulator->m_LastLogTime < DM_DEBUG_TIMING_LOG_INTERVAL)
+        {
+            return;
+        }
+
+        char line[1024];
+        uint32_t offset = dmSnPrintf(line, sizeof(line), "Vulkan GPU timing avg_us frame=%llu max=%llu frames=%u",
+            (unsigned long long) (accumulator->m_FrameTotalUs / accumulator->m_Frames),
+            (unsigned long long) accumulator->m_FrameMaxUs,
+            accumulator->m_Frames);
+
+        for (uint32_t i = 0; i < DM_DEBUG_TIMING_MAX_PASSES && offset < sizeof(line); ++i)
+        {
+            if (accumulator->m_PassSamples[i])
+            {
+                offset += dmSnPrintf(line + offset, sizeof(line) - offset, " p%u=%llu/%llu draws=%llu",
+                    i,
+                    (unsigned long long) (accumulator->m_PassTotalUs[i] / accumulator->m_PassSamples[i]),
+                    (unsigned long long) accumulator->m_PassMaxUs[i],
+                    (unsigned long long) (accumulator->m_PassDraws[i] / accumulator->m_PassSamples[i]));
+            }
+        }
+
+        dmLogInfo("%s", line);
+        DebugTimingResetAccumulator(accumulator);
+    }
+
+    static void VulkanDebugTimingReadFrame(VulkanContext* context, uint8_t frame_index)
+    {
+        if (context->m_DebugTimingQueryPool == VK_NULL_HANDLE || !context->m_DebugTimingFrameValid[frame_index])
+        {
+            return;
+        }
+
+        uint64_t results[VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME];
+        memset(results, 0, sizeof(results));
+
+        VkResult res = vkGetQueryPoolResults(context->m_LogicalDevice.m_Device,
+            context->m_DebugTimingQueryPool,
+            VulkanDebugTimingQueryBase(frame_index),
+            VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME,
+            sizeof(results),
+            results,
+            sizeof(uint64_t),
+            VK_QUERY_RESULT_64_BIT);
+
+        if (res != VK_SUCCESS)
+        {
+            return;
+        }
+
+        DebugTimingAccumulator* accumulator = &context->m_DebugTimingAccumulator;
+        uint64_t frame_us = VulkanDebugTimingTicksToUs(context, results[1] - results[0]);
+
+        accumulator->m_Frames++;
+        accumulator->m_FrameTotalUs += frame_us;
+        accumulator->m_FrameMaxUs = dmMath::Max(accumulator->m_FrameMaxUs, frame_us);
+
+        uint8_t pass_count = context->m_DebugTimingPassCounts[frame_index];
+        for (uint32_t i = 0; i < pass_count; ++i)
+        {
+            uint64_t start = results[2 + i * 2];
+            uint64_t end   = results[3 + i * 2];
+            uint64_t pass_us = VulkanDebugTimingTicksToUs(context, end - start);
+
+            accumulator->m_PassTotalUs[i] += pass_us;
+            accumulator->m_PassMaxUs[i] = dmMath::Max(accumulator->m_PassMaxUs[i], pass_us);
+            accumulator->m_PassDraws[i] += context->m_DebugTimingPassDraws[frame_index][i];
+            accumulator->m_PassSamples[i]++;
+        }
+
+        context->m_DebugTimingFrameValid[frame_index] = 0;
+        context->m_DebugTimingPassCounts[frame_index] = 0;
+        VulkanDebugTimingLogIfNeeded(context);
+    }
+
+    static void VulkanDebugTimingInitialize(VulkanContext* context)
+    {
+        DebugTimingResetAccumulator(&context->m_DebugTimingAccumulator);
+        context->m_DebugTimingQueryPool = VK_NULL_HANDLE;
+        context->m_DebugTimingActivePassIndex = VULKAN_DEBUG_TIMING_NO_PASS;
+        context->m_DebugTimingTimestampPeriod = context->m_PhysicalDevice.m_Properties.limits.timestampPeriod;
+
+        if (!context->m_PhysicalDevice.m_Properties.limits.timestampComputeAndGraphics || context->m_DebugTimingTimestampPeriod == 0.0f)
+        {
+            dmLogWarning("Vulkan debug timings disabled: graphics timestamps are unavailable.");
+            return;
+        }
+
+        VkQueryPoolCreateInfo query_pool_info;
+        memset(&query_pool_info, 0, sizeof(query_pool_info));
+        query_pool_info.sType      = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        query_pool_info.queryType  = VK_QUERY_TYPE_TIMESTAMP;
+        query_pool_info.queryCount = DM_MAX_FRAMES_IN_FLIGHT * VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME;
+
+        VkResult res = vkCreateQueryPool(context->m_LogicalDevice.m_Device, &query_pool_info, 0, &context->m_DebugTimingQueryPool);
+        if (res != VK_SUCCESS)
+        {
+            context->m_DebugTimingQueryPool = VK_NULL_HANDLE;
+            dmLogWarning("Vulkan debug timings disabled: could not create timestamp query pool (%s).", VkResultToStr(res));
+            return;
+        }
+
+        dmLogInfo("Vulkan debug timings enabled.");
+    }
+
+    static void VulkanDebugTimingFinalize(VulkanContext* context)
+    {
+        if (context->m_DebugTimingQueryPool != VK_NULL_HANDLE)
+        {
+            vkDestroyQueryPool(context->m_LogicalDevice.m_Device, context->m_DebugTimingQueryPool, 0);
+            context->m_DebugTimingQueryPool = VK_NULL_HANDLE;
+        }
+    }
+
+    static void VulkanDebugTimingBeginFrame(VulkanContext* context, VkCommandBuffer command_buffer, uint8_t frame_index)
+    {
+        if (context->m_DebugTimingQueryPool == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        context->m_DebugTimingFrameValid[frame_index] = 0;
+        context->m_DebugTimingPassCounts[frame_index] = 0;
+        context->m_DebugTimingActivePassIndex = VULKAN_DEBUG_TIMING_NO_PASS;
+        context->m_DebugTimingCurrentPassDraws = 0;
+        memset(context->m_DebugTimingPassDraws[frame_index], 0, sizeof(context->m_DebugTimingPassDraws[frame_index]));
+
+        uint32_t query_base = VulkanDebugTimingQueryBase(frame_index);
+        vkCmdResetQueryPool(command_buffer, context->m_DebugTimingQueryPool, query_base, VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME);
+        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, context->m_DebugTimingQueryPool, query_base);
+    }
+
+    static void VulkanDebugTimingEndFrame(VulkanContext* context, VkCommandBuffer command_buffer, uint8_t frame_index)
+    {
+        if (context->m_DebugTimingQueryPool == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, context->m_DebugTimingQueryPool, VulkanDebugTimingQueryBase(frame_index) + 1);
+        context->m_DebugTimingFrameValid[frame_index] = 1;
+    }
+
+    static void VulkanDebugTimingBeginPass(VulkanContext* context)
+    {
+        if (context->m_DebugTimingQueryPool == VK_NULL_HANDLE || context->m_DebugTimingActivePassIndex != VULKAN_DEBUG_TIMING_NO_PASS)
+        {
+            return;
+        }
+
+        uint8_t frame_index = context->m_CurrentFrameInFlight;
+        uint8_t pass_index = context->m_DebugTimingPassCounts[frame_index];
+        if (pass_index >= DM_DEBUG_TIMING_MAX_PASSES)
+        {
+            return;
+        }
+
+        vkCmdWriteTimestamp(context->m_MainCommandBuffers[frame_index],
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            context->m_DebugTimingQueryPool,
+            VulkanDebugTimingPassStartQuery(frame_index, pass_index));
+
+        context->m_DebugTimingActivePassIndex = pass_index;
+        context->m_DebugTimingCurrentPassDraws = 0;
+    }
+
+    static void VulkanDebugTimingEndPass(VulkanContext* context)
+    {
+        if (context->m_DebugTimingQueryPool == VK_NULL_HANDLE || context->m_DebugTimingActivePassIndex == VULKAN_DEBUG_TIMING_NO_PASS)
+        {
+            return;
+        }
+
+        uint8_t frame_index = context->m_CurrentFrameInFlight;
+        uint8_t pass_index = context->m_DebugTimingActivePassIndex;
+        vkCmdWriteTimestamp(context->m_MainCommandBuffers[frame_index],
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            context->m_DebugTimingQueryPool,
+            VulkanDebugTimingPassEndQuery(frame_index, pass_index));
+
+        context->m_DebugTimingPassDraws[frame_index][pass_index] = context->m_DebugTimingCurrentPassDraws;
+        context->m_DebugTimingPassCounts[frame_index] = pass_index + 1;
+        context->m_DebugTimingActivePassIndex = VULKAN_DEBUG_TIMING_NO_PASS;
+    }
+
+    static void VulkanDebugTimingAddDraw(VulkanContext* context)
+    {
+        if (context->m_DebugTimingQueryPool != VK_NULL_HANDLE && context->m_DebugTimingActivePassIndex != VULKAN_DEBUG_TIMING_NO_PASS)
+        {
+            context->m_DebugTimingCurrentPassDraws++;
+        }
+    }
+#endif
+
     static bool EndRenderPass(VulkanContext* context)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
@@ -461,6 +692,9 @@ namespace dmGraphics
         }
 
         vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingEndPass(context);
+#endif
         current_rt->m_IsBound = 0;
         context->m_RenderTargetBound = 0;
         return true;
@@ -552,6 +786,9 @@ namespace dmGraphics
         vk_render_pass_begin_info.pClearValues        = vk_clear_values;
 
         vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingBeginPass(context);
+#endif
 
         rt->m_IsBound          = 1;
         rt->m_SubPassIndex     = 0;
@@ -1466,6 +1703,10 @@ namespace dmGraphics
             CHECK_VK_ERROR(res);
         }
 
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingInitialize(context);
+#endif
+
         context->m_TextureSamplers.SetCapacity(4);
         context->m_FenceResourcesToDestroy.Allocate(8);
 
@@ -1646,6 +1887,9 @@ bail:
 
         // Wait for GPU to finish work for this frame-in-flight
         vkWaitForFences(vk_device, 1, &currentFrame.m_SubmitFence, VK_TRUE, UINT64_MAX);
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingReadFrame(context, frameInFlight);
+#endif
         vkResetFences(vk_device, 1, &currentFrame.m_SubmitFence);
 
         // Acquire next swap chain image
@@ -1698,6 +1942,9 @@ bail:
 
         VkCommandBuffer cmd = context->m_MainCommandBuffers[frameInFlight];
         vkBeginCommandBuffer(cmd, &beginInfo);
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingBeginFrame(context, cmd, frameInFlight);
+#endif
 
         // Set framebuffer for the acquired swap chain image
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
@@ -1767,6 +2014,9 @@ bail:
 
         // Finish recording the command buffer for this frame-in-flight
         VkCommandBuffer cmd = context->m_MainCommandBuffers[frameInFlight];
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingEndFrame(context, cmd, frameInFlight);
+#endif
         VkResult res = vkEndCommandBuffer(cmd);
         CHECK_VK_ERROR(res);
 
@@ -3144,6 +3394,9 @@ bail:
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
         uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
         vkCmdDrawIndexed(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingAddDraw(context);
+#endif
     }
 
     static void VulkanDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -3158,6 +3411,9 @@ bail:
         context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[ix], 0, TYPE_BYTE);
         vkCmdDraw(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingAddDraw(context);
+#endif
     }
 
     static void VulkanDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -4876,6 +5132,10 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingFinalize(context);
+#endif
 
         context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
 
