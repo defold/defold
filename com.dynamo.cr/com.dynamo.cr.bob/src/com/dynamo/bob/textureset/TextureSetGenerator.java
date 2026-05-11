@@ -239,7 +239,7 @@ public class TextureSetGenerator {
 
         // We must respect the upper limit of the vertex hull count
         if (points == null || points.length > hullVertexCount) {
-            // Generates a CW rect
+            // Generates a CCW rect (vertices go BL -> TL -> TR -> BR)
             points = new ConvexHull2D.PointF[4];
             points[0] = new ConvexHull2D.PointF(-0.5,-0.5);
             points[1] = new ConvexHull2D.PointF(-0.5, 0.5);
@@ -255,10 +255,11 @@ public class TextureSetGenerator {
             geometryBuilder.addUvs(0);
         }
 
+        // CCW winding order (OpenGL front-face default)
         for (int v = 1; v <= points.length-2; ++v) {
             geometryBuilder.addIndices(0);
-            geometryBuilder.addIndices(v);
             geometryBuilder.addIndices(v+1);
+            geometryBuilder.addIndices(v);
         }
 
         return geometryBuilder.build();

@@ -1132,11 +1132,13 @@ namespace dmParticle
                                                     uint32_t* bytes_written)
     {
         DM_PROFILE(__FUNCTION__);
+        // CCW winding order (OpenGL front-face default)
+        // Vertices: v0=BL, v1=BR, v2=TR, v3=TR, v4=TL, v5=BL
         static int tex_coord_order[] = {
-            0,1,2,2,3,0,
-            3,2,1,1,0,3,	//h
-            1,0,3,3,2,1,	//v
-            2,3,0,0,1,2		//hv
+            0,3,2,2,1,0,
+            3,0,1,1,2,3,	//h
+            1,2,3,3,0,1,	//v
+            2,1,0,0,3,2		//hv
         };
 
         uint32_t vertex_size = attribute_infos.m_VertexStride;
@@ -1207,11 +1209,12 @@ namespace dmParticle
 
             float hx = render_state.m_HalfWidth;
             float hy = render_state.m_HalfHeight;
+            // CCW winding: BL, BR, TR, TR, TL, BL
             position_local_flat[0] = Point3(-hx, -hy, 0.0f);
-            position_local_flat[1] = Point3(-hx,  hy, 0.0f);
+            position_local_flat[1] = Point3( hx, -hy, 0.0f);
             position_local_flat[2] = Point3( hx,  hy, 0.0f);
             position_local_flat[3] = position_local_flat[2];
-            position_local_flat[4] = Point3( hx, -hy, 0.0f);
+            position_local_flat[4] = Point3(-hx,  hy, 0.0f);
             position_local_flat[5] = position_local_flat[0];
 
             world_matrix = dmTransform::ToMatrix4(render_state.m_WorldTransform);
