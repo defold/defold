@@ -336,6 +336,7 @@ namespace dmRender
         dmIndexPool16                          m_RenderLightsIndices;
 
         dmArray<LightSTD140>                   m_LightBufferScratch;
+        dmArray<LightSTD140>                   m_LightBufferUploadScratch;
         dmGraphics::UniformBufferLayout        m_LightBufferLayout;
         dmGraphics::HUniformBuffer             m_LightUniformBuffer;
 

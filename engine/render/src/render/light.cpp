@@ -70,7 +70,7 @@ namespace dmRender
     HLightInstance NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype)
     {
         // Reached max count.
-        if (render_context->m_RenderLightsIndices.Remaining() == 0)
+        if (render_context->m_RenderLightsIndices.Size() >= render_context->m_MaxLightCount || render_context->m_RenderLightsIndices.Remaining() == 0)
         {
             return 0;
         }
@@ -278,31 +278,61 @@ namespace dmRender
         render_context->m_LightBufferDirtyCount = 1;
     }
 
+    static uint32_t CompactLightBufferScratch(HRenderContext render_context)
+    {
+        uint32_t active_light_count = render_context->m_RenderLightsIndices.Size();
+        render_context->m_LightBufferUploadScratch.SetSize(0);
+
+        if (active_light_count == 0)
+        {
+            return 0;
+        }
+
+        if (render_context->m_LightBufferUploadScratch.Capacity() < active_light_count)
+        {
+            render_context->m_LightBufferUploadScratch.SetCapacity(active_light_count);
+        }
+
+        uint32_t render_light_capacity = render_context->m_RenderLights.Capacity();
+        for (uint32_t i = 0; i < render_light_capacity; ++i)
+        {
+            LightInstance* instance = render_context->m_RenderLights.GetByIndex(i);
+            if (instance)
+            {
+                render_context->m_LightBufferUploadScratch.Push(render_context->m_LightBufferScratch[instance->m_LightBufferIndex]);
+            }
+        }
+
+        return render_context->m_LightBufferUploadScratch.Size();
+    }
+
     static void WriteLightInstanceData(HRenderContext render_context)
     {
+        uint32_t active_light_count = CompactLightBufferScratch(render_context);
+
         // The light count has changed, we need to write that separately
         if (render_context->m_LightBufferDirtyCount)
         {
             // ... but only if it is actually different from last write.
-            float count = (float) render_context->m_RenderLightsIndices.Size();
-            if (count != render_context->m_LightBufferLastWrittenCount)
+            if (active_light_count != render_context->m_LightBufferLastWrittenCount)
             {
-                dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, 0, sizeof(float), &count);
+                dmVMath::Vector4 count((float) active_light_count, 0.0f, 0.0f, 0.0f);
+                dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, 0, sizeof(count), &count);
             }
-            render_context->m_LightBufferLastWrittenCount = count;
+            render_context->m_LightBufferLastWrittenCount = active_light_count;
         }
 
-        // Write the light data from the scratch buffer
-        if (render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart)
+        // Write compacted light data from the scratch buffer. The shader loops
+        // over [0..lights_count), while light buffer indices may be reused.
+        bool light_data_dirty = render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart;
+        if (active_light_count > 0 && (light_data_dirty || render_context->m_LightBufferDirtyCount))
         {
-            // Convert indices to byte offsets
-            uint32_t write_light_data_start = render_context->m_LightBufferDataWriteStart;
-            uint32_t write_start            = write_light_data_start + render_context->m_LightBufferDirtyStart * sizeof(LightSTD140);
-            uint32_t write_end              = write_light_data_start + render_context->m_LightBufferDirtyEnd * sizeof(LightSTD140);
-            uint32_t write_size             = write_end - write_start;
-            LightSTD140* write_ptr_start    = &render_context->m_LightBufferScratch[render_context->m_LightBufferDirtyStart];
-
-            dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, write_start, write_size, (void*) write_ptr_start);
+            uint32_t write_size = active_light_count * sizeof(LightSTD140);
+            dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
+                                         render_context->m_LightUniformBuffer,
+                                         render_context->m_LightBufferDataWriteStart,
+                                         write_size,
+                                         render_context->m_LightBufferUploadScratch.Begin());
         }
 
         // Reset all dirty flags
@@ -338,8 +368,11 @@ namespace dmRender
         {
             render_context->m_RenderLightsIndices.SetCapacity(max_lights);
         }
+        render_context->m_RenderLightsIndices.Clear();
         render_context->m_LightBufferScratch.SetCapacity(max_lights);
         render_context->m_LightBufferScratch.SetSize(0);
+        render_context->m_LightBufferUploadScratch.SetCapacity(max_lights);
+        render_context->m_LightBufferUploadScratch.SetSize(0);
         GenerateUniformBuffer(render_context, (int) max_lights);
     }
 

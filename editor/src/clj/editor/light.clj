@@ -108,6 +108,12 @@
     "directional_light" (localization/message "resource.type.directional-light")
     "spot_light" (localization/message "resource.type.spot-light")))
 
+(defn- light-type->tag [light-type]
+  (case light-type
+    :directional "directional_light"
+    :spot "spot_light"
+    "point_light"))
+
 (defn- get-number [fields key default]
   (double (or (get-in fields [key :number]) default)))
 
@@ -159,17 +165,30 @@
     (protobuf/make-map-without-defaults DataProto$Data
       :data {:struct {:fields fields}})))
 
-(defn- build-light [build-resource _dep-resources user-data]
-  (let [{:keys [pb-map]} user-data]
-    {:resource build-resource
-     :content (protobuf/map->bytes DataProto$Data pb-map)}))
+(defn- compile-data-desc [light-type pb-map]
+  (let [direction-field {"direction" (list-field-vec4 [0.0 0.0 -1.0])}]
+    (cond-> (assoc pb-map :tags ["light" (light-type->tag light-type)])
+            (contains? #{:directional :spot} light-type)
+            (update-in [:data :struct :fields] merge direction-field)
 
-(g/defnk produce-build-targets [_node-id resource save-value]
+            (= :spot light-type)
+            (update-in [:data :struct :fields "inner_cone_angle" :number] #(Math/toRadians (double (or % 0.0))))
+
+            (= :spot light-type)
+            (update-in [:data :struct :fields "outer_cone_angle" :number] #(Math/toRadians (double (or % 45.0)))))))
+
+(defn- build-light [build-resource _dep-resources user-data]
+  (let [{:keys [light-type pb-map]} user-data]
+    {:resource build-resource
+     :content (protobuf/map->bytes DataProto$Data (compile-data-desc light-type pb-map))}))
+
+(g/defnk produce-build-targets [_node-id resource light-type save-value]
   [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-light
-      :user-data {:pb-map save-value}})])
+      :user-data {:light-type light-type
+                  :pb-map save-value}})])
 
 (g/defnk produce-save-value [light-type color intensity range inner-cone-angle outer-cone-angle]
   (build-data-desc light-type color intensity range inner-cone-angle outer-cone-angle))

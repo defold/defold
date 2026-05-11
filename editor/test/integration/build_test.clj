@@ -22,6 +22,7 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
+            [editor.light :as light]
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
@@ -721,6 +722,27 @@
       (let [resource-type (workspace/get-resource-type workspace ext)]
         (is (= "lightc" (:build-ext resource-type)))
         (is (= expected-label (test-util/localization (:label resource-type))))))))
+
+(deftest compiled-light-data-includes-runtime-type-tags
+  (doseq [[light-type expected-tag] [[:point "point_light"]
+                                    [:directional "directional_light"]
+                                    [:spot "spot_light"]]]
+    (let [pb-map (#'light/build-data-desc light-type [1.0 1.0 1.0 1.0] 1.0 10.0 0.0 45.0)
+          content (:content (#'light/build-light nil nil {:light-type light-type
+                                                          :pb-map pb-map}))
+          desc (protobuf/bytes->map-with-defaults DataProto$Data content)
+          fields (get-in desc [:data :struct :fields])
+          list-numbers (fn [field]
+                         (mapv :number (get-in fields [field :list :values])))]
+      (is (= ["light" expected-tag] (:tags desc)))
+      (if (= :point light-type)
+        (is (not (contains? fields "direction")))
+        (is (= [0.0 0.0 -1.0] (list-numbers "direction"))))
+      (when (= :spot light-type)
+        (is (= 0.0 (get-in fields ["inner_cone_angle" :number])))
+        (is (< (Math/abs (- (Math/toRadians 45.0)
+                            (double (get-in fields ["outer_cone_angle" :number]))))
+               1e-6))))))
 
 (deftest build-game-project-with-error
   (with-loaded-project project-path
