@@ -180,9 +180,7 @@
 
   (input settings-map g/Any)
   ;; settings-map already cached in SettingsNode
-  (output settings-map g/Any :cached
-          (g/fnk [settings-map custom-resources-setting]
-            (assoc settings-map ["project" "custom_resources"] custom-resources-setting)))
+  (output settings-map g/Any (gu/passthrough settings-map))
 
   (input form-data g/Any)
   (output form-data g/Any :cached (gu/passthrough form-data))
