@@ -337,9 +337,9 @@ static void OpenGLDebugTimingInitialize(OpenGLContext* context);
 static void OpenGLDebugTimingFinalize(OpenGLContext* context);
 static void OpenGLDebugTimingBeginFrame(OpenGLContext* context);
 static void OpenGLDebugTimingFlip(OpenGLContext* context);
-static void OpenGLDebugTimingBeginPass(OpenGLContext* context);
+static void OpenGLDebugTimingBeginPass(OpenGLContext* context, HRenderTarget render_target, OpenGLRenderTarget* rt);
 static void OpenGLDebugTimingEndPass(OpenGLContext* context);
-static void OpenGLDebugTimingAddDraw(OpenGLContext* context);
+static void OpenGLDebugTimingAddDraw(OpenGLContext* context, PrimitiveType prim_type);
 #endif
 
 static void OpenGLClearGLError()
@@ -1188,7 +1188,224 @@ static void LogFrameBufferError(GLenum status)
         accumulator->m_LastLogTime = last_log_time;
     }
 
-    static void OpenGLDebugTimingLogIfNeeded(OpenGLContext* context)
+    static uint64_t DebugTimingMix(uint64_t h, uint64_t v)
+    {
+        return (h ^ (v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2)));
+    }
+
+    static uint64_t DebugTimingPipelineStateSignature(const PipelineState& ps)
+    {
+        uint64_t h = 0;
+        h = DebugTimingMix(h, ps.m_WriteColorMask);
+        h = DebugTimingMix(h, ps.m_WriteDepth);
+        h = DebugTimingMix(h, ps.m_PrimtiveType);
+        h = DebugTimingMix(h, ps.m_DepthTestEnabled);
+        h = DebugTimingMix(h, ps.m_DepthTestFunc);
+        h = DebugTimingMix(h, ps.m_StencilEnabled);
+        h = DebugTimingMix(h, ps.m_ScissorTestEnabled);
+        h = DebugTimingMix(h, ps.m_StencilFrontOpFail);
+        h = DebugTimingMix(h, ps.m_StencilFrontOpPass);
+        h = DebugTimingMix(h, ps.m_StencilFrontOpDepthFail);
+        h = DebugTimingMix(h, ps.m_StencilFrontTestFunc);
+        h = DebugTimingMix(h, ps.m_StencilBackOpFail);
+        h = DebugTimingMix(h, ps.m_StencilBackOpPass);
+        h = DebugTimingMix(h, ps.m_StencilBackOpDepthFail);
+        h = DebugTimingMix(h, ps.m_StencilBackTestFunc);
+        h = DebugTimingMix(h, ps.m_StencilWriteMask);
+        h = DebugTimingMix(h, ps.m_StencilCompareMask);
+        h = DebugTimingMix(h, ps.m_StencilReference);
+        h = DebugTimingMix(h, ps.m_BlendEnabled);
+        h = DebugTimingMix(h, ps.m_BlendSrcFactor);
+        h = DebugTimingMix(h, ps.m_BlendDstFactor);
+        h = DebugTimingMix(h, ps.m_BlendSrcFactorAlpha);
+        h = DebugTimingMix(h, ps.m_BlendDstFactorAlpha);
+        h = DebugTimingMix(h, ps.m_BlendEquationColor);
+        h = DebugTimingMix(h, ps.m_BlendEquationAlpha);
+        h = DebugTimingMix(h, ps.m_CullFaceEnabled);
+        h = DebugTimingMix(h, ps.m_CullFaceType);
+        h = DebugTimingMix(h, ps.m_FaceWinding);
+        h = DebugTimingMix(h, ps.m_PolygonOffsetFillEnabled);
+        return h;
+    }
+
+    static uint64_t DebugTimingPipelineStatePack0(const PipelineState& ps)
+    {
+        uint64_t v = 0;
+        v |= (uint64_t) ps.m_WriteColorMask           << 0;
+        v |= (uint64_t) ps.m_WriteDepth               << 4;
+        v |= (uint64_t) ps.m_PrimtiveType             << 5;
+        v |= (uint64_t) ps.m_DepthTestEnabled         << 8;
+        v |= (uint64_t) ps.m_DepthTestFunc            << 9;
+        v |= (uint64_t) ps.m_StencilEnabled           << 12;
+        v |= (uint64_t) ps.m_ScissorTestEnabled       << 13;
+        v |= (uint64_t) ps.m_CullFaceEnabled          << 14;
+        v |= (uint64_t) ps.m_CullFaceType             << 15;
+        v |= (uint64_t) ps.m_FaceWinding              << 17;
+        v |= (uint64_t) ps.m_PolygonOffsetFillEnabled << 18;
+        v |= (uint64_t) ps.m_StencilWriteMask         << 19;
+        v |= (uint64_t) ps.m_StencilCompareMask       << 27;
+        v |= (uint64_t) ps.m_StencilReference         << 35;
+        return v;
+    }
+
+    static uint64_t DebugTimingPipelineStatePack1(const PipelineState& ps)
+    {
+        uint64_t v = 0;
+        v |= (uint64_t) ps.m_BlendEnabled             << 0;
+        v |= (uint64_t) ps.m_BlendSrcFactor           << 1;
+        v |= (uint64_t) ps.m_BlendDstFactor           << 5;
+        v |= (uint64_t) ps.m_BlendSrcFactorAlpha      << 9;
+        v |= (uint64_t) ps.m_BlendDstFactorAlpha      << 13;
+        v |= (uint64_t) ps.m_BlendEquationColor       << 17;
+        v |= (uint64_t) ps.m_BlendEquationAlpha       << 20;
+        v |= (uint64_t) ps.m_StencilFrontOpFail       << 23;
+        v |= (uint64_t) ps.m_StencilFrontOpPass       << 26;
+        v |= (uint64_t) ps.m_StencilFrontOpDepthFail  << 29;
+        v |= (uint64_t) ps.m_StencilFrontTestFunc     << 32;
+        v |= (uint64_t) ps.m_StencilBackOpFail        << 35;
+        v |= (uint64_t) ps.m_StencilBackOpPass        << 38;
+        v |= (uint64_t) ps.m_StencilBackOpDepthFail   << 41;
+        v |= (uint64_t) ps.m_StencilBackTestFunc      << 44;
+        return v;
+    }
+
+    static const char* DebugTimingAttachmentOpToStr(uint8_t op)
+    {
+        switch ((AttachmentOp) op)
+        {
+            case ATTACHMENT_OP_DONT_CARE: return "dontcare";
+            case ATTACHMENT_OP_LOAD:      return "load";
+            case ATTACHMENT_OP_STORE:     return "store";
+            case ATTACHMENT_OP_CLEAR:     return "clear";
+            default:                      return "?";
+        }
+    }
+
+    static void OpenGLDebugTimingCapturePassInfo(OpenGLContext* context, HRenderTarget render_target, OpenGLRenderTarget* rt)
+    {
+#if DM_OPENGL_USE_DEBUG_TIMINGS
+        if (!context->m_DebugTimingSupported || !context->m_DebugTimingPassActive || context->m_DebugTimingPassIndex >= DM_DEBUG_TIMING_MAX_PASSES)
+        {
+            return;
+        }
+
+        DebugTimingPassInfo* info = &context->m_DebugTimingPassInfos[context->m_DebugTimingFrameIndex][context->m_DebugTimingPassIndex];
+        memset(info, 0, sizeof(DebugTimingPassInfo));
+
+        info->m_TargetId     = rt ? rt->m_Id : 0;
+        info->m_IsBackbuffer = rt ? 0 : 1;
+        info->m_ClearFlags   = context->m_DebugTimingPendingClearFlags;
+        info->m_Width        = rt ? 0 : context->m_BaseContext.m_Width;
+        info->m_Height       = rt ? 0 : context->m_BaseContext.m_Height;
+        info->m_Valid        = 1;
+
+        if (rt)
+        {
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                OpenGLRenderTargetAttachment& attachment = rt->m_ColorAttachments[i];
+                if (attachment.m_Type != ATTACHMENT_TYPE_UNUSED)
+                {
+                    uint8_t color_index = info->m_ColorCount++;
+                    info->m_ColorFormats[color_index] = attachment.m_Params.m_Format;
+                    info->m_LoadOps[color_index]      = (uint8_t) ATTACHMENT_OP_LOAD;
+                    info->m_StoreOps[color_index]     = (uint8_t) ATTACHMENT_OP_STORE;
+                    if (info->m_Width == 0)
+                    {
+                        info->m_Width  = attachment.m_Params.m_Width;
+                        info->m_Height = attachment.m_Params.m_Height;
+                    }
+                }
+            }
+
+            OpenGLRenderTargetAttachment* depth_attachment = 0;
+            if (rt->m_DepthStencilAttachment.m_Type != ATTACHMENT_TYPE_UNUSED)
+            {
+                depth_attachment = &rt->m_DepthStencilAttachment;
+            }
+            else if (rt->m_DepthAttachment.m_Type != ATTACHMENT_TYPE_UNUSED)
+            {
+                depth_attachment = &rt->m_DepthAttachment;
+            }
+
+            if (depth_attachment)
+            {
+                info->m_HasDepth     = 1;
+                info->m_DepthFormat  = depth_attachment->m_Params.m_Format;
+                info->m_DepthLoadOp  = (uint8_t) ATTACHMENT_OP_LOAD;
+                info->m_DepthStoreOp = (uint8_t) ATTACHMENT_OP_STORE;
+                if (info->m_Width == 0)
+                {
+                    info->m_Width  = depth_attachment->m_Params.m_Width;
+                    info->m_Height = depth_attachment->m_Params.m_Height;
+                }
+            }
+        }
+        else
+        {
+            info->m_ColorCount = 1;
+            info->m_ColorFormats[0] = TEXTURE_FORMAT_RGBA;
+            info->m_LoadOps[0] = (uint8_t) ATTACHMENT_OP_LOAD;
+            info->m_StoreOps[0] = (uint8_t) ATTACHMENT_OP_STORE;
+        }
+
+        context->m_DebugTimingPendingClearFlags = 0;
+#else
+        (void) context;
+        (void) render_target;
+        (void) rt;
+#endif
+    }
+
+    static void OpenGLDebugTimingLogPassInfo(OpenGLContext* context, uint8_t frame_slot, uint32_t pass_index)
+    {
+        DebugTimingPassInfo* info = &context->m_DebugTimingPassInfos[frame_slot][pass_index];
+        if (!info->m_Valid)
+        {
+            return;
+        }
+
+        char colors[512];
+        uint32_t offset = 0;
+        for (uint32_t i = 0; i < info->m_ColorCount && offset < sizeof(colors); ++i)
+        {
+            offset += dmSnPrintf(colors + offset, sizeof(colors) - offset, "%s%s(%s/%s)",
+                i == 0 ? "" : ",",
+                GetTextureFormatLiteral(info->m_ColorFormats[i]),
+                DebugTimingAttachmentOpToStr(info->m_LoadOps[i]),
+                DebugTimingAttachmentOpToStr(info->m_StoreOps[i]));
+        }
+        if (offset == 0)
+        {
+            dmSnPrintf(colors, sizeof(colors), "none");
+        }
+
+        dmLogInfo("OpenGL GPU pass p%u meta target=%s id=%llu size=%ux%u colors=%u[%s] depth=%s(%s/%s) clear=0x%08x programs=%016llx->%016llx switches=%u psig=%016llx textures=%u tsig=%016llx state=%016llx state0=%016llx->%016llx state1=%016llx->%016llx",
+            pass_index,
+            info->m_IsBackbuffer ? "backbuffer" : "rt",
+            (unsigned long long) info->m_TargetId,
+            info->m_Width,
+            info->m_Height,
+            info->m_ColorCount,
+            colors,
+            info->m_HasDepth ? GetTextureFormatLiteral(info->m_DepthFormat) : "none",
+            info->m_HasDepth ? DebugTimingAttachmentOpToStr(info->m_DepthLoadOp) : "-",
+            info->m_HasDepth ? DebugTimingAttachmentOpToStr(info->m_DepthStoreOp) : "-",
+            info->m_ClearFlags,
+            (unsigned long long) info->m_FirstProgram,
+            (unsigned long long) info->m_LastProgram,
+            info->m_ProgramSwitches,
+            (unsigned long long) info->m_ProgramSignature,
+            info->m_TextureCount,
+            (unsigned long long) info->m_TextureSignature,
+            (unsigned long long) info->m_PipelineStateSignature,
+            (unsigned long long) info->m_FirstPipelineState0,
+            (unsigned long long) info->m_LastPipelineState0,
+            (unsigned long long) info->m_FirstPipelineState1,
+            (unsigned long long) info->m_LastPipelineState1);
+    }
+
+    static void OpenGLDebugTimingLogIfNeeded(OpenGLContext* context, uint8_t frame_slot)
     {
         DebugTimingAccumulator* accumulator = &context->m_DebugTimingAccumulator;
         uint64_t now = dmTime::GetTime();
@@ -1216,6 +1433,13 @@ static void LogFrameBufferError(GLenum status)
         }
 
         dmLogInfo("%s", line);
+        for (uint32_t i = 0; i < DM_DEBUG_TIMING_MAX_PASSES; ++i)
+        {
+            if (accumulator->m_PassSamples[i])
+            {
+                OpenGLDebugTimingLogPassInfo(context, frame_slot, i);
+            }
+        }
         DebugTimingResetAccumulator(accumulator);
     }
 
@@ -1258,7 +1482,7 @@ static void LogFrameBufferError(GLenum status)
         accumulator->m_FrameTotalUs += frame_us;
         accumulator->m_FrameMaxUs = dmMath::Max(accumulator->m_FrameMaxUs, frame_us);
         context->m_DebugTimingPassCounts[frame_slot] = 0;
-        OpenGLDebugTimingLogIfNeeded(context);
+        OpenGLDebugTimingLogIfNeeded(context, frame_slot);
         return true;
 #else
         (void) context;
@@ -1272,6 +1496,7 @@ static void LogFrameBufferError(GLenum status)
         DebugTimingResetAccumulator(&context->m_DebugTimingAccumulator);
         context->m_DebugTimingPassActive = 0;
         context->m_DebugTimingSupported = 0;
+        context->m_DebugTimingPendingClearFlags = 0;
 
 #if DM_OPENGL_USE_DEBUG_TIMINGS
     #if defined(_WIN32)
@@ -1309,7 +1534,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
     }
 
-    static void OpenGLDebugTimingBeginPass(OpenGLContext* context)
+    static void OpenGLDebugTimingBeginPass(OpenGLContext* context, HRenderTarget render_target, OpenGLRenderTarget* rt)
     {
 #if DM_OPENGL_USE_DEBUG_TIMINGS
         if (!context->m_DebugTimingSupported || context->m_DebugTimingPassActive || context->m_DebugTimingPassIndex >= DM_DEBUG_TIMING_MAX_PASSES)
@@ -1320,8 +1545,11 @@ static void LogFrameBufferError(GLenum status)
         context->m_DebugTimingCurrentPassDraws = 0;
         glBeginQuery(GL_TIME_ELAPSED, context->m_DebugTimingQueries[context->m_DebugTimingFrameIndex][context->m_DebugTimingPassIndex]);
         context->m_DebugTimingPassActive = 1;
+        OpenGLDebugTimingCapturePassInfo(context, render_target, rt);
 #else
         (void) context;
+        (void) render_target;
+        (void) rt;
 #endif
     }
 
@@ -1336,6 +1564,7 @@ static void LogFrameBufferError(GLenum status)
         glEndQuery(GL_TIME_ELAPSED);
         context->m_DebugTimingPassDraws[context->m_DebugTimingFrameIndex][context->m_DebugTimingPassIndex] = context->m_DebugTimingCurrentPassDraws;
         context->m_DebugTimingPassCounts[context->m_DebugTimingFrameIndex] = context->m_DebugTimingPassIndex + 1;
+
         context->m_DebugTimingPassIndex++;
         context->m_DebugTimingPassActive = 0;
 #else
@@ -1357,9 +1586,11 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
         memset(context->m_DebugTimingPassDraws[frame_slot], 0, sizeof(context->m_DebugTimingPassDraws[frame_slot]));
+        memset(context->m_DebugTimingPassInfos[frame_slot], 0, sizeof(context->m_DebugTimingPassInfos[frame_slot]));
         context->m_DebugTimingPassCounts[frame_slot] = 0;
         context->m_DebugTimingPassIndex = 0;
-        OpenGLDebugTimingBeginPass(context);
+        context->m_DebugTimingPendingClearFlags = 0;
+        OpenGLDebugTimingBeginPass(context, 0, 0);
     }
 
     static void OpenGLDebugTimingFlip(OpenGLContext* context)
@@ -1368,11 +1599,50 @@ static void LogFrameBufferError(GLenum status)
         context->m_DebugTimingFrameIndex = (context->m_DebugTimingFrameIndex + 1) % DM_DEBUG_TIMING_FRAME_LAG;
     }
 
-    static void OpenGLDebugTimingAddDraw(OpenGLContext* context)
+    static void OpenGLDebugTimingAddDraw(OpenGLContext* context, PrimitiveType prim_type)
     {
         if (context->m_DebugTimingSupported && context->m_DebugTimingPassActive)
         {
             context->m_DebugTimingCurrentPassDraws++;
+            DebugTimingPassInfo* info = &context->m_DebugTimingPassInfos[context->m_DebugTimingFrameIndex][context->m_DebugTimingPassIndex];
+
+            uint64_t program_id = context->m_CurrentProgram ? (uint64_t) context->m_CurrentProgram->m_Id : 0;
+            if (info->m_FirstProgram == 0)
+            {
+                info->m_FirstProgram = program_id;
+            }
+            else if (program_id != info->m_LastProgram && info->m_ProgramSwitches < 255)
+            {
+                info->m_ProgramSwitches++;
+            }
+            info->m_LastProgram = program_id;
+            info->m_ProgramSignature = DebugTimingMix(info->m_ProgramSignature, program_id);
+
+            uint8_t texture_count = 0;
+            uint64_t texture_signature = 0;
+            for (uint32_t i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
+            {
+                if (context->m_CurrentTextures[i].m_Texture)
+                {
+                    texture_count++;
+                    texture_signature = DebugTimingMix(texture_signature, ((uint64_t) i << 56) ^ (uint64_t) context->m_CurrentTextures[i].m_Texture);
+                }
+            }
+            info->m_TextureCount = dmMath::Max(info->m_TextureCount, texture_count);
+            info->m_TextureSignature = DebugTimingMix(info->m_TextureSignature, texture_signature);
+
+            PipelineState pipeline_state = context->m_PipelineStateDirty;
+            pipeline_state.m_PrimtiveType = prim_type;
+            info->m_PipelineStateSignature = DebugTimingMix(info->m_PipelineStateSignature, DebugTimingPipelineStateSignature(pipeline_state));
+            uint64_t state0 = DebugTimingPipelineStatePack0(pipeline_state);
+            uint64_t state1 = DebugTimingPipelineStatePack1(pipeline_state);
+            if (context->m_DebugTimingCurrentPassDraws == 1)
+            {
+                info->m_FirstPipelineState0 = state0;
+                info->m_FirstPipelineState1 = state1;
+            }
+            info->m_LastPipelineState0 = state0;
+            info->m_LastPipelineState1 = state1;
         }
     }
 #endif
@@ -2382,6 +2652,26 @@ static void LogFrameBufferError(GLenum status)
         gl_flags           |= (flags & BUFFER_TYPE_DEPTH_BIT)   ? GL_DEPTH_BUFFER_BIT   : 0;
         gl_flags           |= (flags & BUFFER_TYPE_STENCIL_BIT) ? GL_STENCIL_BUFFER_BIT : 0;
 
+#if defined(USE_DEBUG_TIMINGS)
+        context->m_DebugTimingPendingClearFlags |= flags;
+        if (context->m_DebugTimingSupported && context->m_DebugTimingPassActive && context->m_DebugTimingPassIndex < DM_DEBUG_TIMING_MAX_PASSES)
+        {
+            DebugTimingPassInfo* info = &context->m_DebugTimingPassInfos[context->m_DebugTimingFrameIndex][context->m_DebugTimingPassIndex];
+            info->m_ClearFlags |= flags;
+            if (flags & BUFFER_TYPE_COLOR0_BIT)
+            {
+                for (uint32_t i = 0; i < info->m_ColorCount; ++i)
+                {
+                    info->m_LoadOps[i] = (uint8_t) ATTACHMENT_OP_CLEAR;
+                }
+            }
+            if (flags & BUFFER_TYPE_DEPTH_BIT)
+            {
+                info->m_DepthLoadOp = (uint8_t) ATTACHMENT_OP_CLEAR;
+            }
+            context->m_DebugTimingPendingClearFlags = 0;
+        }
+#endif
         glClear(gl_flags);
         CHECK_GL_ERROR
     }
@@ -3325,7 +3615,7 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR
         }
 #if defined(USE_DEBUG_TIMINGS)
-        OpenGLDebugTimingAddDraw(context);
+        OpenGLDebugTimingAddDraw(context, prim_type);
 #endif
     }
 
@@ -3349,7 +3639,7 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR
         }
 #if defined(USE_DEBUG_TIMINGS)
-        OpenGLDebugTimingAddDraw(context);
+        OpenGLDebugTimingAddDraw(context, prim_type);
 #endif
     }
 
@@ -4827,7 +5117,7 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : GetGLHandle(context, rt->m_Id));
         CHECK_GL_ERROR;
 #if defined(USE_DEBUG_TIMINGS)
-        OpenGLDebugTimingBeginPass(context);
+        OpenGLDebugTimingBeginPass(context, render_target, rt);
 #endif
 
     #if __EMSCRIPTEN__

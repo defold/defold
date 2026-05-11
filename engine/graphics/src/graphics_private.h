@@ -67,9 +67,44 @@ namespace dmGraphics
         uint64_t m_FrameMaxUs;
         uint64_t m_PassTotalUs[DM_DEBUG_TIMING_MAX_PASSES];
         uint64_t m_PassMaxUs[DM_DEBUG_TIMING_MAX_PASSES];
+        uint64_t m_PassHeadTotalUs[DM_DEBUG_TIMING_MAX_PASSES];
+        uint64_t m_PassHeadMaxUs[DM_DEBUG_TIMING_MAX_PASSES];
+        uint64_t m_PassTailTotalUs[DM_DEBUG_TIMING_MAX_PASSES];
+        uint64_t m_PassTailMaxUs[DM_DEBUG_TIMING_MAX_PASSES];
         uint64_t m_PassDraws[DM_DEBUG_TIMING_MAX_PASSES];
         uint32_t m_PassSamples[DM_DEBUG_TIMING_MAX_PASSES];
         uint32_t m_Frames;
+    };
+
+    struct DebugTimingPassInfo
+    {
+        uint64_t      m_TargetId;
+        uint64_t      m_FirstProgram;
+        uint64_t      m_LastProgram;
+        uint64_t      m_ProgramSignature;
+        uint64_t      m_TextureSignature;
+        uint64_t      m_PipelineStateSignature;
+        uint64_t      m_FirstPipelineState0;
+        uint64_t      m_FirstPipelineState1;
+        uint64_t      m_LastPipelineState0;
+        uint64_t      m_LastPipelineState1;
+        TextureFormat m_ColorFormats[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureFormat m_DepthFormat;
+        uint32_t      m_ColorBackendFormats[MAX_BUFFER_COLOR_ATTACHMENTS];
+        uint32_t      m_DepthBackendFormat;
+        uint32_t      m_Width;
+        uint32_t      m_Height;
+        uint32_t      m_ClearFlags;
+        uint8_t       m_ColorCount;
+        uint8_t       m_HasDepth;
+        uint8_t       m_IsBackbuffer;
+        uint8_t       m_LoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        uint8_t       m_StoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        uint8_t       m_DepthLoadOp;
+        uint8_t       m_DepthStoreOp;
+        uint8_t       m_ProgramSwitches;
+        uint8_t       m_TextureCount;
+        uint8_t       m_Valid;
     };
 #endif
 

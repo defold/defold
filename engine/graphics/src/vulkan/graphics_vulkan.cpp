@@ -452,9 +452,9 @@ namespace dmGraphics
     }
 
 #if defined(USE_DEBUG_TIMINGS)
-    static const uint32_t VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME = 2 + DM_DEBUG_TIMING_MAX_PASSES * 2;
+    static const uint32_t VULKAN_DEBUG_TIMING_QUERIES_PER_PASS  = 4;
+    static const uint32_t VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME = 2 + DM_DEBUG_TIMING_MAX_PASSES * VULKAN_DEBUG_TIMING_QUERIES_PER_PASS;
     static const uint8_t  VULKAN_DEBUG_TIMING_NO_PASS           = 0xff;
-
     static uint32_t VulkanDebugTimingQueryBase(uint8_t frame_index)
     {
         return frame_index * VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME;
@@ -462,12 +462,22 @@ namespace dmGraphics
 
     static uint32_t VulkanDebugTimingPassStartQuery(uint8_t frame_index, uint8_t pass_index)
     {
-        return VulkanDebugTimingQueryBase(frame_index) + 2 + pass_index * 2;
+        return VulkanDebugTimingQueryBase(frame_index) + 2 + pass_index * VULKAN_DEBUG_TIMING_QUERIES_PER_PASS;
+    }
+
+    static uint32_t VulkanDebugTimingPassPreEndQuery(uint8_t frame_index, uint8_t pass_index)
+    {
+        return VulkanDebugTimingPassStartQuery(frame_index, pass_index) + 2;
+    }
+
+    static uint32_t VulkanDebugTimingPassFirstDrawQuery(uint8_t frame_index, uint8_t pass_index)
+    {
+        return VulkanDebugTimingPassStartQuery(frame_index, pass_index) + 1;
     }
 
     static uint32_t VulkanDebugTimingPassEndQuery(uint8_t frame_index, uint8_t pass_index)
     {
-        return VulkanDebugTimingPassStartQuery(frame_index, pass_index) + 1;
+        return VulkanDebugTimingPassStartQuery(frame_index, pass_index) + 3;
     }
 
     static void DebugTimingResetAccumulator(DebugTimingAccumulator* accumulator)
@@ -482,7 +492,288 @@ namespace dmGraphics
         return (uint64_t) (((double) ticks * (double) context->m_DebugTimingTimestampPeriod) / 1000.0);
     }
 
-    static void VulkanDebugTimingLogIfNeeded(VulkanContext* context)
+    static uint64_t DebugTimingMix(uint64_t h, uint64_t v)
+    {
+        return (h ^ (v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2)));
+    }
+
+    static uint64_t DebugTimingPipelineStateSignature(const PipelineState& ps)
+    {
+        uint64_t h = 0;
+        h = DebugTimingMix(h, ps.m_WriteColorMask);
+        h = DebugTimingMix(h, ps.m_WriteDepth);
+        h = DebugTimingMix(h, ps.m_PrimtiveType);
+        h = DebugTimingMix(h, ps.m_DepthTestEnabled);
+        h = DebugTimingMix(h, ps.m_DepthTestFunc);
+        h = DebugTimingMix(h, ps.m_StencilEnabled);
+        h = DebugTimingMix(h, ps.m_ScissorTestEnabled);
+        h = DebugTimingMix(h, ps.m_StencilFrontOpFail);
+        h = DebugTimingMix(h, ps.m_StencilFrontOpPass);
+        h = DebugTimingMix(h, ps.m_StencilFrontOpDepthFail);
+        h = DebugTimingMix(h, ps.m_StencilFrontTestFunc);
+        h = DebugTimingMix(h, ps.m_StencilBackOpFail);
+        h = DebugTimingMix(h, ps.m_StencilBackOpPass);
+        h = DebugTimingMix(h, ps.m_StencilBackOpDepthFail);
+        h = DebugTimingMix(h, ps.m_StencilBackTestFunc);
+        h = DebugTimingMix(h, ps.m_StencilWriteMask);
+        h = DebugTimingMix(h, ps.m_StencilCompareMask);
+        h = DebugTimingMix(h, ps.m_StencilReference);
+        h = DebugTimingMix(h, ps.m_BlendEnabled);
+        h = DebugTimingMix(h, ps.m_BlendSrcFactor);
+        h = DebugTimingMix(h, ps.m_BlendDstFactor);
+        h = DebugTimingMix(h, ps.m_BlendSrcFactorAlpha);
+        h = DebugTimingMix(h, ps.m_BlendDstFactorAlpha);
+        h = DebugTimingMix(h, ps.m_BlendEquationColor);
+        h = DebugTimingMix(h, ps.m_BlendEquationAlpha);
+        h = DebugTimingMix(h, ps.m_CullFaceEnabled);
+        h = DebugTimingMix(h, ps.m_CullFaceType);
+        h = DebugTimingMix(h, ps.m_FaceWinding);
+        h = DebugTimingMix(h, ps.m_PolygonOffsetFillEnabled);
+        return h;
+    }
+
+    static uint64_t DebugTimingPipelineStatePack0(const PipelineState& ps)
+    {
+        uint64_t v = 0;
+        v |= (uint64_t) ps.m_WriteColorMask           << 0;
+        v |= (uint64_t) ps.m_WriteDepth               << 4;
+        v |= (uint64_t) ps.m_PrimtiveType             << 5;
+        v |= (uint64_t) ps.m_DepthTestEnabled         << 8;
+        v |= (uint64_t) ps.m_DepthTestFunc            << 9;
+        v |= (uint64_t) ps.m_StencilEnabled           << 12;
+        v |= (uint64_t) ps.m_ScissorTestEnabled       << 13;
+        v |= (uint64_t) ps.m_CullFaceEnabled          << 14;
+        v |= (uint64_t) ps.m_CullFaceType             << 15;
+        v |= (uint64_t) ps.m_FaceWinding              << 17;
+        v |= (uint64_t) ps.m_PolygonOffsetFillEnabled << 18;
+        v |= (uint64_t) ps.m_StencilWriteMask         << 19;
+        v |= (uint64_t) ps.m_StencilCompareMask       << 27;
+        v |= (uint64_t) ps.m_StencilReference         << 35;
+        return v;
+    }
+
+    static uint64_t DebugTimingPipelineStatePack1(const PipelineState& ps)
+    {
+        uint64_t v = 0;
+        v |= (uint64_t) ps.m_BlendEnabled             << 0;
+        v |= (uint64_t) ps.m_BlendSrcFactor           << 1;
+        v |= (uint64_t) ps.m_BlendDstFactor           << 5;
+        v |= (uint64_t) ps.m_BlendSrcFactorAlpha      << 9;
+        v |= (uint64_t) ps.m_BlendDstFactorAlpha      << 13;
+        v |= (uint64_t) ps.m_BlendEquationColor       << 17;
+        v |= (uint64_t) ps.m_BlendEquationAlpha       << 20;
+        v |= (uint64_t) ps.m_StencilFrontOpFail       << 23;
+        v |= (uint64_t) ps.m_StencilFrontOpPass       << 26;
+        v |= (uint64_t) ps.m_StencilFrontOpDepthFail  << 29;
+        v |= (uint64_t) ps.m_StencilFrontTestFunc     << 32;
+        v |= (uint64_t) ps.m_StencilBackOpFail        << 35;
+        v |= (uint64_t) ps.m_StencilBackOpPass        << 38;
+        v |= (uint64_t) ps.m_StencilBackOpDepthFail   << 41;
+        v |= (uint64_t) ps.m_StencilBackTestFunc      << 44;
+        return v;
+    }
+
+    static const char* DebugTimingAttachmentOpToStr(uint8_t op)
+    {
+        switch ((AttachmentOp) op)
+        {
+            case ATTACHMENT_OP_DONT_CARE: return "dontcare";
+            case ATTACHMENT_OP_LOAD:      return "load";
+            case ATTACHMENT_OP_STORE:     return "store";
+            case ATTACHMENT_OP_CLEAR:     return "clear";
+            default:                      return "?";
+        }
+    }
+
+    static uint64_t VulkanDebugTimingProgramId(VulkanProgram* program)
+    {
+        if (program == 0)
+        {
+            return 0;
+        }
+
+        uint64_t id = program->m_Hash;
+        if (program->m_VertexModule)
+        {
+            id = DebugTimingMix(id, program->m_VertexModule->m_Hash);
+        }
+        if (program->m_FragmentModule)
+        {
+            id = DebugTimingMix(id, program->m_FragmentModule->m_Hash);
+        }
+        if (program->m_ComputeModule)
+        {
+            id = DebugTimingMix(id, program->m_ComputeModule->m_Hash);
+        }
+        return id;
+    }
+
+    static void VulkanDebugTimingCapturePassInfo(VulkanContext* context, HRenderTarget render_target, RenderTarget* rt, VkRenderPass vk_render_pass)
+    {
+        if (context->m_DebugTimingActivePassIndex == VULKAN_DEBUG_TIMING_NO_PASS || rt == 0)
+        {
+            return;
+        }
+
+        DebugTimingPassInfo* info = &context->m_DebugTimingPassInfos[context->m_CurrentFrameInFlight][context->m_DebugTimingActivePassIndex];
+        memset(info, 0, sizeof(DebugTimingPassInfo));
+
+        const bool is_main_rt = render_target == context->m_MainRenderTarget;
+        const bool clear_color = vk_render_pass == rt->m_Handle.m_RenderPassClear || vk_render_pass == rt->m_Handle.m_RenderPassClearColorDepth;
+        const bool clear_depth = vk_render_pass == rt->m_Handle.m_RenderPassClearColorDepth;
+
+        info->m_TargetId     = rt->m_Id;
+        info->m_Width        = rt->m_Extent.width;
+        info->m_Height       = rt->m_Extent.height;
+        info->m_ClearFlags   = context->m_DebugTimingPendingClearFlags;
+        info->m_ColorCount   = rt->m_ColorAttachmentCount;
+        info->m_IsBackbuffer = is_main_rt ? 1 : 0;
+        info->m_Valid        = 1;
+
+        if (is_main_rt)
+        {
+            info->m_ColorCount = 1;
+            info->m_ColorFormats[0] = context->m_SwapChain && context->m_SwapChain->m_SurfaceFormat.format == VK_FORMAT_B8G8R8A8_UNORM ? TEXTURE_FORMAT_BGRA8U : TEXTURE_FORMAT_RGBA;
+            info->m_ColorBackendFormats[0] = context->m_SwapChain ? (uint32_t) context->m_SwapChain->m_SurfaceFormat.format : (uint32_t) VK_FORMAT_UNDEFINED;
+            info->m_LoadOps[0] = (uint8_t) (clear_color ? ATTACHMENT_OP_CLEAR : (context->m_MainRTBegunThisFrame ? ATTACHMENT_OP_LOAD : ATTACHMENT_OP_CLEAR));
+            info->m_StoreOps[0] = (uint8_t) ATTACHMENT_OP_STORE;
+        }
+        else
+        {
+            uint8_t color_count = dmMath::Min((uint32_t) rt->m_ColorAttachmentCount, (uint32_t) MAX_BUFFER_COLOR_ATTACHMENTS);
+            info->m_ColorCount = color_count;
+            for (uint32_t i = 0; i < color_count; ++i)
+            {
+                TextureFormat format = TEXTURE_FORMAT_RGBA;
+                if (rt->m_TextureColor[i])
+                {
+                    VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
+                    if (texture)
+                    {
+                        format = texture->m_Base.m_Format;
+                        info->m_ColorBackendFormats[i] = (uint32_t) texture->m_Format;
+                    }
+                }
+
+                uint32_t color_buffer_index = i;
+                if (IsColorBufferType(rt->m_ColorAttachmentBufferTypes[i]))
+                {
+                    color_buffer_index = dmMath::Min(GetBufferTypeIndex(rt->m_ColorAttachmentBufferTypes[i]), (uint32_t) MAX_BUFFER_COLOR_ATTACHMENTS - 1);
+                }
+
+                info->m_ColorFormats[i] = format;
+                info->m_LoadOps[i]      = (uint8_t) (clear_color ? ATTACHMENT_OP_CLEAR : rt->m_ColorBufferLoadOps[color_buffer_index]);
+                info->m_StoreOps[i]     = (uint8_t) rt->m_ColorBufferStoreOps[color_buffer_index];
+#if defined(VULKAN_DEBUG_TIMING_DONT_STORE_RT_MRT_COLORS)
+                if (rt->m_TextureDepthStencil && rt->m_ColorAttachmentCount > 1)
+                {
+                    info->m_StoreOps[i] = (uint8_t) ATTACHMENT_OP_DONT_CARE;
+                }
+#endif
+            }
+        }
+
+        if (is_main_rt || rt->m_TextureDepthStencil)
+        {
+            info->m_HasDepth = 1;
+            info->m_DepthFormat = TEXTURE_FORMAT_DEPTH;
+            if (!is_main_rt && rt->m_TextureDepthStencil)
+            {
+                VulkanTexture* depth_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+                if (depth_texture)
+                {
+                    info->m_DepthFormat = depth_texture->m_Base.m_Format;
+                    info->m_DepthBackendFormat = (uint32_t) depth_texture->m_Format;
+                }
+            }
+            else if (is_main_rt)
+            {
+                info->m_DepthBackendFormat = (uint32_t) context->m_MainTextureDepthStencil.m_Format;
+            }
+            info->m_DepthLoadOp = (uint8_t) (clear_depth ? ATTACHMENT_OP_CLEAR : ATTACHMENT_OP_DONT_CARE);
+#if defined(VULKAN_DEBUG_TIMING_DONT_STORE_RT_DEPTH)
+            info->m_DepthStoreOp = (uint8_t) (is_main_rt ? ATTACHMENT_OP_STORE : ATTACHMENT_OP_DONT_CARE);
+#else
+            info->m_DepthStoreOp = (uint8_t) ATTACHMENT_OP_STORE;
+#endif
+        }
+
+        context->m_DebugTimingPendingClearFlags = 0;
+    }
+
+    static const char* VulkanDebugVkFormatToString(VkFormat format)
+    {
+        switch (format)
+        {
+            case VK_FORMAT_UNDEFINED:                 return "VK_FORMAT_UNDEFINED";
+            case VK_FORMAT_R8G8B8_UNORM:              return "VK_FORMAT_R8G8B8_UNORM";
+            case VK_FORMAT_R8G8B8A8_UNORM:            return "VK_FORMAT_R8G8B8A8_UNORM";
+            case VK_FORMAT_B8G8R8A8_UNORM:            return "VK_FORMAT_B8G8R8A8_UNORM";
+            case VK_FORMAT_R16_SFLOAT:                return "VK_FORMAT_R16_SFLOAT";
+            case VK_FORMAT_R32_SFLOAT:                return "VK_FORMAT_R32_SFLOAT";
+            case VK_FORMAT_R16G16B16A16_SFLOAT:       return "VK_FORMAT_R16G16B16A16_SFLOAT";
+            case VK_FORMAT_R32G32B32A32_SFLOAT:       return "VK_FORMAT_R32G32B32A32_SFLOAT";
+            case VK_FORMAT_D16_UNORM:                 return "VK_FORMAT_D16_UNORM";
+            case VK_FORMAT_D32_SFLOAT:                return "VK_FORMAT_D32_SFLOAT";
+            case VK_FORMAT_D24_UNORM_S8_UINT:         return "VK_FORMAT_D24_UNORM_S8_UINT";
+            case VK_FORMAT_D32_SFLOAT_S8_UINT:        return "VK_FORMAT_D32_SFLOAT_S8_UINT";
+            default:                                  return "<unknown VkFormat>";
+        }
+    }
+
+    static void VulkanDebugTimingLogPassInfo(VulkanContext* context, uint8_t frame_index, uint32_t pass_index)
+    {
+        DebugTimingPassInfo* info = &context->m_DebugTimingPassInfos[frame_index][pass_index];
+        if (!info->m_Valid)
+        {
+            return;
+        }
+
+        char colors[512];
+        uint32_t offset = 0;
+        for (uint32_t i = 0; i < info->m_ColorCount && offset < sizeof(colors); ++i)
+        {
+            offset += dmSnPrintf(colors + offset, sizeof(colors) - offset, "%s%s{%s/%u}(%s/%s)",
+                i == 0 ? "" : ",",
+                GetTextureFormatLiteral(info->m_ColorFormats[i]),
+                VulkanDebugVkFormatToString((VkFormat) info->m_ColorBackendFormats[i]),
+                info->m_ColorBackendFormats[i],
+                DebugTimingAttachmentOpToStr(info->m_LoadOps[i]),
+                DebugTimingAttachmentOpToStr(info->m_StoreOps[i]));
+        }
+        if (offset == 0)
+        {
+            dmSnPrintf(colors, sizeof(colors), "none");
+        }
+
+        dmLogInfo("Vulkan GPU pass p%u meta target=%s id=%llu size=%ux%u colors=%u[%s] depth=%s{%s/%u}(%s/%s) clear=0x%08x programs=%016llx->%016llx switches=%u psig=%016llx textures=%u tsig=%016llx state=%016llx state0=%016llx->%016llx state1=%016llx->%016llx",
+            pass_index,
+            info->m_IsBackbuffer ? "backbuffer" : "rt",
+            (unsigned long long) info->m_TargetId,
+            info->m_Width,
+            info->m_Height,
+            info->m_ColorCount,
+            colors,
+            info->m_HasDepth ? GetTextureFormatLiteral(info->m_DepthFormat) : "none",
+            info->m_HasDepth ? VulkanDebugVkFormatToString((VkFormat) info->m_DepthBackendFormat) : "-",
+            info->m_HasDepth ? info->m_DepthBackendFormat : 0,
+            info->m_HasDepth ? DebugTimingAttachmentOpToStr(info->m_DepthLoadOp) : "-",
+            info->m_HasDepth ? DebugTimingAttachmentOpToStr(info->m_DepthStoreOp) : "-",
+            info->m_ClearFlags,
+            (unsigned long long) info->m_FirstProgram,
+            (unsigned long long) info->m_LastProgram,
+            info->m_ProgramSwitches,
+            (unsigned long long) info->m_ProgramSignature,
+            info->m_TextureCount,
+            (unsigned long long) info->m_TextureSignature,
+            (unsigned long long) info->m_PipelineStateSignature,
+            (unsigned long long) info->m_FirstPipelineState0,
+            (unsigned long long) info->m_LastPipelineState0,
+            (unsigned long long) info->m_FirstPipelineState1,
+            (unsigned long long) info->m_LastPipelineState1);
+    }
+
+    static void VulkanDebugTimingLogIfNeeded(VulkanContext* context, uint8_t frame_index)
     {
         DebugTimingAccumulator* accumulator = &context->m_DebugTimingAccumulator;
         uint64_t now = dmTime::GetTime();
@@ -491,7 +782,7 @@ namespace dmGraphics
             return;
         }
 
-        char line[1024];
+        char line[2048];
         uint32_t offset = dmSnPrintf(line, sizeof(line), "Vulkan GPU timing avg_us frame=%llu max=%llu frames=%u",
             (unsigned long long) (accumulator->m_FrameTotalUs / accumulator->m_Frames),
             (unsigned long long) accumulator->m_FrameMaxUs,
@@ -501,15 +792,26 @@ namespace dmGraphics
         {
             if (accumulator->m_PassSamples[i])
             {
-                offset += dmSnPrintf(line + offset, sizeof(line) - offset, " p%u=%llu/%llu draws=%llu",
+                offset += dmSnPrintf(line + offset, sizeof(line) - offset, " p%u=%llu/%llu head=%llu/%llu tail=%llu/%llu draws=%llu",
                     i,
                     (unsigned long long) (accumulator->m_PassTotalUs[i] / accumulator->m_PassSamples[i]),
                     (unsigned long long) accumulator->m_PassMaxUs[i],
+                    (unsigned long long) (accumulator->m_PassHeadTotalUs[i] / accumulator->m_PassSamples[i]),
+                    (unsigned long long) accumulator->m_PassHeadMaxUs[i],
+                    (unsigned long long) (accumulator->m_PassTailTotalUs[i] / accumulator->m_PassSamples[i]),
+                    (unsigned long long) accumulator->m_PassTailMaxUs[i],
                     (unsigned long long) (accumulator->m_PassDraws[i] / accumulator->m_PassSamples[i]));
             }
         }
 
         dmLogInfo("%s", line);
+        for (uint32_t i = 0; i < DM_DEBUG_TIMING_MAX_PASSES; ++i)
+        {
+            if (accumulator->m_PassSamples[i])
+            {
+                VulkanDebugTimingLogPassInfo(context, frame_index, i);
+            }
+        }
         DebugTimingResetAccumulator(accumulator);
     }
 
@@ -520,13 +822,16 @@ namespace dmGraphics
             return;
         }
 
+        uint8_t pass_count = context->m_DebugTimingPassCounts[frame_index];
+        uint32_t query_count = 2 + pass_count * VULKAN_DEBUG_TIMING_QUERIES_PER_PASS;
+
         uint64_t results[VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME];
         memset(results, 0, sizeof(results));
 
         VkResult res = vkGetQueryPoolResults(context->m_LogicalDevice.m_Device,
             context->m_DebugTimingQueryPool,
             VulkanDebugTimingQueryBase(frame_index),
-            VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME,
+            query_count,
             sizeof(results),
             results,
             sizeof(uint64_t),
@@ -544,22 +849,29 @@ namespace dmGraphics
         accumulator->m_FrameTotalUs += frame_us;
         accumulator->m_FrameMaxUs = dmMath::Max(accumulator->m_FrameMaxUs, frame_us);
 
-        uint8_t pass_count = context->m_DebugTimingPassCounts[frame_index];
         for (uint32_t i = 0; i < pass_count; ++i)
         {
-            uint64_t start = results[2 + i * 2];
-            uint64_t end   = results[3 + i * 2];
+            uint64_t start     = results[2 + i * VULKAN_DEBUG_TIMING_QUERIES_PER_PASS];
+            uint64_t firstdraw = results[3 + i * VULKAN_DEBUG_TIMING_QUERIES_PER_PASS];
+            uint64_t preend    = results[4 + i * VULKAN_DEBUG_TIMING_QUERIES_PER_PASS];
+            uint64_t end       = results[5 + i * VULKAN_DEBUG_TIMING_QUERIES_PER_PASS];
             uint64_t pass_us = VulkanDebugTimingTicksToUs(context, end - start);
+            uint64_t head_us = context->m_DebugTimingPassDraws[frame_index][i] ? VulkanDebugTimingTicksToUs(context, firstdraw - start) : 0;
+            uint64_t tail_us = VulkanDebugTimingTicksToUs(context, end - preend);
 
             accumulator->m_PassTotalUs[i] += pass_us;
             accumulator->m_PassMaxUs[i] = dmMath::Max(accumulator->m_PassMaxUs[i], pass_us);
+            accumulator->m_PassHeadTotalUs[i] += head_us;
+            accumulator->m_PassHeadMaxUs[i] = dmMath::Max(accumulator->m_PassHeadMaxUs[i], head_us);
+            accumulator->m_PassTailTotalUs[i] += tail_us;
+            accumulator->m_PassTailMaxUs[i] = dmMath::Max(accumulator->m_PassTailMaxUs[i], tail_us);
             accumulator->m_PassDraws[i] += context->m_DebugTimingPassDraws[frame_index][i];
             accumulator->m_PassSamples[i]++;
         }
 
         context->m_DebugTimingFrameValid[frame_index] = 0;
         context->m_DebugTimingPassCounts[frame_index] = 0;
-        VulkanDebugTimingLogIfNeeded(context);
+        VulkanDebugTimingLogIfNeeded(context, frame_index);
     }
 
     static void VulkanDebugTimingInitialize(VulkanContext* context)
@@ -568,6 +880,7 @@ namespace dmGraphics
         context->m_DebugTimingQueryPool = VK_NULL_HANDLE;
         context->m_DebugTimingActivePassIndex = VULKAN_DEBUG_TIMING_NO_PASS;
         context->m_DebugTimingTimestampPeriod = context->m_PhysicalDevice.m_Properties.limits.timestampPeriod;
+        context->m_DebugTimingPendingClearFlags = 0;
 
         if (!context->m_PhysicalDevice.m_Properties.limits.timestampComputeAndGraphics || context->m_DebugTimingTimestampPeriod == 0.0f)
         {
@@ -612,7 +925,9 @@ namespace dmGraphics
         context->m_DebugTimingPassCounts[frame_index] = 0;
         context->m_DebugTimingActivePassIndex = VULKAN_DEBUG_TIMING_NO_PASS;
         context->m_DebugTimingCurrentPassDraws = 0;
+        context->m_DebugTimingPendingClearFlags = 0;
         memset(context->m_DebugTimingPassDraws[frame_index], 0, sizeof(context->m_DebugTimingPassDraws[frame_index]));
+        memset(context->m_DebugTimingPassInfos[frame_index], 0, sizeof(context->m_DebugTimingPassInfos[frame_index]));
 
         uint32_t query_base = VulkanDebugTimingQueryBase(frame_index);
         vkCmdResetQueryPool(command_buffer, context->m_DebugTimingQueryPool, query_base, VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME);
@@ -630,7 +945,7 @@ namespace dmGraphics
         context->m_DebugTimingFrameValid[frame_index] = 1;
     }
 
-    static void VulkanDebugTimingBeginPass(VulkanContext* context)
+    static void VulkanDebugTimingBeginPass(VulkanContext* context, HRenderTarget render_target, RenderTarget* rt, VkRenderPass vk_render_pass)
     {
         if (context->m_DebugTimingQueryPool == VK_NULL_HANDLE || context->m_DebugTimingActivePassIndex != VULKAN_DEBUG_TIMING_NO_PASS)
         {
@@ -651,6 +966,39 @@ namespace dmGraphics
 
         context->m_DebugTimingActivePassIndex = pass_index;
         context->m_DebugTimingCurrentPassDraws = 0;
+        VulkanDebugTimingCapturePassInfo(context, render_target, rt, vk_render_pass);
+    }
+
+    static void VulkanDebugTimingBeforeEndPass(VulkanContext* context)
+    {
+        if (context->m_DebugTimingQueryPool == VK_NULL_HANDLE || context->m_DebugTimingActivePassIndex == VULKAN_DEBUG_TIMING_NO_PASS)
+        {
+            return;
+        }
+
+        uint8_t frame_index = context->m_CurrentFrameInFlight;
+        uint8_t pass_index = context->m_DebugTimingActivePassIndex;
+        vkCmdWriteTimestamp(context->m_MainCommandBuffers[frame_index],
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            context->m_DebugTimingQueryPool,
+            VulkanDebugTimingPassPreEndQuery(frame_index, pass_index));
+    }
+
+    static void VulkanDebugTimingBeforeDraw(VulkanContext* context)
+    {
+        if (context->m_DebugTimingQueryPool == VK_NULL_HANDLE ||
+            context->m_DebugTimingActivePassIndex == VULKAN_DEBUG_TIMING_NO_PASS ||
+            context->m_DebugTimingCurrentPassDraws != 0)
+        {
+            return;
+        }
+
+        uint8_t frame_index = context->m_CurrentFrameInFlight;
+        uint8_t pass_index = context->m_DebugTimingActivePassIndex;
+        vkCmdWriteTimestamp(context->m_MainCommandBuffers[frame_index],
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            context->m_DebugTimingQueryPool,
+            VulkanDebugTimingPassFirstDrawQuery(frame_index, pass_index));
     }
 
     static void VulkanDebugTimingEndPass(VulkanContext* context)
@@ -677,6 +1025,40 @@ namespace dmGraphics
         if (context->m_DebugTimingQueryPool != VK_NULL_HANDLE && context->m_DebugTimingActivePassIndex != VULKAN_DEBUG_TIMING_NO_PASS)
         {
             context->m_DebugTimingCurrentPassDraws++;
+            DebugTimingPassInfo* info = &context->m_DebugTimingPassInfos[context->m_CurrentFrameInFlight][context->m_DebugTimingActivePassIndex];
+
+            uint64_t program_id = VulkanDebugTimingProgramId(context->m_CurrentProgram);
+            if (info->m_FirstProgram == 0)
+            {
+                info->m_FirstProgram = program_id;
+            }
+            else if (program_id != info->m_LastProgram && info->m_ProgramSwitches < 255)
+            {
+                info->m_ProgramSwitches++;
+            }
+            info->m_LastProgram = program_id;
+            info->m_ProgramSignature = DebugTimingMix(info->m_ProgramSignature, program_id);
+
+            uint8_t texture_count = 0;
+            uint64_t texture_signature = 0;
+            for (uint32_t i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
+            {
+                if (context->m_TextureUnits[i])
+                {
+                    texture_count++;
+                    texture_signature = DebugTimingMix(texture_signature, ((uint64_t) i << 56) ^ (uint64_t) context->m_TextureUnits[i]);
+                }
+            }
+            info->m_TextureCount = dmMath::Max(info->m_TextureCount, texture_count);
+            info->m_TextureSignature = DebugTimingMix(info->m_TextureSignature, texture_signature);
+            info->m_PipelineStateSignature = DebugTimingMix(info->m_PipelineStateSignature, context->m_DebugTimingCurrentPipelineStateSignature);
+            if (context->m_DebugTimingCurrentPassDraws == 1)
+            {
+                info->m_FirstPipelineState0 = context->m_DebugTimingCurrentPipelineState0;
+                info->m_FirstPipelineState1 = context->m_DebugTimingCurrentPipelineState1;
+            }
+            info->m_LastPipelineState0 = context->m_DebugTimingCurrentPipelineState0;
+            info->m_LastPipelineState1 = context->m_DebugTimingCurrentPipelineState1;
         }
     }
 #endif
@@ -691,6 +1073,9 @@ namespace dmGraphics
             return false;
         }
 
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingBeforeEndPass(context);
+#endif
         vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
 #if defined(USE_DEBUG_TIMINGS)
         VulkanDebugTimingEndPass(context);
@@ -787,7 +1172,7 @@ namespace dmGraphics
 
         vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 #if defined(USE_DEBUG_TIMINGS)
-        VulkanDebugTimingBeginPass(context);
+        VulkanDebugTimingBeginPass(context, render_target, rt, vk_render_pass);
 #endif
 
         rt->m_IsBound          = 1;
@@ -2151,6 +2536,9 @@ bail:
 
         const bool has_color_depth_variant = current_rt->m_Handle.m_RenderPassClearColorDepth != VK_NULL_HANDLE;
 
+#if defined(USE_DEBUG_TIMINGS)
+        context->m_DebugTimingPendingClearFlags |= flags;
+#endif
         if (pass_not_bound && has_clear_variant && all_colors_in_flags && (!clear_ds || has_color_depth_variant))
         {
             // Record clear colors on the RT; BeginRenderPass reads these into pClearValues.
@@ -2174,6 +2562,13 @@ bail:
 
         // Slow path: open the pass (if not already) and clear via vkCmdClearAttachments.
         BeginRenderPass(context, context->m_CurrentRenderTarget);
+#if defined(USE_DEBUG_TIMINGS)
+        if (context->m_DebugTimingActivePassIndex != VULKAN_DEBUG_TIMING_NO_PASS)
+        {
+            context->m_DebugTimingPassInfos[context->m_CurrentFrameInFlight][context->m_DebugTimingActivePassIndex].m_ClearFlags |= flags;
+            context->m_DebugTimingPendingClearFlags = 0;
+        }
+#endif
 
         uint32_t attachment_count = 0;
         VkClearAttachment vk_clear_attachments[MAX_BUFFER_COLOR_ATTACHMENTS + 1];
@@ -3290,10 +3685,9 @@ bail:
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
-        // If the culling, or viewport has changed, make sure to flip the
-        // culling flag if we are rendering to the backbuffer.
-        // This is needed because we are rendering with a negative viewport
-        // which means that the face direction is inverted.
+        // Offscreen Vulkan rendering uses the opposite effective winding from
+        // OpenGL, so flip the cull side to preserve the existing culling
+        // semantics used by render scripts.
         if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
             if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
@@ -3305,6 +3699,12 @@ bail:
                 pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
             }
         }
+
+#if defined(USE_DEBUG_TIMINGS)
+        context->m_DebugTimingCurrentPipelineStateSignature = DebugTimingPipelineStateSignature(pipeline_state_draw);
+        context->m_DebugTimingCurrentPipelineState0 = DebugTimingPipelineStatePack0(pipeline_state_draw);
+        context->m_DebugTimingCurrentPipelineState1 = DebugTimingPipelineStatePack1(pipeline_state_draw);
+#endif
 
         // Update the viewport
         if (context->m_ViewportChanged)
@@ -3393,6 +3793,9 @@ bail:
         // The 'first' value that comes in is intended to be a byte offset,
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
         uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingBeforeDraw(context);
+#endif
         vkCmdDrawIndexed(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
 #if defined(USE_DEBUG_TIMINGS)
         VulkanDebugTimingAddDraw(context);
@@ -3410,6 +3813,9 @@ bail:
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[ix], 0, TYPE_BYTE);
+#if defined(USE_DEBUG_TIMINGS)
+        VulkanDebugTimingBeforeDraw(context);
+#endif
         vkCmdDraw(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
 #if defined(USE_DEBUG_TIMINGS)
         VulkanDebugTimingAddDraw(context);
@@ -4158,7 +4564,9 @@ bail:
 
     static void VulkanSetFaceWinding(HContext, FaceWinding face_winding)
     {
-        // TODO: Add this to the vulkan pipeline handle aswell, for now it's a NOP
+        // Preserve current Vulkan culling behavior while the backend uses
+        // viewport/cull-side compensation that differs from OpenGL.
+        (void) face_winding;
     }
 
     static void VulkanSetPolygonOffset(HContext _context, float factor, float units)
@@ -4277,6 +4685,12 @@ bail:
             rp_attachment_color->m_Format             = color_texture_ptr->m_Format;
             rp_attachment_color->m_LoadOp             = VulkanLoadOp(rtOut->m_ColorBufferLoadOps[color_buffer_index]);
             rp_attachment_color->m_StoreOp            = VulkanStoreOp(rtOut->m_ColorBufferStoreOps[color_buffer_index]);
+#if defined(VULKAN_DEBUG_TIMING_DONT_STORE_RT_MRT_COLORS)
+            if (depth_stencil_texture && num_color_textures > 1)
+            {
+                rp_attachment_color->m_StoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            }
+#endif
 
             if (rp_attachment_color->m_LoadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
             {
@@ -4300,7 +4714,11 @@ bail:
             rp_attachment_depth_stencil->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
             rp_attachment_depth_stencil->m_Format          = depth_stencil_texture_ptr->m_Format;
             rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+#if defined(VULKAN_DEBUG_TIMING_DONT_STORE_RT_DEPTH)
+            rp_attachment_depth_stencil->m_StoreOp         = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+#else
             rp_attachment_depth_stencil->m_StoreOp         = VK_ATTACHMENT_STORE_OP_STORE;
+#endif
 
             fb_attachments[fb_attachment_count++] = depth_stencil_texture_ptr->m_Handle.m_ImageView;
         }
@@ -4493,6 +4911,7 @@ bail:
                     VK_IMAGE_ASPECT_COLOR_BIT,
                     new_texture_color);
                 CHECK_VK_ERROR(res);
+                new_texture_color->m_Base.m_Format = color_buffer_params.m_Format;
 
                 res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                     context->m_LogicalDevice.m_CommandPool,
@@ -4546,6 +4965,7 @@ bail:
                 GetDefaultDepthAndStencilAspectFlags(vk_depth_stencil_format),
                 texture_depth_stencil_ptr);
             CHECK_VK_ERROR(res);
+            texture_depth_stencil_ptr->m_Base.m_Format = has_depth ? TEXTURE_FORMAT_DEPTH : TEXTURE_FORMAT_STENCIL;
         }
 
         if (color_index > 0 || has_depth || has_stencil)

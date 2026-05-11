@@ -21,6 +21,15 @@
 
 #include "../graphics_private.h"
 
+#if defined(USE_DEBUG_TIMINGS)
+// Temporary GBuffer isolation experiments. Enable exactly one experiment at a time.
+// #define VULKAN_DEBUG_TIMING_DONT_STORE_RT_DEPTH
+// #define VULKAN_DEBUG_TIMING_DONT_STORE_RT_MRT_COLORS
+// For offscreen multi-MRT targets with depth, only enable color writes for this
+// attachment index. 0=RGBA8 albedo, 1=RGBA16F normal/roughness, 2=R32F depth copy.
+// #define VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT 2
+#endif
+
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/graphics/graphics_vulkan.h>
 
@@ -540,10 +549,15 @@ namespace dmGraphics
         VkQueryPool                     m_DebugTimingQueryPool;
         DebugTimingAccumulator          m_DebugTimingAccumulator;
         uint32_t                        m_DebugTimingPassDraws[DM_MAX_FRAMES_IN_FLIGHT][DM_DEBUG_TIMING_MAX_PASSES];
+        DebugTimingPassInfo             m_DebugTimingPassInfos[DM_MAX_FRAMES_IN_FLIGHT][DM_DEBUG_TIMING_MAX_PASSES];
         uint8_t                         m_DebugTimingFrameValid[DM_MAX_FRAMES_IN_FLIGHT];
         uint8_t                         m_DebugTimingPassCounts[DM_MAX_FRAMES_IN_FLIGHT];
         uint8_t                         m_DebugTimingActivePassIndex;
         uint32_t                        m_DebugTimingCurrentPassDraws;
+        uint32_t                        m_DebugTimingPendingClearFlags;
+        uint64_t                        m_DebugTimingCurrentPipelineStateSignature;
+        uint64_t                        m_DebugTimingCurrentPipelineState0;
+        uint64_t                        m_DebugTimingCurrentPipelineState1;
         float                           m_DebugTimingTimestampPeriod;
 #endif
     };

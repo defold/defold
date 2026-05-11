@@ -1016,7 +1016,7 @@ bail:
             attachment_depth.format         = depthStencilAttachment->m_Format;
             attachment_depth.samples        = vk_sample_flags;
             attachment_depth.loadOp         = depthStencilAttachment->m_LoadOp;
-            attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_depth.storeOp        = depthStencilAttachment->m_StoreOp;
             // Keep depth and stencil load ops in sync for packed depth/stencil attachments so
             // the render-pass CLEAR fast path actually clears stencil too.
             attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
@@ -1167,6 +1167,11 @@ bail:
         VK_CULL_MODE_FRONT_AND_BACK
     };
 
+    static const VkFrontFace g_vk_face_windings[] = {
+        VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        VK_FRONT_FACE_CLOCKWISE
+    };
+
     static const VkBlendFactor g_vk_blend_factors[] = {
         VK_BLEND_FACTOR_ZERO,
         VK_BLEND_FACTOR_ONE,
@@ -1299,7 +1304,7 @@ bail:
         vk_rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
         vk_rasterizer.lineWidth               = 1.0f;
         vk_rasterizer.cullMode                = vk_cull_mode;
-        vk_rasterizer.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        vk_rasterizer.frontFace               = g_vk_face_windings[pipelineState.m_FaceWinding];
         vk_rasterizer.depthBiasEnable         = VK_FALSE;
         vk_rasterizer.depthBiasConstantFactor = 0.0f;
         vk_rasterizer.depthBiasClamp          = 0.0f;
@@ -1338,7 +1343,15 @@ bail:
         for (int i = 0; i < blend_attachment_count; ++i)
         {
             VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i];
-            blend_attachment.colorWriteMask      = vk_color_write_mask;
+            uint8_t attachment_write_mask = vk_color_write_mask;
+#if defined(USE_DEBUG_TIMINGS) && defined(VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT)
+            if (render_target->m_TextureDepthStencil && render_target->m_ColorAttachmentCount > 1 &&
+                i != VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT)
+            {
+                attachment_write_mask = 0;
+            }
+#endif
+            blend_attachment.colorWriteMask      = attachment_write_mask;
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
             blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
@@ -1347,6 +1360,14 @@ bail:
             blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactorAlpha];
             blend_attachment.alphaBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationAlpha];
         }
+
+#if defined(USE_DEBUG_TIMINGS) && defined(VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT)
+        if (render_target->m_TextureDepthStencil && render_target->m_ColorAttachmentCount > 1)
+        {
+            dmLogInfo("Vulkan debug experiment active: RT id=%u only MRT color attachment %u writes enabled",
+                render_target->m_Id, (uint32_t) VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT);
+        }
+#endif
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;
         memset(&vk_color_blending, 0, sizeof(vk_color_blending));

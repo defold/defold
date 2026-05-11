@@ -217,12 +217,14 @@ namespace dmGraphics
 #if defined(USE_DEBUG_TIMINGS)
         GLuint                  m_DebugTimingQueries[DM_DEBUG_TIMING_FRAME_LAG][DM_DEBUG_TIMING_MAX_PASSES];
         uint32_t                m_DebugTimingPassDraws[DM_DEBUG_TIMING_FRAME_LAG][DM_DEBUG_TIMING_MAX_PASSES];
+        DebugTimingPassInfo     m_DebugTimingPassInfos[DM_DEBUG_TIMING_FRAME_LAG][DM_DEBUG_TIMING_MAX_PASSES];
         uint8_t                 m_DebugTimingPassCounts[DM_DEBUG_TIMING_FRAME_LAG];
         uint8_t                 m_DebugTimingFrameIndex;
         uint8_t                 m_DebugTimingPassIndex;
         uint8_t                 m_DebugTimingPassActive;
         uint8_t                 m_DebugTimingSupported;
         uint32_t                m_DebugTimingCurrentPassDraws;
+        uint32_t                m_DebugTimingPendingClearFlags;
         DebugTimingAccumulator  m_DebugTimingAccumulator;
 #endif
     };
