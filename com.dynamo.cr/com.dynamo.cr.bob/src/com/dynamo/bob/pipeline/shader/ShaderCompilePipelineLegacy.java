@@ -202,10 +202,10 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             checkResult(moduleLegacy.desc.resourcePath, resultString);
         }
 
-        moduleLegacy.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(moduleLegacy.desc.type), FileUtils.readFileToByteArray(file_out_spv));
+        moduleLegacy.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(moduleLegacy.desc.type), FileUtils.readFileToByteArray(file_out_spv_opt));
 
         res.reflector = new SPIRVReflector(moduleLegacy.spirvContext, shaderType);
-        res.source = FileUtils.readFileToByteArray(file_out_spv);
+        res.source = FileUtils.readFileToByteArray(file_out_spv_opt);
 
         return res;
     }
