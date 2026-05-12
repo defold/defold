@@ -910,6 +910,8 @@ namespace dmGui
     void SetNodeId(HScene scene, HNode node, dmhash_t id);
     void SetNodeId(HScene scene, HNode node, const char* id);
     dmhash_t GetNodeId(HScene scene, HNode node);
+
+    // Ownershipt of string values are transferred to the GUI node on success.
     Result SetNodeCustomProperties(HScene scene, HNode node, const CustomPropertyDesc* properties, uint32_t property_count);
 
     HNode GetNodeById(HScene scene, const char* id);

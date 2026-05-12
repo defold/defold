@@ -1,0 +1,85 @@
+script: "/gui/valid.gui_script"
+nodes {
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 0.0
+  }
+  size {
+    x: 1.0
+    y: 1.0
+    z: 0.0
+    w: 0.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ALPHA
+  id: "custom_props_layout"
+  custom_properties {
+    id: "test_custom_string"
+    type: TYPE_STRING
+    string_value: "default"
+  }
+}
+layouts {
+  name: "Landscape"
+  nodes {
+    position {
+      x: 2.0
+      y: 0.0
+      z: 0.0
+      w: 0.0
+    }
+    rotation {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 0.0
+    }
+    scale {
+      x: 1.0
+      y: 1.0
+      z: 1.0
+      w: 0.0
+    }
+    size {
+      x: 1.0
+      y: 1.0
+      z: 0.0
+      w: 0.0
+    }
+    color {
+      x: 1.0
+      y: 1.0
+      z: 1.0
+      w: 1.0
+    }
+    type: TYPE_BOX
+    blend_mode: BLEND_MODE_ALPHA
+    id: "custom_props_layout"
+    custom_properties {
+      id: "test_custom_string"
+      type: TYPE_STRING
+      string_value: "landscape"
+    }
+  }
+}
+material: "/gui/gui.material"

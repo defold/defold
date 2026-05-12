@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <dlib/dlib.h>
@@ -235,7 +236,11 @@ namespace dmGameSystem
 
             case dmGuiDDF::Property::TYPE_STRING:
                 property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
-                property->m_String = ddf_property.m_Value.m_StringValue ? ddf_property.m_Value.m_StringValue : "";
+                property->m_String = strdup(ddf_property.m_Value.m_StringValue ? ddf_property.m_Value.m_StringValue : "");
+                if (!property->m_String)
+                {
+                    return false;
+                }
             break;
 
             case dmGuiDDF::Property::TYPE_VECTOR3:
@@ -260,38 +265,54 @@ namespace dmGameSystem
         return true;
     }
 
+    static void FreeCustomPropertyStrings(dmGui::CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        for (uint32_t i = 0; i < property_count; ++i)
+        {
+            dmGui::CustomProperty* property = &properties[i].m_Property;
+            if (property->m_Type == dmGui::CUSTOM_PROPERTY_TYPE_STRING)
+            {
+                free((void*) property->m_String);
+                property->m_String = 0;
+            }
+        }
+    }
+
     static bool SetCustomProperties(const dmGui::HScene scene, dmGui::HNode node, const dmGuiDDF::NodeDesc* node_desc)
     {
         uint32_t custom_property_count = node_desc->m_CustomProperties.m_Count;
-        if (custom_property_count == 0)
-        {
-            return true;
-        }
-
         const uint32_t max_stack_custom_properties = 20;
         dmGui::CustomPropertyDesc stack_custom_properties[max_stack_custom_properties];
         dmArray<dmGui::CustomPropertyDesc> custom_properties;
-        if (custom_property_count < max_stack_custom_properties)
+        dmGui::CustomPropertyDesc* custom_properties_data = 0;
+        if (custom_property_count != 0)
         {
-            custom_properties.Set(stack_custom_properties, custom_property_count, max_stack_custom_properties, true);
-        }
-        else
-        {
-            custom_properties.SetCapacity(custom_property_count);
-            custom_properties.SetSize(custom_property_count);
-        }
-
-        for (uint32_t i = 0; i < custom_property_count; ++i)
-        {
-            if (!DDFPropertyToCustomProperty(node_desc->m_CustomProperties[i], &custom_properties[i]))
+            if (custom_property_count < max_stack_custom_properties)
             {
-                dmLogError("The custom property for '%s' has an invalid type: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", node_desc->m_CustomProperties[i].m_Type);
-                return false;
+                custom_properties.Set(stack_custom_properties, custom_property_count, max_stack_custom_properties, true);
             }
+            else
+            {
+                custom_properties.SetCapacity(custom_property_count);
+                custom_properties.SetSize(custom_property_count);
+            }
+
+            for (uint32_t i = 0; i < custom_property_count; ++i)
+            {
+                if (!DDFPropertyToCustomProperty(node_desc->m_CustomProperties[i], &custom_properties[i]))
+                {
+                    FreeCustomPropertyStrings(custom_properties.Begin(), i);
+                    dmLogError("The custom property for '%s' has an invalid type: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", node_desc->m_CustomProperties[i].m_Type);
+                    return false;
+                }
+            }
+
+            custom_properties_data = custom_properties.Begin();
         }
 
-        if (dmGui::SetNodeCustomProperties(scene, node, custom_properties.Begin(), custom_property_count) != dmGui::RESULT_OK)
+        if (dmGui::SetNodeCustomProperties(scene, node, custom_properties_data, custom_property_count) != dmGui::RESULT_OK)
         {
+            FreeCustomPropertyStrings(custom_properties_data, custom_property_count);
             dmLogError("The custom properties could not be set for '%s'.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed");
             return false;
         }
@@ -770,7 +791,11 @@ namespace dmGameSystem
 
     static void SetNodeCallback(const dmGui::HScene scene, dmGui::HNode n, const void* node_desc)
     {
-        SetNode(scene, n, (const dmGuiDDF::NodeDesc*) node_desc);
+        const dmGuiDDF::NodeDesc* node_desc_ddf = (const dmGuiDDF::NodeDesc*) node_desc;
+        if (SetCustomProperties(scene, n, node_desc_ddf))
+        {
+            SetNode(scene, n, node_desc_ddf);
+        }
     }
 
     static void SendLayoutChangedMessage(const dmGui::HScene scene, dmhash_t layout_id, dmhash_t previous_layout_id)

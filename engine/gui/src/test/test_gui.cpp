@@ -15,6 +15,7 @@
 #include <map>
 #include <string>
 #include <stdlib.h>
+#include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <testmain/testmain.h>
@@ -5564,7 +5565,7 @@ TEST_F(dmGuiTest, CustomProperties)
     dmGui::CustomPropertyDesc properties[7] = {};
     properties[0].m_Key = dmHashString64("string");
     properties[0].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
-    properties[0].m_Property.m_String = "hello";
+    properties[0].m_Property.m_String = strdup("hello");
     properties[1].m_Key = dmHashString64("number");
     properties[1].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_NUMBER;
     properties[1].m_Property.m_Number = 13.0f;
@@ -5645,12 +5646,11 @@ TEST_F(dmGuiTest, CustomProperties)
     new_hash.m_Hash = dmHashString64("new-hash-value");
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("hash"), &new_hash));
 
-    char string_value[] = "runtime";
+    char* string_value = strdup("runtime");
     dmGui::CustomProperty new_string = {};
     new_string.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
     new_string.m_String = string_value;
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &new_string));
-    string_value[0] = 'R';
 
     dmGui::CustomProperty new_vector3 = {};
     new_vector3.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3;
@@ -5677,6 +5677,7 @@ TEST_F(dmGuiTest, CustomProperties)
     ASSERT_EQ(dmHashString64("new-hash-value"), property.m_Hash);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &property));
+    ASSERT_EQ((const char*) string_value, property.m_String);
     ASSERT_STREQ("runtime", property.m_String);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("vector3"), &property));
@@ -5704,7 +5705,7 @@ TEST_F(dmGuiTest, CloneNodeCustomProperties)
     dmGui::CustomPropertyDesc properties[2] = {};
     properties[0].m_Key = dmHashString64("string");
     properties[0].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
-    properties[0].m_Property.m_String = "clone";
+    properties[0].m_Property.m_String = strdup("clone");
     properties[1].m_Key = dmHashString64("number");
     properties[1].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_NUMBER;
     properties[1].m_Property.m_Number = 1.0f;
@@ -5720,7 +5721,7 @@ TEST_F(dmGuiTest, CloneNodeCustomProperties)
 
     dmGui::CustomProperty new_string = {};
     new_string.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
-    new_string.m_String = "changed";
+    new_string.m_String = strdup("changed");
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &new_string));
 
     dmGui::CustomProperty new_number = {};
