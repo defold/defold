@@ -298,6 +298,9 @@ namespace dmPhysics
             DeleteContext3D(context);
             return 0x0;
         }
+
+        int version = btGetVersion();
+        dmLogInfo("Created physics context: Bullet v%d.%02d", version / 100, version % 100);
         return context;
     }
 

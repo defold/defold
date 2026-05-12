@@ -1,4 +1,4 @@
-mesh: "/model/quad.dae"
+mesh: "/builtins/assets/gltf/quad.gltf"
 material: "/builtins/materials/model.material"
 textures: "/model/brown.png"
 skeleton: ""

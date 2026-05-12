@@ -25,6 +25,7 @@ import build_android
 import run
 import s3
 import sdk
+import wasm_runner
 import release_to_github
 import release_to_steam
 import release_to_egs
@@ -396,7 +397,7 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
-DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ.get("DM_RELEASE_REPOSITORY") else release_to_github.get_current_repo()
+DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") or os.environ.get("GITHUB_REPOSITORY") or release_to_github.get_current_repo()
 
 PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
@@ -560,6 +561,7 @@ class Configuration(object):
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
         self.target_platform = target_platform
+        self.sdk_info = None
 
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
@@ -812,6 +814,29 @@ class Configuration(object):
         waf_path = make_package_path(self.defold_root, 'common', waf_package)
         self._extract_tgz(waf_path, self.ext)
 
+    def _install_python_packages(self, packages, whl_patterns):
+        target = join(self.ext, 'lib', 'python')
+        self._mkdirs(target)
+
+        if packages:
+            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', target] + packages)
+
+        for pattern in whl_patterns:
+            for whl in sorted(glob(join(self.defold_root, 'packages', pattern))):
+                self._log('Installing %s' % basename(whl))
+                run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', target, whl])
+
+    def install_release_dependencies(self):
+        print("Installing release python dependencies")
+        self._install_python_packages(
+            ['requests'],
+            [
+                'boto3-*.whl',
+                'botocore-*.whl',
+                's3transfer-*.whl',
+                'urllib3-*.whl',
+            ])
+
     def install_ext(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
@@ -882,10 +907,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver', 'pystache'])
-        for whl in glob(join(self.defold_root, 'packages', '*.whl')):
-            self._log('Installing %s' % basename(whl))
-            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
+        self._install_python_packages(['requests', 'pyaml', 'rangehttpserver', 'pystache'], ['*.whl'])
 
         print("Installing javascripts")
         for n in 'web-pre.js'.split():
@@ -932,19 +954,44 @@ class Configuration(object):
                 return fullpath
         return None
 
+    def _get_emsdk_node_candidate(self):
+        if not wasm_runner.is_web_platform(self.target_platform):
+            return None
+
+        sdk_info = self.sdk_info
+        if not sdk_info:
+            sdkfolder = join(self.ext, 'SDKs')
+            sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, False)
+
+        if not sdk_info:
+            return None
+
+        return sdk_info.get('emsdk', {}).get('node')
+
+    def _find_wasm_test_runner(self):
+        node_candidate = self._get_emsdk_node_candidate()
+        node_candidates = [node_candidate] if node_candidate else []
+        return wasm_runner.find_wasm_runner(node_candidates = node_candidates)
+
+    def _format_wasm_runner_error(self, errors):
+        message = "Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests."
+        if errors:
+            message += "\nChecked runners:\n  " + "\n  ".join(errors)
+        return message
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
-        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, True)
+        self.sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, True)
 
         # TODO: Make sure this check works for all platforms
         if not self.sdk_info:
             if not self.verbose:
                 # Do it again, with verbose on, so that we can get more info straight away:
-                sdk.get_sdk_info(sdkfolder, target_platform, True)
+                sdk.get_sdk_info(sdkfolder, self.target_platform, True)
 
             url = "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks"
-            self._log(f"Failed to get sdk info for platform {target_platform}.")
+            self._log(f"Failed to get sdk info for platform {self.target_platform}.")
             self._log(f" * Is the local sdk setup correctly?")
             self._log(f" * Or have you called `install_sdk`?")
             self._log(f"We recommend you follow the setup guide found here: {url}")
@@ -955,9 +1002,18 @@ class Configuration(object):
             pprint.pprint(self.sdk_info)
 
 
-        result = sdk.test_sdk(target_platform, self.sdk_info, verbose = self.verbose)
+        result = sdk.test_sdk(self.target_platform, self.sdk_info, verbose = self.verbose)
         if not result:
             self.fatal("Failed sdk check")
+
+        if wasm_runner.is_web_platform(self.target_platform):
+            runner, errors = self._find_wasm_test_runner()
+            if runner:
+                self._log("Found wasm test runner: %s" % runner.description())
+            elif self.skip_tests:
+                self._log("Warning: %s" % self._format_wasm_runner_error(errors))
+            else:
+                self.fatal(self._format_wasm_runner_error(errors))
 
         cmake = shutil.which('cmake')
         if not cmake:
@@ -1476,21 +1532,20 @@ class Configuration(object):
                 if self.target_platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
                     pdb = join(bin_dir, os.path.splitext(engine_name)[0] + '.pdb')
                     self.upload_to_archive(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
-
-            if 'web' in self.target_platform:
-                engine_mem = join(bin_dir, engine_name + '.mem')
-                if os.path.exists(engine_mem):
-                    self.upload_to_archive(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
-                engine_symbols = join(bin_dir, engine_name + '.symbols')
-                if os.path.exists(engine_symbols):
-                    self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
-                engine_dwarf = join(bin_dir, engine_name + '.debug.wasm')
-                if os.path.exists(engine_dwarf):
-                    self.upload_to_archive(engine_symbols, '%s/%s.debug.wasm' % (full_archive_path, engine_name))
-            elif 'macos' in self.target_platform or 'ios' in self.target_platform:
-                engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
-                if os.path.exists(engine_symbols):
-                    self.upload_to_archive(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
+                if 'web' in self.target_platform:
+                    engine_mem = join(bin_dir, engine_name + '.mem')
+                    if os.path.exists(engine_mem):
+                        self.upload_to_archive(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
+                    engine_symbols = join(bin_dir, engine_name + '.symbols')
+                    if os.path.exists(engine_symbols):
+                        self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
+                    engine_dwarf = join(bin_dir, engine_name + '.debug.wasm')
+                    if os.path.exists(engine_dwarf):
+                        self.upload_to_archive(engine_dwarf, '%s/%s.debug.wasm' % (full_archive_path, engine_name))
+                elif 'macos' in self.target_platform or 'ios' in self.target_platform:
+                    engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
+                    if os.path.exists(engine_symbols):
+                        self.upload_to_archive(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
 
         zip_archs = []
         if not self.skip_docs:
@@ -1550,7 +1605,20 @@ class Configuration(object):
                 supported_tests['x86_64-linux'].extend(android_tests)
                 supported_tests['x86_64-win32'].extend(android_tests)
 
-        return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+        can_run_platform = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+        if not can_run_platform:
+            return False
+
+        if wasm_runner.is_web_platform(self.target_platform):
+            if self.skip_tests:
+                return False
+
+            runner, errors = self._find_wasm_test_runner()
+            if not runner:
+                self.fatal(self._format_wasm_runner_error(errors))
+            self._log("Found wasm test runner: %s" % runner.description())
+
+        return True
 
     def _get_build_flags(self):
         supports_tests = self._can_run_tests()
@@ -1936,6 +2004,26 @@ class Configuration(object):
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
             run.command(" ".join([gradle, flags, 'clean', 'install', 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
+    def test_bob(self):
+        bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')
+        test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+
+        if not os.path.exists(bob_jar):
+            self.fatal("bob.jar is missing. Build bob or download the bob-jar artifact first.")
+
+        env = self._form_env()
+
+        gradle = self.get_gradle_wrapper()
+        gradle_args = []
+        if self.verbose:
+            gradle_args += ['--info']
+
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
+
+        # compileTest only needs bob.jar on disk. Exclude distBob so this job tests the artifact
+        # produced by build-bob instead of rebuilding it.
+        run.command(" ".join([gradle, 'testJar', '-x', 'distBob'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+
 
     def build_sdk_headers(self):
         # Used to provide a small sized bundle with the headers for any C++ auto completion tools
@@ -2089,6 +2177,19 @@ class Configuration(object):
                 cmd.append('--notarization-password=%s' % self.notarization_password)
             if self.notarization_itc_provider:
                 cmd.append('--notarization-itc-provider=%s' % self.notarization_itc_provider)
+
+        self.run_editor_script(cmd)
+
+    def test_editor2(self):
+        cmd = self.get_python() + ['./scripts/bundle.py',
+               '--engine-artifacts=%s' % self.engine_artifacts,
+               '--archive-domain=%s' % self.archive_domain,
+               '--platform=%s' % self.target_platform]
+
+        if self.channel:
+            cmd.append('--channel=%s' % self.channel)
+
+        cmd.append('test')
 
         self.run_editor_script(cmd)
 
@@ -2838,15 +2939,18 @@ if __name__ == '__main__':
 Commands:
 distclean        - Removes the DYNAMO_HOME folder
 install_ext      - Install external packages
+install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
 install_waf      - Install waf
 sync_archive     - Sync engine artifacts from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
+test_editor2     - Test editor
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
 build_bob        - Build bob with native libraries included for cross platform deployment
+test_bob         - Test bob using an existing com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
 build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path
 build_docs       - Build documentation

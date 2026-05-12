@@ -31,7 +31,7 @@
           aabb (:aabb scene)
           min ^Point3d (types/min-p aabb)
           max ^Point3d (types/max-p aabb)]
-      (is (< 10 (.distance max min))))))
+      (is (< 1 (.distance max min) 2)))))
 
 (deftest textures
   (test-util/with-loaded-project
@@ -69,10 +69,12 @@
 (deftest animations
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/test.model")]
-      (testing "can assign single dae file as animations"
-        (let [dae-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.dae")]
-          (test-util/with-prop [node-id :animations dae-resource]
-            (is (= #{(murmur/hash64 "treasure_chest")} (set (map :id (:animations (g/node-value node-id :animation-set)))))))))
+      (testing "can assign single glTF file as animations"
+        (let [gltf-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.gltf")]
+          (test-util/with-prop [node-id :animations gltf-resource]
+            (is (= #{(murmur/hash64 "Bend2bones")
+                     (murmur/hash64 "Bend90")}
+                   (set (map :id (:animations (g/node-value node-id :animation-set)))))))))
       (testing "can assign animation set as animations"
         (let [animation-set-resource (workspace/resolve-workspace-resource workspace "/model/treasure_chest.animationset")]
           (test-util/with-prop [node-id :animations animation-set-resource]
@@ -87,10 +89,26 @@
       
       (testing "mesh is required"
         (is (nil? (test-util/prop-error node-id :mesh)))
-        (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.dae")]]
+        (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.gltf")]]
           (test-util/with-prop [node-id :mesh v]
             (is (g/error? (test-util/prop-error node-id :mesh)))
             (is (g/error-value? (g/node-value node-id :build-targets))))))
+
+      (testing "unsupported model file formats fail before build"
+        (let [dae-resource (workspace/resolve-workspace-resource workspace "/model/unsupported.dae")]
+          (doseq [prop-kw [:mesh :skeleton :animations]]
+            (test-util/with-prop [node-id prop-kw dae-resource]
+              (let [prop-error (test-util/prop-error node-id prop-kw)
+                    prop-error-message (test-util/localization (g/error-message prop-error))
+                    build-targets (g/node-value node-id :build-targets)
+                    build-error-message (some->> (tree-seq :causes :causes build-targets)
+                                                 (some :message)
+                                                 test-util/localization)]
+                (is (g/error? prop-error))
+                (is (re-find #"unsupported format \.dae" prop-error-message))
+                (is (re-find #"Defold supports only" prop-error-message))
+                (is (g/error-value? build-targets))
+                (is (= prop-error-message build-error-message)))))))
 
       (testing "material must be assigned and exist"
         (is (not (g/error-value? (g/node-value node-id :build-targets))))

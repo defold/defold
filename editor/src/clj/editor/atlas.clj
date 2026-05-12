@@ -36,6 +36,7 @@
             [editor.pipeline :as pipeline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.render-util :as render-util]
@@ -80,11 +81,9 @@
   (let [page-margin 32]
     (+ (* page-margin page-index) (* layout-width page-index))))
 
-(defn- get-rect-transform [width page-index]
+(defn- get-rect-pose [width page-index]
   (let [page-offset (get-rect-page-offset width page-index)]
-    (doto (Matrix4d.)
-      (.setIdentity)
-      (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
+    (pose/translation-pose page-offset 0.0 0.0)))
 
 (defn- render-rect
   [^GL2 gl rect color offset-x]
@@ -553,8 +552,8 @@
 
 (defn- make-page-scene
   [layout-width layout-height page-index gpu-texture]
-  (let [page-offset-transform (get-rect-transform layout-width page-index)]
-    (render-util/make-outlined-textured-quad-scene #{:atlas} page-offset-transform layout-width layout-height gpu-texture page-index)))
+  (let [page-offset-pose (get-rect-pose layout-width page-index)]
+    (render-util/make-outlined-textured-quad-scene #{:atlas} page-offset-pose layout-width layout-height gpu-texture page-index)))
 
 (g/defnk produce-scene
   [_node-id layout-rects layout-size gpu-texture child-scenes texture-profile]
@@ -692,11 +691,11 @@
 
 (s/defrecord AtlasRect
   [path     :- s/Any
-   x        :- types/Int32
-   y        :- types/Int32
-   width    :- types/Int32
-   height   :- types/Int32
-   page     :- types/Int32
+   x        :- types/TInt32
+   y        :- types/TInt32
+   width    :- types/TInt32
+   height   :- types/TInt32
+   page     :- types/TInt32
    geometry :- s/Any])
 
 (defn rotate-vertices-90-cw [vertices]

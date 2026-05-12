@@ -102,9 +102,14 @@ function(_defold_set_opt_flag cfg optflag debugflag)
   endforeach()
 endfunction()
 
+set(_DEFOLD_RELWITHDEBINFO_OPT "-O2")
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  set(_DEFOLD_RELWITHDEBINFO_OPT "-O3")
+endif()
+
 _defold_set_opt_flag(Debug "-O0" "-g")
 _defold_set_opt_flag(Release "-O2" "-g")
-_defold_set_opt_flag(RelWithDebInfo "-O2" "-g")
+_defold_set_opt_flag(RelWithDebInfo "${_DEFOLD_RELWITHDEBINFO_OPT}" "-g")
 _defold_set_opt_flag(MinSizeRel "-Os" "-g")
 
 # Prime Release-like flag variables before CMake enables the toolchains so

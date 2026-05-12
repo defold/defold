@@ -168,6 +168,11 @@ namespace dmGraphics
             // For the main RT this aliases context->m_MainRenderPass.
             // For offscreen RTs this is a distinct, RT-owned render pass.
             VkRenderPass  m_RenderPassClear;
+            // Variant with LOAD_OP_CLEAR on all color AND depth/stencil attachments. Used when
+            // VulkanClear clears both color and depth before the pass begins, folding both into
+            // the attachment load ops. For the main RT this also aliases context->m_MainRenderPass
+            // (which already specifies CLEAR for both). VK_NULL_HANDLE when no depth attachment.
+            VkRenderPass  m_RenderPassClearColorDepth;
             VkFramebuffer m_Framebuffer;
             uint8_t       m_LastUsedFrame;
         };
@@ -177,6 +182,8 @@ namespace dmGraphics
         AttachmentOp   m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp   m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float          m_ColorAttachmentClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+        float          m_DepthAttachmentClearValue;
+        uint32_t       m_StencilAttachmentClearValue;
 
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
@@ -195,6 +202,9 @@ namespace dmGraphics
         // are being cleared. Consumed by the next BeginRenderPass which picks the CLEAR
         // variant render pass and uses m_ColorAttachmentClearValue as load-op clear colors.
         uint32_t       m_HasPendingClearColor : 1;
+        // Set alongside m_HasPendingClearColor when depth/stencil is also pending a clear.
+        // BeginRenderPass picks m_RenderPassClearColorDepth and uses m_DepthAttachmentClearValue.
+        uint32_t       m_HasPendingClearDepth : 1;
         uint32_t       m_ColorAttachmentCount : 7;
         uint32_t       m_SubPassCount         : 8;
         uint32_t       m_SubPassIndex         : 8;
@@ -282,6 +292,51 @@ namespace dmGraphics
         uint8_t         m_Valid;
     };
 
+    // Ring buffer of descriptor set cache entries. Allows multiple distinct
+    // binding combinations per program per frame to stay cached, which is
+    // critical for 3D scenes where the same shader is used with many
+    // different texture/UBO combinations.
+    const static uint8_t DM_DESCRIPTOR_CACHE_SIZE = 8;
+
+    struct DescriptorSetCache
+    {
+        DescriptorSetCacheEntry m_Entries[DM_DESCRIPTOR_CACHE_SIZE];
+        uint8_t                 m_WriteIndex; // next slot to overwrite on miss
+
+        // Returns the cached descriptor sets if binding_signature matches
+        // an entry with the current allocator generation, or null on miss.
+        VkDescriptorSet* Find(uint64_t binding_signature, uint32_t allocator_generation, uint32_t descriptor_set_count)
+        {
+            for (uint8_t i = 0; i < DM_DESCRIPTOR_CACHE_SIZE; ++i)
+            {
+                DescriptorSetCacheEntry& e = m_Entries[i];
+                if (e.m_Valid &&
+                    e.m_AllocatorGeneration == allocator_generation &&
+                    e.m_BindingSignature == binding_signature &&
+                    e.m_DescriptorSetCount == descriptor_set_count)
+                {
+                    return e.m_DescriptorSets;
+                }
+            }
+            return 0x0;
+        }
+
+        // Insert a new cache entry, overwriting the oldest slot.
+        void Insert(uint64_t binding_signature, uint32_t allocator_generation, uint32_t descriptor_set_count, VkDescriptorSet* sets)
+        {
+            DescriptorSetCacheEntry& e = m_Entries[m_WriteIndex];
+            e.m_BindingSignature    = binding_signature;
+            e.m_AllocatorGeneration = allocator_generation;
+            e.m_DescriptorSetCount  = descriptor_set_count;
+            e.m_Valid               = 1;
+            for (uint32_t i = 0; i < descriptor_set_count; ++i)
+            {
+                e.m_DescriptorSets[i] = sets[i];
+            }
+            m_WriteIndex = (m_WriteIndex + 1) % DM_DESCRIPTOR_CACHE_SIZE;
+        }
+    };
+
     struct VulkanProgram
     {
         VulkanProgram()
@@ -314,8 +369,8 @@ namespace dmGraphics
         uint16_t       m_TotalResourcesCount;
         uint8_t        m_Destroyed : 1;
 
-        DescriptorSetCacheEntry m_GraphicsDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
-        DescriptorSetCacheEntry m_ComputeDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
+        DescriptorSetCache m_GraphicsDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
+        DescriptorSetCache m_ComputeDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
 
         const VulkanResourceType GetType();
     };
@@ -406,6 +461,7 @@ namespace dmGraphics
         FWindowResizeCallback              m_WindowResizeCallback;
         HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         PipelineCache                      m_PipelineCache;
+        VkPipelineCache                    m_VkPipelineCache;
         PipelineState                      m_PipelineState;
         SwapChain*                         m_SwapChain;
         SwapChainCapabilities              m_SwapChainCapabilities;

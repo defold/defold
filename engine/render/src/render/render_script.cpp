@@ -1736,6 +1736,20 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    // Take a Lua registry reference to prevent the constant buffer
+    // userdata from being garbage collected while the draw command
+    // is queued. The reference is released after ParseCommands.
+    static void AddConstantBufferRef(lua_State* L, RenderScriptInstance* instance)
+    {
+        lua_pushvalue(L, -1);
+        int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        if (instance->m_ConstantBufferLuaRefs.Full())
+        {
+            instance->m_ConstantBufferLuaRefs.OffsetCapacity(16);
+        }
+        instance->m_ConstantBufferLuaRefs.Push(ref);
+    }
+
     /*# draws all objects matching a predicate
      * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
@@ -1816,30 +1830,35 @@ namespace dmRender
         HNamedConstantBuffer constant_buffer = 0;
         dmRender::SortOrder sort_order = dmRender::SORT_UNSPECIFIED;
 
-        if (lua_istable(L, 2))
+        bool has_options_table = lua_istable(L, 2);
+        bool has_constant_buffer_value = false;
+
+        if (has_options_table)
         {
             luaL_checktype(L, 2, LUA_TTABLE);
             lua_pushvalue(L, 2);
+            int options_index = lua_gettop(L);
 
-            lua_getfield(L, -1, "frustum");
+            lua_getfield(L, options_index, "frustum");
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
             lua_pop(L, 1);
 
-            lua_getfield(L, -1, "frustum_planes");
+            lua_getfield(L, options_index, "frustum_planes");
             frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
             lua_pop(L, 1);
 
-            lua_getfield(L, -1, "constants");
-            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
-            lua_pop(L, 1);
+            lua_getfield(L, options_index, "constants");
+            if (!lua_isnil(L, -1))
+            {
+                constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
+                has_constant_buffer_value = true;
+            }
 
-            lua_getfield(L, -1, "sort_order");
+            lua_getfield(L, options_index, "sort_order");
             if (!lua_isnil(L, -1))
             {
                 sort_order = (dmRender::SortOrder) luaL_checkinteger(L, -1);
             }
-            lua_pop(L, 1);
-
             lua_pop(L, 1);
         }
         else if (lua_isuserdata(L, 2)) // Deprecated
@@ -1859,9 +1878,30 @@ namespace dmRender
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options, (uint64_t) sort_order)))
+        {
+            if (has_options_table)
+            {
+                if (has_constant_buffer_value)
+                {
+                    AddConstantBufferRef(L, i);
+                }
+                lua_pop(L, 2);
+            }
+            else if (lua_isuserdata(L, 2)) // Deprecated
+            {
+                // Take a Lua registry reference (same reason as the options table path above).
+                lua_pushvalue(L, 2);
+                AddConstantBufferRef(L, i);
+            }
             return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+
+        delete frustum_options;
+        if (has_options_table)
+        {
+            lua_pop(L, 2);
+        }
+        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     /*# draws all 3d debug graphics
@@ -3041,22 +3081,38 @@ namespace dmRender
         int p_z = luaL_checkinteger(L, 3);
 
         HNamedConstantBuffer constant_buffer = 0;
+        bool has_options_table = lua_istable(L, 4);
+        bool has_constant_buffer_value = false;
 
-        if (lua_istable(L, 4))
+        if (has_options_table)
         {
             luaL_checktype(L, 4, LUA_TTABLE);
             lua_pushvalue(L, 4);
+            int options_index = lua_gettop(L);
 
-            lua_getfield(L, -1, "constants");
-            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
-            lua_pop(L, 1);
-
-            lua_pop(L, 1);
+            lua_getfield(L, options_index, "constants");
+            if (!lua_isnil(L, -1))
+            {
+                constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
+                has_constant_buffer_value = true;
+            }
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, p_x, p_y, p_z, (uint64_t) constant_buffer)))
         {
+            if (has_options_table)
+            {
+                if (has_constant_buffer_value)
+                {
+                    AddConstantBufferRef(L, i);
+                }
+                lua_pop(L, 2);
+            }
             return 0;
+        }
+        if (has_options_table)
+        {
+            lua_pop(L, 2);
         }
         return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
@@ -3572,6 +3628,19 @@ bail:
         return i;
     }
 
+    static void ReleaseConstantBufferLuaRefs(lua_State* L, HRenderScriptInstance instance)
+    {
+        uint32_t num_refs = instance->m_ConstantBufferLuaRefs.Size();
+        if (num_refs > 0)
+        {
+            for (uint32_t i = 0; i < num_refs; ++i)
+            {
+                dmScript::Unref(L, LUA_REGISTRYINDEX, instance->m_ConstantBufferLuaRefs[i]);
+            }
+            instance->m_ConstantBufferLuaRefs.SetSize(0);
+        }
+    }
+
     void DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance)
     {
         lua_State* L = render_script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
@@ -3588,6 +3657,8 @@ bail:
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
+
+        ReleaseConstantBufferLuaRefs(L, render_script_instance);
 
         assert(top == lua_gettop(L));
 
@@ -3780,6 +3851,8 @@ bail:
     {
         DM_PROFILE("UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
+
+        ReleaseConstantBufferLuaRefs(instance->m_RenderContext->m_RenderScriptContext.m_LuaState, instance);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
 
