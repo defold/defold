@@ -255,17 +255,24 @@
       property
       (string/replace property "-" "_"))))
 
+(defn- available-outline-property [prop-kw outline-property]
+  (when outline-property
+    (let [outline-property (cond-> outline-property
+                                   (:ext-edit-type outline-property)
+                                   (assoc :edit-type (:ext-edit-type outline-property))
+
+                                   (not (contains? outline-property :prop-kw))
+                                   (assoc :prop-kw prop-kw))]
+      (when (and (properties/visible? outline-property)
+                 (edit-type-id->value-converter (properties/property-edit-type-id outline-property)))
+        outline-property))))
+
 (defn- outline-property [node-id property evaluation-context]
   (let [prop-kw (property->prop-kw property)
         outline-property (-> node-id
                              (g/node-value :_properties evaluation-context)
                              (get-in [:properties prop-kw]))]
-    (when (and outline-property
-               (properties/visible? outline-property)
-               (edit-type-id->value-converter (properties/property-edit-type-id outline-property)))
-      (cond-> outline-property
-              (not (contains? outline-property :prop-kw))
-              (assoc :prop-kw prop-kw)))))
+    (available-outline-property prop-kw outline-property)))
 
 (defn- make-property-fn-builder [{:keys [parents]} node-type-kw->f result-fn]
   (fn/memoize
@@ -445,8 +452,7 @@
   (fn OutlineNode-lister [node-id evaluation-context]
     (coll/into-> (:properties (g/node-value node-id :_properties evaluation-context)) []
       (keep (fn [[prop-kw outline-property]]
-              (when (and (properties/visible? outline-property)
-                         (some? (-> outline-property properties/property-edit-type-id edit-type-id->value-converter)))
+              (when (available-outline-property prop-kw outline-property)
                 (prop-kw->property prop-kw)))))))
 
 (defn ext-value-getter
