@@ -438,9 +438,7 @@ namespace dmGameObject
             char                 m_Text[dmHID::MAX_CHAR_COUNT];  /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
             dmHID::GamepadPacket m_GamepadPacket;
         };
-        union {
-            dmHID::GamepadGuid   m_GamepadGuid; // Valid when m_GamepadConnected == 1
-        };
+        dmHID::GamepadGuid   m_GamepadGuid; // Valid when m_GamepadConnected == 1
 
         /// Action id, hashed action name
         dmhash_t m_ActionId;
