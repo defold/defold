@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns load-project
-  (:require [dev :as dev]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.library :as library]
@@ -31,7 +30,7 @@
             [internal.system :as is]
             [internal.transaction :as it]
             [service.log :as log]
-            [util.coll :as coll :refer [pair]]
+            [util.coll :as coll]
             [util.debug-util :as du]
             [util.eduction :as e])
   (:import [java.util List]))
@@ -85,9 +84,7 @@
    :apply-load-tx-data
    :update-overrides
    :update-successors
-   :cache-save-data
-   :store-post-load-system
-   :calculate-scene-deps])
+   :cache-save-data])
 
 (def ^:private final-task-index
   (let [task-index (.indexOf task-phases final-task)]
@@ -280,36 +277,3 @@
      :task-metrics @task-metrics
      :resource-metrics @resource-metrics
      :transaction-metrics @transaction-metrics}))
-
-(defonce post-load-system
-  (run-task!
-    :store-post-load-system
-    @g/*the-system*))
-
-(defn- evaluated-endpoints-by-proj-path [project output-label render-progress!]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [basis (:basis evaluation-context)
-
-          proj-paths+node-ids
-          (->> (g/valid-node-value project :nodes-by-resource-path evaluation-context)
-               (filterv (fn [[_proj-path node-id]]
-                          (some-> (g/node-type* basis node-id)
-                                  (g/has-output? output-label))))
-               (sort-by key))
-
-          proj-path-count (count proj-paths+node-ids)]
-      (coll/into-> proj-paths+node-ids {}
-        (map-indexed
-          (fn [proj-path-index [proj-path node-id]]
-            (let [message (localization/message nil [] proj-path)
-                  progress (progress/make message proj-path-count proj-path-index)]
-              (render-progress! progress)
-              (let [evaluated-endpoints (dev/recursive-predecessor-endpoints basis node-id output-label)]
-                (pair proj-path evaluated-endpoints)))))))))
-
-(defonce evaluated-scene-endpoints-by-proj-path
-  (run-and-measure-task!
-    :calculate-scene-deps
-    (dev/run-with-terminal-progress "Calculating Scene Dependencies..."
-      (fn calc-scene-deps-with-progress [render-progress!]
-        (evaluated-endpoints-by-proj-path project :scene render-progress!)))))
