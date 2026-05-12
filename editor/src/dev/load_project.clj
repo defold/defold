@@ -74,9 +74,7 @@
     (task-fn)))
 
 (def ^:private ^List task-phases
-  [:setup-workspace
-   :fetch-libraries
-   :resource-sync
+  [:resource-sync
    :list-resources
    :make-project
    :read-resources
@@ -128,8 +126,6 @@
      (measure-task! ~task-key ~@body)))
 
 (defonce runtime (Runtime/getRuntime))
-(defonce start-allocated-bytes (du/allocated-bytes runtime))
-(defonce start-time-nanos (System/nanoTime))
 (defonce prefs (prefs/project project-path))
 (defonce localization (localization/make prefs ::load-project {} ^[] Throwable/.printStackTrace))
 (defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path localization) :cache-retain? project/cache-retain?))
@@ -146,19 +142,18 @@
     workspace))
 
 (defonce workspace
-  (run-and-measure-task!
-    :setup-workspace
-    (setup-workspace! workspace-graph-id project-path)))
+  (setup-workspace! workspace-graph-id project-path))
 
 (defonce game-project-resource
   (workspace/file-resource workspace "/game.project"))
 
 (defonce up-to-date-lib-results
-  (run-and-measure-task!
-    :fetch-libraries
-    (let [dependencies (project/read-dependencies game-project-resource)
-          library-results (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)]
-      (workspace/set-project-dependencies! workspace library-results))))
+  (let [dependencies (project/read-dependencies game-project-resource)
+        library-results (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)]
+    (workspace/set-project-dependencies! workspace library-results)))
+
+(defonce start-allocated-bytes (du/allocated-bytes runtime))
+(defonce start-time-nanos (System/nanoTime))
 
 (defonce ^:private -initial-resource-sync-
   (run-and-measure-task!
