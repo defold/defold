@@ -2274,20 +2274,21 @@ namespace dmGameSystem
                 v = 0.5f + d * s;
                 BoxVertex vOuter(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color, page_index);
 
-                // both inner & outer are doubled at first / last entry to generate degenerate triangles
+                // both outer & inner are doubled at first / last entry to generate degenerate triangles
                 // for the triangle strip, allowing more than one pie to be chained together in the same
                 // drawcall.
+                // CCW winding order: push outer before inner so front face points toward camera
                 if (first)
                 {
-                    gui_world->m_ClientVertexBuffer.Push(vInner);
+                    gui_world->m_ClientVertexBuffer.Push(vOuter);
                     first = false;
                 }
 
-                gui_world->m_ClientVertexBuffer.Push(vInner);
                 gui_world->m_ClientVertexBuffer.Push(vOuter);
+                gui_world->m_ClientVertexBuffer.Push(vInner);
 
                 if (j == generate-1)
-                    gui_world->m_ClientVertexBuffer.Push(vOuter);
+                    gui_world->m_ClientVertexBuffer.Push(vInner);
             }
 
             assert((gui_world->m_ClientVertexBuffer.Size() - sizeBefore) <= ComputeRequiredVertices(dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node)));

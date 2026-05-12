@@ -1735,13 +1735,42 @@ namespace dmGraphics
         return false;
     }
 
+    AdapterFamily GetAdapterFamily(HGraphicsAdapter adapter)
+    {
+        if (!adapter)
+            return ADAPTER_FAMILY_NONE;
+        return adapter->m_Family;
+    }
+
     AdapterFamily GetInstalledAdapterFamily()
     {
-        if (g_adapter)
+        return GetAdapterFamily(g_adapter);
+    }
+
+    uint32_t GetRegisteredAdaptersCount()
+    {
+        uint32_t adapter_count = 0;
+        GraphicsAdapter* next = g_adapter_list;
+        while(next)
         {
-            return g_adapter->m_Family;
+            adapter_count++;
+            next = next->m_Next;
         }
-        return ADAPTER_FAMILY_NONE;
+        return adapter_count;
+    }
+
+    const HGraphicsAdapter GetRegisteredAdapter(uint32_t index)
+    {
+        uint32_t adapter_count = 0;
+        GraphicsAdapter* next = g_adapter_list;
+        while(next)
+        {
+            if (adapter_count == index)
+                return next;
+            adapter_count++;
+            next = next->m_Next;
+        }
+        return 0;
     }
 
     void Finalize()
@@ -1823,6 +1852,17 @@ namespace dmGraphics
     uint32_t GetDisplayDpi(HContext context)
     {
         return g_functions.m_GetDisplayDpi(context);
+    }
+    void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits)
+    {
+        GraphicsContext* gc = (GraphicsContext*) context;
+        limits = gc->m_Limits;
+    }
+    void GetAdapterVersion(HContext context, uint16_t& major, uint16_t& minor)
+    {
+        GraphicsContext* gc = (GraphicsContext*) context;
+        major = gc->m_AdapterVersionMajor;
+        minor = gc->m_AdapterVersionMinor;
     }
     uint32_t GetWidth(HContext context)
     {

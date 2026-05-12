@@ -88,7 +88,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.6"
+                     [cljfx "1.10.8"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -161,6 +161,8 @@
 
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
+                      "-Ddefold.library.connectTimeoutMillis=2000"
+                      "-Ddefold.library.hostProbeTimeoutMillis=5000"
                       "-Dfile.encoding=UTF-8"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"

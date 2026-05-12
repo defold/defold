@@ -13,7 +13,6 @@ context:
                 "ProfilerBasic",
                 "ProfilerExt",
                 "ResourceProviderArchive",
-                "ResourceProviderArchiveMutable",
                 "ResourceProviderFile",
                 "ResourceProviderHttp",
                 "ResourceProviderZip",

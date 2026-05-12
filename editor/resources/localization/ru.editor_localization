@@ -345,15 +345,17 @@ notification.fetch-libraries.action.fetch = Обновить библиотек�
 notification.fetch-libraries.action.open-game-project = Открыть game.project
 notification.fetch-libraries.problem.missing = отсутствует
 notification.fetch-libraries.problem.fetch-failed = не удалось скачать
+notification.fetch-libraries.problem.failed-http-request = не удалось скачать (HTTP {status})
+notification.fetch-libraries.problem.http-connect-timeout = не удалось скачать (время ожидания истекло)
 notification.fetch-libraries.problem.invalid-archive = не является корректным архивом Defold
 notification.fetch-libraries.problem.defold-min-version = требует Defold {required} или новее (текущая версия Defold\: {current}). Обновите Defold или используйте более старую версию библиотеки для совместимости.
 notification.fetch-libraries.problem.install-failed = не удалось установить
 notification.fetch-libraries.problem.unknown = неизвестная проблема — {problem}
-notification.fetch-libraries.dependency-problem = {uri}: {problem}
+notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
 # Open custom editor notifications
 
-notification.open-custom-editor-failed.error = Не удалось запустить внешний редактор «{editor}».\n\nИсходная ошибка ОС:\n{error}
+notification.open-custom-editor-failed.error = Не удалось запустить внешний редактор «{editor}».\n\nИсходная ошибка ОС\:\n{error}
 notification.open-custom-editor-failed.action.open-preferences = Открыть настройки…
 
 # Settings notifications
@@ -2051,12 +2053,8 @@ form.label.project.liveupdate = Live Update
 form.help.project.liveupdate = Настройки Live Update
 form.label.project.liveupdate.enabled = Включено
 form.help.project.liveupdate.enabled = Включает использование Live Update
-form.label.project.liveupdate.exclude_entries_from_main_manifest = Убирать записи Live Update из основного манифеста
-form.help.project.liveupdate.exclude_entries_from_main_manifest = Если включено, ресурсы только для Live Update не попадают в упакованный game.dmanifest. Публикуемый liveupdate.game.dmanifest при этом остаётся полным.
 form.label.project.liveupdate.settings = Настройки
 form.help.project.liveupdate.settings = Файл настроек Live Update
-form.label.project.liveupdate.mount_on_start = Монтировать при старте
-form.help.project.liveupdate.mount_on_start = Авто-монтирование ранее смонтированных ресурсов при запуске приложения
 
 form.label.project.native_extension = Нативное расширение
 form.help.project.native_extension = Настройки нативных расширений

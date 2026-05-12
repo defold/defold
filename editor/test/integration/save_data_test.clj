@@ -74,6 +74,7 @@
     ["display" "variable_dt"] :deprecated
     ["html5" "custom_heap_size"] :deprecated
     ["html5" "set_custom_heap_size"] :deprecated
+    ["liveupdate" "exclude_entries_from_main_manifest"] :deprecated
     ["shader" "output_spirv"] :deprecated}})
 
 (def ^:private pb-type-field-names

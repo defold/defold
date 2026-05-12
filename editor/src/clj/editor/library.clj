@@ -20,7 +20,7 @@
   (:import [com.dynamo.bob Progress Progress$Reporter]
            [com.dynamo.bob Project]
            [com.dynamo.bob.archive EngineVersion]
-           [com.dynamo.bob.util Library Library$Problem$DefoldMinVersion Library$Problem$FetchFailed Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
+           [com.dynamo.bob.util Library Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [java.nio.file Path]))
 
 (set! *warn-on-reflection* true)
@@ -40,6 +40,14 @@
 
                    Library$Problem$FetchFailed
                    (localization/message "notification.fetch-libraries.problem.fetch-failed")
+
+                   Library$Problem$FailedHTTPRequest
+                   (localization/message
+                     "notification.fetch-libraries.problem.failed-http-request"
+                     {"status" (.status ^Library$Problem$FailedHTTPRequest problem)})
+
+                   Library$Problem$HttpConnectTimeout
+                   (localization/message "notification.fetch-libraries.problem.http-connect-timeout")
 
                    Library$Problem$InvalidArchive
                    (localization/message "notification.fetch-libraries.problem.invalid-archive")

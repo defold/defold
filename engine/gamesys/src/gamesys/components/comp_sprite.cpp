@@ -1680,25 +1680,27 @@ namespace dmGameSystem
                         printf("  %u: %.2f, %.2f\t%.2f, %.2f\n", f, vertices[f].x, vertices[f].y, vertices[f].u, vertices[f].v );
                 #endif
 
+                    // CCW winding order (OpenGL front-face default)
+                    // Vertices: [0]=BL, [1]=TL, [2]=TR, [3]=BR
                     if (sprite_world->m_Is16BitIndex)
                     {
                         uint16_t* indices_16 = (uint16_t*) indices;
                         indices_16[0] = vertex_offset + 0;
-                        indices_16[1] = vertex_offset + 1;
+                        indices_16[1] = vertex_offset + 3;
                         indices_16[2] = vertex_offset + 2;
-                        indices_16[3] = vertex_offset + 2;
-                        indices_16[4] = vertex_offset + 3;
-                        indices_16[5] = vertex_offset + 0;
+                        indices_16[3] = vertex_offset + 0;
+                        indices_16[4] = vertex_offset + 2;
+                        indices_16[5] = vertex_offset + 1;
                     }
                     else
                     {
                         uint32_t* indices_32 = (uint32_t*) indices;
                         indices_32[0] = vertex_offset + 0;
-                        indices_32[1] = vertex_offset + 1;
+                        indices_32[1] = vertex_offset + 3;
                         indices_32[2] = vertex_offset + 2;
-                        indices_32[3] = vertex_offset + 2;
-                        indices_32[4] = vertex_offset + 3;
-                        indices_32[5] = vertex_offset + 0;
+                        indices_32[3] = vertex_offset + 0;
+                        indices_32[4] = vertex_offset + 2;
+                        indices_32[5] = vertex_offset + 1;
                     }
                     vertex_offset += SPRITE_VERTEX_COUNT_LEGACY;
                     indices       += SPRITE_INDEX_COUNT_LEGACY * index_type_size;

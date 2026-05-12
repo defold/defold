@@ -171,6 +171,15 @@ public class Bob {
         return rootFolder;
     }
 
+    private static File resolveArchiveEntry(File toFolder, String entryName) throws IOException {
+        File canonicalFolder = toFolder.getCanonicalFile();
+        File dstFile = new File(canonicalFolder, entryName).getCanonicalFile();
+        if (!dstFile.toPath().startsWith(canonicalFolder.toPath())) {
+            throw new IOException(String.format("Archive entry '%s' resolves outside of '%s'", entryName, canonicalFolder.getAbsolutePath()));
+        }
+        return dstFile;
+    }
+
     public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
         TimeProfiler.start("extractToFolder %s", toFolder.toString());
         TimeProfiler.addData("url", url.toString());
@@ -182,7 +191,7 @@ public class Bob {
             {
                 if (!entry.isDirectory()) {
 
-                    File dstFile = new File(toFolder, entry.getName());
+                    File dstFile = resolveArchiveEntry(toFolder, entry.getName());
                     if (deleteOnExit)
                         FileUtil.deleteOnExit(dstFile);
                     dstFile.getParentFile().mkdirs();
@@ -639,6 +648,10 @@ public class Bob {
             if (cmd == null) { // nothing to do: requested to print help
                 return new InvocationResult(true, Collections.emptyList());
             }
+            if (cmd.hasOption("version")) {
+                System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
+                return new InvocationResult(true, Collections.emptyList());
+            }
             String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
             String rootDirectory = getOptionsValue(cmd, 'r', cwd);
 
@@ -672,11 +685,6 @@ public class Bob {
 
             try {
                 TimeProfiler.start("ParseCommandLine");
-                if (cmd.hasOption("version")) {
-                    System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
-                    return new InvocationResult(true, Collections.emptyList());
-                }
-
                 if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
                     System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
                     throw new OptionValidationException(1);
