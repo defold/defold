@@ -1879,7 +1879,7 @@
     :id ::file
     :children [{:label (localization/message "command.file.new")
                 :id ::new
-                :expand false
+                :user-data {:no-expand true}
                 :command :file.new}
                {:label (localization/message "command.file.open")
                 :id ::open
