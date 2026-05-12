@@ -105,7 +105,6 @@
             }
 
             HBox {
-                -fx-spacing: 5px;
                 -fx-pref-height: 38px;
                 -fx-alignment: center-left;
             }
@@ -113,6 +112,10 @@
             HBox.settings-divider-row {
                 -fx-padding: 0px -12px;
                 -fx-pref-height: 5px;
+            }
+
+            HBox.spaced {
+                -fx-spacing: 5px;
             }
 
             .ext-color-picker-field {
@@ -150,7 +153,6 @@
                 &:hover {
                     -fx-border-color: -df-component-lighter;
                 }
-
                 &:focused {
                     -fx-border-width: 1px 1px 2px 1px;
                     -fx-background-color: -df-component-darker;

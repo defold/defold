@@ -36,7 +36,7 @@
            [javafx.event Event]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Cursor Node Parent]
-           [javafx.scene.control PopupControl Skin Slider]
+           [javafx.scene.control ColorPicker PopupControl Skin Slider]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout StackPane]
            [javafx.scene.paint Color]
@@ -56,7 +56,7 @@
                    (handler/remove-listener! [::toggle-setting key] command)))
    :desc
    {:fx/type fxui/horizontal
-    :style-class (cond-> ["toggle-row"]
+    :style-class (cond-> ["toggle-row" "spaced"]
                    style-class (conj style-class))
     :alignment :center-left
     :on-mouse-clicked (fn [_]
@@ -116,6 +116,7 @@
                     (* (double snap-to) (Math/round (/ v (double snap-to)))))
                   identity)]
     {:fx/type fxui/horizontal
+     :style-class "spaced"
      :children [{:fx/type fxui/label
                  :text (or label "")
                  :h-box/hgrow :always
@@ -160,7 +161,7 @@
                        (.setFocusTraversable tf true)))
                    (.setFocusTraversable tf true))
                  (when-let [cp (.lookup node ".ext-color-picker-icon")]
-                   (when (instance? javafx.scene.control.ColorPicker cp)
+                   (when (instance? ColorPicker cp)
                      (let [^javafx.scene.control.ColorPicker cp cp]
                        (.setOnShowing cp (fn [_] (.setAutoHide ^PopupControl popup false)))
                        (.setOnHidden  cp (fn [_] (.setAutoHide ^PopupControl popup true)))))))
@@ -168,6 +169,7 @@
 
 (defn- make-color-row [{:keys [popup key label state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
+   :style-class "popup-color-picker"
    :children [{:fx/type fxui/label
                :text (or label "")
                :h-box/hgrow :always
@@ -186,6 +188,7 @@
 
 (defn- make-vec3-floats-row [{:keys [key state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
+   :style-class "spaced"
    :children (into []
                    (mapcat (fn [axis]
                              [{:fx/type fxui/label
@@ -211,6 +214,7 @@
    :refs {::toggle-group {:fx/type fx.toggle-group/lifecycle}}
    :desc
    {:fx/type fxui/horizontal
+    :style-class "spaced"
     :children (into [{:fx/type fxui/label
                       :text (or label "")
                       :h-box/hgrow :always
@@ -220,7 +224,7 @@
                             :desc {:fx/type fx.toggle-button/lifecycle
                              :toggle-group {:fx/type fx/ext-get-ref
                                             :ref ::toggle-group}
-                             :style-class ["toggle-button" "plane-toggle"]
+                             :style-class ["toggle-button" "plane-toggle" "spaced"]
                              :text (string/upper-case (name axis))
                              :selected (= axis (key state))
                              :on-selected-changed (fn [selected?]
@@ -323,8 +327,7 @@
     x-offset             horizontal offset applied when positioning the popup
     setting-descriptors  sequence of row descriptor maps (see below)
     hidden-settings      optional set of :key values whose rows are omitted
-    on-closed            optional 0-or-1-argument callback invoked when the popup
-                         is closed
+    on-closed            0-argument callback invoked when the popup is closed
 
   Row descriptor maps have the following shape (all keys optional unless noted):
     :key     required for most types, keyword identifying this setting in state
@@ -376,10 +379,10 @@
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
          (ui/on-closed! (fn [e]
                           (fxui/advance-ui-user-data-component! content ::popup nil)
-                          (when on-closed (on-closed e))
+                          (when on-closed (on-closed))
                           (ui/user-data! owner ::popup nil)))
          (.show owner (.getX anchor) (.getY anchor)))
-       ;; HACK: scene-visibility opens the popup right next to the outline's split pane divider, when you mouse over
+       ;; WORKAROUND: scene-visibility opens the popup right next to the outline's split pane divider, when you mouse over
        ;; the edge, the cursor gets set to H_RESIZE. If you move your cursor fast enough from the divider to the popup, the H_RESIZE
        ;; persists and only gets reset to DEFAULT when you leave the popup and reenter. The scene apparently still thinks it's
        ;; the DEFAULT cursor, so if you set it to DEFAULT, it's a NOOP, so we set it to NONE first, then DEFAULT, and it works.

@@ -321,7 +321,7 @@
                                                  (not (contains? filtered-tags key)))]))
                                 keys)))
         advance! (settings-popup/show! owner keymap localization (compute-state) 230 0.0 setting-descriptors nil
-                                       (fn [_]
+                                       (fn []
                                          (g/set-property! scene-visibility :popup-advance-fn nil)
                                          (sync-popup-state! scene-visibility)))
         advance-with-state! #(advance! (compute-state))]
