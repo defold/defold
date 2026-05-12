@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns load-project
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.library :as library]
@@ -74,9 +75,7 @@
     (task-fn)))
 
 (def ^:private ^List task-phases
-  [:setup-workspace
-   :fetch-libraries
-   :resource-sync
+  [:resource-sync
    :list-resources
    :make-project
    :read-resources
@@ -96,6 +95,14 @@
   (let [task-index (.indexOf task-phases task-key)]
     (assert (nat-int? task-index) (str "Invalid task-key: " task-key))
     (<= task-index (int final-task-index))))
+
+(defmacro ^:private ensure-some [expr]
+  `(if-some [result# ~expr]
+     result#
+     (throw
+       (ex-info
+         "Expression returned nil."
+         {:expr '~expr}))))
 
 (defonce ^:private task-metrics (du/make-metrics-collector))
 (defonce ^:private resource-metrics (du/make-metrics-collector))
@@ -128,8 +135,6 @@
      (measure-task! ~task-key ~@body)))
 
 (defonce runtime (Runtime/getRuntime))
-(defonce start-allocated-bytes (du/allocated-bytes runtime))
-(defonce start-time-nanos (System/nanoTime))
 (defonce prefs (prefs/project project-path))
 (defonce localization (localization/make prefs ::load-project {} ^[] Throwable/.printStackTrace))
 (defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path localization) :cache-retain? project/cache-retain?))
@@ -146,25 +151,26 @@
     workspace))
 
 (defonce workspace
-  (run-and-measure-task!
-    :setup-workspace
-    (setup-workspace! workspace-graph-id project-path)))
-
-(defonce game-project-resource
-  (workspace/file-resource workspace "/game.project"))
+  (setup-workspace! workspace-graph-id project-path))
 
 (defonce up-to-date-lib-results
-  (run-and-measure-task!
-    :fetch-libraries
-    (let [dependencies (project/read-dependencies game-project-resource)
-          library-results (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)]
-      (workspace/set-project-dependencies! workspace library-results))))
+  (let [project-directory (workspace/project-directory workspace)
+        game-project-file (io/file project-directory "game.project")
+        dependencies (project/read-dependencies game-project-file)
+        library-results (library/fetch! project-directory dependencies progress/null-render-progress!)]
+    (workspace/set-project-dependencies! workspace library-results)))
+
+(defonce start-allocated-bytes (du/allocated-bytes runtime))
+(defonce start-time-nanos (System/nanoTime))
 
 (defonce ^:private -initial-resource-sync-
   (run-and-measure-task!
     :resource-sync
     (workspace/resource-sync! workspace)
     nil))
+
+(defonce game-project-resource
+  (workspace/find-resource workspace "/game.project"))
 
 (defonce project-graph-id (g/make-graph! :history true :volatility 1))
 
@@ -203,7 +209,7 @@
             (coll/into->
               (e/concat
                 (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-                (project/setup-game-project-tx-data project game-project-node-id)
+                (project/setup-game-project-tx-data project (ensure-some game-project-node-id))
                 (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
                 (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
               (if separate-load-tx-data-generation [] :eduction)
@@ -273,7 +279,7 @@
 
 (defonce load-metrics
   (du/when-metrics
-    {:new-nodes-by-path (g/node-value project :nodes-by-resource-path)
+    {:new-nodes-by-path (some-> project (g/node-value :nodes-by-resource-path))
      :task-metrics @task-metrics
      :resource-metrics @resource-metrics
      :transaction-metrics @transaction-metrics}))
