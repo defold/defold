@@ -203,6 +203,7 @@ namespace dmShaderc
         uint8_t      m_Binding;
         uint8_t      m_Set;
         uint8_t      m_StageFlags;
+        bool         m_IsPushConstant;
     };
 
     struct ShaderReflection

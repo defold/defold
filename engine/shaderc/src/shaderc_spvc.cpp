@@ -206,7 +206,7 @@ namespace dmShaderc
         return type_index;
     }
 
-    static void SetReflectionResourceForType(ShaderStage stage, ShaderReflection& reflection, spvc_compiler compiler, spvc_resources resources, spvc_resource_type type, dmArray<ShaderResource>& resources_out)
+    static void SetReflectionResourceForType(ShaderStage stage, ShaderReflection& reflection, spvc_compiler compiler, spvc_resources resources, spvc_resource_type type, dmArray<ShaderResource>& resources_out, bool is_push_constant = false)
     {
         const spvc_reflected_resource *list = NULL;
         size_t count = 0;
@@ -240,6 +240,7 @@ namespace dmShaderc
             resource.m_Binding          = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationBinding);
             resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
             resource.m_StageFlags       = (int) stage;
+            resource.m_IsPushConstant   = is_push_constant;
 
             if (base_type == SPVC_BASETYPE_STRUCT)
             {
@@ -285,6 +286,7 @@ namespace dmShaderc
         SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_INPUT, context->m_Reflection.m_Inputs);
         SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, context->m_Reflection.m_Outputs);
         SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, context->m_Reflection.m_UniformBuffers);
+        SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_PUSH_CONSTANT, context->m_Reflection.m_UniformBuffers, true);
         SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_BUFFER, context->m_Reflection.m_StorageBuffers);
 
         SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, context->m_Reflection.m_Textures);

@@ -1112,6 +1112,8 @@ namespace dmGraphics
             res.m_Type.m_UseTypeIndex  = bindings[i].m_Type.m_UseTypeIndex;
             res.m_BindingFamily        = family;
             res.m_StageFlags           = bindings[i].m_StageFlags;
+            res.m_Id                   = bindings[i].m_Id;
+            res.m_UsePushConstant      = bindings[i].m_PushConstant ? 1 : 0;
 
             if (bindings[i].m_InstanceName)
             {
@@ -1231,7 +1233,14 @@ namespace dmGraphics
             uniform.m_NameHash     = dmHashString64(params.m_CanonicalName);
             uniform.m_Type         = ShaderDataTypeToGraphicsType(params.m_Member->m_Type.m_ShaderType);
             uniform.m_Count        = dmMath::Max((uint32_t) 1, params.m_Member->m_ElementCount);
-            uniform.m_Location     = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16 | buffer_offset << 32;
+            if (params.m_Resource->m_Res->m_UsePushConstant)
+            {
+                uniform.m_Location = UNIFORM_LOCATION_MAX | (uint64_t) params.m_Resource->m_PushConstantIndex << 16 | buffer_offset << 32 | (uint64_t) 1 << 48;
+            }
+            else
+            {
+                uniform.m_Location = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16 | buffer_offset << 32;
+            }
         }
         else
         {
@@ -1239,7 +1248,14 @@ namespace dmGraphics
             uniform.m_NameHash = dmHashString64(params.m_Resource->m_Res->m_Name);
             uniform.m_Type     = ShaderDataTypeToGraphicsType(params.m_Resource->m_Res->m_Type.m_ShaderType);
             uniform.m_Count    = 1;
-            uniform.m_Location = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16;
+            if (params.m_Resource->m_Res->m_UsePushConstant)
+            {
+                uniform.m_Location = UNIFORM_LOCATION_MAX | (uint64_t) params.m_Resource->m_PushConstantIndex << 16 | (uint64_t) 1 << 48;
+            }
+            else
+            {
+                uniform.m_Location = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16;
+            }
         }
 
         uniforms->Push(uniform);
@@ -1415,6 +1431,8 @@ namespace dmGraphics
 
         program->m_Uniforms.SetCapacity(0);
         program->m_Uniforms.SetSize(0);
+        program->m_PushConstantResourceBindings.SetCapacity(0);
+        program->m_PushConstantResourceBindings.SetSize(0);
         program->m_UniformBufferLayouts.SetCapacity(0);
         program->m_UniformBufferLayouts.SetSize(0);
         memset(program->m_ResourceBindings, 0, sizeof(program->m_ResourceBindings));
@@ -1448,6 +1466,27 @@ namespace dmGraphics
         for (int i = 0; i < resources.Size(); ++i)
         {
             ShaderResourceBinding& res   = resources[i];
+            if (res.m_UsePushConstant)
+            {
+                ProgramResourceBinding program_resource_binding = {};
+                program_resource_binding.m_Res                 = &res;
+                program_resource_binding.m_TypeInfos           = &stage_type_infos;
+                program_resource_binding.m_StageFlags          = res.m_StageFlags;
+                program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
+                program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(program, &res, stage_type_infos.Begin(), stage_type_infos.Size());
+                program_resource_binding.m_PushConstantIndex   = program->m_PushConstantResourceBindings.Size();
+
+                if (program->m_PushConstantResourceBindings.Full())
+                {
+                    program->m_PushConstantResourceBindings.SetCapacity(program->m_PushConstantResourceBindings.Capacity() + 4);
+                }
+                program->m_PushConstantResourceBindings.Push(program_resource_binding);
+
+                info.m_PushConstantBufferCount++;
+                info.m_UniformDataSize += res.m_BindingInfo.m_BlockSize;
+                continue;
+            }
+
             ResourceBindingDesc& binding = bindings[res.m_Set][res.m_Binding];
             ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
 
@@ -1509,7 +1548,11 @@ namespace dmGraphics
     {
         if (program)
         {
-            program->m_UniformBufferLayouts.SetCapacity(program->m_ShaderMeta.m_UniformBuffers.Capacity());
+            // Push constants share the uniform buffer reflection list, but they are
+            // not descriptor-backed bindings. Leave a little headroom so adding their
+            // layouts cannot invalidate m_BindingUserData pointers while bindings are
+            // being constructed.
+            program->m_UniformBufferLayouts.SetCapacity(program->m_ShaderMeta.m_UniformBuffers.Size() + 8);
 
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_UniformBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_StorageBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);

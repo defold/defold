@@ -123,10 +123,12 @@ namespace dmGraphics
         ShaderResourceType          m_Type;
         ShaderResourceBindingFamily m_BindingFamily;
         BindingInfo                 m_BindingInfo;
+        uint32_t                    m_Id;
         uint16_t                    m_Set;
         uint16_t                    m_Binding;
         uint16_t                    m_ElementCount;
         uint8_t                     m_StageFlags;
+        uint8_t                     m_UsePushConstant;
     };
 
     struct ShaderMeta
@@ -175,6 +177,7 @@ namespace dmGraphics
     struct ProgramResourceBindingsInfo
     {
         uint32_t m_UniformBufferCount;
+        uint32_t m_PushConstantBufferCount;
         uint32_t m_StorageBufferCount;
         uint32_t m_TextureCount;
         uint32_t m_SamplerCount;
@@ -203,7 +206,8 @@ namespace dmGraphics
             uint32_t m_UniformBufferOffset; // Offset into scratch space typically
         };
 
-        uint8_t m_StageFlags;
+        uint16_t m_PushConstantIndex;
+        uint8_t  m_StageFlags;
     };
 
     struct UniformBuffer
@@ -216,6 +220,7 @@ namespace dmGraphics
     struct Program
     {
         ProgramResourceBinding       m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        dmArray<ProgramResourceBinding> m_PushConstantResourceBindings;
         ShaderMeta                   m_ShaderMeta;
         dmArray<Uniform>             m_Uniforms;
         dmArray<UniformBufferLayout> m_UniformBufferLayouts;
@@ -228,11 +233,13 @@ namespace dmGraphics
         const Program* m_Program;
         uint32_t       m_CurrentSet;
         uint32_t       m_CurrentBinding;
+        uint32_t       m_CurrentPushConstant;
 
         ProgramResourceBindingIterator(const Program* pgm)
         : m_Program(pgm)
         , m_CurrentSet(0)
         , m_CurrentBinding(0)
+        , m_CurrentPushConstant(0)
         {}
 
         const ProgramResourceBinding* Next()
@@ -250,6 +257,12 @@ namespace dmGraphics
                 }
                 m_CurrentBinding = 0;  // Reset binding index when moving to the next set
             }
+            for (; m_CurrentPushConstant < m_Program->m_PushConstantResourceBindings.Size(); ++m_CurrentPushConstant)
+            {
+                const ProgramResourceBinding* res = &m_Program->m_PushConstantResourceBindings[m_CurrentPushConstant];
+                m_CurrentPushConstant++;
+                return res;
+            }
             return 0x0;
         }
 
@@ -257,6 +270,7 @@ namespace dmGraphics
         {
             m_CurrentSet = 0;
             m_CurrentBinding = 0;
+            m_CurrentPushConstant = 0;
         }
     };
 
