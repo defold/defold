@@ -54,6 +54,21 @@ namespace dmGraphics
         return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PUSH_CONSTANT_UBOS");
     }
 
+    static inline bool VulkanDebugTimingDisableOffscreenCullFlip()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_NO_OFFSCREEN_CULL_FLIP");
+    }
+
+    static inline bool VulkanDebugTimingOffscreenFlipWinding()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_OFFSCREEN_FLIP_WINDING");
+    }
+
+    static inline bool VulkanDebugTimingPipelineStats()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PIPELINE_STATS");
+    }
+
     static inline int VulkanDebugTimingOnlyRTMRTColorAttachment()
     {
         char* value = dmSys::GetEnv("DEFOLD_VULKAN_DEBUG_RT_MRT_ONLY_COLOR_ATTACHMENT");
@@ -580,6 +595,7 @@ namespace dmGraphics
 
 #if defined(USE_DEBUG_TIMINGS)
         VkQueryPool                     m_DebugTimingQueryPool;
+        VkQueryPool                     m_DebugTimingPipelineStatsQueryPool;
         DebugTimingAccumulator          m_DebugTimingAccumulator;
         uint32_t                        m_DebugTimingPassDraws[DM_MAX_FRAMES_IN_FLIGHT][DM_DEBUG_TIMING_MAX_PASSES];
         DebugTimingPassInfo             m_DebugTimingPassInfos[DM_MAX_FRAMES_IN_FLIGHT][DM_DEBUG_TIMING_MAX_PASSES];

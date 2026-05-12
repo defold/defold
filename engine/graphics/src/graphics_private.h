@@ -59,6 +59,7 @@ namespace dmGraphics
     const static uint8_t  DM_DEBUG_TIMING_MAX_PASSES = 32;
     const static uint8_t  DM_DEBUG_TIMING_FRAME_LAG  = 3;
     const static uint64_t DM_DEBUG_TIMING_LOG_INTERVAL = 1000000;
+    const static uint8_t  DM_DEBUG_TIMING_PIPELINE_STAT_COUNT = 6;
 
     struct DebugTimingAccumulator
     {
@@ -72,6 +73,7 @@ namespace dmGraphics
         uint64_t m_PassTailTotalUs[DM_DEBUG_TIMING_MAX_PASSES];
         uint64_t m_PassTailMaxUs[DM_DEBUG_TIMING_MAX_PASSES];
         uint64_t m_PassDraws[DM_DEBUG_TIMING_MAX_PASSES];
+        uint64_t m_PipelineStats[DM_DEBUG_TIMING_MAX_PASSES][DM_DEBUG_TIMING_PIPELINE_STAT_COUNT];
         uint64_t m_DescriptorCommits;
         uint64_t m_DescriptorCacheHits;
         uint64_t m_DescriptorCacheMisses;

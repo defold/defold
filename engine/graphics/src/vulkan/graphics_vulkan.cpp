@@ -455,9 +455,22 @@ namespace dmGraphics
     static const uint32_t VULKAN_DEBUG_TIMING_QUERIES_PER_PASS  = 4;
     static const uint32_t VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME = 2 + DM_DEBUG_TIMING_MAX_PASSES * VULKAN_DEBUG_TIMING_QUERIES_PER_PASS;
     static const uint8_t  VULKAN_DEBUG_TIMING_NO_PASS           = 0xff;
+    static const VkQueryPipelineStatisticFlags VULKAN_DEBUG_PIPELINE_STAT_FLAGS =
+        VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_VERTICES_BIT |
+        VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_PRIMITIVES_BIT |
+        VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT |
+        VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT |
+        VK_QUERY_PIPELINE_STATISTIC_CLIPPING_PRIMITIVES_BIT |
+        VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT;
+
     static uint32_t VulkanDebugTimingQueryBase(uint8_t frame_index)
     {
         return frame_index * VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME;
+    }
+
+    static uint32_t VulkanDebugPipelineStatsQueryBase(uint8_t frame_index)
+    {
+        return frame_index * DM_DEBUG_TIMING_MAX_PASSES;
     }
 
     static uint32_t VulkanDebugTimingPassStartQuery(uint8_t frame_index, uint8_t pass_index)
@@ -818,6 +831,18 @@ namespace dmGraphics
             if (accumulator->m_PassSamples[i])
             {
                 VulkanDebugTimingLogPassInfo(context, frame_index, i);
+                if (context->m_DebugTimingPipelineStatsQueryPool != VK_NULL_HANDLE)
+                {
+                    uint64_t* stats = accumulator->m_PipelineStats[i];
+                    dmLogInfo("Vulkan GPU pipe stats p%u avg ia_v=%llu ia_p=%llu vs=%llu clip_i=%llu clip_p=%llu fs=%llu",
+                        i,
+                        (unsigned long long) (stats[0] / accumulator->m_PassSamples[i]),
+                        (unsigned long long) (stats[1] / accumulator->m_PassSamples[i]),
+                        (unsigned long long) (stats[2] / accumulator->m_PassSamples[i]),
+                        (unsigned long long) (stats[3] / accumulator->m_PassSamples[i]),
+                        (unsigned long long) (stats[4] / accumulator->m_PassSamples[i]),
+                        (unsigned long long) (stats[5] / accumulator->m_PassSamples[i]));
+                }
             }
         }
         DebugTimingResetAccumulator(accumulator);
@@ -877,6 +902,32 @@ namespace dmGraphics
             accumulator->m_PassSamples[i]++;
         }
 
+        if (context->m_DebugTimingPipelineStatsQueryPool != VK_NULL_HANDLE && pass_count > 0)
+        {
+            uint64_t stats[DM_DEBUG_TIMING_MAX_PASSES][DM_DEBUG_TIMING_PIPELINE_STAT_COUNT];
+            memset(stats, 0, sizeof(stats));
+
+            VkResult stats_res = vkGetQueryPoolResults(context->m_LogicalDevice.m_Device,
+                context->m_DebugTimingPipelineStatsQueryPool,
+                VulkanDebugPipelineStatsQueryBase(frame_index),
+                pass_count,
+                sizeof(stats),
+                stats,
+                sizeof(uint64_t) * DM_DEBUG_TIMING_PIPELINE_STAT_COUNT,
+                VK_QUERY_RESULT_64_BIT);
+
+            if (stats_res == VK_SUCCESS)
+            {
+                for (uint32_t i = 0; i < pass_count; ++i)
+                {
+                    for (uint32_t stat_i = 0; stat_i < DM_DEBUG_TIMING_PIPELINE_STAT_COUNT; ++stat_i)
+                    {
+                        accumulator->m_PipelineStats[i][stat_i] += stats[i][stat_i];
+                    }
+                }
+            }
+        }
+
         context->m_DebugTimingFrameValid[frame_index] = 0;
         context->m_DebugTimingPassCounts[frame_index] = 0;
         VulkanDebugTimingLogIfNeeded(context, frame_index);
@@ -886,6 +937,7 @@ namespace dmGraphics
     {
         DebugTimingResetAccumulator(&context->m_DebugTimingAccumulator);
         context->m_DebugTimingQueryPool = VK_NULL_HANDLE;
+        context->m_DebugTimingPipelineStatsQueryPool = VK_NULL_HANDLE;
         context->m_DebugTimingActivePassIndex = VULKAN_DEBUG_TIMING_NO_PASS;
         context->m_DebugTimingTimestampPeriod = context->m_PhysicalDevice.m_Properties.limits.timestampPeriod;
         context->m_DebugTimingPendingClearFlags = 0;
@@ -910,6 +962,34 @@ namespace dmGraphics
             return;
         }
 
+        if (VulkanDebugTimingPipelineStats())
+        {
+            if (!context->m_PhysicalDevice.m_Features.pipelineStatisticsQuery)
+            {
+                dmLogWarning("Vulkan debug pipeline stats disabled: pipelineStatisticsQuery is unavailable.");
+            }
+            else
+            {
+                VkQueryPoolCreateInfo stats_query_pool_info;
+                memset(&stats_query_pool_info, 0, sizeof(stats_query_pool_info));
+                stats_query_pool_info.sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+                stats_query_pool_info.queryType          = VK_QUERY_TYPE_PIPELINE_STATISTICS;
+                stats_query_pool_info.queryCount         = DM_MAX_FRAMES_IN_FLIGHT * DM_DEBUG_TIMING_MAX_PASSES;
+                stats_query_pool_info.pipelineStatistics = VULKAN_DEBUG_PIPELINE_STAT_FLAGS;
+
+                res = vkCreateQueryPool(context->m_LogicalDevice.m_Device, &stats_query_pool_info, 0, &context->m_DebugTimingPipelineStatsQueryPool);
+                if (res != VK_SUCCESS)
+                {
+                    context->m_DebugTimingPipelineStatsQueryPool = VK_NULL_HANDLE;
+                    dmLogWarning("Vulkan debug pipeline stats disabled: could not create query pool (%s).", VkResultToStr(res));
+                }
+                else
+                {
+                    dmLogInfo("Vulkan debug pipeline stats enabled.");
+                }
+            }
+        }
+
         dmLogInfo("Vulkan debug timings enabled.");
     }
 
@@ -919,6 +999,11 @@ namespace dmGraphics
         {
             vkDestroyQueryPool(context->m_LogicalDevice.m_Device, context->m_DebugTimingQueryPool, 0);
             context->m_DebugTimingQueryPool = VK_NULL_HANDLE;
+        }
+        if (context->m_DebugTimingPipelineStatsQueryPool != VK_NULL_HANDLE)
+        {
+            vkDestroyQueryPool(context->m_LogicalDevice.m_Device, context->m_DebugTimingPipelineStatsQueryPool, 0);
+            context->m_DebugTimingPipelineStatsQueryPool = VK_NULL_HANDLE;
         }
     }
 
@@ -939,6 +1024,10 @@ namespace dmGraphics
 
         uint32_t query_base = VulkanDebugTimingQueryBase(frame_index);
         vkCmdResetQueryPool(command_buffer, context->m_DebugTimingQueryPool, query_base, VULKAN_DEBUG_TIMING_QUERIES_PER_FRAME);
+        if (context->m_DebugTimingPipelineStatsQueryPool != VK_NULL_HANDLE)
+        {
+            vkCmdResetQueryPool(command_buffer, context->m_DebugTimingPipelineStatsQueryPool, VulkanDebugPipelineStatsQueryBase(frame_index), DM_DEBUG_TIMING_MAX_PASSES);
+        }
         vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, context->m_DebugTimingQueryPool, query_base);
     }
 
@@ -975,6 +1064,13 @@ namespace dmGraphics
         context->m_DebugTimingActivePassIndex = pass_index;
         context->m_DebugTimingCurrentPassDraws = 0;
         VulkanDebugTimingCapturePassInfo(context, render_target, rt, vk_render_pass);
+        if (context->m_DebugTimingPipelineStatsQueryPool != VK_NULL_HANDLE)
+        {
+            vkCmdBeginQuery(context->m_MainCommandBuffers[frame_index],
+                context->m_DebugTimingPipelineStatsQueryPool,
+                VulkanDebugPipelineStatsQueryBase(frame_index) + pass_index,
+                0);
+        }
     }
 
     static void VulkanDebugTimingBeforeEndPass(VulkanContext* context)
@@ -986,6 +1082,12 @@ namespace dmGraphics
 
         uint8_t frame_index = context->m_CurrentFrameInFlight;
         uint8_t pass_index = context->m_DebugTimingActivePassIndex;
+        if (context->m_DebugTimingPipelineStatsQueryPool != VK_NULL_HANDLE)
+        {
+            vkCmdEndQuery(context->m_MainCommandBuffers[frame_index],
+                context->m_DebugTimingPipelineStatsQueryPool,
+                VulkanDebugPipelineStatsQueryBase(frame_index) + pass_index);
+        }
         vkCmdWriteTimestamp(context->m_MainCommandBuffers[frame_index],
             VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
             context->m_DebugTimingQueryPool,
@@ -3766,9 +3868,21 @@ bail:
         // Offscreen Vulkan rendering uses the opposite effective winding from
         // OpenGL, so flip the cull side to preserve the existing culling
         // semantics used by render scripts.
-        if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        bool flip_offscreen_cull_face = current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID;
+#if defined(USE_DEBUG_TIMINGS)
+        flip_offscreen_cull_face = flip_offscreen_cull_face && !VulkanDebugTimingDisableOffscreenCullFlip();
+#endif
+        if (flip_offscreen_cull_face)
         {
-            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
+            bool flip_winding_instead = false;
+#if defined(USE_DEBUG_TIMINGS)
+            flip_winding_instead = VulkanDebugTimingOffscreenFlipWinding();
+#endif
+            if (flip_winding_instead)
+            {
+                pipeline_state_draw.m_FaceWinding = pipeline_state_draw.m_FaceWinding ? 0 : 1;
+            }
+            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
             {
                 pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
             }
