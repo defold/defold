@@ -1879,6 +1879,7 @@
     :id ::file
     :children [{:label (localization/message "command.file.new")
                 :id ::new
+                :expand false
                 :command :file.new}
                {:label (localization/message "command.file.open")
                 :id ::open

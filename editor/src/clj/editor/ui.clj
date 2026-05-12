@@ -1656,8 +1656,11 @@
               enabled? (handler/enabled? handler-ctx evaluation-context)
               key-combo (first (keymap/shortcuts keymap command))
               options (handler/options handler-ctx evaluation-context)]
+          ;; NOTE: We have to make a distinction for menu items without :expand key
+          ;; vs ones that have explicitly set it to false, effecitvely forcing no expansion
           (if (or (nil? options)
-                  (not (:expand item)))
+                  (and key-combo (nil? (:expand item)))
+                  (false? (:expand item)))
             (make-menu-command scene id label localization icon style key-combo user-data command enabled? check)
             (if (and (some-> options meta :layout (= :grid))
                      (:expand item))
