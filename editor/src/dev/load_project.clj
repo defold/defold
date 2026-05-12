@@ -14,6 +14,7 @@
 
 (ns load-project
   (:require [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.library :as library]
@@ -32,7 +33,8 @@
             [service.log :as log]
             [util.coll :as coll]
             [util.debug-util :as du]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.fn :as fn])
   (:import [java.util List]))
 
 (set! *warn-on-reflection* true)
@@ -53,7 +55,7 @@
 (defonce separate-load-tx-data-generation true)
 
 ;; Set to one of the task-phases below to skip the rest of the tasks.
-(def final-task :cache-save-data)
+(def final-task :build-build-targets)
 
 ;; You can use this to start and stop your own profiling tool for certain tasks.
 (defn- user-profiling-hook! [task-key task-fn]
@@ -82,7 +84,10 @@
    :apply-load-tx-data
    :update-overrides
    :update-successors
-   :cache-save-data])
+   :cache-save-data
+   :evaluate-build-targets
+   :resolve-build-target-deps
+   :build-build-targets])
 
 (def ^:private final-task-index
   (let [task-index (.indexOf task-phases final-task)]
@@ -249,6 +254,21 @@
     migrated-resource-node-ids))
 
 (defonce ^:private -reset-undo- (g/reset-undo! project-graph-id))
+
+(defonce build-results
+  (g/with-auto-evaluation-context evaluation-context
+    (when-some [node-build-targets
+                (run-and-measure-task!
+                  :evaluate-build-targets
+                  (let [node-id->resource-path (build/make-node-id->resource-path project evaluation-context)]
+                    (build/node-build-targets game-project-node-id node-id->resource-path progress/null-render-progress! fn/constantly-false evaluation-context)))]
+      (when-some [all-build-targets
+                  (run-and-measure-task!
+                    :resolve-build-target-deps
+                    (build/resolve-dependencies node-build-targets project evaluation-context))]
+        (run-and-measure-task!
+          :build-build-targets
+          (build/build-build-targets! all-build-targets workspace {} progress/null-render-progress! evaluation-context))))))
 
 (defonce total-duration-nanos
   (let [end-time-nanos (System/nanoTime)]
