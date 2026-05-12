@@ -467,7 +467,6 @@ namespace dmGraphics
         SwapChainCapabilities              m_SwapChainCapabilities;
         PhysicalDevice                     m_PhysicalDevice;
         LogicalDevice                      m_LogicalDevice;
-        VkPipelineCache                    m_VkPipelineCache;
         FrameResource                      m_FrameResources[DM_MAX_FRAMES_IN_FLIGHT];
         VkInstance                         m_Instance;
         VkSurfaceKHR                       m_WindowSurface;

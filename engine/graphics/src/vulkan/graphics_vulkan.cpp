@@ -1286,7 +1286,6 @@ namespace dmGraphics
         uint32_t created_height = context->m_BaseContext.m_Height;
         const bool want_vsync   = context->m_SwapInterval != 0;
         VkSampleCountFlagBits vk_closest_multisample_flag;
-        VkPipelineCacheCreateInfo vk_pipeline_cache_create_info;
 
         void* device_pNext_chain = 0;
         VkPhysicalDevicePresentIdFeaturesKHR present_id_feature_support = {};
@@ -1455,15 +1454,16 @@ namespace dmGraphics
         context->m_PipelineCache.SetCapacity(32,64);
 
         // Create a Vulkan pipeline cache so the driver can reuse compiled
-        // shader/pipeline state across pipeline creation calls within this session.
-        memset(&vk_pipeline_cache_create_info, 0, sizeof(vk_pipeline_cache_create_info));
-        vk_pipeline_cache_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-
-        res = vkCreatePipelineCache(context->m_LogicalDevice.m_Device, &vk_pipeline_cache_create_info, 0, &context->m_VkPipelineCache);
-        if (res != VK_SUCCESS)
+        // shader/pipeline state across pipeline creation calls within
+        // the same session. Passing an empty initialData for now -- disk
+        // serialization can be added later for cross-session warm starts.
         {
-            dmLogError("Could not create Vulkan pipeline cache, reason: %s", VkResultToStr(res));
-            goto bail;
+            VkPipelineCacheCreateInfo vk_pipeline_cache_info;
+            memset(&vk_pipeline_cache_info, 0, sizeof(vk_pipeline_cache_info));
+            vk_pipeline_cache_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+
+            res = vkCreatePipelineCache(context->m_LogicalDevice.m_Device, &vk_pipeline_cache_info, 0, &context->m_VkPipelineCache);
+            CHECK_VK_ERROR(res);
         }
 
         context->m_TextureSamplers.SetCapacity(4);
