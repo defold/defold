@@ -38,8 +38,15 @@
 
 (set! *warn-on-reflection* true)
 
-;; Set to the path of the project directory you want to load.
-(defonce project-path "test/resources/save_data_project")
+;; Set DM_DEV_LOAD_PROJECT_PATH to the path of the project directory you want to load.
+(def ^:private default-project-path "test/resources/save_data_project")
+
+(defonce project-path
+  (let [^String env-project-path (System/getenv "DM_DEV_LOAD_PROJECT_PATH")]
+    (if (or (nil? env-project-path)
+            (.isEmpty env-project-path))
+      default-project-path
+      env-project-path)))
 
 ;; When true, generate tx-data for loaded nodes in a separate step before
 ;; applying it in a transaction. Allows us to profile the two phases in
