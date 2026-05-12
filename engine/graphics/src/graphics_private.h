@@ -25,7 +25,7 @@ namespace dmGraphics
 {
     // Enables lightweight GPU pass timing logs in the OpenGL and Vulkan adapters.
     // Intended for local adapter comparisons; comment out for normal builds.
-    #define USE_DEBUG_TIMINGS
+    // #define USE_DEBUG_TIMINGS
 
     // Shared texture metadata embedded as m_Base in each backend texture struct (OpenGLTexture, VulkanTexture, etc.).
     // Each adapter keeps Texture as the first non-vtable member so the asset pointer aliases m_Base and

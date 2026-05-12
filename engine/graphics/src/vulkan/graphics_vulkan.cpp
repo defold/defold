@@ -4153,45 +4153,15 @@ bail:
         return bits;
     }
 
-    static uint32_t CountUniformBuffersForStage(const dmArray<ShaderResourceBinding>& resources, uint8_t stage_flag)
-    {
-        uint32_t count = 0;
-        for (uint32_t i = 0; i < resources.Size(); ++i)
-        {
-            if (resources[i].m_StageFlags & stage_flag)
-            {
-                count++;
-            }
-        }
-        return count;
-    }
-
     static bool IsPushConstantUniformBuffer(VulkanContext* context, const dmArray<ShaderResourceBinding>& resources, const ShaderResourceBinding& res)
     {
-        if (!VulkanDebugTimingPushConstantUbos())
-        {
-            return false;
-        }
-
-        if (res.m_BindingFamily != BINDING_FAMILY_UNIFORM_BUFFER || res.m_Id == 0)
-        {
-            return false;
-        }
-
-        uint8_t stage_flag = res.m_StageFlags;
-        if (stage_flag != SHADER_STAGE_FLAG_VERTEX &&
-            stage_flag != SHADER_STAGE_FLAG_FRAGMENT &&
-            stage_flag != SHADER_STAGE_FLAG_COMPUTE)
-        {
-            return false;
-        }
-
-        if (CountUniformBuffersForStage(resources, stage_flag) != 1)
-        {
-            return false;
-        }
-
-        return res.m_BindingInfo.m_BlockSize <= context->m_PhysicalDevice.m_Properties.limits.maxPushConstantsSize;
+        // Only explicit SPIR-V push constant resources should be handled as
+        // push constants in production. The old auto-promotion path for small
+        // UBOs was an experiment and should stay disabled.
+        (void) context;
+        (void) resources;
+        (void) res;
+        return false;
     }
 
     static void AddPushConstantRange(VulkanProgram* program, const ShaderResourceBinding& res)
