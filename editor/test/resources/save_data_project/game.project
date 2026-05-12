@@ -280,7 +280,6 @@ defold_min_version = 1.10.0
 enabled = 1
 exclude_entries_from_main_manifest = 1
 settings = /liveupdate.settings
-mount_on_start = 0
 
 [native_extension]
 app_manifest = /checked.appmanifest
@@ -296,4 +295,3 @@ glsl_es_default_precision_int = mediump
 
 [font]
 runtime_generation = 1
-
