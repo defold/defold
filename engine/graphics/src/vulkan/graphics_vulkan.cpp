@@ -1306,6 +1306,42 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
 
+        // Populate the shared GraphicsContextLimits from VkPhysicalDeviceLimits.
+        {
+            const VkPhysicalDeviceLimits& vk_limits = context->m_PhysicalDevice.m_Properties.limits;
+            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+
+            limits.m_MaxTextureSize2D                = vk_limits.maxImageDimension2D;
+            limits.m_MaxTextureSize3D                = vk_limits.maxImageDimension3D;
+            limits.m_MaxTextureSizeCube              = vk_limits.maxImageDimensionCube;
+            limits.m_MaxTextureArrayLayers           = vk_limits.maxImageArrayLayers;
+
+            limits.m_MaxFramebufferWidth             = vk_limits.maxFramebufferWidth;
+            limits.m_MaxFramebufferHeight            = vk_limits.maxFramebufferHeight;
+            limits.m_MaxColorAttachments             = vk_limits.maxColorAttachments;
+
+            limits.m_MaxSamplersPerStage             = vk_limits.maxPerStageDescriptorSamplers;
+            limits.m_MaxTexturesPerStage             = vk_limits.maxPerStageDescriptorSampledImages;
+            limits.m_MaxVertexAttributes             = vk_limits.maxVertexInputAttributes;
+            limits.m_MaxVertexBuffers                = vk_limits.maxVertexInputBindings;
+
+            limits.m_MaxComputeWorkgroupSizeX        = vk_limits.maxComputeWorkGroupSize[0];
+            limits.m_MaxComputeWorkgroupSizeY        = vk_limits.maxComputeWorkGroupSize[1];
+            limits.m_MaxComputeWorkgroupSizeZ        = vk_limits.maxComputeWorkGroupSize[2];
+            limits.m_MaxComputeWorkgroupInvocations  = vk_limits.maxComputeWorkGroupInvocations;
+            limits.m_MaxComputeSharedMemorySize      = vk_limits.maxComputeSharedMemorySize;
+
+            limits.m_MaxUniformBufferRange           = vk_limits.maxUniformBufferRange;
+            limits.m_MaxStorageBufferRange           = vk_limits.maxStorageBufferRange;
+        }
+
+        // Adapter API version
+        {
+            uint32_t api = context->m_PhysicalDevice.m_Properties.apiVersion;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) VK_VERSION_MAJOR(api);
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) VK_VERSION_MINOR(api);
+        }
+
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
             VulkanPrintDeviceInfo(_context);
@@ -1709,8 +1745,25 @@ bail:
         uint32_t swapchainImageIndex = context->m_SwapChain->m_ImageIndex;
         VkSemaphore renderFinishedSemaphore = context->m_SwapChain->m_RenderFinishedSemaphores[swapchainImageIndex];
 
+        FlushPendingRenderTargetClear(context, context->m_CurrentRenderTarget);
+
         // End the current render pass
         EndRenderPass(context);
+
+        // Present still requires a valid swapchain image layout even on frames that never
+        // materialized the main render pass.
+        if (!context->m_MainRTBegunThisFrame)
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+            TransitionImageLayoutWithCmdBuffer(
+                context->m_MainCommandBuffers[frameInFlight],
+                tex_sc,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                0,
+                1);
+        }
 
         // Finish recording the command buffer for this frame-in-flight
         VkCommandBuffer cmd = context->m_MainCommandBuffers[frameInFlight];
@@ -2692,6 +2745,9 @@ bail:
                             0,
                             bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
+
+                        dynamic_offsets[dynamic_offset_index] = 0;
+                        dynamic_offset_index++;
                     }
                     else
                     {
@@ -3678,7 +3734,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         // Defer the update to when we actually draw, since we *might* need to invert the viewport
-        // depending on wether or not we have set a different rendertarget from when
+        // depending on whether or not we have set a different rendertarget from when
         // this call was made.
         Viewport& viewport = context->m_MainViewport;
         viewport.m_X       = (uint16_t) x;

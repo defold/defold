@@ -1920,7 +1920,6 @@ form.label.project.liveupdate = Atualização Ao Vivo
 form.label.project.liveupdate.enabled = Ativado
 form.help.project.liveupdate.enabled = Ativa o uso do live update
 form.label.project.liveupdate.settings = Configurações
-form.help.project.liveupdate.mount_on_start = Habilita auto-montagem de recursos previamente montados quando a aplicação iniciar
 
 form.label.project.native_extension = Extensão Nativa
 form.help.project.native_extension.app_manifest = Arquivo opcional de configuração com controle detalhado sobre as configurações de compilação

@@ -2073,8 +2073,6 @@ form.label.project.liveupdate.exclude_entries_from_main_manifest = Strip Live Up
 form.help.project.liveupdate.exclude_entries_from_main_manifest = When enabled, liveupdate-only resources are omitted from the packaged game.dmanifest. The published liveupdate.game.dmanifest remains complete.
 form.label.project.liveupdate.settings = Settings
 form.help.project.liveupdate.settings = Live Update settings resource
-form.label.project.liveupdate.mount_on_start = Mount on Start
-form.help.project.liveupdate.mount_on_start = Enables auto-mount of previously mounted resources when the application starts
 
 form.label.project.native_extension = Native Extension
 form.help.project.native_extension = Settings for native extensions
