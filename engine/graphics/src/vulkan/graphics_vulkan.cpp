@@ -664,8 +664,8 @@ namespace dmGraphics
                 info->m_ColorFormats[i] = format;
                 info->m_LoadOps[i]      = (uint8_t) (clear_color ? ATTACHMENT_OP_CLEAR : rt->m_ColorBufferLoadOps[color_buffer_index]);
                 info->m_StoreOps[i]     = (uint8_t) rt->m_ColorBufferStoreOps[color_buffer_index];
-#if defined(VULKAN_DEBUG_TIMING_DONT_STORE_RT_MRT_COLORS)
-                if (rt->m_TextureDepthStencil && rt->m_ColorAttachmentCount > 1)
+#if defined(USE_DEBUG_TIMINGS)
+                if (VulkanDebugTimingDontStoreRTMRTColors() && rt->m_TextureDepthStencil && rt->m_ColorAttachmentCount > 1)
                 {
                     info->m_StoreOps[i] = (uint8_t) ATTACHMENT_OP_DONT_CARE;
                 }
@@ -691,11 +691,7 @@ namespace dmGraphics
                 info->m_DepthBackendFormat = (uint32_t) context->m_MainTextureDepthStencil.m_Format;
             }
             info->m_DepthLoadOp = (uint8_t) (clear_depth ? ATTACHMENT_OP_CLEAR : ATTACHMENT_OP_DONT_CARE);
-#if defined(VULKAN_DEBUG_TIMING_DONT_STORE_RT_DEPTH)
-            info->m_DepthStoreOp = (uint8_t) (is_main_rt ? ATTACHMENT_OP_STORE : ATTACHMENT_OP_DONT_CARE);
-#else
-            info->m_DepthStoreOp = (uint8_t) ATTACHMENT_OP_STORE;
-#endif
+            info->m_DepthStoreOp = (uint8_t) (VulkanDebugTimingDontStoreRTDepth() && !is_main_rt ? ATTACHMENT_OP_DONT_CARE : ATTACHMENT_OP_STORE);
         }
 
         context->m_DebugTimingPendingClearFlags = 0;
@@ -3290,7 +3286,7 @@ bail:
         vk_write_desc_info.pImageInfo     = &vk_image_info;
     }
 
-    static void UpdateUniformBufferDescriptor(VulkanContext* context, VkBuffer vk_buffer, VkDescriptorType descriptor_type, VkDescriptorBufferInfo& vk_buffer_info, VkWriteDescriptorSet& vk_write_desc_info, size_t offset, size_t buffer_size)
+    static void UpdateUniformBufferDescriptor(VulkanContext* context, VkBuffer vk_buffer, VkDescriptorType descriptor_type, VkDescriptorBufferInfo& vk_buffer_info, VkWriteDescriptorSet& vk_write_desc_info, VkDeviceSize offset, VkDeviceSize buffer_size)
     {
         // Note in the spec about the offset being zero:
         //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
@@ -4685,8 +4681,8 @@ bail:
             rp_attachment_color->m_Format             = color_texture_ptr->m_Format;
             rp_attachment_color->m_LoadOp             = VulkanLoadOp(rtOut->m_ColorBufferLoadOps[color_buffer_index]);
             rp_attachment_color->m_StoreOp            = VulkanStoreOp(rtOut->m_ColorBufferStoreOps[color_buffer_index]);
-#if defined(VULKAN_DEBUG_TIMING_DONT_STORE_RT_MRT_COLORS)
-            if (depth_stencil_texture && num_color_textures > 1)
+#if defined(USE_DEBUG_TIMINGS)
+            if (VulkanDebugTimingDontStoreRTMRTColors() && depth_stencil_texture && num_color_textures > 1)
             {
                 rp_attachment_color->m_StoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             }
@@ -4714,8 +4710,8 @@ bail:
             rp_attachment_depth_stencil->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
             rp_attachment_depth_stencil->m_Format          = depth_stencil_texture_ptr->m_Format;
             rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-#if defined(VULKAN_DEBUG_TIMING_DONT_STORE_RT_DEPTH)
-            rp_attachment_depth_stencil->m_StoreOp         = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+#if defined(USE_DEBUG_TIMINGS)
+            rp_attachment_depth_stencil->m_StoreOp         = VulkanDebugTimingDontStoreRTDepth() ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
 #else
             rp_attachment_depth_stencil->m_StoreOp         = VK_ATTACHMENT_STORE_OP_STORE;
 #endif

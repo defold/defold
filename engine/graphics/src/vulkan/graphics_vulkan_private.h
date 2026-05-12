@@ -18,23 +18,43 @@
 #include <stdint.h>
 #include <dlib/hashtable.h>
 #include <dlib/opaque_handle_container.h>
+#include <dlib/sys.h>
 
 #include "../graphics_private.h"
-
-#if defined(USE_DEBUG_TIMINGS)
-// Temporary GBuffer isolation experiments. Enable exactly one experiment at a time.
-// #define VULKAN_DEBUG_TIMING_DONT_STORE_RT_DEPTH
-// #define VULKAN_DEBUG_TIMING_DONT_STORE_RT_MRT_COLORS
-// For offscreen multi-MRT targets with depth, only enable color writes for this
-// attachment index. 0=RGBA8 albedo, 1=RGBA16F normal/roughness, 2=R32F depth copy.
-// #define VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT 2
-#endif
 
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/graphics/graphics_vulkan.h>
 
 namespace dmGraphics
 {
+#if defined(USE_DEBUG_TIMINGS)
+    static inline bool VulkanDebugTimingEnvEnabled(const char* name)
+    {
+        char* value = dmSys::GetEnv(name);
+        return value != 0 && value[0] != 0 && value[0] != '0';
+    }
+
+    static inline bool VulkanDebugTimingDontStoreRTDepth()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_RT_DONT_STORE_DEPTH");
+    }
+
+    static inline bool VulkanDebugTimingDontStoreRTMRTColors()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_RT_DONT_STORE_MRT_COLORS");
+    }
+
+    static inline int VulkanDebugTimingOnlyRTMRTColorAttachment()
+    {
+        char* value = dmSys::GetEnv("DEFOLD_VULKAN_DEBUG_RT_MRT_ONLY_COLOR_ATTACHMENT");
+        if (value == 0 || value[0] == 0)
+        {
+            return -1;
+        }
+        return value[0] - '0';
+    }
+#endif
+
     struct ResourceToDestroy;
 
     typedef VkPipeline                 Pipeline;

@@ -35,10 +35,10 @@ namespace dmGraphics
     }
 
     RenderTarget::RenderTarget(const uint32_t rtId)
-        : m_SubPasses(0)
-        , m_TextureDepthStencil(0)
-        , m_DepthAttachmentClearValue(1.0f)
+        : m_DepthAttachmentClearValue(1.0f)
         , m_StencilAttachmentClearValue(0)
+        , m_SubPasses(0)
+        , m_TextureDepthStencil(0)
         , m_Id(rtId)
         , m_IsBound(0)
         , m_HasPendingClearColor(0)
@@ -1344,13 +1344,15 @@ bail:
         {
             VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i];
             uint8_t attachment_write_mask = vk_color_write_mask;
-#if defined(USE_DEBUG_TIMINGS) && defined(VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT)
+            int debug_only_color_attachment = -1;
+#if defined(USE_DEBUG_TIMINGS)
+            debug_only_color_attachment = VulkanDebugTimingOnlyRTMRTColorAttachment();
+#endif
             if (render_target->m_TextureDepthStencil && render_target->m_ColorAttachmentCount > 1 &&
-                i != VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT)
+                debug_only_color_attachment >= 0 && i != debug_only_color_attachment)
             {
                 attachment_write_mask = 0;
             }
-#endif
             blend_attachment.colorWriteMask      = attachment_write_mask;
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
@@ -1361,11 +1363,12 @@ bail:
             blend_attachment.alphaBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationAlpha];
         }
 
-#if defined(USE_DEBUG_TIMINGS) && defined(VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT)
-        if (render_target->m_TextureDepthStencil && render_target->m_ColorAttachmentCount > 1)
+#if defined(USE_DEBUG_TIMINGS)
+        int debug_only_color_attachment = VulkanDebugTimingOnlyRTMRTColorAttachment();
+        if (render_target->m_TextureDepthStencil && render_target->m_ColorAttachmentCount > 1 && debug_only_color_attachment >= 0)
         {
             dmLogInfo("Vulkan debug experiment active: RT id=%u only MRT color attachment %u writes enabled",
-                render_target->m_Id, (uint32_t) VULKAN_DEBUG_TIMING_RT_MRT_ONLY_COLOR_ATTACHMENT);
+                render_target->m_Id, (uint32_t) debug_only_color_attachment);
         }
 #endif
 

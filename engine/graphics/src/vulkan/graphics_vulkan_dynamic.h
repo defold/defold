@@ -118,6 +118,7 @@ extern PFN_vkGetQueryPoolResults vkGetQueryPoolResults;
 extern PFN_vkCmdBeginQuery vkCmdBeginQuery;
 extern PFN_vkCmdEndQuery vkCmdEndQuery;
 extern PFN_vkCmdResetQueryPool vkCmdResetQueryPool;
+extern PFN_vkCmdWriteTimestamp vkCmdWriteTimestamp;
 extern PFN_vkCmdCopyQueryPoolResults vkCmdCopyQueryPoolResults;
 extern PFN_vkResetDescriptorPool vkResetDescriptorPool;
 extern PFN_vkCmdCopyImageToBuffer vkCmdCopyImageToBuffer;

@@ -121,6 +121,7 @@ PFN_vkGetQueryPoolResults vkGetQueryPoolResults;
 PFN_vkCmdBeginQuery vkCmdBeginQuery;
 PFN_vkCmdEndQuery vkCmdEndQuery;
 PFN_vkCmdResetQueryPool vkCmdResetQueryPool;
+PFN_vkCmdWriteTimestamp vkCmdWriteTimestamp;
 PFN_vkCmdCopyQueryPoolResults vkCmdCopyQueryPoolResults;
 PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
 PFN_vkDestroySurfaceKHR vkDestroySurfaceKHR;
@@ -272,6 +273,7 @@ namespace dmGraphics
         vkCmdBeginQuery = (PFN_vkCmdBeginQuery) vkGetInstanceProcAddr(vk_instance, "vkCmdBeginQuery");
         vkCmdEndQuery = (PFN_vkCmdEndQuery) vkGetInstanceProcAddr(vk_instance, "vkCmdEndQuery");
         vkCmdResetQueryPool = (PFN_vkCmdResetQueryPool) vkGetInstanceProcAddr(vk_instance, "vkCmdResetQueryPool");
+        vkCmdWriteTimestamp = (PFN_vkCmdWriteTimestamp) vkGetInstanceProcAddr(vk_instance, "vkCmdWriteTimestamp");
         vkCmdCopyQueryPoolResults = (PFN_vkCmdCopyQueryPoolResults) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyQueryPoolResults");
         vkCreateAndroidSurfaceKHR = (PFN_vkCreateAndroidSurfaceKHR) vkGetInstanceProcAddr(vk_instance, "vkCreateAndroidSurfaceKHR");
         vkDestroySurfaceKHR = (PFN_vkDestroySurfaceKHR) vkGetInstanceProcAddr(vk_instance, "vkDestroySurfaceKHR");
