@@ -169,6 +169,7 @@ namespace dmGameSystem
         dmRender::SetLightBufferCount(light_context->m_RenderContext, light_context->m_MaxLightCount);
 
         ComponentTypeSetPrio(type, 1000);
+        ComponentTypeSetReadsTransforms(type, true);
 
         ComponentTypeSetContext(type, light_context);
         ComponentTypeSetNewWorldFn(type, CompLightNewWorld);

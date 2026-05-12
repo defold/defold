@@ -598,6 +598,13 @@ TEST_F(ResourceTest, LightComponentUsesWorldTransform)
 
     ASSERT_EQ(1u, render_ctx->m_LightBufferScratch.Size());
     ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), render_ctx->m_LightBufferScratch[0].m_Position);
+    ASSERT_NEAR(10.0f, render_ctx->m_LightBufferScratch[0].m_DirectionRange.getW(), EPSILON);
+
+    dmGameObject::SetScale(parent, Vector3(2.0f, 3.0f, 4.0f));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), render_ctx->m_LightBufferScratch[0].m_Position);
+    ASSERT_NEAR(20.0f, render_ctx->m_LightBufferScratch[0].m_DirectionRange.getW(), EPSILON);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

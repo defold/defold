@@ -348,7 +348,7 @@
        ["pbrMetallicRoughness.baseColorFactor"
         (doto (Vector4d.)
           (math/clj->vecmath (:base-color-factor pbr-metallic-roughness)))]
-       ["pbrMetallicRoughness.metallicRoughnessFactor"
+       ["pbrMetallicRoughness.metallicAndRoughnessFactor"
         (Vector4d. (:metallic-factor pbr-metallic-roughness)
                    (:roughness-factor pbr-metallic-roughness)
                    0 0)]
