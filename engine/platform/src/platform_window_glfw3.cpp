@@ -295,7 +295,7 @@ namespace dmPlatform
         glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
-        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, params.m_HighDPI ? GLFW_TRUE : GLFW_FALSE);
 
         WindowResult res = WINDOW_RESULT_WINDOW_OPEN_ERROR;
 
