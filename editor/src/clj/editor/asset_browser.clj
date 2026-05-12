@@ -584,8 +584,7 @@
               (app-view/open-resource! app-view prefs localization project resource))
             (select-resource! asset-browser resource))))))
   (options [workspace user-data localization evaluation-context]
-    (when (or (not user-data)
-              (not (:no-expand user-data)))
+    (when (not user-data)
       (let [basis (:basis evaluation-context)
 
             base-columns
