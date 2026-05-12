@@ -1464,10 +1464,13 @@ bail:
         return vkCreateGraphicsPipelines(vk_device, vk_pipeline_cache, 1, &vk_pipeline_info, 0, pipelineOut);
     }
 
-    void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
+    void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer, bool reset_descriptor_allocator)
     {
         assert(scratchBuffer);
-        scratchBuffer->m_DescriptorAllocator->Reset(vk_device);
+        if (reset_descriptor_allocator)
+        {
+            scratchBuffer->m_DescriptorAllocator->Reset(vk_device);
+        }
         scratchBuffer->m_MappedDataCursor = 0;
     }
 

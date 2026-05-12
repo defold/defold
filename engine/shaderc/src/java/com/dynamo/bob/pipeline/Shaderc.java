@@ -270,6 +270,7 @@ public class Shaderc {
         public byte binding = 0;
         public byte set = 0;
         public byte stageFlags = 0;
+        public boolean isPushConstant = false;
     };
     public static class ShaderReflection {
         public ShaderResource[] inputs;

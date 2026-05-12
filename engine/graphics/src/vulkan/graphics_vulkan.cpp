@@ -800,6 +800,18 @@ namespace dmGraphics
             }
         }
 
+        offset += dmSnPrintf(line + offset, sizeof(line) - offset,
+            " desc commits=%llu hits=%llu misses=%llu updates=%llu writes=%llu binds=%llu sets=%llu push calls=%llu bytes=%llu",
+            (unsigned long long) accumulator->m_DescriptorCommits,
+            (unsigned long long) accumulator->m_DescriptorCacheHits,
+            (unsigned long long) accumulator->m_DescriptorCacheMisses,
+            (unsigned long long) accumulator->m_DescriptorUpdateCalls,
+            (unsigned long long) accumulator->m_DescriptorWrites,
+            (unsigned long long) accumulator->m_DescriptorSetBinds,
+            (unsigned long long) accumulator->m_DescriptorSetsAllocated,
+            (unsigned long long) accumulator->m_PushConstantCalls,
+            (unsigned long long) accumulator->m_PushConstantBytes);
+
         dmLogInfo("%s", line);
         for (uint32_t i = 0; i < DM_DEBUG_TIMING_MAX_PASSES; ++i)
         {
@@ -2310,8 +2322,15 @@ bail:
 
         // Reset per-frame scratch buffer and descriptor pools
         ScratchBuffer* scratch = &context->m_MainScratchBuffers[frameInFlight];
-        context->m_DescriptorAllocatorGeneration[frameInFlight]++;
-        ResetScratchBuffer(vk_device, scratch);
+        bool reset_descriptor_allocator = true;
+#if defined(USE_DEBUG_TIMINGS)
+        reset_descriptor_allocator = !VulkanDebugTimingPersistentDescriptors();
+#endif
+        if (reset_descriptor_allocator)
+        {
+            context->m_DescriptorAllocatorGeneration[frameInFlight]++;
+        }
+        ResetScratchBuffer(vk_device, scratch, reset_descriptor_allocator);
 
         res = scratch->m_DeviceBuffer.MapMemory(vk_device);
         CHECK_VK_ERROR(res);
@@ -3300,6 +3319,39 @@ bail:
         vk_write_desc_info.pBufferInfo    = &vk_buffer_info;
     }
 
+    static inline VkFlags GetShaderStageFlags(uint8_t flag_bits);
+
+    static void PushUniformBufferConstants(VulkanContext* context, VkCommandBuffer vk_command_buffer, VulkanProgram* program)
+    {
+        if (program->m_PushConstantBufferCount == 0)
+        {
+            return;
+        }
+
+        ProgramResourceBindingIterator it(&program->m_BaseProgram);
+        const ProgramResourceBinding* next;
+        while((next = it.Next()))
+        {
+            ShaderResourceBinding* res = next->m_Res;
+            if (res->m_BindingFamily != BINDING_FAMILY_UNIFORM_BUFFER || !res->m_UsePushConstant)
+            {
+                continue;
+            }
+
+            vkCmdPushConstants(vk_command_buffer,
+                program->m_Handle.m_PipelineLayout,
+                GetShaderStageFlags(res->m_StageFlags),
+                0,
+                res->m_BindingInfo.m_BlockSize,
+                &program->m_UniformData[next->m_UniformBufferOffset]);
+
+#if defined(USE_DEBUG_TIMINGS)
+            context->m_DebugTimingAccumulator.m_PushConstantCalls++;
+            context->m_DebugTimingAccumulator.m_PushConstantBytes += res->m_BindingInfo.m_BlockSize;
+#endif
+        }
+    }
+
     static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, VulkanProgram* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment, bool perform_vk_update)
     {
         const uint32_t max_write_descriptors = MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT;
@@ -3318,6 +3370,10 @@ bail:
         while((next = it.Next()))
         {
             ShaderResourceBinding* res = next->m_Res;
+            if (res->m_BindingFamily == BINDING_FAMILY_UNIFORM_BUFFER && res->m_UsePushConstant)
+            {
+                continue;
+            }
 
             VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index];
             vk_write_desc_info.sType                 = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -3428,6 +3484,10 @@ bail:
         if (perform_vk_update)
         {
             vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
+#if defined(USE_DEBUG_TIMINGS)
+            context->m_DebugTimingAccumulator.m_DescriptorUpdateCalls++;
+            context->m_DebugTimingAccumulator.m_DescriptorWrites += uniform_to_write_index;
+#endif
         }
     }
 
@@ -3441,6 +3501,10 @@ bail:
         while ((next = it.Next()))
         {
             ShaderResourceBinding* res = next->m_Res;
+            if (res->m_BindingFamily == BINDING_FAMILY_UNIFORM_BUFFER && res->m_UsePushConstant)
+            {
+                continue;
+            }
 
             dmHashUpdateBuffer64(&hash_state, &res->m_Set, sizeof(res->m_Set));
             dmHashUpdateBuffer64(&hash_state, &res->m_Binding, sizeof(res->m_Binding));
@@ -3524,10 +3588,16 @@ bail:
         const uint32_t num_descriptors     = program_ptr->m_TotalResourcesCount;
         const uint32_t num_dynamic_offsets = program_ptr->m_UniformBufferCount;
 
+        PushUniformBufferConstants(context, vk_command_buffer, program_ptr);
+
         if (num_descriptors == 0)
         {
             return VK_SUCCESS;
         }
+
+#if defined(USE_DEBUG_TIMINGS)
+        context->m_DebugTimingAccumulator.m_DescriptorCommits++;
+#endif
 
         const uint8_t frame_index = (uint8_t) context->m_CurrentFrameInFlight;
 
@@ -3558,6 +3628,9 @@ bail:
 
         if (!cache_hit)
         {
+#if defined(USE_DEBUG_TIMINGS)
+            context->m_DebugTimingAccumulator.m_DescriptorCacheMisses++;
+#endif
             res = scratch_buffer->m_DescriptorAllocator->Allocate(
                 vk_device,
                 program_ptr->m_Handle.m_DescriptorSetLayouts,
@@ -3568,6 +3641,9 @@ bail:
             {
                 return res;
             }
+#if defined(USE_DEBUG_TIMINGS)
+            context->m_DebugTimingAccumulator.m_DescriptorSetsAllocated += descriptor_set_count;
+#endif
 
             UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, true);
 
@@ -3578,6 +3654,9 @@ bail:
         }
         else
         {
+#if defined(USE_DEBUG_TIMINGS)
+            context->m_DebugTimingAccumulator.m_DescriptorCacheHits++;
+#endif
             // Recompute dynamic offsets and scratch uniform data without touching descriptor bindings
             UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, false);
         }
@@ -3590,6 +3669,9 @@ bail:
             vk_descriptor_set_list,
             num_dynamic_offsets,
             dynamic_offsets);
+#if defined(USE_DEBUG_TIMINGS)
+        context->m_DebugTimingAccumulator.m_DescriptorSetBinds++;
+#endif
 
         return VK_SUCCESS;
     }
@@ -3912,6 +3994,8 @@ bail:
         vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         vk_layout_create_info.setLayoutCount = program->m_Handle.m_DescriptorSetLayoutsCount;
         vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayouts;
+        vk_layout_create_info.pushConstantRangeCount = program->m_Handle.m_PushConstantRangeCount;
+        vk_layout_create_info.pPushConstantRanges    = program->m_Handle.m_PushConstantRanges;
 
         vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
     }
@@ -3955,6 +4039,60 @@ bail:
         return bits;
     }
 
+    static uint32_t CountUniformBuffersForStage(const dmArray<ShaderResourceBinding>& resources, uint8_t stage_flag)
+    {
+        uint32_t count = 0;
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            if (resources[i].m_StageFlags & stage_flag)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    static bool IsPushConstantUniformBuffer(VulkanContext* context, const dmArray<ShaderResourceBinding>& resources, const ShaderResourceBinding& res)
+    {
+        if (!VulkanDebugTimingPushConstantUbos())
+        {
+            return false;
+        }
+
+        if (res.m_BindingFamily != BINDING_FAMILY_UNIFORM_BUFFER || res.m_Id == 0)
+        {
+            return false;
+        }
+
+        uint8_t stage_flag = res.m_StageFlags;
+        if (stage_flag != SHADER_STAGE_FLAG_VERTEX &&
+            stage_flag != SHADER_STAGE_FLAG_FRAGMENT &&
+            stage_flag != SHADER_STAGE_FLAG_COMPUTE)
+        {
+            return false;
+        }
+
+        if (CountUniformBuffersForStage(resources, stage_flag) != 1)
+        {
+            return false;
+        }
+
+        return res.m_BindingInfo.m_BlockSize <= context->m_PhysicalDevice.m_Properties.limits.maxPushConstantsSize;
+    }
+
+    static void AddPushConstantRange(VulkanProgram* program, const ShaderResourceBinding& res)
+    {
+        if (program->m_Handle.m_PushConstantRangeCount >= DM_ARRAY_SIZE(program->m_Handle.m_PushConstantRanges))
+        {
+            return;
+        }
+
+        VkPushConstantRange& range = program->m_Handle.m_PushConstantRanges[program->m_Handle.m_PushConstantRangeCount++];
+        range.stageFlags = GetShaderStageFlags(res.m_StageFlags);
+        range.offset     = 0;
+        range.size       = res.m_BindingInfo.m_BlockSize;
+    }
+
     static void VulkanFillProgramResourceBindings(
         VulkanProgram*                   program,
         dmArray<ShaderResourceBinding>&  resources,
@@ -3967,6 +4105,33 @@ bail:
         for (int i = 0; i < resources.Size(); ++i)
         {
             ShaderResourceBinding& res            = resources[i];
+            if (!res.m_UsePushConstant)
+            {
+                res.m_UsePushConstant = IsPushConstantUniformBuffer(g_VulkanContext, resources, res) ? 1 : 0;
+            }
+
+            if (res.m_UsePushConstant)
+            {
+                ProgramResourceBinding program_resource_binding = {};
+                program_resource_binding.m_Res                 = &res;
+                program_resource_binding.m_TypeInfos           = &stage_type_infos;
+                program_resource_binding.m_StageFlags          = res.m_StageFlags;
+                program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
+                program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(&program->m_BaseProgram, &res, stage_type_infos.Begin(), stage_type_infos.Size());
+                program_resource_binding.m_PushConstantIndex   = program->m_BaseProgram.m_PushConstantResourceBindings.Size();
+
+                if (program->m_BaseProgram.m_PushConstantResourceBindings.Full())
+                {
+                    program->m_BaseProgram.m_PushConstantResourceBindings.SetCapacity(program->m_BaseProgram.m_PushConstantResourceBindings.Capacity() + 4);
+                }
+                program->m_BaseProgram.m_PushConstantResourceBindings.Push(program_resource_binding);
+
+                AddPushConstantRange(program, res);
+                info.m_PushConstantBufferCount++;
+                info.m_UniformDataSize += res.m_BindingInfo.m_BlockSize;
+                continue;
+            }
+
             VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
             ProgramResourceBinding& program_resource_binding = program->m_BaseProgram.m_ResourceBindings[res.m_Set][res.m_Binding];
 
@@ -4016,10 +4181,10 @@ bail:
                     case BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                         program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
                         program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(&program->m_BaseProgram, &res, stage_type_infos.Begin(), stage_type_infos.Size());
 
+                        binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
@@ -4037,7 +4202,10 @@ bail:
             }
 
             assert(res.m_StageFlags != 0);
-            binding.stageFlags |= GetShaderStageFlags(res.m_StageFlags);
+            if (!res.m_UsePushConstant)
+            {
+                binding.stageFlags |= GetShaderStageFlags(res.m_StageFlags);
+            }
         }
     }
 
@@ -4050,7 +4218,10 @@ bail:
     {
         // TODO: We should do this as a two-pass function, one that does the "base" program setup,
         //       and then one pass that does all the vulkan specific setup. So we can keep the two code paths aligned.
-        program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Capacity());
+        // Push constants use the same reflection/resource layout path as UBOs,
+        // but are kept outside descriptor bindings. Keep spare capacity so stored
+        // UniformBufferLayout pointers remain stable while constructing bindings.
+        program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size() + 8);
 
         VulkanFillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
         VulkanFillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
@@ -4075,6 +4246,7 @@ bail:
 
         program->m_UniformDataSizeAligned = binding_info.m_UniformDataSizeAligned;
         program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
+        program->m_PushConstantBufferCount = binding_info.m_PushConstantBufferCount;
         program->m_StorageBufferCount     = binding_info.m_StorageBufferCount;
         program->m_TextureSamplerCount    = binding_info.m_TextureCount;
         program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_SamplerCount + binding_info.m_StorageBufferCount; // num actual descriptors
@@ -4084,6 +4256,192 @@ bail:
         CreatePipelineLayout(context, program, bindings, binding_info.m_MaxSet);
 
         BuildUniforms(&program->m_BaseProgram);
+    }
+
+    static bool ResourceMatchesStage(const ShaderResourceBinding& res, VkShaderStageFlagBits stage)
+    {
+        if (stage == VK_SHADER_STAGE_VERTEX_BIT)
+            return (res.m_StageFlags & SHADER_STAGE_FLAG_VERTEX) != 0;
+        if (stage == VK_SHADER_STAGE_FRAGMENT_BIT)
+            return (res.m_StageFlags & SHADER_STAGE_FLAG_FRAGMENT) != 0;
+        if (stage == VK_SHADER_STAGE_COMPUTE_BIT)
+            return (res.m_StageFlags & SHADER_STAGE_FLAG_COMPUTE) != 0;
+        return false;
+    }
+
+    static uint32_t CollectPushConstantResourceIds(VulkanContext* context, ShaderMeta* meta, VkShaderStageFlagBits stage, uint32_t* ids, uint32_t ids_capacity)
+    {
+        uint32_t count = 0;
+        for (uint32_t i = 0; i < meta->m_UniformBuffers.Size() && count < ids_capacity; ++i)
+        {
+            ShaderResourceBinding& res = meta->m_UniformBuffers[i];
+            if (ResourceMatchesStage(res, stage) && IsPushConstantUniformBuffer(context, meta->m_UniformBuffers, res))
+            {
+                ids[count++] = res.m_Id;
+            }
+        }
+        return count;
+    }
+
+    static bool ContainsId(const uint32_t* ids, uint32_t count, uint32_t id)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            if (ids[i] == id)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool TransformSpirvUbosToPushConstants(const uint32_t* words, uint32_t word_count, const uint32_t* target_ids, uint32_t target_count, dmArray<uint32_t>& out_words)
+    {
+        const uint16_t OP_DECORATE     = 71;
+        const uint16_t OP_TYPE_POINTER = 32;
+        const uint16_t OP_VARIABLE     = 59;
+
+        const uint32_t STORAGE_CLASS_UNIFORM       = 2;
+        const uint32_t STORAGE_CLASS_PUSH_CONSTANT = 9;
+
+        const uint32_t DECORATION_BINDING        = 33;
+        const uint32_t DECORATION_DESCRIPTOR_SET = 34;
+
+        struct PointerUse
+        {
+            uint32_t m_PointerTypeId;
+            uint32_t m_UniformVarCount;
+            uint32_t m_TargetVarCount;
+        };
+
+        PointerUse pointer_uses[32] = {};
+        uint32_t pointer_use_count = 0;
+        uint32_t target_pointer_type_ids[32] = {};
+        uint32_t target_pointer_type_count = 0;
+
+        for (uint32_t offset = 5; offset < word_count; )
+        {
+            uint32_t instruction = words[offset];
+            uint16_t op = instruction & 0xffff;
+            uint16_t wc = instruction >> 16;
+            if (wc == 0 || offset + wc > word_count)
+            {
+                return false;
+            }
+
+            if (op == OP_VARIABLE && wc >= 4 && words[offset + 3] == STORAGE_CLASS_UNIFORM)
+            {
+                uint32_t pointer_type_id = words[offset + 1];
+                uint32_t variable_id     = words[offset + 2];
+
+                uint32_t pointer_use_index = pointer_use_count;
+                for (uint32_t i = 0; i < pointer_use_count; ++i)
+                {
+                    if (pointer_uses[i].m_PointerTypeId == pointer_type_id)
+                    {
+                        pointer_use_index = i;
+                        break;
+                    }
+                }
+                if (pointer_use_index == pointer_use_count && pointer_use_count < DM_ARRAY_SIZE(pointer_uses))
+                {
+                    pointer_uses[pointer_use_count++].m_PointerTypeId = pointer_type_id;
+                }
+
+                if (pointer_use_index < pointer_use_count)
+                {
+                    pointer_uses[pointer_use_index].m_UniformVarCount++;
+                    if (ContainsId(target_ids, target_count, variable_id))
+                    {
+                        pointer_uses[pointer_use_index].m_TargetVarCount++;
+                    }
+                }
+            }
+
+            offset += wc;
+        }
+
+        for (uint32_t i = 0; i < pointer_use_count && target_pointer_type_count < DM_ARRAY_SIZE(target_pointer_type_ids); ++i)
+        {
+            if (pointer_uses[i].m_TargetVarCount != 0 &&
+                pointer_uses[i].m_TargetVarCount == pointer_uses[i].m_UniformVarCount)
+            {
+                target_pointer_type_ids[target_pointer_type_count++] = pointer_uses[i].m_PointerTypeId;
+            }
+        }
+
+        out_words.SetCapacity(word_count);
+        out_words.SetSize(0);
+
+        for (uint32_t i = 0; i < 5; ++i)
+        {
+            out_words.Push(words[i]);
+        }
+
+        bool transformed = false;
+        for (uint32_t offset = 5; offset < word_count; )
+        {
+            uint32_t instruction = words[offset];
+            uint16_t op = instruction & 0xffff;
+            uint16_t wc = instruction >> 16;
+            if (wc == 0 || offset + wc > word_count)
+            {
+                return false;
+            }
+
+            bool skip_instruction = false;
+            if (op == OP_DECORATE && wc >= 3 && ContainsId(target_ids, target_count, words[offset + 1]))
+            {
+                uint32_t decoration = words[offset + 2];
+                skip_instruction = decoration == DECORATION_BINDING || decoration == DECORATION_DESCRIPTOR_SET;
+            }
+
+            if (!skip_instruction)
+            {
+                for (uint32_t i = 0; i < wc; ++i)
+                {
+                    uint32_t word = words[offset + i];
+                    if (i == 2 && op == OP_TYPE_POINTER && wc >= 4 && ContainsId(target_pointer_type_ids, target_pointer_type_count, words[offset + 1]))
+                    {
+                        word = STORAGE_CLASS_PUSH_CONSTANT;
+                        transformed = true;
+                    }
+                    else if (i == 3 && op == OP_VARIABLE && wc >= 4 && words[offset + 3] == STORAGE_CLASS_UNIFORM && ContainsId(target_ids, target_count, words[offset + 2]))
+                    {
+                        word = STORAGE_CLASS_PUSH_CONSTANT;
+                        transformed = true;
+                    }
+                    out_words.Push(word);
+                }
+            }
+
+            offset += wc;
+        }
+
+        return transformed;
+    }
+
+    static void GetMaybePushConstantShaderSource(VulkanContext* context, ShaderMeta* meta, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage, dmArray<uint32_t>& transformed_spirv, const void** source, uint32_t* source_size)
+    {
+        *source = ddf->m_Source.m_Data;
+        *source_size = ddf->m_Source.m_Count;
+
+        uint32_t target_ids[8] = {};
+        uint32_t target_count = CollectPushConstantResourceIds(context, meta, stage, target_ids, DM_ARRAY_SIZE(target_ids));
+        if (target_count == 0 || (ddf->m_Source.m_Count % sizeof(uint32_t)) != 0)
+        {
+            return;
+        }
+
+        if (TransformSpirvUbosToPushConstants((const uint32_t*) ddf->m_Source.m_Data, ddf->m_Source.m_Count / sizeof(uint32_t), target_ids, target_count, transformed_spirv))
+        {
+            *source = transformed_spirv.Begin();
+            *source_size = transformed_spirv.Size() * sizeof(uint32_t);
+        }
+        else
+        {
+            transformed_spirv.SetCapacity(0);
+        }
     }
 
     static void CreateComputeProgram(VulkanContext* context, VulkanProgram* program, ShaderModule* compute_module)
@@ -4157,10 +4515,15 @@ bail:
         delete program_ptr;
     }
 
-    static bool ReloadShader(VulkanContext* context, ShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
+    static bool ReloadShader(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
     {
         ShaderModule tmp_shader;
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage_flag, &tmp_shader);
+        dmArray<uint32_t> transformed_spirv;
+        const void* source = 0;
+        uint32_t source_size = 0;
+        GetMaybePushConstantShaderSource(context, meta, ddf, stage_flag, transformed_spirv, &source, &source_size);
+
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, source, source_size, stage_flag, &tmp_shader);
         if (res == VK_SUCCESS)
         {
             DestroyShader(context, shader);
@@ -4180,7 +4543,12 @@ bail:
         ShaderModule* module = new ShaderModule;
         memset(module, 0, sizeof(*module));
 
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage, module);
+        dmArray<uint32_t> transformed_spirv;
+        const void* source = 0;
+        uint32_t source_size = 0;
+        GetMaybePushConstantShaderSource(context, meta, ddf, stage, transformed_spirv, &source, &source_size);
+
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, source, source_size, stage, module);
         CHECK_VK_ERROR(res);
 
         ShaderStageFlag stage_flag = (ShaderStageFlag) -1;
@@ -4252,7 +4620,7 @@ bail:
 
         if (ddf_cp)
         {
-            if (!ReloadShader(context, program->m_ComputeModule, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT))
+            if (!ReloadShader(context, &program->m_BaseProgram.m_ShaderMeta, program->m_ComputeModule, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT))
                 return false;
 
             DestroyProgram(_context, program);
@@ -4261,9 +4629,9 @@ bail:
         }
         else
         {
-            if (!ReloadShader(context, program->m_VertexModule, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT))
+            if (!ReloadShader(context, &program->m_BaseProgram.m_ShaderMeta, program->m_VertexModule, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT))
                 return false;
-            if (!ReloadShader(context, program->m_FragmentModule, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT))
+            if (!ReloadShader(context, &program->m_BaseProgram.m_ShaderMeta, program->m_FragmentModule, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT))
                 return false;
 
             DestroyProgram(_context, program);
@@ -4337,6 +4705,21 @@ bail:
         memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
     }
 
+    static ProgramResourceBinding* GetUniformBufferBindingFromLocation(VulkanProgram* program, HUniformLocation location)
+    {
+        uint32_t set     = UNIFORM_LOCATION_GET_OP0(location);
+        uint32_t binding = UNIFORM_LOCATION_GET_OP1(location);
+
+        if (UNIFORM_LOCATION_GET_OP3(location) == 1 && set == UNIFORM_LOCATION_MAX)
+        {
+            assert(binding < program->m_BaseProgram.m_PushConstantResourceBindings.Size());
+            return &program->m_BaseProgram.m_PushConstantResourceBindings[binding];
+        }
+
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+        return &program->m_BaseProgram.m_ResourceBindings[set][binding];
+    }
+
     static void VulkanSetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -4344,14 +4727,10 @@ bail:
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
         VulkanProgram* program_ptr = (VulkanProgram*) context->m_CurrentProgram;
-        uint32_t set               = UNIFORM_LOCATION_GET_OP0(base_location);
-        uint32_t binding           = UNIFORM_LOCATION_GET_OP1(base_location);
         uint32_t buffer_offset     = UNIFORM_LOCATION_GET_OP2(base_location);
-        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+        ProgramResourceBinding* pgm_res = GetUniformBufferBindingFromLocation(program_ptr, base_location);
 
-        ProgramResourceBinding& pgm_res = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
-
-        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
+        uint32_t offset = pgm_res->m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
@@ -4362,14 +4741,10 @@ bail:
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
         VulkanProgram* program_ptr    = (VulkanProgram*) context->m_CurrentProgram;
-        uint32_t set            = UNIFORM_LOCATION_GET_OP0(base_location);
-        uint32_t binding        = UNIFORM_LOCATION_GET_OP1(base_location);
         uint32_t buffer_offset  = UNIFORM_LOCATION_GET_OP2(base_location);
-        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+        ProgramResourceBinding* pgm_res = GetUniformBufferBindingFromLocation(program_ptr, base_location);
 
-        ProgramResourceBinding& pgm_res = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
-
-        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
+        uint32_t offset = pgm_res->m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 

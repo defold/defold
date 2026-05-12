@@ -409,6 +409,7 @@ message ShaderDesc
         optional uint32         binding            = 8;
         optional uint32         element_count      = 9;
         optional uint32         stage_flags        = 10; // 0x1=vert, 0x2=frag, 0x4=compute
+        optional bool           push_constant      = 13;
 
         oneof BindingInfo
         {

@@ -107,6 +107,9 @@ public class SPIRVReflector {
     }
 
     public static boolean CanMergeResources(SPIRVReflector A, SPIRVReflector B, Shaderc.ShaderResource resA, Shaderc.ShaderResource resB) throws CompileExceptionError {
+        if (resA.isPushConstant || resB.isPushConstant) {
+            return false;
+        }
         boolean bindingsMismatch = resA.binding != resB.binding;
         boolean setMisMatch = resA.set != resB.set;
         boolean typesMatch = AreResourceTypesEqual(A, B, resA, resB);

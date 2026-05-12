@@ -15,12 +15,71 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
+#include <dlib/sys.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
+    static const char* VulkanPresentModeToString(VkPresentModeKHR mode)
+    {
+        switch (mode)
+        {
+            case VK_PRESENT_MODE_IMMEDIATE_KHR: return "immediate";
+            case VK_PRESENT_MODE_MAILBOX_KHR:   return "mailbox";
+            case VK_PRESENT_MODE_FIFO_KHR:      return "fifo";
+            case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "fifo_relaxed";
+            default:                            return "<unknown>";
+        }
+    }
+
+    static bool HasPresentMode(const SwapChainCapabilities& capabilities, VkPresentModeKHR mode)
+    {
+        for (uint32_t i = 0; i < capabilities.m_PresentModes.Size(); ++i)
+        {
+            if (capabilities.m_PresentModes[i] == mode)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool GetRequestedPresentMode(VkPresentModeKHR* mode_out)
+    {
+        char* value = dmSys::GetEnv("DEFOLD_VULKAN_PRESENT_MODE");
+        if (value == 0 || value[0] == 0)
+        {
+            return false;
+        }
+
+        if (dmStrCaseCmp(value, "immediate") == 0)
+        {
+            *mode_out = VK_PRESENT_MODE_IMMEDIATE_KHR;
+            return true;
+        }
+        else if (dmStrCaseCmp(value, "mailbox") == 0)
+        {
+            *mode_out = VK_PRESENT_MODE_MAILBOX_KHR;
+            return true;
+        }
+        else if (dmStrCaseCmp(value, "fifo") == 0)
+        {
+            *mode_out = VK_PRESENT_MODE_FIFO_KHR;
+            return true;
+        }
+        else if (dmStrCaseCmp(value, "fifo_relaxed") == 0 || dmStrCaseCmp(value, "relaxed") == 0)
+        {
+            *mode_out = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+            return true;
+        }
+
+        dmLogWarning("Ignoring unsupported DEFOLD_VULKAN_PRESENT_MODE='%s'. Expected immediate, mailbox, fifo, or fifo_relaxed.", value);
+        return false;
+    }
+
     static VkSurfaceFormatKHR SwapChainFindSurfaceFormat(const SwapChainCapabilities& capabilities)
     {
         // We expect to have one or more formats here, otherwise this function wouldn't be called.
@@ -118,8 +177,24 @@ namespace dmGraphics
         VkDevice vk_device                  = logicalDevice->m_Device;
         VkPhysicalDevice vk_physical_device = physicalDevice->m_Device;
         VkPresentModeKHR vk_present_mode    = VK_PRESENT_MODE_FIFO_KHR;
+        VkPresentModeKHR requested_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+        bool use_default_present_selection  = true;
 
-        if (!wantVSync)
+        if (GetRequestedPresentMode(&requested_present_mode))
+        {
+            if (HasPresentMode(capabilities, requested_present_mode))
+            {
+                vk_present_mode = requested_present_mode;
+                use_default_present_selection = false;
+            }
+            else
+            {
+                dmLogWarning("Requested Vulkan present mode '%s' is unavailable; falling back to default selection.",
+                    VulkanPresentModeToString(requested_present_mode));
+            }
+        }
+
+        if (use_default_present_selection && !wantVSync)
         {
             for (uint32_t i=0; i < capabilities.m_PresentModes.Size(); i++)
             {
@@ -171,6 +246,13 @@ namespace dmGraphics
                 capabilities.m_SurfaceCapabilities.minImageCount,
                 capabilities.m_SurfaceCapabilities.maxImageCount);
         }
+
+        dmLogInfo("Vulkan swapchain: present_mode=%s vsync=%u requested_images=%u surface_min_images=%u surface_max_images=%u",
+            VulkanPresentModeToString(vk_present_mode),
+            wantVSync ? 1 : 0,
+            swap_chain_image_count,
+            capabilities.m_SurfaceCapabilities.minImageCount,
+            capabilities.m_SurfaceCapabilities.maxImageCount);
 
         VkSwapchainCreateInfoKHR vk_swap_chain_create_info;
         memset((void*)&vk_swap_chain_create_info, 0, sizeof(vk_swap_chain_create_info));
@@ -250,6 +332,11 @@ namespace dmGraphics
         }
 
         vkGetSwapchainImagesKHR(vk_device, swapChain->m_SwapChain, &swap_chain_image_count, 0);
+        dmLogInfo("Vulkan swapchain: actual_images=%u extent=%ux%u surface_format=%u",
+            swap_chain_image_count,
+            vk_extent.width,
+            vk_extent.height,
+            swapChain->m_SurfaceFormat.format);
 
         swapChain->m_Images.SetCapacity(swap_chain_image_count);
         swapChain->m_Images.SetSize(swap_chain_image_count);
