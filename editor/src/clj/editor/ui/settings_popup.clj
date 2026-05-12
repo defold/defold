@@ -73,15 +73,13 @@
                 :style-class "accelerator-label"
                 :style (if (os/is-mac-os?) "-fx-font-family: 'Lucida Grande';" "")
                 :text (or accelerator "")}
-               {:fx/type fxui/ext-ensure-focus-traversable
-                :desc
-                {:fx/type fx.check-box/lifecycle
-                 :style-class ["slide-switch"]
-                 :selected (key state)
-                 :on-selected-changed (fn [v]
-                                        (swap-state assoc key v)
-                                        (when on-selected-changed
-                                          (on-selected-changed v)))}}]}})
+               {:fx/type fx.check-box/lifecycle
+                :style-class ["slide-switch"]
+                :selected (key state)
+                :on-selected-changed (fn [v]
+                                       (swap-state assoc key v)
+                                       (when on-selected-changed
+                                         (on-selected-changed v)))}]}})
 
 (defn- ext-safe-popup-slider
   [{:keys [popup] :as props}]
@@ -124,42 +122,30 @@
                 {:fx/type fxui/label
                  :style-class "slider-value-label"
                  :text (slider-value->string (key state))}
-                {:fx/type fxui/ext-ensure-focus-traversable
-                 :desc
-                 (cond-> {:fx/type ext-safe-popup-slider
-                          :popup popup
-                          :min min
-                          :max max
-                          :value (key state)
-                          :block-increment 0.1
-                          :on-value-changed (fn [v]
-                                              (on-value-changed v)
-                                              (swap-state assoc key v))}
-                   snap-to
-                   (assoc :snap-to-ticks true
-                          :major-tick-unit snap-to
-                          :minor-tick-count 0
-                          :show-tick-marks true
-                          :on-mouse-released (fn [^Event e]
-                                               (let [v (snap-fn (.getValue ^Slider (.getSource e)))]
-                                                 (on-value-changed v)
-                                                 (swap-state assoc key v)))))}]}))
+                (cond-> {:fx/type ext-safe-popup-slider
+                         :popup popup
+                         :min min
+                         :max max
+                         :value (key state)
+                         :block-increment 0.1
+                         :on-value-changed (fn [v]
+                                             (on-value-changed v)
+                                             (swap-state assoc key v))}
+                  snap-to
+                  (assoc :snap-to-ticks true
+                         :major-tick-unit snap-to
+                         :minor-tick-count 0
+                         :show-tick-marks true
+                         :on-mouse-released (fn [^Event e]
+                                              (let [v (snap-fn (.getValue ^Slider (.getSource e)))]
+                                                (on-value-changed v)
+                                                (swap-state assoc key v)))))]}))
 
-;; The focus-traversable part: `fxui/color-picker` is a compound component (an HBox containing a value-field and a
-;; JavaFX ColorPicker), so we can't just wrap it the same way; we need to reach into its internals to find the text
-;; input. Rather than modifying fxui to expose this, we use `fx/ext-on-instance-lifecycle` here to look up the inner
-;; text field by style class and apply the same focus-traversable workaround.
-;;
-;; The setAutoHide part: The popup loses focus when we open the "Custom Color..." color picker window, so
+;; FIX: The popup loses focus when we open the "Custom Color..." color picker window, so
 ;; we apply the same workaround the slider's get by disabling auto-hide and enabling it once it closes.
 (defn- ext-color-picker-focus-traversable [{:keys [desc popup]}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [^javafx.scene.Node node]
-                 (when-let [tf (.lookup node ".ext-color-picker-field")]
-                   (ui/observe (.focusTraversableProperty tf)
-                     (fn [_ _ _]
-                       (.setFocusTraversable tf true)))
-                   (.setFocusTraversable tf true))
                  (when-let [cp (.lookup node ".ext-color-picker-icon")]
                    (when (instance? ColorPicker cp)
                      (let [^javafx.scene.control.ColorPicker cp cp]
@@ -194,19 +180,17 @@
                              [{:fx/type fxui/label
                                :text (string/upper-case (name axis))
                                :min-width :use-pref-size}
-                              {:fx/type fxui/ext-ensure-focus-traversable
-                               :desc
-                               {:fx/type fxui/value-field
-                                :value (get (key state) axis)
-                                :to-value (fn [s]
-                                            (try (let [v (Float/parseFloat s)]
-                                                   (when (pos? v) v))
-                                                 (catch Exception _ nil)))
-                                :on-value-changed (fn [v]
-                                                    (let [new-vec3 (assoc (key state) axis v)]
-                                                      (swap-state assoc key new-vec3)
-                                                      (when on-value-changed
-                                                        (on-value-changed new-vec3))))}}]))
+                              {:fx/type fxui/value-field
+                               :value (get (key state) axis)
+                               :to-value (fn [s]
+                                           (try (let [v (Float/parseFloat s)]
+                                                  (when (pos? v) v))
+                                                (catch Exception _ nil)))
+                               :on-value-changed (fn [v]
+                                                   (let [new-vec3 (assoc (key state) axis v)]
+                                                     (swap-state assoc key new-vec3)
+                                                     (when on-value-changed
+                                                       (on-value-changed new-vec3))))}]))
                    axes)})
 
 (defn- make-vec3-toggle-row [{:keys [key label state swap-state on-value-changed]}]
@@ -220,31 +204,28 @@
                       :h-box/hgrow :always
                       :max-width Double/MAX_VALUE}]
                     (map (fn [axis]
-                           {:fx/type fxui/ext-ensure-focus-traversable
-                            :desc {:fx/type fx.toggle-button/lifecycle
-                             :toggle-group {:fx/type fx/ext-get-ref
-                                            :ref ::toggle-group}
-                             :style-class ["toggle-button" "plane-toggle" "spaced"]
-                             :text (string/upper-case (name axis))
-                             :selected (= axis (key state))
-                             :on-selected-changed (fn [selected?]
-                                                    (when selected?
-                                                      (swap-state assoc key axis)
-                                                      (when on-value-changed
-                                                        (on-value-changed axis))))}}))
+                           {:fx/type fx.toggle-button/lifecycle
+                            :toggle-group {:fx/type fx/ext-get-ref
+                                           :ref ::toggle-group}
+                            :style-class ["toggle-button" "plane-toggle" "spaced"]
+                            :text (string/upper-case (name axis))
+                            :selected (= axis (key state))
+                            :on-selected-changed (fn [selected?]
+                                                   (when selected?
+                                                     (swap-state assoc key axis)
+                                                     (when on-value-changed
+                                                       (on-value-changed axis))))}))
                     axes)}})
 
 (defn- make-reset-button [{:keys [text swap-state on-reset]}]
   {:fx/type fxui/horizontal
    :style-class "reset-button"
-   :children [{:fx/type fxui/ext-ensure-focus-traversable
-               :desc
-               {:fx/type fx.button/lifecycle
-                :text text
-                :max-width Double/MAX_VALUE
-                :on-action (fn [^javafx.event.ActionEvent e]
-                             (on-reset swap-state)
-                             (.requestFocus (.getParent ^Node (.getSource e))))}}]})
+   :children [{:fx/type fx.button/lifecycle
+               :text text
+               :max-width Double/MAX_VALUE
+               :on-action (fn [^javafx.event.ActionEvent e]
+                            (on-reset swap-state)
+                            (.requestFocus (.getParent ^Node (.getSource e))))}]})
 
 (defn- make-row [popup keymap localization-state state swap-state descriptor]
   (let [descriptor-with-state (merge descriptor {:state state :swap-state swap-state :popup popup})
@@ -305,11 +286,6 @@
       (.setAutoFix true)
       (.setHideOnEscape true))))
 
-;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `make-popup` above). PopupWindow has
-;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
-;; breaking Tab navigation inside the popup. For the simple controls we own (toggles, sliders, value
-;; fields), we wrap them in `fxui/ext-ensure-focus-traversable`, which observes the property and
-;; forces it back to true.
 (defn show!
   "Shows a settings popup anchored to `owner`, or hides it if already visible.
 

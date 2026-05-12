@@ -1,8 +1,4 @@
 #scene-view-anchor-pane {
-    #toolbar * {
-        -fx-focus-traversable: false;
-    }
-
     #toolbar {
         -fx-background-color: -df-component-dark;
         -fx-border-width: 0;
@@ -14,6 +10,7 @@
         -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 16, 0, 0, 0);
 
         .toggle-button:selected {
+            -fx-focus-traversable: false;
             -fx-background-color: -df-background-light;
         }
 
@@ -52,6 +49,7 @@
             }
 
             > .more-button {
+                -fx-focus-traversable: false;
                 -fx-max-width: 18px;
                 -fx-min-width: 18px;
                 -fx-pref-height: 30px;
@@ -87,6 +85,7 @@
         }
 
         .toggle-button {
+            -fx-focus-traversable: false;
             &:selected > #visibility-settings-graphic > #active-indicator {
                 -fx-stroke: -df-background-light;
             }

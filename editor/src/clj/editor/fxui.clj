@@ -150,17 +150,6 @@
    :on-created focus-when-on-scene!
    :desc desc})
 
-;; Workaround for JavaFX PopupWindow focus-traversal behavior: when controls live inside a PopupWindow, their
-;; `focusTraversable` property tends to get reset to false, breaking Tab navigation. Wrapping a control description in
-;; this component observes the property and forces it back to true. See `editor.settings-popup` for usage.
-(defn ext-ensure-focus-traversable [{:keys [desc]}]
-  {:fx/type fx/ext-on-instance-lifecycle
-   :on-created (fn [^Node node]
-                 (ui/observe (.focusTraversableProperty node)
-                   (fn [_ _ _]
-                     (.setFocusTraversable node true))))
-   :desc desc})
-
 (def ext-with-advance-events
   "Extension lifecycle that notifies all listeners even during advancing
 
