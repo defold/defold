@@ -47,7 +47,7 @@ class Vector3
     float mY;
     float mZ;
 #ifndef __GNUC__
-    float d;
+    uint32_t :32; // replaces 'float d' -- unnamed bit-field adds the required padding while avoiding clang's unused-private-field warning
 #endif
 
 public:
@@ -635,7 +635,7 @@ class Point3
     float mY;
     float mZ;
 #ifndef __GNUC__
-    float d;
+    uint32_t :32; // replaces 'float d' -- unnamed bit-field adds the required padding while avoiding clang's unused-private-field warning
 #endif
 
 public:
