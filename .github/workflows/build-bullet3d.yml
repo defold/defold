@@ -8,6 +8,10 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   build:
     uses: ./.github/workflows/build-external-template.yml
