@@ -355,7 +355,7 @@ def write_docs(docs_dir, jdk_path=None):
 def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
 
-def remove_platform_files_from_archive(platform, jar):
+def remove_platform_files_from_archive(platform, jar, jdk=None):
     start_time = time.perf_counter()
     zin = zipfile.ZipFile(jar, 'r')
     files = zin.namelist()
@@ -413,37 +413,45 @@ def remove_platform_files_from_archive(platform, jar):
     # a Python-rewritten jar, and keeping that ZIP layout stable avoids changing
     # macOS signing/notarization inputs while moving most filtering to uberjar.
     scan_time = time.perf_counter() - start_time
-    if files_to_remove:
-        log("Warning: removing %d platform-specific files from %s after %.3fs scan" %
-            (len(files_to_remove), jar, scan_time))
-    else:
-        log("Rewriting %s after %.3fs scan; no platform-specific files to remove" %
+    if not files_to_remove:
+        zin.close()
+        log("No platform-specific files to remove from %s after %.3fs scan; keeping existing jar" %
             (jar, scan_time))
+        return
+
+    log("Warning: removing %d platform-specific files from %s after %.3fs scan" %
+        (len(files_to_remove), jar, scan_time))
     rewrite_start_time = time.perf_counter()
     newjar = jar + "_new"
-    zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
-    for file in zin.infolist():
-        if file.filename not in files_to_remove:
-            zout.writestr(file, zin.read(file))
-    zout.close()
     zin.close()
+    if os.path.exists(newjar):
+        os.remove(newjar)
+    removals_file = jar + "_remove"
+    with open(removals_file, 'w') as f:
+        for file in sorted(files_to_remove):
+            f.write(file + "\n")
+    try:
+        invoke_lein(['zip-parallel', 'filter-jar', jar, newjar, removals_file], jdk_path=jdk)
+    except BaseException:
+        if os.path.exists(newjar):
+            os.remove(newjar)
+        raise
+    finally:
+        if os.path.exists(removals_file):
+            os.remove(removals_file)
 
     # switch to jar without removed files
     os.remove(jar)
     os.rename(newjar, jar)
     rewrite_time = time.perf_counter() - rewrite_start_time
-    if files_to_remove:
-        log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
-            (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
-    else:
-        log("Rewrote %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
-            (jar, time.perf_counter() - start_time, scan_time, rewrite_time))
+    log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
+        (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
 
 
 def create_bundle(jdk, platform, options):
     mkdirs('target/editor')
     log("Creating uberjar for platform %s..." % platform)
-    invoke_lein(['with-profile', 'release,%s' % platform, 'uberjar'], jdk_path=jdk)
+    invoke_lein(['with-profile', 'release,%s' % platform, 'zip-parallel', 'uberjar'], jdk_path=jdk)
     jar_file = 'target/editor-%s-standalone.jar' % platform
     log("Creating bundle for platform %s..." % platform)
     rmtree('tmp')
@@ -494,7 +502,7 @@ def create_bundle(jdk, platform, options):
     shutil.copy(jar_file, defold_jar)
 
     # strip tools and libs for the platforms we're not currently bundling
-    remove_platform_files_from_archive(platform, defold_jar)
+    remove_platform_files_from_archive(platform, defold_jar, jdk)
 
     # copy editor executable (the launcher)
     launcher = launcher_path(options, platform, get_exe_suffix(platform))
