@@ -504,7 +504,7 @@
 
 (def open-gl-android-toggles
   (concat
-    (libs-toggles android ["graphics"])
+    (libs-toggles android ["graphics_opengles"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])))
 
@@ -515,7 +515,7 @@
 (def vulkan-android-toggles
   (concat
     (libs-toggles android ["graphics_vulkan"])
-    (exclude-libs-toggles android ["graphics"])
+    (exclude-libs-toggles android ["graphics_opengles"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :excludeDynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"])))
@@ -523,7 +523,7 @@
 (def graphics-setting-android
   (make-choice-setting
     :both (concat
-            (libs-toggles android ["graphics" "graphics_vulkan"])
+            (libs-toggles android ["graphics_opengles" "graphics_vulkan"])
             (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"])
             (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])
             (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"]))

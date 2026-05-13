@@ -186,6 +186,8 @@
                        (app-manifest/set-setting-value app-manifest/graphics-setting-android :open-gl))]
       (doseq [platform [:armv7-android :arm64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
+          (is (some #{"graphics_opengles"} (:libs context)))
+          (is (not-any? #{"graphics"} (:libs context)))
           (is (not-any? #{"vulkan"} (:excludeLibs context)))
           (is (some #{"vulkan"} (:excludeDynamicLibs context)))
           (is (not-any? #{"vulkan"} (:dynamicLibs context)))
@@ -195,7 +197,8 @@
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-android :vulkan)]
       (doseq [platform [:armv7-android :arm64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
-          (is (some #{"graphics"} (:excludeLibs context)))
+          (is (some #{"graphics_vulkan"} (:libs context)))
+          (is (some #{"graphics_opengles"} (:excludeLibs context)))
           (is (some #{"GraphicsAdapterOpenGLES"} (:excludeSymbols context)))
           (is (some #{"vulkan"} (:excludeDynamicLibs context)))
           (is (some #{"EGL"} (:excludeDynamicLibs context)))

@@ -73,7 +73,7 @@ platforms:
 
     armv7-android:
         context:
-            excludeLibs: ["graphics"]
+            excludeLibs: ["graphics_opengles"]
             excludeJars: []
             excludeDynamicLibs: ["vulkan", "EGL", "GLESv1_CM", "GLESv2"]
             excludeSymbols: ["GraphicsAdapterOpenGLES"]
@@ -84,7 +84,7 @@ platforms:
 
     arm64-android:
         context:
-            excludeLibs: ["graphics"]
+            excludeLibs: ["graphics_opengles"]
             excludeJars: []
             excludeDynamicLibs: ["vulkan", "EGL", "GLESv1_CM", "GLESv2"]
             excludeSymbols: ["GraphicsAdapterOpenGLES"]
