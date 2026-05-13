@@ -965,6 +965,7 @@ namespace dmGraphics
         ps.m_StencilReference         = 0x0;
         ps.m_CullFaceEnabled          = 0;
         ps.m_CullFaceType             = FACE_TYPE_BACK;
+        ps.m_FaceWinding              = FACE_WINDING_CCW;
         ps.m_PolygonOffsetFillEnabled = 0;
         return ps;
     }

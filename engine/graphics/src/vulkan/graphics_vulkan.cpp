@@ -3040,10 +3040,9 @@ bail:
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
-        // If the culling, or viewport has changed, make sure to flip the
-        // culling flag if we are rendering to the backbuffer.
-        // This is needed because we are rendering with a negative viewport
-        // which means that the face direction is inverted.
+        // Offscreen Vulkan rendering uses the opposite effective winding from
+        // OpenGL, so flip the cull side to preserve the existing culling
+        // semantics used by render scripts.
         if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
             if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
@@ -3900,9 +3899,12 @@ bail:
         context->m_CullFaceChanged              = true;
     }
 
-    static void VulkanSetFaceWinding(HContext, FaceWinding face_winding)
+    static void VulkanSetFaceWinding(HContext _context, FaceWinding face_winding)
     {
-        // TODO: Add this to the vulkan pipeline handle aswell, for now it's a NOP
+        VulkanContext* context = (VulkanContext*)_context;
+        assert(context);
+        context->m_PipelineState.m_FaceWinding = face_winding;
+        context->m_CullFaceChanged             = true;
     }
 
     static void VulkanSetPolygonOffset(HContext _context, float factor, float units)
