@@ -24,6 +24,7 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gamesys.proto.DataProto.Data;
 import com.dynamo.proto.DdfStruct.ListValue;
 import com.dynamo.proto.DdfStruct.Struct;
@@ -34,6 +35,17 @@ import com.dynamo.proto.DdfStruct.Value;
 public class LightBuilder extends ProtoBuilder<Data.Builder> {
 
     private static final double MAX_LIGHT_CONE_ANGLE_DEGREES = 180.0;
+    private static final String LIGHTC_EXT = ".lightc";
+
+    public LightBuilder() {
+        registerLightOutputExtensions();
+    }
+
+    private static void registerLightOutputExtensions() {
+        ResourceUtil.registerMapping(".point_light", ".point_light" + LIGHTC_EXT);
+        ResourceUtil.registerMapping(".directional_light", ".directional_light" + LIGHTC_EXT);
+        ResourceUtil.registerMapping(".spot_light", ".spot_light" + LIGHTC_EXT);
+    }
 
     private static Value getRequiredFieldValue(IResource resource, Struct struct, String fieldName) throws CompileExceptionError {
         Value value = struct.getFieldsMap().get(fieldName);
@@ -135,6 +147,20 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
             default:
                 throw new IllegalArgumentException("Unsupported light resource extension: " + ext);
         }
+    }
+
+    private static String lightBuildExtFromResource(IResource resource) {
+        return "." + lightTypeTagFromResource(resource) + LIGHTC_EXT;
+    }
+
+    @Override
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(lightBuildExtFromResource(input)));
+        createSubTasks(getSrcBuilder(input), taskBuilder);
+        return taskBuilder.build();
     }
 
     @Override

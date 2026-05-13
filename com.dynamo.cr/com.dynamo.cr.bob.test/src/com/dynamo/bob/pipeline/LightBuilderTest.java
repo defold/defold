@@ -24,6 +24,7 @@ import java.util.List;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gamesys.proto.DataProto.Data;
 import com.dynamo.proto.DdfStruct.Value;
 import com.google.protobuf.Message;
@@ -142,6 +143,18 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testSpotLightBuilderTags() throws Exception {
         assertLightTags("/light/test.spot_light", SPOT_LIGHT_SOURCE, "spot_light");
+    }
+
+    @Test
+    public void testLightBuildersUseSourceSpecificOutputExtensions() throws Exception {
+        for (String ext : new String[] {"point_light", "directional_light", "spot_light"}) {
+            String source = ext.equals("spot_light") ? SPOT_LIGHT_SOURCE : ext.equals("point_light") ? POINT_LIGHT_SOURCE : LIGHT_SOURCE;
+            String path = "/light/test." + ext;
+
+            build(path, source);
+            assertNotNull(getFile("build/light/test." + ext + ".lightc"));
+            assertEquals("." + ext + ".lightc", ResourceUtil.getOutputExt("." + ext));
+        }
     }
 
     @Test

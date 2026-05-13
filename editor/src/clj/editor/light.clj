@@ -114,6 +114,9 @@
     :directional "directional_light"
     :spot "spot_light"))
 
+(defn- ext->build-ext [ext]
+  (str ext ".lightc"))
+
 (defn- get-number [fields key default]
   (double (or (get-in fields [key :number]) default)))
 
@@ -928,6 +931,6 @@
                 :view-opts {}
                 :tags #{:component}
                 :tag-opts {:component {:transform-properties #{}}}
-                :build-ext "lightc"
+                :build-ext (ext->build-ext ext)
                 :label (ext->resource-type-label ext))))
           ["point_light" "directional_light" "spot_light"]))
