@@ -882,19 +882,19 @@ namespace dmGameSystem
         {
             if (component->m_UseSlice9)
             {
-                component->m_VertexCount   += SPRITE_VERTEX_COUNT_SLICE9;
-                component->m_IndexCount    += SPRITE_INDEX_COUNT_SLICE9;
+                component->m_VertexCount   = SPRITE_VERTEX_COUNT_SLICE9;
+                component->m_IndexCount    = SPRITE_INDEX_COUNT_SLICE9;
             }
             else
             {
-                component->m_VertexCount   += SPRITE_VERTEX_COUNT_LEGACY;
-                component->m_IndexCount    += SPRITE_INDEX_COUNT_LEGACY;
+                component->m_VertexCount   = SPRITE_VERTEX_COUNT_LEGACY;
+                component->m_IndexCount    = SPRITE_INDEX_COUNT_LEGACY;
             }
         }
         else
         {
-            component->m_VertexCount += anim_data->m_VertexCount;
-            component->m_IndexCount += anim_data->m_IndicesCount;
+            component->m_VertexCount = anim_data->m_VertexCount;
+            component->m_IndexCount = anim_data->m_IndicesCount;
         }
     }
 
