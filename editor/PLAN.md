@@ -121,7 +121,8 @@ JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' 
 - Keep all `GuiResourceKindNode` graph properties hidden; it is an internal folder node, not user-editable resource data.
 - Replace `SpineScenesNode` with `GuiResourceKindNode`; keep `SpineSceneNode` and `attach-spine-scene`.
 - Initialize built-in GUI node type infos in the `.gui` resource type registration metadata.
-- Add generic editor tests with a fake custom GUI node type and resource kind to cover registration, load, save, and deterministic property/resource order.
+- Add generic editor tests with a fake custom GUI node type and resource kind to cover registration metadata, `.gui` editable/non-editable resource type updates, load/save using numeric `custom_type`, generic resource kind load/save, and deterministic property/resource order.
+- In the Part 1 tests, assert `custom_type_name` registration derives the expected numeric `custom_type` and stores the name mappings, but do not require project files to load from `custom_type_name` yet.
 
 ## 2. Move custom GUI field storage to layout-aware `:custom-properties`.
 
@@ -154,7 +155,8 @@ JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' 
 - Fail fast if both `custom_type_name` and `custom_type` are present but disagree.
 - Update `save_data_test` classification for `custom_type_name` and `custom_properties`.
 - Update `save_data_test` Spine GUI fixtures to the new project-file format.
-- Add editor save tests for old numeric Spine custom type migration, mismatched `custom_type_name`/`custom_type` rejection, and readable source output.
+- Add editor save tests for loading/saving readable `custom_type_name` without numeric `custom_type`, old numeric Spine custom type migration, mismatched `custom_type_name`/`custom_type` rejection, and readable source output.
+- Update the fake custom GUI node/resource kind test, or add a sibling test, to use `custom_type_name` once project-file loading from `custom_type_name` is implemented.
 
 ## 5. Build runtime custom GUI data from the editor.
 

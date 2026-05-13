@@ -13,24 +13,29 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.gui-test
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.gl.pass :as pass]
+            [editor.graph-util :as gu]
             [editor.gui :as gui]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.node :as in]
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc]))
 
 (defn- prop [node-id label]
@@ -76,6 +81,69 @@
 (def ^:private gui-material (partial gui-resource-node gui-materials))
 (def ^:private gui-spine-scene (partial gui-resource-node gui-spine-scenes))
 
+(g/defnode TestCustomGuiNode
+  (inherits gui/BoxNode))
+
+(g/defnode TestGuiResourceNode
+  (inherits outline/OutlineNode)
+  (property name g/Str
+            (dynamic error (g/fnk [_node-id name name-counts]
+                             (gui/prop-unique-id-error _node-id :name name name-counts "Name"))))
+  (property test-gui-resource resource/Resource
+            (value (gu/passthrough test-gui-resource-resource))
+            (dynamic error (g/fnk [_node-id test-gui-resource]
+                             (gui/prop-resource-error _node-id :test-gui-resource test-gui-resource "Test GUI Resource"))))
+  (input name-counts gui/NameCounts)
+  (input test-gui-resource-resource resource/Resource)
+  (output node-outline outline/OutlineData :cached
+          (g/fnk [_node-id name test-gui-resource-resource build-errors]
+            (cond-> {:node-id _node-id
+                     :node-outline-key name
+                     :label name
+                     :icon "icons/32/Icons_01-Folder-closed.png"
+                     :outline-error? (g/error-fatal? build-errors)}
+                    (resource/resource? test-gui-resource-resource)
+                    (assoc :link test-gui-resource-resource :outline-show-link? true))))
+  (output pb-msg g/Any (g/fnk [name test-gui-resource]
+                         {:name name
+                          :path (resource/resource->proj-path test-gui-resource)}))
+  (output build-errors g/Any (g/fnk [_node-id name name-counts test-gui-resource]
+                               (g/package-errors _node-id
+                                 (gui/prop-unique-id-error _node-id :name name name-counts "Name")
+                                 (gui/prop-resource-error _node-id :test-gui-resource test-gui-resource "Test GUI Resource")))))
+
+(defn- attach-test-gui-resource [scene resources-node entry-node]
+  (concat
+    (g/connect entry-node :_node-id resources-node :nodes)
+    (g/connect entry-node :name resources-node :names)
+    (g/connect entry-node :build-errors resources-node :build-errors)
+    (g/connect entry-node :node-outline resources-node :child-outlines)
+    (g/connect entry-node :pb-msg scene :resource-msgs)
+    (g/connect resources-node :name-counts entry-node :name-counts)))
+
+(defn- register-test-gui-extensions [workspace]
+  (g/transact
+    (concat
+      (gui/register-node-type-info
+        workspace
+        {:node-type :type-custom
+         :node-cls TestCustomGuiNode
+         :display-name "Test Custom"
+         :custom-type-name "TestCustom"
+         :icon "icons/32/Icons_40-GUI-Box-node.png"
+         :defaults gui/shape-base-node-defaults})
+      (gui/register-node-tree-attachment-node-type workspace TestCustomGuiNode)
+      (gui/register-gui-resource-kind
+        workspace
+        :test-gui-resource
+        {:label "Test GUI Resources"
+         :icon "icons/32/Icons_01-Folder-closed.png"
+         :exts "testguiresource"
+         :node-type TestGuiResourceNode
+         :resource-property :test-gui-resource
+         :attachment-property :test-gui-resources
+         :attach-fn attach-test-gui-resource}))))
+
 (defn- property-value-choices [node-id label]
   (->> (g/node-value node-id :_properties)
        :properties
@@ -89,6 +157,46 @@
     (let [node-id (test-util/resource-node project "/logic/main.gui")
           _gui-node (ffirst (g/sources-of node-id :child-outlines))]
       (is (some? _gui-node)))))
+
+(deftest custom-gui-extension-registration
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (let [custom-type (murmur/hash32 "TestCustom")
+          source-resources [{:name "beta" :path "/beta.testguiresource"}
+                            {:name "alpha" :path "/alpha.testguiresource"}]]
+      (register-test-gui-extensions workspace)
+      (doseq [editability [:editable :non-editable]
+              :let [gui-resource-type (get (workspace/get-resource-type-map workspace editability) "gui")
+                    node-type-info (get-in gui-resource-type [:gui-node-type-registry :custom-type-name->type-info "TestCustom"])
+                    resource-kind-info (get-in gui-resource-type [:gui-resource-kind-registry :test-gui-resource])]]
+        (is (= custom-type (:custom-type node-type-info)))
+        (is (= "TestCustom" (get-in gui-resource-type [:gui-node-type-registry :node-cls->custom-type-name TestCustomGuiNode])))
+        (is (= ["testguiresource"] (:exts resource-kind-info))))
+      (doseq [proj-path ["/alpha.testguiresource" "/beta.testguiresource"]]
+        (let [file (test-util/file workspace proj-path)]
+          (io/make-parents file)
+          (spit file "")))
+      (let [gui-resource (test-util/make-resource!
+                           workspace
+                           "/custom_resources.gui"
+                           {:resources source-resources
+                            :nodes [{:type :type-custom
+                                     :custom-type custom-type
+                                     :id "custom"}]})]
+        (workspace/resource-sync! workspace)
+        (let [gui-scene (test-util/resource-node project gui-resource)
+              custom-node (gui-node gui-scene "custom")
+              resources-node (gui-resources-node "Test GUI Resources" gui-scene)
+              resource-outline (g/node-value resources-node :node-outline)
+              save-value (g/node-value gui-scene :save-value)]
+          (is (g/node-instance? TestCustomGuiNode custom-node))
+          (is (= ["beta" "alpha"]
+                 (mapv :node-outline-key (:children resource-outline))))
+          (is (= source-resources (:resources save-value)))
+          (is (= [{:type :type-custom
+                   :custom-type custom-type
+                   :id "custom"}]
+                 (mapv #(select-keys % [:type :custom-type :id])
+                       (:nodes save-value)))))))))
 
 (deftest gui-scene-generation
   (test-util/with-loaded-project
