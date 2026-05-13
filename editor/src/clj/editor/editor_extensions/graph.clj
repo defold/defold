@@ -256,15 +256,16 @@
       (string/replace property "-" "_"))))
 
 (defn- available-outline-property [prop-kw outline-property]
-  (when outline-property
-    (let [outline-property (cond-> outline-property
-                                   (:ext-edit-type outline-property)
-                                   (assoc :edit-type (:ext-edit-type outline-property))
+  (when (and outline-property
+             (properties/visible? outline-property))
+    (let [ext-edit-type (:ext-edit-type outline-property)
+          outline-property (cond-> outline-property
+                                   ext-edit-type
+                                   (assoc :edit-type ext-edit-type)
 
                                    (not (contains? outline-property :prop-kw))
                                    (assoc :prop-kw prop-kw))]
-      (when (and (properties/visible? outline-property)
-                 (edit-type-id->value-converter (properties/property-edit-type-id outline-property)))
+      (when (edit-type-id->value-converter (properties/property-edit-type-id outline-property))
         outline-property))))
 
 (defn- outline-property [node-id property evaluation-context]
