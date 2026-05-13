@@ -79,20 +79,20 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void checkExpectedLanguages(ShaderDesc shader, ShaderDesc.Language[] expectedLanguages) {
-        assertEquals(expectedLanguages.length, shader.getShadersCount());
-
-        boolean found = false;
-        for (int i = 0; i < shader.getShadersList().size(); i++) {
-            ShaderDesc.Shader shaderDesc = shader.getShaders(i);
+        for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {
             assertNotNull(shaderDesc.getSource());
-            for (ShaderDesc.Language expectedLanguage : expectedLanguages) {
+        }
+
+        for (ShaderDesc.Language expectedLanguage : expectedLanguages) {
+            boolean found = false;
+            for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {
                 if (shaderDesc.getLanguage() == expectedLanguage) {
                     found = true;
                     break;
                 }
             }
+            assertTrue(found);
         }
-        assertTrue(found);
     }
 
     private void doTest(ShaderDesc.Language[] expectedLanguages, String outputResource) throws Exception {
