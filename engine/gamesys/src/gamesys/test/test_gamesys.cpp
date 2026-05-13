@@ -4946,7 +4946,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     dmGameObject::InputAction input_action_connected;
     input_action_connected.m_ActionId = dmHashString64("gamepad_connected");
     input_action_connected.m_GamepadConnected = 1;
-    input_action_connected.m_TextCount = dmStrlCpy(input_action_connected.m_Text, "null_device", sizeof(input_action_connected.m_Text));
+    input_action_connected.m_Count = dmStrlCpy(input_action_connected.m_Text, "null_device", sizeof(input_action_connected.m_Text));
     dmGameObject::UpdateResult res = dmGameObject::DispatchInput(m_Collection, &input_action_connected, 1);
 
     ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
@@ -4956,7 +4956,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     // test gamepad connected with empty device name
     dmGameObject::InputAction input_action_empty;
     input_action_empty.m_ActionId = dmHashString64("gamepad_connected_0");
-    input_action_empty.m_TextCount = 0;
+    input_action_empty.m_Count = 0;
     input_action_empty.m_GamepadConnected = 1;
     res = dmGameObject::DispatchInput(m_Collection, &input_action_empty, 1);
 
@@ -4968,7 +4968,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     dmGameObject::InputAction input_action_other;
     input_action_other.m_ActionId = dmHashString64("other_event");
     input_action_other.m_GamepadConnected = 0;
-    input_action_other.m_TextCount = dmStrlCpy(input_action_other.m_Text, "null_device", sizeof(input_action_other.m_Text));
+    input_action_other.m_Count = dmStrlCpy(input_action_other.m_Text, "null_device", sizeof(input_action_other.m_Text));
     res = dmGameObject::DispatchInput(m_Collection, &input_action_other, 1);
 
     ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
@@ -5556,17 +5556,17 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         float p3[] = {  pfx_s,  pfx_s};
 
         SET_VTX_A(pfx_a[0], p0[0], p0[1], 1.0f, 0.0f);
-        SET_VTX_A(pfx_a[1], p1[0], p1[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[1], p2[0], p2[1], 1.0f, 0.0f);
         SET_VTX_A(pfx_a[2], p3[0], p3[1], 1.0f, 0.0f);
         SET_VTX_A(pfx_a[3], p3[0], p3[1], 1.0f, 0.0f);
-        SET_VTX_A(pfx_a[4], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[4], p1[0], p1[1], 1.0f, 0.0f);
         SET_VTX_A(pfx_a[5], p0[0], p0[1], 1.0f, 0.0f);
 
         SET_VTX_B(pfx_b[0], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(pfx_b[1], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[1], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
         SET_VTX_B(pfx_b[2], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
         SET_VTX_B(pfx_b[3], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(pfx_b[4], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[4], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
         SET_VTX_B(pfx_b[5], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
 
         for (int i = 0; i < num_draws; ++i)
@@ -6405,7 +6405,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         18,
-        {0, 1, 2, 0, 2, 2, 0, 2, 3, 0, 3, 3, 0, 3, 3, 0, 3, 3}
+        {0, 2, 1, 0, 2, 2, 0, 3, 2, 0, 3, 3, 0, 3, 3, 0, 3, 3}
     },
     // 9-slice params: off | Use geometries: off | Flip uv: off | Texture: tilesource animation
     {
@@ -6417,7 +6417,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
-        {0, 1, 2, 0, 2, 3}
+        {0, 2, 1, 0, 3, 2}
     },
     // 9-slice params: off | Use geometries: off | Flip uv: u | Texture: tilesource animation
     {
@@ -6429,7 +6429,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
-        {0, 1, 2, 0, 2, 3}
+        {0, 2, 1, 0, 3, 2}
     },
     // 9-slice params: off | Use geometries: off | Flip uv: uv | Texture: tilesource animation
     {
@@ -6441,7 +6441,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
-        {0, 1, 2, 0, 2, 3}
+        {0, 2, 1, 0, 3, 2}
     },
     // 9-slice params: on | Use geometries: 8 | Flip uv: uv | Texture: tilesource animation
     {
@@ -6537,7 +6537,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(32.000000, -32.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0),  1)
         },
         6,
-        {0, 1, 2, 0, 2, 3}
+        {0, 2, 1, 0, 3, 2}
     }
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));

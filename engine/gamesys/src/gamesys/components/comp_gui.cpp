@@ -2274,20 +2274,21 @@ namespace dmGameSystem
                 v = 0.5f + d * s;
                 BoxVertex vOuter(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color, page_index);
 
-                // both inner & outer are doubled at first / last entry to generate degenerate triangles
+                // both outer & inner are doubled at first / last entry to generate degenerate triangles
                 // for the triangle strip, allowing more than one pie to be chained together in the same
                 // drawcall.
+                // CCW winding order: push outer before inner so front face points toward camera
                 if (first)
                 {
-                    gui_world->m_ClientVertexBuffer.Push(vInner);
+                    gui_world->m_ClientVertexBuffer.Push(vOuter);
                     first = false;
                 }
 
-                gui_world->m_ClientVertexBuffer.Push(vInner);
                 gui_world->m_ClientVertexBuffer.Push(vOuter);
+                gui_world->m_ClientVertexBuffer.Push(vInner);
 
                 if (j == generate-1)
-                    gui_world->m_ClientVertexBuffer.Push(vOuter);
+                    gui_world->m_ClientVertexBuffer.Push(vInner);
             }
 
             assert((gui_world->m_ClientVertexBuffer.Size() - sizeBefore) <= ComputeRequiredVertices(dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node)));
@@ -2918,15 +2919,32 @@ namespace dmGameSystem
             gui_input_action.m_AccelerationSet = params.m_InputAction->m_AccelerationSet;
             gui_input_action.m_UserID = params.m_InputAction->m_UserID;
 
-            gui_input_action.m_TouchCount = params.m_InputAction->m_TouchCount;
-            int tc = params.m_InputAction->m_TouchCount;
-            for (int i = 0; i < tc; ++i) {
-                gui_input_action.m_Touch[i] = params.m_InputAction->m_Touch[i];
-            }
 
-            size_t text_count = dmStrlCpy(gui_input_action.m_Text, params.m_InputAction->m_Text, sizeof(gui_input_action.m_Text));
-            gui_input_action.m_TextCount = text_count;
             gui_input_action.m_HasText = params.m_InputAction->m_HasText;
+            gui_input_action.m_TouchCount = 0;
+            gui_input_action.m_TextCount = 0;
+
+            if (gui_input_action.m_GamepadConnected)
+            {
+                size_t text_count = dmStrlCpy(gui_input_action.m_Text, params.m_InputAction->m_Text, sizeof(gui_input_action.m_Text));
+                gui_input_action.m_TextCount = text_count;
+            }
+            else if (params.m_InputAction->m_Count > 0)
+            {
+                if (!gui_input_action.m_HasText)
+                {
+                    gui_input_action.m_TouchCount = params.m_InputAction->m_Count;
+                    int tc = gui_input_action.m_TouchCount;
+                    for (int i = 0; i < tc; ++i) {
+                        gui_input_action.m_Touch[i] = params.m_InputAction->m_Touch[i];
+                    }
+                }
+                else
+                {
+                    size_t text_count = dmStrlCpy(gui_input_action.m_Text, params.m_InputAction->m_Text, sizeof(gui_input_action.m_Text));
+                    gui_input_action.m_TextCount = text_count;
+                }
+            }
 
             bool consumed;
             dmGui::Result gui_result = dmGui::DispatchInput(scene, &gui_input_action, 1, &consumed);
