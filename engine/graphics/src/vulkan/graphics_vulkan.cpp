@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <string.h>
+#include <stdlib.h>
 
 #include <dlib/math.h>
 #include <dlib/array.h>
@@ -22,6 +23,7 @@
 #include <dlib/jobsystem.h>
 #include <dlib/thread.h>
 #include <dlib/sys.h>
+#include <dlib/time.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
@@ -70,6 +72,19 @@ namespace dmGraphics
              strcmp(value, "YES") == 0 ||
              strcmp(value, "on") == 0 ||
              strcmp(value, "ON") == 0);
+    }
+
+    static uint32_t GetEnvU32(const char* name, uint32_t default_value)
+    {
+        const char* value = dmSys::GetEnv(name);
+        if (value == 0 || value[0] == '\0')
+        {
+            return default_value;
+        }
+
+        char* end = 0;
+        unsigned long result = strtoul(value, &end, 10);
+        return end != value ? (uint32_t) result : default_value;
     }
 
     static VulkanTexture* VulkanNewTextureInternal(const TextureCreationParams& params);
@@ -185,6 +200,8 @@ namespace dmGraphics
         m_SwapInterval            = params.m_SwapInterval;
         m_JobContext              = params.m_JobContext;
         m_UseRenderGraph          = params.m_ExperimentalVulkanRenderGraph || IsTruthyEnvValue(dmSys::GetEnv("DM_VULKAN_RENDER_GRAPH"));
+        m_BenchmarkFrames         = GetEnvU32("DM_VULKAN_BENCHMARK_FRAMES", 0);
+        m_BenchmarkWarmupFrames   = GetEnvU32("DM_VULKAN_BENCHMARK_WARMUP_FRAMES", 120);
 
         // We need to have some sort of valid default filtering
         if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -211,6 +228,65 @@ namespace dmGraphics
         {
             VulkanTexture* texture = (VulkanTexture*) resource;
             TouchResource(context, &texture->m_DeviceBuffer);
+        }
+    }
+
+    static inline bool VulkanBenchmarkIsSampling(VulkanContext* context)
+    {
+        return context->m_BenchmarkFrames != 0 &&
+            context->m_BenchmarkSeenFrames >= context->m_BenchmarkWarmupFrames &&
+            context->m_BenchmarkSampledFrames < context->m_BenchmarkFrames;
+    }
+
+    static inline void VulkanBenchmarkCounter(uint64_t* counter, VulkanContext* context, uint32_t amount = 1)
+    {
+        if (VulkanBenchmarkIsSampling(context))
+        {
+            *counter += amount;
+        }
+    }
+
+    static void VulkanBenchmarkBeginFrame(VulkanContext* context)
+    {
+        if (context->m_BenchmarkFrames != 0 && context->m_BenchmarkLogged == 0)
+        {
+            context->m_BenchmarkFrameStartUs = dmTime::GetMonotonicTime();
+        }
+    }
+
+    static void VulkanBenchmarkEndFrame(VulkanContext* context)
+    {
+        if (context->m_BenchmarkFrames == 0 || context->m_BenchmarkLogged)
+        {
+            return;
+        }
+
+        const bool sample_frame = VulkanBenchmarkIsSampling(context);
+        if (sample_frame)
+        {
+            uint64_t now = dmTime::GetMonotonicTime();
+            context->m_BenchmarkFrameTotalUs += now - context->m_BenchmarkFrameStartUs;
+            context->m_BenchmarkSampledFrames++;
+        }
+
+        context->m_BenchmarkSeenFrames++;
+
+        if (context->m_BenchmarkSampledFrames >= context->m_BenchmarkFrames)
+        {
+            double inv_frames = 1.0 / (double) context->m_BenchmarkSampledFrames;
+            dmLogInfo("Vulkan benchmark rg=%u frames=%u warmup=%u avg_frame_us=%.2f avg_begin_pass=%.2f avg_end_pass=%.2f avg_rg_barriers=%.2f avg_immediate_barriers=%.2f avg_descriptor_updates=%.2f avg_draws=%.2f avg_dispatches=%.2f",
+                context->m_UseRenderGraph,
+                context->m_BenchmarkSampledFrames,
+                context->m_BenchmarkWarmupFrames,
+                (double) context->m_BenchmarkFrameTotalUs * inv_frames,
+                (double) context->m_BenchmarkBeginRenderPassCount * inv_frames,
+                (double) context->m_BenchmarkEndRenderPassCount * inv_frames,
+                (double) context->m_BenchmarkRenderGraphBarrierCount * inv_frames,
+                (double) context->m_BenchmarkImmediateBarrierCount * inv_frames,
+                (double) context->m_BenchmarkDescriptorUpdateCount * inv_frames,
+                (double) context->m_BenchmarkDrawCount * inv_frames,
+                (double) context->m_BenchmarkDispatchCount * inv_frames);
+            context->m_BenchmarkLogged = 1;
         }
     }
 
@@ -477,6 +553,7 @@ namespace dmGraphics
         }
 
         vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
+        VulkanBenchmarkCounter(&context->m_BenchmarkEndRenderPassCount, context);
 
         if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
@@ -615,6 +692,7 @@ namespace dmGraphics
         vk_render_pass_begin_info.pClearValues        = vk_clear_values;
 
         vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+        VulkanBenchmarkCounter(&context->m_BenchmarkBeginRenderPassCount, context);
 
         rt->m_IsBound          = 1;
         rt->m_SubPassIndex     = 0;
@@ -1701,6 +1779,7 @@ bail:
     static void VulkanBeginFrame(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
+        VulkanBenchmarkBeginFrame(context);
         NativeBeginFrame(_context);
 
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
@@ -1879,6 +1958,8 @@ bail:
         {
             CHECK_VK_ERROR(res);
         }
+
+        VulkanBenchmarkEndFrame(context);
 
         // Advance frame-in-flight index
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
@@ -2693,6 +2774,7 @@ bail:
                 layout,
                 0,
                 texture->m_LayerCount);
+            VulkanBenchmarkCounter(&context->m_BenchmarkRenderGraphBarrierCount, context);
         }
         else
         {
@@ -2706,6 +2788,7 @@ bail:
                 0,
                 texture->m_LayerCount);
             CHECK_VK_ERROR(res);
+            VulkanBenchmarkCounter(&context->m_BenchmarkImmediateBarrierCount, context);
         }
     }
 
@@ -2936,6 +3019,7 @@ bail:
         if (perform_vk_update)
         {
             vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
+            VulkanBenchmarkCounter(&context->m_BenchmarkDescriptorUpdateCount, context);
         }
     }
 
@@ -3294,6 +3378,7 @@ bail:
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
         uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
         vkCmdDrawIndexed(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
+        VulkanBenchmarkCounter(&context->m_BenchmarkDrawCount, context);
     }
 
     static void VulkanDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -3308,6 +3393,7 @@ bail:
         context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[ix], 0, TYPE_BYTE);
         vkCmdDraw(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
+        VulkanBenchmarkCounter(&context->m_BenchmarkDrawCount, context);
     }
 
     static void VulkanDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -3327,6 +3413,7 @@ bail:
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[ix];
         DrawSetupCompute(context, vk_command_buffer, &context->m_MainScratchBuffers[ix]);
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
+        VulkanBenchmarkCounter(&context->m_BenchmarkDispatchCount, context);
     }
 
     static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)

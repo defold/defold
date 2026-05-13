@@ -523,6 +523,22 @@ namespace dmGraphics
         uint32_t                        m_WindowWidth;
         uint32_t                        m_WindowHeight;
         uint32_t                        m_SwapInterval;
+
+        uint64_t                        m_BenchmarkFrameStartUs;
+        uint64_t                        m_BenchmarkFrameTotalUs;
+        uint64_t                        m_BenchmarkBeginRenderPassCount;
+        uint64_t                        m_BenchmarkEndRenderPassCount;
+        uint64_t                        m_BenchmarkRenderGraphBarrierCount;
+        uint64_t                        m_BenchmarkImmediateBarrierCount;
+        uint64_t                        m_BenchmarkDescriptorUpdateCount;
+        uint64_t                        m_BenchmarkDrawCount;
+        uint64_t                        m_BenchmarkDispatchCount;
+        uint32_t                        m_BenchmarkFrames;
+        uint32_t                        m_BenchmarkWarmupFrames;
+        uint32_t                        m_BenchmarkSeenFrames;
+        uint32_t                        m_BenchmarkSampledFrames;
+        uint32_t                        m_BenchmarkLogged;
+
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;
         uint32_t                        m_NumFramesInFlight    : 2;
