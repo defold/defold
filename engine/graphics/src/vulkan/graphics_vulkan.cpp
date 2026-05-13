@@ -2182,6 +2182,12 @@ namespace dmGraphics
             device_pNext_chain = &context->m_FragmentShaderInterlockFeatures;
         }
 
+        if (VulkanIsExtensionSupported((HContext) context, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME))
+        {
+            device_extensions.OffsetCapacity(1);
+            device_extensions.Push(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
+        }
+
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             device_extensions.Begin(), (uint8_t)device_extensions.Size(),
             validation_layers, (uint8_t)validation_layers_count, device_pNext_chain, &logical_device);
@@ -2193,6 +2199,25 @@ namespace dmGraphics
 
         context->m_LogicalDevice    = logical_device;
         context->m_WaitForPresent   = (PFN_vkWaitForPresentKHR) vkGetDeviceProcAddr(logical_device.m_Device, "vkWaitForPresentKHR");
+        context->m_CmdPushDescriptorSet = (PFN_vkCmdPushDescriptorSetKHR) vkGetDeviceProcAddr(logical_device.m_Device, "vkCmdPushDescriptorSetKHR");
+        if (context->m_CmdPushDescriptorSet != 0 && VulkanIsExtensionSupported((HContext) context, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME))
+        {
+            VkPhysicalDevicePushDescriptorPropertiesKHR push_descriptor_properties = {};
+            push_descriptor_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR;
+
+            VkPhysicalDeviceProperties2 properties2 = {};
+            properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+            properties2.pNext = &push_descriptor_properties;
+            vkGetPhysicalDeviceProperties2(context->m_PhysicalDevice.m_Device, &properties2);
+
+            context->m_MaxPushDescriptors = push_descriptor_properties.maxPushDescriptors;
+            context->m_PushDescriptorsSupported = context->m_MaxPushDescriptors > 0 ? 1 : 0;
+
+            if (VulkanDebugTimingPushDescriptorsLog())
+            {
+                dmLogInfo("Vulkan push descriptors supported max=%u", context->m_MaxPushDescriptors);
+            }
+        }
         vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         // Create swap chain
@@ -3496,7 +3521,7 @@ bail:
 #endif
     }
 
-    static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, VulkanProgram* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment, bool perform_vk_update)
+    static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkCommandBuffer vk_command_buffer, VkPipelineBindPoint bind_point, VkDescriptorSet* vk_descriptor_sets, VulkanProgram* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment, bool perform_vk_update, bool use_push_descriptors)
     {
         const uint32_t max_write_descriptors = MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT;
         VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
@@ -3519,10 +3544,16 @@ bail:
                 continue;
             }
 
+            const bool is_push_descriptor_resource = program->m_UsePushDescriptors && res->m_Set == program->m_PushDescriptorSet;
+            if (is_push_descriptor_resource != use_push_descriptors)
+            {
+                continue;
+            }
+
             VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index];
             vk_write_desc_info.sType                 = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             vk_write_desc_info.pNext                 = 0;
-            vk_write_desc_info.dstSet                = vk_descriptor_sets[res->m_Set];
+            vk_write_desc_info.dstSet                = use_push_descriptors ? VK_NULL_HANDLE : vk_descriptor_sets[res->m_Set];
             vk_write_desc_info.dstBinding            = res->m_Binding;
             vk_write_desc_info.dstArrayElement       = 0;
             vk_write_desc_info.descriptorCount       = 1;
@@ -3580,19 +3611,26 @@ bail:
                         //       the descriptor every frame, like animals..
                         UpdateUniformBufferDescriptor(context,
                             bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer,
-                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                            use_push_descriptors ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
                             vk_write_buffer_descriptors[buffer_to_write_index++],
                             vk_write_desc_info,
                             0,
                             bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
 
-                        dynamic_offsets[dynamic_offset_index] = 0;
-                        dynamic_offset_index++;
+                        if (!use_push_descriptors)
+                        {
+                            dynamic_offsets[dynamic_offset_index] = 0;
+                            dynamic_offset_index++;
+                        }
                     }
                     else
                     {
-                        dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                        uint32_t scratch_offset = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                        if (!use_push_descriptors)
+                        {
+                            dynamic_offsets[dynamic_offset_index] = scratch_offset;
+                        }
                         const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
                         const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
@@ -3606,16 +3644,19 @@ bail:
 
                         UpdateUniformBufferDescriptor(context,
                             scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer,
-                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                            use_push_descriptors ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
                             vk_write_buffer_descriptors[buffer_to_write_index++],
                             vk_write_desc_info,
-                            0,
+                            use_push_descriptors ? scratch_offset : 0,
                             uniform_size_align);
 
                         scratch_buffer->m_MappedDataCursor += uniform_size_align;
                         TouchResource(context, &scratch_buffer->m_DeviceBuffer);
 
-                        dynamic_offset_index++;
+                        if (!use_push_descriptors)
+                        {
+                            dynamic_offset_index++;
+                        }
                     }
                 } break;
                 case BINDING_FAMILY_GENERIC:
@@ -3625,7 +3666,20 @@ bail:
             uniform_to_write_index++;
         }
 
-        if (perform_vk_update)
+        if (use_push_descriptors)
+        {
+            context->m_CmdPushDescriptorSet(vk_command_buffer,
+                bind_point,
+                program->m_Handle.m_PipelineLayout,
+                program->m_PushDescriptorSet,
+                uniform_to_write_index,
+                vk_write_descriptors);
+#if defined(USE_DEBUG_TIMINGS)
+            context->m_DebugTimingAccumulator.m_DescriptorUpdateCalls++;
+            context->m_DebugTimingAccumulator.m_DescriptorWrites += uniform_to_write_index;
+#endif
+        }
+        else if (perform_vk_update)
         {
             vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
 #if defined(USE_DEBUG_TIMINGS)
@@ -3646,6 +3700,10 @@ bail:
         {
             ShaderResourceBinding* res = next->m_Res;
             if (res->m_BindingFamily == BINDING_FAMILY_UNIFORM_BUFFER && res->m_UsePushConstant)
+            {
+                continue;
+            }
+            if (program->m_UsePushDescriptors && res->m_Set == program->m_PushDescriptorSet)
             {
                 continue;
             }
@@ -3732,12 +3790,25 @@ bail:
 #if defined(USE_DEBUG_TIMINGS)
         uint64_t cpu_commit_start = VulkanDebugTimingCpuBegin(context);
 #endif
-        const uint32_t num_descriptors     = program_ptr->m_TotalResourcesCount;
-        const uint32_t num_dynamic_offsets = program_ptr->m_UniformBufferCount;
+        const uint32_t push_descriptor_count = program_ptr->m_UsePushDescriptors ? program_ptr->m_PushDescriptorCount : 0;
+        const uint32_t num_descriptors       = program_ptr->m_TotalResourcesCount - push_descriptor_count;
+        const uint32_t num_dynamic_offsets   = program_ptr->m_UniformBufferCount - (program_ptr->m_UsePushDescriptors ? program_ptr->m_PushDescriptorUniformBufferCount : 0);
+        const uint32_t descriptor_set_count  = program_ptr->m_UsePushDescriptors ? program_ptr->m_PushDescriptorSet : program_ptr->m_Handle.m_DescriptorSetLayoutsCount;
 
         PushUniformBufferConstants(context, vk_command_buffer, program_ptr);
 
-        if (num_descriptors == 0)
+        if (program_ptr->m_UsePushDescriptors)
+        {
+#if defined(USE_DEBUG_TIMINGS)
+            uint64_t cpu_update_start = VulkanDebugTimingCpuBegin(context);
+#endif
+            UpdateDescriptorSets(context, vk_device, vk_command_buffer, bind_point, 0, program_ptr, scratch_buffer, dynamic_offsets, alignment, false, true);
+#if defined(USE_DEBUG_TIMINGS)
+            VulkanDebugTimingCpuEnd(context, cpu_update_start, &context->m_DebugTimingAccumulator.m_CPUDescriptorUpdateUs);
+#endif
+        }
+
+        if (num_descriptors == 0 || descriptor_set_count == 0)
         {
 #if defined(USE_DEBUG_TIMINGS)
             VulkanDebugTimingCpuEnd(context, cpu_commit_start, &context->m_DebugTimingAccumulator.m_CPUCommitUniformsUs);
@@ -3762,7 +3833,6 @@ bail:
         }
 
         const uint32_t allocator_generation  = context->m_DescriptorAllocatorGeneration[frame_index];
-        const uint32_t descriptor_set_count  = program_ptr->m_Handle.m_DescriptorSetLayoutsCount;
         uint64_t binding_signature = 0;
 
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
@@ -3808,7 +3878,7 @@ bail:
 #if defined(USE_DEBUG_TIMINGS)
             uint64_t cpu_update_start = VulkanDebugTimingCpuBegin(context);
 #endif
-            UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, true);
+            UpdateDescriptorSets(context, vk_device, vk_command_buffer, bind_point, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, true, false);
 #if defined(USE_DEBUG_TIMINGS)
             VulkanDebugTimingCpuEnd(context, cpu_update_start, &context->m_DebugTimingAccumulator.m_CPUDescriptorUpdateUs);
 #endif
@@ -3827,7 +3897,7 @@ bail:
 #if defined(USE_DEBUG_TIMINGS)
             uint64_t cpu_update_start = VulkanDebugTimingCpuBegin(context);
 #endif
-            UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, false);
+            UpdateDescriptorSets(context, vk_device, vk_command_buffer, bind_point, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, false, false);
 #if defined(USE_DEBUG_TIMINGS)
             VulkanDebugTimingCpuEnd(context, cpu_update_start, &context->m_DebugTimingAccumulator.m_CPUDescriptorUpdateUs);
 #endif
@@ -3840,7 +3910,7 @@ bail:
             bind_point,
             program_ptr->m_Handle.m_PipelineLayout,
             0,
-            program_ptr->m_Handle.m_DescriptorSetLayoutsCount,
+            descriptor_set_count,
             vk_descriptor_set_list,
             num_dynamic_offsets,
             dynamic_offsets);
@@ -4233,6 +4303,7 @@ bail:
 
             VkDescriptorSetLayoutCreateInfo set_create_info = {};
             set_create_info.sType                           = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            set_create_info.flags                           = program->m_UsePushDescriptors && i == program->m_PushDescriptorSet ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR : 0;
             set_create_info.pBindings                       = set_bindings;
             set_create_info.bindingCount                    = bindings_count;
 
@@ -4248,6 +4319,193 @@ bail:
         vk_layout_create_info.pPushConstantRanges    = program->m_Handle.m_PushConstantRanges;
 
         vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
+    }
+
+    enum PushDescriptorPolicy
+    {
+        PUSH_DESCRIPTOR_POLICY_LAST,
+        PUSH_DESCRIPTOR_POLICY_SINGLE,
+        PUSH_DESCRIPTOR_POLICY_UBO,
+        PUSH_DESCRIPTOR_POLICY_TEXTURE,
+        PUSH_DESCRIPTOR_POLICY_MATERIAL,
+        PUSH_DESCRIPTOR_POLICY_NONE,
+    };
+
+    struct PushDescriptorSetStats
+    {
+        uint32_t m_DescriptorCount;
+        uint32_t m_UniformBufferCount;
+        uint32_t m_TextureCount;
+        uint32_t m_SamplerCount;
+        uint32_t m_StorageBufferCount;
+    };
+
+    static PushDescriptorPolicy GetPushDescriptorPolicy(const char** policy_name)
+    {
+        char* value = dmSys::GetEnv("DEFOLD_VULKAN_DEBUG_PUSH_DESCRIPTORS_POLICY");
+        if (value == 0 || value[0] == 0)
+        {
+            *policy_name = "texture";
+            return PUSH_DESCRIPTOR_POLICY_TEXTURE;
+        }
+        if (dmStrCaseCmp(value, "last") == 0 || dmStrCaseCmp(value, "all") == 0)
+        {
+            *policy_name = "last";
+            return PUSH_DESCRIPTOR_POLICY_LAST;
+        }
+        if (dmStrCaseCmp(value, "single") == 0)
+        {
+            *policy_name = "single";
+            return PUSH_DESCRIPTOR_POLICY_SINGLE;
+        }
+        if (dmStrCaseCmp(value, "ubo") == 0 || dmStrCaseCmp(value, "ubos") == 0)
+        {
+            *policy_name = "ubo";
+            return PUSH_DESCRIPTOR_POLICY_UBO;
+        }
+        if (dmStrCaseCmp(value, "texture") == 0 || dmStrCaseCmp(value, "textures") == 0)
+        {
+            *policy_name = "texture";
+            return PUSH_DESCRIPTOR_POLICY_TEXTURE;
+        }
+        if (dmStrCaseCmp(value, "material") == 0 || dmStrCaseCmp(value, "mixed") == 0)
+        {
+            *policy_name = "material";
+            return PUSH_DESCRIPTOR_POLICY_MATERIAL;
+        }
+        if (dmStrCaseCmp(value, "none") == 0 || dmStrCaseCmp(value, "off") == 0)
+        {
+            *policy_name = "none";
+            return PUSH_DESCRIPTOR_POLICY_NONE;
+        }
+
+        *policy_name = "texture";
+        return PUSH_DESCRIPTOR_POLICY_TEXTURE;
+    }
+
+    static void CountDescriptorSetResources(VulkanProgram* program, uint32_t set, PushDescriptorSetStats* stats)
+    {
+        memset(stats, 0, sizeof(PushDescriptorSetStats));
+
+        ProgramResourceBindingIterator it(&program->m_BaseProgram);
+        const ProgramResourceBinding* next;
+        while ((next = it.Next()))
+        {
+            ShaderResourceBinding* res = next->m_Res;
+            if (res->m_Set != set || (res->m_BindingFamily == BINDING_FAMILY_UNIFORM_BUFFER && res->m_UsePushConstant))
+            {
+                continue;
+            }
+
+            switch (res->m_BindingFamily)
+            {
+                case BINDING_FAMILY_TEXTURE:
+                    stats->m_DescriptorCount++;
+                    if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                    {
+                        stats->m_SamplerCount++;
+                    }
+                    else
+                    {
+                        stats->m_TextureCount++;
+                    }
+                    break;
+                case BINDING_FAMILY_STORAGE_BUFFER:
+                    stats->m_DescriptorCount++;
+                    stats->m_StorageBufferCount++;
+                    break;
+                case BINDING_FAMILY_UNIFORM_BUFFER:
+                    stats->m_DescriptorCount++;
+                    stats->m_UniformBufferCount++;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    static bool PushDescriptorPolicyAllows(PushDescriptorPolicy policy, uint32_t max_set, const PushDescriptorSetStats& stats)
+    {
+        switch (policy)
+        {
+            case PUSH_DESCRIPTOR_POLICY_LAST:
+                return true;
+            case PUSH_DESCRIPTOR_POLICY_SINGLE:
+                return max_set == 1;
+            case PUSH_DESCRIPTOR_POLICY_UBO:
+                return stats.m_UniformBufferCount > 0;
+            case PUSH_DESCRIPTOR_POLICY_TEXTURE:
+                return stats.m_UniformBufferCount == 0 && (stats.m_TextureCount + stats.m_SamplerCount) > 0;
+            case PUSH_DESCRIPTOR_POLICY_MATERIAL:
+                return stats.m_UniformBufferCount > 0 && (stats.m_TextureCount + stats.m_SamplerCount) > 0;
+            case PUSH_DESCRIPTOR_POLICY_NONE:
+            default:
+                return false;
+        }
+    }
+
+    static bool SelectPushDescriptorSet(VulkanContext* context, VulkanProgram* program, const ProgramResourceBindingsInfo& binding_info)
+    {
+        if (!VulkanDebugTimingPushDescriptors() || !context->m_PushDescriptorsSupported || context->m_CmdPushDescriptorSet == 0)
+        {
+            return false;
+        }
+        if (binding_info.m_MaxSet == 0)
+        {
+            return false;
+        }
+
+        const char* policy_name = 0;
+        PushDescriptorPolicy policy = GetPushDescriptorPolicy(&policy_name);
+
+        if (VulkanDebugTimingPushDescriptorsLog())
+        {
+            for (uint32_t set = 0; set < binding_info.m_MaxSet; ++set)
+            {
+                PushDescriptorSetStats set_stats;
+                CountDescriptorSetResources(program, set, &set_stats);
+                dmLogInfo("Vulkan push descriptors stats program=%p policy=%s set=%u descriptors=%u ubos=%u textures=%u samplers=%u storage=%u candidate=%u",
+                    program,
+                    policy_name,
+                    set,
+                    set_stats.m_DescriptorCount,
+                    set_stats.m_UniformBufferCount,
+                    set_stats.m_TextureCount,
+                    set_stats.m_SamplerCount,
+                    set_stats.m_StorageBufferCount,
+                    set == binding_info.m_MaxSet - 1 ? 1u : 0u);
+            }
+        }
+
+        // Vulkan allows only one push descriptor set in a pipeline layout. For this
+        // experiment, only push the final set so the existing allocator can still bind
+        // sets 0..N-1 normally without sparse descriptor-set handling.
+        const uint32_t candidate_set = binding_info.m_MaxSet - 1;
+        PushDescriptorSetStats candidate_stats;
+        CountDescriptorSetResources(program, candidate_set, &candidate_stats);
+        if (candidate_stats.m_DescriptorCount == 0 ||
+            candidate_stats.m_DescriptorCount > context->m_MaxPushDescriptors ||
+            !PushDescriptorPolicyAllows(policy, binding_info.m_MaxSet, candidate_stats))
+        {
+            return false;
+        }
+
+        program->m_PushDescriptorSet = (uint8_t) candidate_set;
+        program->m_PushDescriptorCount = (uint16_t) candidate_stats.m_DescriptorCount;
+        program->m_PushDescriptorUniformBufferCount = (uint16_t) candidate_stats.m_UniformBufferCount;
+        return true;
+    }
+
+    static void ConvertDynamicUniformBindingsForPushDescriptors(VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint32_t set)
+    {
+        for (uint32_t binding_index = 0; binding_index < MAX_BINDINGS_PER_SET_COUNT; ++binding_index)
+        {
+            VkDescriptorSetLayoutBinding& binding = bindings[set][binding_index];
+            if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+            {
+                binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            }
+        }
     }
 
     static void ResolveSamplerTextureUnits(VulkanProgram* program, const dmArray<ShaderResourceBinding>&  texture_resources)
@@ -4324,6 +4582,10 @@ bail:
             return false;
         }
         if (!res.m_Name || strstr(res.m_Name, "_uniforms") != 0)
+        {
+            return false;
+        }
+        if (strncmp(res.m_Name, "_DMENGINE_GENERATED_UB_", strlen("_DMENGINE_GENERATED_UB_")) == 0)
         {
             return false;
         }
@@ -4406,6 +4668,15 @@ bail:
                 auto_stage_promoted[stage_index] = true;
                 range_count++;
                 *stage_offset += block_size_aligned;
+
+                if (VulkanDebugTimingPushConstantUbosLog())
+                {
+                    dmLogInfo("Vulkan auto push constant UBO name=%s stage=0x%02x size=%u offset=%u",
+                        res.m_Name,
+                        (uint32_t) stage_flag,
+                        (uint32_t) res.m_BindingInfo.m_BlockSize,
+                        (uint32_t) res.m_PushConstantOffset);
+                }
             }
         }
     }
@@ -4582,6 +4853,23 @@ bail:
         program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_SamplerCount + binding_info.m_StorageBufferCount; // num actual descriptors
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
+
+        program->m_UsePushDescriptors = SelectPushDescriptorSet(context, program, binding_info) ? 1 : 0;
+        if (program->m_UsePushDescriptors)
+        {
+            ConvertDynamicUniformBindingsForPushDescriptors(bindings, program->m_PushDescriptorSet);
+
+            if (VulkanDebugTimingPushDescriptorsLog())
+            {
+                dmLogInfo("Vulkan push descriptors enabled program=%p set=%u descriptors=%u ubos=%u total=%u sets=%u",
+                    program,
+                    (uint32_t) program->m_PushDescriptorSet,
+                    (uint32_t) program->m_PushDescriptorCount,
+                    (uint32_t) program->m_PushDescriptorUniformBufferCount,
+                    (uint32_t) program->m_TotalResourcesCount,
+                    (uint32_t) binding_info.m_MaxSet);
+            }
+        }
 
         CreatePipelineLayout(context, program, bindings, binding_info.m_MaxSet);
 

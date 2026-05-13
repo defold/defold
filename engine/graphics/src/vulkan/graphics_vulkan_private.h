@@ -38,6 +38,21 @@ namespace dmGraphics
         return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PUSH_CONSTANT_UBOS");
     }
 
+    static inline bool VulkanDebugTimingPushConstantUbosLog()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PUSH_CONSTANT_UBOS_LOG");
+    }
+
+    static inline bool VulkanDebugTimingPushDescriptors()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PUSH_DESCRIPTORS");
+    }
+
+    static inline bool VulkanDebugTimingPushDescriptorsLog()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PUSH_DESCRIPTORS_LOG");
+    }
+
 #if defined(USE_DEBUG_TIMINGS)
     static inline bool VulkanDebugTimingDontStoreRTDepth()
     {
@@ -429,7 +444,11 @@ namespace dmGraphics
         uint16_t       m_StorageBufferCount;
         uint16_t       m_TextureSamplerCount;
         uint16_t       m_TotalResourcesCount;
+        uint16_t       m_PushDescriptorCount;
+        uint16_t       m_PushDescriptorUniformBufferCount;
+        uint8_t        m_PushDescriptorSet;
         uint8_t        m_Destroyed : 1;
+        uint8_t        m_UsePushDescriptors : 1;
 
         DescriptorSetCache m_GraphicsDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
         DescriptorSetCache m_ComputeDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
@@ -537,6 +556,9 @@ namespace dmGraphics
         uint16_t                           m_DynamicOffsetBufferSize;
 
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
+        PFN_vkCmdPushDescriptorSetKHR       m_CmdPushDescriptorSet;
+        uint32_t                            m_MaxPushDescriptors;
+        uint8_t                             m_PushDescriptorsSupported : 1;
 
         // Async process resources
         HJobContext                        m_JobContext;
