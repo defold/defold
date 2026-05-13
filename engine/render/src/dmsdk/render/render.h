@@ -89,7 +89,7 @@ namespace dmRender
     * @typedef
     * @name HLightPrototype
     */
-    typedef struct LightPrototype* HLightPrototype;
+    typedef uint32_t HLightPrototype;
 
     /*#
      * @enum

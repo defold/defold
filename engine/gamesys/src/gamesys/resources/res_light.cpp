@@ -33,9 +33,9 @@ namespace dmGameSystem
         dmRender::HLightPrototype m_LightPrototype;
     };
 
-    dmRender::LightPrototype* GetLightPrototype(LightResource* res)
+    dmRender::HLightPrototype GetLightPrototype(LightResource* res)
     {
-        return res ? (dmRender::LightPrototype*)res->m_LightPrototype : (dmRender::LightPrototype*)0;
+        return res ? res->m_LightPrototype : (dmRender::HLightPrototype)0;
     }
 
     static const char* ParseResultToStr(LightParseResult res)
@@ -165,12 +165,6 @@ namespace dmGameSystem
             HANDLE_LIGHT_PARSE_RES("spot.outer_cone_angle", res);
         }
     #undef HANDLE_LIGHT_PARSE_RES
-
-        // Local light forward axis in component space; world direction comes from GO rotation.
-        if (type == dmRender::LIGHT_TYPE_DIRECTIONAL || type == dmRender::LIGHT_TYPE_SPOT)
-        {
-            params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
-        }
 
         return LIGHT_PARSE_RESULT_OK;
     }

@@ -61,7 +61,7 @@ namespace dmRender
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
-    typedef struct LightPrototype*          HLightPrototype;
+    typedef HOpaqueHandle                   HLightPrototype;
     typedef HOpaqueHandle                   HLightInstance;
 
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
@@ -213,7 +213,6 @@ namespace dmRender
 
         LightType        m_Type;
         dmVMath::Vector4 m_Color;
-        dmVMath::Vector3 m_Direction;
         float            m_Intensity;
         float            m_Range;
         float            m_InnerConeAngle;

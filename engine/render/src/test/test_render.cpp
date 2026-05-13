@@ -2419,6 +2419,8 @@ TEST_F(dmRenderTest, FontMapSetup)
 
 TEST_F(dmRenderTest, LightBufferTestSimple)
 {
+    ASSERT_EQ(8u, sizeof(dmRender::LightInstance));
+
     // Default params (point light, white, intensity 1, range 10, etc.)
     dmRender::LightPrototypeParams light_params;
     dmRender::HLightPrototype light_prototype = dmRender::NewLightPrototype(m_Context, light_params);
@@ -2443,7 +2445,6 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
 
     params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
     params.m_Color = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f);
-    params.m_Direction = dmVMath::Vector3(0.0f, -1.0f, 0.0f);
     params.m_Intensity = 2.0f;
     dmRender::HLightPrototype proto_dir = dmRender::NewLightPrototype(m_Context, params);
     ASSERT_NE((dmRender::HLightPrototype)0, proto_dir);
@@ -2467,7 +2468,6 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
 
     params.m_Type = dmRender::LIGHT_TYPE_SPOT;
     params.m_Color = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-    params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
     params.m_InnerConeAngle = 0.2f;
     params.m_OuterConeAngle = 0.8f;
     params.m_Range = 15.0f;
@@ -2533,19 +2533,23 @@ TEST_F(dmRenderTest, LightBufferTestSetLightInstanceUpdates)
 {
     dmRender::LightPrototypeParams params;
     params.m_Type = dmRender::LIGHT_TYPE_SPOT;
-    params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
     dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
     ASSERT_NE((dmRender::HLightPrototype)0, prototype);
 
     dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
     ASSERT_NE((dmRender::HLightInstance)0, instance);
 
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_Context;
     dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity(), 1.0f);
+    ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, params.m_Range), render_ctx->m_LightBufferScratch[0].m_DirectionRange);
+
     dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), dmVMath::Quat::identity(), 1.0f);
-    // Z rotation by 45 degrees: quat (0, 0, sin(θ/2), cos(θ/2))
-    const float half = 3.14159265f / 8.0f;
-    dmVMath::Quat rot_z(0.0f, 0.0f, sinf(half), cosf(half));
-    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), rot_z, 1.0f);
+    // Y rotation by 90 degrees rotates the fixed local forward vector into world space.
+    const float half = 3.14159265f / 4.0f;
+    dmVMath::Quat rot_y(0.0f, sinf(half), 0.0f, cosf(half));
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), rot_y, 1.0f);
+    dmVMath::Vector3 rotated_direction = dmVMath::Rotate(rot_y, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+    ASSERT_VEC4(dmVMath::Vector4(rotated_direction, params.m_Range), render_ctx->m_LightBufferScratch[0].m_DirectionRange);
 
     dmRender::DeleteLightInstance(m_Context, instance);
     dmRender::DeleteLightPrototype(m_Context, prototype);
