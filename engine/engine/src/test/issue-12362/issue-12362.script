@@ -1,0 +1,19 @@
+function init(self)
+	self.frame = 0
+end
+
+function update(self, dt)
+	self.frame = self.frame + 1
+
+	if self.frame == 1 then
+		msg.post("#sprite", "disable")
+	elseif self.frame == 2 then
+		sys.exit(0)
+	end
+end
+
+function late_update(self, dt)
+	if self.frame == 1 then
+		msg.post("#sprite", "enable")
+	end
+end
