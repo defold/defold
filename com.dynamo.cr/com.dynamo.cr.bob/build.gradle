@@ -1,3 +1,26 @@
+buildscript {
+    dependencies {
+        def commonsCompressJars = fileTree("${gradle.gradleHomeDir}/lib") {
+            include 'commons-compress-*.jar',
+                    'commons-io-*.jar'
+        }
+        classpath files(commonsCompressJars)
+    }
+}
+
+import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
+import org.apache.commons.compress.archivers.zip.Zip64Mode
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
+import org.apache.commons.compress.parallel.InputStreamSupplier
+
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.jar.Attributes
+import java.util.jar.Manifest
+import java.util.zip.CRC32
+import java.util.zip.ZipFile
+
 apply plugin: 'java'
 gradle.startParameter.parallelProjectExecutionEnabled = true
 apply from: '../com.dynamo.cr.bob/basic.gradle'
@@ -338,43 +361,178 @@ task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGen
     }
 }
 
-task createBobJar(type: Jar, dependsOn: [createExternalLibsBuiltinsJar, createLuaJitShareZip]) {
-    archiveFileName = 'bob.jar'
-    destinationDirectory = file("${project.bobDir}/dist")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+def bobJarFileTree = fileTree(project.bobDir) {
+    include 'lib/**/*texc_shared*',
+            'lib/**/*modelc_shared*',
+            'lib/**/*shaderc_shared*',
+            'lib/**/*libc++*',
+            'libexec/**/*',
+            'lib/report_template.html',
+            'lib/time_report_template.html',
+            'lib/android.jar',
+            'lib/classes.dex',
+            'lib/*.zip'
+    exclude '**/*dSYM.zip',
+            'tmp/**'
+}
 
-    from project.classesDir
-    from fileTree(project.bobDir) {
-        include 'lib/**/*texc_shared*',
-                'lib/**/*modelc_shared*',
-                'lib/**/*shaderc_shared*',
-                'lib/**/*libc++*',
-                'libexec/**/*',
-                'lib/report_template.html',
-                'lib/time_report_template.html',
-                'lib/android.jar',
-                'lib/classes.dex',
-                'lib/*.zip'
-        exclude '**/*dSYM.zip',
-                'tmp/**'
+def createManifestBytes = { Map<String, String> attributes ->
+    Manifest manifest = new Manifest()
+    Attributes mainAttributes = manifest.mainAttributes
+    mainAttributes.put(Attributes.Name.MANIFEST_VERSION, '1.0')
+    attributes.each { key, value ->
+        mainAttributes.put(new Attributes.Name(key.toString()), value.toString())
     }
 
-    from {
-        zipTree(file("${project.bobDir}/tmp/external-libs-builtins.jar"))
-    } {
-        exclude '**/META-INF/**'
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream()
+    manifest.write(outputStream)
+    return outputStream.toByteArray()
+}
+
+def isMetaInfPath = { String path ->
+    return path.startsWith('META-INF/') || path.contains('/META-INF/')
+}
+
+def calculateCrcAndSize = { Closure<InputStream> openStream ->
+    CRC32 crc = new CRC32()
+    long size = 0
+    byte[] buffer = new byte[64 * 1024]
+    openStream.call().withCloseable { InputStream inputStream ->
+        int read
+        while ((read = inputStream.read(buffer)) != -1) {
+            crc.update(buffer, 0, read)
+            size += read
+        }
+    }
+    return [crc: crc.value, size: size]
+}
+
+def writeArchiveEntry = { ZipArchiveOutputStream zipOutputStream, String path, byte[] bytes, int method ->
+    ZipArchiveEntry entry = new ZipArchiveEntry(path)
+    entry.setTime(0L)
+    entry.setMethod(method)
+    entry.setSize(bytes.length)
+    if (method == ZipArchiveOutputStream.STORED) {
+        CRC32 crc = new CRC32()
+        crc.update(bytes, 0, bytes.length)
+        entry.setCompressedSize(bytes.length)
+        entry.setCrc(crc.value)
     }
 
-    from {
-        zipTree(file("${project.bobDir}/lib/builtins.zip"))
+    zipOutputStream.putArchiveEntry(entry)
+    zipOutputStream.write(bytes)
+    zipOutputStream.closeArchiveEntry()
+}
+
+def addParallelArchiveEntry = { ParallelScatterZipCreator creator, Set<String> seenPaths, String path, Closure<InputStream> openStream, Long knownSize, int method ->
+    path = path.replace(File.separatorChar, '/' as char)
+    if (path.length() == 0 || path.endsWith('/') || !seenPaths.add(path)) {
+        return
     }
 
-    outputs.file("${project.bobDir}/dist/bob.jar")
+    ZipArchiveEntry entry = new ZipArchiveEntry(path)
+    entry.setTime(0L)
+    entry.setMethod(method)
+    if (knownSize != null && knownSize >= 0) {
+        entry.setSize(knownSize)
+    }
+    if (method == ZipArchiveOutputStream.STORED) {
+        def crcAndSize = calculateCrcAndSize(openStream)
+        entry.setSize(crcAndSize.size)
+        entry.setCompressedSize(crcAndSize.size)
+        entry.setCrc(crcAndSize.crc)
+    }
 
-    manifest {
-        attributes 'Main-Class': 'com.dynamo.bob.Bob',
-                'Gradle-Version': gradle.gradleVersion,
-                'Created-By': "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
+    creator.addArchiveEntry(entry, { openStream.call() } as InputStreamSupplier)
+}
+
+task createBobJar(dependsOn: [createExternalLibsBuiltinsJar, createLuaJitShareZip]) {
+    def outputFile = file("${project.bobDir}/dist/bob.jar")
+
+    inputs.dir(project.classesDir)
+    inputs.files(bobJarFileTree)
+    inputs.file("${project.bobDir}/tmp/external-libs-builtins.jar")
+    inputs.file("${project.bobDir}/lib/builtins.zip")
+    inputs.property('keep-bob-uncompressed', project.hasProperty('keep-bob-uncompressed'))
+    inputs.property('gradle-version', gradle.gradleVersion)
+    inputs.property('created-by', "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})")
+    outputs.file(outputFile)
+
+    doLast {
+        int compressionMethod = project.hasProperty('keep-bob-uncompressed') ? ZipArchiveOutputStream.STORED : ZipArchiveOutputStream.DEFLATED
+        int threadCount = Math.max(2, Runtime.getRuntime().availableProcessors())
+        def executor = Executors.newFixedThreadPool(threadCount)
+        def creator = new ParallelScatterZipCreator(executor)
+        Set<String> seenPaths = new LinkedHashSet<>()
+        List<ZipFile> zipFiles = []
+
+        def addFile = { File rootDir, File sourceFile ->
+            if (!sourceFile.isFile()) {
+                return
+            }
+            String path = rootDir.toPath().relativize(sourceFile.toPath()).toString()
+            if (path.startsWith("tmp${File.separator}") || path == 'tmp') {
+                return
+            }
+            addParallelArchiveEntry(creator, seenPaths, path, { new BufferedInputStream(new FileInputStream(sourceFile)) }, sourceFile.length(), compressionMethod)
+        }
+
+        def addZipEntries = { File zipPath, boolean excludeMetaInf ->
+            ZipFile zipFile = new ZipFile(zipPath)
+            zipFiles.add(zipFile)
+            zipFile.entries().toList().each { zipEntry ->
+                def currentEntry = zipEntry
+                if (currentEntry.directory || (excludeMetaInf && isMetaInfPath(currentEntry.name))) {
+                    return
+                }
+                addParallelArchiveEntry(creator, seenPaths, currentEntry.name, { zipFile.getInputStream(currentEntry) }, currentEntry.size, compressionMethod)
+            }
+        }
+
+        try {
+            mkdir outputFile.parentFile
+            delete outputFile
+
+            seenPaths.add('META-INF/MANIFEST.MF')
+            fileTree(project.classesDir).files.sort { sourceFile ->
+                project.classesDir.toPath().relativize(sourceFile.toPath()).toString()
+            }.each { sourceFile ->
+                addFile(project.classesDir, sourceFile)
+            }
+            bobJarFileTree.files.sort { sourceFile ->
+                project.bobDir.toPath().relativize(sourceFile.toPath()).toString()
+            }.each { sourceFile ->
+                addFile(project.bobDir, sourceFile)
+            }
+            addZipEntries(file("${project.bobDir}/tmp/external-libs-builtins.jar"), true)
+            addZipEntries(file("${project.bobDir}/lib/builtins.zip"), false)
+
+            ZipArchiveOutputStream zipOutputStream = new ZipArchiveOutputStream(outputFile)
+            try {
+                zipOutputStream.setUseZip64(Zip64Mode.AsNeeded)
+                zipOutputStream.setMethod(compressionMethod)
+                writeArchiveEntry(zipOutputStream, 'META-INF/MANIFEST.MF', createManifestBytes([
+                        'Main-Class': 'com.dynamo.bob.Bob',
+                        'Gradle-Version': gradle.gradleVersion,
+                        'Created-By': "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
+                ]), compressionMethod)
+                creator.writeTo(zipOutputStream)
+            } finally {
+                zipOutputStream.close()
+            }
+        } finally {
+            zipFiles.each { zipFile -> zipFile.close() }
+            executor.shutdown()
+            if (!executor.awaitTermination(1, TimeUnit.MINUTES)) {
+                executor.shutdownNow()
+            }
+        }
+
+        if (!outputFile.exists()) {
+            throw new RuntimeException("File '${outputFile}' was not created")
+        } else {
+            println "bob.jar successfully created with ParallelScatterZipCreator (${threadCount} threads)"
+        }
     }
 }
 
