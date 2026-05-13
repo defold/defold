@@ -24,6 +24,7 @@ btCapsuleShape::btCapsuleShape(btScalar radius, btScalar height) : btConvexInter
 	m_shapeType = CAPSULE_SHAPE_PROXYTYPE;
 	m_upAxis = 1;
 	m_implicitShapeDimensions.setValue(radius,0.5f*height,radius);
+	// DEFOLD: The entire capsule radius is used as the collision margin.
 	m_collisionMargin = radius;
 }
 
@@ -56,7 +57,8 @@ btCapsuleShape::btCapsuleShape(btScalar radius, btScalar height) : btConvexInter
 		btVector3 pos(0,0,0);
 		pos[getUpAxis()] = getHalfHeight();
 
-		vtx = pos +vec*m_localScaling*(radius) - vec * getMargin();
+		// DEFOLD: m_implicitShapeDimensions already stores the scaled radius.
+		vtx = pos +vec*(radius) - vec * getMargin();
 		newDot = vec.dot(vtx);
 		if (newDot > maxDot)
 		{
@@ -68,7 +70,8 @@ btCapsuleShape::btCapsuleShape(btScalar radius, btScalar height) : btConvexInter
 		btVector3 pos(0,0,0);
 		pos[getUpAxis()] = -getHalfHeight();
 
-		vtx = pos +vec*m_localScaling*(radius) - vec * getMargin();
+		// DEFOLD: m_implicitShapeDimensions already stores the scaled radius.
+		vtx = pos +vec*(radius) - vec * getMargin();
 		newDot = vec.dot(vtx);
 		if (newDot > maxDot)
 		{
@@ -97,7 +100,8 @@ btCapsuleShape::btCapsuleShape(btScalar radius, btScalar height) : btConvexInter
 		{
 			btVector3 pos(0,0,0);
 			pos[getUpAxis()] = getHalfHeight();
-			vtx = pos +vec*m_localScaling*(radius) - vec * getMargin();
+			// DEFOLD: m_implicitShapeDimensions already stores the scaled radius.
+			vtx = pos +vec*(radius) - vec * getMargin();
 			newDot = vec.dot(vtx);
 			if (newDot > maxDot)
 			{
@@ -108,7 +112,8 @@ btCapsuleShape::btCapsuleShape(btScalar radius, btScalar height) : btConvexInter
 		{
 			btVector3 pos(0,0,0);
 			pos[getUpAxis()] = -getHalfHeight();
-			vtx = pos +vec*m_localScaling*(radius) - vec * getMargin();
+			// DEFOLD: m_implicitShapeDimensions already stores the scaled radius.
+			vtx = pos +vec*(radius) - vec * getMargin();
 			newDot = vec.dot(vtx);
 			if (newDot > maxDot)
 			{
@@ -154,6 +159,8 @@ btCapsuleShapeX::btCapsuleShapeX(btScalar radius,btScalar height)
 {
 	m_upAxis = 0;
 	m_implicitShapeDimensions.setValue(0.5f*height, radius,radius);
+	// DEFOLD: The entire capsule radius is used as the collision margin.
+	m_collisionMargin = radius;
 }
 
 
@@ -165,8 +172,8 @@ btCapsuleShapeZ::btCapsuleShapeZ(btScalar radius,btScalar height)
 {
 	m_upAxis = 2;
 	m_implicitShapeDimensions.setValue(radius,radius,0.5f*height);
+	// DEFOLD: The entire capsule radius is used as the collision margin.
+	m_collisionMargin = radius;
 }
-
-
 
 

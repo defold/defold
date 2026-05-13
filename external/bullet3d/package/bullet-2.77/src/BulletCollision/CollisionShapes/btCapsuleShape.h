@@ -45,6 +45,7 @@ public:
 	
 	virtual void setMargin(btScalar collisionMargin)
 	{
+		// DEFOLD: The capsule radius is the margin, so ignore explicit margin changes.
 		//don't override the margin for capsules, their entire radius == margin
 		(void)collisionMargin;
 	}
@@ -53,6 +54,7 @@ public:
 	{
 			btVector3 halfExtents(getRadius(),getRadius(),getRadius());
 			halfExtents[m_upAxis] = getRadius() + getHalfHeight();
+			// DEFOLD: getRadius() already includes the capsule margin.
 			btMatrix3x3 abs_b = t.getBasis().absolute();  
 			btVector3 center = t.getOrigin();
 			btVector3 extent = btVector3(abs_b[0].dot(halfExtents),abs_b[1].dot(halfExtents),abs_b[2].dot(halfExtents));		  
@@ -85,7 +87,9 @@ public:
 	virtual void	setLocalScaling(const btVector3& scaling)
 	{
 		btVector3 unScaledImplicitShapeDimensions = m_implicitShapeDimensions / m_localScaling;
-		m_implicitShapeDimensions = (unScaledImplicitShapeDimensions * scaling);
+		// DEFOLD: Keep local scaling absolute while scaling the radius-as-margin dimensions.
+		btConvexInternalShape::setLocalScaling(scaling);
+		m_implicitShapeDimensions = (unScaledImplicitShapeDimensions * m_localScaling);
 		int radiusAxis = (m_upAxis + 2) % 3;
 		m_collisionMargin = m_implicitShapeDimensions[radiusAxis];
 	}

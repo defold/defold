@@ -401,20 +401,81 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispat
  	}
  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp
---- a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp	2009-05-22 19:15:56.000000000 +0300
-+++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp	2026-04-30 23:18:32.365467000 +0300
-@@ -24,6 +24,7 @@
+--- a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp
++++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.cpp
+@@ -24,6 +24,8 @@
  	m_shapeType = CAPSULE_SHAPE_PROXYTYPE;
  	m_upAxis = 1;
  	m_implicitShapeDimensions.setValue(radius,0.5f*height,radius);
++	// DEFOLD: The entire capsule radius is used as the collision margin.
 +	m_collisionMargin = radius;
  }
  
   
+@@ -55,7 +57,8 @@
+ 		btVector3 pos(0,0,0);
+ 		pos[getUpAxis()] = getHalfHeight();
+ 
+-		vtx = pos +vec*m_localScaling*(radius) - vec * getMargin();
++		// DEFOLD: m_implicitShapeDimensions already stores the scaled radius.
++		vtx = pos +vec*(radius) - vec * getMargin();
+ 		newDot = vec.dot(vtx);
+ 		if (newDot > maxDot)
+ 		{
+@@ -67,7 +70,8 @@
+ 		btVector3 pos(0,0,0);
+ 		pos[getUpAxis()] = -getHalfHeight();
+ 
+-		vtx = pos +vec*m_localScaling*(radius) - vec * getMargin();
++		// DEFOLD: m_implicitShapeDimensions already stores the scaled radius.
++		vtx = pos +vec*(radius) - vec * getMargin();
+ 		newDot = vec.dot(vtx);
+ 		if (newDot > maxDot)
+ 		{
+@@ -96,7 +100,8 @@
+ 		{
+ 			btVector3 pos(0,0,0);
+ 			pos[getUpAxis()] = getHalfHeight();
+-			vtx = pos +vec*m_localScaling*(radius) - vec * getMargin();
++			// DEFOLD: m_implicitShapeDimensions already stores the scaled radius.
++			vtx = pos +vec*(radius) - vec * getMargin();
+ 			newDot = vec.dot(vtx);
+ 			if (newDot > maxDot)
+ 			{
+@@ -107,7 +112,8 @@
+ 		{
+ 			btVector3 pos(0,0,0);
+ 			pos[getUpAxis()] = -getHalfHeight();
+-			vtx = pos +vec*m_localScaling*(radius) - vec * getMargin();
++			// DEFOLD: m_implicitShapeDimensions already stores the scaled radius.
++			vtx = pos +vec*(radius) - vec * getMargin();
+ 			newDot = vec.dot(vtx);
+ 			if (newDot > maxDot)
+ 			{
+@@ -153,6 +159,8 @@
+ {
+ 	m_upAxis = 0;
+ 	m_implicitShapeDimensions.setValue(0.5f*height, radius,radius);
++	// DEFOLD: The entire capsule radius is used as the collision margin.
++	m_collisionMargin = radius;
+ }
+ 
+ 
+@@ -164,8 +172,8 @@
+ {
+ 	m_upAxis = 2;
+ 	m_implicitShapeDimensions.setValue(radius,radius,0.5f*height);
++	// DEFOLD: The entire capsule radius is used as the collision margin.
++	m_collisionMargin = radius;
+ }
+ 
+ 
+-
+-
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h
---- a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h	2010-02-17 23:16:36.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h	2026-04-30 23:20:57.019787000 +0300
-@@ -45,21 +45,14 @@
+--- a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h
++++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h
+@@ -45,21 +45,16 @@
  	
  	virtual void setMargin(btScalar collisionMargin)
  	{
@@ -426,6 +487,7 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes
 -		btVector3 newMargin(getMargin(),getMargin(),getMargin());
 -		m_implicitShapeDimensions = implicitShapeDimensionsWithMargin - newMargin;
 -
++		// DEFOLD: The capsule radius is the margin, so ignore explicit margin changes.
 +		//don't override the margin for capsules, their entire radius == margin
 +		(void)collisionMargin;
  	}
@@ -435,10 +497,11 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes
  			btVector3 halfExtents(getRadius(),getRadius(),getRadius());
  			halfExtents[m_upAxis] = getRadius() + getHalfHeight();
 -			halfExtents += btVector3(getMargin(),getMargin(),getMargin());
++			// DEFOLD: getRadius() already includes the capsule margin.
  			btMatrix3x3 abs_b = t.getBasis().absolute();  
  			btVector3 center = t.getOrigin();
  			btVector3 extent = btVector3(abs_b[0].dot(halfExtents),abs_b[1].dot(halfExtents),abs_b[2].dot(halfExtents));		  
-@@ -91,14 +84,10 @@
+@@ -91,14 +86,12 @@
  
  	virtual void	setLocalScaling(const btVector3& scaling)
  	{
@@ -446,17 +509,41 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes
 -		btVector3 implicitShapeDimensionsWithMargin = m_implicitShapeDimensions+oldMargin;
 -		btVector3 unScaledImplicitShapeDimensionsWithMargin = implicitShapeDimensionsWithMargin / m_localScaling;
 -
--		btConvexInternalShape::setLocalScaling(scaling);
++		btVector3 unScaledImplicitShapeDimensions = m_implicitShapeDimensions / m_localScaling;
++		// DEFOLD: Keep local scaling absolute while scaling the radius-as-margin dimensions.
+ 		btConvexInternalShape::setLocalScaling(scaling);
 -
 -		m_implicitShapeDimensions = (unScaledImplicitShapeDimensionsWithMargin * m_localScaling) - oldMargin;
 -
-+		btVector3 unScaledImplicitShapeDimensions = m_implicitShapeDimensions / m_localScaling;
-+		m_implicitShapeDimensions = (unScaledImplicitShapeDimensions * scaling);
++		m_implicitShapeDimensions = (unScaledImplicitShapeDimensions * m_localScaling);
 +		int radiusAxis = (m_upAxis + 2) % 3;
 +		m_collisionMargin = m_implicitShapeDimensions[radiusAxis];
  	}
  
  	virtual	int	calculateSerializeBufferSize() const;
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes/btConvexShape.cpp c/bullet-2.77/src/BulletCollision/CollisionShapes/btConvexShape.cpp
+--- a/bullet-2.77/src/BulletCollision/CollisionShapes/btConvexShape.cpp
++++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btConvexShape.cpp
+@@ -227,7 +227,8 @@
+ 			pos[capsuleUpAxis] = halfHeight;
+ 
+ 			//vtx = pos +vec*(radius);
+-			vtx = pos +vec*capsuleShape->getLocalScalingNV()*(radius) - vec * capsuleShape->getMarginNV();
++			// DEFOLD: Capsule dimensions already include local scaling.
++			vtx = pos +vec*(radius) - vec * capsuleShape->getMarginNV();
+ 			newDot = vec.dot(vtx);
+ 			
+ 
+@@ -242,7 +243,8 @@
+ 			pos[capsuleUpAxis] = -halfHeight;
+ 
+ 			//vtx = pos +vec*(radius);
+-			vtx = pos +vec*capsuleShape->getLocalScalingNV()*(radius) - vec * capsuleShape->getMarginNV();
++			// DEFOLD: Capsule dimensions already include local scaling.
++			vtx = pos +vec*(radius) - vec * capsuleShape->getMarginNV();
+ 			newDot = vec.dot(vtx);
+ 			if (newDot > maxDot)
+ 			{
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes/btCompoundShape.cpp c/bullet-2.77/src/BulletCollision/CollisionShapes/btCompoundShape.cpp
 --- a/bullet-2.77/src/BulletCollision/CollisionShapes/btCompoundShape.cpp	2010-07-20 16:37:12.000000000 +0300
 +++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCompoundShape.cpp	2026-04-22 02:29:30.000000000 +0300
