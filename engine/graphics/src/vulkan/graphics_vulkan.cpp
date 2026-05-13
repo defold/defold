@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/jobsystem.h>
 #include <dlib/thread.h>
+#include <dlib/sys.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
@@ -59,6 +60,18 @@ namespace dmGraphics
 
     VulkanContext* g_VulkanContext = 0;
 
+    static bool IsTruthyEnvValue(const char* value)
+    {
+        return value != 0 &&
+            (strcmp(value, "1") == 0 ||
+             strcmp(value, "true") == 0 ||
+             strcmp(value, "TRUE") == 0 ||
+             strcmp(value, "yes") == 0 ||
+             strcmp(value, "YES") == 0 ||
+             strcmp(value, "on") == 0 ||
+             strcmp(value, "ON") == 0);
+    }
+
     static VulkanTexture* VulkanNewTextureInternal(const TextureCreationParams& params);
     static void           VulkanDeleteTextureInternal(VulkanTexture* texture);
     static void           VulkanSetTextureInternal(VulkanContext* context, VulkanTexture* texture, const TextureParams& params);
@@ -67,6 +80,8 @@ namespace dmGraphics
     static VkFormat       GetVulkanFormatFromTextureFormat(TextureFormat format);
     static bool           EndRenderPass(VulkanContext* context);
     static void           BeginRenderPass(VulkanContext* context, HRenderTarget render_target);
+    static inline VkImageAspectFlags GetImageAspectFlags(VulkanTexture* texture);
+    static void           RenderGraphTransitionTexture(VulkanContext* context, VulkanTexture* texture, VkImageAspectFlags aspect, VkImageLayout layout);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
@@ -169,6 +184,7 @@ namespace dmGraphics
         m_BaseContext.m_Height                  = params.m_Height;
         m_SwapInterval            = params.m_SwapInterval;
         m_JobContext              = params.m_JobContext;
+        m_UseRenderGraph          = params.m_ExperimentalVulkanRenderGraph || IsTruthyEnvValue(dmSys::GetEnv("DM_VULKAN_RENDER_GRAPH"));
 
         // We need to have some sort of valid default filtering
         if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -461,6 +477,38 @@ namespace dmGraphics
         }
 
         vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
+
+        if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+            if (tex_sc)
+            {
+                tex_sc->m_ImageLayout[0] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            }
+            context->m_MainTextureDepthStencil.m_ImageLayout[0] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
+        else
+        {
+            VkImageLayout color_layout = context->m_UseRenderGraph ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            for (uint32_t i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+            {
+                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureColor[i]);
+                if (texture_color)
+                {
+                    texture_color->m_ImageLayout[0] = color_layout;
+                }
+            }
+
+            if (current_rt->m_TextureDepthStencil)
+            {
+                VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
+                if (depth_stencil_texture)
+                {
+                    depth_stencil_texture->m_ImageLayout[0] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+                }
+            }
+        }
+
         current_rt->m_IsBound = 0;
         context->m_RenderTargetBound = 0;
         return true;
@@ -539,6 +587,21 @@ namespace dmGraphics
         }
         rt->m_HasPendingClearColor = 0;
         rt->m_HasPendingClearDepth = 0;
+
+        if (context->m_UseRenderGraph && !is_main_rt)
+        {
+            for (uint32_t i = 0; i < rt->m_ColorAttachmentCount; ++i)
+            {
+                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
+                RenderGraphTransitionTexture(context, texture_color, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            }
+
+            if (rt->m_TextureDepthStencil)
+            {
+                VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+                RenderGraphTransitionTexture(context, depth_stencil_texture, GetImageAspectFlags(depth_stencil_texture), VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            }
+        }
 
         VkRenderPassBeginInfo vk_render_pass_begin_info;
         vk_render_pass_begin_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -2577,6 +2640,103 @@ bail:
         return (VkDescriptorType) -1;
     }
 
+    static inline VkImageAspectFlags GetImageAspectFlags(VulkanTexture* texture)
+    {
+        switch (texture->m_Format)
+        {
+            case VK_FORMAT_D16_UNORM:
+            case VK_FORMAT_X8_D24_UNORM_PACK32:
+            case VK_FORMAT_D32_SFLOAT:
+                return VK_IMAGE_ASPECT_DEPTH_BIT;
+            case VK_FORMAT_S8_UINT:
+                return VK_IMAGE_ASPECT_STENCIL_BIT;
+            case VK_FORMAT_D16_UNORM_S8_UINT:
+            case VK_FORMAT_D24_UNORM_S8_UINT:
+            case VK_FORMAT_D32_SFLOAT_S8_UINT:
+                return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+            default:
+                return VK_IMAGE_ASPECT_COLOR_BIT;
+        }
+    }
+
+    static inline VkImageLayout GetDescriptorImageLayout(ShaderResourceBinding* binding)
+    {
+        if (binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_IMAGE2D || binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_UIMAGE2D)
+        {
+            return VK_IMAGE_LAYOUT_GENERAL;
+        }
+        else if (binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+        {
+            return VK_IMAGE_LAYOUT_UNDEFINED;
+        }
+        return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
+
+    static void RenderGraphTransitionTexture(VulkanContext* context, VulkanTexture* texture, VkImageAspectFlags aspect, VkImageLayout layout)
+    {
+        if (layout == VK_IMAGE_LAYOUT_UNDEFINED || texture->m_ImageLayout[0] == layout)
+        {
+            return;
+        }
+
+        if (context->m_UseRenderGraph && context->m_FrameBegun)
+        {
+            if (context->m_RenderTargetBound)
+            {
+                EndRenderPass(context);
+            }
+
+            TransitionImageLayoutWithCmdBuffer(
+                context->m_MainCommandBuffers[context->m_CurrentFrameInFlight],
+                texture,
+                aspect,
+                layout,
+                0,
+                texture->m_LayerCount);
+        }
+        else
+        {
+            VkResult res = TransitionImageLayout(
+                context->m_LogicalDevice.m_Device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                texture,
+                aspect,
+                layout,
+                0,
+                texture->m_LayerCount);
+            CHECK_VK_ERROR(res);
+        }
+    }
+
+    static void RenderGraphPrepareProgramTextures(VulkanContext* context, VulkanProgram* program)
+    {
+        if (!context->m_UseRenderGraph)
+        {
+            return;
+        }
+
+        ProgramResourceBindingIterator it(&program->m_BaseProgram);
+        const ProgramResourceBinding* next;
+        while((next = it.Next()))
+        {
+            ShaderResourceBinding* res = next->m_Res;
+            if (res->m_BindingFamily != BINDING_FAMILY_TEXTURE)
+            {
+                continue;
+            }
+
+            VkImageLayout image_layout = GetDescriptorImageLayout(res);
+            if (image_layout == VK_IMAGE_LAYOUT_UNDEFINED)
+            {
+                continue;
+            }
+
+            VulkanTexture* texture = ResolveTextureDescriptorTexture(context, context->m_TextureUnits[next->m_TextureUnit], res);
+            RenderGraphTransitionTexture(context, texture, GetImageAspectFlags(texture), image_layout);
+        }
+    }
+
     static void UpdateImageDescriptor(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
     {
         VulkanTexture* texture = ResolveTextureDescriptorTexture(context, texture_handle, binding);
@@ -2600,7 +2760,7 @@ bail:
 
         TouchResource(context, texture);
 
-        VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkImageLayout image_layout       = GetDescriptorImageLayout(binding);
         VkSampler image_sampler          = context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
         VkImageView image_view           = texture->m_Handle.m_ImageView;
         VkDescriptorType descriptor_type = TextureTypeToDescriptorType(binding->m_Type.m_ShaderType);
@@ -2611,12 +2771,10 @@ bail:
         }
         else if (binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_IMAGE2D || binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_UIMAGE2D)
         {
-            image_layout  = VK_IMAGE_LAYOUT_GENERAL;
             image_sampler = 0;
         }
         else if (binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
         {
-            image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
             image_view   = VK_NULL_HANDLE;
         }
 
@@ -2626,16 +2784,7 @@ bail:
         // TODO: We cannot use the in-frame command buffer here since it's illegal to use barriers while inside a render pass
         //       So instead we have to use a temporary command buffer that only does the transition.
         //       It would be better if we could decouple this somehow. Perhaps we can solve it by buffering all render events (with a render graph?)
-        if (texture->m_ImageLayout[0] != image_layout && image_layout != VK_IMAGE_LAYOUT_UNDEFINED)
-        {
-            VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
-                context->m_LogicalDevice.m_CommandPool,
-                context->m_LogicalDevice.m_GraphicsQueue,
-                texture,
-                VK_IMAGE_ASPECT_COLOR_BIT,
-                image_layout);
-            CHECK_VK_ERROR(res);
-        }
+        RenderGraphTransitionTexture(context, texture, GetImageAspectFlags(texture), image_layout);
 
         vk_image_info.sampler     = image_sampler;
         vk_image_info.imageView   = image_view;
@@ -2996,6 +3145,7 @@ bail:
         assert(program_ptr->m_ComputeModule);
 
         PrepareScatchBuffer(context, scratchBuffer, program_ptr);
+        RenderGraphPrepareProgramTextures(context, program_ptr);
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
@@ -3009,8 +3159,6 @@ bail:
     static bool DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
-        BeginRenderPass(context, context->m_CurrentRenderTarget);
-
         VulkanProgram* program_ptr = context->m_CurrentProgram;
         VkDevice vk_device   = context->m_LogicalDevice.m_Device;
 
@@ -3032,6 +3180,8 @@ bail:
         }
 
         PrepareScatchBuffer(context, scratchBuffer, program_ptr);
+        RenderGraphPrepareProgramTextures(context, program_ptr);
+        BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
@@ -4016,13 +4166,13 @@ bail:
             fb_height                  = rtOut->m_ColorTextureParams[color_buffer_index].m_Height;
 
             RenderPassAttachment* rp_attachment_color = &rp_attachments[i];
-            rp_attachment_color->m_ImageLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+            rp_attachment_color->m_ImageLayout        = context->m_UseRenderGraph ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            rp_attachment_color->m_ImageLayoutInitial = context->m_UseRenderGraph ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED;
             rp_attachment_color->m_Format             = color_texture_ptr->m_Format;
             rp_attachment_color->m_LoadOp             = VulkanLoadOp(rtOut->m_ColorBufferLoadOps[color_buffer_index]);
             rp_attachment_color->m_StoreOp            = VulkanStoreOp(rtOut->m_ColorBufferStoreOps[color_buffer_index]);
 
-            if (rp_attachment_color->m_LoadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
+            if (!context->m_UseRenderGraph && rp_attachment_color->m_LoadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
             {
                 rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             }
@@ -4041,7 +4191,7 @@ bail:
 
             rp_attachment_depth_stencil                    = &rp_attachments[fb_attachment_count];
             rp_attachment_depth_stencil->m_ImageLayout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            rp_attachment_depth_stencil->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+            rp_attachment_depth_stencil->m_ImageLayoutInitial = context->m_UseRenderGraph ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED;
             rp_attachment_depth_stencil->m_Format          = depth_stencil_texture_ptr->m_Format;
             rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             rp_attachment_depth_stencil->m_StoreOp         = VK_ATTACHMENT_STORE_OP_STORE;
@@ -4072,7 +4222,7 @@ bail:
                     needs_clear_variant = true;
                 }
                 rp_attachments[i].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_CLEAR;
-                rp_attachments[i].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+                rp_attachments[i].m_ImageLayoutInitial = context->m_UseRenderGraph ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED;
             }
             if (needs_clear_variant)
             {
@@ -4093,7 +4243,7 @@ bail:
             if (rp_attachment_depth_stencil != 0)
             {
                 rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_CLEAR;
-                rp_attachment_depth_stencil->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+                rp_attachment_depth_stencil->m_ImageLayoutInitial = context->m_UseRenderGraph ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED;
                 res = CreateRenderPass(context->m_LogicalDevice.m_Device, VK_SAMPLE_COUNT_1_BIT, rp_attachments, num_color_textures, rp_attachment_depth_stencil, 0, &rtOut->m_Handle.m_RenderPassClearColorDepth);
                 if (res != VK_SUCCESS)
                 {
@@ -4238,13 +4388,16 @@ bail:
                     new_texture_color);
                 CHECK_VK_ERROR(res);
 
-                res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
-                    context->m_LogicalDevice.m_CommandPool,
-                    context->m_LogicalDevice.m_GraphicsQueue,
-                    new_texture_color,
-                    VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                CHECK_VK_ERROR(res);
+                if (!context->m_UseRenderGraph)
+                {
+                    res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
+                        context->m_LogicalDevice.m_CommandPool,
+                        context->m_LogicalDevice.m_GraphicsQueue,
+                        new_texture_color,
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    CHECK_VK_ERROR(res);
+                }
 
                 VulkanSetTextureParamsInternal(context, new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
 
@@ -4416,7 +4569,7 @@ bail:
                     vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
                 }
 
-                texture_color->m_ImageLayout[0] = VK_IMAGE_LAYOUT_PREINITIALIZED;
+                texture_color->m_ImageLayout[0] = VK_IMAGE_LAYOUT_UNDEFINED;
 
                 DestroyResourceDeferred(context, texture_color);
                 VkResult res = CreateTexture(

@@ -531,6 +531,7 @@ namespace dmGraphics
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
+        uint32_t                        m_UseRenderGraph       : 1;
         uint32_t                        m_ASTCSupport          : 1;
         // See OpenGL backend: separate flag for ASTC array textures
         uint32_t                        m_ASTCArrayTextureSupport : 1;

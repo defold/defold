@@ -312,6 +312,7 @@ namespace dmGraphics
     , m_VerifyGraphicsCalls(0)
     , m_PrintDeviceInfo(0)
     , m_UseValidationLayers(0)
+    , m_ExperimentalVulkanRenderGraph(0)
     {}
 
     HContext NewContext(const ContextParams& params)

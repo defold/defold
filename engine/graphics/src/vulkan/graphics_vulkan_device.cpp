@@ -996,10 +996,10 @@ bail:
             attachment_color.storeOp        = colorAttachments[i].m_StoreOp;
             attachment_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment_color.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment_color.initialLayout  = colorAttachments[i].m_ImageLayoutInitial;
             attachment_color.finalLayout    = colorAttachments[i].m_ImageLayout;
 
-            if (colorAttachments[i].m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+            if (attachment_color.initialLayout == VK_IMAGE_LAYOUT_UNDEFINED && colorAttachments[i].m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
             {
                 attachment_color.initialLayout = colorAttachments[i].m_ImageLayoutInitial;
             }
@@ -1021,10 +1021,10 @@ bail:
             // the render-pass CLEAR fast path actually clears stencil too.
             attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
             attachment_depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment_depth.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment_depth.initialLayout  = depthStencilAttachment->m_ImageLayoutInitial;
             attachment_depth.finalLayout    = depthStencilAttachment->m_ImageLayout;
 
-            if (depthStencilAttachment->m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+            if (attachment_depth.initialLayout == VK_IMAGE_LAYOUT_UNDEFINED && depthStencilAttachment->m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
             {
                 attachment_depth.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             }

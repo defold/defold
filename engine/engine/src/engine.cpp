@@ -1166,6 +1166,7 @@ namespace dmEngine
         graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
+        graphics_context_params.m_ExperimentalVulkanRenderGraph = dmConfigFile::GetInt(engine->m_Config, "graphics.experimental_vulkan_render_graph", 0) != 0;
 
         if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
         {
