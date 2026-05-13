@@ -60,13 +60,18 @@ namespace dmGameSystem
     }
 
     b2BodyId*   CheckBody(struct lua_State* L, int index);
+    dmGameObject::HCollection GetBodyCollection(struct lua_State* L, int index);
     b2ShapeId   GetShapeByIndex(b2BodyId body, int shape_index);
+    bool        IsJointTracked(b2JointId joint_id);
+    void        PushJoint(struct lua_State* L, b2JointId joint_id, dmGameObject::HCollection collection);
     B2DShapeDef CheckShapeDef(struct lua_State* L, int index);
     void        CheckShapeCreateDef(struct lua_State* L, int index, B2DShapeDef* out_shape_def, b2ShapeDef* out_shape_create_def);
     void        PushShape(struct lua_State* L, b2ShapeId shape_id);
     void        ScriptBox2DInitializeBody(struct lua_State* L);
     void        ScriptBox2DInvalidateBody(void* body);
     void        ScriptBox2DFinalizeBody();
+    void        ScriptBox2DInitializeJoint(struct lua_State* L);
+    void        ScriptBox2DFinalizeJoint();
     void        ScriptBox2DInitializeShape(struct lua_State* L);
 }
 

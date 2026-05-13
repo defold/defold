@@ -139,7 +139,7 @@ def create_package(self):
 
 
 def shutdown(self):
-    waf_dynamo.run_tests(test_context, valgrind = True)
+    waf_dynamo.run_tests(test_context)
 
 def package(self):
     pass
