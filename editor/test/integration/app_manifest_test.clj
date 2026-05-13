@@ -179,6 +179,18 @@
                        (app-manifest/update-setting-value setting update-fn)
                        (app-manifest/get-setting-value setting))))))))))
 
+(deftest android-graphics-setting-test
+  (testing "OpenGL-only Android excludes Vulkan link inputs"
+    (let [manifest (-> {}
+                       (app-manifest/set-setting-value app-manifest/graphics-setting-android :both)
+                       (app-manifest/set-setting-value app-manifest/graphics-setting-android :open-gl))]
+      (doseq [platform [:armv7-android :arm64-android]]
+        (let [context (get-in manifest [:platforms platform :context])]
+          (is (some #{"vulkan"} (:excludeLibs context)))
+          (is (not-any? #{"vulkan"} (:dynamicLibs context)))
+          (is (some #{"EGL"} (:dynamicLibs context)))
+          (is (some #{"GLESv2"} (:dynamicLibs context))))))))
+
 (deftest manifestation-compatibility-test
   (test-util/with-loaded-project
     (testing "/app_manifest/default.appmanifest"

@@ -526,7 +526,7 @@
             (generic-contains-toggles android :dynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"]))
     :open-gl (concat
                open-gl-android-toggles
-               (exclude-libs-toggles android ["graphics_vulkan"])
+               (exclude-libs-toggles android ["graphics_vulkan" "vulkan"])
                (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterVulkan"]))
     :vulkan vulkan-android-toggles
     :both))
