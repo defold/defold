@@ -27,13 +27,18 @@
 
 namespace dmGraphics
 {
-#if defined(USE_DEBUG_TIMINGS)
     static inline bool VulkanDebugTimingEnvEnabled(const char* name)
     {
         char* value = dmSys::GetEnv(name);
         return value != 0 && value[0] != 0 && value[0] != '0';
     }
 
+    static inline bool VulkanDebugTimingPushConstantUbos()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PUSH_CONSTANT_UBOS");
+    }
+
+#if defined(USE_DEBUG_TIMINGS)
     static inline bool VulkanDebugTimingDontStoreRTDepth()
     {
         return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_RT_DONT_STORE_DEPTH");
@@ -49,11 +54,6 @@ namespace dmGraphics
         return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PERSISTENT_DESCRIPTORS");
     }
 
-    static inline bool VulkanDebugTimingPushConstantUbos()
-    {
-        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PUSH_CONSTANT_UBOS");
-    }
-
     static inline bool VulkanDebugTimingDisableOffscreenCullFlip()
     {
         return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_NO_OFFSCREEN_CULL_FLIP");
@@ -67,6 +67,11 @@ namespace dmGraphics
     static inline bool VulkanDebugTimingPipelineStats()
     {
         return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_PIPELINE_STATS");
+    }
+
+    static inline bool VulkanDebugTimingCpuStats()
+    {
+        return VulkanDebugTimingEnvEnabled("DEFOLD_VULKAN_DEBUG_CPU_TIMINGS");
     }
 
     static inline int VulkanDebugTimingOnlyRTMRTColorAttachment()
@@ -402,7 +407,7 @@ namespace dmGraphics
         {
             VkDescriptorSetLayout m_DescriptorSetLayouts[MAX_SET_COUNT];
             VkPipelineLayout      m_PipelineLayout;
-            VkPushConstantRange   m_PushConstantRanges[3];
+            VkPushConstantRange   m_PushConstantRanges[16];
             uint8_t               m_DescriptorSetLayoutsCount;
             uint8_t               m_PushConstantRangeCount;
             uint8_t               m_LastUsedFrame;
@@ -608,6 +613,7 @@ namespace dmGraphics
         uint64_t                        m_DebugTimingCurrentPipelineState0;
         uint64_t                        m_DebugTimingCurrentPipelineState1;
         float                           m_DebugTimingTimestampPeriod;
+        uint8_t                         m_DebugTimingCpuStats;
 #endif
     };
 

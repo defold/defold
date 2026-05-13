@@ -195,8 +195,10 @@ namespace dmGraphics
         uint16_t                    m_Set;
         uint16_t                    m_Binding;
         uint16_t                    m_ElementCount;
+        uint16_t                    m_PushConstantOffset;
         uint8_t                     m_StageFlags;
         uint8_t                     m_UsePushConstant;
+        uint8_t                     m_AutoUsePushConstant;
     };
 
     struct ShaderMeta
