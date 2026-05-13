@@ -47,10 +47,8 @@ public class ShaderCompilers {
             if (platform == Platform.Arm64MacOS ||
                 platform == Platform.X86_64MacOS) {
 
-                outputSpirv = true;
-
-                // Vulkan is default on OSX since 1.9.9, meaning OpenGL is optional.
-                if (!isComputeType && outputGLSL) {
+                boolean hasExplicitOutput = outputSpirv || outputGLSL || outputMsl;
+                if (!isComputeType && (outputGLSL || !hasExplicitOutput)) {
                     shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
                 } else if (outputMsl) {
                     shaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
@@ -88,13 +86,15 @@ public class ShaderCompilers {
             else
             if (platform == Platform.Armv7Android ||
                 platform == Platform.Arm64Android) {
-                    // Android defaults to OpenGL ES + Vulkan, so include SPIR-V by default.
-                    outputSpirv = true;
-                    if (!isComputeType) {
+                    boolean hasExplicitOutput = outputSpirv || outputGLSL;
+                    if (!isComputeType && (outputGLSL || !hasExplicitOutput)) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         if (!compileOptions.excludeGlesSm100) {
                             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                         }
+                    }
+                    if (!hasExplicitOutput) {
+                        outputSpirv = true;
                     }
             }
             else

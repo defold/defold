@@ -363,10 +363,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testShaderPrograms() throws Exception {
-        boolean spirvIsDefault = IsSpirvDefault(getProject().getPlatform());
-
-        ShaderDesc.Language firstLanguage = spirvIsDefault ? ShaderDesc.Language.LANGUAGE_SPIRV : getPlatformGLSLLanguage();
-        ShaderDesc.Language secondLanguage = spirvIsDefault ? getPlatformGLSLLanguage() : ShaderDesc.Language.LANGUAGE_SPIRV;
+        ShaderDesc.Language firstLanguage = getPlatformGLSLLanguage();
+        ShaderDesc.Language secondLanguage = ShaderDesc.Language.LANGUAGE_SPIRV;
         ShaderDesc.Language[] expectedLanguages = new ShaderDesc.Language[] { firstLanguage };
 
         doTest(expectedLanguages, "/test_shader.shbundle");
@@ -374,17 +372,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         expectedLanguages = new ShaderDesc.Language[] { firstLanguage, secondLanguage };
 
-        if (spirvIsDefault) {
-            getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", true);
-        } else {
-            getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
-        }
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", true);
+        getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
         doTest(expectedLanguages, "/test_shader_secondary.shbundle");
         doTestEs3(expectedLanguages, "/test_shader_secondary_es3.shbundle");
-    }
-
-    private boolean IsSpirvDefault(Platform platform) {
-        return platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS;
     }
 
     private void testOutput(String expected, String source) {
@@ -419,11 +410,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                                "void main(){\n" +
                                "   _DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);\n" +
                                "}\n";
-
-        boolean spirvIsDefault = IsSpirvDefault(getProject().getPlatform());
-        if (spirvIsDefault) {
-            getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", true);
-        }
 
         // Test include a valid shader from the same folder
         {
@@ -496,9 +482,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertTrue(didFail);
         }
 
-        if (spirvIsDefault) {
-            getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", false);
-        }
     }
 
     @Test
