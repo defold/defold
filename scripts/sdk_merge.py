@@ -2,8 +2,10 @@ import os
 import shutil
 import tempfile
 import zipfile
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 
+import run
 import s3
 
 
@@ -21,26 +23,35 @@ def _download_platform_sdk_zip(netloc, key, out_path):
     return out_path
 
 
+@contextmanager
 def download_platform_sdk_zips(netloc, base_prefix, platforms):
     """
     Downloads per-platform defoldsdk.zip files in parallel.
-    Returns an ordered list of (platform, local_zip_path) matching `platforms` order.
+    Yields an ordered list of (platform, local_zip_path) matching `platforms` order,
+    and removes the temporary files afterwards.
     """
     keys = {platform: os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip') for platform in platforms}
     tmp_paths = {}
-    for platform in platforms:
-        tmp = tempfile.NamedTemporaryFile(delete=False)
-        tmp.close()
-        tmp_paths[platform] = tmp.name
-
-    with ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS) as ex:
-        futures = {platform: ex.submit(_download_platform_sdk_zip, netloc, keys[platform], tmp_paths[platform])
-                   for platform in platforms}
-        # Preserve order for deterministic merge tie-breaking.
+    try:
         for platform in platforms:
-            futures[platform].result()
+            tmp = tempfile.NamedTemporaryFile(delete=False)
+            tmp.close()
+            tmp_paths[platform] = tmp.name
 
-    return [(platform, tmp_paths[platform]) for platform in platforms]
+        with ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS) as ex:
+            futures = {platform: ex.submit(_download_platform_sdk_zip, netloc, keys[platform], tmp_paths[platform])
+                       for platform in platforms}
+            # Preserve order for deterministic merge tie-breaking.
+            for platform in platforms:
+                futures[platform].result()
+
+        yield [(platform, tmp_paths[platform]) for platform in platforms]
+    finally:
+        for zip_path in tmp_paths.values():
+            try:
+                os.unlink(zip_path)
+            except Exception:
+                pass
 
 
 def merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_platform='x86_64-linux'):
@@ -90,17 +101,45 @@ def merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_plat
     print("Merged platform SDKs into", extract_dir)
 
 
+def merge_platform_sdk_zips_with_zipmerge(zipmerge_path, platform_zips, output_zip_path, canonical_platform='x86_64-linux'):
+    """
+    Merge multiple per-platform SDK zips with zipmerge directly into `output_zip_path`.
+    Later zipmerge inputs overwrite earlier entries, so put `canonical_platform` last for highest precedence.
+    """
+    platform_to_zip = {p: z for p, z in platform_zips}
+    if canonical_platform not in platform_to_zip:
+        canonical_platform = platform_zips[0][0]
+
+    ordered_platform_zips = [(p, z) for p, z in platform_zips if p != canonical_platform]
+    ordered_platform_zips.append((canonical_platform, platform_to_zip[canonical_platform]))
+
+    os.makedirs(os.path.dirname(output_zip_path), exist_ok=True)
+    if os.path.exists(output_zip_path):
+        os.unlink(output_zip_path)
+
+    print("Merging platform SDKs with", zipmerge_path)
+    print("Highest precedence SDK platform:", canonical_platform)
+    run.command([zipmerge_path, '-s', output_zip_path] + [z for _, z in ordered_platform_zips])
+    print("Merged platform SDKs into", output_zip_path)
+
+
 def build_combined_sdk_tree(netloc, base_prefix, platforms, extract_dir, canonical_platform='x86_64-linux'):
     """
     High-level helper used by scripts/build.py: downloads per-platform zips, merges them into a single tree,
     and cleans up the downloaded zip files.
     """
-    platform_zips = download_platform_sdk_zips(netloc, base_prefix, platforms)
-    try:
+    with download_platform_sdk_zips(netloc, base_prefix, platforms) as platform_zips:
         merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_platform=canonical_platform)
-    finally:
-        for _, zip_path in platform_zips:
-            try:
-                os.unlink(zip_path)
-            except Exception:
-                pass
+
+
+def build_combined_sdk_zip(netloc, base_prefix, platforms, output_zip_path, zipmerge_path, canonical_platform='x86_64-linux'):
+    """
+    High-level helper used by scripts/build.py: downloads per-platform zips, merges them into one zip archive,
+    and cleans up the downloaded zip files.
+    """
+    with download_platform_sdk_zips(netloc, base_prefix, platforms) as platform_zips:
+        merge_platform_sdk_zips_with_zipmerge(
+            zipmerge_path,
+            platform_zips,
+            output_zip_path,
+            canonical_platform=canonical_platform)
