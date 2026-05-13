@@ -841,11 +841,11 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
 
     if len(registered_descriptors) > 0:
         register_name = 'g_Register_%s_DESCRIPTORS' % base_name.replace('.', '_').replace('-', '_')
-        pp_cpp.begin('dmDDF::Descriptor* %s[] = ' % register_name)
+        pp_cpp.begin('static dmDDF::Descriptor* %s[] = ' % register_name)
         for descriptor_name in registered_descriptors:
             pp_cpp.p('&%s,' % descriptor_name)
         pp_cpp.end()
-        pp_cpp.p('dmDDF::InternalRegisterDescriptor g_Register_%s(%s, sizeof(%s)/sizeof(dmDDF::Descriptor*));' % (base_name.replace('.', '_').replace('-', '_'), register_name, register_name))
+        pp_cpp.p('static dmDDF::InternalRegisterDescriptor g_Register_%s(%s, sizeof(%s)/sizeof(dmDDF::Descriptor*));' % (base_name.replace('.', '_').replace('-', '_'), register_name, register_name))
         pp_cpp.p('')
 
     pp_h.p("#endif")
