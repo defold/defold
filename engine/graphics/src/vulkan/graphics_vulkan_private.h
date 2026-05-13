@@ -348,7 +348,7 @@ namespace dmGraphics
         {
             VkDescriptorSetLayout m_DescriptorSetLayouts[MAX_SET_COUNT];
             VkPipelineLayout      m_PipelineLayout;
-            VkPushConstantRange   m_PushConstantRanges[3];
+            VkPushConstantRange   m_PushConstantRanges[16];
             uint8_t               m_DescriptorSetLayoutsCount;
             uint8_t               m_PushConstantRangeCount;
             uint8_t               m_LastUsedFrame;

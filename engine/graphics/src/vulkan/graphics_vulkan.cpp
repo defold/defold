@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/jobsystem.h>
 #include <dlib/thread.h>
+#include <dlib/sys.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
@@ -184,6 +185,12 @@ namespace dmGraphics
     HContext VulkanGetContext()
     {
         return (HContext) g_VulkanContext;
+    }
+
+    static bool VulkanAutoPromotePushConstantUbos()
+    {
+        char* value = dmSys::GetEnv("DEFOLD_VULKAN_AUTO_PUSH_CONSTANT_UBOS");
+        return value != 0 && value[0] != 0 && value[0] != '0';
     }
 
     template <typename T>
@@ -2668,6 +2675,7 @@ bail:
             return;
         }
 
+
         ProgramResourceBindingIterator it(&program->m_BaseProgram);
         const ProgramResourceBinding* next;
         while((next = it.Next()))
@@ -2681,11 +2689,12 @@ bail:
             vkCmdPushConstants(vk_command_buffer,
                 program->m_Handle.m_PipelineLayout,
                 GetShaderStageFlags(res->m_StageFlags),
-                0,
+                res->m_PushConstantOffset,
                 res->m_BindingInfo.m_BlockSize,
                 &program->m_UniformData[next->m_UniformBufferOffset]);
 
         }
+
     }
 
     static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, VulkanProgram* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment, bool perform_vk_update)
@@ -3357,6 +3366,119 @@ bail:
         return false;
     }
 
+    static bool GetSingleShaderStageFlag(uint8_t stage_flags, uint8_t* stage_flag)
+    {
+        uint8_t filtered = stage_flags & (SHADER_STAGE_FLAG_VERTEX | SHADER_STAGE_FLAG_FRAGMENT | SHADER_STAGE_FLAG_COMPUTE);
+        if (filtered == SHADER_STAGE_FLAG_VERTEX || filtered == SHADER_STAGE_FLAG_FRAGMENT || filtered == SHADER_STAGE_FLAG_COMPUTE)
+        {
+            *stage_flag = filtered;
+            return true;
+        }
+        return false;
+    }
+
+    static bool CanAutoPromotePushConstantUbo(VulkanContext* context, const ShaderResourceBinding& res, uint8_t* stage_flag)
+    {
+        const uint32_t max_auto_push_constant_size = 128;
+        if (!VulkanAutoPromotePushConstantUbos())
+        {
+            return false;
+        }
+        if (res.m_BindingFamily != BINDING_FAMILY_UNIFORM_BUFFER || res.m_UsePushConstant)
+        {
+            return false;
+        }
+        if (!res.m_Type.m_UseTypeIndex || res.m_BindingInfo.m_BlockSize == 0)
+        {
+            return false;
+        }
+        if (!res.m_Name || strstr(res.m_Name, "_uniforms") != 0)
+        {
+            return false;
+        }
+        if (!GetSingleShaderStageFlag(res.m_StageFlags, stage_flag))
+        {
+            return false;
+        }
+        if (*stage_flag != SHADER_STAGE_FLAG_VERTEX)
+        {
+            return false;
+        }
+
+        uint32_t max_push_constant_size = context->m_PhysicalDevice.m_Properties.limits.maxPushConstantsSize;
+        return res.m_BindingInfo.m_BlockSize <= max_auto_push_constant_size &&
+            res.m_BindingInfo.m_BlockSize <= max_push_constant_size;
+    }
+
+    static void SelectAutoPushConstantUbos(VulkanContext* context, ShaderMeta* meta)
+    {
+        const uint32_t max_push_constant_ranges = 16;
+        uint32_t stage_offsets[3] = {};
+        bool auto_stage_promoted[3] = {};
+        uint32_t range_count = 0;
+        const uint32_t max_push_constant_size = context->m_PhysicalDevice.m_Properties.limits.maxPushConstantsSize;
+
+        for (uint32_t i = 0; i < meta->m_UniformBuffers.Size(); ++i)
+        {
+            const ShaderResourceBinding& res = meta->m_UniformBuffers[i];
+            if (!res.m_UsePushConstant)
+            {
+                continue;
+            }
+            range_count++;
+
+            uint32_t end = res.m_PushConstantOffset + DM_ALIGN(res.m_BindingInfo.m_BlockSize, 4);
+            if ((res.m_StageFlags & SHADER_STAGE_FLAG_VERTEX) != 0)
+            {
+                stage_offsets[0] = dmMath::Max(stage_offsets[0], end);
+            }
+            if ((res.m_StageFlags & SHADER_STAGE_FLAG_FRAGMENT) != 0)
+            {
+                stage_offsets[1] = dmMath::Max(stage_offsets[1], end);
+            }
+            if ((res.m_StageFlags & SHADER_STAGE_FLAG_COMPUTE) != 0)
+            {
+                stage_offsets[2] = dmMath::Max(stage_offsets[2], end);
+            }
+        }
+
+        for (uint32_t i = 0; i < meta->m_UniformBuffers.Size(); ++i)
+        {
+            ShaderResourceBinding& res = meta->m_UniformBuffers[i];
+            uint8_t stage_flag = 0;
+            if (!CanAutoPromotePushConstantUbo(context, res, &stage_flag))
+            {
+                continue;
+            }
+
+            uint32_t* stage_offset = 0;
+            if (stage_flag == SHADER_STAGE_FLAG_VERTEX)
+            {
+                stage_offset = &stage_offsets[0];
+            }
+            else if (stage_flag == SHADER_STAGE_FLAG_FRAGMENT)
+            {
+                stage_offset = &stage_offsets[1];
+            }
+            else if (stage_flag == SHADER_STAGE_FLAG_COMPUTE)
+            {
+                stage_offset = &stage_offsets[2];
+            }
+
+            uint32_t stage_index = stage_flag == SHADER_STAGE_FLAG_VERTEX ? 0 : (stage_flag == SHADER_STAGE_FLAG_FRAGMENT ? 1 : 2);
+            uint32_t block_size_aligned = DM_ALIGN(res.m_BindingInfo.m_BlockSize, 4);
+            if (stage_offset && !auto_stage_promoted[stage_index] && range_count < max_push_constant_ranges && *stage_offset + block_size_aligned <= max_push_constant_size)
+            {
+                res.m_PushConstantOffset = (uint16_t) *stage_offset;
+                res.m_UsePushConstant = 1;
+                res.m_AutoUsePushConstant = 1;
+                auto_stage_promoted[stage_index] = true;
+                range_count++;
+                *stage_offset += block_size_aligned;
+            }
+        }
+    }
+
     static void AddPushConstantRange(VulkanProgram* program, const ShaderResourceBinding& res)
     {
         if (program->m_Handle.m_PushConstantRangeCount >= DM_ARRAY_SIZE(program->m_Handle.m_PushConstantRanges))
@@ -3366,7 +3488,7 @@ bail:
 
         VkPushConstantRange& range = program->m_Handle.m_PushConstantRanges[program->m_Handle.m_PushConstantRangeCount++];
         range.stageFlags = GetShaderStageFlags(res.m_StageFlags);
-        range.offset     = 0;
+        range.offset     = res.m_PushConstantOffset;
         range.size       = res.m_BindingInfo.m_BlockSize;
     }
 
@@ -3546,18 +3668,54 @@ bail:
         return false;
     }
 
-    static uint32_t CollectPushConstantResourceIds(VulkanContext* context, ShaderMeta* meta, VkShaderStageFlagBits stage, uint32_t* ids, uint32_t ids_capacity)
+    struct PushConstantTransformTarget
+    {
+        uint32_t m_Id;
+        uint32_t m_Offset;
+    };
+
+    static uint32_t CollectPushConstantResourceIds(VulkanContext* context, ShaderMeta* meta, VkShaderStageFlagBits stage, PushConstantTransformTarget* targets, uint32_t targets_capacity)
     {
         uint32_t count = 0;
-        for (uint32_t i = 0; i < meta->m_UniformBuffers.Size() && count < ids_capacity; ++i)
+        for (uint32_t i = 0; i < meta->m_UniformBuffers.Size() && count < targets_capacity; ++i)
         {
             ShaderResourceBinding& res = meta->m_UniformBuffers[i];
-            if (ResourceMatchesStage(res, stage) && IsPushConstantUniformBuffer(context, meta->m_UniformBuffers, res))
+            if (res.m_AutoUsePushConstant && ResourceMatchesStage(res, stage))
             {
-                ids[count++] = res.m_Id;
+                targets[count].m_Id = res.m_Id;
+                targets[count].m_Offset = res.m_PushConstantOffset;
+                count++;
             }
         }
         return count;
+    }
+
+    static bool FindTargetOffset(const PushConstantTransformTarget* targets, uint32_t count, uint32_t id, uint32_t* target_offset)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            if (targets[i].m_Id == id)
+            {
+                *target_offset = targets[i].m_Offset;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static void DisableAutoPushConstantResourceIds(ShaderMeta* meta, VkShaderStageFlagBits stage, const PushConstantTransformTarget* targets, uint32_t target_count)
+    {
+        for (uint32_t i = 0; i < meta->m_UniformBuffers.Size(); ++i)
+        {
+            ShaderResourceBinding& res = meta->m_UniformBuffers[i];
+            uint32_t target_offset = 0;
+            if (res.m_AutoUsePushConstant && ResourceMatchesStage(res, stage) && FindTargetOffset(targets, target_count, res.m_Id, &target_offset))
+            {
+                res.m_UsePushConstant = 0;
+                res.m_AutoUsePushConstant = 0;
+                res.m_PushConstantOffset = 0;
+            }
+        }
     }
 
     static bool ContainsId(const uint32_t* ids, uint32_t count, uint32_t id)
@@ -3572,9 +3730,23 @@ bail:
         return false;
     }
 
-    static bool TransformSpirvUbosToPushConstants(const uint32_t* words, uint32_t word_count, const uint32_t* target_ids, uint32_t target_count, dmArray<uint32_t>& out_words)
+    static bool FindBlockTypeOffset(const uint32_t* ids, const uint32_t* offsets, uint32_t count, uint32_t id, uint32_t* block_offset)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            if (ids[i] == id)
+            {
+                *block_offset = offsets[i];
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool TransformSpirvUbosToPushConstants(const uint32_t* words, uint32_t word_count, const PushConstantTransformTarget* targets, uint32_t target_count, dmArray<uint32_t>& out_words)
     {
         const uint16_t OP_DECORATE     = 71;
+        const uint16_t OP_MEMBER_DECORATE = 72;
         const uint16_t OP_TYPE_POINTER = 32;
         const uint16_t OP_VARIABLE     = 59;
 
@@ -3583,18 +3755,24 @@ bail:
 
         const uint32_t DECORATION_BINDING        = 33;
         const uint32_t DECORATION_DESCRIPTOR_SET = 34;
+        const uint32_t DECORATION_OFFSET         = 35;
 
         struct PointerUse
         {
             uint32_t m_PointerTypeId;
+            uint32_t m_PointeeTypeId;
             uint32_t m_UniformVarCount;
             uint32_t m_TargetVarCount;
+            uint32_t m_TargetOffset;
         };
 
         PointerUse pointer_uses[32] = {};
         uint32_t pointer_use_count = 0;
         uint32_t target_pointer_type_ids[32] = {};
         uint32_t target_pointer_type_count = 0;
+        uint32_t target_block_type_ids[32] = {};
+        uint32_t target_block_type_offsets[32] = {};
+        uint32_t target_block_type_count = 0;
 
         for (uint32_t offset = 5; offset < word_count; )
         {
@@ -3606,10 +3784,35 @@ bail:
                 return false;
             }
 
+            if (op == OP_TYPE_POINTER && wc >= 4 && words[offset + 2] == STORAGE_CLASS_UNIFORM)
+            {
+                uint32_t pointer_type_id = words[offset + 1];
+                uint32_t pointer_use_index = pointer_use_count;
+                for (uint32_t i = 0; i < pointer_use_count; ++i)
+                {
+                    if (pointer_uses[i].m_PointerTypeId == pointer_type_id)
+                    {
+                        pointer_use_index = i;
+                        break;
+                    }
+                }
+                if (pointer_use_index == pointer_use_count && pointer_use_count < DM_ARRAY_SIZE(pointer_uses))
+                {
+                    pointer_uses[pointer_use_count].m_PointerTypeId = pointer_type_id;
+                    pointer_uses[pointer_use_count].m_PointeeTypeId = words[offset + 3];
+                    pointer_use_count++;
+                }
+                else if (pointer_use_index < pointer_use_count)
+                {
+                    pointer_uses[pointer_use_index].m_PointeeTypeId = words[offset + 3];
+                }
+            }
+
             if (op == OP_VARIABLE && wc >= 4 && words[offset + 3] == STORAGE_CLASS_UNIFORM)
             {
                 uint32_t pointer_type_id = words[offset + 1];
                 uint32_t variable_id     = words[offset + 2];
+                uint32_t target_offset   = 0;
 
                 uint32_t pointer_use_index = pointer_use_count;
                 for (uint32_t i = 0; i < pointer_use_count; ++i)
@@ -3628,9 +3831,10 @@ bail:
                 if (pointer_use_index < pointer_use_count)
                 {
                     pointer_uses[pointer_use_index].m_UniformVarCount++;
-                    if (ContainsId(target_ids, target_count, variable_id))
+                    if (FindTargetOffset(targets, target_count, variable_id, &target_offset))
                     {
                         pointer_uses[pointer_use_index].m_TargetVarCount++;
+                        pointer_uses[pointer_use_index].m_TargetOffset = target_offset;
                     }
                 }
             }
@@ -3644,6 +3848,28 @@ bail:
                 pointer_uses[i].m_TargetVarCount == pointer_uses[i].m_UniformVarCount)
             {
                 target_pointer_type_ids[target_pointer_type_count++] = pointer_uses[i].m_PointerTypeId;
+
+                uint32_t block_type_index = target_block_type_count;
+                for (uint32_t j = 0; j < target_block_type_count; ++j)
+                {
+                    if (target_block_type_ids[j] == pointer_uses[i].m_PointeeTypeId)
+                    {
+                        block_type_index = j;
+                        break;
+                    }
+                }
+
+                if (block_type_index == target_block_type_count && target_block_type_count < DM_ARRAY_SIZE(target_block_type_ids))
+                {
+                    target_block_type_ids[target_block_type_count] = pointer_uses[i].m_PointeeTypeId;
+                    target_block_type_offsets[target_block_type_count] = pointer_uses[i].m_TargetOffset;
+                    target_block_type_count++;
+                }
+                else if (block_type_index < target_block_type_count && target_block_type_offsets[block_type_index] != pointer_uses[i].m_TargetOffset)
+                {
+                    // A single SPIR-V block type cannot be rewritten to two different base offsets.
+                    return false;
+                }
             }
         }
 
@@ -3667,7 +3893,8 @@ bail:
             }
 
             bool skip_instruction = false;
-            if (op == OP_DECORATE && wc >= 3 && ContainsId(target_ids, target_count, words[offset + 1]))
+            uint32_t target_offset = 0;
+            if (op == OP_DECORATE && wc >= 3 && FindTargetOffset(targets, target_count, words[offset + 1], &target_offset))
             {
                 uint32_t decoration = words[offset + 2];
                 skip_instruction = decoration == DECORATION_BINDING || decoration == DECORATION_DESCRIPTOR_SET;
@@ -3683,10 +3910,14 @@ bail:
                         word = STORAGE_CLASS_PUSH_CONSTANT;
                         transformed = true;
                     }
-                    else if (i == 3 && op == OP_VARIABLE && wc >= 4 && words[offset + 3] == STORAGE_CLASS_UNIFORM && ContainsId(target_ids, target_count, words[offset + 2]))
+                    else if (i == 3 && op == OP_VARIABLE && wc >= 4 && words[offset + 3] == STORAGE_CLASS_UNIFORM && FindTargetOffset(targets, target_count, words[offset + 2], &target_offset))
                     {
                         word = STORAGE_CLASS_PUSH_CONSTANT;
                         transformed = true;
+                    }
+                    else if (i == 4 && op == OP_MEMBER_DECORATE && wc >= 5 && words[offset + 3] == DECORATION_OFFSET && FindBlockTypeOffset(target_block_type_ids, target_block_type_offsets, target_block_type_count, words[offset + 1], &target_offset))
+                    {
+                        word += target_offset;
                     }
                     out_words.Push(word);
                 }
@@ -3703,20 +3934,21 @@ bail:
         *source = ddf->m_Source.m_Data;
         *source_size = ddf->m_Source.m_Count;
 
-        uint32_t target_ids[8] = {};
-        uint32_t target_count = CollectPushConstantResourceIds(context, meta, stage, target_ids, DM_ARRAY_SIZE(target_ids));
+        PushConstantTransformTarget targets[16] = {};
+        uint32_t target_count = CollectPushConstantResourceIds(context, meta, stage, targets, DM_ARRAY_SIZE(targets));
         if (target_count == 0 || (ddf->m_Source.m_Count % sizeof(uint32_t)) != 0)
         {
             return;
         }
 
-        if (TransformSpirvUbosToPushConstants((const uint32_t*) ddf->m_Source.m_Data, ddf->m_Source.m_Count / sizeof(uint32_t), target_ids, target_count, transformed_spirv))
+        if (TransformSpirvUbosToPushConstants((const uint32_t*) ddf->m_Source.m_Data, ddf->m_Source.m_Count / sizeof(uint32_t), targets, target_count, transformed_spirv))
         {
             *source = transformed_spirv.Begin();
             *source_size = transformed_spirv.Size() * sizeof(uint32_t);
         }
         else
         {
+            DisableAutoPushConstantResourceIds(meta, stage, targets, target_count);
             transformed_spirv.SetCapacity(0);
         }
     }
@@ -3865,6 +4097,7 @@ bail:
         VulkanProgram* program = new VulkanProgram;
 
         CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        SelectAutoPushConstantUbos(context, &program->m_BaseProgram.m_ShaderMeta);
 
         if (ddf_cp)
         {

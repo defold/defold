@@ -1109,11 +1109,13 @@ namespace dmGraphics
             res.m_Binding              = bindings[i].m_Binding;
             res.m_Set                  = bindings[i].m_Set;
             res.m_ElementCount         = (uint16_t) dmMath::Max(bindings[i].m_ElementCount, (uint32_t) 1);
+            res.m_PushConstantOffset   = 0;
             res.m_Type.m_UseTypeIndex  = bindings[i].m_Type.m_UseTypeIndex;
             res.m_BindingFamily        = family;
             res.m_StageFlags           = bindings[i].m_StageFlags;
             res.m_Id                   = bindings[i].m_Id;
             res.m_UsePushConstant      = bindings[i].m_PushConstant ? 1 : 0;
+            res.m_AutoUsePushConstant  = 0;
 
             if (bindings[i].m_InstanceName)
             {
