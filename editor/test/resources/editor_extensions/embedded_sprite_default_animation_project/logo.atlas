@@ -1,0 +1,12 @@
+animations {
+  id: "logo"
+  images {
+    image: "/builtins/assets/images/logo/logo_256.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+margin: 0
+extrude_borders: 0

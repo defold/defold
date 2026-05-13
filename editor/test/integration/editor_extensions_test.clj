@@ -1515,6 +1515,18 @@ new tiles from the graph => {
       (run-edit-menu-test-command!)
       (expect-script-output expected-tilemap-test-output out))))
 
+(def ^:private expected-embedded-sprite-default-animation-output
+  "direct default_animation: logo
+nested default_animation: logo
+")
+
+(deftest embedded-sprite-default-animation-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/embedded_sprite_default_animation_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-embedded-sprite-default-animation-output out))))
+
 (def ^:private expected-attachment-test-output
   "Atlas initial state:
   images: 0

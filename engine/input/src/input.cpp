@@ -21,6 +21,7 @@
 #include <dlib/platform.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
+#include <dlib/static_assert.h>
 
 #include "input.h"
 #include "input_private.h"
@@ -30,6 +31,8 @@ namespace dmInput
     const uint32_t UNKNOWN_GAMEPAD_CONFIG_ID = dmHashString32("UNKNOWN_GAMEPAD_CONFIG_ID");
     static const uint16_t INVALID_INDEX = 0xFFFF;
 
+    DM_STATIC_ASSERT(sizeof(dmHID::GamepadGuid) == 16, Invalid_Struct_Size);
+    DM_STATIC_ASSERT(sizeof(Action) == 464, Invalid_Struct_Size); // Make sure we don't accidentally grow the struct
 
     dmHID::Key KEY_MAP[dmInputDDF::MAX_KEY_COUNT];
     dmHID::MouseButton MOUSE_BUTTON_MAP[dmInputDDF::MAX_KEY_COUNT];
@@ -58,6 +61,10 @@ namespace dmInput
 
     void DeleteContext(HContext context)
     {
+        if (context->m_HidContext)
+        {
+            dmHID::SetGamepadConnectivityCallback(context->m_HidContext, 0, 0);
+        }
         delete context;
     }
 
@@ -160,7 +167,7 @@ namespace dmInput
             return 0x0;
 
         GamepadConfig* best_config = 0x0;
-        int best_config_name_index = -1;
+        uint32_t best_config_name_index = 0;
 
         uint32_t num_names = 1;
         char* device_names[] = { device_name, 0 };
@@ -170,7 +177,7 @@ namespace dmInput
         device_names[num_names++] = "XBox 360 Controller";
     #endif
 
-        for (int i = 0; i < num_names; ++i)
+        for (uint32_t i = 0; i < num_names; ++i)
         {
             GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_names[i]));
             if (!config)
@@ -197,8 +204,20 @@ namespace dmInput
     {
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
 
-        char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-        GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad, device_name_out);
+        // For now, by default they are legacy mappings
+        dmHID::SetGamepadLayoutLegacy(gamepad, true);
+
+        // TODO: Get the gamepad guid + SDL name
+
+        GamepadConfig* selected_config = 0;
+
+        // TODO: Get the gamepad sdk mapping (if any)
+
+        if (!selected_config)
+        {
+            char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            selected_config = GetGamepadConfig(binding, gamepad, device_name_out);
+        }
 
         if (selected_config)
         {
@@ -208,7 +227,9 @@ namespace dmInput
 
             if (selected_config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
             {
-                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name_out);
+                char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
                 gamepad_binding->m_Unknown = 1;
             }
             ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
@@ -822,7 +843,13 @@ namespace dmInput
                                         char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
                                         GetGamepadConfig(binding, gamepad, device_name_out);
 
-                                        action->m_Count = dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
+                                        // TODO: Check if it's a legacy mapping or not, and choose the old or new controller name
+
+                                        dmHID::GamepadGuid gamepad_guid = {};
+                                        dmHID::GetGamepadDeviceGuid(binding->m_Context->m_HidContext, gamepad, &gamepad_guid);
+                                        action->m_GamepadGuid = gamepad_guid;
+
+                                        action->m_Count = (int16_t) dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
                                         action->m_HasText = action->m_Count > 0;
                                         uint32_t user_id32 = 0;
                                         dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &user_id32);

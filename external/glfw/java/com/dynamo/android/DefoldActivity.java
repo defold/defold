@@ -55,7 +55,6 @@ import java.util.ArrayList;
 import android.content.pm.PackageInfo;
 
 public class DefoldActivity extends NativeActivity {
-
     // Must match values from sys.h
     private enum NetworkConnectivity {
         NETWORK_DISCONNECTED       (0),
@@ -572,11 +571,12 @@ public class DefoldActivity extends NativeActivity {
         for (int deviceId : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(deviceId);
             int sources = device.getSources();
-            // filter out only gamepads, joysticks and things which has a dpad
+            // Filter game controller discovery to gamepads and joysticks. DPAD-only devices
+            // are still handled as key input in android_init.c, but should not be registered
+            // as gamepads here.
             if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
-                ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) ||
-                ((sources & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD)) {
-                    mGameControllerDeviceIds.add(deviceId);
+                ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK)) {
+                mGameControllerDeviceIds.add(deviceId);
             }
         }
 
@@ -602,6 +602,52 @@ public class DefoldActivity extends NativeActivity {
             name = device.getName();
         }
         return name;
+    }
+
+    /**
+     * Method to get controller descriptor
+     * Called from glfwAndroid.
+     * @param deviceId
+     * @return Device descriptor
+     */
+    public String getGameControllerDeviceDescriptor(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device != null) {
+            String descriptor = device.getDescriptor();
+            if (descriptor != null && !descriptor.isEmpty()) {
+                return descriptor;
+            }
+            return device.getName();
+        }
+        return "Android Controller";
+    }
+
+    /**
+     * Method to get controller vendor id
+     * Called from glfwAndroid.
+     * @param deviceId
+     * @return Device vendor id
+     */
+    public int getGameControllerDeviceVendorId(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            return device.getVendorId();
+        }
+        return 0;
+    }
+
+    /**
+     * Method to get controller product id
+     * Called from glfwAndroid.
+     * @param deviceId
+     * @return Device product id
+     */
+    public int getGameControllerDeviceProductId(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            return device.getProductId();
+        }
+        return 0;
     }
 
     /**

@@ -26,6 +26,7 @@
 
 class b2Body;
 class b2Fixture;
+class b2Joint;
 struct b2FixtureDef;
 
 namespace dmGameSystem
@@ -40,8 +41,12 @@ namespace dmGameSystem
     };
 
     b2Body*    CheckBody(struct lua_State* L, int index);
+    dmGameObject::HCollection GetBodyCollection(struct lua_State* L, int index);
+    dmhash_t   GetBodyInstanceId(b2Body* body);
     b2Fixture* GetFixtureByIndex(b2Body* body, int fixture_index);
+    bool       IsJointTracked(b2Joint* joint);
     void       PushBodyFromReference(struct lua_State* L, b2Body* body, int reference_index);
+    void       PushJoint(struct lua_State* L, b2Joint* joint, dmGameObject::HCollection collection);
     void       TrackOwnedFixtureShape(b2Fixture* fixture, FixtureShapeDef* shape_def);
     void       ReleaseOwnedFixtureShape(b2Fixture* fixture);
     const b2Shape* CheckShapeDef(struct lua_State* L, int index, FixtureShapeDef* out_shape);
@@ -49,6 +54,9 @@ namespace dmGameSystem
     void       ScriptBox2DInitializeBody(struct lua_State* L);
     void       ScriptBox2DInvalidateBody(void* body);
     void       ScriptBox2DFinalizeBody();
+    void       ScriptBox2DInitializeJoint(struct lua_State* L);
+    void       ScriptBox2DInvalidateJoint(void* joint);
+    void       ScriptBox2DFinalizeJoint();
     void       ScriptBox2DInitializeFixture(struct lua_State* L);
     void       ScriptBox2DInitializeShape(struct lua_State* L);
 }

@@ -1655,7 +1655,8 @@
         (let [label (or (handler/label handler-ctx evaluation-context) label)
               enabled? (handler/enabled? handler-ctx evaluation-context)
               key-combo (first (keymap/shortcuts keymap command))
-              options (handler/options handler-ctx evaluation-context)]
+              options (when (not (false? (:expand item)))
+                        (handler/options handler-ctx evaluation-context))]
           (if (or (nil? options)
                   (and key-combo (not (:expand item))))
             (make-menu-command scene id label localization icon style key-combo user-data command enabled? check)

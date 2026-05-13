@@ -225,7 +225,7 @@ public class ProjectTest {
         try {
             project.resolveLibUrls(Progress.discarding());
         } catch (LibraryException e) {
-            assertEquals("Failed to fetch library " + missingUri, e.getMessage());
+            assertEquals("Failed to fetch library " + missingUri + ": HTTP 404", e.getMessage());
         }
 
         var cachedResults = Library.cached(mixedLibraryUrls, Paths.get(project.getLibPath()));

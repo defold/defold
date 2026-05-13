@@ -1,0 +1,21 @@
+name: Build Bullet3D
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_changes:
+        description: 'Commit built package tarballs to ./packages on the branch'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-external-template.yml
+    with:
+      package_name: 'bullet3d'
+      result_folder_name: 'bullet'
+      result_lib_name: 'libBulletCollision'
+      package_version: '2.77'
+      push_changes: ${{ inputs.push_changes }}
+    secrets:
+      dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}

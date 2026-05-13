@@ -2002,8 +2002,6 @@ form.label.project.liveupdate.enabled = 启用
 form.help.project.liveupdate.enabled = 启用热更新功能
 form.label.project.liveupdate.settings = 设置
 form.help.project.liveupdate.settings = 热更新设置资源
-form.label.project.liveupdate.mount_on_start = 启动时自动挂载
-form.help.project.liveupdate.mount_on_start = 启用后,应用程序启动时会自动挂载之前已挂载的资源
 
 form.label.project.native_extension = 原生扩展
 form.help.project.native_extension = 原生扩展的设置
