@@ -246,13 +246,10 @@
      :plane plane}))
 
 (g/defnk produce-merged-options
-  [prefs camera options]
+  [prefs camera]
   (cond-> (if prefs (prefs/get prefs [:scene :grid]) {})
           :always
           (assoc :auto-scale true)
-
-          options
-          (merge options)
 
           (c/mode-2d? camera)
           (assoc :active-plane :z)))
@@ -262,7 +259,6 @@
 
   (input camera Camera)
 
-  (output options g/Any (g/constantly nil))
   (output merged-options g/Any produce-merged-options)
   (output grids g/Any :cached produce-grids)
   (output renderable pass/RenderData :cached produce-renderable))
@@ -275,8 +271,6 @@
 (defn show-settings! [^Parent owner app-view prefs keymap localization]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
-        ;; TODO JOE: Investigate this because maybe this broke?
-        ignore-options (g/node-value grid :options)
         value-changed-fn (fn [k v]
                            (prefs/set! prefs [:scene :grid k] v)
                            (invalidate-grids! app-view))

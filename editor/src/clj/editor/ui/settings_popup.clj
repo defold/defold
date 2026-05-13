@@ -302,7 +302,6 @@
     width                preferred width of the popup content in pixels
     x-offset             horizontal offset applied when positioning the popup
     setting-descriptors  sequence of row descriptor maps (see below)
-    hidden-settings      optional set of :key values whose rows are omitted
     on-closed            0-argument callback invoked when the popup is closed
 
   Row descriptor maps have the following shape (all keys optional unless noted):
@@ -326,13 +325,10 @@
     :on-reset              for :reset-all, 1-arg callback receiving swap-state"
   ([^Parent owner keymap localization state width x-offset setting-descriptors]
    (show! owner keymap localization state width x-offset setting-descriptors nil))
-  ([^Parent owner keymap localization state width x-offset setting-descriptors hidden-settings]
-   (show! owner keymap localization state width x-offset setting-descriptors hidden-settings nil))
-  ([^Parent owner keymap localization state width x-offset setting-descriptors hidden-settings on-closed]
+  ([^Parent owner keymap localization state width x-offset setting-descriptors on-closed]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (do (.hide popup) nil)
-     (let [visible-descriptors (remove #(contains? hidden-settings (:key %)) setting-descriptors)
-           content (StackPane.)
+     (let [content (StackPane.)
            popup (make-popup owner content)
            anchor ^Point2D (pref-popup-position (.getParent owner) width x-offset)
            advance! (fn [state]
@@ -343,7 +339,7 @@
                          :props {:children [{:fx/type fx.region/lifecycle
                                              :style-class "popup-shadow"}
                                             {:fx/type cljfx-popup-view
-                                             :descriptors visible-descriptors
+                                             :descriptors setting-descriptors
                                              :keymap keymap
                                              :popup popup
                                              :localization localization
