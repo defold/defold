@@ -342,31 +342,35 @@
   (reset! throwing-handlers {})
   nil)
 
-(defn- invoke-fnk [handler fsym command-context default]
-  (let [fnk (get handler fsym)]
-    (if (nil? fnk)
-      default
-      (let [env (:env command-context)
-            throwing-id [(:command handler) (:name command-context) fsym (:active-resource env)]
-            throwing-fnk (get @throwing-handlers throwing-id)]
-        (when-not (identical? throwing-fnk fnk)
-          (when (some? throwing-fnk)
-            ;; Looks like the handler was redefined. Clear out the throwing-id,
-            ;; then proceed to give it a go.
-            (swap! throwing-handlers dissoc throwing-id))
-          (binding [*adapters* (:adapters command-context)]
-            (try
-              (fnk env)
-              (catch Exception e
-                (when (not= :run fsym)
-                  (swap! throwing-handlers assoc throwing-id fnk))
-                (error-reporting/report-exception!
-                  (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
-                                   (:command handler) (:name command-context) fsym (.getMessage e))
-                           {:handler handler
-                            :command-context (update command-context :env dissoc :evaluation-context)}
-                           e))
-                nil))))))))
+(defn- invoke-fnk
+  ([handler fsym command-context default]
+   (invoke-fnk handler fsym command-context default nil))
+  ([handler fsym command-context default default-on-exception]
+   (let [fnk (get handler fsym)]
+     (if (nil? fnk)
+       default
+       (let [env (:env command-context)
+             throwing-id [(:command handler) (:name command-context) fsym (:active-resource env)]
+             throwing-fnk (get @throwing-handlers throwing-id)]
+         (when-not (identical? throwing-fnk fnk)
+           (when (some? throwing-fnk)
+             ;; Looks like the handler was redefined. Clear out the throwing-id,
+             ;; then proceed to give it a go.
+             (swap! throwing-handlers dissoc throwing-id))
+           (binding [*adapters* (:adapters command-context)]
+             (try
+               (fnk env)
+               (catch Exception e
+                 (when (not= :run fsym)
+                   (swap! throwing-handlers assoc throwing-id fnk))
+                 (error-reporting/report-exception!
+                   (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
+                                    (:command handler) (:name command-context) fsym (.getMessage e))
+                            {:handler handler
+                             :command-context (update command-context :env dissoc :evaluation-context)}
+                            e))
+                 (when default-on-exception
+                   default-on-exception))))))))))
 
 (defn- get-active-handler [state command command-context evaluation-context]
   (let [ctx-name (:name command-context)
@@ -390,10 +394,20 @@
 
 (defn run [[handler command-context]]
   (analytics/track-screen! (ctx->screen-name command-context))
-  (let [result (invoke-fnk handler :run command-context nil)]
-    (doseq [[_ callback-fn] (get-in @state-atom [:listeners (:command handler)])]
-      (callback-fn))
-    result))
+  (let [result (invoke-fnk handler :run command-context ::no-run ::no-run)]
+    (when-not (= ::no-run result)
+      (doseq [[listener callback-fn] (get-in @state-atom [:listeners (:command handler)])]
+        (try
+          (callback-fn)
+          (catch Exception e
+            (error-reporting/report-exception!
+              (ex-info (format "listener '%s' in context '%s' failed with message '%s'"
+                               listener (:name command-context) (.getMessage e))
+                       {:handler handler
+                        :listener listener
+                        :command-context (update command-context :env dissoc :evaluation-context)}
+                       e)))))
+      result)))
 
 (defn state
   ([[handler command-context]]
