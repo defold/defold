@@ -140,7 +140,7 @@ namespace dmGraphics
 
         // RGB isn't supported as a texture format, but we still need to supply it to the engine
         // Later when a texture is created, we will convert it internally to RGBA.
-        context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
 
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
         {
@@ -154,7 +154,7 @@ namespace dmGraphics
             if (SUCCEEDED(hr))
             {
                 // TODO: Check for more fine-grained support, i.e "query.Support1 & D3D12_FORMAT_SUPPORT1_TEXTURE2D"
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << texture_format;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << texture_format;
             }
         }
     }
@@ -396,6 +396,86 @@ namespace dmGraphics
         context->m_PipelineState = GetDefaultPipelineState();
 
         CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
+
+        // Populate the shared GraphicsContextLimits.
+        // D3D12 doesn't expose all of these as a single struct — many of the
+        // values below are documented Feature Level 11_0+ / Resource Binding
+        // Tier guarantees rather than driver-queried numbers.
+        {
+            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+
+            // Query device options once — used for binding tier and resource tier below.
+            D3D12_FEATURE_DATA_D3D12_OPTIONS options = {};
+            context->m_Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options));
+
+            limits.m_MaxTextureSize2D      = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;     // 16384 on FL 11_0+
+            limits.m_MaxTextureSize3D      = D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;   // 2048
+            limits.m_MaxTextureSizeCube    = D3D12_REQ_TEXTURECUBE_DIMENSION;          // 16384
+            limits.m_MaxTextureArrayLayers = D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION; // 2048
+            limits.m_MaxFramebufferWidth   = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+            limits.m_MaxFramebufferHeight  = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+            limits.m_MaxColorAttachments   = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
+
+            // Binding limits — scale with D3D12_RESOURCE_BINDING_TIER.
+            //   Tier 1: 16 samplers/stage, 128 SRVs/stage
+            //   Tier 2+: samplers still capped at 2048 (heap size), SRVs effectively unlimited
+            if (options.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_2)
+            {
+                limits.m_MaxSamplersPerStage = 2048;
+                limits.m_MaxTexturesPerStage = 1000000; // full descriptor heap
+            }
+            else
+            {
+                limits.m_MaxSamplersPerStage = 16;
+                limits.m_MaxTexturesPerStage = 128;
+            }
+            limits.m_MaxVertexAttributes            = D3D12_VS_INPUT_REGISTER_COUNT;            // 32
+            limits.m_MaxVertexBuffers               = D3D12_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT; // 32
+            limits.m_MaxComputeWorkgroupSizeX       = D3D12_CS_THREAD_GROUP_MAX_X;
+            limits.m_MaxComputeWorkgroupSizeY       = D3D12_CS_THREAD_GROUP_MAX_Y;
+            limits.m_MaxComputeWorkgroupSizeZ       = D3D12_CS_THREAD_GROUP_MAX_Z;
+            limits.m_MaxComputeWorkgroupInvocations = D3D12_CS_THREAD_GROUP_MAX_THREADS_PER_GROUP;
+            limits.m_MaxComputeSharedMemorySize     = D3D12_CS_TGSM_REGISTER_COUNT * sizeof(uint32_t); // 32 KiB
+
+            // CBV bind range is always 64 KiB (hardware-fixed).
+            limits.m_MaxUniformBufferRange = (uint64_t) D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16; // 64 KiB
+
+            // Storage buffer range scales with D3D12_RESOURCE_HEAP_TIER.
+            //   Tier 1: 128 MiB for buffers (separate heap budget)
+            //   Tier 2+: full GPU virtual address space, capped at 2 GiB resource size
+            if (options.ResourceHeapTier >= D3D12_RESOURCE_HEAP_TIER_2)
+            {
+                limits.m_MaxStorageBufferRange = 1ull << 31; // 2 GiB
+            }
+            else
+            {
+                limits.m_MaxStorageBufferRange = 128ull * 1024 * 1024; // 128 MiB
+            }
+        }
+
+        // Adapter API version — report the highest D3D feature level as major.minor.
+        {
+            static const D3D_FEATURE_LEVEL levels_to_check[] = {
+                D3D_FEATURE_LEVEL_12_2,
+                D3D_FEATURE_LEVEL_12_1,
+                D3D_FEATURE_LEVEL_12_0,
+                D3D_FEATURE_LEVEL_11_1,
+                D3D_FEATURE_LEVEL_11_0,
+            };
+
+            D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels = {};
+            feature_levels.NumFeatureLevels = sizeof(levels_to_check) / sizeof(levels_to_check[0]);
+            feature_levels.pFeatureLevelsRequested = levels_to_check;
+
+            D3D_FEATURE_LEVEL max_level = D3D_FEATURE_LEVEL_11_0;
+            if (SUCCEEDED(context->m_Device->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &feature_levels, sizeof(feature_levels))))
+            {
+                max_level = feature_levels.MaxSupportedFeatureLevel;
+            }
+
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) ((max_level >> 12) & 0xF);
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) ((max_level >>  8) & 0xF);
+        }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
@@ -2032,6 +2112,20 @@ namespace dmGraphics
         return D3D12_BLEND_ZERO;
     }
 
+    static inline D3D12_BLEND_OP GetBlendOp(BlendEquation equation)
+    {
+        switch(equation)
+        {
+            case BLEND_EQUATION_ADD:              return D3D12_BLEND_OP_ADD;
+            case BLEND_EQUATION_SUBTRACT:         return D3D12_BLEND_OP_SUBTRACT;
+            case BLEND_EQUATION_REVERSE_SUBTRACT: return D3D12_BLEND_OP_REV_SUBTRACT;
+            case BLEND_EQUATION_MIN:              return D3D12_BLEND_OP_MIN;
+            case BLEND_EQUATION_MAX:              return D3D12_BLEND_OP_MAX;
+            default: break;
+        }
+        return D3D12_BLEND_OP_ADD;
+    }
+
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
     {
         memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
@@ -2161,10 +2255,10 @@ namespace dmGraphics
         blendDesc.RenderTarget[0].LogicOpEnable         = false;
         blendDesc.RenderTarget[0].SrcBlend              = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactor);
         blendDesc.RenderTarget[0].DestBlend             = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactor);
-        blendDesc.RenderTarget[0].BlendOp               = D3D12_BLEND_OP_ADD;
-        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactor);
-        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactor);
-        blendDesc.RenderTarget[0].BlendOpAlpha          = D3D12_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].BlendOp               = GetBlendOp((BlendEquation) context->m_PipelineState.m_BlendEquationColor);
+        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactorAlpha);
+        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactorAlpha);
+        blendDesc.RenderTarget[0].BlendOpAlpha          = GetBlendOp((BlendEquation) context->m_PipelineState.m_BlendEquationAlpha);
         blendDesc.RenderTarget[0].LogicOp               = D3D12_LOGIC_OP_NOOP;
         blendDesc.RenderTarget[0].RenderTargetWriteMask = context->m_PipelineState.m_WriteColorMask;
 
@@ -3059,7 +3153,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static bool DX12IsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         DX12Context* context = (DX12Context*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0;
+        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
     }
 
     static uint32_t DX12GetMaxTextureSize(HContext context)
@@ -3399,8 +3493,26 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static void DX12SetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
-        g_DX12Context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        g_DX12Context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        g_DX12Context->m_PipelineState.m_BlendSrcFactor      = source_factor;
+        g_DX12Context->m_PipelineState.m_BlendDstFactor      = destinaton_factor;
+        g_DX12Context->m_PipelineState.m_BlendSrcFactorAlpha = source_factor;
+        g_DX12Context->m_PipelineState.m_BlendDstFactorAlpha = destinaton_factor;
+        g_DX12Context->m_PipelineState.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        g_DX12Context->m_PipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void DX12SetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        g_DX12Context->m_PipelineState.m_BlendSrcFactor      = src_factor_color;
+        g_DX12Context->m_PipelineState.m_BlendDstFactor      = dst_factor_color;
+        g_DX12Context->m_PipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
+        g_DX12Context->m_PipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void DX12SetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        g_DX12Context->m_PipelineState.m_BlendEquationColor  = equation_color;
+        g_DX12Context->m_PipelineState.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void DX12SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)

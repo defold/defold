@@ -103,6 +103,37 @@ namespace dmGraphics
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_16BPP;
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
+
+        // Synthetic limits for the null adapter — these are not queried from any
+        // hardware, just generous defaults that roughly mirror Vulkan / D3D12
+        // Feature Level 11_0 guarantees so test code can assume a baseline
+        // modern profile.
+        GraphicsContextLimits& limits = m_BaseContext.m_Limits;
+        limits.m_MaxTextureSize2D                = 16384;
+        limits.m_MaxTextureSize3D                = 2048;
+        limits.m_MaxTextureSizeCube              = 16384;
+        limits.m_MaxTextureArrayLayers           = 2048;
+
+        limits.m_MaxFramebufferWidth             = 16384;
+        limits.m_MaxFramebufferHeight            = 16384;
+        limits.m_MaxColorAttachments             = 8;
+
+        limits.m_MaxSamplersPerStage             = 16;
+        limits.m_MaxTexturesPerStage             = 32;
+        limits.m_MaxVertexAttributes             = 16;
+        limits.m_MaxVertexBuffers                = 16;
+
+        limits.m_MaxComputeWorkgroupSizeX        = 1024;
+        limits.m_MaxComputeWorkgroupSizeY        = 1024;
+        limits.m_MaxComputeWorkgroupSizeZ        = 64;
+        limits.m_MaxComputeWorkgroupInvocations  = 1024;
+        limits.m_MaxComputeSharedMemorySize      = 32 * 1024;
+
+        limits.m_MaxUniformBufferRange           = 64 * 1024;
+        limits.m_MaxStorageBufferRange           = 128ull * 1024 * 1024;
+
+        m_BaseContext.m_AdapterVersionMajor = 0;
+        m_BaseContext.m_AdapterVersionMinor = 0;
     }
 
     static HContext NullNewContext(const ContextParams& params)
@@ -172,6 +203,7 @@ namespace dmGraphics
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_3D_TEXTURES;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX;
 
         if (context->m_AsyncProcessingSupport)
         {
@@ -1014,7 +1046,17 @@ namespace dmGraphics
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
-        return ((NullShaderModule*) program)->m_Language;
+        NullProgram* p = (NullProgram*) program;
+
+        if (p->m_VP)
+            return p->m_VP->m_Language;
+        if (p->m_FP)
+            return p->m_FP->m_Language;
+        if (p->m_Compute)
+            return p->m_Compute->m_Language;
+
+        assert(0);
+        return ShaderDesc::LANGUAGE_GLSL_SM330;
     }
 
     static bool NullIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
@@ -1315,17 +1357,14 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
 
-        if (render_target == 0)
-        {
-            context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
-        }
-        else
+        RenderTarget* rt = 0;
+        if (render_target != 0)
         {
             assert(GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-            RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-            context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
+            rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         }
+        context->m_CurrentFrameBuffer = rt ? &rt->m_FrameBuffer : &context->m_MainFrameBuffer;
     }
 
     static HTexture NullGetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
@@ -1458,7 +1497,7 @@ namespace dmGraphics
 
     static bool NullIsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return (((NullContext*) context)->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0;
+        return (((NullContext*) context)->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
     }
 
     static uint32_t NullGetMaxTextureSize(HContext context)
@@ -1742,8 +1781,30 @@ namespace dmGraphics
     {
         assert(_context);
         NullContext* context = (NullContext*) _context;
-        context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        context->m_PipelineState.m_BlendSrcFactor      = source_factor;
+        context->m_PipelineState.m_BlendDstFactor      = destinaton_factor;
+        context->m_PipelineState.m_BlendSrcFactorAlpha = source_factor;
+        context->m_PipelineState.m_BlendDstFactorAlpha = destinaton_factor;
+        context->m_PipelineState.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        context->m_PipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void NullSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        assert(_context);
+        NullContext* context = (NullContext*) _context;
+        context->m_PipelineState.m_BlendSrcFactor      = src_factor_color;
+        context->m_PipelineState.m_BlendDstFactor      = dst_factor_color;
+        context->m_PipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
+        context->m_PipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void NullSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        assert(_context);
+        NullContext* context = (NullContext*) _context;
+        context->m_PipelineState.m_BlendEquationColor  = equation_color;
+        context->m_PipelineState.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void NullSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
@@ -1919,6 +1980,10 @@ namespace dmGraphics
         else
         {
             SetTexture(context, texture, params);
+            if (callback)
+            {
+                callback(texture, user_data);
+            }
         }
     }
 

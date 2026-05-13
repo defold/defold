@@ -50,6 +50,7 @@ namespace dmGameSystem
     using namespace dmVMath;
 
     static PhysicsAdapterFunctionTable* g_PhysicsAdapter = 0x0;
+    static ScriptBox2DInvalidateBodyCallback g_ScriptBox2DInvalidateBodyCallback = 0x0;
     // TODO: Allow the SetWorldTransform to have a physics context which we can check instead!!
     static int g_NumPhysicsTransformsUpdated = 0;
     static bool g_CollisionOverflowWarning   = false;
@@ -64,8 +65,18 @@ namespace dmGameSystem
     static void InstallBox2DPhysicsAdapter();
     static void DeleteJoint(CollisionWorldBox2D* world, dmPhysics::HJoint joint);
     static void DeleteJoint(CollisionWorldBox2D* world, JointEntry* joint_entry);
+    static void DeleteCollisionObject(CollisionWorldBox2D* world, CollisionComponentBox2D* component);
     static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform);
     static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation);
+
+    static void InvalidateScriptBox2DBody(dmPhysics::HCollisionObject2D collision_object)
+    {
+        // This is only set when using Box2d v2
+        if (g_ScriptBox2DInvalidateBodyCallback)
+        {
+            g_ScriptBox2DInvalidateBodyCallback(dmPhysics::GetCollisionObjectContext2D(collision_object));
+        }
+    }
 
     struct CollisionWorldBox2D
     {
@@ -89,6 +100,30 @@ namespace dmGameSystem
         uint8_t                       m_FlippedY : 1; // --||--
         uint8_t                                  : 6; // Unused
     };
+
+    static void DeleteCollisionObject(CollisionWorldBox2D* world, CollisionComponentBox2D* component)
+    {
+        if (component->m_Object2D == 0)
+        {
+            return;
+        }
+
+        InvalidateScriptBox2DBody(component->m_Object2D);
+        dmPhysics::DeleteCollisionObject2D(world->m_World2D, component->m_Object2D);
+        component->m_Object2D = 0;
+    }
+
+    static void RemoveComponentFromUpdate(CollisionWorldBox2D* world, CollisionComponentBox2D* component)
+    {
+        for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
+        {
+            if (world->m_Components[i] == component)
+            {
+                world->m_Components.EraseSwap(i);
+                return;
+            }
+        }
+    }
 
     /// Joint entry that will keep track of joint connections from collision components.
     struct JointEntry
@@ -177,6 +212,16 @@ namespace dmGameSystem
         if (world == 0x0)
         {
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
+        uint32_t num_components = world->m_Components.Size();
+        for (uint32_t i = 0; i < num_components; ++i)
+        {
+            CollisionComponentBox2D* component = world->m_Components[i];
+            if (component->m_Object2D)
+            {
+                InvalidateScriptBox2DBody(component->m_Object2D);
+            }
         }
 
         dmPhysics::DeleteWorld2D(physics_context->m_Context, world->m_World2D);
@@ -334,7 +379,7 @@ namespace dmGameSystem
 
         if (component->m_Object2D != 0x0)
         {
-            dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
+            DeleteCollisionObject(world, component);
         }
         component->m_Object2D = collision_object;
 
@@ -417,20 +462,7 @@ namespace dmGameSystem
 
         if (component->m_Object2D != 0)
         {
-            dmPhysics::HWorld2D physics_world = world->m_World2D;
-            dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
-            component->m_Object2D = 0;
-        }
-
-        uint32_t num_components = world->m_Components.Size();
-        for (uint32_t i = 0; i < num_components; ++i)
-        {
-            CollisionComponentBox2D* c = world->m_Components[i];
-            if (c == component)
-            {
-                world->m_Components.EraseSwap(i);
-                break;
-            }
+            DeleteCollisionObject(world, component);
         }
 
         delete component;
@@ -439,9 +471,12 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectBox2DFinal(const dmGameObject::ComponentFinalParams& params)
     {
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
-        component->m_AddedToUpdate = false;
-        component->m_StartAsEnabled = true;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
+
+        RemoveComponentFromUpdate(world, component);
+        component->m_BaseComponent.m_AddedToUpdate = false;
+        component->m_BaseComponent.m_StartAsEnabled = true;
         return dmGameObject::CREATE_RESULT_OK;
     }
     dmGameObject::CreateResult CompCollisionObjectBox2DAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
@@ -616,7 +651,7 @@ namespace dmGameSystem
                     SetCollisionObjectData(world, c, resource, ddf, true, data);
                     c->m_BaseComponent.m_Mask = data.m_Mask;
 
-                    dmPhysics::DeleteCollisionObject2D(world->m_World2D, c->m_Object2D);
+                    DeleteCollisionObject(world, c);
                     dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
                     c->m_Object2D = dmPhysics::NewCollisionObject2D(world->m_World2D, data, &shapes.Front(), shapes.Size());
 
@@ -914,6 +949,11 @@ namespace dmGameSystem
     {
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         return dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
+    }
+
+    void CompCollisionObjectSetBox2DInvalidateBodyCallback(ScriptBox2DInvalidateBodyCallback callback)
+    {
+        g_ScriptBox2DInvalidateBodyCallback = callback;
     }
 
     // Adapter functions

@@ -372,8 +372,10 @@ public class ManifestTest {
 
         assertEquals(instance.resources.length, fullData.getResourcesCount());
         assertEquals(7, countExcludedResources(fullData));
+        assertTrue(fullData.getHasExcludedResources());
         assertEquals(6, strippedData.getResourcesCount());
         assertEquals(0, countExcludedResources(strippedData));
+        assertTrue(strippedData.getHasExcludedResources());
 
         assertFalse(findResource(strippedData, "/main/level1.collectionc") != null);
         assertFalse(findResource(strippedData, "/main/level1.goc") != null);

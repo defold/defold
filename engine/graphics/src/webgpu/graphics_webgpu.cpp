@@ -93,6 +93,14 @@ static const WGPUBlendFactor g_webgpu_blend_factors[] = {
     WGPUBlendFactor_SrcAlphaSaturated
 };
 
+static const WGPUBlendOperation g_webgpu_blend_equations[] = {
+    WGPUBlendOperation_Add,
+    WGPUBlendOperation_Subtract,
+    WGPUBlendOperation_ReverseSubtract,
+    WGPUBlendOperation_Min,
+    WGPUBlendOperation_Max
+};
+
 #if defined(DM_GRAPHICS_WEBGPU_WAGYU)
 static WGPUTextureUsage g_rendertarget_usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_WagyuInputAttachment;
 #else
@@ -933,12 +941,12 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
 #else
         WGPUBlendState blend_state  = {};
 #endif
-        blend_state.color.operation = WGPUBlendOperation_Add;
+        blend_state.color.operation = g_webgpu_blend_equations[context->m_CurrentPipelineState.m_BlendEquationColor];
         blend_state.color.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactor];
         blend_state.color.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactor];
-        blend_state.alpha.operation = WGPUBlendOperation_Add;
-        blend_state.alpha.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactor];
-        blend_state.alpha.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactor];
+        blend_state.alpha.operation = g_webgpu_blend_equations[context->m_CurrentPipelineState.m_BlendEquationAlpha];
+        blend_state.alpha.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactorAlpha];
+        blend_state.alpha.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactorAlpha];
         WGPUColorTargetState targets_desc[MAX_BUFFER_COLOR_ATTACHMENTS];
         for (int a = 0; a < context->m_CurrentRenderPass.m_Target->m_ColorBufferCount; ++a)
         {
@@ -1187,6 +1195,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
+    context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX;
 
 #if defined (DM_GRAPHICS_WEBGPU2)
     const uint32_t webgpu_version = 2;
@@ -1225,6 +1234,50 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_RenderPipelineCache.SetCapacity(32, 64);
     context->m_ComputePipelineCache.SetCapacity(32, 64);
     SetSwapInterval((HContext) context, params.m_SwapInterval);
+
+    // Populate the shared GraphicsContextLimits from the WebGPU device limits.
+    // WebGPU v1 nests fields under `.limits`, WebGPU v2 exposes them directly
+    // on `WGPULimits` — DEV_LIMIT() picks the right path.
+    {
+    #if defined(DM_GRAPHICS_WEBGPU2)
+        #define DEV_LIMIT(name) (context->m_DeviceLimits.name)
+    #else
+        #define DEV_LIMIT(name) (context->m_DeviceLimits.limits.name)
+    #endif
+
+        GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+
+        limits.m_MaxTextureSize2D                = (uint32_t) DEV_LIMIT(maxTextureDimension2D);
+        limits.m_MaxTextureSize3D                = (uint32_t) DEV_LIMIT(maxTextureDimension3D);
+        limits.m_MaxTextureSizeCube              = (uint32_t) DEV_LIMIT(maxTextureDimension2D); // cube faces share 2D limit
+        limits.m_MaxTextureArrayLayers           = (uint32_t) DEV_LIMIT(maxTextureArrayLayers);
+
+        // TODO(webgpu): m_MaxFramebufferWidth/Height — WebGPU has no direct
+        //               framebuffer size limit; falling back to max 2D dim.
+        limits.m_MaxFramebufferWidth             = (uint32_t) DEV_LIMIT(maxTextureDimension2D);
+        limits.m_MaxFramebufferHeight            = (uint32_t) DEV_LIMIT(maxTextureDimension2D);
+        limits.m_MaxColorAttachments             = (uint32_t) DEV_LIMIT(maxColorAttachments);
+
+        limits.m_MaxSamplersPerStage             = (uint32_t) DEV_LIMIT(maxSamplersPerShaderStage);
+        limits.m_MaxTexturesPerStage             = (uint32_t) DEV_LIMIT(maxSampledTexturesPerShaderStage);
+        limits.m_MaxVertexAttributes             = (uint32_t) DEV_LIMIT(maxVertexAttributes);
+        limits.m_MaxVertexBuffers                = (uint32_t) DEV_LIMIT(maxVertexBuffers);
+
+        limits.m_MaxComputeWorkgroupSizeX        = (uint32_t) DEV_LIMIT(maxComputeWorkgroupSizeX);
+        limits.m_MaxComputeWorkgroupSizeY        = (uint32_t) DEV_LIMIT(maxComputeWorkgroupSizeY);
+        limits.m_MaxComputeWorkgroupSizeZ        = (uint32_t) DEV_LIMIT(maxComputeWorkgroupSizeZ);
+        limits.m_MaxComputeWorkgroupInvocations  = (uint32_t) DEV_LIMIT(maxComputeInvocationsPerWorkgroup);
+        limits.m_MaxComputeSharedMemorySize      = (uint32_t) DEV_LIMIT(maxComputeWorkgroupStorageSize);
+
+        limits.m_MaxUniformBufferRange           = (uint64_t) DEV_LIMIT(maxUniformBufferBindingSize);
+        limits.m_MaxStorageBufferRange           = (uint64_t) DEV_LIMIT(maxStorageBufferBindingSize);
+
+    #undef DEV_LIMIT
+    }
+
+    // WebGPU has no runtime-queryable API version; use 1.0 (core spec).
+    context->m_BaseContext.m_AdapterVersionMajor = 1;
+    context->m_BaseContext.m_AdapterVersionMinor = 0;
 
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB; // Transcoded
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA;
@@ -3386,9 +3439,33 @@ static void WebGPUSetBlendFunc(HContext _context, BlendFactor source_factor, Ble
 {
     TRACE_CALL;
     assert(_context);
-    WebGPUContext* context                           = (WebGPUContext*)_context;
-    context->m_CurrentPipelineState.m_BlendSrcFactor = source_factor;
-    context->m_CurrentPipelineState.m_BlendDstFactor = destinaton_factor;
+    WebGPUContext* context                                = (WebGPUContext*)_context;
+    context->m_CurrentPipelineState.m_BlendSrcFactor      = source_factor;
+    context->m_CurrentPipelineState.m_BlendDstFactor      = destinaton_factor;
+    context->m_CurrentPipelineState.m_BlendSrcFactorAlpha = source_factor;
+    context->m_CurrentPipelineState.m_BlendDstFactorAlpha = destinaton_factor;
+    context->m_CurrentPipelineState.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+    context->m_CurrentPipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+}
+
+static void WebGPUSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+{
+    TRACE_CALL;
+    assert(_context);
+    WebGPUContext* context                                = (WebGPUContext*)_context;
+    context->m_CurrentPipelineState.m_BlendSrcFactor      = src_factor_color;
+    context->m_CurrentPipelineState.m_BlendDstFactor      = dst_factor_color;
+    context->m_CurrentPipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
+    context->m_CurrentPipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+}
+
+static void WebGPUSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+{
+    TRACE_CALL;
+    assert(_context);
+    WebGPUContext* context                                = (WebGPUContext*)_context;
+    context->m_CurrentPipelineState.m_BlendEquationColor  = equation_color;
+    context->m_CurrentPipelineState.m_BlendEquationAlpha  = equation_alpha;
 }
 
 static void WebGPUSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)

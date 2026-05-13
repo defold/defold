@@ -55,6 +55,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.library :as library]
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
@@ -100,9 +101,9 @@
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
-           [java.io File PipedInputStream PipedOutputStream]
+           [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
-           [java.util Arrays Collection List]
+           [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections ListChangeListener ObservableList]
@@ -736,27 +737,21 @@
 (defn- local-url [target web-server]
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
 
-(def ^:private app-task-progress
-  {:main (ref progress/done)
-   :build (ref progress/done)
-   :resource-sync (ref progress/done)
-   :save-all (ref progress/done)
-   :fetch-libraries (ref progress/done)
-   :download-update (ref progress/done)})
+(def ^:private initial-app-task-progress
+  {:main progress/done
+   :build progress/done
+   :resource-sync progress/done
+   :save-all progress/done
+   :fetch-libraries progress/done
+   :download-update progress/done})
 
-(declare ^:private render-task-progress!)
-
-(defn- cancel-task!
-  [task-key]
-  (dosync
-    (let [progress-ref (task-key app-task-progress)]
-      (render-task-progress! task-key (progress/cancel @progress-ref)))))
+(def ^:private app-task-state
+  (atom {:progress initial-app-task-progress
+         :render-ui-inflight false}))
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
   [:save-all :resource-sync :fetch-libraries :build :download-update :main])
-
-(def ^:private render-task-progress-ui-inflight (ref false))
 
 (def status-bar-controls-delay
   (delay
@@ -764,29 +759,46 @@
       (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
       ["progress-bar" "progress-hbox" "progress-percentage-label" "status-label" "progress-cancel-button"])))
 
+(declare ^:private render-task-progress-ui!)
+
+(defn- update-app-task-state! [f & args]
+  (let [[old-state new-state] (apply swap-vals! app-task-state f args)]
+    (when (and (not (:render-ui-inflight old-state))
+               (:render-ui-inflight new-state))
+      (ui/run-later (render-task-progress-ui!)))
+    [old-state new-state]))
+
+(defn- set-task-progress-state [state key progress]
+  (-> state
+      (update :progress assoc key progress)
+      (assoc :render-ui-inflight true)))
+
+(defn- update-task-progress-state [state key f & args]
+  (set-task-progress-state state key (apply f (-> state :progress (get key)) args)))
+
+(defn- cancel-task!
+  [task-key]
+  (update-app-task-state! update-task-progress-state task-key progress/cancel))
+
 (defn- render-task-progress-ui! []
-  (let [task-progress-snapshot (ref nil)]
-    (dosync
-      (ref-set render-task-progress-ui-inflight false)
-      (ref-set task-progress-snapshot
-               (into {} (map (juxt first (comp deref second))) app-task-progress)))
+  (let [task-progress-snapshot (:progress (swap! app-task-state assoc :render-ui-inflight false))]
     (let [[key progress] (->> app-task-ui-priority
-                              (map (juxt identity @task-progress-snapshot))
+                              (map (juxt identity task-progress-snapshot))
                               (filter (comp (complement progress/done?) second))
                               first)
-          show-progress-hbox? (boolean (and (not= key :main)
-                                            progress
-                                            (not (progress/done? progress))))
+          show-progress-hbox (boolean (and (not= key :main)
+                                           progress
+                                           (not (progress/done? progress))))
           localization (ui/user-data (.getScene (ui/main-stage)) :localization)
           {:keys [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]} @status-bar-controls-delay]
       (ui/render-progress-message!
-        (if key progress (@task-progress-snapshot :main))
+        (if key progress (task-progress-snapshot :main))
         status-label
         localization)
       ;; The bottom right of the status bar can show either the progress-hbox
       ;; or the update-link, or both. The progress-hbox will cover
       ;; the update-link if both are visible.
-      (if-not show-progress-hbox?
+      (if-not show-progress-hbox
         (ui/visible! progress-hbox false)
         (do
           (ui/visible! progress-hbox true)
@@ -803,40 +815,38 @@
               (ui/on-action! identity))))))))
 
 (defn- render-task-progress! [key progress]
-  (let [schedule-render-task-progress-ui (ref false)]
-    (dosync
-      (ref-set (get app-task-progress key) progress)
-      (ref-set schedule-render-task-progress-ui (not @render-task-progress-ui-inflight))
-      (ref-set render-task-progress-ui-inflight true))
-    (when @schedule-render-task-progress-ui
-      (ui/run-later (render-task-progress-ui!)))))
+  (update-app-task-state! set-task-progress-state key progress))
 
 (defn make-render-task-progress [key]
-  (assert (contains? app-task-progress key))
+  (assert (contains? initial-app-task-progress key))
   (progress/throttle-render-progress
     (fn [progress] (render-task-progress! key progress))))
 
 (defn begin-task-progress! [key]
-  (let [progress-ref (get app-task-progress key)
-        prev-progress-atom (atom nil)]
-    (assert (some? progress-ref))
+  (let [prev-progress-atom (atom nil)]
+    (assert (contains? initial-app-task-progress key))
     (pair
       (fn render-progress! [progress]
         ;; Combined throttling and inheritance of cancel state.
         ;; The first call to render-progress! overwrites the cancel state of the
-        ;; progress-ref, and then subsequent calls will inherit the cancel state
-        ;; from the progress-ref. This is to ensure we see changes to the
-        ;; progress-refs cancel state from the cancel-task! function.
+        ;; task progress, and then subsequent calls will inherit the cancel state
+        ;; from the task progress. This is to ensure we see changes to the
+        ;; task progress cancel state from the cancel-task! function.
         (let [prev-progress @prev-progress-atom
-              progress (cond-> progress
-                               prev-progress
-                               (progress/with-inherited-cancel-state @progress-ref))]
-          (when (progress/relevant-change? prev-progress progress)
-            (reset! prev-progress-atom progress)
-            (render-task-progress! key progress))))
+              [old-state new-state] (update-app-task-state!
+                                      (fn [state]
+                                        (let [current-progress (-> state :progress (get key))
+                                              progress (cond-> progress
+                                                         prev-progress
+                                                         (progress/with-inherited-cancel-state current-progress))]
+                                          (if (progress/relevant-change? prev-progress progress)
+                                            (set-task-progress-state state key progress)
+                                            state))))]
+          (when-not (= old-state new-state)
+            (reset! prev-progress-atom (-> new-state :progress (get key))))))
 
       (fn task-cancelled? []
-        (progress/cancelled? @progress-ref)))))
+        (-> @app-task-state :progress (get key) progress/cancelled?)))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
@@ -1537,8 +1547,9 @@
 
 (handler/defhandler :project.clean-build :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane localization]
-    (when (dialogs/make-confirmation-dialog localization clean-build-dialog-info)
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane localization user-data]
+    (when (or (:skip-confirmation user-data)
+              (dialogs/make-confirmation-dialog localization clean-build-dialog-info))
       (debug-view/detach! debug-view)
       (workspace/clear-build-cache! workspace)
       (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane))))
@@ -1878,6 +1889,7 @@
     :id ::file
     :children [{:label (localization/message "command.file.new")
                 :id ::new
+                :expand false
                 :command :file.new}
                {:label (localization/message "command.file.open")
                 :id ::open
@@ -2401,6 +2413,7 @@
                         (mapv #(substitute-args % arg-sub)))
               project-directory (workspace/project-directory basis workspace)]
           {:type :os-execute
+           :workspace workspace
            :executable custom-editor
            :args args
            :working-directory project-directory})
@@ -2459,11 +2472,21 @@
       false)
 
     :os-execute
-    (let [{:keys [args executable working-directory]} open-resource-plan
-          ^List command (cons executable args)]
-      (doto (ProcessBuilder. command)
-        (.directory working-directory)
-        (.start))
+    (let [{:keys [args executable working-directory workspace]} open-resource-plan]
+      (future/io
+        (error-reporting/catch-all!
+          (try
+            (apply process/start! {:dir working-directory :err :discard :out :discard} executable args)
+            (catch IOException e
+              (ui/run-later
+                (notifications/show!
+                  (workspace/notifications workspace)
+                  {:type :error
+                   :message (localization/message "notification.open-custom-editor-failed.error"
+                                                  {"editor" executable
+                                                   "error" (.getMessage e)})
+                   :actions [{:message (localization/message "notification.open-custom-editor-failed.action.open-preferences")
+                              :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :app.preferences nil)}]}))))))
       false)
 
     :os-open
@@ -3201,30 +3224,21 @@
   (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
-  (let [library-uris (project/project-dependencies project)
-        hosts (into #{} (map url/strip-path) library-uris)]
-    (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
-      (dialogs/make-info-dialog
-        localization
-        {:title (localization/message "dialog.fetch-libraries.host-unreachable.title")
-         :icon :icon/triangle-error
-         :size :large
-         :header (localization/message "dialog.fetch-libraries.host-unreachable.header")
-         :content (localization/message "dialog.fetch-libraries.host-unreachable.content" {"host" first-unreachable-host})})
-      (future
-        (error-reporting/catch-all!
-          (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
-            (when (workspace/dependencies-reachable? library-uris)
-              (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fetch-progress!)
-                    render-install-progress! (make-render-task-progress :resource-sync)]
-                (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
-                (ui/run-later
-                  (workspace/install-validated-libraries! workspace lib-states)
-                  (disk/async-reload! render-install-progress! workspace [] changes-view
-                                      (fn [success]
-                                        (when success
-                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                                          (project/update-fetch-libraries-notification! project)))))))))))))
+  (let [library-uris (project/project-dependencies project)]
+    (future
+      (error-reporting/catch-all!
+        (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
+          (let [lib-results (library/fetch! (workspace/project-directory workspace) library-uris render-fetch-progress!)
+                render-install-progress! (make-render-task-progress :resource-sync)]
+            (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
+            (ui/run-later
+              (workspace/set-project-dependencies! workspace lib-results)
+              (disk/async-reload!
+                render-install-progress! workspace [] changes-view
+                (fn [success]
+                  (when success
+                    (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
+                    (project/update-fetch-libraries-notification! project)))))))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))

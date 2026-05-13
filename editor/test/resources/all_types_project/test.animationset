@@ -1,4 +1,4 @@
 animations {
   animation: "/test2.animationset"
 }
-skeleton: "/test.dae"
+skeleton: "/test.gltf"

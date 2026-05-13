@@ -1736,6 +1736,20 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    // Take a Lua registry reference to prevent the constant buffer
+    // userdata from being garbage collected while the draw command
+    // is queued. The reference is released after ParseCommands.
+    static void AddConstantBufferRef(lua_State* L, RenderScriptInstance* instance)
+    {
+        lua_pushvalue(L, -1);
+        int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        if (instance->m_ConstantBufferLuaRefs.Full())
+        {
+            instance->m_ConstantBufferLuaRefs.OffsetCapacity(16);
+        }
+        instance->m_ConstantBufferLuaRefs.Push(ref);
+    }
+
     /*# draws all objects matching a predicate
      * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
@@ -1816,30 +1830,35 @@ namespace dmRender
         HNamedConstantBuffer constant_buffer = 0;
         dmRender::SortOrder sort_order = dmRender::SORT_UNSPECIFIED;
 
-        if (lua_istable(L, 2))
+        bool has_options_table = lua_istable(L, 2);
+        bool has_constant_buffer_value = false;
+
+        if (has_options_table)
         {
             luaL_checktype(L, 2, LUA_TTABLE);
             lua_pushvalue(L, 2);
+            int options_index = lua_gettop(L);
 
-            lua_getfield(L, -1, "frustum");
+            lua_getfield(L, options_index, "frustum");
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
             lua_pop(L, 1);
 
-            lua_getfield(L, -1, "frustum_planes");
+            lua_getfield(L, options_index, "frustum_planes");
             frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
             lua_pop(L, 1);
 
-            lua_getfield(L, -1, "constants");
-            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
-            lua_pop(L, 1);
+            lua_getfield(L, options_index, "constants");
+            if (!lua_isnil(L, -1))
+            {
+                constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
+                has_constant_buffer_value = true;
+            }
 
-            lua_getfield(L, -1, "sort_order");
+            lua_getfield(L, options_index, "sort_order");
             if (!lua_isnil(L, -1))
             {
                 sort_order = (dmRender::SortOrder) luaL_checkinteger(L, -1);
             }
-            lua_pop(L, 1);
-
             lua_pop(L, 1);
         }
         else if (lua_isuserdata(L, 2)) // Deprecated
@@ -1859,9 +1878,30 @@ namespace dmRender
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options, (uint64_t) sort_order)))
+        {
+            if (has_options_table)
+            {
+                if (has_constant_buffer_value)
+                {
+                    AddConstantBufferRef(L, i);
+                }
+                lua_pop(L, 2);
+            }
+            else if (lua_isuserdata(L, 2)) // Deprecated
+            {
+                // Take a Lua registry reference (same reason as the options table path above).
+                lua_pushvalue(L, 2);
+                AddConstantBufferRef(L, i);
+            }
             return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+
+        delete frustum_options;
+        if (has_options_table)
+        {
+            lua_pop(L, 2);
+        }
+        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     /*# draws all 3d debug graphics
@@ -2129,6 +2169,120 @@ namespace dmRender
             }
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC, factors[0], factors[1])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    static bool CheckBlendFactor(uint32_t factor)
+    {
+        return factor == dmGraphics::BLEND_FACTOR_ZERO ||
+               factor == dmGraphics::BLEND_FACTOR_ONE ||
+               factor == dmGraphics::BLEND_FACTOR_SRC_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_DST_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_SRC_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_DST_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_SRC_ALPHA_SATURATE ||
+               factor == dmGraphics::BLEND_FACTOR_CONSTANT_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_CONSTANT_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+    }
+
+    static bool CheckBlendEquation(uint32_t equation)
+    {
+        return equation == dmGraphics::BLEND_EQUATION_ADD ||
+               equation == dmGraphics::BLEND_EQUATION_SUBTRACT ||
+               equation == dmGraphics::BLEND_EQUATION_REVERSE_SUBTRACT ||
+               equation == dmGraphics::BLEND_EQUATION_MIN ||
+               equation == dmGraphics::BLEND_EQUATION_MAX;
+    }
+
+    /*# sets the blend function with separate factors for color and alpha
+     *
+     * Sets the blend function with separate blend factors for the color and alpha channels.
+     *
+     * @name render.set_blend_func_separate
+     * @param source_factor_color [type:number] source color blend factor
+     * @param destination_factor_color [type:number] destination color blend factor
+     * @param source_factor_alpha [type:number] source alpha blend factor
+     * @param destination_factor_alpha [type:number] destination alpha blend factor
+     * @examples
+     *
+     * Set standard alpha blending with separate alpha:
+     *
+     * ```lua
+     * render.set_blend_func_separate(graphics.BLEND_FACTOR_SRC_ALPHA,
+     *                                graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+     *                                graphics.BLEND_FACTOR_ONE,
+     *                                graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+     * ```
+     */
+    int RenderScript_SetBlendFuncSeparate(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t factors[4];
+        for (uint32_t f = 0; f < 4; ++f)
+        {
+            factors[f] = luaL_checknumber(L, 1 + f);
+        }
+        for (uint32_t f = 0; f < 4; ++f)
+        {
+            if (!CheckBlendFactor(factors[f]))
+            {
+                return luaL_error(L, "Invalid blend factor in %s.set_blend_func_separate", RENDER_SCRIPT_LIB_NAME);
+            }
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, factors[0], factors[1], factors[2], factors[3])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /*# sets the blend equation with separate equations for color and alpha
+     *
+     * Sets the blend equation with separate equations for the color and alpha channels.
+     *
+     * @name render.set_blend_equation_separate
+     * @param equation_color [type:number] color blend equation
+     * @param equation_alpha [type:number] alpha blend equation
+     * @examples
+     *
+     * Set add for color and reverse subtract for alpha:
+     *
+     * ```lua
+     * render.set_blend_equation_separate(graphics.BLEND_EQUATION_ADD,
+     *                                    graphics.BLEND_EQUATION_REVERSE_SUBTRACT)
+     * ```
+     */
+    int RenderScript_SetBlendEquationSeparate(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t equations[2];
+        for (uint32_t e = 0; e < 2; ++e)
+        {
+            equations[e] = luaL_checknumber(L, 1 + e);
+        }
+        for (uint32_t e = 0; e < 2; ++e)
+        {
+            if (!CheckBlendEquation(equations[e]))
+            {
+                return luaL_error(L, "Invalid blend equation in %s.set_blend_equation_separate", RENDER_SCRIPT_LIB_NAME);
+            }
+        }
+        for (uint32_t e = 0; e < 2; ++e)
+        {
+            if ((equations[e] == dmGraphics::BLEND_EQUATION_MIN || equations[e] == dmGraphics::BLEND_EQUATION_MAX) &&
+                !dmGraphics::IsContextFeatureSupported(i->m_RenderContext->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX))
+            {
+                return luaL_error(L, "Blend equation MIN/MAX is not supported on this device in %s.set_blend_equation_separate", RENDER_SCRIPT_LIB_NAME);
+            }
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, equations[0], equations[1])))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -2927,22 +3081,38 @@ namespace dmRender
         int p_z = luaL_checkinteger(L, 3);
 
         HNamedConstantBuffer constant_buffer = 0;
+        bool has_options_table = lua_istable(L, 4);
+        bool has_constant_buffer_value = false;
 
-        if (lua_istable(L, 4))
+        if (has_options_table)
         {
             luaL_checktype(L, 4, LUA_TTABLE);
             lua_pushvalue(L, 4);
+            int options_index = lua_gettop(L);
 
-            lua_getfield(L, -1, "constants");
-            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
-            lua_pop(L, 1);
-
-            lua_pop(L, 1);
+            lua_getfield(L, options_index, "constants");
+            if (!lua_isnil(L, -1))
+            {
+                constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
+                has_constant_buffer_value = true;
+            }
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, p_x, p_y, p_z, (uint64_t) constant_buffer)))
         {
+            if (has_options_table)
+            {
+                if (has_constant_buffer_value)
+                {
+                    AddConstantBufferRef(L, i);
+                }
+                lua_pop(L, 2);
+            }
             return 0;
+        }
+        if (has_options_table)
+        {
+            lua_pop(L, 2);
         }
         return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
@@ -3033,6 +3203,8 @@ namespace dmRender
         {"set_view",                        RenderScript_SetView},
         {"set_projection",                  RenderScript_SetProjection},
         {"set_blend_func",                  RenderScript_SetBlendFunc},
+        {"set_blend_func_separate",         RenderScript_SetBlendFuncSeparate},
+        {"set_blend_equation_separate",     RenderScript_SetBlendEquationSeparate},
         {"set_color_mask",                  RenderScript_SetColorMask},
         {"set_depth_mask",                  RenderScript_SetDepthMask},
         {"set_depth_func",                  RenderScript_SetDepthFunc},
@@ -3172,6 +3344,18 @@ namespace dmRender
         REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_ALPHA);
 
 #undef REGISTER_BLEND_CONSTANT
+
+#define REGISTER_BLEND_EQUATION_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::BLEND_EQUATION_##name); \
+        lua_setfield(L, -2, "BLEND_EQUATION_"#name);
+
+        REGISTER_BLEND_EQUATION_CONSTANT(ADD);
+        REGISTER_BLEND_EQUATION_CONSTANT(SUBTRACT);
+        REGISTER_BLEND_EQUATION_CONSTANT(REVERSE_SUBTRACT);
+        REGISTER_BLEND_EQUATION_CONSTANT(MIN);
+        REGISTER_BLEND_EQUATION_CONSTANT(MAX);
+
+#undef REGISTER_BLEND_EQUATION_CONSTANT
 
 #define REGISTER_COMPARE_FUNC_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::COMPARE_FUNC_##name); \
@@ -3444,6 +3628,19 @@ bail:
         return i;
     }
 
+    static void ReleaseConstantBufferLuaRefs(lua_State* L, HRenderScriptInstance instance)
+    {
+        uint32_t num_refs = instance->m_ConstantBufferLuaRefs.Size();
+        if (num_refs > 0)
+        {
+            for (uint32_t i = 0; i < num_refs; ++i)
+            {
+                dmScript::Unref(L, LUA_REGISTRYINDEX, instance->m_ConstantBufferLuaRefs[i]);
+            }
+            instance->m_ConstantBufferLuaRefs.SetSize(0);
+        }
+    }
+
     void DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance)
     {
         lua_State* L = render_script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
@@ -3460,6 +3657,8 @@ bail:
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
+
+        ReleaseConstantBufferLuaRefs(L, render_script_instance);
 
         assert(top == lua_gettop(L));
 
@@ -3652,6 +3851,8 @@ bail:
     {
         DM_PROFILE("UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
+
+        ReleaseConstantBufferLuaRefs(instance->m_RenderContext->m_RenderScriptContext.m_LuaState, instance);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
 

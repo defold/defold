@@ -336,11 +336,9 @@ dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}
 
 # Fetch libraries notification
 
-notification.fetch-libraries.dependencies-changed.prompt = 项目依赖项已更改。您想现在获取库吗？
-notification.fetch-libraries.dependencies-changed.action.fetch = 获取库
-notification.fetch-libraries.dependencies-missing.warning = 以下依赖项缺失：\n{dependencies}\n缺少这些依赖项，项目可能无法正常运行。\n如需下载，请连接互联网并获取相关库。
-notification.fetch-libraries.dependencies-error.error = 无法安装以下依赖：\n{dependencies}
-notification.fetch-libraries.dependencies-error.action.open-game-project = 打开 game.project
+
+# Open custom editor notifications
+
 
 # Settings notifications
 
@@ -2004,8 +2002,6 @@ form.label.project.liveupdate.enabled = 启用
 form.help.project.liveupdate.enabled = 启用热更新功能
 form.label.project.liveupdate.settings = 设置
 form.help.project.liveupdate.settings = 热更新设置资源
-form.label.project.liveupdate.mount_on_start = 启动时自动挂载
-form.help.project.liveupdate.mount_on_start = 启用后,应用程序启动时会自动挂载之前已挂载的资源
 
 form.label.project.native_extension = 原生扩展
 form.help.project.native_extension = 原生扩展的设置

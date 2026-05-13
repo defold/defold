@@ -1,0 +1,52 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Set Shell
+description: Setup nix or custom shell for workflows
+
+inputs:
+  nix-shell:
+    description: Run in the specified Nix environment if exists. If empty, custom shell will be used instead of nix.
+    default: 'ci'
+  nix-cache:
+    description: Determine whether to enable nix cache
+    default: 'false'
+  nix-cache-prefix:
+    description: Fixed prefix of ID of Github cache entries that should be removed.
+    required: false
+  nix-verbose:
+    description: Determine wether to suppress nix log or not
+    default: 'false'
+  custom_shell:
+    description: The shell to use. Only relevant if no nix-shell specified
+    default: 'bash'
+  script:
+    description: The script to be run in the nix shell
+    required: false
+  gh_token:
+    description: Github access token to use
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup nix
+      uses: ./.github/actions/setup-nix
+      if: ${{ inputs.nix-shell != '' }}
+      with:
+        devShell: ${{ inputs.nix-shell }}
+        gh_token: ${{ inputs.gh_token }}
+        verbose: ${{ inputs.nix-verbose }}
+        cache: ${{ inputs.nix-cache }}
+        script: ${{ inputs.script }}
+        cache_prefix: ${{ inputs.nix-cache-prefix }}
+    - name: Set custom shell
+      shell: bash
+      if: ${{ inputs.nix-shell == '' }}
+      run: |
+          echo SHELL="${{ inputs.custom_shell }}" >> $GITHUB_ENV
+
+          if [[ "${{ inputs.script }}" != '' ]]; then
+            eval ${{ inputs.script }}
+          fi

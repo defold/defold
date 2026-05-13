@@ -34,6 +34,7 @@
 #include "gamesys/resources/res_textureset.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/memory.h>
@@ -75,6 +76,20 @@
 #include <jc_test/jc_test.h>
 
 using namespace dmVMath;
+
+static float ReadUnalignedFloat(const void* ptr)
+{
+    float value;
+    memcpy(&value, ptr, sizeof(value));
+    return value;
+}
+
+static int16_t ReadUnalignedInt16(const void* ptr)
+{
+    int16_t value;
+    memcpy(&value, ptr, sizeof(value));
+    return value;
+}
 
 namespace dmGameObject
 {
@@ -634,7 +649,7 @@ static bool UpdateAndWaitUntilDone(
         frame_time = now;
 
         JobSystemUpdate(scriptlibcontext.m_JobContext, 0);
-        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
+        dmGameSystem::UpdateScriptLibs(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
         {
             dmLogError("Test failed on dmGameSystem::GetScriptSysGameSysLastUpdateResult()");
@@ -2344,6 +2359,131 @@ TEST_F(ParticleFxTest, GetSetProperties)
     dmResource::Release(m_Factory, material);
 }
 
+TEST_F(ParticleFxTest, PlayWithOverridesAfterComponentStorageGrowth)
+{
+    dmGameObject::DeleteCollections(m_Register);
+
+    dmGameObjectDDF::ComponenTypeDesc component_types[2] = {};
+    component_types[0].m_NameHash = dmHashString64("goc");
+    component_types[0].m_MaxCount = 32;
+    component_types[1].m_NameHash = dmHashString64("particlefxc");
+    component_types[1].m_MaxCount = 1;
+
+    dmGameObjectDDF::CollectionDesc collection_desc = {};
+    collection_desc.m_Name = "particlefx_low_component_capacity";
+    collection_desc.m_ComponentTypes.m_Data = component_types;
+    collection_desc.m_ComponentTypes.m_Count = sizeof(component_types) / sizeof(component_types[0]);
+
+    m_Collection = dmGameObject::NewCollection(collection_desc.m_Name, m_Factory, m_Register, m_projectOptions.m_MaxInstances, &collection_desc);
+    ASSERT_NE((void*)0, m_Collection);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    dmGameObject::PropertyOptions options;
+    ASSERT_TRUE(dmGameObject::AddPropertyOptionsKey(&options, dmHashString64("emitter")));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, dmHashString64("particlefx"), dmHashString64("animation"), options, dmGameObject::PropertyVar(dmHashString64("anim"))));
+
+    dmMessage::URL receiver;
+    receiver.m_Socket   = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path     = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = dmHashString64("particlefx");
+
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        dmMessage::Post(
+            0, &receiver,
+            dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash,
+            (uintptr_t)go,
+            (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor,
+            0, 0, 0);
+    }
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ParticleFxTest, FrustumCullsParticleEmitters)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go_inside = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go_inside"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_outside = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go_outside"), 0, Point3(1000, 1000, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_inside);
+    ASSERT_NE((void*)0, go_outside);
+
+    dmMessage::URL receiver_inside;
+    receiver_inside.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver_inside.m_Path = dmGameObject::GetIdentifier(go_inside);
+    receiver_inside.m_Fragment = dmHashString64("particlefx");
+    dmMessage::Post(0, &receiver_inside, dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)go_inside, (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, 0, 0, 0);
+
+    dmMessage::URL receiver_outside;
+    receiver_outside.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver_outside.m_Path = dmGameObject::GetIdentifier(go_outside);
+    receiver_outside.m_Fragment = dmHashString64("particlefx");
+    dmMessage::Post(0, &receiver_outside, dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)go_outside, (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, 0, 0, 0);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+
+    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)m_RenderContext;
+    void* particlefx_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("particlefxc")));
+    ASSERT_NE((void*)0, particlefx_world);
+
+    uint32_t particle_dispatch = UINT32_MAX;
+    for (uint32_t i = 0; i < render_context_ptr->m_RenderListDispatch.Size(); ++i)
+    {
+        if (render_context_ptr->m_RenderListDispatch[i].m_UserData == particlefx_world)
+        {
+            particle_dispatch = i;
+            break;
+        }
+    }
+    ASSERT_NE(UINT32_MAX, particle_dispatch);
+
+    dmRender::FrustumOptions frustum_options;
+    frustum_options.m_Matrix = Matrix4::orthographic(-100.0f, 100.0f, -100.0f, 100.0f, -1.0f, 1.0f);
+    frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, &frustum_options, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t inside_count = 0;
+    uint32_t outside_count = 0;
+    for (uint32_t i = 0; i < render_context_ptr->m_RenderList.Size(); ++i)
+    {
+        dmRender::RenderListEntry& entry = render_context_ptr->m_RenderList[i];
+        if (entry.m_Dispatch != particle_dispatch)
+            continue;
+
+        dmParticle::EmitterRenderData* render_data = (dmParticle::EmitterRenderData*)entry.m_UserData;
+        const bool inside_frustum = dmMath::Abs(render_data->m_FrustumCullingCenter.getX()) < 500.0f;
+        if (inside_frustum)
+        {
+            ASSERT_EQ(dmRender::VISIBILITY_FULL, entry.m_Visibility);
+            inside_count++;
+        }
+        else
+        {
+            ASSERT_EQ(dmRender::VISIBILITY_NONE, entry.m_Visibility);
+            outside_count++;
+        }
+    }
+
+    ASSERT_GT(inside_count, 0u);
+    ASSERT_GT(outside_count, 0u);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
 {
     dmGameObject::PropertyDesc property_desc;
@@ -2649,6 +2789,19 @@ TEST_F(GuiTest, TextureReloadRefreshesAtlasState)
     ASSERT_EQ(64.0f, size.getY());
 
     dmResource::Release(m_Factory, expected_atlas);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, AsyncTextureAutoSize)
+{
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_UseAsyncTextureLoad = 1;
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/async_texture_auto_size.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done"));
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -4793,7 +4946,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     dmGameObject::InputAction input_action_connected;
     input_action_connected.m_ActionId = dmHashString64("gamepad_connected");
     input_action_connected.m_GamepadConnected = 1;
-    input_action_connected.m_TextCount = dmStrlCpy(input_action_connected.m_Text, "null_device", sizeof(input_action_connected.m_Text));
+    input_action_connected.m_Count = dmStrlCpy(input_action_connected.m_Text, "null_device", sizeof(input_action_connected.m_Text));
     dmGameObject::UpdateResult res = dmGameObject::DispatchInput(m_Collection, &input_action_connected, 1);
 
     ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
@@ -4803,7 +4956,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     // test gamepad connected with empty device name
     dmGameObject::InputAction input_action_empty;
     input_action_empty.m_ActionId = dmHashString64("gamepad_connected_0");
-    input_action_empty.m_TextCount = 0;
+    input_action_empty.m_Count = 0;
     input_action_empty.m_GamepadConnected = 1;
     res = dmGameObject::DispatchInput(m_Collection, &input_action_empty, 1);
 
@@ -4815,7 +4968,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     dmGameObject::InputAction input_action_other;
     input_action_other.m_ActionId = dmHashString64("other_event");
     input_action_other.m_GamepadConnected = 0;
-    input_action_other.m_TextCount = dmStrlCpy(input_action_other.m_Text, "null_device", sizeof(input_action_other.m_Text));
+    input_action_other.m_Count = dmStrlCpy(input_action_other.m_Text, "null_device", sizeof(input_action_other.m_Text));
     res = dmGameObject::DispatchInput(m_Collection, &input_action_other, 1);
 
     ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
@@ -5403,17 +5556,17 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         float p3[] = {  pfx_s,  pfx_s};
 
         SET_VTX_A(pfx_a[0], p0[0], p0[1], 1.0f, 0.0f);
-        SET_VTX_A(pfx_a[1], p1[0], p1[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[1], p2[0], p2[1], 1.0f, 0.0f);
         SET_VTX_A(pfx_a[2], p3[0], p3[1], 1.0f, 0.0f);
         SET_VTX_A(pfx_a[3], p3[0], p3[1], 1.0f, 0.0f);
-        SET_VTX_A(pfx_a[4], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[4], p1[0], p1[1], 1.0f, 0.0f);
         SET_VTX_A(pfx_a[5], p0[0], p0[1], 1.0f, 0.0f);
 
         SET_VTX_B(pfx_b[0], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(pfx_b[1], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[1], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
         SET_VTX_B(pfx_b[2], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
         SET_VTX_B(pfx_b[3], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(pfx_b[4], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[4], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
         SET_VTX_B(pfx_b[5], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
 
         for (int i = 0; i < num_draws; ++i)
@@ -5782,15 +5935,14 @@ INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resourc
 
 /* MeshSet */
 
-const char* valid_meshset_resources[] = {"/meshset/valid.meshsetc", "/meshset/valid.skeletonc", "/meshset/valid.animationsetc",
-                                         "/meshset/valid_gltf.meshsetc", "/meshset/valid_gltf.skeletonc", "/meshset/valid_gltf.animationsetc"};
+const char* valid_meshset_resources[] = {"/meshset/valid_gltf.meshsetc", "/meshset/valid_gltf.skeletonc", "/meshset/valid_gltf.animationsetc"};
 INSTANTIATE_TEST_CASE_P(MeshSet, ResourceTest, jc_test_values_in(valid_meshset_resources));
 
 ResourceFailParams invalid_mesh_resources[] =
 {
-    {"/meshset/valid.meshsetc", "/meshset/missing.meshsetc"},
-    {"/meshset/valid.skeletonc", "/meshset/missing.skeletonc"},
-    {"/meshset/valid.animationsetc", "/meshset/missing.animationsetc"},
+    {"/meshset/valid_gltf.meshsetc", "/meshset/missing.meshsetc"},
+    {"/meshset/valid_gltf.skeletonc", "/meshset/missing.skeletonc"},
+    {"/meshset/valid_gltf.animationsetc", "/meshset/missing.animationsetc"},
 };
 INSTANTIATE_TEST_CASE_P(MeshSet, ResourceFailTest, jc_test_values_in(invalid_mesh_resources));
 
@@ -6253,7 +6405,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         18,
-        {0, 1, 2, 0, 2, 2, 0, 2, 3, 0, 3, 3, 0, 3, 3, 0, 3, 3}
+        {0, 2, 1, 0, 2, 2, 0, 3, 2, 0, 3, 3, 0, 3, 3, 0, 3, 3}
     },
     // 9-slice params: off | Use geometries: off | Flip uv: off | Texture: tilesource animation
     {
@@ -6265,7 +6417,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
-        {0, 1, 2, 0, 2, 3}
+        {0, 2, 1, 0, 3, 2}
     },
     // 9-slice params: off | Use geometries: off | Flip uv: u | Texture: tilesource animation
     {
@@ -6277,7 +6429,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
-        {0, 1, 2, 0, 2, 3}
+        {0, 2, 1, 0, 3, 2}
     },
     // 9-slice params: off | Use geometries: off | Flip uv: uv | Texture: tilesource animation
     {
@@ -6289,7 +6441,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
-        {0, 1, 2, 0, 2, 3}
+        {0, 2, 1, 0, 3, 2}
     },
     // 9-slice params: on | Use geometries: 8 | Flip uv: uv | Texture: tilesource animation
     {
@@ -6385,7 +6537,7 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(32.000000, -32.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0),  1)
         },
         6,
-        {0, 1, 2, 0, 2, 3}
+        {0, 2, 1, 0, 3, 2}
     }
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));
@@ -6512,11 +6664,12 @@ TEST_F(ScriptImageTest, TestImageBuffer)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/image/test_image_buffer.goc", dmHashString64("/test_image"));
     ASSERT_NE((void*)0, go);
 
-    if (DM_HOSTFS)
+    if (strlen(DM_HOSTFS) != 0)
     {
-        char run_str[128];
-        dmSnPrintf(run_str, sizeof(run_str), "set_host_fs(%s)", DM_HOSTFS);
-        ASSERT_TRUE(RunString(L, run_str));
+        lua_getglobal(L, "set_host_fs");
+        ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
+        lua_pushstring(L, DM_HOSTFS);
+        ASSERT_EQ(0, dmScript::PCall(L, 1, 0));
     }
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -7385,8 +7538,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
         float position_expected[] = { 0.0f, 0.0f };
         for (int i = 0; i < 2; ++i)
         {
-            float* f_ptr = (float*) value_ptr;
-            ASSERT_NEAR(position_expected[i], f_ptr[i], EPSILON);
+            ASSERT_NEAR(position_expected[i], ReadUnalignedFloat(value_ptr + i * sizeof(float)), EPSILON);
         }
     }
 
@@ -7412,8 +7564,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
         int16_t texcoord0_expected[] = { -16000, 16000 };
         for (int i = 0; i < 2; ++i)
         {
-            int16_t* short_values = (int16_t*) value_ptr;
-            ASSERT_EQ(texcoord0_expected[i], short_values[i]);
+            ASSERT_EQ(texcoord0_expected[i], ReadUnalignedInt16(value_ptr + i * sizeof(int16_t)));
         }
     }
 
@@ -7427,8 +7578,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
         float color_expected[] = { 1.0f, 2.0f, 3.0f };
         for (int i = 0; i < 3; ++i)
         {
-            float* f_ptr = (float*) value_ptr;
-            ASSERT_NEAR(color_expected[i], f_ptr[i], EPSILON);
+            ASSERT_NEAR(color_expected[i], ReadUnalignedFloat(value_ptr + i * sizeof(float)), EPSILON);
         }
     }
 
@@ -7521,10 +7671,9 @@ TEST_F(ComponentTest, TextureTransformVertexBuffer)
         ASSERT_EQ(sprite_vertex_count * vertex_stride, ((dmGraphics::VertexBuffer*)sprite_vx_buffer->m_Buffers[0])->m_Size);
 
         const char* sprite_vb_base = ((dmGraphics::VertexBuffer*)sprite_vx_buffer->m_Buffers[0])->m_Buffer;
-        const float* written_sprite_tt = (const float*)(sprite_vb_base + tt_offset);
         for (int i = 0; i < 9; ++i)
         {
-            ASSERT_NEAR(expected_sprite_tt[i], written_sprite_tt[i], EPSILON);
+            ASSERT_NEAR(expected_sprite_tt[i], ReadUnalignedFloat(sprite_vb_base + tt_offset + i * sizeof(float)), EPSILON);
         }
     }
 
@@ -7554,10 +7703,9 @@ TEST_F(ComponentTest, TextureTransformVertexBuffer)
         const char* model_vb_base = (const char*) dmGraphics::MapVertexBuffer(m_GraphicsContext, model_vx_buffer, dmGraphics::BUFFER_ACCESS_READ_ONLY);
         for (uint32_t v = 0; v < model_vertex_count; ++v)
         {
-            const float* tt = (const float*)(model_vb_base + v * vertex_stride + tt_offset);
             for (int i = 0; i < 9; ++i)
             {
-                ASSERT_NEAR(identity_mat3[i], tt[i], EPSILON);
+                ASSERT_NEAR(identity_mat3[i], ReadUnalignedFloat(model_vb_base + v * vertex_stride + tt_offset + i * sizeof(float)), EPSILON);
             }
         }
         dmGraphics::UnmapVertexBuffer(m_GraphicsContext, model_vx_buffer);
@@ -7614,12 +7762,10 @@ TEST_F(ComponentTest, SpriteTextureTransformMultiAtlasVertexBuffer)
     ASSERT_EQ(vertex_count * vertex_stride, ((dmGraphics::VertexBuffer*)vx_buffer->m_Buffers[0])->m_Size);
 
     const char* vb_base = ((dmGraphics::VertexBuffer*)vx_buffer->m_Buffers[0])->m_Buffer;
-    const float* written_tt0 = (const float*)(vb_base + tt0_offset);
-    const float* written_tt1 = (const float*)(vb_base + tt1_offset);
     for (int i = 0; i < 9; ++i)
     {
-        ASSERT_NEAR(expected_tt0[i], written_tt0[i], EPSILON);
-        ASSERT_NEAR(expected_tt1[i], written_tt1[i], EPSILON);
+        ASSERT_NEAR(expected_tt0[i], ReadUnalignedFloat(vb_base + tt0_offset + i * sizeof(float)), EPSILON);
+        ASSERT_NEAR(expected_tt1[i], ReadUnalignedFloat(vb_base + tt1_offset + i * sizeof(float)), EPSILON);
     }
 
     dmResource::Release(m_Factory, material_res);
@@ -8443,6 +8589,9 @@ TEST_F(SysTest, LoadBufferSync)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
+    lua_pushstring(m_Scriptlibcontext.m_LuaState, DM_HOSTFS);
+    lua_setglobal(m_Scriptlibcontext.m_LuaState, "test_host_fs");
+
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
@@ -8467,6 +8616,9 @@ static bool RunTestLoadBufferASync(int test_n,
 TEST_F(SysTest, LoadBufferASync)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    lua_pushstring(m_Scriptlibcontext.m_LuaState, DM_HOSTFS);
+    lua_setglobal(m_Scriptlibcontext.m_LuaState, "test_host_fs");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);

@@ -288,6 +288,8 @@ public class ProjectBuildTest {
 
         assertEquals(0, countExcludedEntries(bundledManifestData));
         assertTrue(countExcludedEntries(publishedManifestData) > 0);
+        assertTrue(bundledManifestData.getHasExcludedResources());
+        assertTrue(publishedManifestData.getHasExcludedResources());
 
         assertFalse(hasResource(bundledManifestData, "/logic/level.collectionc"));
         assertFalse(hasResource(bundledManifestData, "/logic/level.goc"));
@@ -299,16 +301,22 @@ public class ProjectBuildTest {
     }
 
     @Test
-    public void testArchiveBuildCanKeepExcludedEntriesInBundledManifest() throws IOException, CompileExceptionError, MultipleCompileException {
+    public void testArchiveBuildIgnoresDeprecatedManifestEntrySetting() throws IOException, CompileExceptionError, MultipleCompileException, ParseException {
         createExcludedLiveUpdateProject("exclude_entries_from_main_manifest = 0\n");
 
         buildArchive(true);
 
         Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
         Manifest.ManifestData publishedManifestData = readManifestData(getPublishedManifestFile());
+        BobProjectProperties outputProps = new BobProjectProperties();
+        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
 
-        assertTrue(countExcludedEntries(bundledManifestData) > 0);
-        assertEquals(publishedManifestData, bundledManifestData);
+        assertEquals(0, countExcludedEntries(bundledManifestData));
+        assertTrue(bundledManifestData.getHasExcludedResources());
+        assertTrue(publishedManifestData.getHasExcludedResources());
+        assertFalse(hasResource(bundledManifestData, "/logic/level.collectionc"));
+        assertTrue(hasResource(publishedManifestData, "/logic/level.collectionc"));
+        checkProjectSetting(outputProps, "liveupdate", "exclude_entries_from_main_manifest", null);
     }
 
     @Test
@@ -320,6 +328,7 @@ public class ProjectBuildTest {
         Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
 
         assertEquals(0, countExcludedEntries(bundledManifestData));
+        assertFalse(bundledManifestData.getHasExcludedResources());
         assertTrue(hasResource(bundledManifestData, "/logic/level.collectionc"));
         assertTrue(hasResource(bundledManifestData, "/logic/level.goc"));
         assertTrue(hasResource(bundledManifestData, "/logic/level.scriptc"));
@@ -338,6 +347,8 @@ public class ProjectBuildTest {
 
         assertEquals(0, countExcludedEntries(bundledManifestData));
         assertEquals(0, countExcludedEntries(publishedManifestData));
+        assertFalse(bundledManifestData.getHasExcludedResources());
+        assertFalse(publishedManifestData.getHasExcludedResources());
         assertEquals(publishedManifestData, bundledManifestData);
     }
 

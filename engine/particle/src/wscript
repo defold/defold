@@ -18,24 +18,26 @@ def configure(conf):
     pass
 
 def build(bld):
+    particle_ddf_proto = bld.path.parent.find_resource('proto/particle/particle_ddf.proto')
+    particle_ddf_cpp = particle_ddf_proto.change_ext('.cpp')
+
     particle = bld.stlib(features = 'cxx ddf',
                          includes = ['.', '../proto'],
                          proto_gen_py = True,
                          protoc_includes = '../proto',
                          target = 'particle',
                          use = 'DDF DLIB SOCKET',
-                         source = 'particle.cpp ../proto/particle/particle_ddf.proto')
+                         source = ['particle.cpp', particle_ddf_proto])
 
     bld.add_group()
 
     # We only need this library in the editor
     if bld.env.IS_TARGET_DESKTOP:
-        o = bld.shlib(features = 'cxx ddf skip_asan',
+        o = bld.shlib(features = 'cxx skip_asan',
                   includes = ['.', '../proto'],
                   target = 'particle_shared',
-                  protoc_includes = '../proto',
                   use = 'DDF_NOASAN DLIB_NOASAN SOCKET PROFILE_NULL_NOASAN PLATFORM_NULL GRAPHICS_NULL_NOASAN',
-                  source = 'particle.cpp ../proto/particle/particle_ddf.proto')
+                  source = ['particle.cpp', particle_ddf_cpp])
 
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')

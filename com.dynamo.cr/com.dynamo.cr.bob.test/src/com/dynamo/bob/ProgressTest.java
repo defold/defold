@@ -18,18 +18,16 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class ProgressTest {
     private record Report(IProgress.Message message, double fraction) {
     }
 
     private static final class RecordingReporter implements Progress.Reporter {
-        private final List<Report> reports = new ArrayList<>();
+        private final List<Report> reports = new CopyOnWriteArrayList<>();
         private boolean canceled;
         private int closeCalls;
 

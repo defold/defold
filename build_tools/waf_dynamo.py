@@ -14,14 +14,15 @@
 
 import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
-from waflib import Utils, Build, Options, Task, Logs
+from waflib import Utils, Build, Options, Task, Logs, Errors
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
-from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
+from cross import get_platform_file_fallback_tags, get_platform_file_tags, get_platform_roots, get_repo_root
 import sdk
+import wasm_runner
 
 if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
@@ -71,7 +72,12 @@ if 'waf_dynamo_vendor' not in sys.modules:
 def is_platform_private(platform):
     return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
 
+def feature_enabled(feature):
+    return feature in getattr(Options.options, 'enable_features', [])
+
 def platform_supports_feature(platform, feature, data):
+    if feature == 'mbedtls' and feature_enabled(feature):
+        return True
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
@@ -94,6 +100,139 @@ def platform_setup_vars(ctx, build_util):
 
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
+
+def find_platform_file(bld, platform, path, public_fallback = True, private_roots = True):
+    repo_root = get_repo_root()
+    base_path = os.path.relpath(bld.path.abspath(), repo_root)
+    if private_roots:
+        for root in get_platform_roots(platform):
+            absolute_path = os.path.join(root, base_path, path)
+            if os.path.exists(absolute_path):
+                node = bld.root.find_node(absolute_path)
+                if node:
+                    return node
+                return absolute_path
+
+    if public_fallback:
+        return bld.path.find_node(path)
+    return None
+
+def source_file_path(source):
+    if hasattr(source, 'abspath'):
+        return source.abspath()
+    return source
+
+def remove_source_files(sources, remove_sources):
+    remove_paths = set(source_file_path(x) for x in remove_sources)
+    return [x for x in sources if source_file_path(x) not in remove_paths]
+
+def get_feature_extra_tags(platform, extra_tags):
+    if not extra_tags:
+        return []
+
+    target = platform
+    if '-' in platform:
+        target = platform.split('-')[-1]
+
+    if isinstance(extra_tags, dict):
+        if platform in extra_tags:
+            extra_tags = extra_tags[platform]
+        elif target in extra_tags:
+            extra_tags = extra_tags[target]
+        else:
+            extra_tags = extra_tags.get('*', [])
+    if isinstance(extra_tags, str):
+        extra_tags = [extra_tags]
+
+    tags = []
+    def append_tag(tag):
+        if tag and tag not in tags:
+            tags.append(tag)
+
+    for tag in extra_tags:
+        append_tag(tag)
+    return tags
+
+def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred_tags = None):
+    """Return (selected_files, feature_files) for feature_name.
+
+    Rules:
+    * feature_files contains <feature>.<ext> and <feature>_*.ext when found.
+    * selected_files contains all <feature>.<ext> core files when found.
+    * selected_files contains all matching <feature>_<tag>.ext files for the platform.
+    * preferred_tags may be a list for all platforms, or a dict where platform/target override '*'.
+    * preferred tag matches replace platform tag matches when found.
+    * extra_tags may be a list for all platforms, or a dict where platform/target override '*'.
+    * extra tag matches are appended to platform tag matches before fallback tags.
+    * fallback tags and default are used only when no platform tag matched.
+    * platform roots are searched before the public repo for platform tag matches.
+    * missing feature files or missing selected files fail the build.
+    """
+    files = []
+    feature_files = []
+
+    def find_file(path, public_fallback = True, private_roots = True):
+        return find_platform_file(bld, platform, path, public_fallback, private_roots)
+
+    def append_file(files, node):
+        if node and source_file_path(node) not in [source_file_path(x) for x in files]:
+            files.append(node)
+
+    feature_base, extension = os.path.splitext(feature_name)
+    extensions = ['.cpp', '.c', '.cc', '.cxx', '.mm', '.m']
+    if extension:
+        extensions = [extension]
+
+    feature_patterns = []
+    for extension in extensions:
+        feature_patterns += [feature_base + extension,
+                             feature_base + '_*' + extension]
+    for node in bld.path.ant_glob(feature_patterns):
+        append_file(feature_files, node)
+
+    # Core implementation: <feature>.<ext> is shared by all platforms.
+    for extension in extensions:
+        node = find_file(feature_base + extension, True, False)
+        if node:
+            append_file(files, node)
+            append_file(feature_files, node)
+
+    # Preferred tags: explicit feature choices such as mbedtls override platform tags.
+    tag_files = []
+    for tag in get_feature_extra_tags(platform, preferred_tags):
+        for extension in extensions:
+            node = find_file('%s_%s%s' % (feature_base, tag, extension))
+            if node:
+                append_file(tag_files, node)
+                append_file(feature_files, node)
+
+    # Platform tags: target-specific files, optionally extended with feature tags.
+    if not tag_files:
+        for tag in get_platform_file_tags(platform) + get_feature_extra_tags(platform, extra_tags):
+            for extension in extensions:
+                node = find_file('%s_%s%s' % (feature_base, tag, extension))
+                if node:
+                    append_file(tag_files, node)
+                    append_file(feature_files, node)
+
+    # Fallback tags: public shared implementations used when no platform file matched.
+    if not tag_files:
+        for tag in get_platform_file_fallback_tags(platform) + ['default']:
+            for extension in extensions:
+                node = find_file('%s_%s%s' % (feature_base, tag, extension), True, False)
+                if node:
+                    append_file(tag_files, node)
+                    append_file(feature_files, node)
+
+    for node in tag_files:
+        append_file(files, node)
+
+    if not feature_files:
+        bld.fatal('Could not find any source files for feature %s' % feature_name)
+    if not files:
+        bld.fatal('Could not find selected source files for feature %s on platform %s' % (feature_name, platform))
+
+    return files, feature_files
 
 def platform_glfw_version(platform):
     if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux']:
@@ -391,8 +530,13 @@ def default_flags(self):
         if build_util.get_target_platform() == 'arm64-linux':
             clang_arch = 'aarch64-unknown-linux-gnu'
 
+        debug_flags = ['-g']
+        if Options.options.with_valgrind:
+            # Valgrind versions shipped with supported Linux CI images may not understand newer DWARF forms.
+            debug_flags.append('-gdwarf-4')
+
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, [f'--target={clang_arch}'] + debug_flags + ['-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
@@ -404,7 +548,7 @@ def default_flags(self):
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden', '-fvisibility-inlines-hidden'])
             self.env.append_value(f, ['-DDM_PLATFORM_MACOS'])
 
             self.env.append_value(f, ['-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
@@ -417,8 +561,10 @@ def default_flags(self):
                 self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
-        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
+        # dead strip
+        self.env.append_value('LINKFLAGS', ['-flto','-dead_strip', '-Wl,-dead_strip_dylibs'])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
         if 'linux' in self.env['BUILD_PLATFORM']:
@@ -468,7 +614,7 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
-                                      '-fpic', '-ffunction-sections', '-fstack-protector',
+                                      '-fpic', '-ffunction-sections', '-fdata-sections', '-fstack-protector',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/sources/android/native_app_glue' % (self.sdkinfo['ndk']),
                                       '-I%s/sources/android/cpufeatures' % (self.sdkinfo['ndk']),
@@ -485,6 +631,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
                 '-static-libstdc++',
+                '-Wl,--gc-sections',
                 '-Wl,--build-id=uuid'] + getAndroidLinkFlags(target_arch))
     elif TargetOS.WEB == target_os:
 
@@ -601,7 +748,7 @@ def default_flags(self):
                                         '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', "Bcrypt.lib", 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
         # Make sure we prefix with lib*.lib on windows, since this is not done
@@ -942,10 +1089,13 @@ def create_export_symbols(task):
 
 task = Task.task_factory('create_export_symbols',
                          func  = create_export_symbols,
-                         color = 'PINK',
-                         before  = 'c cxx')
+                         color = 'PINK')
 
-task.runnable_status = lambda self: RUN_ME
+create_export_symbols_sig_explicit_deps = task.sig_explicit_deps
+def sig_export_symbols(self):
+    create_export_symbols_sig_explicit_deps(self)
+    self.m.update(Utils.h_list(Utils.to_list(getattr(self, 'exported_symbols', []))))
+task.sig_explicit_deps = sig_export_symbols
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -986,21 +1136,7 @@ def _strip_executable(bld, platform, target_arch, path):
         return 0 # return ok, path is still unstripped
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
-    strip = "strip"
-    if 'android' in platform:
-        host_names = {
-            'win32': 'windows',
-            'darwin': 'darwin',
-            'linux': 'linux',
-        }
-        home_names = {
-            'win32': 'USERPROFILE',
-            'darwin': 'HOME',
-            'linux': 'HOME',
-        }
-        HOME = os.environ[home_names.get(sys.platform)]
-        ANDROID_HOST = host_names.get(sys.platform)
-        strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (sdkinfo['ndk'], ANDROID_HOST)
+    strip = sdk.get_strip_executable(platform, sdkinfo)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -1088,9 +1224,15 @@ def create_app_bundle(self):
         codesign.signed_exe = signed_exe
 
 
+# Keep this as close as possible to the stub in build_input.yml
 ANDROID_STUB = """
-struct android_app;
+#include <dmsdk/dlib/android.h>
 
+#if __cplusplus
+extern "C" {
+#endif
+
+struct android_app;
 extern void _glfwPreMain(struct android_app* state);
 extern void app_dummy();
 
@@ -1098,8 +1240,13 @@ void android_main(struct android_app* state)
 {
     // Make sure glue isn't stripped.
     app_dummy();
-    _glfwPreMain(state);
+    dmAndroid::SetAndroidApp(state);
+    _glfwPreMain(state); // calls engine_main()
 }
+
+#if __cplusplus
+}
+#endif
 """
 
 def android_package(task):
@@ -1248,10 +1395,13 @@ def copy_stub(task):
 
 task = Task.task_factory('copy_stub',
                                 func  = copy_stub,
-                                color = 'PINK',
-                                before  = 'c cxx')
+                                color = 'PINK')
 
-task.runnable_status = lambda self: RUN_ME
+copy_stub_sig_explicit_deps = task.sig_explicit_deps
+def sig_copy_stub(self):
+    copy_stub_sig_explicit_deps(self)
+    self.m.update(ANDROID_STUB.encode('utf-8'))
+task.sig_explicit_deps = sig_copy_stub
 
 @task_gen
 @before('process_source')
@@ -1260,7 +1410,7 @@ def create_copy_glue(self):
     if not re.match('arm.*?android', self.env['PLATFORM']):
         return
 
-    stub = self.path.get_bld().find_or_declare('android_stub.c')
+    stub = self.path.get_bld().find_or_declare('android_stub.cpp')
     self.source.append(stub)
     task = self.create_task('copy_stub')
     task.set_outputs([stub])
@@ -1313,7 +1463,6 @@ unsigned char DM_ALIGNED(16) %s[] =
 
 Task.task_factory('dex', '${D8} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
-                      after='jar_files',
                       shell=True)
 
 @task_gen
@@ -1332,26 +1481,35 @@ def apply_dex(self):
 Task.task_factory('embed_file',
                   func = embed_build,
                   vars = ['SRC', 'DST'],
-                  color = 'RED',
-                  before  = 'c cxx')
+                  color = 'RED')
 
 @feature('embed')
 @before('process_source')
 def embed_file(self):
     Utils.def_attrs(self, embed_source=[])
     embed_out_nodes = []
+    embed_tasks = []
 
     for name in Utils.to_list(self.embed_source):
+        if isinstance(name, str):
+            name = name.strip()
+            if not name:
+                continue
+
         Logs.info("Embedding '%s' ..." % name)
-        node = self.path.find_resource(name)
+        node = name if hasattr(name, 'parent') else self.path.find_resource(name)
+
+        if node == None and isinstance(name, str):
+            node = self.path.find_node(name)
 
         if node == None:
-            Logs.info("File %s was not found in %s" % (name, self.path.abspath()))
+            raise Errors.WafError("Embed source '%s' was not found for target '%s' in %s" % (name, self.target, self.path.abspath()))
 
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])
 
         task = self.create_task('embed_file', node, [cc_out, h_out])
+        embed_tasks.append(task)
         embed_out_nodes.append(cc_out)
 
     # some sources are added as nodes and some are not
@@ -1365,6 +1523,15 @@ def embed_file(self):
 
     # Add dependency on generated embed source files to the task gen
     self.source = source_nodes + embed_out_nodes
+    self.embed_tasks = embed_tasks
+
+@feature('embed')
+@after('process_source')
+def order_embed_file(self):
+    embed_tasks = getattr(self, 'embed_tasks', [])
+    for compiled_task in getattr(self, 'compiled_tasks', []):
+        for embed_task in embed_tasks:
+            compiled_task.set_run_after(embed_task)
 
 def do_find_file(file_name, path_list):
     for directory in Utils.to_list(path_list):
@@ -1444,9 +1611,8 @@ def run_tests(ctx, configfile = None, folders = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
 
-    if 'web' in ctx.env.PLATFORM and not ctx.env['NODEJS']:
-        Logs.info('Not running tests. node.js not found')
-        return
+    if 'web' in ctx.env.PLATFORM and not ctx.env['WASM_TEST_RUNNER']:
+        ctx.fatal('Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests.')
 
     harness = get_test_harness(ctx.env.PLATFORM)
     cwd = os.getcwd()
@@ -1520,7 +1686,7 @@ def linux_link_flags(self):
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
-def js_web_link_flags(self):
+def web_link_flags(self):
     platform = self.env['PLATFORM']
     if 'web' in platform and 'test' in self.features:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "web-pre.js")
@@ -1856,12 +2022,25 @@ def detect(conf):
         if emsdk is None:
             conf.fatal('EMSDK environment variable not found.')
 
-        if not conf.env['NODEJS']:
+        if not conf.env['WASM_TEST_RUNNER']:
             emsdk_node = sdkinfo['emsdk']['node']
-            path_list = None
-            if emsdk_node is not None and os.path.exists(emsdk_node):
-                path_list = [os.path.dirname(emsdk_node)]
-            conf.find_program('node', var='NODEJS', mandatory = False, path_list = path_list)
+            node_candidates = [emsdk_node] if emsdk_node is not None else []
+            runner, errors = wasm_runner.find_wasm_runner(node_candidates = node_candidates)
+            if runner:
+                conf.env['WASM_TEST_RUNNER'] = runner.command()
+                conf.env['WASM_TEST_RUNNER_NAME'] = runner.name
+                if runner.name == 'bun':
+                    conf.env['BUN'] = runner.command()
+                else:
+                    conf.env['NODEJS'] = runner.command()
+                Logs.info('Found wasm test runner: %s' % runner.description())
+            elif not Options.options.skip_tests:
+                message = 'Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests.'
+                if errors:
+                    message += '\nChecked runners:\n  ' + '\n  '.join(errors)
+                conf.fatal(message)
+            else:
+                Logs.warn('Bun or Node.js was not found. wasm-web tests will not run.')
 
         bin_dir = os.path.join(emsdk, 'upstream', 'emscripten')
 
@@ -1969,7 +2148,12 @@ def detect(conf):
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
+    if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env['STLIB_DLIB'].append('mbedtls')
+    if target_os in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
+
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
@@ -1994,15 +2178,15 @@ def detect(conf):
             conf.env['STLIB_RECORD'] = 'record_null'
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS']          = ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
     if 'wagyu' in Options.options.enable_features:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'graphics_transcoder_basisu', 'basis_transcoder']
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
     else:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'image', 'graphics_transcoder_null']
 
     conf.env['STLIB_FONT']            = ['font']
     conf.env['STLIB_FONT_LAYOUT']     = ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi']
@@ -2047,6 +2231,7 @@ def detect(conf):
 
     if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
+        conf.env['LINKFLAGS_DLIB']      = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
@@ -2066,6 +2251,9 @@ def detect(conf):
         conf.env['STLIB_PLATFORM']          = ['platform']
         conf.env['STLIB_PLATFORM_VULKAN']   = ['platform_vulkan']
         conf.env['STLIB_PLATFORM_NULL']     = ['platform_null']
+
+    if target_os in [TargetOS.MACOS, TargetOS.IOS]:
+        conf.env['FRAMEWORK_HID'] = ['GameController']
 
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'
@@ -2142,5 +2330,5 @@ def options(opt):
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
 
-    # Currently supported features: physics, simd (html5)
-    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --disable-feature=foo')
+    # Currently supported features: physics, font_layout, box2dv3, simd (html5), mbedtls
+    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --enable-feature=foo')

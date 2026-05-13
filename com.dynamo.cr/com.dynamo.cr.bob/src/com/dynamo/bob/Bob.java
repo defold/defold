@@ -22,6 +22,8 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.Library;
+import com.dynamo.bob.util.Library.Result;
 import com.dynamo.bob.util.PackedResources;
 import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.cli.CommandLine;
@@ -39,6 +41,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.AccessDeniedException;
@@ -46,6 +49,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -167,6 +171,15 @@ public class Bob {
         return rootFolder;
     }
 
+    private static File resolveArchiveEntry(File toFolder, String entryName) throws IOException {
+        File canonicalFolder = toFolder.getCanonicalFile();
+        File dstFile = new File(canonicalFolder, entryName).getCanonicalFile();
+        if (!dstFile.toPath().startsWith(canonicalFolder.toPath())) {
+            throw new IOException(String.format("Archive entry '%s' resolves outside of '%s'", entryName, canonicalFolder.getAbsolutePath()));
+        }
+        return dstFile;
+    }
+
     public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
         TimeProfiler.start("extractToFolder %s", toFolder.toString());
         TimeProfiler.addData("url", url.toString());
@@ -178,7 +191,7 @@ public class Bob {
             {
                 if (!entry.isDirectory()) {
 
-                    File dstFile = new File(toFolder, entry.getName());
+                    File dstFile = resolveArchiveEntry(toFolder, entry.getName());
                     if (deleteOnExit)
                         FileUtil.deleteOnExit(dstFile);
                     dstFile.getParentFile().mkdirs();
@@ -559,18 +572,16 @@ public class Bob {
             project.loadProjectFile(false);
             BobProjectProperties projectProperties = project.getProjectProperties();
             String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
-            List<URL> libUrls = new ArrayList<>();
-            for (String val : dependencies) {
-                libUrls.add(new URL(val));
-            }
-
-            project.setLibUrls(libUrls);
+            project.setLibUrls(Arrays.stream(dependencies).map(URI::create).toList());
+            List<Result> resolvedDependencies;
             if (resolveLibraries) {
                 TimeProfiler.start("Resolve libs");
-                project.resolveLibUrls(progress);
+                resolvedDependencies = project.resolveLibUrls(progress);
                 TimeProfiler.stop();
+            } else {
+                resolvedDependencies = Library.cached(project.getLibUris(), Paths.get(project.getLibPath()));
             }
-            project.mount(new ClassLoaderResourceScanner());
+            project.mount(new ClassLoaderResourceScanner(), resolvedDependencies);
         }
     }
 
@@ -637,6 +648,10 @@ public class Bob {
             if (cmd == null) { // nothing to do: requested to print help
                 return new InvocationResult(true, Collections.emptyList());
             }
+            if (cmd.hasOption("version")) {
+                System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
+                return new InvocationResult(true, Collections.emptyList());
+            }
             String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
             String rootDirectory = getOptionsValue(cmd, 'r', cwd);
 
@@ -670,11 +685,6 @@ public class Bob {
 
             try {
                 TimeProfiler.start("ParseCommandLine");
-                if (cmd.hasOption("version")) {
-                    System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
-                    return new InvocationResult(true, Collections.emptyList());
-                }
-
                 if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
                     System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
                     throw new OptionValidationException(1);
