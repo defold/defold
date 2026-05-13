@@ -141,7 +141,6 @@ PFN_vkGetFenceStatus vkGetFenceStatus;
 namespace dmGraphics
 {
     void* g_lib_vulkan = 0;
-    uint8_t g_functions_loaded = 0;
 
     bool LoadVulkanLibrary()
     {
@@ -283,6 +282,5 @@ namespace dmGraphics
         vkResetDescriptorPool = (PFN_vkResetDescriptorPool) vkGetInstanceProcAddr(vk_instance, "vkResetDescriptorPool");
         vkCmdCopyImageToBuffer = (PFN_vkCmdCopyImageToBuffer) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyImageToBuffer");
         vkGetFenceStatus = (PFN_vkGetFenceStatus) vkGetInstanceProcAddr(vk_instance, "vkGetFenceStatus");
-        g_functions_loaded = 1;
     }
 }

@@ -19,6 +19,12 @@
 
 #include <platform/platform_window_vulkan.h>
 
+#if ANDROID
+#include <android_native_app_glue.h>
+#include <dmsdk/dlib/android.h>
+#include <platform/platform_window_android.h>
+#endif
+
 namespace dmGraphics
 {
     static const char*   g_extension_names[] = {
@@ -40,6 +46,30 @@ namespace dmGraphics
     static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
     extern VulkanContext* g_VulkanContext;
+
+#if ANDROID
+    static ANativeWindow* g_AndroidVulkanWindow = 0;
+
+    static VkResult RecreateAndroidWindowSurface(void* ctx)
+    {
+        VulkanContext* context = (VulkanContext*) ctx;
+
+        if (context->m_WindowSurface != VK_NULL_HANDLE)
+        {
+            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
+            context->m_WindowSurface = VK_NULL_HANDLE;
+        }
+
+        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI));
+        if (res == VK_SUCCESS)
+        {
+            android_app* app = dmAndroid::GetAndroidApp();
+            g_AndroidVulkanWindow = app ? app->window : 0;
+            context->m_SwapChain->m_Surface = context->m_WindowSurface;
+        }
+        return res;
+    }
+#endif
 
     const char** GetExtensionNames(uint16_t* num_extensions)
     {
@@ -92,8 +122,23 @@ namespace dmGraphics
     void NativeBeginFrame(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
+#if ANDROID
+        dmPlatform::AndroidBeginFrame(context->m_BaseContext.m_Window);
+#endif
         uint32_t window_width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
         uint32_t window_height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+
+#if ANDROID
+        android_app* app = dmAndroid::GetAndroidApp();
+        ANativeWindow* native_window = app ? app->window : 0;
+        if (native_window && native_window != g_AndroidVulkanWindow)
+        {
+            g_VulkanContext->m_WindowWidth  = window_width;
+            g_VulkanContext->m_WindowHeight = window_height;
+            SwapChainChanged(g_VulkanContext, &g_VulkanContext->m_WindowWidth, &g_VulkanContext->m_WindowHeight, RecreateAndroidWindowSurface, g_VulkanContext);
+            return;
+        }
+#endif
 
         if (window_width != context->m_WindowWidth || window_height != context->m_WindowHeight)
         {
@@ -117,6 +162,11 @@ namespace dmGraphics
         context->m_WindowWidth         = context->m_SwapChain->m_ImageExtent.width;
         context->m_WindowHeight        = context->m_SwapChain->m_ImageExtent.height;
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
+
+#if ANDROID
+        android_app* app = dmAndroid::GetAndroidApp();
+        g_AndroidVulkanWindow = app ? app->window : 0;
+#endif
 
         return true;
     }

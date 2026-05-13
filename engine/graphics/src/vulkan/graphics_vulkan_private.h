@@ -436,7 +436,7 @@ namespace dmGraphics
         dmArray<VkImageView>  m_ImageViews;
         dmArray<VkSemaphore>  m_RenderFinishedSemaphores;
         VulkanTexture*        m_ResolveTexture;
-        const VkSurfaceKHR    m_Surface;
+        VkSurfaceKHR          m_Surface;
         const QueueFamily     m_QueueFamily;
         VkSurfaceFormatKHR    m_SurfaceFormat;
         VkSwapchainKHR        m_SwapChain;
