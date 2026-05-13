@@ -49,23 +49,32 @@ def build(bld):
     obj = bld(source = bld.path.ant_glob('materials/*', excl = ['materials/*.fp', 'materials/*.vp']),
               remap_material_output = remap_material_output)
 
+    builtins_sources = bld.path.ant_glob([
+        'builtins/input/**/*',
+        'builtins/render/**/*',
+        'builtins/fonts/**/*',
+        'builtins/connect/**/*',
+        'builtins/materials/**/*',
+        'builtins/graphics/**/*',
+        'builtins/scripts/**/*'],
+        excl = ['**/*.ttf', '**/*.texture_profiles', '**/*.md', '**/*.txt', '**/LICENSE', '**/*.vp', '**/*.fp', '**/*.cp'])
+
+    gamecontrollerdb = bld.path.find_node('builtins/input/gamecontrollerdb.txt')
+    if gamecontrollerdb:
+        builtins_sources.append(gamecontrollerdb)
+
     bld(features='barchive',
        source_root='default/content',
        content_root='../content',
        resource_name='builtins',
-       source = bld.path.ant_glob([
-           'builtins/input/**/*',
-           'builtins/render/**/*',
-           'builtins/fonts/**/*',
-           'builtins/connect/**/*',
-           'builtins/materials/**/*',
-           'builtins/graphics/**/*',
-           'builtins/scripts/**/*'],
-           excl = ['**/*.ttf', '**/*.texture_profiles', '**/LICENSE', '**/*.vp', '**/*.fp', '**/*.cp']),
+       source = builtins_sources,
        use_compression=True)
 
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts', 'docs', 'ca-certificates']:
-        bld.install_files('${PREFIX}/content/builtins/%s' % d, bld.path.ant_glob('builtins/%s/*' % d))
+        excl = ['**/*.md', '**/*.txt'] if d == 'input' else []
+        bld.install_files('${PREFIX}/content/builtins/%s' % d, bld.path.ant_glob('builtins/%s/*' % d, excl = excl))
+
+    bld.install_files('${PREFIX}/content/builtins/input', 'builtins/input/gamecontrollerdb.txt')
 
     start_dir = bld.path.find_dir('builtins')
     bld.install_files('${PREFIX}/content/builtins', start_dir.ant_glob('manifests/**/*'), cwd = start_dir, relative_trick = True)

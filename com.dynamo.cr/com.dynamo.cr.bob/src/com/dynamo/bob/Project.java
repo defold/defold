@@ -44,6 +44,7 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.GamepadBuilder;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
@@ -509,6 +510,48 @@ public class Project {
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
             throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            TimeProfiler.stop();
+        }
+    }
+
+    public Task createGamepadTask(IResource gamepadDbInput, IResource gamepadsInput) throws CompileExceptionError {
+        String gamepadDbPath = gamepadDbInput != null ? gamepadDbInput.getPath() : "";
+        String key = gamepadDbPath + " " + gamepadsInput.getPath() + " " + GamepadBuilder.class;
+        if (!circularDependencyChecker.add(key)) {
+            throw new CompileExceptionError(generateCircularDependencyErrorMessage(key), null);
+        }
+
+        Task task = tasks.get(key);
+        if (task != null) {
+            circularDependencyChecker.remove(key);
+            return task;
+        }
+
+        TimeProfiler.start();
+        TimeProfiler.addData("type", "createGamepadTask");
+        GamepadBuilder builder;
+        try {
+            builder = new GamepadBuilder();
+            builder.setProject(this);
+            Task.TaskBuilder taskBuilder = Task.newBuilder(builder)
+                    .setName(builder.getParams().name());
+            if (gamepadDbInput != null) {
+                taskBuilder.addInput(gamepadDbInput);
+            }
+            task = taskBuilder
+                    .addInput(gamepadsInput)
+                    .addOutput(gamepadsInput.changeExt(builder.getParams().outExt()))
+                    .build();
+            if (task != null) {
+                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
+                TimeProfiler.addData("name", task.getName());
+                tasks.put(key, task);
+            }
+            circularDependencyChecker.remove(key);
+            return task;
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {

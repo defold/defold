@@ -1,7 +1,7 @@
 driver
 {
     device: "Wireless Controller"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -33,7 +33,7 @@ driver
 driver
 {
     device: "DualSense Wireless Controller"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -65,7 +65,7 @@ driver
 driver
 {
     device: "SteelSeries Stratus XL"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.0
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -88,7 +88,7 @@ driver
 driver
 {
     device: "Wireless 360 Controller"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.200
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -152,7 +152,7 @@ driver
 driver
 {
     device: "PLAYSTATION(R)3 Controller"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -184,7 +184,7 @@ driver
 driver
 {
     device: "Controller"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -248,7 +248,7 @@ driver
 driver
 {
     device: "Xbox One Wired Controller"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.200
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -280,7 +280,7 @@ driver
 driver
 {
     device: "Xbox 360 Wired Controller"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -897,7 +897,7 @@ driver {
 driver
 {
     device: "Joy-Con (L)"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.200
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_HAT index: 0 hat_mask: 8 }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_HAT index: 0 hat_mask: 2 }
@@ -976,7 +976,7 @@ driver
 driver
 {
     device: "Joy-Con (R)"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.200
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_HAT index: 0 hat_mask: 8 }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_HAT index: 0 hat_mask: 2 }
@@ -1129,7 +1129,7 @@ driver
 driver
 {
     device: "Xbox Wireless Controller"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
@@ -5733,7 +5733,7 @@ driver
 
 driver {
     device: "Logitech Dual Action"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.200
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -5942,7 +5942,7 @@ driver
 driver
 {
     device: "Core (Plus) Wired Controller" # 3rd Party (PowerA) Nintendo Switch Pro Controller
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.05
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -6008,7 +6008,7 @@ driver
 driver
 {
     device: "HORIPAD S"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.10
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
@@ -6105,7 +6105,7 @@ driver
 driver
 {
     device: "DUALSHOCK 4 Wireless Controller"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }

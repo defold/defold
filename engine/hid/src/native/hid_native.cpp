@@ -357,6 +357,12 @@ namespace dmHID
             return;
         }
 
+        if (!gamepad->m_LayoutLegacy)
+        {
+            dmHID::GetGamepadDeviceNameSDL(context, gamepad, name);
+            return;
+        }
+
         assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
         driver->m_GetGamepadDeviceName(context, driver, gamepad, name);

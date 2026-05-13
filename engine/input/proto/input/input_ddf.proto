@@ -214,12 +214,21 @@ message GamepadMapEntry
     optional uint32 hat_mask = 5;
 }
 
+message GamepadGuid
+{
+    // See dmHID::GamepadGuid in hid.h
+    required uint32 bus_crc = 1;                            // u16 + u16
+    required uint32 vendor_product = 2;                     // u16 + u16
+    required uint32 version_driversignature_driverdata = 3; // u16 + u8 + u8
+};
+
 message GamepadMap
 {
     required string device = 1;
     required string platform = 2;
     required float dead_zone = 3;
     repeated GamepadMapEntry map = 4;
+    optional GamepadGuid guid = 5;
 }
 
 message GamepadMaps
