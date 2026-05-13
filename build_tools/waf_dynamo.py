@@ -2216,7 +2216,7 @@ def detect(conf):
             conf.env.append_value('LIB_VULKAN', ['VkLayer_khronos_validation'])
 
     elif TargetOS.ANDROID == target_os:
-        conf.env['SHLIB_VULKAN'] = ['vulkan']
+        conf.env['SHLIB_VULKAN'] = []
     elif TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 

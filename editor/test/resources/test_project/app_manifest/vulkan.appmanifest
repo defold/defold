@@ -75,7 +75,8 @@ platforms:
         context:
             excludeLibs: ["graphics"]
             excludeJars: []
-            excludeSymbols: ["GraphicsAdapterOpenGL"]
+            excludeDynamicLibs: ["vulkan", "EGL", "GLESv1_CM", "GLESv2"]
+            excludeSymbols: ["GraphicsAdapterOpenGLES"]
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan"]
             linkFlags: []
@@ -85,7 +86,8 @@ platforms:
         context:
             excludeLibs: ["graphics"]
             excludeJars: []
-            excludeSymbols: ["GraphicsAdapterOpenGL"]
+            excludeDynamicLibs: ["vulkan", "EGL", "GLESv1_CM", "GLESv2"]
+            excludeSymbols: ["GraphicsAdapterOpenGLES"]
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan"]
             linkFlags: []
@@ -117,4 +119,3 @@ platforms:
             libs: []
             frameworks: []
             linkFlags: []
-

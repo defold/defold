@@ -508,25 +508,29 @@
     (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])))
 
-;; Vulkan-only Android: graphics_vulkan + Vulkan adapter. Do not require excludeLibs /
-;; excludeSymbols (see vulkan.appmanifest vs vulkan_and_opengl.appmanifest — the latter
-;; leaves those empty on Android while still shipping GLES+Vulkan on desktop).
+;; Vulkan-only Android: graphics_vulkan + Vulkan adapter. libvulkan.so is loaded
+;; dynamically at runtime, so none of the Android choices should link -lvulkan.
 ;; Order: :both (GLES+Vulkan), then :open-gl (GLES-only), then :vulkan (Vulkan-only).
 ;; Final :both is :none — empty / unspecified Android context defaults to GLES+Vulkan.
 (def vulkan-android-toggles
   (concat
     (libs-toggles android ["graphics_vulkan"])
-    (generic-contains-toggles android :symbols ["GraphicsAdapterVulkan"])))
+    (exclude-libs-toggles android ["graphics"])
+    (generic-contains-toggles android :symbols ["GraphicsAdapterVulkan"])
+    (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterOpenGLES"])
+    (generic-contains-toggles android :excludeDynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"])))
 
 (def graphics-setting-android
   (make-choice-setting
     :both (concat
             (libs-toggles android ["graphics" "graphics_vulkan"])
             (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"])
-            (generic-contains-toggles android :dynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"]))
+            (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])
+            (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"]))
     :open-gl (concat
                open-gl-android-toggles
-               (exclude-libs-toggles android ["graphics_vulkan" "vulkan"])
+               (exclude-libs-toggles android ["graphics_vulkan"])
+               (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])
                (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterVulkan"]))
     :vulkan vulkan-android-toggles
     :both))
