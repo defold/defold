@@ -16,7 +16,6 @@
   (:require [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
-            [editor.math :as math]
             [editor.scene-cache :as scene-cache]
             [editor.types :as types])
   (:import [com.jogamp.opengl GL2]
@@ -59,8 +58,8 @@
                                       (doto (Matrix4d.) (.setIdentity)))
         light-type (:light-type light-data)
         light-color (:color light-data)
-        light-intensity (or (:intensity light-data) 1.0)
-        light-range (double (or (:range light-data) 10.0))
+        light-intensity (:intensity light-data)
+        light-range (double (:range light-data))
         scaled-range (max 0.01 (* light-range (preview-renderable-min-scale renderable)))
         translation-v4 (Vector4d. (.x translation) (.y translation) (.z translation) 1.0)
         color-v4 (Vector4d. (nth light-color  0) (nth light-color  1) (nth light-color  2) (nth light-color  3))
@@ -79,8 +78,8 @@
        :params (Vector4d. type-index light-intensity 0.0 0.0)}
       :spot
       (let [^Vector3d d (world-space-light-direction transform)
-            inner-deg (or (:inner-cone-angle light-data) 0.0)
-            outer-deg (or (:outer-cone-angle light-data) 45.0)
+            inner-deg (:inner-cone-angle light-data)
+            outer-deg (:outer-cone-angle light-data)
             inner-rad (Math/toRadians inner-deg)
             outer-rad (Math/toRadians outer-deg)]
         {:position translation-v4
@@ -101,6 +100,9 @@
         dz (- (.z camera-position) (.z world-translation))]
     (+ (* dx dx) (* dy dy) (* dz dz))))
 
+(defn- directional-preview-light? [renderable]
+  (= :directional (get-in renderable [:user-data :editor-preview-light :light-type])))
+
 (defn packed-lights-from-scene
   "Turns the editor scene's light renderables into a small, stable, engine-shaped list so
   the viewport shaders can produce light data consistently with the runtime layout."
@@ -110,12 +112,18 @@
         deduped-visible-preview (vals (reduce (fn [by-node-id-path renderable]
                                                 (update by-node-id-path (:node-id-path renderable) #(or % renderable)))
                                               {}
-                                              visible-with-preview))]
+                                              visible-with-preview))
+        sorted-preview-lights (sort-by (comp vec :node-id-path) deduped-visible-preview)
+        directional-lights (filter directional-preview-light? sorted-preview-lights)
+        local-lights (remove directional-preview-light? sorted-preview-lights)
+        directional-lights (take default-max-preview-lights directional-lights)
+        local-light-budget (- default-max-preview-lights (count directional-lights))]
     (mapv renderable->std140-light
-          (take default-max-preview-lights
-                (sort-by (juxt #(light-camera-distance-squared camera %)
-                               (comp vec :node-id-path))
-                         deduped-visible-preview)))))
+          (concat directional-lights
+                  (take local-light-budget
+                        (sort-by (juxt #(light-camera-distance-squared camera %)
+                                       (comp vec :node-id-path))
+                                 local-lights))))))
 
 (defn- gl-light-uniform-name [^long i field]
   (str "lights[" i "]." (case field
@@ -149,7 +157,5 @@
                       :let [uniform-name (gl-light-uniform-name i field)
                             uniform-value (field light)
                             uniform-info (uniform-infos uniform-name)]
-                      :when (and (string? (not-empty uniform-name))
-                                 (some? uniform-value)
-                                 uniform-info)]
+                      :when uniform-info]
                 (shader/set-uniform-at-index gl program (:location uniform-info) uniform-value)))))))))

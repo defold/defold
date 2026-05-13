@@ -40,7 +40,6 @@
                                                 :color [1.0 0.0 0.0 1.0]
                                                 :intensity 1.0
                                                 :range 170.0
-                                                :direction [0.0 0.0 -1.0]
                                                 :inner-cone-angle 0.0
                                                 :outer-cone-angle 45.0}}})]
     (is (< (Math/abs (- 1.0 (.x ^Vector4d (:color m)))) 1e-6))
@@ -55,7 +54,6 @@
                                               :color [1.0 0.0 0.0 1.0]
                                               :intensity 1.0
                                               :range 10.0
-                                              :direction [0.0 0.0 -1.0]
                                               :inner-cone-angle 0.0
                                               :outer-cone-angle 45.0}}}
         pl (light/packed-lights-from-scene {pass/transparent [r]} (test-camera))]

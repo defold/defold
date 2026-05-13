@@ -98,9 +98,9 @@
 
 (defn- ext->light-type [ext]
   (case ext
+    "point_light" :point
     "directional_light" :directional
-    "spot_light" :spot
-    :point))
+    "spot_light" :spot))
 
 (defn- ext->resource-type-label [ext]
   (case ext
@@ -110,9 +110,9 @@
 
 (defn- light-type->tag [light-type]
   (case light-type
+    :point "point_light"
     :directional "directional_light"
-    :spot "spot_light"
-    "point_light"))
+    :spot "spot_light"))
 
 (defn- get-number [fields key default]
   (double (or (get-in fields [key :number]) default)))
@@ -166,16 +166,12 @@
       :data {:struct {:fields fields}})))
 
 (defn- compile-data-desc [light-type pb-map]
-  (let [direction-field {"direction" (list-field-vec4 [0.0 0.0 -1.0])}]
-    (cond-> (assoc pb-map :tags ["light" (light-type->tag light-type)])
-            (contains? #{:directional :spot} light-type)
-            (update-in [:data :struct :fields] merge direction-field)
+  (cond-> (assoc pb-map :tags ["light" (light-type->tag light-type)])
+          (= :spot light-type)
+          (update-in [:data :struct :fields "inner_cone_angle" :number] #(Math/toRadians (double %)))
 
-            (= :spot light-type)
-            (update-in [:data :struct :fields "inner_cone_angle" :number] #(Math/toRadians (double (or % 0.0))))
-
-            (= :spot light-type)
-            (update-in [:data :struct :fields "outer_cone_angle" :number] #(Math/toRadians (double (or % 45.0)))))))
+          (= :spot light-type)
+          (update-in [:data :struct :fields "outer_cone_angle" :number] #(Math/toRadians (double %)))))
 
 (defn- build-light [build-resource _dep-resources user-data]
   (let [{:keys [light-type pb-map]} user-data]
@@ -804,7 +800,9 @@
 (g/defnode LightNode
   (inherits resource-node/ResourceNode)
 
-  (property light-type g/Keyword (default :point))
+  (property light-type g/Keyword
+            (default :point)
+            (dynamic visible (g/constantly false)))
   (property color types/Color (default [1.0 1.0 1.0 1.0])
             (dynamic label (properties/label-dynamic :light :color))
             (dynamic tooltip (properties/tooltip-dynamic :light :color)))

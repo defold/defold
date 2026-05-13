@@ -731,13 +731,9 @@
           content (:content (#'light/build-light nil nil {:light-type light-type
                                                           :pb-map pb-map}))
           desc (protobuf/bytes->map-with-defaults DataProto$Data content)
-          fields (get-in desc [:data :struct :fields])
-          list-numbers (fn [field]
-                         (mapv :number (get-in fields [field :list :values])))]
+          fields (get-in desc [:data :struct :fields])]
       (is (= ["light" expected-tag] (:tags desc)))
-      (if (= :point light-type)
-        (is (not (contains? fields "direction")))
-        (is (= [0.0 0.0 -1.0] (list-numbers "direction"))))
+      (is (not (contains? fields "direction")))
       (when (= :spot light-type)
         (is (= 0.0 (get-in fields ["inner_cone_angle" :number])))
         (is (< (Math/abs (- (Math/toRadians 45.0)
