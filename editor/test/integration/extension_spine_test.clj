@@ -19,7 +19,6 @@
             [editor.build-errors-view :as build-errors-view]
             [editor.defold-project :as project]
             [editor.game-project :as game-project]
-            [editor.gui :as gui]
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -259,9 +258,6 @@
       (is (not (g/error? (g/node-value main-collection :node-outline)))))))
 
 (deftest legacy-spine-project-user-migration-test
-  ;; Clear custom gui scene loaders to ensure a clean test.
-  (gui/clear-custom-gui-scene-loaders-and-node-types-for-tests!)
-
   ;; Load the unmigrated project to check that the editor won't corrupt it. Then
   ;; add a dependency to the extension-spine library and reload the project.
   (let [migrated-game-project-content

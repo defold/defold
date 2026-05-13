@@ -215,7 +215,9 @@
 
    'dmGuiDDF.NodeDesc
    {:default
-    {"overridden_fields" :non-editable ; Not editable, but used to determine which fields are overridden when loading.
+    {"custom_properties" :unimplemented
+     "custom_type_name" :unimplemented
+     "overridden_fields" :non-editable ; Not editable, but used to determine which fields are overridden when loading.
      "type" :non-overridable}
 
     [["gui" "layouts" "nodes"]]

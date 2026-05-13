@@ -24,8 +24,7 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :refer [pair]])
-  (:import [com.defold.extension.pipeline ILuaPreprocessor]
-           [com.dynamo.bob ClassLoaderScanner]))
+  (:import [com.defold.extension.pipeline ILuaPreprocessor]))
 
 (set! *warn-on-reflection* true)
 
@@ -95,7 +94,7 @@ return m
                 (log/error :msg (str "Exception in static initializer of ILuaPreprocessor implementation " class-name ": " (.getMessage e))
                            :exception e)
                 (pair :faulty-class-names class-name))))
-          (ClassLoaderScanner/scanClassLoader class-loader scanned-package-name))))
+          (java/scan-class-loader class-loader scanned-package-name))))
 
 (defn- try-create-lua-preprocessors [lua-preprocessor-classes]
   (util/group-into

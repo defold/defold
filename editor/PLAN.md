@@ -42,11 +42,17 @@ Bob/runtime:
 - Built data should replace string ids with id hashes.
 - Runtime custom GUI node code should read custom fields only.
 
+# Running tests with local spine:
+
+```sh
+JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' lein test
+```
+
 # Implementation
 
-## 1. Add Workspace-backed GUI extension registration.
+## 1. Add GUI resource-type-backed extension registration.
 
-- Replace global `node-type-info-registry` with Workspace property `:gui-node-type-registry`.
+- Replace global `node-type-info-registry` with registry metadata stored on the `.gui` resource type map.
      ```clojure
      {:custom-type-name->type-info {"Spine" spine-type-info}
       :node-cls->custom-type-name {SpineNode "Spine"}}
@@ -57,6 +63,8 @@ Bob/runtime:
      (gui/register-node-type-info workspace type-info)
      (gui/register-gui-resource-kind workspace resource-kind info)
      ```
+- Both APIs update the `.gui` resource type in `:resource-types` and `:resource-types-non-editable`.
+- Updating registered GUI node type info regenerates the `.gui` resource type `:read-fn`, so the sanitize function stays pure and captures a registry snapshot instead of receiving a workspace or querying graph node values.
 - Register custom node type info with `custom-type-name`; derive `custom-type` with `murmur/hash32` when needed.
      ```clojure
      {:custom-type-name "Spine" ;; Required.
@@ -97,7 +105,7 @@ Bob/runtime:
      ```
      If omitted, derive `:protobuf-type` from `:type`: `g/Str -> :string`, `g/Bool -> :boolean`, `g/Num -> :number`. For `:protobuf-type :hash`, project files still store readable strings; build output hashes the value.
      If omitted, derive `:edit-type-fnk` from `:type`; when `:resource-kind` is present, use a resource-name choice edit type backed by the matching GUI resource folder.
-- Store GUI resource kinds in Workspace property `:gui-resource-kind-registry`.
+- Store GUI resource kinds in the `.gui` resource type map next to the GUI node type registry.
      ```clojure
      {:spine_scene
       {:label "Spine Scenes" ;; Required. Folder label.
@@ -108,9 +116,11 @@ Bob/runtime:
        :attachment-property :spine-scenes ;; Required. Editor script property; Lua uses "spine_scenes".
        :attach-fn attach-spine-scene}} ;; Required. Existing fn: gui-scene, folder-node, entry-node -> txs.
      ```
+- Validate and normalize `register-gui-resource-kind` info immediately, including expanding `:exts` to a vector and rejecting missing or invalid required fields.
 - Add generic `GuiResourceKindNode` for resource folders. During GUI load, create one folder per registered resource kind, create entry nodes from matching `SceneDesc.resources` by `:exts`, set `:name` and `:resource-property`, and attach entries with `:attach-fn`.
+- Keep all `GuiResourceKindNode` graph properties hidden; it is an internal folder node, not user-editable resource data.
 - Replace `SpineScenesNode` with `GuiResourceKindNode`; keep `SpineSceneNode` and `attach-spine-scene`.
-- Initialize built-in GUI node type infos in `:gui-node-type-registry`.
+- Initialize built-in GUI node type infos in the `.gui` resource type registration metadata.
 - Add generic editor tests with a fake custom GUI node type and resource kind to cover registration, load, save, and deterministic property/resource order.
 
 ## 2. Move custom GUI field storage to layout-aware `:custom-properties`.

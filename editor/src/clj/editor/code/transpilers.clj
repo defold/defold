@@ -36,7 +36,6 @@
             [util.coll :as coll :refer [pair pair-map-by]]
             [util.fn :as fn])
   (:import [com.defold.extension.pipeline ILuaTranspiler ILuaTranspiler$Issue ILuaTranspiler$Severity]
-           [com.dynamo.bob ClassLoaderScanner]
            [java.io File]))
 
 (defn- transpiler-issue->error-value [proj-path->node-id ^ILuaTranspiler$Issue issue]
@@ -167,7 +166,7 @@
 
 (defn- initialize-lua-transpiler-classes [^ClassLoader class-loader]
   (let [{:keys [classes faulty-class-names]}
-        (->> (ClassLoaderScanner/scanClassLoader class-loader "com.defold.extension.pipeline")
+        (->> (java/scan-class-loader class-loader "com.defold.extension.pipeline")
              (eduction
                (keep
                  (fn [^String class-name]

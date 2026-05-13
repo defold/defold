@@ -14,7 +14,10 @@
 
 (ns internal.java
   (:import [clojure.lang DynamicClassLoader Util]
-           [java.lang.reflect Constructor Field Method Modifier]))
+           [com.dynamo.bob ClassLoaderScanner]
+           [java.io FileNotFoundException]
+           [java.lang.reflect Constructor Field Method Modifier]
+           [java.nio.file NoSuchFileException]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -24,6 +27,22 @@
 (defonce no-classes-array (make-array Class 0))
 
 (defonce byte-array-class (.getClass (byte-array 0)))
+
+(defn- missing-file-exception? [^Throwable e]
+  (loop [e e]
+    (cond
+      (nil? e) false
+      (or (instance? FileNotFoundException e)
+          (instance? NoSuchFileException e)) true
+      :else (recur (.getCause e)))))
+
+(defn scan-class-loader [^ClassLoader class-loader ^String package-name]
+  (try
+    (ClassLoaderScanner/scanClassLoader class-loader package-name)
+    (catch RuntimeException e
+      (if (missing-file-exception? e)
+        #{}
+        (throw e)))))
 
 (defn field-static? [^Field field]
   (Modifier/isStatic (.getModifiers field)))
