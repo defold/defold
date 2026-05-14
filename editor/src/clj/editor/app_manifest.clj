@@ -510,6 +510,8 @@
 
 ;; Vulkan-only Android: graphics_vulkan + Vulkan adapter. libvulkan.so is loaded
 ;; dynamically at runtime, so none of the Android choices should link -lvulkan.
+;; Keep EGL/GLES dynamic libraries linked: dmglfw's Android window layer still
+;; references those entry points even when the OpenGL ES adapter is excluded.
 ;; Order: :both (GLES+Vulkan), then :open-gl (GLES-only), then :vulkan (Vulkan-only).
 ;; Final :both is :none — empty / unspecified Android context defaults to GLES+Vulkan.
 (def vulkan-android-toggles
@@ -518,7 +520,7 @@
     (exclude-libs-toggles android ["graphics_opengles"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterOpenGLES"])
-    (generic-contains-toggles android :excludeDynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"])))
+    (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])))
 
 (def graphics-setting-android
   (make-choice-setting

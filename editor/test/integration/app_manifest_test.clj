@@ -201,9 +201,9 @@
           (is (some #{"graphics_opengles"} (:excludeLibs context)))
           (is (some #{"GraphicsAdapterOpenGLES"} (:excludeSymbols context)))
           (is (some #{"vulkan"} (:excludeDynamicLibs context)))
-          (is (some #{"EGL"} (:excludeDynamicLibs context)))
-          (is (some #{"GLESv2"} (:excludeDynamicLibs context)))
-          (is (not-any? #{"EGL"} (:dynamicLibs context))))))))
+          (is (not-any? #{"EGL"} (:excludeDynamicLibs context)))
+          (is (not-any? #{"GLESv1_CM"} (:excludeDynamicLibs context)))
+          (is (not-any? #{"GLESv2"} (:excludeDynamicLibs context))))))))
 
 (deftest manifestation-compatibility-test
   (test-util/with-loaded-project
