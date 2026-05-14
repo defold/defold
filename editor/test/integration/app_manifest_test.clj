@@ -187,6 +187,8 @@
       (doseq [platform [:armv7-android :arm64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_opengles"} (:libs context)))
+          (is (some #{"dmglfw"} (:libs context)))
+          (is (some #{"dmglfw_vulkan"} (:excludeLibs context)))
           (is (not-any? #{"graphics"} (:libs context)))
           (is (not-any? #{"vulkan"} (:excludeLibs context)))
           (is (some #{"vulkan"} (:excludeDynamicLibs context)))
@@ -198,12 +200,14 @@
       (doseq [platform [:armv7-android :arm64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_vulkan"} (:libs context)))
+          (is (some #{"dmglfw_vulkan"} (:libs context)))
           (is (some #{"graphics_opengles"} (:excludeLibs context)))
+          (is (some #{"dmglfw"} (:excludeLibs context)))
           (is (some #{"GraphicsAdapterOpenGLES"} (:excludeSymbols context)))
           (is (some #{"vulkan"} (:excludeDynamicLibs context)))
-          (is (not-any? #{"EGL"} (:excludeDynamicLibs context)))
-          (is (not-any? #{"GLESv1_CM"} (:excludeDynamicLibs context)))
-          (is (not-any? #{"GLESv2"} (:excludeDynamicLibs context))))))))
+          (is (some #{"EGL"} (:excludeDynamicLibs context)))
+          (is (some #{"GLESv1_CM"} (:excludeDynamicLibs context)))
+          (is (some #{"GLESv2"} (:excludeDynamicLibs context))))))))
 
 (deftest manifestation-compatibility-test
   (test-util/with-loaded-project

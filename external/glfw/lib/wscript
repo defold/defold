@@ -29,5 +29,13 @@ def build(bld):
 
     dmglfw = bld.stlib(features     = 'c',
                        source       = sources,
-                       includes     = includes, 
+                       includes     = includes,
                        target       = 'dmglfw')
+
+    if re.match('arm.*?android', platform):
+        vulkan_sources = [source for source in sources if source.name not in ('android_util.c', 'android_glext.c', 'image.c')]
+        dmglfw_vulkan = bld.stlib(features     = 'c',
+                                  source       = vulkan_sources,
+                                  includes     = includes,
+                                  defines      = ['DMGLFW_NO_GL'],
+                                  target       = 'dmglfw_vulkan')

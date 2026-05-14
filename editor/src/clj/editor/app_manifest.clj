@@ -504,28 +504,29 @@
 
 (def open-gl-android-toggles
   (concat
-    (libs-toggles android ["graphics_opengles"])
+    (libs-toggles android ["graphics_opengles" "dmglfw"])
+    (exclude-libs-toggles android ["dmglfw_vulkan"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])))
 
 ;; Vulkan-only Android: graphics_vulkan + Vulkan adapter. libvulkan.so is loaded
 ;; dynamically at runtime, so none of the Android choices should link -lvulkan.
-;; Keep EGL/GLES dynamic libraries linked: dmglfw's Android window layer still
-;; references those entry points even when the OpenGL ES adapter is excluded.
+;; Use dmglfw_vulkan to avoid linking the Android OpenGL ES/EGL system libs.
 ;; Order: :both (GLES+Vulkan), then :open-gl (GLES-only), then :vulkan (Vulkan-only).
 ;; Final :both is :none — empty / unspecified Android context defaults to GLES+Vulkan.
 (def vulkan-android-toggles
   (concat
-    (libs-toggles android ["graphics_vulkan"])
-    (exclude-libs-toggles android ["graphics_opengles"])
+    (libs-toggles android ["graphics_vulkan" "dmglfw_vulkan"])
+    (exclude-libs-toggles android ["graphics_opengles" "dmglfw"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterOpenGLES"])
-    (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])))
+    (generic-contains-toggles android :excludeDynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"])))
 
 (def graphics-setting-android
   (make-choice-setting
     :both (concat
-            (libs-toggles android ["graphics_opengles" "graphics_vulkan"])
+            (libs-toggles android ["graphics_opengles" "graphics_vulkan" "dmglfw"])
+            (exclude-libs-toggles android ["dmglfw_vulkan"])
             (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"])
             (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])
             (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"]))

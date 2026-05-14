@@ -283,7 +283,10 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_lib_symbols += ['GraphicsAdapterOpenGL']
 
     if use_vulkan:
-        graphics_libs += ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
+        glfw_lib = 'DMGLFW'
+        if platform in ('armv7-android', 'arm64-android') and not use_opengles:
+            glfw_lib = 'DMGLFW_VULKAN'
+        graphics_libs += ['GRAPHICS_VULKAN', glfw_lib, 'VULKAN']
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
     if Options.options.with_dx12 and platform_supports_feature(platform, 'dx12', {}):
@@ -2198,6 +2201,7 @@ def detect(conf):
         conf.env['STLIB_DMGLFW'] = 'glfw3'
     else:
         conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW_VULKAN'] = 'dmglfw_vulkan'
 
     # ***********************************************************
     # Vulkan

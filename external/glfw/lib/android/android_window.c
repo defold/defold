@@ -116,6 +116,9 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextN
 
 int _glfwPlatformGetWindowRefreshRate( void )
 {
+#if defined(DMGLFW_NO_GL)
+    return 0;
+#else
     // Source: http://irrlicht.sourceforge.net/forum/viewtopic.php?f=9&t=50206
     if (_glfwWinAndroid.display == EGL_NO_DISPLAY || _glfwWinAndroid.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
     {
@@ -166,6 +169,7 @@ int _glfwPlatformGetWindowRefreshRate( void )
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 
     return (int)(refresh_rate + 0.5f);
+#endif
 }
 
 int _glfwPlatformOpenWindow( int width__, int height__,
@@ -176,6 +180,12 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 
     _glfwWin.clientAPI = wndconfig__->clientAPI;
 
+#if defined(DMGLFW_NO_GL)
+    if (_glfwWin.clientAPI != GLFW_NO_API)
+    {
+        return GL_FALSE;
+    }
+#else
     if (_glfwWin.clientAPI == GLFW_OPENGL_API)
     {
         if (init_gl(&_glfwWinAndroid) == 0)
@@ -186,6 +196,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
         computeIconifiedState();
     }
+#endif
 
     _glfwTerminateJoysticks();
 
@@ -200,11 +211,13 @@ void _glfwPlatformCloseWindow( void )
 {
     LOGV("_glfwPlatformCloseWindow");
 
+#if !defined(DMGLFW_NO_GL)
     if (_glfwWin.opened && _glfwWin.clientAPI != GLFW_NO_API) {
         destroy_gl_surface(&_glfwWinAndroid);
         final_gl(&_glfwWinAndroid);
         _glfwWin.opened = 0;
     }
+#endif
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -265,6 +278,7 @@ void _glfwPlatformRestoreWindow( void )
 
 static void _glfwPlatformSwapBuffersNoLock( void )
 {
+#if !defined(DMGLFW_NO_GL)
     if (_glfwWinAndroid.display == EGL_NO_DISPLAY || _glfwWinAndroid.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
     {
         return;
@@ -310,6 +324,7 @@ static void _glfwPlatformSwapBuffersNoLock( void )
         g_PendingResize = 0;
         g_PendingResizeBecauseOfInsets = 0;
     }
+#endif
 }
 
 void _glfwPlatformSwapBuffers( void )
@@ -325,6 +340,7 @@ void _glfwPlatformSwapBuffers( void )
 
 void _glfwPlatformSwapInterval( int interval )
 {
+#if !defined(DMGLFW_NO_GL)
     if (_glfwWin.clientAPI != GLFW_NO_API)
     {
         // eglSwapInterval is not supported on all devices, so clear the error here
@@ -335,6 +351,7 @@ void _glfwPlatformSwapInterval( int interval )
         assert(error == EGL_SUCCESS || error == EGL_BAD_PARAMETER);
         (void)error;
     }
+#endif
 }
 
 //========================================================================
@@ -355,6 +372,23 @@ void glfwAndroidBeginFrame()
     spinlock_lock(&_glfwWinAndroid.m_RenderLock);
 }
 
+#if defined(DMGLFW_NO_GL)
+static void UpdateNoApiWindowSize()
+{
+    ANativeWindow* window = _glfwWinAndroid.app ? _glfwWinAndroid.app->window : 0;
+    if (window)
+    {
+        int w = ANativeWindow_getWidth(window);
+        int h = ANativeWindow_getHeight(window);
+        if ((_glfwWin.width != w || _glfwWin.height != h) && _glfwWin.windowSizeCallback)
+        {
+            _glfwWin.windowSizeCallback(w, h);
+        }
+        _glfwWin.width = w;
+        _glfwWin.height = h;
+    }
+}
+#else
 static void CreateGLSurface()
 {
     create_gl_surface(&_glfwWinAndroid);
@@ -376,6 +410,7 @@ static void CreateGLSurface()
         computeIconifiedState();
     }
 }
+#endif
 
 void glfwAndroidFlushEvents()
 {
@@ -415,6 +450,7 @@ void glfwAndroidFlushEvents()
         switch(cmd)
         {
         case APP_CMD_TERM_WINDOW:
+#if !defined(DMGLFW_NO_GL)
             if (_glfwWin.clientAPI != GLFW_NO_API)
             {
                 spinlock_lock(&_glfwWinAndroid.m_RenderLock);
@@ -424,30 +460,42 @@ void glfwAndroidFlushEvents()
 
                 spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
             }
+#endif
             computeIconifiedState();
             break;
 
         case APP_CMD_INIT_WINDOW:
+#if defined(DMGLFW_NO_GL)
+            UpdateNoApiWindowSize();
+#else
             // We don't get here the first time around, but from the second and onwards
             // The first time, the create_gl_surface() is called from the _glfwPlatformOpenWindow function
             if (_glfwWin.opened && _glfwWinAndroid.display != EGL_NO_DISPLAY && _glfwWinAndroid.surface == EGL_NO_SURFACE)
             {
                 CreateGLSurface();
             }
+#endif
             computeIconifiedState();
             break;
 
         case APP_CMD_GAINED_FOCUS:
+#if !defined(DMGLFW_NO_GL)
             // If we failed to create the window in APP_CMD_INIT_WINDOW, let's try again
             if (_glfwWinAndroid.surface == EGL_NO_SURFACE) {
                 CreateGLSurface();
             }
+#endif
             break;
 
         case APP_CMD_WINDOW_RESIZED:
         case APP_CMD_CONFIG_CHANGED:
         case APP_CMD_CONTENT_RECT_CHANGED:
             g_PendingResize = 1;
+#if defined(DMGLFW_NO_GL)
+            UpdateNoApiWindowSize();
+            g_PendingResize = 0;
+            g_PendingResizeBecauseOfInsets = 0;
+#endif
             computeIconifiedState();
             break;
 
@@ -467,12 +515,14 @@ void glfwAndroidFlushEvents()
     }
 
     // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
+#if !defined(DMGLFW_NO_GL)
     if (_glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
     {
         LOGV("Recreating surface");
         CreateGLSurface();
         _glfwWinAndroid.should_recreate_surface = 0;
     }
+#endif
 
     JNIEnv* env = 0;
     JavaVM* vm = 0;
@@ -499,7 +549,9 @@ void androidDestroyWindow( void )
 {
     if (_glfwWin.opened) {
         _glfwWin.opened = 0;
+#if !defined(DMGLFW_NO_GL)
         final_gl(&_glfwWinAndroid);
+#endif
         computeIconifiedState();
     }
 }
@@ -788,7 +840,11 @@ GLFWAPI struct android_app* glfwGetAndroidApp(void)
 //========================================================================
 int _glfwPlatformQueryAuxContext()
 {
+#if defined(DMGLFW_NO_GL)
+    return 0;
+#else
     return _glfwWin.clientAPI == GLFW_NO_API ? 0 : query_gl_aux_context(&_glfwWinAndroid);
+#endif
 }
 
 //========================================================================
@@ -796,7 +852,11 @@ int _glfwPlatformQueryAuxContext()
 //========================================================================
 void* _glfwPlatformAcquireAuxContext()
 {
+#if defined(DMGLFW_NO_GL)
+    return 0;
+#else
     return _glfwWin.clientAPI == GLFW_NO_API ? 0 : acquire_gl_aux_context(&_glfwWinAndroid);
+#endif
 }
 
 //========================================================================
@@ -804,10 +864,12 @@ void* _glfwPlatformAcquireAuxContext()
 //========================================================================
 void _glfwPlatformUnacquireAuxContext(void* context)
 {
+#if !defined(DMGLFW_NO_GL)
     if (_glfwWin.clientAPI != GLFW_NO_API)
     {
         unacquire_gl_aux_context(&_glfwWinAndroid);
     }
+#endif
 }
 
 void _glfwPlatformSetViewType(int view_type)

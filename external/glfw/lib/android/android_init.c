@@ -458,6 +458,9 @@ GLFWAPI int32_t glfwAndroidWindowOpened()
 
 GLFWAPI int32_t glfwAndroidVerifySurface()
 {
+#if defined(DMGLFW_NO_GL)
+    return 1;
+#else
     // Although it's the wrong place to do a eglSwapbuffers, we're already handling a bad state from the last opengl error
     // Verifying the state of the surface is worth it.
     if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
@@ -473,6 +476,7 @@ GLFWAPI int32_t glfwAndroidVerifySurface()
         }
     }
     return 1; // surface is ok
+#endif
 }
 
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
