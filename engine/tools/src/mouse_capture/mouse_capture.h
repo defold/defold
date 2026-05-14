@@ -25,9 +25,16 @@ namespace dmMouseCapture
         double dy;
     };
 
+    struct CursorPos
+    {
+        int x;
+        int y;
+    };
+
     typedef struct Context* HContext;
 
     void                    WarpCursor(int x, int y);
+    bool                    GetCursorPos(CursorPos* cursor_pos);
     HContext                StartCapture(int save_cursor_x, int save_cursor_y);
     void                    StopCapture(HContext context);
     bool                    PollDelta(HContext context, MouseDelta* out_delta);

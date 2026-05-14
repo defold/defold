@@ -39,6 +39,20 @@ namespace dmMouseCapture
         CGAssociateMouseAndMouseCursorPosition(YES);
     }
 
+    bool GetCursorPos(CursorPos* cursor_pos)
+    {
+        if (!cursor_pos)
+            return false;
+
+        CGEventRef event = CGEventCreate(NULL);
+        if (!event)
+            return NO;
+        CGPoint p = CGEventGetLocation(event);
+        CFRelease(event);
+        *cursor_pos = { (int)p.x, (int)p.y };
+        return YES;
+    }
+
     HContext StartCapture(int save_cursor_x, int save_cursor_y)
     {
         Context* context = new Context();

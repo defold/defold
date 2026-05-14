@@ -117,6 +117,20 @@ namespace dmMouseCapture
         SetCursorPos(x, y);
     }
 
+    bool GetCursorPos(CursorPos* cursor_pos)
+    {
+        if (!cursor_pos)
+            return false;
+
+        POINT p;
+        bool result = ::GetCursorPos(&p);
+        if (result)
+        {
+            *cursor_pos = { p.x, p.y };
+        }
+        return result;
+    }
+
     // Just in case we accumulated some deltas between the stop and start capture, let's clear them
     static void DiscardRawInput()
     {

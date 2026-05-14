@@ -905,7 +905,7 @@
 (defn free-cam-mode-active? [camera-node]
   (some-> camera-node (g/user-data ::camera-state) :free-cam-mode))
 
-(defn start-free-cam-mode! [^ImageView image-view camera-node screen-pos]
+(defn start-free-cam-mode! [^ImageView image-view camera-node]
   (when (and (not (:free-cam-mode (g/user-data camera-node ::camera-state)))
              (not (g/node-value camera-node :animating)))
     ;; NOTE: If the dolly is animating, this prevents funkiness
@@ -930,7 +930,7 @@
           (g/set-property camera-node :cursor-type :none)))
       (g/user-data-swap! camera-node ::camera-state assoc
         :free-cam-mode true
-        :free-cam-screen-start-pos screen-pos
+        :free-cam-screen-start-pos (i/get-cursor-pos)
         :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
         :free-cam-pitch pitch
         :free-cam-yaw yaw
@@ -993,7 +993,7 @@
           (g/user-data-swap! self ::camera-state assoc :is-dragging true)
           (case movement
             :look
-            (start-free-cam-mode! image-view self (:cursor-pos input-state))
+            (start-free-cam-mode! image-view self)
             :idle
             action
 
@@ -1039,7 +1039,7 @@
           (and (= movement :look)
                (not free-cam-mode)
                (contains-key-code? (:pressed-keys input-state) (:all (g/node-value self :free-cam-shortcuts evaluation-context))))
-          (start-free-cam-mode! image-view self (:cursor-pos input-state)))
+          (start-free-cam-mode! image-view self))
 
         ;; NOTE: Don't let other handlers receive input if we're in free camera mode
         (if free-cam-mode
