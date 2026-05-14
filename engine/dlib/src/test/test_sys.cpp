@@ -21,6 +21,14 @@
 #if defined(_WIN32)
     #include <Windows.h>
     #include <wchar.h>
+
+    #if defined(WINAPI_FAMILY_PARTITION) && defined(WINAPI_PARTITION_DESKTOP)
+        #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+            #define DM_TEST_WIN32_DESKTOP
+        #endif
+    #elif !defined(WINAPI_FAMILY_PARTITION)
+        #define DM_TEST_WIN32_DESKTOP
+    #endif
 #endif
 
 #include <dlib/dstrings.h>
@@ -42,7 +50,7 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Re
 int     g_Argc = 0;
 char**  g_Argv = 0;
 
-#if defined(_WIN32)
+#if defined(DM_TEST_WIN32_DESKTOP)
 static bool WidePathToUtf8(const wchar_t* src, char* dst, int dst_len)
 {
     return WideCharToMultiByte(CP_UTF8, 0, src, -1, dst, dst_len, NULL, NULL) > 0;
@@ -243,7 +251,7 @@ TEST(dmSys, GetApplicationSupportPath)
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
 }
 
-#if defined(_WIN32)
+#if defined(DM_TEST_WIN32_DESKTOP)
 TEST(dmSys, GetApplicationSupportPathInternalWideRootSupportsNarrowStdio)
 {
     // Skip on systems where the ANSI code page is already UTF-8, since the

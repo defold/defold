@@ -235,9 +235,79 @@ def source_file_path(source):
     return source
 
 
+def append_source_file(sources, source):
+    if source and source_file_path(source) not in [source_file_path(x) for x in sources]:
+        sources.append(source)
+
+
 def remove_source_files(sources, remove_sources):
     remove_paths = set(source_file_path(x) for x in remove_sources)
     return [x for x in sources if source_file_path(x) not in remove_paths]
+
+
+def find_platform_files(bld, platform, path, public_fallback = True, private_roots = True):
+    repo_root = get_repo_root()
+    base_path = os.path.relpath(bld.path.abspath(), repo_root)
+    files = []
+
+    if public_fallback:
+        append_source_file(files, bld.path.find_node(path))
+
+    if private_roots:
+        for root in get_platform_roots(platform):
+            absolute_path = os.path.join(root, base_path, path)
+            private_path = os.path.join(base_path, path)
+            if os.path.exists(absolute_path) and is_private_platform_file(platform, private_path):
+                node = bld.root.find_node(absolute_path)
+                append_source_file(files, node if node else absolute_path)
+
+    return files
+
+
+def get_platform_variant_tags(platform):
+    tags = []
+    for tag in reversed(get_platform_file_tags(platform)):
+        if tag not in tags:
+            tags.append(tag)
+    for tag in reversed(get_private_platform_file_tags(platform)):
+        if tag not in tags:
+            tags.append(tag)
+    return tags
+
+
+def find_platform_variant_files(bld, platform, input_path):
+    files = []
+    append_source_file(files, bld.path.find_node(input_path))
+
+    directory, filename = os.path.split(input_path)
+    basename, extension = os.path.splitext(filename)
+    if basename.endswith('_input'):
+        basename = basename[:-len('_input')]
+
+    for tag in get_platform_variant_tags(platform):
+        path = os.path.join(directory, '%s_%s%s' % (basename, tag, extension))
+        for node in find_platform_files(bld, platform, path):
+            append_source_file(files, node)
+
+    return files
+
+
+def find_configured_platform_variant_files(bld, input_path):
+    files = []
+    append_source_file(files, bld.path.find_node(input_path))
+
+    directory, filename = os.path.split(input_path)
+    basename, extension = os.path.splitext(filename)
+    if basename.endswith('_input'):
+        basename = basename[:-len('_input')]
+
+    for platform in get_configured_platforms():
+        for tag in get_platform_variant_tags(platform):
+            path = os.path.join(directory, '%s_%s%s' % (basename, tag, extension))
+            for node in find_platform_files(bld, platform, path):
+                append_source_file(files, node)
+
+    return files
 
 
 def get_feature_extra_tags(platform, extra_tags):
@@ -289,10 +359,6 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
     def find_file(path, public_fallback = True, private_roots = True):
         return find_platform_file(bld, platform, path, public_fallback, private_roots)
 
-    def append_file(files, node):
-        if node and source_file_path(node) not in [source_file_path(x) for x in files]:
-            files.append(node)
-
     feature_base, extension = os.path.splitext(feature_name)
     extensions = ['.cpp', '.c', '.cc', '.cxx', '.mm', '.m']
     if extension:
@@ -303,14 +369,14 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
         feature_patterns += [feature_base + extension,
                              feature_base + '_*' + extension]
     for node in bld.path.ant_glob(feature_patterns):
-        append_file(feature_files, node)
+        append_source_file(feature_files, node)
 
     # Core implementation: <feature>.<ext> is shared by all platforms.
     for extension in extensions:
         node = find_file(feature_base + extension, True, False)
         if node:
-            append_file(files, node)
-            append_file(feature_files, node)
+            append_source_file(files, node)
+            append_source_file(feature_files, node)
 
     # Preferred tags: explicit feature choices such as mbedtls override platform tags.
     tag_files = []
@@ -318,8 +384,8 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
         for extension in extensions:
             node = find_file('%s_%s%s' % (feature_base, tag, extension))
             if node:
-                append_file(tag_files, node)
-                append_file(feature_files, node)
+                append_source_file(tag_files, node)
+                append_source_file(feature_files, node)
 
     # Platform tags: target-specific files, optionally extended with feature tags.
     if not tag_files:
@@ -327,8 +393,8 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
             for extension in extensions:
                 node = find_file('%s_%s%s' % (feature_base, tag, extension))
                 if node:
-                    append_file(tag_files, node)
-                    append_file(feature_files, node)
+                    append_source_file(tag_files, node)
+                    append_source_file(feature_files, node)
 
     # Fallback tags: public shared implementations used when no platform file matched.
     if not tag_files:
@@ -336,11 +402,11 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
             for extension in extensions:
                 node = find_file('%s_%s%s' % (feature_base, tag, extension), True, False)
                 if node:
-                    append_file(tag_files, node)
-                    append_file(feature_files, node)
+                    append_source_file(tag_files, node)
+                    append_source_file(feature_files, node)
 
     for node in tag_files:
-        append_file(files, node)
+        append_source_file(files, node)
 
     if required and not feature_files:
         bld.fatal('Could not find any source files for feature %s' % feature_name)

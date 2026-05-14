@@ -1,9 +1,8 @@
 #! /usr/bin/env python
 
-import sys, re, os
-import waf_dynamo
 import waflib.Task, waflib.Utils
 from waflib.TaskGen import taskgen_method, feature, after, before
+from cross_build import find_configured_platform_variant_files
 
 VERSION='0.1'
 APPNAME='extender'
@@ -32,8 +31,11 @@ task = waflib.Task.task_factory('merge_yaml',
 @feature('merge_yaml')
 def feature_merge_yaml(self):
     inputs = []
-    for name in self.yaml_source:
-        inputs.append(self.path.make_node(name))
+    for source in self.yaml_source:
+        if hasattr(source, 'abspath'):
+            inputs.append(source)
+        else:
+            inputs.append(self.path.make_node(source))
 
     out = self.path.find_or_declare(self.yaml_target)
     task = self.create_task('merge_yaml')
@@ -51,12 +53,7 @@ def configure(conf):
 
 def build(bld):
 
-    private_platforms = ('nx64', 'ps4')
-
-    source = ['build_input.yml']
-    private_source = 'build_vendor.yml'
-    if os.path.exists(private_source):
-        source += [private_source]
+    source = find_configured_platform_variant_files(bld, 'build_input.yml')
 
     bld(features = 'merge_yaml',
         yaml_source = source,
@@ -65,12 +62,8 @@ def build(bld):
 
     variants = ('debug', 'release', 'headless')
     for variant in variants:
-        source = ['variants/%s_input.appmanifest' % variant]
+        source = find_configured_platform_variant_files(bld, 'variants/%s_input.appmanifest' % variant)
         source_target = 'variants/%s.appmanifest' % variant
-
-        private_source = 'variants/%s_vendor.appmanifest' % variant
-        if os.path.exists(private_source):
-            source += [private_source]
 
         bld(features = 'merge_yaml',
             yaml_source = source,
