@@ -25,6 +25,8 @@ import build_android
 import run
 import s3
 import sdk
+from cross_build import DEFOLD_PLATFORMS_FILE, get_configured_platforms, get_platform_roots, get_platforms_config_path, load_platforms_config, save_platforms_config
+from private_hooks import call_hook, has_hook_module
 import wasm_runner
 import release_to_github
 import release_to_steam
@@ -63,50 +65,45 @@ _CMAKE_FEATURE_FLAG_MAP = {
 
 JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
 
-sys.dont_write_bytecode = True
-try:
-    import build_vendor
-    sys.modules['build_private'] = build_vendor
-    print("Imported %s from %s" % ('build_private', build_vendor.__file__))
-except ModuleNotFoundError as e:
-    if "No module named 'build_vendor'" in str(e):
-        print("Couldn't find build_vendor.py. Skipping.")
-        pass
-    else:
-        raise e
-except Exception as e:
-    print("Failed to import build_vendor.py:")
-    raise e
+class build_private(object):
+    _target_platform = None
 
-sys.dont_write_bytecode = False
-try:
-    import build_private
-except Exception:
-    pass
+    @classmethod
+    def set_target_platform(cls, platform):
+        cls._target_platform = platform
 
-if 'build_private' not in sys.modules:
-    class build_private(object):
-        @classmethod
-        def get_target_platforms(cls):
-            return []
-        @classmethod
-        def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
-            return []
-        @classmethod
-        def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the target
-            return []
-        @classmethod
-        def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
-            pass
-        @classmethod
-        def is_library_supported(cls, platform, library):
-            return True
-        @classmethod
-        def is_repo_private(self):
-            return False
-        @classmethod
-        def get_tag_suffix(self):
-            return ''
+    @classmethod
+    def _call(cls, platform, name, default, *args):
+        platform = platform or cls._target_platform
+        return call_hook('build', platform, name, default, *args) if platform else default
+
+    @classmethod
+    def get_target_platforms(cls):
+        return get_configured_platforms()
+
+    @classmethod
+    def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
+        return cls._call(None, 'get_install_host_packages', [], platform)
+
+    @classmethod
+    def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the target
+        return cls._call(platform, 'get_install_target_packages', [], platform)
+
+    @classmethod
+    def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
+        return cls._call(platform, 'install_sdk', None, configuration, platform)
+
+    @classmethod
+    def is_library_supported(cls, platform, library):
+        return cls._call(platform, 'is_library_supported', True, platform, library)
+
+    @classmethod
+    def is_repo_private(cls):
+        return cls._call(None, 'is_repo_private', has_hook_module('build', cls._target_platform))
+
+    @classmethod
+    def get_tag_suffix(cls):
+        return cls._call(None, 'get_tag_suffix', '')
 
 assert(hasattr(build_private, 'get_target_platforms'))
 assert(hasattr(build_private, 'get_install_host_packages'))
@@ -117,7 +114,11 @@ assert(hasattr(build_private, 'is_repo_private'))
 assert(hasattr(build_private, 'get_tag_suffix'))
 
 def get_target_platforms():
-    return BASE_PLATFORMS + build_private.get_target_platforms()
+    platforms = BASE_PLATFORMS + build_private.get_target_platforms()
+    return list(dict.fromkeys(platforms))
+
+def get_default_target_platforms():
+    return BASE_PLATFORMS
 
 PACKAGES_ALL=[
     "protobuf-3.20.1",
@@ -532,6 +533,8 @@ class Configuration(object):
                  engine_artifacts = None,
                  waf_options = [],
                  save_env_path = None,
+                 private_repo = None,
+                 private_platform = None,
                  notarization_username = None,
                  notarization_password = None,
                  notarization_itc_provider = None,
@@ -584,6 +587,8 @@ class Configuration(object):
         self.engine_artifacts = engine_artifacts
         self.waf_options = waf_options
         self.save_env_path = save_env_path
+        self.private_repo = private_repo
+        self.private_platform = private_platform
         self.notarization_username = notarization_username
         self.notarization_password = notarization_password
         self.notarization_itc_provider = notarization_itc_provider
@@ -844,6 +849,17 @@ class Configuration(object):
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
 
+        def make_private_package_path(platform, package):
+            roots = list(dict.fromkeys(get_platform_roots(self.target_platform) + [self.defold_root]))
+            paths = [make_package_path(root, platform, package) for root in roots]
+            for path in paths:
+                if os.path.exists(path):
+                    return path
+            self.fatal("Could not find private package %s for %s. Looked in:\n  %s" % (package, platform, "\n  ".join(paths)))
+
+        def make_private_package_paths(platform, packages):
+            return [make_private_package_path(platform, package) for package in packages]
+
         self.install_waf()
 
         print("Installing common packages")
@@ -877,9 +893,10 @@ class Configuration(object):
             installed_packages.update(package_paths)
 
         for base_platform in self.get_base_platforms():
-            packages = list(PACKAGES_HOST) + build_private.get_install_host_packages(base_platform)
+            packages = list(PACKAGES_HOST)
             packages.extend(PLATFORM_PACKAGES.get(base_platform, []))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
+            package_paths.extend(make_private_package_paths(base_platform, build_private.get_install_host_packages(base_platform)))
             package_paths = [path for path in package_paths if path not in installed_packages]
             if len(package_paths) != 0:
                 print("Installing %s packages" % base_platform)
@@ -896,8 +913,8 @@ class Configuration(object):
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
 
-        target_packages = PLATFORM_PACKAGES.get(self.target_platform, []) + build_private.get_install_target_packages(self.target_platform)
-        target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
+        target_package_paths = make_package_paths(self.defold_root, self.target_platform, PLATFORM_PACKAGES.get(self.target_platform, []))
+        target_package_paths.extend(make_private_package_paths(self.target_platform, build_private.get_install_target_packages(self.target_platform)))
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
         if len(target_package_paths) != 0:
@@ -2217,6 +2234,66 @@ class Configuration(object):
         print ('Bumping engine version from %s to %s' % (current, new_version))
         print ('Review changes and commit')
 
+    def _add_private_repo_root(self, platforms, platform, private_repo):
+        platform_config = platforms.setdefault(platform, {})
+        if not isinstance(platform_config, dict):
+            self.fatal("%s entry for %s must be an object" % (DEFOLD_PLATFORMS_FILE, platform))
+
+        root = platform_config.get('root')
+        if root == private_repo:
+            return False
+
+        roots = platform_config.setdefault('roots', [])
+        if not isinstance(roots, list):
+            self.fatal("%s roots entry for %s must be a list" % (DEFOLD_PLATFORMS_FILE, platform))
+
+        if not root:
+            platform_config['root'] = private_repo
+            if 'roots' in platform_config and not roots:
+                del platform_config['roots']
+            return True
+
+        if private_repo not in roots:
+            roots.append(private_repo)
+            return True
+
+        return False
+
+    def _print_configured_platforms(self):
+        platforms = load_platforms_config()
+        if not platforms:
+            return
+
+        print("Extra cross compile platforms from %s:" % DEFOLD_PLATFORMS_FILE)
+        for platform in sorted(platforms.keys()):
+            roots = get_platform_roots(platform)
+            roots_text = ', '.join(roots) if roots else '<no roots configured>'
+            print("  %s: %s" % (platform, roots_text))
+
+    def add_private_repo(self):
+        if not self.private_repo:
+            self.fatal("No --private-repo path specified")
+
+        private_repo = abspath(expanduser(self.private_repo))
+        if not os.path.isdir(private_repo):
+            self.fatal("Private repo path does not exist or is not a directory: %s" % private_repo)
+
+        platform = self.private_platform
+        if not platform:
+            self.fatal("No private platform specified. Use --platform=<private-platform>.")
+
+        if platform in get_default_target_platforms():
+            self.fatal("add_private_repo requires a private platform name, but this is already a default supported platform: %s" % platform)
+
+        platforms = load_platforms_config()
+        changed = self._add_private_repo_root(platforms, platform, private_repo)
+
+        save_platforms_config(platforms)
+
+        print("Updated %s" % get_platforms_config_path())
+        marker = "added" if changed else "already configured"
+        print("  %s: %s (%s)" % (platform, ', '.join(get_platform_roots(platform)), marker))
+
     def save_env(self):
         if not self.save_env_path:
             self._log("No --save-env-path set when trying to save environment export")
@@ -2248,6 +2325,7 @@ class Configuration(object):
     def shell(self):
         self.check_python()
         print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        self._print_configured_platforms()
 
         # Many login shells (e.g. zsh on macOS) reset PATH via path_helper
         # or user startup files (Homebrew shellenv), which can shadow our tools.
@@ -2958,6 +3036,7 @@ build_builtins   - Build builtin content archive
 bump             - Bump version number
 release          - Release editor
 shell            - Start development shell
+add_private_repo - Add a private repo to .defold-platforms
 smoke_test       - Test editor and engine in combination
 local_smoke      - Test run smoke test using local dev environment
 gen_sdk_source   - Regenerate the dmSDK bindings from our C sdk
@@ -2970,8 +3049,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = get_target_platforms(),
-                      help = 'Target platform')
+                      help = 'Target platform. With add_private_repo, this may be a new private platform to write to .defold-platforms')
 
     parser.add_option('--skip-tests', dest='skip_tests',
                       action = 'store_true',
@@ -3053,6 +3131,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Save environment variables to a file')
 
+    parser.add_option('--private-repo', dest='private_repo',
+                      default = None,
+                      help = 'Path to a private repo to add to .defold-platforms')
+
     parser.add_option('--notarization-username', dest='notarization_username',
                       default = None,
                       help = 'Username to use when sending the editor for notarization')
@@ -3130,9 +3212,23 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     if len(args) == 0:
         parser.error('No command specified')
 
-    target_platform = options.target_platform
-    if not options.target_platform:
+    known_platforms = get_target_platforms()
+    is_add_private_repo = 'add_private_repo' in args
+    if options.target_platform and options.target_platform not in known_platforms and not is_add_private_repo:
+        parser.error("option --platform: invalid choice: %r (choose from %s)" % (options.target_platform, ', '.join(known_platforms)))
+
+    private_platform = None
+    if is_add_private_repo:
+        private_platform = options.target_platform or get_host_platform()
+        if private_platform in get_default_target_platforms():
+            parser.error("add_private_repo requires a private platform name, but this is already a default supported platform: %s" % private_platform)
+
+    if not options.target_platform or (is_add_private_repo and options.target_platform not in known_platforms):
         target_platform = get_host_platform()
+    else:
+        target_platform = options.target_platform
+
+    build_private.set_target_platform(target_platform)
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
@@ -3154,6 +3250,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       engine_artifacts = options.engine_artifacts,
                       waf_options = waf_options,
                       save_env_path = options.save_env_path,
+                      private_repo = options.private_repo,
+                      private_platform = private_platform,
                       notarization_username = options.notarization_username,
                       notarization_password = options.notarization_password,
                       notarization_itc_provider = options.notarization_itc_provider,
@@ -3172,7 +3270,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     needs_dynamo_home = True
     for cmd in args:
-        if cmd in ['shell', 'save_env']:
+        if cmd in ['shell', 'save_env', 'add_private_repo']:
             needs_dynamo_home = False
             break
     if needs_dynamo_home:

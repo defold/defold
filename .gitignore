@@ -1,5 +1,6 @@
 /.metadata
 /tmp
+/.defold-platforms
 .DS_Store
 .lock-wscript
 .lock-waf*

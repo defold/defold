@@ -1052,30 +1052,36 @@ def _get_local_sdk_info(platform, verbose=False):
 
     return info
 
-# ********************************************************************
-# vendor
+class sdk_vendor(object):
+    @classmethod
+    def _module_for_platform(cls, platform):
+        from private_hooks import load_hook_module
+        module = load_hook_module('sdk', platform)
+        if module:
+            module.SDKException = SDKException
+        return module
 
-def dummy_check_vendor_sdk(sdkfolder, platform, verbose):
-    pass
+    @classmethod
+    def _call(cls, platform, name, default, *args):
+        module = cls._module_for_platform(platform)
+        func = getattr(module, name, None) if module else None
+        return func(*args) if func else default
 
-check_vendor_sdk = dummy_check_vendor_sdk
+    @classmethod
+    def supports_platform(cls, platform):
+        return cls._call(platform, 'supports_platform', False, platform)
 
-try:
-    import sdk_vendor
-    sdk_vendor.SDKException = SDKException # give access to the esception
-    check_vendor_sdk = sdk_vendor.check_vendor_sdk
-except ModuleNotFoundError as e:
-    # Currently, the output is parsed by other scripts
-    if "No module named 'sdk_vendor'" in str(e):
-        pass
-    else:
-        raise e
-except Exception as e:
-    print("Failed to import sdk_vendor.py:")
-    raise e
+    @classmethod
+    def get_defold_sdk_folders(cls, platform):
+        return cls._call(platform, 'get_defold_sdk_folders', [], platform)
 
-if 'sdk_vendor' not in sys.modules:
-    sdk_vendor = None
+    @classmethod
+    def get_sdk_info(cls, platform):
+        return cls._call(platform, 'get_sdk_info', None, platform)
+
+
+def check_vendor_sdk(sdkfolder, platform, verbose):
+    return sdk_vendor._call(platform, 'check_vendor_sdk', None, sdkfolder, platform, verbose)
 
 # ********************************************************************
 

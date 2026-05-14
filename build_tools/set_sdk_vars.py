@@ -29,21 +29,7 @@ echo $ANDROID_BUILD_TOOLS_VERSION
 
 import sys
 import sdk
-
-try:
-    import sdk_vendor
-except ModuleNotFoundError as e:
-    # Currently, the output is parsed by other scripts
-    if "No module named 'sdk_vendor'" in str(e):
-        pass
-    else:
-        raise e
-except Exception as e:
-    print("Failed to import sdk_vendor.py:")
-    raise e
-
-if 'sdk_vendor' not in sys.modules:
-    sdk_vendor = None
+from private_hooks import find_hook_attr
 
 
 def main():
@@ -54,7 +40,7 @@ def main():
     for var_name in sys.argv[1:]:
         attr = getattr(sdk, var_name, None)
         if attr is None:
-            attr = getattr(sdk_vendor, var_name, None)
+            attr = find_hook_attr('sdk', var_name)
 
         if attr is None:
             print(f"Error: {var_name} is not defined in sdk.py", file=sys.stderr)
