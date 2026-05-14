@@ -1825,14 +1825,14 @@ class Configuration(object):
         env = self._form_env()
 
         gradle = self.get_gradle_wrapper()
-        gradle_args = []
+        gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
         if self.verbose:
             gradle_args += ['--info']
 
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
         # Clean and build the project
-        s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
+        s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed'] + gradle_args + ['clean', 'installBobLight']), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
         	print (s)
         self.build_tracker.end_component('bob_light', self.host)
@@ -1904,6 +1904,8 @@ class Configuration(object):
         full_archive_path = join(sha1, 'bob').replace('\\', '/')
         for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
             self.upload_to_archive(p, '%s/%s' % (full_archive_path, basename(p)))
+        for p in glob(join(self.dynamo_home, 'share', 'java', 'plugins', '*.jar')):
+            self.upload_to_archive(p, '%s/plugins/%s' % (full_archive_path, basename(p)))
 
     def copy_local_bob_artefacts(self):
         texc_name = format_lib('texc_shared', self.host)
@@ -2005,21 +2007,21 @@ class Configuration(object):
         env = self._form_env()
 
         gradle = self.get_gradle_wrapper()
-        gradle_args = []
+        gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
         if self.verbose:
             gradle_args += ['--info']
 
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
-        flags = ''
+        flags = []
         if self.keep_bob_uncompressed:
-            flags = '-Pkeep-bob-uncompressed'
+            flags = ['-Pkeep-bob-uncompressed']
 
         if self.skip_tests:
             # Clean and build the project
-            run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
+            run.command(" ".join([gradle] + flags + gradle_args + ['clean', 'install']), cwd=bob_dir, shell = True, env = env)
         else:
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
-            run.command(" ".join([gradle, flags, 'clean', 'install', 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+            run.command(" ".join([gradle] + flags + gradle_args + ['clean', 'install', 'testJar']), cwd = test_dir, shell = True, env = env, stdout = None)
 
     def test_bob(self):
         bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')
@@ -2031,7 +2033,7 @@ class Configuration(object):
         env = self._form_env()
 
         gradle = self.get_gradle_wrapper()
-        gradle_args = []
+        gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
         if self.verbose:
             gradle_args += ['--info']
 
@@ -2039,7 +2041,7 @@ class Configuration(object):
 
         # compileTest only needs bob.jar on disk. Exclude distBob so this job tests the artifact
         # produced by build-bob instead of rebuilding it.
-        run.command(" ".join([gradle, 'testJar', '-x', 'distBob'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+        run.command(" ".join([gradle] + gradle_args + ['testJar', '-x', 'distBob']), cwd = test_dir, shell = True, env = env, stdout = None)
 
 
     def build_sdk_headers(self):
@@ -2972,6 +2974,7 @@ class Configuration(object):
 
         env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home
+        env['DYNAMO_TARGET_PLATFORM'] = self.target_platform
 
         android_host = self.host
         if 'win32' in android_host:

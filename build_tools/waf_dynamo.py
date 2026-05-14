@@ -1404,7 +1404,10 @@ def embed_file(self):
     source_nodes = []
     for x in Utils.to_list(self.source):
         if type(x) == str:
-            source_nodes.append(self.path.find_node(x))
+            node = self.bld.root.find_node(x) if os.path.isabs(x) else self.path.find_node(x)
+            if node is None:
+                raise Errors.WafError("Source '%s' was not found for target '%s' in %s" % (x, self.target, self.path.abspath()))
+            source_nodes.append(node)
         else:
             source_nodes.append(x)
 
