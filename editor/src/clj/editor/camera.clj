@@ -936,6 +936,7 @@
         :free-cam-yaw yaw
         :free-cam-smoothed-pitch pitch
         :free-cam-smoothed-yaw yaw))
+    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
     nil))
 
 (defn stop-free-cam-mode! [image-view camera-node]
