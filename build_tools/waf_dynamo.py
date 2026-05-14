@@ -20,7 +20,7 @@ from waflib.Logs import error
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
-from cross_build import find_feature_files, find_platform_file, get_configured_platforms, remove_source_files
+from cross_build import find_feature_files, find_platform_file, get_configured_platforms, get_private_include_paths, get_private_library_paths, get_private_path_mirrors, remove_source_files
 from private_hooks import call_hook, get_hook_modules
 import sdk
 import wasm_runner
@@ -84,6 +84,34 @@ def platform_setup_vars(ctx, build_util):
 
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
+
+def prepend_unique_paths(env, name, paths):
+    current_paths = env[name] if name in env else []
+    if not isinstance(current_paths, list):
+        current_paths = [current_paths]
+
+    result = []
+    seen = set()
+    for path in paths + current_paths:
+        if not path:
+            continue
+        key = os.path.normcase(os.path.normpath(path))
+        if key not in seen:
+            seen.add(key)
+            result.append(path)
+    env[name] = result
+
+def prepend_private_search_paths(env, platform):
+    prepend_unique_paths(env, 'INCLUDES', get_private_include_paths(platform))
+    prepend_unique_paths(env, 'LIBPATH', get_private_library_paths(platform))
+
+def prepend_private_task_paths(task_gen, platform):
+    for name in ('includes', 'libpath'):
+        if hasattr(task_gen, name):
+            current_paths = task_gen.to_list(getattr(task_gen, name))
+            private_paths = get_private_path_mirrors(platform, task_gen.path.abspath(), current_paths)
+            if private_paths:
+                setattr(task_gen, name, private_paths + current_paths)
 
 def platform_glfw_version(platform):
     if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux']:
@@ -279,8 +307,10 @@ after('process_source')(apply_framework)
 @before('process_source')
 def default_flags(self):
     build_util = create_build_utility(self.env)
+    target_platform = build_util.get_target_platform()
     target_os = build_util.get_target_os()
     target_arch = build_util.get_target_architecture()
+    prepend_private_task_paths(self, target_platform)
 
     use_cl_exe = target_os in [TargetOS.WINDOWS, TargetOS.XBONE]
 
@@ -590,7 +620,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', emflags_link)
         self.env.append_value('LINKFLAGS', linkflags)
 
-    elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
+    elif target_platform in ['win32', 'x86_64-win32']:
         for f in ['CFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
@@ -609,6 +639,7 @@ def default_flags(self):
         self.env.cxxstlib_PATTERN = 'lib%s.lib'
 
     platform_setup_vars(self, build_util)
+    prepend_private_search_paths(self.env, target_platform)
 
     hostfs = ''
     if 'DM_HOSTFS' in self.env:
@@ -1850,6 +1881,8 @@ def detect(conf):
 
             conf.load('compiler_c')
             conf.load('compiler_cxx')
+
+    prepend_private_search_paths(conf.env, platform)
 
     # Since we're using an old waf version, we remove unused arguments
     remove_flag(conf.env['shlib_CFLAGS'], '-compatibility_version', 1)

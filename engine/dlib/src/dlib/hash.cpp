@@ -731,7 +731,7 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
     return s != 0 ? s : "<unknown>";
 }
 
-#if defined(DM_PLATFORM_VENDOR)
+#if __has_include(<dmsdk/dlib/hash_vendor.h>)
     #include <dmsdk/dlib/hash_vendor.h>
 #else
     #define DM_HASH_LONG_FMT "%" PRIu64

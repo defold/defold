@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 // Maps platform defines/constants to Defold defines
-#if defined(DM_PLATFORM_VENDOR)
+#if __has_include(<dmsdk/hid/hid_native_defines_vendor.h>)
     #include <dmsdk/hid/hid_native_defines_vendor.h>
 #else
     #include <dmsdk/hid/glfw/hid_native_defines.h>

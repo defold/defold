@@ -63,6 +63,78 @@ def get_platform_roots(platform):
     return roots
 
 
+def _path_key(path):
+    return os.path.normcase(os.path.normpath(path))
+
+
+def _dedupe_paths(paths):
+    unique = []
+    seen = set()
+    for path in paths:
+        key = _path_key(path)
+        if key not in seen:
+            seen.add(key)
+            unique.append(path)
+    return unique
+
+
+def _existing_dirs(paths):
+    return [path for path in paths if os.path.isdir(path)]
+
+
+def get_private_dynamo_homes(platform):
+    return [os.path.join(root, 'tmp', 'dynamo_home') for root in get_platform_roots(platform)]
+
+
+def get_private_include_paths(platform):
+    paths = []
+    for dynamo_home in get_private_dynamo_homes(platform):
+        paths += [
+            os.path.join(dynamo_home, 'sdk', 'include'),
+            os.path.join(dynamo_home, 'include', platform),
+            os.path.join(dynamo_home, 'include'),
+            os.path.join(dynamo_home, 'ext', 'include', platform),
+            os.path.join(dynamo_home, 'ext', 'include'),
+        ]
+    return _dedupe_paths(_existing_dirs(paths))
+
+
+def get_private_library_paths(platform):
+    paths = []
+    for dynamo_home in get_private_dynamo_homes(platform):
+        paths += [
+            os.path.join(dynamo_home, 'lib', platform),
+            os.path.join(dynamo_home, 'ext', 'lib', platform),
+        ]
+    return _dedupe_paths(_existing_dirs(paths))
+
+
+def get_private_path_mirrors(platform, base_path, paths):
+    repo_root = get_repo_root()
+    mirrors = []
+    for path in paths:
+        if hasattr(path, 'abspath'):
+            absolute_path = path.abspath()
+        elif os.path.isabs(path):
+            absolute_path = path
+        else:
+            absolute_path = os.path.normpath(os.path.join(base_path, path))
+
+        try:
+            relative_path = os.path.relpath(absolute_path, repo_root)
+        except ValueError:
+            continue
+
+        if relative_path == os.pardir or relative_path.startswith(os.pardir + os.sep):
+            continue
+
+        for root in get_platform_roots(platform):
+            private_path = os.path.join(root, relative_path)
+            if os.path.isdir(private_path):
+                mirrors.append(private_path)
+    return _dedupe_paths(mirrors)
+
+
 def get_platform_file_tags(platform):
     target = platform
     if '-' in platform:
@@ -93,6 +165,31 @@ def get_platform_file_tags(platform):
     return tags
 
 
+def get_private_platform_file_tags(platform):
+    target = platform
+    if '-' in platform:
+        target = platform.split('-')[-1]
+
+    tags = []
+    def append_tag(tag):
+        if tag and tag not in tags:
+            tags.append(tag)
+
+    append_tag(target)
+
+    if target == 'nx64':
+        append_tag('switch')
+        append_tag('nintendo')
+    elif target in ('ps4', 'ps5'):
+        append_tag('playstation')
+        append_tag('sony')
+    elif target == 'xbone':
+        append_tag('xbox')
+        append_tag('microsoft')
+
+    return tags
+
+
 def get_platform_file_fallback_tags(platform):
     target = platform
     if '-' in platform:
@@ -109,13 +206,19 @@ def get_platform_file_fallback_tags(platform):
     return tags
 
 
+def is_private_platform_file(platform, path):
+    path = path.replace('\\', '/').lower()
+    return any(tag.lower() in path for tag in get_private_platform_file_tags(platform))
+
+
 def find_platform_file(bld, platform, path, public_fallback = True, private_roots = True):
     repo_root = get_repo_root()
     base_path = os.path.relpath(bld.path.abspath(), repo_root)
     if private_roots:
         for root in get_platform_roots(platform):
             absolute_path = os.path.join(root, base_path, path)
-            if os.path.exists(absolute_path):
+            private_path = os.path.join(base_path, path)
+            if os.path.exists(absolute_path) and is_private_platform_file(platform, private_path):
                 node = bld.root.find_node(absolute_path)
                 if node:
                     return node

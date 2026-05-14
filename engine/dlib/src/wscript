@@ -114,7 +114,7 @@ def build(bld):
             if use_mbedtls and target_os in ['macos', 'ios']:
                 preferred_tags = ['mbedtls']
             else:
-                extra_tags = {'android': ['mbedtls'], 'linux': ['mbedtls'], 'win32': ['mbedtls']}
+                extra_tags = {'android': ['mbedtls'], 'linux': ['mbedtls'], 'win32': ['mbedtls'], 'xbone': ['mbedtls']}
         elif feature_name == 'dlib/sys':
             extra_tags = {'android': ['posix'], 'linux': ['posix'], 'macos': ['posix'], 'ios': ['posix'], 'web': ['posix'],
                           'nx64': ['posix'], 'ps4': ['posix'], 'ps5': ['posix']}
