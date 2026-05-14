@@ -962,7 +962,8 @@
                      (:movement camera-state))]
       (case type
         :scroll (if (and (contains? movements-enabled :dolly)
-                         (not free-cam-mode))
+                         (not free-cam-mode)
+                         (= movement :idle))
                   (let [is-mode-2d (mode-2d? local-cam)
                         alt (contains? (:modifiers input-state) :alt)
                         pan (or (and is-mode-2d (not alt))
