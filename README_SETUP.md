@@ -465,6 +465,49 @@ These tools are generally not needed for a regular build.
 
 <details><summary>Details...</summary><p>
 
+### Optional Software - zipmerge
+
+`zipmerge` is an optional tool from [libzip](https://libzip.org/) used by `build-sdk` to merge platform SDK zip archives. If `zipmerge` is not installed, the build falls back to the Python implementation.
+
+<details><summary>macOS...</summary><p>
+
+Install `libzip` using Homebrew:
+
+```sh
+brew install libzip
+```
+
+</p></details>
+
+<details><summary>Linux...</summary><p>
+
+On Ubuntu/Debian, install the `zipmerge` package:
+
+```sh
+sudo apt-get update
+sudo apt-get install zipmerge
+```
+
+</p></details>
+
+<details><summary>Windows...</summary><p>
+
+Install [MSYS2](https://www.msys2.org/), then install `libzip` from the UCRT64 shell:
+
+```sh
+pacman -S mingw-w64-ucrt-x86_64-libzip
+```
+
+Make sure the MSYS2 UCRT64 `bin` folder, typically `C:\msys64\ucrt64\bin`, is available on your PATH when running the build.
+
+</p></details>
+
+Verify the installation:
+
+```sh
+zipmerge -h
+```
+
 ### Optional Software - DotNet 9
 
 In order to build and test the csharp languange bindings locally, you need to install DotNet 9.
