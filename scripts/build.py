@@ -2100,6 +2100,7 @@ class Configuration(object):
         print("Upload platform sdks mappings")
         self.upload_to_archive(join(self.defold_root, "share", "platform.sdks.json"), '%s/platform.sdks.json' % sdkurl)
 
+        self.wait_uploads()
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)
 

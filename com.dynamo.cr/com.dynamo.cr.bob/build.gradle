@@ -424,6 +424,15 @@ def writeArchiveEntry = { ZipArchiveOutputStream zipOutputStream, String path, b
     zipOutputStream.closeArchiveEntry()
 }
 
+def collectParentDirectories = { Set<String> directoryPaths, String path ->
+    path = path.replace(File.separatorChar, '/' as char)
+    int separatorIndex = path.lastIndexOf('/')
+    while (separatorIndex > 0) {
+        directoryPaths.add(path.substring(0, separatorIndex + 1))
+        separatorIndex = path.lastIndexOf('/', separatorIndex - 1)
+    }
+}
+
 def addParallelArchiveEntry = { ParallelScatterZipCreator creator, Set<String> seenPaths, String path, Closure<InputStream> openStream, Long knownSize, int method ->
     path = path.replace(File.separatorChar, '/' as char)
     if (path.length() == 0 || path.endsWith('/') || !seenPaths.add(path)) {
@@ -464,6 +473,7 @@ task createBobJar(dependsOn: [createExternalLibsBuiltinsJar, createLuaJitShareZi
         def executor = Executors.newFixedThreadPool(threadCount)
         def creator = new ParallelScatterZipCreator(executor)
         Set<String> seenPaths = new LinkedHashSet<>()
+        Set<String> directoryPaths = new TreeSet<>()
         List<ZipFile> zipFiles = []
 
         def addFile = { File rootDir, File sourceFile ->
@@ -474,6 +484,7 @@ task createBobJar(dependsOn: [createExternalLibsBuiltinsJar, createLuaJitShareZi
             if (path.startsWith("tmp${File.separator}") || path == 'tmp') {
                 return
             }
+            collectParentDirectories(directoryPaths, path)
             addParallelArchiveEntry(creator, seenPaths, path, { new BufferedInputStream(new FileInputStream(sourceFile)) }, sourceFile.length(), compressionMethod)
         }
 
@@ -485,6 +496,7 @@ task createBobJar(dependsOn: [createExternalLibsBuiltinsJar, createLuaJitShareZi
                 if (currentEntry.directory || (excludeMetaInf && isMetaInfPath(currentEntry.name))) {
                     return
                 }
+                collectParentDirectories(directoryPaths, currentEntry.name)
                 addParallelArchiveEntry(creator, seenPaths, currentEntry.name, { zipFile.getInputStream(currentEntry) }, currentEntry.size, compressionMethod)
             }
         }
@@ -516,6 +528,9 @@ task createBobJar(dependsOn: [createExternalLibsBuiltinsJar, createLuaJitShareZi
                         'Gradle-Version': gradle.gradleVersion,
                         'Created-By': "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
                 ]), compressionMethod)
+                directoryPaths.each { directoryPath ->
+                    writeArchiveEntry(zipOutputStream, directoryPath, new byte[0], compressionMethod)
+                }
                 creator.writeTo(zipOutputStream)
             } finally {
                 zipOutputStream.close()
