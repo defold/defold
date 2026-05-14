@@ -609,6 +609,75 @@
            (run! deref))
       (is (= (* thread-count inc-count-per-thread) (prefs/get p [:counter]))))))
 
+(deftest incorporate-updated-storage-test
+  (testing "no pending events: updated-storage merged into storage"
+    (is (= {:storage {"a.edn" {:x 1}
+                      "b.edn" {:y 2}}}
+           (#'prefs/incorporate-updated-storage
+             {:storage {"a.edn" {:x 0}}}
+             {"a.edn" {:x 1}
+              "b.edn" {:y 2}}))))
+
+  (testing "no pending events: storage entries not in updated-storage are preserved"
+    (is (= {:storage {"a.edn" {:x 1}
+                      "b.edn" {:y 2}}}
+           (#'prefs/incorporate-updated-storage
+             {:storage {"b.edn" {:y 2}}}
+             {"a.edn" {:x 1}}))))
+
+  (testing "pending event with normal value: event wins over written storage"
+    (is (= {:events {"a.edn" {[:x] 99}}
+            :storage {"a.edn" {:x 99}}}
+           (#'prefs/incorporate-updated-storage
+             {:events {"a.edn" {[:x] 99}}
+              :storage {"a.edn" {:x 0}}}
+             {"a.edn" {:x 1}}))))
+
+  (testing "pending ::not-found event: path dissoc'd from merged storage"
+    (is (= {:events {"a.edn" {[:x] ::prefs/not-found}}
+            :storage {"a.edn" {:y 2}}}
+           (#'prefs/incorporate-updated-storage
+             {:events {"a.edn" {[:x] ::prefs/not-found}}
+              :storage {}}
+             {"a.edn" {:x 1 :y 2}}))))
+
+  (testing "pending ::not-found event on non-map cfg: cfg unchanged"
+    (is (= {:events {"a.edn" {[:x] ::prefs/not-found}}
+            :storage {"a.edn" 42}}
+           (#'prefs/incorporate-updated-storage
+             {:events {"a.edn" {[:x] ::prefs/not-found}}
+              :storage {}}
+             {"a.edn" 42}))))
+
+  (testing "pending event for file not in updated-storage: applied to empty map"
+    (is (= {:events {"b.edn" {[:y] 7}}
+            :storage {"a.edn" {:x 1}
+                      "b.edn" {:y 7}}}
+           (#'prefs/incorporate-updated-storage
+             {:events {"b.edn" {[:y] 7}}
+              :storage {}}
+             {"a.edn" {:x 1}}))))
+
+  (testing "multiple paths within one file: all re-applied"
+    (is (= {:events {"a.edn" {[:x] 10 [:y] 20 [:z] ::prefs/not-found}}
+            :storage {"a.edn" {:x 10 :y 20}}}
+           (#'prefs/incorporate-updated-storage
+             {:events {"a.edn" {[:x] 10 [:y] 20 [:z] ::prefs/not-found}}
+              :storage {}}
+             {"a.edn" {:x 1 :y 2 :z 3}}))))
+
+  (testing "multiple files: events applied to their own cfg only"
+    (is (= {:events {"a.edn" {[:x] 10}
+                     "b.edn" {[:y] 20}}
+            :storage {"a.edn" {:x 10}
+                      "b.edn" {:y 20}}}
+           (#'prefs/incorporate-updated-storage
+             {:events {"a.edn" {[:x] 10}
+                       "b.edn" {[:y] 20}}
+              :storage {}}
+             {"a.edn" {:x 1}
+              "b.edn" {:y 2}})))))
+
 (deftest reset-path-test
   (with-schemas {::reset-path
                  {:type :object
@@ -677,13 +746,6 @@
         (prefs/sync!)
         (is (= {:opacity 0.75 :active-plane :x :color [1.0 0.0 0.0 1.0]}
                (edn/read-string (slurp file)))))
-
-      (testing "sync clears :removals"
-        (prefs/set! p [:opacity] 0.75)
-        (prefs/reset-path! p [:size])
-        (is (= 1 (count (:removals @prefs/global-state))))
-        (prefs/sync!)
-        (is (nil? (:removals @prefs/global-state))))
 
       (testing "reset clears pending events so sync doesn't re-write"
         (prefs/set! p [:size :x] 99.0)
@@ -773,3 +835,67 @@
           (prefs/sync!)
           (is (= {} (edn/read-string (slurp global-file))))
           (is (= {} (edn/read-string (slurp project-file)))))))))
+
+;; Resetting an object path should also clear nested values that are stored in a
+;; different scope file.
+(deftest reset-path-nested-scope-test
+  (with-schemas {::nested-scope
+                 {:type :object
+                  :properties {:scene {:type :object
+                                       :properties {:move-whole-pixels {:type :boolean :default true}
+                                                    :grid {:type :object
+                                                           :scope :project
+                                                           :properties {:opacity {:type :number :default 0.25}}}}}}}}
+    (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
+          project-file (fs/create-temp-file! "project" "test.editor_settings")
+          p (prefs/make :scopes {:global global-file :project project-file}
+                        :schemas [::nested-scope])]
+      (prefs/set! p [:scene :move-whole-pixels] false)
+      (prefs/set! p [:scene :grid :opacity] 0.75)
+      (prefs/sync!)
+      (is (= {:scene {:move-whole-pixels false}}
+             (edn/read-string (slurp global-file))))
+      (is (= {:scene {:grid {:opacity 0.75}}}
+             (edn/read-string (slurp project-file))))
+
+      (prefs/reset-path! p [:scene])
+
+      (is (= {:move-whole-pixels true
+              :grid {:opacity 0.25}}
+             (prefs/get p [:scene])))
+      (is (not (prefs/set? p [:scene :move-whole-pixels])))
+      (is (not (prefs/set? p [:scene :grid :opacity])))
+      (is (not (prefs/set? p [:scene])))
+      (prefs/sync!)
+      (is (= {} (edn/read-string (slurp global-file))))
+      (is (= {} (edn/read-string (slurp project-file)))))))
+
+;; Resetting an already-default path should be a no-op even when the backing
+;; prefs file does not exist yet.
+(deftest reset-path-missing-storage-test
+  (with-schemas {::missing-storage {:type :object
+                                    :properties {:opacity {:type :number :default 0.25}}}}
+    (let [file (fs/create-temp-file! "missing" "test.editor_settings")
+          _ (fs/delete-file! file)
+          p (prefs/make :scopes {:global file}
+                        :schemas [::missing-storage])]
+      (is (= 0.25 (prefs/get p [:opacity])))
+      (is (nil? (prefs/reset-path! p [:opacity])))
+      (is (= 0.25 (prefs/get p [:opacity])))
+      (is (not (prefs/set? p [:opacity]))))))
+
+;; Syncing a reset after the backing file was deleted should write an empty
+;; prefs map, not the internal missing-file sentinel.
+(deftest reset-path-sync-missing-file-test
+  (with-schemas {::sync-missing-file {:type :object
+                                      :properties {:opacity {:type :number :default 0.25}}}}
+    (let [file (fs/create-temp-file! "missing-sync" "test.editor_settings")
+          p (prefs/make :scopes {:global file}
+                        :schemas [::sync-missing-file])]
+      (prefs/set! p [:opacity] 0.75)
+      (prefs/sync!)
+      (is (= {:opacity 0.75} (edn/read-string (slurp file))))
+      (fs/delete-file! file)
+      (prefs/reset-path! p [:opacity])
+      (prefs/sync!)
+      (is (= {} (edn/read-string (slurp file)))))))
