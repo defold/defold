@@ -49,6 +49,28 @@ namespace dmGraphics
 
 #if ANDROID
     static ANativeWindow* g_AndroidVulkanWindow = 0;
+    static uint32_t       g_AndroidVulkanWindowWidth = 0;
+    static uint32_t       g_AndroidVulkanWindowHeight = 0;
+
+    static void SyncAndroidVulkanWindowSize(VulkanContext* context)
+    {
+        uint32_t width  = context->m_SwapChain->m_ImageExtent.width;
+        uint32_t height = context->m_SwapChain->m_ImageExtent.height;
+
+        context->m_WindowWidth          = width;
+        context->m_WindowHeight         = height;
+        context->m_BaseContext.m_Width  = width;
+        context->m_BaseContext.m_Height = height;
+
+        if (dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window) != width ||
+            dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window) != height)
+        {
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
+        }
+
+        g_AndroidVulkanWindowWidth  = width;
+        g_AndroidVulkanWindowHeight = height;
+    }
 
     static VkResult RecreateAndroidWindowSurface(void* ctx)
     {
@@ -131,21 +153,31 @@ namespace dmGraphics
 #if ANDROID
         android_app* app = dmAndroid::GetAndroidApp();
         ANativeWindow* native_window = app ? app->window : 0;
-        if (native_window && native_window != g_AndroidVulkanWindow)
+        if (native_window && (native_window != g_AndroidVulkanWindow ||
+            window_width != g_AndroidVulkanWindowWidth ||
+            window_height != g_AndroidVulkanWindowHeight))
         {
-            g_VulkanContext->m_WindowWidth  = window_width;
-            g_VulkanContext->m_WindowHeight = window_height;
-            SwapChainChanged(g_VulkanContext, &g_VulkanContext->m_WindowWidth, &g_VulkanContext->m_WindowHeight, RecreateAndroidWindowSurface, g_VulkanContext);
+            context->m_WindowWidth  = window_width;
+            context->m_WindowHeight = window_height;
+            SwapChainChanged(context,
+                &context->m_WindowWidth,
+                &context->m_WindowHeight,
+                native_window != g_AndroidVulkanWindow ? RecreateAndroidWindowSurface : 0,
+                context);
+            SyncAndroidVulkanWindowSize(context);
             return;
         }
 #endif
 
         if (window_width != context->m_WindowWidth || window_height != context->m_WindowHeight)
         {
-            g_VulkanContext->m_WindowWidth  = (uint32_t) window_width;
-            g_VulkanContext->m_WindowHeight = (uint32_t) window_height;
+            context->m_WindowWidth  = (uint32_t) window_width;
+            context->m_WindowHeight = (uint32_t) window_height;
 
-            SwapChainChanged(g_VulkanContext, &g_VulkanContext->m_WindowWidth, &g_VulkanContext->m_WindowHeight, 0, 0);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
+#if ANDROID
+            SyncAndroidVulkanWindowSize(context);
+#endif
         }
     }
 
@@ -166,6 +198,7 @@ namespace dmGraphics
 #if ANDROID
         android_app* app = dmAndroid::GetAndroidApp();
         g_AndroidVulkanWindow = app ? app->window : 0;
+        SyncAndroidVulkanWindowSize(context);
 #endif
 
         return true;
@@ -209,7 +242,10 @@ namespace dmGraphics
             context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
             context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
 
-            SwapChainChanged(g_VulkanContext, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
+#if ANDROID
+            SyncAndroidVulkanWindowSize(context);
+#endif
         }
     }
 
