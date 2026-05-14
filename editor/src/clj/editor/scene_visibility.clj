@@ -320,7 +320,7 @@
                                                  filters-enabled?
                                                  (not (contains? filtered-tags key)))]))
                                 keys)))
-        advance! (settings-popup/show! owner keymap localization (compute-state) 230 0.0 setting-descriptors
+        advance! (settings-popup/show! owner keymap localization (compute-state) 230 setting-descriptors
                                        (fn []
                                          (g/set-property! scene-visibility :popup-advance-fn nil)
                                          (sync-popup-state! scene-visibility)))

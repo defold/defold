@@ -267,8 +267,8 @@
   (some? (ui/user-data owner ::popup)))
 
 (defn- pref-popup-position
-  ^Point2D [^Parent container width x-offset]
-  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
+  ^Point2D [^Parent container width]
+  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
 (defn- make-popup
   ^PopupControl [^Styleable owner ^Node content]
@@ -300,7 +300,6 @@
                          May include a :disabled set of keys for toggle-rows that are
                          grayed out
     width                preferred width of the popup content in pixels
-    x-offset             horizontal offset applied when positioning the popup
     setting-descriptors  sequence of row descriptor maps (see below)
     on-closed            0-argument callback invoked when the popup is closed
 
@@ -317,20 +316,23 @@
                :separator    a horizontal rule divider
     :label                 localization message key for the row label
     :command               for :toggle, keymap command used to display an accelerator
+                           label and to register a handler listener that toggles the
+                           setting when the command is invoked
     :min / :max            for :slider, numeric bounds
     :snap-to               for :slider, snaps value to multiples of this number
     :slider-value->string  for :slider, 1-arg fn formatting the displayed value
     :on-value-changed      1-arg callback invoked when this setting's value changes
-    :disabled?             1-arg fn of state returning truthy to disable the row
+    :disabled?             for :toggle, 1-arg fn of state returning truthy to disable
+                           the row
     :on-reset              for :reset-all, 1-arg callback receiving swap-state"
-  ([^Parent owner keymap localization state width x-offset setting-descriptors]
-   (show! owner keymap localization state width x-offset setting-descriptors nil))
-  ([^Parent owner keymap localization state width x-offset setting-descriptors on-closed]
+  ([^Parent owner keymap localization state width setting-descriptors]
+   (show! owner keymap localization state width setting-descriptors nil))
+  ([^Parent owner keymap localization state width setting-descriptors on-closed]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (do (.hide popup) nil)
      (let [content (StackPane.)
            popup (make-popup owner content)
-           anchor ^Point2D (pref-popup-position (.getParent owner) width x-offset)
+           anchor ^Point2D (pref-popup-position (.getParent owner) width)
            advance! (fn [state]
                       (fxui/advance-ui-user-data-component!
                         content ::popup
