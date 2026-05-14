@@ -68,7 +68,8 @@
 
 (defn get-cursor-pos []
   (if (MouseCapture/MouseCapture_GetCursorPos @cached-cursor-pos)
-    [(.x @cached-cursor-pos) (.y @cached-cursor-pos)]
+    (let [cursor-pos ^MouseCapture$CursorPos @cached-cursor-pos]
+      [(.x cursor-pos) (.y cursor-pos)])
     [0 0]))
 
 (defn translate-action [^EventType jfx-action]
