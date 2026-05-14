@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import os, sys
-from waf_dynamo import dmsdk_add_files, platform_supports_feature
+from waf_dynamo import dmsdk_add_files, find_feature_files, platform_supports_feature, remove_source_files
 from BuildUtility import create_build_utility
 import waflib.Options
 
@@ -143,11 +143,20 @@ def build(bld):
     if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}):
 
         dx12_header_includes = [build_util.get_dynamo_ext('include', 'directx')]
+        dx12_preferred_tags = {
+            'xbone': ['xbone', 'xbox', 'private'],
+        }
+        dx12_feature_sources, dx12_feature_files = find_feature_files(bld, 'dx12/graphics_dx12', bld.env.PLATFORM,
+                                                                       extra_tags = ['private'],
+                                                                       preferred_tags = dx12_preferred_tags)
+        dx12_source = bld.path.ant_glob(['*.cpp', 'dx12/*.cpp'])
+        dx12_source = remove_source_files(dx12_source, dx12_feature_files)
+        dx12_source += dx12_feature_sources
 
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'dx12'] + proto_cpp_includes + dx12_header_includes,
                         use             = graphics_use,
-                        source          = bld.path.ant_glob(['*.cpp', 'dx12/*.cpp']) + proto_cpp_source,
+                        source          = dx12_source + proto_cpp_source,
                         target          = 'graphics_dx12')
 
     if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
