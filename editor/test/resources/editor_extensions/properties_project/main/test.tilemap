@@ -1,0 +1,16 @@
+tile_set: "/main/test.tilesource"
+layers {
+  id: "layer1"
+  z: 0.0
+  cell {
+    x: 4
+    y: 4
+    tile: 70
+  }
+  cell {
+    x: 5
+    y: 4
+    tile: 74
+  }
+}
+material: "/builtins/materials/tile_map.material"

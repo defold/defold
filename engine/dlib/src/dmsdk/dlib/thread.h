@@ -27,7 +27,7 @@
     #include <dmsdk/dlib/thread_native_posix.h>
 #endif
 
-/*# SDK Thread API documentation
+/*# Thread API documentation
  *
  * Thread functions.
  *

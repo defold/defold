@@ -66,7 +66,7 @@ import com.sun.jna.Pointer;
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
 
-import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 
 import com.dynamo.bob.util.StringUtil;
@@ -308,9 +308,11 @@ public class Fontc {
                     characters.add((int) c);
                 }
             }
+
+            // remove duplicates AND sort (TreeSet is sorted)
+            Set<Integer> deDup = new TreeSet<Integer>(characters);
+            characters = new ArrayList<Integer>(deDup);
         }
-        Set<Integer> deDup = new TreeSet<Integer>(characters);
-        characters = new ArrayList<Integer>(deDup);
 
         if (fontDesc.getOutlineWidth() > 0.0f) {
             outlineStroke = new BasicStroke(fontDesc.getOutlineWidth() * 2.0f);
@@ -765,7 +767,6 @@ public class Fontc {
             GlyphBank.Glyph.Builder glyphBuilder = GlyphBank.Glyph.newBuilder()
                 .setCharacter(glyph.c)
                 .setWidth(width)
-                .setImageWidth(width)
                 .setAdvance(glyph.advance)
                 .setLeftBearing(glyph.leftBearing)
                 .setAscent(glyph.ascent + padding)
@@ -1149,7 +1150,7 @@ public class Fontc {
             Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();
 
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
-            fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
+            fontMapBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
             if (!dynamic)
             {

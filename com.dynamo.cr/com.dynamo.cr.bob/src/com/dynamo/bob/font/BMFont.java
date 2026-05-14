@@ -403,6 +403,8 @@ public class BMFont
             throw new BMFontFormatException("Invalid BMFont file, missing info entry.");
         }
 
+        this.charArray.sort( (a, b) -> { return a.id - b.id; } );
+
         return true;
     }
 

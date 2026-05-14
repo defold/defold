@@ -17,43 +17,43 @@
 
 #include <glfw/glfw3.h>
 
-#include "platform_window.h"
+#include "window.hpp"
+
+struct dmWindow
+{
+    GLFWwindow*                    m_Window;
+    GLFWwindow*                    m_AuxWindow;
+
+    FWindowResizeCallback          m_ResizeCallback;
+    void*                          m_ResizeCallbackUserData;
+    FWindowCloseCallback           m_CloseCallback;
+    void*                          m_CloseCallbackUserData;
+    FWindowFocusCallback           m_FocusCallback;
+    void*                          m_FocusCallbackUserData;
+    FWindowIconifyCallback         m_IconifyCallback;
+    void*                          m_IconifyCallbackUserData;
+    FWindowAddKeyboardCharCallback m_AddKeyboarCharCallBack;
+    void*                          m_AddKeyboarCharCallBackUserData;
+    FWindowSetMarkedTextCallback   m_SetMarkedTextCallback;
+    void*                          m_SetMarkedTextCallbackUserData;
+    FWindowDeviceChangedCallback   m_DeviceChangedCallback;
+    void*                          m_DeviceChangedCallbackUserData;
+    double                         m_MouseScrollX;
+    double                         m_MouseScrollY;
+    float                          m_XScale;
+    float                          m_YScale;
+    int32_t                        m_Width;
+    int32_t                        m_Height;
+    int32_t                        m_WidthScreen;
+    int32_t                        m_HeightScreen;
+    uint32_t                       m_Samples               : 8;
+    uint32_t                       m_HighDPI               : 1;
+    uint32_t                       m_SwapIntervalSupported : 1;
+    uint32_t                       m_WindowOpened          : 1;
+};
 
 namespace dmPlatform
 {
-    struct dmWindow
-    {
-        GLFWwindow*                   m_Window;
-        GLFWwindow*                   m_AuxWindow;
-
-        WindowResizeCallback          m_ResizeCallback;
-        void*                         m_ResizeCallbackUserData;
-        WindowCloseCallback           m_CloseCallback;
-        void*                         m_CloseCallbackUserData;
-        WindowFocusCallback           m_FocusCallback;
-        void*                         m_FocusCallbackUserData;
-        WindowIconifyCallback         m_IconifyCallback;
-        void*                         m_IconifyCallbackUserData;
-        WindowAddKeyboardCharCallback m_AddKeyboarCharCallBack;
-        void*                         m_AddKeyboarCharCallBackUserData;
-        WindowSetMarkedTextCallback   m_SetMarkedTextCallback;
-        void*                         m_SetMarkedTextCallbackUserData;
-        WindowDeviceChangedCallback   m_DeviceChangedCallback;
-        void*                         m_DeviceChangedCallbackUserData;
-        double                        m_MouseScrollX;
-        double                        m_MouseScrollY;
-        float                         m_XScale;
-        float                         m_YScale;
-        int32_t                       m_Width;
-        int32_t                       m_Height;
-        int32_t                       m_WidthScreen;
-        int32_t                       m_HeightScreen;
-        uint32_t                      m_Samples               : 8;
-        uint32_t                      m_HighDPI               : 1;
-        uint32_t                      m_SwapIntervalSupported : 1;
-        uint32_t                      m_WindowOpened          : 1;
-    };
-
     void FocusWindowNative(HWindow window);
     void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor);
     void SetWindowsIconNative(HWindow window);

@@ -35,11 +35,6 @@
 #endif
 
 
-namespace dmJobThread
-{
-    typedef struct JobContext* HContext;
-}
-
 /**
  * Resource descriptor
  * @name ResourceDescriptor

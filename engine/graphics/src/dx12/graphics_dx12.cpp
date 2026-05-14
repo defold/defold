@@ -15,12 +15,14 @@
 #include <string.h>
 #include <assert.h>
 
-#include <d3d12.h>
-#include <d3d12shader.h>
-#include <d3dcompiler.h>
-#include <d3dx12.h>  // Optional, for helpers
-
-#include <dxgi1_6.h>
+#if defined(DM_PLATFORM_VENDOR)
+    #include "graphics_dx12_vendor.h"
+#else
+    #include <d3d12.h>
+    #include <d3dx12.h> // Optional, for helpers
+    #include <dxgi1_6.h>
+    #include <D3DCompiler.h>
+#endif
 
 #include <dmsdk/dlib/vmath.h>
 
@@ -30,9 +32,7 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 
-#include <platform/platform_window.h>
-
-#include <platform/platform_window_win32.h>
+#include <platform/window.hpp>
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"
@@ -45,308 +45,21 @@ DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
+    static const D3D12_RESOURCE_STATES DM_DX12_RESOURCE_STATE_BUFFER_READ = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER;
+
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable();
-    static bool                         DX12IsSupported();
+    bool                                DX12IsSupported();
     static HContext                     DX12GetContext();
-    static bool                         DX12Initialize(HContext _context);
+    static bool                         DX12Initialize(HContext);
     static GraphicsAdapter g_dx12_adapter(ADAPTER_FAMILY_DIRECTX);
-    static DX12Context*    g_DX12Context = 0x0;
+    DX12Context*    g_DX12Context = 0x0;
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, DX12GetContext, ADAPTER_FAMILY_PRIORITY_DIRECTX);
 
     static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
-    static void    FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);
+    static void DX12DeleteTexture(HContext context, HTexture texture);
 
     static const dmhash_t HASH_SPIRV_Cross_NumWorkgroups = dmHashString64("SPIRV_Cross_NumWorkgroups");
-
-    #define CHECK_HR_ERROR(result) \
-    { \
-        if(g_DX12Context->m_VerifyGraphicsCalls && result != S_OK) { \
-            dmLogError("DX Error (%s:%d) code: %d", __FILE__, __LINE__, HRESULT_CODE(result)); \
-            assert(0); \
-        } \
-    }
-
-    DX12Context::DX12Context(const ContextParams& params)
-    {
-        memset(this, 0, sizeof(*this));
-        m_NumFramesInFlight       = MAX_FRAMES_IN_FLIGHT;
-        m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-        m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-        m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
-        m_Window                  = params.m_Window;
-        m_Width                   = params.m_Width;
-        m_Height                  = params.m_Height;
-        m_UseValidationLayers     = params.m_UseValidationLayers;
-
-        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
-    }
-
-    static HContext DX12NewContext(const ContextParams& params)
-    {
-        if (!g_DX12Context)
-        {
-            g_DX12Context = new DX12Context(params);
-
-            if (DX12Initialize(g_DX12Context))
-            {
-                return g_DX12Context;
-            }
-
-            DeleteContext(g_DX12Context);
-        }
-        return 0x0;
-    }
-
-    static HContext DX12GetContext()
-    {
-        return g_DX12Context;
-    }
-
-    static IDXGIAdapter1* CreateDeviceAdapter(IDXGIFactory4* dxgiFactory)
-    {
-        IDXGIAdapter1* adapter = 0;
-        int adapterIndex = 0;
-
-        // find first hardware gpu that supports d3d 12
-        while (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND)
-        {
-            DXGI_ADAPTER_DESC1 desc;
-            adapter->GetDesc1(&desc);
-
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-            {
-                adapterIndex++;
-                continue;
-            }
-
-            // we want a device that is compatible with direct3d 12 (feature level 11 or higher)
-            HRESULT hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), NULL);
-            if (SUCCEEDED(hr))
-            {
-                break;
-            }
-
-            adapterIndex++;
-        }
-
-        return adapter;
-    }
-
-    static IDXGIFactory4* CreateDXGIFactory()
-    {
-        IDXGIFactory4* factory;
-        HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
-        if (FAILED(hr))
-        {
-            return 0;
-        }
-        return factory;
-    }
-
-    static bool DX12IsSupported()
-    {
-        IDXGIAdapter1* adapter = CreateDeviceAdapter(CreateDXGIFactory());
-        if (adapter)
-        {
-            adapter->Release();
-            return true;
-        }
-        return false;
-    }
-
-    static void DX12DeleteContext(HContext _context)
-    {
-        assert(_context);
-        if (g_DX12Context)
-        {
-            DX12Context* context = (DX12Context*) _context;
-
-            for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_FrameResources); i++)
-            {
-                FlushResourcesToDestroy(context->m_FrameResources[i]);
-            }
-
-            delete (DX12Context*) context;
-            g_DX12Context = 0x0;
-        }
-    }
-
-    static void SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc)
-    {
-        // Initialize the dummy rendertarget for the main framebuffer
-        // The m_Framebuffer construct will be rotated sequentially
-        // with the framebuffer objects created per swap chain.
-        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
-        assert(rt == 0x0);
-
-        rt               = new DX12RenderTarget();
-        rt->m_Id         = DM_RENDERTARGET_BACKBUFFER_ID;
-        rt->m_Format     = DXGI_FORMAT_R8G8B8A8_UNORM;
-        rt->m_SampleDesc = sample_desc;
-
-        context->m_MainRenderTarget    = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
-        context->m_CurrentRenderTarget = context->m_MainRenderTarget;
-    }
-
-    void DX12ScratchBuffer::Initialize(DX12Context* context, uint32_t frame_index)
-    {
-        m_FrameIndex = frame_index;
-
-        // Initialize constant buffer heap
-        {
-            uint32_t pool_block_count = MAX_BLOCK_SIZE / BLOCK_STEP_SIZE;
-            m_MemoryPools.SetCapacity(pool_block_count);
-            m_MemoryPools.SetSize(pool_block_count);
-
-            for (int i = 0; i < m_MemoryPools.Size(); ++i)
-            {
-                m_MemoryPools[i].m_BlockSize        = (i+1) * BLOCK_STEP_SIZE;
-                m_MemoryPools[i].m_DescriptorCursor = 0;
-                m_MemoryPools[i].m_MemoryCursor     = 0;
-
-                D3D12_DESCRIPTOR_HEAP_DESC heap_Desc = {};
-                heap_Desc.NumDescriptors             = DESCRIPTORS_PER_POOL;
-                heap_Desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-                heap_Desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-
-                HRESULT hr = context->m_Device->CreateDescriptorHeap(&heap_Desc, IID_PPV_ARGS(&m_MemoryPools[i].m_DescriptorHeap));
-                CHECK_HR_ERROR(hr);
-
-                const uint32_t memory_heap_alignment = 1024 * 64;
-                const uint32_t memory_heap_size      = DM_ALIGN(DESCRIPTORS_PER_POOL * m_MemoryPools[i].m_BlockSize, memory_heap_alignment);
-
-                hr = context->m_Device->CreateCommittedResource(
-                    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // this heap will be used to upload the constant buffer data
-                    D3D12_HEAP_FLAG_NONE,                             // no flags
-                    &CD3DX12_RESOURCE_DESC::Buffer(memory_heap_size), // size of the resource heap. Must be a multiple of 64KB for single-textures and constant buffers
-                    D3D12_RESOURCE_STATE_GENERIC_READ,                // will be data that is read from so we keep it in the generic read state
-                    NULL,                                             // we do not have use an optimized clear value for constant buffers
-                    IID_PPV_ARGS(&m_MemoryPools[i].m_MemoryHeap));
-                CHECK_HR_ERROR(hr);
-
-                for (int j = 0; j < DESCRIPTORS_PER_POOL; ++j)
-                {
-                    D3D12_CONSTANT_BUFFER_VIEW_DESC view_desc = {};
-                    view_desc.BufferLocation = m_MemoryPools[i].m_MemoryHeap->GetGPUVirtualAddress() + j * m_MemoryPools[i].m_BlockSize;
-                    view_desc.SizeInBytes    = m_MemoryPools[i].m_BlockSize;
-
-                    CD3DX12_CPU_DESCRIPTOR_HANDLE view_handle(m_MemoryPools[i].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(), j, context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-                    context->m_Device->CreateConstantBufferView(&view_desc, view_handle);
-                }
-
-                hr = m_MemoryPools[i].m_MemoryHeap->Map(0, 0, &m_MemoryPools[i].m_MappedDataPtr);
-                CHECK_HR_ERROR(hr);
-            }
-        }
-    }
-
-    void* DX12ScratchBuffer::AllocateConstantBuffer(DX12Context* context, DX12PipelineType pipeline_type, uint32_t buffer_index, uint32_t non_aligned_byte_size)
-    {
-        assert(non_aligned_byte_size < MAX_BLOCK_SIZE);
-        uint32_t pool_index     = non_aligned_byte_size / BLOCK_STEP_SIZE;
-        uint32_t memory_cursor  = m_MemoryPools[pool_index].m_MemoryCursor;
-        uint8_t* base_ptr       = ((uint8_t*) m_MemoryPools[pool_index].m_MappedDataPtr) + memory_cursor;
-
-        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
-        {
-            context->m_CommandList->SetGraphicsRootConstantBufferView(buffer_index, m_MemoryPools[pool_index].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
-        }
-        else
-        {
-            context->m_CommandList->SetComputeRootConstantBufferView(buffer_index, m_MemoryPools[pool_index].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
-        }
-
-        m_MemoryPools[pool_index].m_MemoryCursor += m_MemoryPools[pool_index].m_BlockSize;
-        m_MemoryPools[pool_index].m_DescriptorCursor++;
-
-    #if 0
-        dmLogInfo("AllocateConstantBuffer: ptr: %p, frame: %d, pool: %d, descriptor: %d, offset: %d", base_ptr, m_FrameIndex, pool_index, m_MemoryPools[pool_index].m_DescriptorCursor, cursor);
-    #endif
-
-        return (void*) base_ptr;
-    }
-
-    void DX12ScratchBuffer::AllocateSampler(DX12Context* context, DX12PipelineType pipeline_type, const DX12TextureSampler& sampler, uint32_t sampler_index)
-    {
-        CD3DX12_GPU_DESCRIPTOR_HANDLE handle_sampler(context->m_SamplerPool.m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), sampler.m_DescriptorOffset);
-        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
-        {
-            context->m_CommandList->SetGraphicsRootDescriptorTable(sampler_index, handle_sampler);
-        }
-        else
-        {
-            context->m_CommandList->SetComputeRootDescriptorTable(sampler_index, handle_sampler);
-        }
-    }
-
-    void DX12ScratchBuffer::AllocateTexture2D(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t texture_index)
-    {
-        D3D12_SHADER_RESOURCE_VIEW_DESC view_desc = {};
-        view_desc.Format                          = texture->m_ResourceDesc.Format;
-        view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
-        view_desc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        view_desc.Texture2D.MipLevels             = texture->m_MipMapCount;
-
-        if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY)
-        {
-            view_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
-            view_desc.Texture2DArray.MostDetailedMip = 0;
-            view_desc.Texture2DArray.MipLevels       = texture->m_MipMapCount;
-            view_desc.Texture2DArray.FirstArraySlice = 0;  // Start from the first slice
-            view_desc.Texture2DArray.ArraySize       = texture->m_LayerCount;  // Number of slices
-            view_desc.Texture2DArray.PlaneSlice      = 0;  // This is generally 0 for 2D arrays (1D textures have planes)
-        }
-        else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURECUBE;
-            view_desc.TextureCube.MipLevels           = texture->m_MipMapCount;
-            view_desc.TextureCube.MostDetailedMip     = 0;
-            view_desc.TextureCube.ResourceMinLODClamp = 0.0f;
-        }
-
-        uint32_t desc_size   = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        uint32_t desc_offset = desc_size * m_MemoryPools[0].m_DescriptorCursor;
-
-        CD3DX12_CPU_DESCRIPTOR_HANDLE  view_desc_handle(
-            m_MemoryPools[0].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-            m_MemoryPools[0].m_DescriptorCursor,
-            desc_size);
-
-        context->m_Device->CreateShaderResourceView(texture->m_Resource, &view_desc, view_desc_handle);
-        m_MemoryPools[0].m_DescriptorCursor++;
-
-        CD3DX12_GPU_DESCRIPTOR_HANDLE handle_texture(m_MemoryPools[0].m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), desc_offset);
-
-        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
-        {
-            context->m_CommandList->SetGraphicsRootDescriptorTable(texture_index, handle_texture);
-        }
-        else
-        {
-            context->m_CommandList->SetComputeRootDescriptorTable(texture_index, handle_texture);
-        }
-    }
-
-    void DX12ScratchBuffer::Reset(DX12Context* context)
-    {
-        for (int i = 0; i < m_MemoryPools.Size(); ++i)
-        {
-            m_MemoryPools[i].m_DescriptorCursor = 0;
-            m_MemoryPools[i].m_MemoryCursor     = 0;
-        }
-    }
-
-    // Can we bind this at start of frame?
-    void DX12ScratchBuffer::Bind(DX12Context* context)
-    {
-        // TODO: multiple heaps needs to be bound here
-        ID3D12DescriptorHeap* heaps[] = {
-            m_MemoryPools[0].m_DescriptorHeap
-        };
-        context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
-    }
 
     static DXGI_FORMAT GetDXGIFormatFromTextureFormat(TextureFormat format)
     {
@@ -427,7 +140,7 @@ namespace dmGraphics
 
         // RGB isn't supported as a texture format, but we still need to supply it to the engine
         // Later when a texture is created, we will convert it internally to RGBA.
-        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
 
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
         {
@@ -441,7 +154,7 @@ namespace dmGraphics
             if (SUCCEEDED(hr))
             {
                 // TODO: Check for more fine-grained support, i.e "query.Support1 & D3D12_FORMAT_SUPPORT1_TEXTURE2D"
-                context->m_TextureFormatSupport |= 1 << texture_format;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << texture_format;
             }
         }
     }
@@ -480,104 +193,12 @@ namespace dmGraphics
         return 1;
     }
 
-    static bool DX12Initialize(HContext _context)
+    static void InitializeFrameBuffers(HContext _context, DXGI_FORMAT color_format, DXGI_FORMAT depth_format)
     {
         DX12Context* context = (DX12Context*) _context;
 
-        HRESULT hr = S_OK;
-
-        bool has_debug_layer = false;
-
-        // This needs to be created before the device
-        // if (context->m_UseValidationLayers)
-        if (true)
-        {
-            hr = D3D12GetDebugInterface(IID_PPV_ARGS(&context->m_DebugInterface));
-            CHECK_HR_ERROR(hr);
-
-            context->m_DebugInterface->EnableDebugLayer();
-            context->m_DebugInterface->Release();
-
-            has_debug_layer = true;
-        }
-
-        IDXGIFactory4* factory = CreateDXGIFactory();
-        IDXGIAdapter1* adapter = CreateDeviceAdapter(factory);
-
-        hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&context->m_Device));
-        CHECK_HR_ERROR(hr);
-
-        D3D12_COMMAND_QUEUE_DESC cmd_queue_desc = {};
-        hr = context->m_Device->CreateCommandQueue(&cmd_queue_desc, IID_PPV_ARGS(&context->m_CommandQueue));
-        CHECK_HR_ERROR(hr);
-
-        uint32_t window_width = dmPlatform::GetWindowWidth(context->m_Window);
-        uint32_t window_height = dmPlatform::GetWindowHeight(context->m_Window);
-
-        DXGI_FORMAT color_format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        DXGI_FORMAT depth_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-
-        // Create swapchain
-        DXGI_MODE_DESC back_buffer_desc = {};
-        back_buffer_desc.Width          = window_width;
-        back_buffer_desc.Height         = window_height;
-        back_buffer_desc.Format         = color_format;
-
-        // Note: These must be 1 and 0 - for MSAA we will render to an offscreen texture that is multisampled
-        DXGI_SAMPLE_DESC sample_desc = {};
-        sample_desc.Count            = 1;
-        sample_desc.Quality          = 0;
-
-        DXGI_SWAP_CHAIN_DESC swap_chain_desc = {};
-        swap_chain_desc.BufferCount          = MAX_FRAMEBUFFERS;
-        swap_chain_desc.BufferDesc           = back_buffer_desc;
-        swap_chain_desc.BufferUsage          = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        swap_chain_desc.SwapEffect           = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-        swap_chain_desc.OutputWindow         = GetWindowsHWND(context->m_Window);
-        swap_chain_desc.SampleDesc           = sample_desc;
-        swap_chain_desc.Windowed             = true;
-
-        IDXGISwapChain* swap_chain_tmp = 0;
-        factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
-        context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
-
-        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
-
-        SetupSupportedTextureFormats(context);
-
-        ////// MOVE THIS?
-        D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc = {};
-        sampler_heap_desc.NumDescriptors             = 128; // TODO, I don't know if this is a good value, the sampler pool should be fully dynamic I think
-        sampler_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-        sampler_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
-        hr = context->m_Device->CreateDescriptorHeap(&sampler_heap_desc, IID_PPV_ARGS(&context->m_SamplerPool.m_DescriptorHeap));
-        CHECK_HR_ERROR(hr);
-
-        // this heap is a render target view heap, we use this heap for the swapchain render targets only. The other render targets will use another heap for this
-        D3D12_DESCRIPTOR_HEAP_DESC rt_view_heap_desc = {};
-        rt_view_heap_desc.NumDescriptors             = MAX_FRAMEBUFFERS * (context->m_MSAASampleCount > 1 ? 2 : 1);
-        rt_view_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        rt_view_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-        hr = context->m_Device->CreateDescriptorHeap(&rt_view_heap_desc, IID_PPV_ARGS(&context->m_RtvDescriptorHeap));
-        CHECK_HR_ERROR(hr);
-
-        context->m_RtvDescriptorSize = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-        // Depth/stencil heap
-        D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc = {};
-        dsv_heap_desc.NumDescriptors             = MAX_FRAMEBUFFERS;
-        dsv_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-        dsv_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-        hr = context->m_Device->CreateDescriptorHeap(&dsv_heap_desc, IID_PPV_ARGS(&context->m_DsvDescriptorHeap));
-        CHECK_HR_ERROR(hr);
-
-        context->m_DsvDescriptorSize = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-
-        // get a handle to the first descriptor in the descriptor heap. a handle is basically a pointer,
-        // but we cannot literally use it like a c++ pointer.
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle(context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+        uint32_t window_width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+        uint32_t window_height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
 
         TextureCreationParams texture_create_params;
         texture_create_params.m_Width          = window_width;
@@ -585,17 +206,29 @@ namespace dmGraphics
         texture_create_params.m_OriginalWidth  = window_width;
         texture_create_params.m_OriginalHeight = window_height;
 
+        // get a handle to the first descriptor in the descriptor heap. a handle is basically a pointer,
+        // but we cannot literally use it like a c++ pointer.
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle(context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
         for (int i = 0; i < MAX_FRAMEBUFFERS; i++)
         {
             context->m_FrameResources[i].m_TextureColor        = NewTexture(_context, texture_create_params);
             context->m_FrameResources[i].m_TextureDepthStencil = NewTexture(_context, texture_create_params);
-            DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_FrameResources[i].m_TextureColor);
-            DX12Texture* texture_depth = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_FrameResources[i].m_TextureDepthStencil);
+            DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, context->m_FrameResources[i].m_TextureColor);
+            DX12Texture* texture_depth = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, context->m_FrameResources[i].m_TextureDepthStencil);
 
+            HRESULT hr = S_OK;
+
+// TODO: clean up this somehow
+#if !defined(DM_PLATFORM_VENDOR)
             // first we get the n'th buffer in the swap chain and store it in the n'th
             // position of our ID3D12Resource array
-            hr = context->m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&texture_color->m_Resource));
+            hr = context->m_SwapChain->GetBuffer(i, DM_IID_PPV_ARGS(&texture_color->m_Resource));
             CHECK_HR_ERROR(hr);
+#else
+            texture_color->m_Resource = context->m_FrameResources[i].m_RenderTarget.m_Resource;
+            texture_color->m_Resource->AddRef();
+#endif
 
             // we "create" a render target view which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
             context->m_Device->CreateRenderTargetView(texture_color->m_Resource, NULL, rtv_handle);
@@ -631,7 +264,7 @@ namespace dmGraphics
                     &msaa_desc,
                     D3D12_RESOURCE_STATE_RENDER_TARGET,
                     &clear_value,
-                    IID_PPV_ARGS(&context->m_FrameResources[i].m_MsaaRenderTarget)
+                    DM_IID_PPV_ARGS(&context->m_FrameResources[i].m_MsaaRenderTarget)
                 );
                 CHECK_HR_ERROR(hr);
 
@@ -663,9 +296,10 @@ namespace dmGraphics
                 &depth_desc,
                 D3D12_RESOURCE_STATE_DEPTH_WRITE,
                 &depth_clear,
-                IID_PPV_ARGS(&texture_depth->m_Resource)
+                DM_IID_PPV_ARGS(&texture_depth->m_Resource)
             );
             CHECK_HR_ERROR(hr);
+            texture_depth->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 
             // Create depth stencil view
             CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_handle(context->m_DsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), i, context->m_DsvDescriptorSize);
@@ -678,19 +312,74 @@ namespace dmGraphics
             context->m_Device->CreateDepthStencilView(texture_depth->m_Resource, &dsv_desc, dsv_handle);
 
             // Create the rest of the per-frame resources
-            hr = context->m_Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&context->m_FrameResources[i].m_CommandAllocator));
+            hr = context->m_Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, DM_IID_PPV_ARGS(&context->m_FrameResources[i].m_CommandAllocator));
             CHECK_HR_ERROR(hr);
 
             // Create the frame fence that will be signaled when we can render to this frame
-            hr = context->m_Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&context->m_FrameResources[i].m_Fence));
+            hr = context->m_Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, DM_IID_PPV_ARGS(&context->m_FrameResources[i].m_Fence));
             CHECK_HR_ERROR(hr);
 
             context->m_FrameResources[i].m_FenceValue = RENDER_CONTEXT_STATE_FREE;
             context->m_FrameResources[i].m_ScratchBuffer.Initialize(context, i);
         }
+    }
 
+    static void CreateDescriptorHeaps(DX12Context* context)
+    {
+        D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc = {};
+        sampler_heap_desc.NumDescriptors             = 128; // TODO, I don't know if this is a good value, the sampler pool should be fully dynamic I think
+        sampler_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        sampler_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+        HRESULT hr = context->m_Device->CreateDescriptorHeap(&sampler_heap_desc, DM_IID_PPV_ARGS(&context->m_SamplerPool.m_DescriptorHeap));
+        CHECK_HR_ERROR(hr);
 
-        context->m_FenceEvent = CreateEvent(NULL, false, false, NULL);
+        // this heap is a render target view heap; MSAA uses an extra RTV per framebuffer.
+        D3D12_DESCRIPTOR_HEAP_DESC rt_view_heap_desc = {};
+        rt_view_heap_desc.NumDescriptors             = MAX_FRAMEBUFFERS * (context->m_MSAASampleCount > 1 ? 2 : 1);
+        rt_view_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+        rt_view_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+        hr = context->m_Device->CreateDescriptorHeap(&rt_view_heap_desc, DM_IID_PPV_ARGS(&context->m_RtvDescriptorHeap));
+        CHECK_HR_ERROR(hr);
+
+        context->m_RtvDescriptorSize = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+        // Depth/stencil heap
+        D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc = {};
+        dsv_heap_desc.NumDescriptors             = MAX_FRAMEBUFFERS;
+        dsv_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        dsv_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+        hr = context->m_Device->CreateDescriptorHeap(&dsv_heap_desc, DM_IID_PPV_ARGS(&context->m_DsvDescriptorHeap));
+        CHECK_HR_ERROR(hr);
+
+        context->m_DsvDescriptorSize = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    }
+
+    static bool DX12Initialize(HContext _context)
+    {
+        DX12Context* context = (DX12Context*)_context;
+
+        assert(context->m_Device != 0); // Needs m_Device to be created first
+
+        CreateDescriptorHeaps(context);
+
+        // setup swap chain etc
+        if (!DX12NativeInitialize(context))
+        {
+            return false;
+        }
+
+        DXGI_FORMAT color_format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        DXGI_FORMAT depth_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+
+        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
+
+        SetupSupportedTextureFormats(context);
+
+        InitializeFrameBuffers(_context, color_format, depth_format);
+
+        context->m_FenceEvent = CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE);
         if (!context->m_FenceEvent)
         {
             dmLogFatal("Unable to create fence event");
@@ -699,62 +388,362 @@ namespace dmGraphics
 
         // command buffer / command list
         // TODO: We should create one of these for every thread we have that are recording commands
-        hr = context->m_Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, context->m_FrameResources[0].m_CommandAllocator, NULL, IID_PPV_ARGS(&context->m_CommandList));
+        HRESULT hr = context->m_Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, context->m_FrameResources[0].m_CommandAllocator, NULL, DM_IID_PPV_ARGS(&context->m_CommandList));
         CHECK_HR_ERROR(hr);
 
         context->m_CommandList->Close();
-
-        SetupMainRenderTarget(context, sample_desc);
 
         context->m_PipelineState = GetDefaultPipelineState();
 
         CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
-        if (context->m_PrintDeviceInfo)
+        // Populate the shared GraphicsContextLimits.
+        // D3D12 doesn't expose all of these as a single struct — many of the
+        // values below are documented Feature Level 11_0+ / Resource Binding
+        // Tier guarantees rather than driver-queried numbers.
         {
-            dmLogInfo("Device: DirectX 12");
+            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+
+            // Query device options once — used for binding tier and resource tier below.
+            D3D12_FEATURE_DATA_D3D12_OPTIONS options = {};
+            context->m_Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options));
+
+            limits.m_MaxTextureSize2D      = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;     // 16384 on FL 11_0+
+            limits.m_MaxTextureSize3D      = D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;   // 2048
+            limits.m_MaxTextureSizeCube    = D3D12_REQ_TEXTURECUBE_DIMENSION;          // 16384
+            limits.m_MaxTextureArrayLayers = D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION; // 2048
+            limits.m_MaxFramebufferWidth   = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+            limits.m_MaxFramebufferHeight  = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+            limits.m_MaxColorAttachments   = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
+
+            // Binding limits — scale with D3D12_RESOURCE_BINDING_TIER.
+            //   Tier 1: 16 samplers/stage, 128 SRVs/stage
+            //   Tier 2+: samplers still capped at 2048 (heap size), SRVs effectively unlimited
+            if (options.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_2)
+            {
+                limits.m_MaxSamplersPerStage = 2048;
+                limits.m_MaxTexturesPerStage = 1000000; // full descriptor heap
+            }
+            else
+            {
+                limits.m_MaxSamplersPerStage = 16;
+                limits.m_MaxTexturesPerStage = 128;
+            }
+            limits.m_MaxVertexAttributes            = D3D12_VS_INPUT_REGISTER_COUNT;            // 32
+            limits.m_MaxVertexBuffers               = D3D12_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT; // 32
+            limits.m_MaxComputeWorkgroupSizeX       = D3D12_CS_THREAD_GROUP_MAX_X;
+            limits.m_MaxComputeWorkgroupSizeY       = D3D12_CS_THREAD_GROUP_MAX_Y;
+            limits.m_MaxComputeWorkgroupSizeZ       = D3D12_CS_THREAD_GROUP_MAX_Z;
+            limits.m_MaxComputeWorkgroupInvocations = D3D12_CS_THREAD_GROUP_MAX_THREADS_PER_GROUP;
+            limits.m_MaxComputeSharedMemorySize     = D3D12_CS_TGSM_REGISTER_COUNT * sizeof(uint32_t); // 32 KiB
+
+            // CBV bind range is always 64 KiB (hardware-fixed).
+            limits.m_MaxUniformBufferRange = (uint64_t) D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16; // 64 KiB
+
+            // Storage buffer range scales with D3D12_RESOURCE_HEAP_TIER.
+            //   Tier 1: 128 MiB for buffers (separate heap budget)
+            //   Tier 2+: full GPU virtual address space, capped at 2 GiB resource size
+            if (options.ResourceHeapTier >= D3D12_RESOURCE_HEAP_TIER_2)
+            {
+                limits.m_MaxStorageBufferRange = 1ull << 31; // 2 GiB
+            }
+            else
+            {
+                limits.m_MaxStorageBufferRange = 128ull * 1024 * 1024; // 128 MiB
+            }
         }
 
-        if (has_debug_layer)
+        // Adapter API version — report the highest D3D feature level as major.minor.
         {
-            // We install a custom message filter here to avoid the spam that occurs when issuing clear commands
-            // that contains colors that ARE NOT the same as the values that was used when the RT was created.
-            // This will be slower, but we would have to change the API to fix it..
-            ID3D12InfoQueue* infoQueue = NULL;
-            if (SUCCEEDED(context->m_Device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
+            static const D3D_FEATURE_LEVEL levels_to_check[] = {
+                D3D_FEATURE_LEVEL_12_2,
+                D3D_FEATURE_LEVEL_12_1,
+                D3D_FEATURE_LEVEL_12_0,
+                D3D_FEATURE_LEVEL_11_1,
+                D3D_FEATURE_LEVEL_11_0,
+            };
+
+            D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels = {};
+            feature_levels.NumFeatureLevels = sizeof(levels_to_check) / sizeof(levels_to_check[0]);
+            feature_levels.pFeatureLevelsRequested = levels_to_check;
+
+            D3D_FEATURE_LEVEL max_level = D3D_FEATURE_LEVEL_11_0;
+            if (SUCCEEDED(context->m_Device->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &feature_levels, sizeof(feature_levels))))
             {
-                // Define the warning to suppress
-                D3D12_MESSAGE_ID messageId = D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE;
-
-                // Set up a filter to ignore the warning
-                D3D12_MESSAGE_SEVERITY severities[] = { D3D12_MESSAGE_SEVERITY_WARNING };
-                D3D12_MESSAGE_ID denyIds[] = { messageId };
-
-                D3D12_INFO_QUEUE_FILTER filter = {};
-                filter.DenyList.NumSeverities = _countof(severities);
-                filter.DenyList.pSeverityList = severities;
-                filter.DenyList.NumIDs = _countof(denyIds);
-                filter.DenyList.pIDList = denyIds;
-
-                // Apply the filter
-                infoQueue->PushStorageFilter(&filter);
-                infoQueue->Release();
+                max_level = feature_levels.MaxSupportedFeatureLevel;
             }
+
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) ((max_level >> 12) & 0xF);
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) ((max_level >>  8) & 0xF);
+        }
+
+        if (context->m_BaseContext.m_PrintDeviceInfo)
+        {
+            dmLogInfo("Device: DirectX 12");
         }
 
         return true;
     }
 
+    void SyncronizeFrame(DX12Context* context)
+    {
+        DX12FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameIndex];
+
+        // if the current fence value is still less than "fenceValue", then we know the GPU has not finished executing
+        // the command queue since it has not reached the "commandQueue->Signal(fence, fenceValue)" command
+
+        HRESULT hr = S_OK;
+
+        if (current_frame_resource.m_Fence->GetCompletedValue() < current_frame_resource.m_FenceValue)
+        {
+            // we have the fence create an event which is signaled once the fence's current value is "fenceValue"
+            hr = current_frame_resource.m_Fence->SetEventOnCompletion(current_frame_resource.m_FenceValue, context->m_FenceEvent);
+            CHECK_HR_ERROR(hr);
+
+            // We will wait until the fence has triggered the event that it's current value has reached "fenceValue". once it's value
+            // has reached "fenceValue", we know the command queue has finished executing
+            WaitForSingleObject(context->m_FenceEvent, INFINITE);
+        }
+
+        // increment fenceValue for next frame
+        current_frame_resource.m_FenceValue++;
+        assert(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED));
+    }
+
+    static HContext DX12NewContext(const ContextParams& params)
+    {
+        if (!g_DX12Context)
+        {
+            DX12Context* context = DX12NativeCreate(params);
+            if (!context)
+                return 0;
+
+            if (context)
+            {
+                assert(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED));
+            }
+
+            if (!DX12Initialize((HContext) context))
+            {
+                DeleteContext((HContext) context);
+                return 0;
+            }
+
+            return (HContext) context;
+        }
+        return 0x0;
+    }
+
+    static HContext DX12GetContext()
+    {
+        return (HContext) g_DX12Context;
+    }
+
+    static void DX12DeleteContext(HContext _context)
+    {
+        assert(_context);
+        if (_context)
+        {
+            DX12NativeDestroy((DX12Context*) _context);
+            g_DX12Context = 0x0;
+        }
+    }
+
+    static void CreateRootSignature(DX12Context* context, CD3DX12_ROOT_SIGNATURE_DESC* desc, DX12ShaderProgram* program)
+    {
+        ID3DBlob* signature;
+        ID3DBlob* error;
+        HRESULT hr = D3D12SerializeRootSignature(desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
+        CHECK_HR_ERROR(hr);
+
+        hr = context->m_Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), DM_IID_PPV_ARGS(&program->m_RootSignature));
+        CHECK_HR_ERROR(hr);
+    }
+
+    void SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc)
+    {
+        // Initialize the dummy rendertarget for the main framebuffer
+        // The m_Framebuffer construct will be rotated sequentially
+        // with the framebuffer objects created per swap chain.
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        assert(rt == 0x0);
+
+        rt               = new DX12RenderTarget();
+        rt->m_Id         = DM_RENDERTARGET_BACKBUFFER_ID;
+        rt->m_Format     = DX12GetBackBufferFormat();
+        rt->m_SampleDesc = sample_desc;
+
+        context->m_MainRenderTarget    = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+        context->m_CurrentRenderTarget = context->m_MainRenderTarget;
+    }
+
+    void DX12ScratchBuffer::Initialize(DX12Context* context, uint32_t frame_index)
+    {
+        m_FrameIndex = frame_index;
+
+        // Initialize constant buffer heap
+        {
+            uint32_t pool_block_count = MAX_BLOCK_SIZE / BLOCK_STEP_SIZE;
+            m_MemoryPools.SetCapacity(pool_block_count);
+            m_MemoryPools.SetSize(pool_block_count);
+
+            for (int i = 0; i < m_MemoryPools.Size(); ++i)
+            {
+                m_MemoryPools[i].m_BlockSize        = (i+1) * BLOCK_STEP_SIZE;
+                m_MemoryPools[i].m_DescriptorCursor = 0;
+                m_MemoryPools[i].m_MemoryCursor     = 0;
+
+                D3D12_DESCRIPTOR_HEAP_DESC heap_Desc = {};
+                heap_Desc.NumDescriptors             = DESCRIPTORS_PER_POOL;
+                heap_Desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+                heap_Desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+                HRESULT hr = context->m_Device->CreateDescriptorHeap(&heap_Desc, DM_IID_PPV_ARGS(&m_MemoryPools[i].m_DescriptorHeap));
+                CHECK_HR_ERROR(hr);
+
+                const uint32_t memory_heap_alignment = 1024 * 64;
+                const uint32_t memory_heap_size      = DM_ALIGN(DESCRIPTORS_PER_POOL * m_MemoryPools[i].m_BlockSize, memory_heap_alignment);
+
+                hr = context->m_Device->CreateCommittedResource(
+                    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // this heap will be used to upload the constant buffer data
+                    D3D12_HEAP_FLAG_NONE,                             // no flags
+                    &CD3DX12_RESOURCE_DESC::Buffer(memory_heap_size), // size of the resource heap. Must be a multiple of 64KB for single-textures and constant buffers
+                    D3D12_RESOURCE_STATE_GENERIC_READ,                // will be data that is read from so we keep it in the generic read state
+                    NULL,                                             // we do not have use an optimized clear value for constant buffers
+                    DM_IID_PPV_ARGS(&m_MemoryPools[i].m_MemoryHeap));
+                CHECK_HR_ERROR(hr);
+
+                for (int j = 0; j < DESCRIPTORS_PER_POOL; ++j)
+                {
+                    D3D12_CONSTANT_BUFFER_VIEW_DESC view_desc = {};
+                    view_desc.BufferLocation = m_MemoryPools[i].m_MemoryHeap->GetGPUVirtualAddress() + j * m_MemoryPools[i].m_BlockSize;
+                    view_desc.SizeInBytes    = m_MemoryPools[i].m_BlockSize;
+
+                    CD3DX12_CPU_DESCRIPTOR_HANDLE view_handle(m_MemoryPools[i].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(), j, context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+                    context->m_Device->CreateConstantBufferView(&view_desc, view_handle);
+                }
+
+                hr = m_MemoryPools[i].m_MemoryHeap->Map(0, 0, &m_MemoryPools[i].m_MappedDataPtr);
+                CHECK_HR_ERROR(hr);
+            }
+        }
+    }
+
+    void* DX12ScratchBuffer::AllocateConstantBuffer(DX12Context* context, DX12PipelineType pipeline_type, uint32_t buffer_index, uint32_t non_aligned_byte_size)
+    {
+        assert(non_aligned_byte_size < MAX_BLOCK_SIZE);
+        uint32_t pool_index     = non_aligned_byte_size / BLOCK_STEP_SIZE;
+        uint32_t memory_cursor  = m_MemoryPools[pool_index].m_MemoryCursor;
+        uint8_t* base_ptr       = ((uint8_t*) m_MemoryPools[pool_index].m_MappedDataPtr) + memory_cursor;
+
+        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+        {
+            context->m_CommandList->SetGraphicsRootConstantBufferView(buffer_index, m_MemoryPools[pool_index].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
+        }
+        else
+        {
+            context->m_CommandList->SetComputeRootConstantBufferView(buffer_index, m_MemoryPools[pool_index].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
+        }
+
+        m_MemoryPools[pool_index].m_MemoryCursor += m_MemoryPools[pool_index].m_BlockSize;
+        m_MemoryPools[pool_index].m_DescriptorCursor++;
+
+    #if 0
+        dmLogInfo("AllocateConstantBuffer: ptr: %p, frame: %d, pool: %d, descriptor: %d, offset: %d", base_ptr, m_FrameIndex, pool_index, m_MemoryPools[pool_index].m_DescriptorCursor, cursor);
+    #endif
+
+        return (void*) base_ptr;
+    }
+
+    void DX12ScratchBuffer::AllocateSampler(DX12Context* context, DX12PipelineType pipeline_type, const DX12TextureSampler& sampler, uint32_t sampler_index)
+    {
+        CD3DX12_GPU_DESCRIPTOR_HANDLE handle_sampler(context->m_SamplerPool.m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), sampler.m_DescriptorOffset);
+        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+        {
+            context->m_CommandList->SetGraphicsRootDescriptorTable(sampler_index, handle_sampler);
+        }
+        else
+        {
+            context->m_CommandList->SetComputeRootDescriptorTable(sampler_index, handle_sampler);
+        }
+    }
+
+    void DX12ScratchBuffer::AllocateTexture2D(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t texture_index)
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC view_desc = {};
+        view_desc.Format                          = texture->m_ResourceDesc.Format;
+        view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
+        view_desc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        view_desc.Texture2D.MipLevels             = texture->m_Base.m_MipMapCount;
+
+        if (texture->m_Base.m_Type == TEXTURE_TYPE_2D_ARRAY)
+        {
+            view_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+            view_desc.Texture2DArray.MostDetailedMip = 0;
+            view_desc.Texture2DArray.MipLevels       = texture->m_Base.m_MipMapCount;
+            view_desc.Texture2DArray.FirstArraySlice = 0;  // Start from the first slice
+            view_desc.Texture2DArray.ArraySize       = texture->m_LayerCount;  // Number of slices
+            view_desc.Texture2DArray.PlaneSlice      = 0;  // This is generally 0 for 2D arrays (1D textures have planes)
+        }
+        else if (texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURECUBE;
+            view_desc.TextureCube.MipLevels           = texture->m_Base.m_MipMapCount;
+            view_desc.TextureCube.MostDetailedMip     = 0;
+            view_desc.TextureCube.ResourceMinLODClamp = 0.0f;
+        }
+
+        uint32_t desc_size   = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        uint32_t desc_offset = desc_size * m_MemoryPools[0].m_DescriptorCursor;
+
+        CD3DX12_CPU_DESCRIPTOR_HANDLE  view_desc_handle(
+            m_MemoryPools[0].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+            m_MemoryPools[0].m_DescriptorCursor,
+            desc_size);
+
+        context->m_Device->CreateShaderResourceView(texture->m_Resource, &view_desc, view_desc_handle);
+        m_MemoryPools[0].m_DescriptorCursor++;
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE handle_texture(m_MemoryPools[0].m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), desc_offset);
+
+        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+        {
+            context->m_CommandList->SetGraphicsRootDescriptorTable(texture_index, handle_texture);
+        }
+        else
+        {
+            context->m_CommandList->SetComputeRootDescriptorTable(texture_index, handle_texture);
+        }
+    }
+
+    void DX12ScratchBuffer::Reset(DX12Context* context)
+    {
+        for (int i = 0; i < m_MemoryPools.Size(); ++i)
+        {
+            m_MemoryPools[i].m_DescriptorCursor = 0;
+            m_MemoryPools[i].m_MemoryCursor     = 0;
+        }
+    }
+
+    // Can we bind this at start of frame?
+    void DX12ScratchBuffer::Bind(DX12Context* context)
+    {
+        // TODO: multiple heaps needs to be bound here
+        ID3D12DescriptorHeap* heaps[] = {
+            m_MemoryPools[0].m_DescriptorHeap
+        };
+        context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
+    }
+
     static void DX12Finalize()
     {
-
     }
 
     static void DX12CloseWindow(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
 
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
         }
     }
@@ -763,10 +752,10 @@ namespace dmGraphics
     {
     }
 
-    static dmPlatform::HWindow DX12GetWindow(HContext _context)
+    static HWindow DX12GetWindow(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
-        return context->m_Window;
+        return context->m_BaseContext.m_Window;
     }
 
     static uint32_t DX12GetDisplayDpi(HContext context)
@@ -778,22 +767,22 @@ namespace dmGraphics
     static uint32_t DX12GetWidth(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
-        return context->m_Width;
+        return context->m_BaseContext.m_Width;
     }
 
     static uint32_t DX12GetHeight(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
-        return context->m_Height;
+        return context->m_BaseContext.m_Height;
     }
 
     static void DX12SetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
         DX12Context* context = (DX12Context*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            dmPlatform::SetWindowSize(context->m_Window, width, height);
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
     }
 
@@ -801,23 +790,23 @@ namespace dmGraphics
     {
         assert(_context);
         DX12Context* context = (DX12Context*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            dmPlatform::SetWindowSize(context->m_Window, width, height);
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
     }
 
     static void DX12GetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         DX12Context* context = (DX12Context*) _context;
-        out_min_filter = context->m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_DefaultTextureMagFilter;
+        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
+        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void DX12Clear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         DX12Context* context = (DX12Context*) _context;
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         const float r = ((float)red) / 255.0f;
         const float g = ((float)green) / 255.0f;
@@ -859,36 +848,9 @@ namespace dmGraphics
         }
     }
 
-    static void SyncronizeFrame(DX12Context* context)
-    {
-        // swap the current rtv buffer index so we draw on the correct buffer
-        context->m_CurrentFrameIndex = context->m_SwapChain->GetCurrentBackBufferIndex();
-
-        DX12FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameIndex];
-
-        // if the current fence value is still less than "fenceValue", then we know the GPU has not finished executing
-        // the command queue since it has not reached the "commandQueue->Signal(fence, fenceValue)" command
-
-        HRESULT hr = S_OK;
-
-        if (current_frame_resource.m_Fence->GetCompletedValue() < current_frame_resource.m_FenceValue)
-        {
-            // we have the fence create an event which is signaled once the fence's current value is "fenceValue"
-            hr = current_frame_resource.m_Fence->SetEventOnCompletion(current_frame_resource.m_FenceValue, context->m_FenceEvent);
-            CHECK_HR_ERROR(hr);
-
-            // We will wait until the fence has triggered the event that it's current value has reached "fenceValue". once it's value
-            // has reached "fenceValue", we know the command queue has finished executing
-            WaitForSingleObject(context->m_FenceEvent, INFINITE);
-        }
-
-        // increment fenceValue for next frame
-        current_frame_resource.m_FenceValue++;
-    }
-
     static bool EndRenderPass(DX12Context* context)
     {
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         if (!current_rt->m_IsBound)
             return false;
@@ -896,7 +858,7 @@ namespace dmGraphics
         if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
             // NOTE: We rotate the swap chain textures into the RT at the beginning of the frame
-            DX12Texture* texture_color         = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, current_rt->m_TextureColor[0]);
+            DX12Texture* texture_color         = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureColor[0]);
             ID3D12Resource* color              = texture_color->m_Resource;
 
             if (context->m_MSAASampleCount > 1)
@@ -924,12 +886,13 @@ namespace dmGraphics
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
             }
 
-            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
+            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
 
             // Regardless of MSAA count (no resolve needed for depth target I think?), we need to transition backbuffer DSV to COMMON
             if (texture_depth_stencil && texture_depth_stencil->m_Resource)
             {
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COMMON));
+                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
             }
         }
         else
@@ -937,8 +900,9 @@ namespace dmGraphics
             // Transition custom render target's depth/stencil back to COMMON
             if (current_rt->m_TextureDepthStencil)
             {
-                DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
+                DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COMMON));
+                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
             }
         }
 
@@ -948,8 +912,8 @@ namespace dmGraphics
 
     static void BeginRenderPass(DX12Context* context, HRenderTarget render_target)
     {
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
-        DX12RenderTarget* rt         = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, render_target);
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        DX12RenderTarget* rt         = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         if (current_rt->m_Id == rt->m_Id && current_rt->m_IsBound)
             return;
@@ -981,7 +945,7 @@ namespace dmGraphics
             }
             else
             {
-                DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, current_rt->m_TextureColor[0]);
+                DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureColor[0]);
 
                 // No MSAA: use the regular swapchain RT
                 rtv_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
@@ -1002,7 +966,7 @@ namespace dmGraphics
             {
                 if (rt->m_TextureColor[i])
                 {
-                    DX12Texture* attachment = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
+                    DX12Texture* attachment = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
 
                     if (attachment->m_ResourceStates[0] != D3D12_RESOURCE_STATE_RENDER_TARGET)
                     {
@@ -1027,17 +991,29 @@ namespace dmGraphics
                 context->m_DsvDescriptorSize
             );
             dsv_handle_ptr = &dsv_handle;
+
+            // Transition backbuffer depth to DEPTH_WRITE if not already (tracked state; first frame it's already DEPTH_WRITE from creation)
+            if (rt->m_TextureDepthStencil)
+            {
+                DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+                if (texture_depth_stencil && texture_depth_stencil->m_Resource && texture_depth_stencil->m_ResourceStates[0] != D3D12_RESOURCE_STATE_DEPTH_WRITE)
+                {
+                    context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, texture_depth_stencil->m_ResourceStates[0], D3D12_RESOURCE_STATE_DEPTH_WRITE));
+                    texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                }
+            }
         }
         else if (rt->m_DepthStencilDescriptorHeap)
         {
             dsv_handle     = CD3DX12_CPU_DESCRIPTOR_HANDLE(rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
             dsv_handle_ptr = &dsv_handle;
 
-            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
 
-            if (texture_depth_stencil && texture_depth_stencil->m_Resource)
+            if (texture_depth_stencil && texture_depth_stencil->m_Resource && texture_depth_stencil->m_ResourceStates[0] != D3D12_RESOURCE_STATE_DEPTH_WRITE)
             {
-                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, texture_depth_stencil->m_ResourceStates[0], D3D12_RESOURCE_STATE_DEPTH_WRITE));
+                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
             }
         }
 
@@ -1052,7 +1028,7 @@ namespace dmGraphics
     }
 
     template <typename T>
-    static void DestroyResourceDeferred(DX12FrameResource& current_frame_resource, T* resource) 
+    static void DestroyResourceDeferred(DX12FrameResource& current_frame_resource, T* resource)
     {
         if (resource == 0x0 || resource->m_Resource == 0x0)
         {
@@ -1069,7 +1045,18 @@ namespace dmGraphics
         resource->m_Resource = 0;
     }
 
-    static void FlushResourcesToDestroy(DX12FrameResource& current_frame_resource)
+    static void DestroyTextureResourceDeferred(DX12Context* context, DX12Texture* tex)
+    {
+        if (!tex || !tex->m_Resource)
+            return;
+        DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+        if (fr.m_ResourcesToDestroy.Full())
+            fr.m_ResourcesToDestroy.OffsetCapacity(8);
+        fr.m_ResourcesToDestroy.Push(tex->m_Resource);
+        tex->m_Resource = 0;
+    }
+
+    void FlushResourcesToDestroy(DX12FrameResource& current_frame_resource)
     {
         if (current_frame_resource.m_ResourcesToDestroy.Size() > 0)
         {
@@ -1081,17 +1068,130 @@ namespace dmGraphics
         }
     }
 
+    static void ReleasePipelineCacheEntry(DX12Context* ctx, const uint64_t* key, DX12Pipeline* pipeline)
+    {
+        (void)ctx;
+        (void)key;
+        if (pipeline && *pipeline)
+        {
+            (*pipeline)->Release();
+            *pipeline = 0;
+        }
+    }
+
+    void DX12DestroyContextResources(DX12Context* context)
+    {
+        // Release all cached pipeline state objects
+        context->m_PipelineCache.Iterate(ReleasePipelineCacheEntry, context);
+
+        for (uint8_t i = 0; i < MAX_FRAMEBUFFERS; i++)
+        {
+            DX12FrameResource& fr = context->m_FrameResources[i];
+            FlushResourcesToDestroy(fr);
+
+            // Release frame buffer texture resources (swap chain and depth)
+            DX12Texture* tex_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, fr.m_TextureColor);
+            if (tex_color && tex_color->m_Resource)
+            {
+                tex_color->m_Resource->Release();
+                tex_color->m_Resource = 0;
+            }
+            DX12Texture* tex_depth = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, fr.m_TextureDepthStencil);
+            if (tex_depth && tex_depth->m_Resource)
+            {
+                tex_depth->m_Resource->Release();
+                tex_depth->m_Resource = 0;
+            }
+
+            if (fr.m_MsaaRenderTarget)
+            {
+                fr.m_MsaaRenderTarget->Release();
+                fr.m_MsaaRenderTarget = 0;
+            }
+            if (fr.m_CommandAllocator)
+            {
+                fr.m_CommandAllocator->Release();
+                fr.m_CommandAllocator = 0;
+            }
+            if (fr.m_Fence)
+            {
+                fr.m_Fence->Release();
+                fr.m_Fence = 0;
+            }
+
+            // Release scratch buffer pools
+            for (uint32_t p = 0; p < fr.m_ScratchBuffer.m_MemoryPools.Size(); p++)
+            {
+                DX12ScratchBuffer::BlockSizedPool& pool = fr.m_ScratchBuffer.m_MemoryPools[p];
+                if (pool.m_MemoryHeap)
+                {
+                    pool.m_MemoryHeap->Unmap(0, 0);
+                    pool.m_MemoryHeap->Release();
+                    pool.m_MemoryHeap = 0;
+                }
+                if (pool.m_DescriptorHeap)
+                {
+                    pool.m_DescriptorHeap->Release();
+                    pool.m_DescriptorHeap = 0;
+                }
+            }
+        }
+
+        if (context->m_CommandList)
+        {
+            context->m_CommandList->Release();
+            context->m_CommandList = 0;
+        }
+        if (context->m_FenceEvent)
+        {
+            CloseHandle(context->m_FenceEvent);
+            context->m_FenceEvent = 0;
+        }
+        if (context->m_RtvDescriptorHeap)
+        {
+            context->m_RtvDescriptorHeap->Release();
+            context->m_RtvDescriptorHeap = 0;
+        }
+        if (context->m_DsvDescriptorHeap)
+        {
+            context->m_DsvDescriptorHeap->Release();
+            context->m_DsvDescriptorHeap = 0;
+        }
+        if (context->m_SamplerPool.m_DescriptorHeap)
+        {
+            context->m_SamplerPool.m_DescriptorHeap->Release();
+            context->m_SamplerPool.m_DescriptorHeap = 0;
+        }
+#if !defined(DM_PLATFORM_VENDOR)
+        if (context->m_SwapChain)
+        {
+            context->m_SwapChain->Release();
+            context->m_SwapChain = 0;
+        }
+        if (context->m_CommandQueue)
+        {
+            context->m_CommandQueue->Release();
+            context->m_CommandQueue = 0;
+        }
+#endif
+        if (context->m_Device)
+        {
+            context->m_Device->Release();
+            context->m_Device = 0;
+        }
+    }
+
     static void DX12BeginFrame(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
-        SyncronizeFrame(context);
+        DX12NativeBeginFrame(context);
 
         DX12FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameIndex];
 
         HRESULT hr = current_frame_resource.m_CommandAllocator->Reset();
         CHECK_HR_ERROR(hr);
 
-        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         rt->m_TextureColor[0] = current_frame_resource.m_TextureColor;
         rt->m_TextureDepthStencil = current_frame_resource.m_TextureDepthStencil;
 
@@ -1134,15 +1234,14 @@ namespace dmGraphics
         hr = context->m_CommandQueue->Signal(current_frame_resource.m_Fence, current_frame_resource.m_FenceValue);
         CHECK_HR_ERROR(hr);
 
-        hr = context->m_SwapChain->Present(0, 0);
-        CHECK_HR_ERROR(hr);
+        DX12NativeEndFrame(context); // present
 
         context->m_FrameBegun = 0;
     }
 
     static inline bool IsRenderTargetbound(DX12Context* context, HRenderTarget rt)
     {
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, rt);
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
         return current_rt ? current_rt->m_IsBound : 0;
     }
 
@@ -1191,28 +1290,50 @@ namespace dmGraphics
 
     static inline void CreateOneTimeCommandList(ID3D12Device* device, DX12OneTimeCommandList* cmd_list)
     {
-        HRESULT hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&cmd_list->m_CommandAllocator));
+        HRESULT hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, DM_IID_PPV_ARGS(&cmd_list->m_CommandAllocator));
         CHECK_HR_ERROR(hr);
 
-        hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmd_list->m_CommandAllocator, NULL, IID_PPV_ARGS(&cmd_list->m_CommandList));
+        hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmd_list->m_CommandAllocator, NULL, DM_IID_PPV_ARGS(&cmd_list->m_CommandList));
         CHECK_HR_ERROR(hr);
 
-        hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&cmd_list->m_Fence));
+        hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, DM_IID_PPV_ARGS(&cmd_list->m_Fence));
         CHECK_HR_ERROR(hr);
+    }
+
+    static inline void DestroyOneTimeCommandList(DX12OneTimeCommandList* cmd_list)
+    {
+        if (cmd_list->m_Fence)
+        {
+            cmd_list->m_Fence->Release();
+            cmd_list->m_Fence = 0;
+        }
+        if (cmd_list->m_CommandList)
+        {
+            cmd_list->m_CommandList->Release();
+            cmd_list->m_CommandList = 0;
+        }
+        if (cmd_list->m_CommandAllocator)
+        {
+            cmd_list->m_CommandAllocator->Release();
+            cmd_list->m_CommandAllocator = 0;
+        }
     }
 
     static inline void ResetOneTimeCommandList(DX12OneTimeCommandList* cmd_list)
     {
-        cmd_list->m_Fence->Release();
+        if (cmd_list->m_Fence)
+            cmd_list->m_Fence->Release();
         cmd_list->m_CommandAllocator->Reset();
         cmd_list->m_CommandList->Reset(cmd_list->m_CommandAllocator, 0);
+        cmd_list->m_Fence = 0;
     }
 
     static inline void SyncronizeOneTimeCommandList(ID3D12Device* device, ID3D12CommandQueue* queue, DX12OneTimeCommandList* cmd_list)
     {
+        assert(cmd_list->m_Fence != 0);
+
         UINT64 fence_value = FENCE_VALUE_SYNCRONIZE_UPLOAD;
-        HANDLE fence_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-        device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&cmd_list->m_Fence));
+        HANDLE fence_event = CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE);
 
         queue->Signal(cmd_list->m_Fence, fence_value);
         if (cmd_list->m_Fence->GetCompletedValue() != fence_value)
@@ -1237,17 +1358,17 @@ namespace dmGraphics
         // Calculate offset/footprint per array slice
         for (uint32_t array = 0; array < tex_layer_count; ++array)
         {
-            const uint32_t subresource = D3D12CalcSubresource(target_mip, array, 0, texture->m_MipMapCount, tex_layer_count);
-            
+            const uint32_t subresource = D3D12CalcSubresource(target_mip, array, 0, texture->m_Base.m_MipMapCount, tex_layer_count);
+
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout = {};
             UINT rows = 0;
             UINT64 rowSize = 0;
             UINT64 size = 0;
-            
+
             context->m_Device->GetCopyableFootprints(
                 &texture->m_ResourceDesc, subresource, 1,
                 total_upload_size, &layout, &rows, &rowSize, &size);
-            
+
             fp[array] = layout;
             num_rows[array] = rows;
             row_size_in_bytes[array] = rowSize;
@@ -1273,7 +1394,7 @@ namespace dmGraphics
             &upload_desc,
             D3D12_RESOURCE_STATE_GENERIC_READ,
             NULL,
-            IID_PPV_ARGS(&upload_heap));
+            DM_IID_PPV_ARGS(&upload_heap));
         CHECK_HR_ERROR(hr);
 
         uint8_t* upload_data = NULL;
@@ -1282,11 +1403,11 @@ namespace dmGraphics
 
         // Compute only the target mip’s row pitch
         uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
-        uint32_t slice_row_pitch[1] = { params.m_Width * bpp_src };
+        uint32_t slice_row_pitch[1] = { (uint32_t)(params.m_Width * bpp_src) };
 
         // Copy only the selected mip level's data
         CopyTextureDataMipmapLevel(params, format_dst, format_src, fp, num_rows, tex_layer_count,
-            texture->m_MipMapCount, slice_row_pitch, pixels, upload_data, target_mip);
+            texture->m_Base.m_MipMapCount, slice_row_pitch, pixels, upload_data, target_mip);
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
         DX12OneTimeCommandList one_time_cmd_list = {};
@@ -1308,7 +1429,7 @@ namespace dmGraphics
         // Copy per array slice
         for (uint32_t array = 0; array < texture->m_LayerCount; ++array)
         {
-            const uint32_t subresourceIndex = D3D12CalcSubresource(target_mip, array, 0, texture->m_MipMapCount, texture->m_LayerCount);
+            const uint32_t subresourceIndex = D3D12CalcSubresource(target_mip, array, 0, texture->m_Base.m_MipMapCount, texture->m_LayerCount);
 
             D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
             copy_dst.pResource                   = texture->m_Resource;
@@ -1342,14 +1463,24 @@ namespace dmGraphics
         }
 
         // Submit command list if needed
-        if (!context->m_FrameBegun)
+        if (context->m_FrameBegun)
+        {
+            upload_heap->Unmap(0, 0);
+            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+            if (fr.m_ResourcesToDestroy.Full())
+                fr.m_ResourcesToDestroy.OffsetCapacity(8);
+            fr.m_ResourcesToDestroy.Push(upload_heap);
+        }
+        else
         {
             cmd_list->Close();
             ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
 
             SyncronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
-            ResetOneTimeCommandList(&one_time_cmd_list);
+            DestroyOneTimeCommandList(&one_time_cmd_list);
+            upload_heap->Unmap(0, 0);
+            upload_heap->Release();
         }
     }
 
@@ -1365,44 +1496,63 @@ namespace dmGraphics
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), // a default heap
             D3D12_HEAP_FLAG_NONE,                              // no flags
             &CD3DX12_RESOURCE_DESC::Buffer(size),              // resource description for a buffer
-            D3D12_RESOURCE_STATE_COMMON,                       // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
+            D3D12_RESOURCE_STATE_COPY_DEST,                    // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
             NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
-            IID_PPV_ARGS(&device_buffer->m_Resource));
+            DM_IID_PPV_ARGS(&device_buffer->m_Resource));
         CHECK_HR_ERROR(hr);
 
         device_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
+        device_buffer->m_Destroyed = 0;
+        device_buffer->m_MappedDataPtr = 0;
     }
 
-    static void DeviceBufferUploadHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, const void* data, uint32_t data_size)
+    static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data, D3D12_RESOURCE_STATES state_before_copy)
     {
-        if (data == 0 || data_size == 0)
-            return;
-
-        if (device_buffer->m_Destroyed || device_buffer->m_Resource == 0x0)
+        if (data_size == 0)
         {
-            CreateDeviceBuffer(context, device_buffer, data_size);
+            return;
         }
 
-        // create upload heap
-        // upload heaps are used to upload data to the GPU. CPU can write to it, GPU can read from it
-        // We will upload the vertex buffer using this heap to the default heap
+        if (offset > buffer_size)
+        {
+            // TODO: Should we warn in the logs?
+            return;
+        }
+
+        if (data_size > (buffer_size - offset))
+        {
+            data_size = buffer_size - offset;
+
+            // TODO: Should we warn in the logs?
+        }
+
         ID3D12Resource* upload_heap;
         HRESULT hr = context->m_Device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),   // upload heap
-            D3D12_HEAP_FLAG_NONE,                               // no flags
-            &CD3DX12_RESOURCE_DESC::Buffer(data_size),          // resource description for a buffer
-            D3D12_RESOURCE_STATE_GENERIC_READ,                  // GPU will read from this buffer and copy its contents to the default heap
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(data_size),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
             NULL,
-            IID_PPV_ARGS(&upload_heap));
+            DM_IID_PPV_ARGS(&upload_heap));
         CHECK_HR_ERROR(hr);
 
-        upload_heap->SetName(L"Vertex Buffer Upload Resource Heap");
+        upload_heap->SetName(L"Buffer Upload Resource Heap");
 
-        // store vertex buffer in upload heap
-        D3D12_SUBRESOURCE_DATA vx_data = {};
-        vx_data.pData      = data; // pointer to our vertex array
-        vx_data.RowPitch   = data_size; // size of all our vertex data
-        vx_data.SlicePitch = data_size; // also the size of our vertex data
+        uint8_t* mapped_data = 0;
+        hr = upload_heap->Map(0, 0, (void**)&mapped_data);
+        CHECK_HR_ERROR(hr);
+
+        if (data)
+        {
+            memcpy(mapped_data, data, data_size);
+        }
+        else
+        {
+            // New buffer. want to alloc size, but have no data yet
+            memset(mapped_data, 0, data_size);
+        }
+
+        upload_heap->Unmap(0, 0);
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
 
@@ -1413,32 +1563,148 @@ namespace dmGraphics
             cmd_list = one_time_cmd_list.m_CommandList;
         }
 
-        UpdateSubresources(cmd_list, device_buffer->m_Resource, upload_heap, 0, 0, 1, &vx_data);
+        if (state_before_copy != D3D12_RESOURCE_STATE_COPY_DEST)
+        {
+            cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, state_before_copy, D3D12_RESOURCE_STATE_COPY_DEST));
+        }
+        cmd_list->CopyBufferRegion(device_buffer->m_Resource, offset, upload_heap, 0, data_size);
+        cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, DM_DX12_RESOURCE_STATE_BUFFER_READ));
 
-        // transition the vertex buffer data from copy destination state to vertex buffer state
-        cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
-
-        if (!context->m_FrameBegun)
+        if (context->m_FrameBegun)
+        {
+            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+            if (fr.m_ResourcesToDestroy.Full())
+                fr.m_ResourcesToDestroy.OffsetCapacity(8);
+            fr.m_ResourcesToDestroy.Push(upload_heap);
+        }
+        else
         {
             cmd_list->Close();
             ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
 
             SyncronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
+            DestroyOneTimeCommandList(&one_time_cmd_list);
+            upload_heap->Release();
+        }
+    }
 
-            ResetOneTimeCommandList(&one_time_cmd_list);
+    static void DeviceBufferUploadHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, const void* data, uint32_t data_size)
+    {
+        if (data_size == 0)
+        {
+            return;
         }
 
-        device_buffer->m_DataSize = data_size;
+        D3D12_RESOURCE_STATES state_before_copy = DM_DX12_RESOURCE_STATE_BUFFER_READ;
+        if (device_buffer->m_Destroyed || device_buffer->m_Resource == 0x0)
+        {
+            CreateDeviceBuffer(context, device_buffer, data_size);
+            state_before_copy = D3D12_RESOURCE_STATE_COPY_DEST;
+        }
 
-        // TODO: Release the heap buffer deferred(?)
-        // DeviceBuffer wrapped_heap_buffer();
+        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, data_size, data, state_before_copy);
+        device_buffer->m_DataSize = data_size;
+    }
+
+    static void DeviceBufferUploadSubDataHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, const void* data)
+    {
+        if (data_size == 0)
+        {
+            return;
+        }
+
+        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_DataSize, data, DM_DX12_RESOURCE_STATE_BUFFER_READ);
+    }
+
+    static void CreateConstantBuffer(DX12Context* context, DX12DeviceBuffer* buffer, uint32_t size)
+    {
+        uint32_t aligned_size = DM_ALIGN(size, 256);
+
+        HRESULT hr = context->m_Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(aligned_size),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            NULL,
+            DM_IID_PPV_ARGS(&buffer->m_Resource));
+        CHECK_HR_ERROR(hr);
+
+        buffer->m_Resource->Map(0, NULL, (void**)&buffer->m_MappedDataPtr);
+        buffer->m_DataSize = aligned_size;
+    }
+
+    static HUniformBuffer DX12NewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12UniformBuffer* ubo = new DX12UniformBuffer();
+        ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+
+        CreateConstantBuffer(context, &ubo->m_DeviceBuffer, layout.m_Size);
+
+        return (HUniformBuffer) ubo;
+    }
+
+    static void DX12SetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        DX12UniformBuffer* ubo = (DX12UniformBuffer*)uniform_buffer;
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        memcpy(ubo->m_DeviceBuffer.m_MappedDataPtr + offset, data, size);
+    }
+
+    static void DX12DisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        DX12Context* context = (DX12Context*)_context;
+        DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
+
+        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        {
+            return;
+        }
+
+        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
+        {
+            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+        }
+
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+    }
+
+    static void DX12EnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
+
+        ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = set;
+
+        if (context->m_CurrentUniformBuffers[set][binding])
+        {
+            DX12DisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+        }
+
+        context->m_CurrentUniformBuffers[set][binding] = ubo;
+    }
+
+    static void DX12DeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
+
+        DX12DisableUniformBuffer(_context, uniform_buffer);
+        DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &ubo->m_DeviceBuffer);
+
+        delete ubo;
     }
 
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DX12Context* context        = (DX12Context*) _context;
         DX12VertexBuffer* vx_buffer = new DX12VertexBuffer();
+        memset(vx_buffer, 0, sizeof(DX12VertexBuffer));
 
         if (size > 0)
         {
@@ -1474,28 +1740,32 @@ namespace dmGraphics
 
     static void DX12SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        assert(0);
+        DM_PROFILE(__FUNCTION__);
+        assert(buffer != 0);
+
+        DX12VertexBuffer* vx_buffer = (DX12VertexBuffer*) buffer;
+        DeviceBufferUploadSubDataHelper(g_DX12Context, &vx_buffer->m_DeviceBuffer, offset, size, data);
     }
 
     static uint32_t DX12GetVertexBufferSize(HVertexBuffer buffer)
     {
-        if (!buffer)
-        {
-            return 0;
-        }
+        assert(buffer != 0);
         DX12VertexBuffer* buffer_ptr = (DX12VertexBuffer*) buffer;
         return buffer_ptr->m_DeviceBuffer.m_DataSize;
     }
 
     static uint32_t DX12GetMaxElementsVertices(HContext context)
     {
-        return 65536;
+        const uint32_t num_bits = D3D12_REQ_DRAW_VERTEX_COUNT_2_TO_EXP; // D3D12_REQ_DRAW_VERTEX_COUNT_2_TO_EXP=32
+        const uint64_t v = (1ULL << num_bits) - 1ULL; // The max value for a given number of bits. 32 bits -> 0xFFFFFFFF
+        return num_bits == 32 ? 0xFFFFFFFFu : (uint32_t)v;
     }
 
     static HIndexBuffer DX12NewIndexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DX12Context* context       = (DX12Context*) _context;
         DX12IndexBuffer* ix_buffer = new DX12IndexBuffer();
+        memset(ix_buffer, 0, sizeof(DX12IndexBuffer));
 
         if (size > 0)
         {
@@ -1533,7 +1803,10 @@ namespace dmGraphics
 
     static void DX12SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        assert(0);
+        DM_PROFILE(__FUNCTION__);
+        assert(buffer != 0);
+        DX12IndexBuffer* ix_buffer = (DX12IndexBuffer*) buffer;
+        DeviceBufferUploadSubDataHelper(g_DX12Context, &ix_buffer->m_DeviceBuffer, offset, size, data);
     }
 
     static uint32_t DX12GetIndexBufferSize(HIndexBuffer buffer)
@@ -1553,7 +1826,9 @@ namespace dmGraphics
 
     static uint32_t DX12GetMaxElementsIndices(HContext context)
     {
-        return 65536;
+        const uint32_t num_bits = D3D12_REQ_DRAWINDEXED_INDEX_COUNT_2_TO_EXP; // D3D12_REQ_DRAWINDEXED_INDEX_COUNT_2_TO_EXP=32
+        const uint64_t v = (1ULL << num_bits) - 1ULL; // The max value for a given number of bits. 32 bits -> 0xFFFFFFFF
+        return num_bits == 32 ? 0xFFFFFFFFu : (uint32_t)v;
     }
 
     static HVertexDeclaration DX12NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
@@ -1561,8 +1836,11 @@ namespace dmGraphics
         VertexDeclaration* vd = new VertexDeclaration;
         memset(vd, 0, sizeof(VertexDeclaration));
 
+        uint32_t stream_count = stream_declaration->m_Streams.Size();
+        vd->m_Streams = new VertexDeclaration::Stream[stream_count];
         vd->m_Stride = 0;
-        for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
+
+        for (uint32_t i=0; i<stream_count; i++)
         {
             vd->m_Streams[i].m_NameHash  = stream_declaration->m_Streams[i].m_NameHash;
             vd->m_Streams[i].m_Location  = -1;
@@ -1573,7 +1851,7 @@ namespace dmGraphics
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
+        vd->m_StreamCount = stream_count;
 
         return vd;
     }
@@ -1605,7 +1883,6 @@ namespace dmGraphics
     {
         DX12Context* context            = (DX12Context*) _context;
         DX12ShaderProgram* program_ptr  = (DX12ShaderProgram*) program;
-        DX12ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
         context->m_MainVertexDeclaration[binding_index]                = {};
         context->m_MainVertexDeclaration[binding_index].m_Stride       = vertex_declaration->m_Stride;
@@ -1614,8 +1891,14 @@ namespace dmGraphics
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
 
-        // TODO
-        // context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
+        // Allocate stream storage for this binding (m_Streams would otherwise be null after = {})
+        if (context->m_MainVertexDeclarationStreams[binding_index].Size() < vertex_declaration->m_StreamCount)
+        {
+            context->m_MainVertexDeclarationStreams[binding_index].SetCapacity(vertex_declaration->m_StreamCount);
+            context->m_MainVertexDeclarationStreams[binding_index].SetSize(vertex_declaration->m_StreamCount);
+        }
+        memset(context->m_MainVertexDeclarationStreams[binding_index].Begin(), 0, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+        context->m_MainVertexDeclaration[binding_index].m_Streams = context->m_MainVertexDeclarationStreams[binding_index].Begin();
 
         uint32_t stream_ix = 0;
         uint32_t num_inputs = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
@@ -1799,7 +2082,8 @@ namespace dmGraphics
                 default:break;
             }
         }
-        return D3D12_COMPARISON_FUNC_NONE;
+        // TODO: It doesn't exist on the vendor side, although the actual value also isn't used.
+        return (D3D12_COMPARISON_FUNC)0; // D3D12_COMPARISON_FUNC_NONE;
     }
 
     static inline D3D12_BLEND GetBlendFactor(BlendFactor factor)
@@ -1828,6 +2112,20 @@ namespace dmGraphics
         return D3D12_BLEND_ZERO;
     }
 
+    static inline D3D12_BLEND_OP GetBlendOp(BlendEquation equation)
+    {
+        switch(equation)
+        {
+            case BLEND_EQUATION_ADD:              return D3D12_BLEND_OP_ADD;
+            case BLEND_EQUATION_SUBTRACT:         return D3D12_BLEND_OP_SUBTRACT;
+            case BLEND_EQUATION_REVERSE_SUBTRACT: return D3D12_BLEND_OP_REV_SUBTRACT;
+            case BLEND_EQUATION_MIN:              return D3D12_BLEND_OP_MIN;
+            case BLEND_EQUATION_MAX:              return D3D12_BLEND_OP_MAX;
+            default: break;
+        }
+        return D3D12_BLEND_OP_ADD;
+    }
+
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
     {
         memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
@@ -1840,12 +2138,12 @@ namespace dmGraphics
         D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
         psoDesc.pRootSignature = context->m_CurrentProgram->m_RootSignature;
 
-        psoDesc.CS.pShaderBytecode = context->m_CurrentProgram->m_ComputeModule->m_ShaderBlob->GetBufferPointer();
-        psoDesc.CS.BytecodeLength  = context->m_CurrentProgram->m_ComputeModule->m_ShaderBlob->GetBufferSize();
+        psoDesc.CS.pShaderBytecode = context->m_CurrentProgram->m_ComputeModule->m_Data;
+        psoDesc.CS.BytecodeLength  = context->m_CurrentProgram->m_ComputeModule->m_DataSize;
 
         psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 
-        HRESULT hr = context->m_Device->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(pipeline));
+        HRESULT hr = context->m_Device->CreateComputePipelineState(&psoDesc, DM_IID_PPV_ARGS(pipeline));
         CHECK_HR_ERROR(hr);
     }
 
@@ -1879,15 +2177,25 @@ namespace dmGraphics
     static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, DX12Pipeline* pipeline)
     {
         D3D12_SHADER_BYTECODE vs_byte_code = {};
-        vs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_VertexModule->m_ShaderBlob->GetBufferSize();
-        vs_byte_code.pShaderBytecode       = context->m_CurrentProgram->m_VertexModule->m_ShaderBlob->GetBufferPointer();
+        vs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_VertexModule->m_DataSize;
+        vs_byte_code.pShaderBytecode       = context->m_CurrentProgram->m_VertexModule->m_Data;
 
         D3D12_SHADER_BYTECODE fs_byte_code = {};
-        fs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_FragmentModule->m_ShaderBlob->GetBufferSize();
-        fs_byte_code.pShaderBytecode       = context->m_CurrentProgram->m_FragmentModule->m_ShaderBlob->GetBufferPointer();
+        fs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_FragmentModule->m_DataSize;
+        fs_byte_code.pShaderBytecode       = context->m_CurrentProgram->m_FragmentModule->m_Data;
 
         uint32_t stream_count = 0;
-        D3D12_INPUT_ELEMENT_DESC input_layout[MAX_VERTEX_STREAM_COUNT] = {};
+        dmArray<D3D12_INPUT_ELEMENT_DESC> input_layout;
+
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexDeclaration[i])
+            {
+                stream_count += context->m_CurrentVertexDeclaration[i]->m_StreamCount;
+            }
+        }
+
+        input_layout.SetCapacity(stream_count);
 
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
@@ -1896,8 +2204,8 @@ namespace dmGraphics
                 for (int j = 0; j < context->m_CurrentVertexDeclaration[i]->m_StreamCount; ++j)
                 {
                     VertexDeclaration::Stream& stream = context->m_CurrentVertexDeclaration[i]->m_Streams[j];
-                    D3D12_INPUT_ELEMENT_DESC& desc    = input_layout[stream_count];
 
+                    D3D12_INPUT_ELEMENT_DESC desc;
                     desc.SemanticName         = "TEXCOORD";
                     desc.SemanticIndex        = stream.m_Location;
                     desc.Format               = GetDXGIFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
@@ -1905,15 +2213,14 @@ namespace dmGraphics
                     desc.AlignedByteOffset    = stream.m_Offset;
                     desc.InputSlotClass       = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
                     desc.InstanceDataStepRate = 0;
-
-                    stream_count++;
+                    input_layout.Push(desc);
                 }
             }
         }
 
         D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
         inputLayoutDesc.NumElements             = stream_count;
-        inputLayoutDesc.pInputElementDescs      = input_layout;
+        inputLayoutDesc.pInputElementDescs      = input_layout.Begin();
 
         CD3DX12_RASTERIZER_DESC rasterizerState = CD3DX12_RASTERIZER_DESC(
             D3D12_FILL_MODE_SOLID,
@@ -1948,10 +2255,10 @@ namespace dmGraphics
         blendDesc.RenderTarget[0].LogicOpEnable         = false;
         blendDesc.RenderTarget[0].SrcBlend              = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactor);
         blendDesc.RenderTarget[0].DestBlend             = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactor);
-        blendDesc.RenderTarget[0].BlendOp               = D3D12_BLEND_OP_ADD;
-        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactor);
-        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactor);
-        blendDesc.RenderTarget[0].BlendOpAlpha          = D3D12_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].BlendOp               = GetBlendOp((BlendEquation) context->m_PipelineState.m_BlendEquationColor);
+        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactorAlpha);
+        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactorAlpha);
+        blendDesc.RenderTarget[0].BlendOpAlpha          = GetBlendOp((BlendEquation) context->m_PipelineState.m_BlendEquationAlpha);
         blendDesc.RenderTarget[0].LogicOp               = D3D12_LOGIC_OP_NOOP;
         blendDesc.RenderTarget[0].RenderTargetWriteMask = context->m_PipelineState.m_WriteColorMask;
 
@@ -1977,7 +2284,7 @@ namespace dmGraphics
             psoDesc.SampleDesc.Quality                = 0;
         }
 
-        HRESULT hr = context->m_Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipeline));
+        HRESULT hr = context->m_Device->CreateGraphicsPipelineState(&psoDesc, DM_IID_PPV_ARGS(pipeline));
         CHECK_HR_ERROR(hr);
     }
 
@@ -2052,9 +2359,9 @@ namespace dmGraphics
 
             switch(pgm_res.m_Res->m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                case BINDING_FAMILY_TEXTURE:
                 {
-                    DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
+                    DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
 
                     if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                     {
@@ -2066,7 +2373,7 @@ namespace dmGraphics
                         frame_resources.m_ScratchBuffer.AllocateTexture2D(context, pipeline_type, texture, i);
 
                         // Transition all mipmaps into pixel read state
-                        for (int i = 0; i < texture->m_MipMapCount; ++i)
+                        for (int i = 0; i < texture->m_Base.m_MipMapCount; ++i)
                         {
                             if (texture->m_ResourceStates[i] != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
                             {
@@ -2076,17 +2383,50 @@ namespace dmGraphics
                         }
                     }
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                case BINDING_FAMILY_STORAGE_BUFFER:
                 {
                     assert(0);
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                    void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, i, uniform_size_nonalign);
-                    memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
+                    DX12UniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[dx12_res.m_Set][dx12_res.m_Binding];
+
+                    if (bound_ubo)
+                    {
+                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        {
+                            dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                pgm_res.m_Res->m_Name,
+                                pgm_layout->m_Hash);
+
+                            // Fallback to the scratch buffer uniform setup
+                            bound_ubo = 0;
+                        }
+                    }
+
+                    if (bound_ubo)
+                    {
+                        D3D12_GPU_VIRTUAL_ADDRESS gpu_addr = bound_ubo->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
+
+                        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+                        {
+                            context->m_CommandList->SetGraphicsRootConstantBufferView(i, gpu_addr);
+                        }
+                        else
+                        {
+                            context->m_CommandList->SetComputeRootConstantBufferView(i, gpu_addr);
+                        }
+                    }
+                    else
+                    {
+                        const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
+                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, i, uniform_size_nonalign);
+                        memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_UniformBufferOffset], uniform_size_nonalign);
+                    }
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                 default: continue;
             }
         }
@@ -2098,7 +2438,7 @@ namespace dmGraphics
 
         DX12FrameResource& frame_resources = context->m_FrameResources[context->m_CurrentFrameIndex];
 
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         D3D12_VERTEX_BUFFER_VIEW vx_buffer_views[MAX_VERTEX_BUFFERS];
         uint32_t num_vx_buffers = 0;
@@ -2107,8 +2447,12 @@ namespace dmGraphics
         {
             if (context->m_CurrentVertexBuffer[i] && context->m_CurrentVertexDeclaration[i])
             {
-                vx_buffer_views[num_vx_buffers].BufferLocation = context->m_CurrentVertexBuffer[i]->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
-                vx_buffer_views[num_vx_buffers].SizeInBytes    = context->m_CurrentVertexBuffer[i]->m_DeviceBuffer.m_DataSize;
+                DX12VertexBuffer* current_vb = context->m_CurrentVertexBuffer[i];
+                assert(current_vb->m_DeviceBuffer.m_Resource);
+                assert(current_vb->m_DeviceBuffer.m_DataSize > 0);
+
+                vx_buffer_views[num_vx_buffers].BufferLocation = current_vb->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
+                vx_buffer_views[num_vx_buffers].SizeInBytes    = current_vb->m_DeviceBuffer.m_DataSize;
                 vx_buffer_views[num_vx_buffers].StrideInBytes  = context->m_CurrentVertexDeclaration[i]->m_Stride;
                 num_vx_buffers++;
             }
@@ -2146,7 +2490,7 @@ namespace dmGraphics
             uint32_t data[] = { group_count_x, group_count_y, group_count_z };
             DX12ResourceBinding& workgroup_res = context->m_CurrentProgram->m_RootSignatureResources[context->m_CurrentProgram->m_NumWorkGroupsResourceIndex];
             ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[workgroup_res.m_Set][workgroup_res.m_Binding];
-            WriteConstantData(pgm_res.m_DataOffset, context->m_CurrentProgram->m_UniformData, (uint8_t*) data, sizeof(data));
+            WriteConstantData(pgm_res.m_UniformBufferOffset, context->m_CurrentProgram->m_UniformData, (uint8_t*) data, sizeof(data));
         }
 
         CommitUniforms(context, frame_resources, PIPELINE_TYPE_COMPUTE);
@@ -2226,7 +2570,7 @@ namespace dmGraphics
         for (int i = 0; i < texture_resources.Size(); ++i)
         {
             const ShaderResourceBinding& shader_res = texture_resources[i];
-            assert(shader_res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
+            assert(shader_res.m_BindingFamily == BINDING_FAMILY_TEXTURE);
 
             ProgramResourceBinding& shader_pgm_res = program->m_BaseProgram.m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
 
@@ -2270,144 +2614,68 @@ namespace dmGraphics
         BuildUniforms(&program->m_BaseProgram);
     }
 
-    static HRESULT CreateShaderModule(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader)
+static bool IsShaderCompiled(void* data, uint32_t data_size)
+{
+    const char* header = (const char*)data;
+    return data_size >= 4 &&
+        ((header[0] == 'D' && header[1] == 'X' && header[2] == 'B' && header[3] == 'C') ||
+         (header[0] == 'D' && header[1] == 'X' && header[2] == 'I' && header[3] == 'L'));
+}
+
+static HRESULT CreateShaderModuleFromBlob(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader)
+{
+    HashState64 shader_hash_state;
+    dmHashInit64(&shader_hash_state, false);
+    dmHashUpdateBuffer64(&shader_hash_state, data, data_size);
+    shader->m_Hash = dmHashFinal64(&shader_hash_state);
+
+    shader->m_ShaderBlob = 0;
+    shader->m_DataSize = data_size;
+    shader->m_Data = malloc(data_size);
+    memcpy(shader->m_Data, data, data_size);
+    return S_OK;
+}
+
+HRESULT CreateShaderModule(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader)
+{
+    if (IsShaderCompiled(data, data_size))
+        return CreateShaderModuleFromBlob(context, target, data, data_size, shader);
+    dmLogError("Shader was not compiled to DXBC");
+    return E_FAIL;
+}
+
+static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, ShaderDesc::Shader** shaders, uint32_t shader_count)
+{
+    uint32_t num_bindings = 0;
+
+    for (int i = 0; i < shader_count; ++i)
     {
-        ID3DBlob* error_blob;
-        uint32_t flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-
-        HRESULT hr = D3DCompile(data, data_size, NULL, NULL, NULL, "main", target, flags, 0, &shader->m_ShaderBlob, &error_blob);
-        if (FAILED(hr))
-        {
-            dmLogError("%s", error_blob->GetBufferPointer());
-            return hr;
-        }
-
-
-        hr = D3DGetBlobPart(shader->m_ShaderBlob->GetBufferPointer(), shader->m_ShaderBlob->GetBufferSize(), D3D_BLOB_ROOT_SIGNATURE, 0, &shader->m_RootSignatureBlob);
-        if (FAILED(hr))
-        {
-            // TODO: Extract reflection and generate root signature that way. There is no embedded root signature (which can happen when content has been built on non-windows platforms)
-        }
-
-        HashState64 shader_hash_state;
-        dmHashInit64(&shader_hash_state, false);
-        dmHashUpdateBuffer64(&shader_hash_state, data, data_size);
-        shader->m_Hash = dmHashFinal64(&shader_hash_state);
-
-        return S_OK;
+        num_bindings += shaders[i]->m_HlslResourceMapping.m_Count;
     }
 
-    static HRESULT ConcatenateRootSignatures(ID3DBlob* blob_a, ID3DBlob* blob_b, ID3DBlob** out_merged_blob)
+    program->m_RootSignatureResources.SetCapacity(num_bindings);
+    program->m_RootSignatureResources.SetSize(num_bindings);
+
+    uint32_t offset = 0;
+
+    for (int i = 0; i < shader_count; ++i)
     {
-        if (!blob_a || !blob_b || !out_merged_blob)
+        for (int j = 0; j < shaders[i]->m_HlslResourceMapping.m_Count; ++j)
         {
-            return E_INVALIDARG;
-        }
+            uint32_t index = offset + j;
+            program->m_RootSignatureResources[index].m_NameHash = shaders[i]->m_HlslResourceMapping[j].m_NameHash;
+            program->m_RootSignatureResources[index].m_Binding  = shaders[i]->m_HlslResourceMapping[j].m_Binding;
+            program->m_RootSignatureResources[index].m_Set      = shaders[i]->m_HlslResourceMapping[j].m_Set;
 
-        ID3D12RootSignatureDeserializer* deserializer_a = NULL;
-        ID3D12RootSignatureDeserializer* deserializer_b = NULL;
-
-        HRESULT hr = D3D12CreateRootSignatureDeserializer(blob_a->GetBufferPointer(), blob_a->GetBufferSize(), IID_PPV_ARGS(&deserializer_a));
-        if (FAILED(hr))
-        {
-            return hr;
-        }
-
-        hr = D3D12CreateRootSignatureDeserializer(blob_b->GetBufferPointer(), blob_b->GetBufferSize(), IID_PPV_ARGS(&deserializer_b));
-        if (FAILED(hr))
-        {
-            deserializer_a->Release();
-            return hr;
-        }
-
-        const D3D12_ROOT_SIGNATURE_DESC* desc_a = deserializer_a->GetRootSignatureDesc();
-        const D3D12_ROOT_SIGNATURE_DESC* desc_b = deserializer_b->GetRootSignatureDesc();
-
-        // Allocate combined arrays
-        UINT total_params = desc_a->NumParameters + desc_b->NumParameters;
-        UINT total_samplers = desc_a->NumStaticSamplers + desc_b->NumStaticSamplers;
-
-        D3D12_ROOT_PARAMETER* root_params = (D3D12_ROOT_PARAMETER*) calloc(total_params, sizeof(D3D12_ROOT_PARAMETER));
-        D3D12_STATIC_SAMPLER_DESC* static_samplers = NULL;
-        
-        if (total_samplers > 0)
-        {
-            static_samplers = (D3D12_STATIC_SAMPLER_DESC*) calloc(total_samplers, sizeof(D3D12_STATIC_SAMPLER_DESC));
-        }
-
-        // Copy root parameters
-        memcpy(root_params, desc_a->pParameters, sizeof(D3D12_ROOT_PARAMETER) * desc_a->NumParameters);
-        memcpy(root_params + desc_a->NumParameters, desc_b->pParameters, sizeof(D3D12_ROOT_PARAMETER) * desc_b->NumParameters);
-
-        // Copy static samplers if any
-        if (static_samplers)
-        {
-            memcpy(static_samplers, desc_a->pStaticSamplers, sizeof(D3D12_STATIC_SAMPLER_DESC) * desc_a->NumStaticSamplers);
-            memcpy(static_samplers + desc_a->NumStaticSamplers, desc_b->pStaticSamplers, sizeof(D3D12_STATIC_SAMPLER_DESC) * desc_b->NumStaticSamplers);
-        }
-
-        D3D12_ROOT_SIGNATURE_DESC merged_desc;
-        merged_desc.NumParameters     = total_params;
-        merged_desc.pParameters       = root_params;
-        merged_desc.NumStaticSamplers = total_samplers;
-        merged_desc.pStaticSamplers   = static_samplers;
-        merged_desc.Flags             = desc_a->Flags | desc_b->Flags | D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
-        ID3DBlob* error_blob = NULL;
-        hr = D3D12SerializeRootSignature(&merged_desc, D3D_ROOT_SIGNATURE_VERSION_1, out_merged_blob, &error_blob);
-        if (FAILED(hr))
-        {
-            if (error_blob)
+            if (program->m_RootSignatureResources[index].m_NameHash == HASH_SPIRV_Cross_NumWorkgroups)
             {
-                dmLogError("%s", error_blob->GetBufferPointer());
-                error_blob->Release();
+                program->m_NumWorkGroupsResourceIndex = index;
             }
         }
 
-        // Cleanup
-        deserializer_a->Release();
-        deserializer_b->Release();
-        free(root_params);
-        if (static_samplers)
-        {
-            free(static_samplers);
-        }
-
-        return hr;
+        offset += shaders[i]->m_HlslResourceMapping.m_Count;
     }
-
-    static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, ShaderDesc::Shader** shaders, uint32_t shader_count)
-    {
-        uint32_t num_bindings = 0;
-
-        for (int i = 0; i < shader_count; ++i)
-        {
-            num_bindings += shaders[i]->m_HlslResourceMapping.m_Count;
-        }
-
-        program->m_RootSignatureResources.SetCapacity(num_bindings);
-        program->m_RootSignatureResources.SetSize(num_bindings);
-
-        uint32_t offset = 0;
-
-        for (int i = 0; i < shader_count; ++i)
-        {
-            for (int j = 0; j < shaders[i]->m_HlslResourceMapping.m_Count; ++j)
-            {
-                uint32_t index = offset + j;
-                program->m_RootSignatureResources[index].m_NameHash = shaders[i]->m_HlslResourceMapping[j].m_NameHash;
-                program->m_RootSignatureResources[index].m_Binding  = shaders[i]->m_HlslResourceMapping[j].m_Binding;
-                program->m_RootSignatureResources[index].m_Set      = shaders[i]->m_HlslResourceMapping[j].m_Set;
-
-                if (program->m_RootSignatureResources[index].m_NameHash == HASH_SPIRV_Cross_NumWorkgroups)
-                {
-                    program->m_NumWorkGroupsResourceIndex = index;
-                }
-            }
-
-            offset += shaders[i]->m_HlslResourceMapping.m_Count;
-        }
-    }
+}
 
     static HProgram DX12NewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
@@ -2442,7 +2710,8 @@ namespace dmGraphics
             CreateRootSignatureResourceBindings(program, &ddf_cp, 1);
 
             // Extract the embedded root signature blob
-            hr = context->m_Device->CreateRootSignature(0, program->m_ComputeModule->m_ShaderBlob->GetBufferPointer(), program->m_ComputeModule->m_ShaderBlob->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
+            hr = context->m_Device->CreateRootSignature(0, program->m_ComputeModule->m_Data, program->m_ComputeModule->m_DataSize, DM_IID_PPV_ARGS(&program->m_RootSignature));
+            //hr = context->m_Device->CreateRootSignature(0, ddf_cp->m_HLSLRootSignature.m_Data, ddf_cp->m_HLSLRootSignature.m_Count, DM_IID_PPV_ARGS(&program->m_RootSignature));
             CHECK_HR_ERROR(hr);
 
             // Create the hash
@@ -2466,13 +2735,7 @@ namespace dmGraphics
             ShaderDesc::Shader* shaders[] = { ddf_vp, ddf_fp };
             CreateRootSignatureResourceBindings(program, shaders, 2);
 
-            ID3DBlob* merged_signature_blob = 0;
-
-            // We can only use a single root signature, so we have to concat them (TODO: can we do this offline?)
-            hr = ConcatenateRootSignatures(program->m_VertexModule->m_RootSignatureBlob, program->m_FragmentModule->m_RootSignatureBlob, &merged_signature_blob);
-            CHECK_HR_ERROR(hr);
-
-            hr = context->m_Device->CreateRootSignature(0, merged_signature_blob->GetBufferPointer(), merged_signature_blob->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
+            hr = context->m_Device->CreateRootSignature(0, ddf->m_HlslRootSignature.m_Data, ddf->m_HlslRootSignature.m_Count, DM_IID_PPV_ARGS(&program->m_RootSignature));
             CHECK_HR_ERROR(hr);
 
             // Create the hash
@@ -2490,8 +2753,41 @@ namespace dmGraphics
         return (HProgram) program;
     }
 
-    static void DX12DeleteProgram(HContext context, HProgram program)
+    static void DX12DeleteProgram(HContext context, HProgram _program)
     {
+        DX12ShaderProgram* program = (DX12ShaderProgram*)_program;
+        if (program->m_VertexModule)
+        {
+            if (program->m_VertexModule->m_ShaderBlob == 0)
+                free(program->m_VertexModule->m_Data);
+            delete program->m_VertexModule;
+            program->m_VertexModule = 0;
+        }
+        if (program->m_FragmentModule)
+        {
+            if (program->m_FragmentModule->m_ShaderBlob == 0)
+                free(program->m_FragmentModule->m_Data);
+            delete program->m_FragmentModule;
+            program->m_FragmentModule = 0;
+        }
+        if (program->m_ComputeModule)
+        {
+            if (program->m_ComputeModule->m_ShaderBlob == 0)
+                free(program->m_ComputeModule->m_Data);
+            delete program->m_ComputeModule;
+            program->m_ComputeModule = 0;
+        }
+        if (program->m_RootSignature)
+        {
+            program->m_RootSignature->Release();
+            program->m_RootSignature = 0;
+        }
+        if (program->m_UniformData)
+        {
+            delete[] program->m_UniformData;
+            program->m_UniformData = 0;
+        }
+        delete program;
     }
 
     static bool DX12IsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
@@ -2569,7 +2865,7 @@ namespace dmGraphics
 
         ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
+        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
@@ -2587,7 +2883,7 @@ namespace dmGraphics
 
         ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
+        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
      }
 
@@ -2634,7 +2930,7 @@ namespace dmGraphics
             {
                 TextureParams& color_buffer_params = rt->m_ColorTextureParams[i];
                 HTexture new_texture_color_handle  = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
-                DX12Texture* new_texture_color     = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, new_texture_color_handle);
+                DX12Texture* new_texture_color     = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_handle);
 
                 color_attachments[color_attachment_count] = new_texture_color;
                 rt->m_TextureColor[color_attachment_count] = new_texture_color_handle;
@@ -2667,7 +2963,7 @@ namespace dmGraphics
                     &texture_desc,
                     D3D12_RESOURCE_STATE_COMMON,
                     &clear_value,
-                    IID_PPV_ARGS(&new_texture_color->m_Resource)
+                    DM_IID_PPV_ARGS(&new_texture_color->m_Resource)
                 );
                 CHECK_HR_ERROR(hr);
 
@@ -2691,7 +2987,7 @@ namespace dmGraphics
             rt_view_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
             rt_view_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
-            hr = context->m_Device->CreateDescriptorHeap(&rt_view_heap_desc, IID_PPV_ARGS(&rt->m_ColorAttachmentDescriptorHeap));
+            hr = context->m_Device->CreateDescriptorHeap(&rt_view_heap_desc, DM_IID_PPV_ARGS(&rt->m_ColorAttachmentDescriptorHeap));
             CHECK_HR_ERROR(hr);
 
             D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = rt->m_ColorAttachmentDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -2706,11 +3002,10 @@ namespace dmGraphics
 
         if (has_depth_stencil)
         {
-
             const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
 
             HTexture texture_depth_stencil         = NewTexture(_context, stencil_depth_create_params);
-            DX12Texture* texture_depth_stencil_ptr = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, texture_depth_stencil);
+            DX12Texture* texture_depth_stencil_ptr = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, texture_depth_stencil);
 
             DXGI_FORMAT ds_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
@@ -2742,9 +3037,10 @@ namespace dmGraphics
                 &ds_desc,
                 D3D12_RESOURCE_STATE_DEPTH_WRITE, // Initial state
                 &clear_value,
-                IID_PPV_ARGS(&texture_depth_stencil_ptr->m_Resource)
+                DM_IID_PPV_ARGS(&texture_depth_stencil_ptr->m_Resource)
             );
             CHECK_HR_ERROR(hr);
+            texture_depth_stencil_ptr->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 
             // Create DSV descriptor heap
             D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc = {};
@@ -2752,7 +3048,7 @@ namespace dmGraphics
             dsv_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
             dsv_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
-            hr = context->m_Device->CreateDescriptorHeap(&dsv_heap_desc, IID_PPV_ARGS(&rt->m_DepthStencilDescriptorHeap));
+            hr = context->m_Device->CreateDescriptorHeap(&dsv_heap_desc, DM_IID_PPV_ARGS(&rt->m_DepthStencilDescriptorHeap));
             CHECK_HR_ERROR(hr);
 
             D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
@@ -2763,11 +3059,43 @@ namespace dmGraphics
             context->m_Device->CreateDepthStencilView(texture_depth_stencil_ptr->m_Resource, &dsv_desc, rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
         }
 
-        return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+        return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
     static void DX12DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
+        DX12Context* ctx = (DX12Context*)context;
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(ctx->m_BaseContext.m_AssetHandleContainer, render_target);
+        if (!rt)
+            return;
+
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
+        {
+            if (rt->m_TextureColor[i])
+            {
+                DX12DeleteTexture(context, rt->m_TextureColor[i]);
+                rt->m_TextureColor[i] = 0;
+            }
+        }
+        if (rt->m_TextureDepthStencil)
+        {
+            DX12DeleteTexture(context, rt->m_TextureDepthStencil);
+            rt->m_TextureDepthStencil = 0;
+        }
+
+        if (rt->m_ColorAttachmentDescriptorHeap)
+        {
+            rt->m_ColorAttachmentDescriptorHeap->Release();
+            rt->m_ColorAttachmentDescriptorHeap = 0;
+        }
+        if (rt->m_DepthStencilDescriptorHeap)
+        {
+            rt->m_DepthStencilDescriptorHeap->Release();
+            rt->m_DepthStencilDescriptorHeap = 0;
+        }
+
+        ctx->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        delete rt;
     }
 
     static void DX12SetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
@@ -2780,7 +3108,7 @@ namespace dmGraphics
 
     static HTexture DX12GetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
     {
-        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_AssetHandleContainer, render_target);
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         if (IsColorBufferType(buffer_type))
         {
@@ -2795,7 +3123,7 @@ namespace dmGraphics
 
     static void DX12GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_AssetHandleContainer, render_target);
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
 
         if (IsColorBufferType(buffer_type))
@@ -2819,17 +3147,18 @@ namespace dmGraphics
 
     static void DX12SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
+        dmLogOnceError("%s: Not implemented", __FUNCTION__);
     }
 
     static bool DX12IsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         DX12Context* context = (DX12Context*) _context;
-        return (context->m_TextureFormatSupport & (1 << format)) != 0;
+        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
     }
 
     static uint32_t DX12GetMaxTextureSize(HContext context)
     {
-        return 1024;
+        return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION; //=16384
     }
 
     static HTexture DX12NewTexture(HContext _context, const TextureCreationParams& params)
@@ -2838,33 +3167,41 @@ namespace dmGraphics
         DX12Texture* tex = new DX12Texture;
         memset(tex, 0, sizeof(DX12Texture));
 
-        tex->m_Type        = params.m_Type;
-        tex->m_Width       = params.m_Width;
-        tex->m_Height      = params.m_Height;
-        tex->m_Depth       = dmMath::Max((uint16_t)1, params.m_Depth);
+        tex->m_Base.m_Type        = params.m_Type;
+        tex->m_Base.m_Width       = params.m_Width;
+        tex->m_Base.m_Height      = params.m_Height;
+        tex->m_Base.m_Depth       = dmMath::Max((uint16_t)1, params.m_Depth);
         tex->m_LayerCount  = dmMath::Max((uint16_t)1, (uint16_t) params.m_LayerCount);
-        tex->m_MipMapCount = params.m_MipMapCount;
-        tex->m_PageCount   = params.m_LayerCount;
-
-        // tex->m_UsageFlags  = GetVulkanUsageFromHints(params.m_UsageHintBits);
+        tex->m_Base.m_MipMapCount = params.m_MipMapCount;
+        tex->m_Base.m_PageCount   = params.m_LayerCount;
+        tex->m_Base.m_NumTextureIds   = 1;
+        tex->m_Base.m_UsageHintFlags    = params.m_UsageHintBits;
 
         if (params.m_OriginalWidth == 0)
         {
-            tex->m_OriginalWidth  = params.m_Width;
-            tex->m_OriginalHeight = params.m_Height;
-            tex->m_OriginalDepth  = params.m_Depth;
+            tex->m_Base.m_OriginalWidth  = params.m_Width;
+            tex->m_Base.m_OriginalHeight = params.m_Height;
+            tex->m_Base.m_OriginalDepth  = params.m_Depth;
         }
         else
         {
-            tex->m_OriginalWidth  = params.m_OriginalWidth;
-            tex->m_OriginalHeight = params.m_OriginalHeight;
-            tex->m_OriginalDepth  = params.m_OriginalDepth;
+            tex->m_Base.m_OriginalWidth  = params.m_OriginalWidth;
+            tex->m_Base.m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_Base.m_OriginalDepth  = params.m_OriginalDepth;
         }
-        return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
+        return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static void DX12DeleteTexture(HContext context, HTexture texture)
     {
+        DX12Context* ctx = (DX12Context*)context;
+        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(ctx->m_BaseContext.m_AssetHandleContainer, texture);
+        if (!tex)
+            return;
+
+        DestroyTextureResourceDeferred(ctx, tex);
+        ctx->m_BaseContext.m_AssetHandleContainer.Release(texture);
+        delete tex;
     }
 
     static HandleResult DX12GetTextureHandle(HTexture texture, void** out_handle)
@@ -2876,9 +3213,9 @@ namespace dmGraphics
     static int16_t GetTextureSamplerIndex(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         if (minfilter == TEXTURE_FILTER_DEFAULT)
-            minfilter = context->m_DefaultTextureMinFilter;
+            minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
         if (magfilter == TEXTURE_FILTER_DEFAULT)
-            magfilter = context->m_DefaultTextureMagFilter;
+            magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
 
         for (uint32_t i=0; i < context->m_TextureSamplers.Size(); i++)
         {
@@ -2899,7 +3236,7 @@ namespace dmGraphics
 
     static inline float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
     {
-        return dmMath::Min(max_anisotropy_requested, 32.0f); // TODO: What's the max limit here?
+        return dmMath::Min(max_anisotropy_requested, (float)D3D12_REQ_MAXANISOTROPY); // D3D12_REQ_MAXANISOTROPY=16
     }
 
     static inline D3D12_FILTER GetSamplerFilter(TextureFilter minfilter, TextureFilter magfilter)
@@ -2957,7 +3294,7 @@ namespace dmGraphics
         return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     }
 
-    static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
+    int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         DX12TextureSampler new_sampler  = {};
         new_sampler.m_MinFilter     = minfilter;
@@ -3003,13 +3340,13 @@ namespace dmGraphics
             sampler.m_MagFilter     != magfilter              ||
             sampler.m_AddressModeU  != uwrap                  ||
             sampler.m_AddressModeV  != vwrap                  ||
-            sampler.m_MaxLod        != texture->m_MipMapCount ||
+            sampler.m_MaxLod        != texture->m_Base.m_MipMapCount ||
             sampler.m_MaxAnisotropy != anisotropy_clamped)
         {
-            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
+            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
+                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             }
             texture->m_TextureSamplerIndex = sampler_index;
         }
@@ -3017,7 +3354,7 @@ namespace dmGraphics
 
     static void DX12SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture);
+        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
         DX12SetTextureParamsInternal(g_DX12Context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
@@ -3033,7 +3370,7 @@ namespace dmGraphics
             default:break;
         }
 
-        DX12Texture* tex             = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture);
+        DX12Texture* tex             = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
         TextureFormat format_orig    = params.m_Format;
         TextureFormat format_actual  = params.m_Format;
         void* tex_data_ptr           = (void*) params.m_Data;
@@ -3041,12 +3378,12 @@ namespace dmGraphics
         uint32_t tex_data_size       = params.m_DataSize;
         DXGI_FORMAT dxgi_format      = GetDXGIFormatFromTextureFormat(format_orig);
 
-        if (tex->m_MipMapCount == 1 && params.m_MipMap > 0)
+        if (tex->m_Base.m_MipMapCount == 1 && params.m_MipMap > 0)
         {
             return;
         }
 
-        tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+        tex->m_Base.m_MipMapCount = (uint8_t) dmMath::Max((uint16_t)tex->m_Base.m_MipMapCount, (uint16_t)(params.m_MipMap + 1));
 
         // Note: There's no 8 bit RGB format, we have to expand this to four channels
         // TODO: Can we use R11G11B10 somehow?
@@ -3071,7 +3408,7 @@ namespace dmGraphics
             desc.Height              = params.m_Height;
             desc.Flags               = D3D12_RESOURCE_FLAG_NONE;
             desc.DepthOrArraySize    = depth_or_array_size;
-            desc.MipLevels           = tex->m_MipMapCount;
+            desc.MipLevels           = tex->m_Base.m_MipMapCount;
             desc.SampleDesc.Count    = 1;
             desc.SampleDesc.Quality  = 0;
             desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -3080,10 +3417,10 @@ namespace dmGraphics
 
             CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_DEFAULT);
 
-            HRESULT hr = g_DX12Context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, IID_PPV_ARGS(&tex->m_Resource));
+            HRESULT hr = g_DX12Context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, DM_IID_PPV_ARGS(&tex->m_Resource));
             CHECK_HR_ERROR(hr);
 
-            for (int i = 0; i < tex->m_MipMapCount; ++i)
+            for (int i = 0; i < tex->m_Base.m_MipMapCount; ++i)
             {
                 tex->m_ResourceStates[i] = D3D12_RESOURCE_STATE_COPY_DEST;
             }
@@ -3092,6 +3429,8 @@ namespace dmGraphics
         }
 
         TextureBufferUploadHelper(g_DX12Context, tex, format_actual, format_actual, params, (uint8_t*) tex_data_ptr);
+
+        tex->m_Base.m_Format = format_actual;
 
         DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
@@ -3104,26 +3443,6 @@ namespace dmGraphics
     static uint32_t DX12GetTextureResourceSize(HContext context, HTexture texture)
     {
         return 0;
-    }
-
-    static uint16_t DX12GetTextureWidth(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Width;
-    }
-
-    static uint16_t DX12GetTextureHeight(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Height;
-    }
-
-    static uint16_t DX12GetOriginalTextureWidth(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_OriginalWidth;
-    }
-
-    static uint16_t DX12GetOriginalTextureHeight(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
     static void DX12EnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
@@ -3174,8 +3493,26 @@ namespace dmGraphics
 
     static void DX12SetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
-        g_DX12Context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        g_DX12Context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        g_DX12Context->m_PipelineState.m_BlendSrcFactor      = source_factor;
+        g_DX12Context->m_PipelineState.m_BlendDstFactor      = destinaton_factor;
+        g_DX12Context->m_PipelineState.m_BlendSrcFactorAlpha = source_factor;
+        g_DX12Context->m_PipelineState.m_BlendDstFactorAlpha = destinaton_factor;
+        g_DX12Context->m_PipelineState.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        g_DX12Context->m_PipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void DX12SetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        g_DX12Context->m_PipelineState.m_BlendSrcFactor      = src_factor_color;
+        g_DX12Context->m_PipelineState.m_BlendDstFactor      = dst_factor_color;
+        g_DX12Context->m_PipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
+        g_DX12Context->m_PipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void DX12SetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        g_DX12Context->m_PipelineState.m_BlendEquationColor  = equation_color;
+        g_DX12Context->m_PipelineState.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void DX12SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
@@ -3286,33 +3623,17 @@ namespace dmGraphics
         }
     }
 
-    static uint32_t DX12GetTextureStatusFlags(HContext context, HTexture texture)
-    {
-        return TEXTURE_STATUS_OK;
-    }
-
     static bool DX12IsExtensionSupported(HContext context, const char* extension)
     {
         return true;
-    }
-
-    static TextureType DX12GetTextureType(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Type;
-    }
-
-    static uint32_t DX12GetTextureUsageHintFlags(HContext context, HTexture texture)
-    {
-        return 0;
-        // return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_UsageHintFlags;
     }
 
     static uint8_t DX12GetTexturePageCount(HTexture texture)
     {
         // TODO: mutex is missed?
         // ScopedLock lock(g_DX12Context->m_AssetHandleContainerMutex);
-        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_PageCount : 0;
+        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
+        return tex ? tex->m_Base.m_PageCount : 0;
 
     }
 
@@ -3326,24 +3647,9 @@ namespace dmGraphics
         return "";
     }
 
-    static uint8_t DX12GetNumTextureHandles(HContext context, HTexture texture)
-    {
-        return 1;
-    }
-
     static bool DX12IsContextFeatureSupported(HContext context, ContextFeature feature)
     {
         return true;
-    }
-
-    static uint16_t DX12GetTextureDepth(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Depth;
-    }
-
-    static uint8_t DX12GetTextureMipmapCount(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_MipMapCount;
     }
 
     static bool DX12IsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
@@ -3357,11 +3663,11 @@ namespace dmGraphics
         AssetType type       = GetAssetType(asset_handle);
         if (type == ASSET_TYPE_TEXTURE)
         {
-            return GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         else if (type == ASSET_TYPE_RENDER_TARGET)
         {
-            return GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
     }

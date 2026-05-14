@@ -175,7 +175,7 @@
               []))))
 
 (defn- unproject [camera viewport x y]
-  (let [p (c/camera-unproject camera viewport x y 0)]
+  (let [p (c/camera-unproject camera viewport (Point3d. x y 0.0))]
     [(.x p) (.y p)]))
 
 (defn- num-format [vals]

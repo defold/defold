@@ -99,7 +99,6 @@ def get_files(archive_path, bucket, sha1):
     files.extend(find_files_in_bucket(archive_path, bucket, sha1, "alpha", '.*(/Defold-.*)$'))
     files.extend(find_files_in_bucket(archive_path, bucket, sha1, "beta", '.*(/Defold-.*)$'))
     files.extend(find_files_in_bucket(archive_path, bucket, sha1, "stable", '.*(/Defold-.*)$'))
-    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "editor-alpha", '.*(/Defold-.*)$'))
     return files
 
 def get_tagged_releases(archive_path, pattern=None, num_releases=10):

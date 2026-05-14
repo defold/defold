@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-/*# SDK Crypt API documentation
+/*# Crypt API documentation
  *
  * Various hash and encode/decode functions.
  *

@@ -47,6 +47,7 @@
             [util.http-server :as http-server])
   (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.io BufferedReader IOException]
+           [java.util.concurrent ArrayBlockingQueue]
            [java.util.regex MatchResult]
            [javafx.beans.property SimpleStringProperty]
            [javafx.scene Node Parent Scene]
@@ -59,8 +60,6 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(defonce ^:const url-prefix "/console")
 
 (def ^:const console-filters-prefs-key [:console :filters])
 (def ^:const console-filtering-key [:console :filtering])
@@ -75,7 +74,7 @@
   ;; by resetting the :index to 0, marking the view to :clear while keeping the
   ;; :entries. Hence, from the point of view of the console view, there is no
   ;; such thing as filters, only clearing the output.
-  (atom {:clear false :entries [] :index 0 :filter-set #{} :entry-pred nil}))
+  (atom {:clear false :entries [] :index 0 :filter-set #{} :entry-pred nil :stream-subscribers #{}}))
 
 (def ^:private gutter-bubble-font
   (Font. "Source Sans Pro", 10.5))
@@ -89,14 +88,17 @@
   [type line]
   (assert (or (nil? type) (keyword? type)))
   (assert (string? line))
-  (swap! pending-atom update :entries conj [type line]))
+  (let [message (str line \newline)
+        subscribers (:stream-subscribers (swap! pending-atom update :entries conj [type line]))]
+    (run! #(% message) subscribers)))
 
 (def append-console-line! (partial append-console-entry! nil))
 
 (defn clear-console!
   "Clear the console. Callable from a background thread."
   []
-  (swap! pending-atom assoc :clear true :entries [] :index 0))
+  (let [subscribers (:stream-subscribers (swap! pending-atom assoc :clear true :entries [] :index 0))]
+    (run! #(% "\n") subscribers)))
 
 (def ^:private remote-log-pump-thread (atom nil))
 (def ^:private console-stream (atom nil))
@@ -138,7 +140,8 @@
 
 (defn set-log-service-stream [log-stream]
   (reset-console-stream! log-stream)
-  (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream))))
+  (reset-remote-log-pump-thread! (when log-stream
+                                   (start-log-pump! log-stream (make-remote-log-sink log-stream)))))
 
 (defn pipe-log-stream-to-console! [input-stream]
   (reset-console-stream! input-stream)
@@ -527,7 +530,7 @@
   (gutter-metrics [_this _lines _regions _glyph-metrics]
     (gutter-metrics))
 
-  (draw-gutter! [_this gc gutter-rect layout _hovered-ui-element font color-scheme lines regions _visible-cursors _hovered-row]
+  (draw-gutter! [_this gc gutter-rect layout _hovered-element font color-scheme lines regions _visible-cursor-ranges _focus-state]
     (draw-gutter! gc gutter-rect layout font color-scheme lines regions)))
 
 (defn- setup-view! [console-node view-node]
@@ -656,25 +659,26 @@
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
   (let [{:keys [clear entries]} (dequeue-pending! 1024)]
     (when (or clear (seq entries))
-      (g/with-auto-evaluation-context evaluation-context
-        (let [resource-map (g/node-value workspace :resource-map evaluation-context)
-              ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
-              prev-lines (g/node-value view-node :lines evaluation-context)
-              prev-regions (g/node-value view-node :regions evaluation-context)
-              prev-document-width (if clear 0.0 (.document-width prev-layout))
-              appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
-              document-width (max prev-document-width ^double appended-width)
-              was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
-              resource-suffix-map-delay (make-resource-suffix-map-delay resource-map)
-              props (append-entries {:lines (if clear [""] prev-lines)
-                                     :regions (if clear [] prev-regions)}
-                                    entries resource-map resource-suffix-map-delay on-region-click!)]
-          (view/set-properties! view-node nil
-                                (cond-> (assoc props :document-width document-width)
-                                        was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
-                                        clear (assoc :cursor-ranges [data/document-start-cursor-range])
-                                        clear (assoc :invalidated-row 0)
-                                        clear (data/frame-cursor prev-layout)))))))
+      (g/let-ec [basis (:basis evaluation-context)
+                 resource-map (g/raw-property-value basis workspace :resource-map)
+                 ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
+                 prev-lines (g/node-value view-node :lines evaluation-context)
+                 prev-regions (g/node-value view-node :regions evaluation-context)
+                 prev-document-width (if clear 0.0 (.document-width prev-layout))
+                 appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
+                 document-width (max prev-document-width ^double appended-width)
+                 was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
+                 resource-suffix-map-delay (make-resource-suffix-map-delay resource-map)
+                 props (append-entries {:lines (if clear [""] prev-lines)
+                                        :regions (if clear [] prev-regions)}
+                                       entries resource-map resource-suffix-map-delay on-region-click!)]
+        (view/set-properties!
+          view-node nil
+          (cond-> (assoc props :document-width document-width)
+                  was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
+                  clear (assoc :cursor-ranges [data/document-start-cursor-range])
+                  clear (assoc :invalidated-row 0)
+                  clear (data/frame-cursor prev-layout))))))
   (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
 
 (def ^:private console-grammar
@@ -746,7 +750,7 @@
                                                                    {:cursor-range (data/Cursor->CursorRange (data/->Cursor row 0))})]
                                                         (open-resource-fn resource opts))))
                                    resource-candidates (into []
-                                                             (comp (keep (partial workspace/find-resource workspace))
+                                                             (comp (keep (partial workspace/find-resource (g/now) workspace))
                                                                    (filter openable-resource?))
                                                              (:proj-path-candidates region))]
                                (case (count resource-candidates)
@@ -803,8 +807,74 @@
     (ui/timer-start! repainter)
     view-node))
 
+(defn- stream-console-response []
+  (http-server/response
+    200
+    {"content-type" "text/plain; charset=utf-8"}
+    (reify
+      http-server/ConnectionWrite
+      (connection-write! [_ output-stream]
+        (let [writer (io/writer output-stream :encoding "UTF-8")
+              queue (ArrayBlockingQueue. 1024)
+              subscriber #(.offer queue %)
+              entries (:entries (swap! pending-atom update :stream-subscribers conj subscriber))]
+          (try
+            (when-not (coll/empty? entries)
+              (run! (fn [[_ line]]
+                      (.write writer ^String line)
+                      (.write writer "\n"))
+                    entries)
+              (.flush writer))
+            (loop []
+              (do
+                (.write writer ^String (.take queue))
+                (.flush writer)
+                (recur)))
+            ;; Suppress warning logs on disconnect:
+            (catch IOException _)
+            (finally
+              (swap! pending-atom update :stream-subscribers disj subscriber))))))))
+
 (defn routes [console-view]
   (let [console-node (g/node-value console-view :resource-node)]
     (assert (g/node-instance? ConsoleNode console-node))
-    {"/console" {"GET" (bound-fn [_]
-                         (g/node-value console-node :request-response))}}))
+    {"/console"
+     {"GET" (with-meta
+              (bound-fn [_]
+                (g/node-value console-node :request-response))
+              {:openapi
+               {:summary "Read console output"
+                :responses
+                {"200"
+                 {:description "Console lines and regions"
+                  :content
+                  {"application/json"
+                   {:schema
+                    {:type "object"
+                     :required ["lines" "regions"]
+                     :properties
+                     {:lines {:type "array"
+                              :items {:type "string"}}
+                      :regions {:type "array"
+                                :items {:type "object"
+                                        :required ["from" "to" "type"]
+                                        :properties
+                                        {:from {:type "object"
+                                                :required ["row" "col"]
+                                                :properties {:row {:type "integer"}
+                                                             :col {:type "integer"}}}
+                                         :to {:type "object"
+                                              :required ["row" "col"]
+                                              :properties {:row {:type "integer"}
+                                                           :col {:type "integer"}}}
+                                         :type {:type "string"
+                                                :description "Region type, e.g. extension-output, extension-error, resource-reference, repeat, eval-expression, eval-result, or eval-error."}}}}}}}}}}}})}
+     "/console/stream"
+     {"GET" (with-meta
+              (bound-fn [_]
+                (stream-console-response))
+              {:openapi
+               {:summary "Stream console output, use with, e.g., `curl -N`"
+                :responses
+                {"200"
+                 {:description "Chunked text stream; stays open indefinitely"}}}})}}))

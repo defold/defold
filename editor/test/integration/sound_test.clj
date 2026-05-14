@@ -58,4 +58,5 @@
       (is (not (g/error? (g/node-value valid-id :build-targets))))
       (let [error (first (keep :message (tree-seq :causes :causes (g/node-value invalid-id :build-targets))))]
         (is (some? error))
-        (is (string/includes? error "Invalid ogg file"))))))
+        (is (= (localization/message "error.sound.invalid-ogg-file-details" {"output" "irrelevant"})
+               (localization/vary-message-variables error assoc "output" "irrelevant")))))))

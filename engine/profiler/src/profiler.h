@@ -26,7 +26,7 @@ namespace dmRender
 
 namespace dmGraphics
 {
-    typedef void* HContext;
+    typedef struct GraphicsContext* HContext;
 } // dmGraphics
 
 namespace dmProfiler

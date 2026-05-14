@@ -325,11 +325,11 @@
 
             (or (.isArray class)
                 (instance? List object))
-            (coll/transfer object []
+            (coll/into-> object []
               (map #(inspect-impl % seen return-raw?)))
 
             (instance? Map object)
-            (coll/transfer
+            (coll/into->
               object
               (if (every? coll/comparable-value? (map key object))
                 coll/empty-sorted-map
@@ -339,14 +339,14 @@
 
             (instance? Set object)
             (array-map (keyword key-namespace "items")
-                       (coll/transfer object []
+                       (coll/into-> object []
                          (map (fn [value]
                                 (inspect-impl value seen return-raw?)))))
 
             :else
             (let [primary-map
                   (try
-                    (coll/transfer (bean object) coll/empty-sorted-map
+                    (coll/into-> (bean object) coll/empty-sorted-map
                       (keep (fn [[field-kw java-value]]
                               (when (not= :class field-kw)
                                 (let [field-name (name field-kw)
@@ -356,7 +356,7 @@
                     (catch Throwable _
                       nil))]
 
-              (coll/transfer
+              (coll/into->
                 (.getFields class)
                 (or primary-map coll/empty-sorted-map)
                 (keep (fn [^Field field]

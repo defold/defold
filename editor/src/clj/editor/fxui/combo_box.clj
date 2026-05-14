@@ -164,8 +164,9 @@
     view))
 
 (defn- impl
-  [{:keys [value on-value-changed items to-string state swap-state filter-prompt-text no-items-text not-found-text color]
+  [{:keys [value on-value-changed items to-string state swap-state show-on-focus filter-prompt-text no-items-text not-found-text color]
     :or {to-string str
+         show-on-focus false
          filter-prompt-text "Type to filter"
          no-items-text "No items available"
          not-found-text "No items found"}
@@ -173,12 +174,12 @@
   (let [{:keys [showing filter-text selected-item]} state]
     (-> props
         (dissoc :value :on-value-changed :items :to-string :state :swap-state
-                :filter-prompt-text :no-items-text :not-found-text)
+                :show-on-focus :filter-prompt-text :no-items-text :not-found-text)
         (assoc
           :fx/type fxui/horizontal
           :style-class "ext-combo-box"
           :pseudo-classes (if showing #{:showing} #{})
-          :on-focused-changed (fn [_] (swap-state hide))
+          :on-focused-changed #(swap-state (if (and show-on-focus %) show hide))
           :on-mouse-pressed #(handle-mouse-pressed swap-state %)
           :on-key-pressed #(handle-key-pressed showing swap-state %)
           :focus-traversable true
@@ -257,6 +258,7 @@
     :on-value-changed      callback that will receive a new value on change
     :items                 available items
     :to-string             a function that stringifies an item, default str
+    :show-on-focus         defaults to false, shows popup when focused
     :filter-prompt-text    defaults to \"Type to filter\"
     :no-items-text         defaults to \"No items available\"
     :not-found-text        defaults to \"No items found\"

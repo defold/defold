@@ -228,7 +228,7 @@
      :else
      (clojure.core/into to xform from))))
 
-(defmacro transfer
+(defmacro into->
   ([bit-set to]
    `(into ~to ~bit-set))
   ([bit-set to xform]

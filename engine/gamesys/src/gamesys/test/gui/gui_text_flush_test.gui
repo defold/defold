@@ -1,0 +1,215 @@
+script: "/gui/valid.gui_script"
+fonts {
+  name: "test_font"
+  font: "/font/valid_font.font"
+}
+textures {
+  name: "test_texture"
+  texture: "/texture/valid_png.png"
+}
+material: "/gui/gui.material"
+
+nodes {
+  position { x: 100.0  y: 400.0  z: 0.0  w: 1.0 }
+  rotation { x: 0.0  y: 0.0  z: 0.0  w: 1.0 }
+  scale { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  size { x: 80.0  y: 30.0  z: 0.0  w: 1.0 }
+  color { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_ALPHA
+  id: "text1"
+  font: "test_font"
+  text: "One"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  layer: ""
+  inherit_alpha: true
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_MANUAL
+}
+
+nodes {
+  position { x: 320.0  y: 360.0  z: 0.0  w: 1.0 }
+  rotation { x: 0.0  y: 0.0  z: 0.0  w: 1.0 }
+  scale { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  size { x: 50.0  y: 20.0  z: 0.0  w: 1.0 }
+  color { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ALPHA
+  texture: "test_texture"
+  id: "box1"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  adjust_mode: ADJUST_MODE_FIT
+  layer: ""
+  inherit_alpha: true
+  slice9 { x: 0.0  y: 0.0  z: 0.0  w: 0.0 }
+  clipping_mode: CLIPPING_MODE_NONE
+  clipping_visible: true
+  clipping_inverted: false
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_AUTO
+}
+
+nodes {
+  position { x: 200.0  y: 320.0  z: 0.0  w: 1.0 }
+  rotation { x: 0.0  y: 0.0  z: 0.0  w: 1.0 }
+  scale { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  size { x: 80.0  y: 30.0  z: 0.0  w: 1.0 }
+  color { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_ALPHA
+  id: "text2"
+  font: "test_font"
+  text: "Two"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  layer: ""
+  inherit_alpha: true
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_MANUAL
+}
+
+nodes {
+  position { x: 320.0  y: 280.0  z: 0.0  w: 1.0 }
+  rotation { x: 0.0  y: 0.0  z: 0.0  w: 1.0 }
+  scale { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  size { x: 50.0  y: 20.0  z: 0.0  w: 1.0 }
+  color { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ALPHA
+  texture: "test_texture"
+  id: "box2"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  adjust_mode: ADJUST_MODE_FIT
+  layer: ""
+  inherit_alpha: true
+  slice9 { x: 0.0  y: 0.0  z: 0.0  w: 0.0 }
+  clipping_mode: CLIPPING_MODE_NONE
+  clipping_visible: true
+  clipping_inverted: false
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_AUTO
+}
+
+nodes {
+  position { x: 300.0  y: 240.0  z: 0.0  w: 1.0 }
+  rotation { x: 0.0  y: 0.0  z: 0.0  w: 1.0 }
+  scale { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  size { x: 80.0  y: 30.0  z: 0.0  w: 1.0 }
+  color { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_ALPHA
+  id: "text3"
+  font: "test_font"
+  text: "Three"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  layer: ""
+  inherit_alpha: true
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_MANUAL
+}
+
+nodes {
+  position { x: 320.0  y: 200.0  z: 0.0  w: 1.0 }
+  rotation { x: 0.0  y: 0.0  z: 0.0  w: 1.0 }
+  scale { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  size { x: 50.0  y: 20.0  z: 0.0  w: 1.0 }
+  color { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ALPHA
+  texture: "test_texture"
+  id: "box3"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  adjust_mode: ADJUST_MODE_FIT
+  layer: ""
+  inherit_alpha: true
+  slice9 { x: 0.0  y: 0.0  z: 0.0  w: 0.0 }
+  clipping_mode: CLIPPING_MODE_NONE
+  clipping_visible: true
+  clipping_inverted: false
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_AUTO
+}
+
+nodes {
+  position { x: 400.0  y: 160.0  z: 0.0  w: 1.0 }
+  rotation { x: 0.0  y: 0.0  z: 0.0  w: 1.0 }
+  scale { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  size { x: 80.0  y: 30.0  z: 0.0  w: 1.0 }
+  color { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_ALPHA
+  id: "text4"
+  font: "test_font"
+  text: "Four"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  layer: ""
+  inherit_alpha: true
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_MANUAL
+}
+
+nodes {
+  position { x: 320.0  y: 120.0  z: 0.0  w: 1.0 }
+  rotation { x: 0.0  y: 0.0  z: 0.0  w: 1.0 }
+  scale { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  size { x: 50.0  y: 20.0  z: 0.0  w: 1.0 }
+  color { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ALPHA
+  texture: "test_texture"
+  id: "box4"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  adjust_mode: ADJUST_MODE_FIT
+  layer: ""
+  inherit_alpha: true
+  slice9 { x: 0.0  y: 0.0  z: 0.0  w: 0.0 }
+  clipping_mode: CLIPPING_MODE_NONE
+  clipping_visible: true
+  clipping_inverted: false
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_AUTO
+}
+
+nodes {
+  position { x: 500.0  y: 80.0  z: 0.0  w: 1.0 }
+  rotation { x: 0.0  y: 0.0  z: 0.0  w: 1.0 }
+  scale { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  size { x: 80.0  y: 30.0  z: 0.0  w: 1.0 }
+  color { x: 1.0  y: 1.0  z: 1.0  w: 1.0 }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_ALPHA
+  id: "text5"
+  font: "test_font"
+  text: "Five"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  layer: ""
+  inherit_alpha: true
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_MANUAL
+}

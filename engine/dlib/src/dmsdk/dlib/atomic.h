@@ -21,7 +21,7 @@
  *
  * @document
  * @name Atomic
- * @language C++
+ * @language C
  */
 
 // platform independent includes

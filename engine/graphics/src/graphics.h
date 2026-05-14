@@ -20,13 +20,13 @@
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dlib/opaque_handle_container.h>
 
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.h>
 
 namespace dmGraphics
 {
@@ -62,19 +62,17 @@ namespace dmGraphics
     // Decorated asset handle with 21 bits meta | 32 bits opaque handle
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
-    typedef uint64_t HAssetHandle;
+    typedef uint64_t                HAssetHandle;
+    typedef struct UniformBuffer*   HUniformBuffer; // Defined in graphics_private.h
+    typedef struct GraphicsAdapter* HGraphicsAdapter;
 
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
-    const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
 
     const static uint8_t DM_GRAPHICS_STATE_WRITE_R   = 0x1;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G   = 0x2;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_B   = 0x4;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_A   = 0x8;
-
-    static const HProgram         INVALID_PROGRAM_HANDLE   = ~0u;
-    static const HUniformLocation INVALID_UNIFORM_LOCATION = ~0ull;
 
     enum AdapterFamilyPriority
     {
@@ -106,6 +104,18 @@ namespace dmGraphics
         // ASTC for 2D array textures (paged atlases). Some WebGL/GLES drivers
         // fail array texture ASTC uploads while 2D ASTC works.
         CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
+        // GL_MIN/GL_MAX blend equations require GLES3+ or EXT_blend_minmax.
+        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
+        MAX_CONTEXT_FEATURE_COUNT              = 9,
+    };
+
+    // Binding family for shader resources in a program.
+    enum ShaderResourceBindingFamily
+    {
+        BINDING_FAMILY_GENERIC        = 0,
+        BINDING_FAMILY_UNIFORM_BUFFER = 1,
+        BINDING_FAMILY_STORAGE_BUFFER = 2,
+        BINDING_FAMILY_TEXTURE        = 3,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -115,26 +125,39 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
-    // Parameters structure for NewContext
-    struct ContextParams
+    struct GraphicsContextLimits
     {
-        ContextParams();
+        // Buffer limits — max bindable range, not the underlying buffer object size.
+        uint64_t    m_MaxUniformBufferRange;
+        uint64_t    m_MaxStorageBufferRange;
 
-        dmPlatform::HWindow   m_Window;
-        dmJobThread::HContext m_JobThread;
-        TextureFilter         m_DefaultTextureMinFilter;
-        TextureFilter         m_DefaultTextureMagFilter;
-        uint32_t              m_Width;
-        uint32_t              m_Height;
-        uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint32_t              m_SwapInterval;                   // Initial VSync setting (default 1)
-        uint8_t               m_VerifyGraphicsCalls : 1;
-        uint8_t               m_PrintDeviceInfo : 1;
-        uint8_t               m_RenderDocSupport : 1;           // Vulkan only
-        uint8_t               m_UseValidationLayers : 1;        // Vulkan only
-        uint8_t               : 4;
+        // Texture limits (max dimension in texels — APIs report a dim, not a count)
+        uint32_t    m_MaxTextureSize2D;
+        uint32_t    m_MaxTextureSize3D;
+        uint32_t    m_MaxTextureSizeCube;
+        uint32_t    m_MaxTextureArrayLayers;
+
+        // Framebuffer limits
+        uint32_t    m_MaxFramebufferWidth;
+        uint32_t    m_MaxFramebufferHeight;
+        uint32_t    m_MaxColorAttachments;
+
+        // Per-stage binding limits
+        uint32_t    m_MaxSamplersPerStage;
+        uint32_t    m_MaxTexturesPerStage;
+        uint32_t    m_MaxVertexAttributes;
+        uint32_t    m_MaxVertexBuffers;
+
+        // Compute limits
+        uint32_t    m_MaxComputeWorkgroupSizeX;
+        uint32_t    m_MaxComputeWorkgroupSizeY;
+        uint32_t    m_MaxComputeWorkgroupSizeZ;
+        uint32_t    m_MaxComputeWorkgroupInvocations;
+        uint32_t    m_MaxComputeSharedMemorySize;
     };
 
+    // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).
+    // Should be used over the protobuf type when possible.
     struct VertexAttributeInfo
     {
         dmhash_t                       m_NameHash;
@@ -145,6 +168,7 @@ namespace dmGraphics
         CoordinateSpace                m_CoordinateSpace;
         const uint8_t*                 m_ValuePtr;
         VertexAttribute::VectorType    m_ValueVectorType;
+        uint32_t                       m_ElementCount;  // Number of vector/matrix elements (e.g. 1 for a single vec4, 4 for array of 4 vec4s)
         bool                           m_Normalize;
     };
 
@@ -156,24 +180,25 @@ namespace dmGraphics
             m_StructSize = sizeof(*this);
         }
 
-        VertexAttributeInfo m_Infos[MAX_VERTEX_STREAM_COUNT];
-        uint32_t            m_VertexStride;
-        uint32_t            m_NumInfos;
-        uint32_t            m_StructSize;
+        const dmGraphics::VertexAttributeInfo* m_Infos;
+        uint32_t                               m_NumInfos;
+        uint32_t                               m_VertexStride;
+        uint32_t                               m_StructSize;
     };
 
     struct VertexAttributeInfoMetadata
     {
-        uint32_t m_HasAttributeWorldPosition : 1;
-        uint32_t m_HasAttributeLocalPosition : 1;
-        uint32_t m_HasAttributeNormal        : 1;
-        uint32_t m_HasAttributeTangent       : 1;
-        uint32_t m_HasAttributeColor         : 1;
-        uint32_t m_HasAttributeTexCoord      : 1;
-        uint32_t m_HasAttributePageIndex     : 1;
-        uint32_t m_HasAttributeWorldMatrix   : 1;
-        uint32_t m_HasAttributeNormalMatrix  : 1;
-        uint32_t m_HasAttributeNone          : 1;
+        uint32_t m_HasAttributeWorldPosition      : 1;
+        uint32_t m_HasAttributeLocalPosition      : 1;
+        uint32_t m_HasAttributeNormal             : 1;
+        uint32_t m_HasAttributeTangent            : 1;
+        uint32_t m_HasAttributeColor              : 1;
+        uint32_t m_HasAttributeTexCoord           : 1;
+        uint32_t m_HasAttributePageIndex          : 1;
+        uint32_t m_HasAttributeWorldMatrix        : 1;
+        uint32_t m_HasAttributeNormalMatrix       : 1;
+        uint32_t m_HasAttributeNone               : 1;
+        uint32_t m_HasAttributeTextureTransform2D : 1;
     };
 
     struct WriteAttributeStreamDesc
@@ -203,6 +228,7 @@ namespace dmGraphics
         WriteAttributeStreamDesc    m_Colors;
         WriteAttributeStreamDesc    m_TexCoords;
         WriteAttributeStreamDesc    m_PageIndices;
+        WriteAttributeStreamDesc    m_TextureTransform2D;
         VertexStepFunction          m_StepFunction;
     };
 
@@ -218,7 +244,7 @@ namespace dmGraphics
             bool     m_Normalize;
         };
 
-        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
+        Stream*            m_Streams;
         dmhash_t           m_PipelineHash; // Vulkan
         uint16_t           m_StreamCount;
         uint16_t           m_Stride;
@@ -236,34 +262,76 @@ namespace dmGraphics
         uint32_t         m_Count;
     };
 
-    /** Creates a graphics context
-     * Currently, there can only be one context active at a time.
-     * @return New graphics context
-     */
-    HContext NewContext(const ContextParams& params);
+    // The uniform buffer layout is used to validate a uniform buffer
+    // with a shader resource binding by comparing the hash of
+    // the layout of the resource binding (i.e a ProgramResourceBinding) with the buffer layout.
+    // If the buffer layout differs from the binding, it cannot be used.
+    struct UniformBufferLayout
+    {
+        uint32_t m_Size;
+        uint32_t m_Hash;
+    };
 
-    /**
-     * Destroy device
-     */
-    void DeleteContext(HContext context);
+    struct ShaderResourceType
+    {
+        union
+        {
+            ShaderDesc::ShaderDataType m_ShaderType;
+            uint32_t                   m_TypeIndex;
+        };
+        uint8_t m_UseTypeIndex : 1;
+    };
 
-    /**
-     * Install a graphics adapter
-     * @params family AdapterFamily identifier for which adapter to use (vulkan/opengl/null/vendor)
-     * @return True if a graphics backend could be created, false otherwise.
-     */
-    bool InstallAdapter(AdapterFamily family = ADAPTER_FAMILY_NONE);
-    AdapterFamily GetAdapterFamily(const char* adapter_name);
+    struct ShaderResourceMember
+    {
+        const char*        m_Name;
+        dmhash_t           m_NameHash;
+        ShaderResourceType m_Type;
+        uint32_t           m_ElementCount;
+        uint32_t           m_Offset;
+    };
 
-    /**
-     * Finalize graphics system
-     */
-    void Finalize();
+    struct ShaderResourceTypeInfo
+    {
+        char*                 m_Name;
+        dmhash_t              m_NameHash;
+        ShaderResourceMember* m_Members;
+        uint32_t              m_MemberCount;
+    };
+
+    // Callback invoked for each resource binding in a program that matches the specified family.
+    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* root_type, void* user_data);
+
+    // Iterate over all resource bindings for the given program that belong to the specified
+    // binding family and invoke the supplied callback for each binding.
+    void IterateProgramResourceBindings(HProgram program, ShaderResourceBindingFamily family, IterateProgramResourceBindingsCallback callback, void* user_data);
 
     /**
      * Starts the app that needs to control the update loop (iOS only)
      */
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
+
+    /**
+     * Get the number of registered graphics adapters. An adapter gets automatically registered when it is linked with an executable.
+     * This however does not mean that it will be selected as the primary adapter, it just means that it is available for use by the engine.
+     * @return The number of registered graphics adapters.
+     */
+    uint32_t GetRegisteredAdaptersCount();
+
+    /**
+     * Gets a graphics adapter at a specific index.
+     * The list of adapters is sorted by priority, getting the adapter at index 0 will return the adapter with the highest priority.
+     * @param index The graphics adapter to get.
+     * @return The graphics adapter handle at the supplied index. NULL if not found.
+     */
+    const HGraphicsAdapter GetRegisteredAdapter(uint32_t index);
+
+    /**
+     * Gets the adapter family for a registered graphics adapter.
+     * @param adapter The graphics adapter handle to inspect.
+     * @return The adapter family for the supplied adapter, or ADAPTER_FAMILY_NONE if the handle is NULL.
+     */
+    AdapterFamily GetAdapterFamily(HGraphicsAdapter adapter);
 
     /**
      * Get the window refresh rate
@@ -277,13 +345,7 @@ namespace dmGraphics
      * @param context Graphics context handle
      * @return The window handle
      */
-    dmPlatform::HWindow GetWindow(HContext context);
-
-    /**
-     * Close the open window if any.
-     * @param context Graphics context handle
-     */
-    void CloseWindow(HContext context);
+    HWindow GetWindow(HContext context);
 
     /**
      * Iconify the open window if any.
@@ -292,12 +354,27 @@ namespace dmGraphics
     void IconifyWindow(HContext context);
 
     /**
+     * Get the graphics context limits from a graphics context handle.
+     * @param context Graphics context handle
+     * @param limits  Output. Will be populated with the current context's limits.
+     */
+    void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits);
+
+    /**
+     * Get the installed graphics adapter's API version.
+     * @param context Graphics context handle
+     * @param major   Output. Major version number.
+     * @param minor   Output. Minor version number.
+     */
+    void GetAdapterVersion(HContext context, uint16_t& major, uint16_t& minor);
+
+    /**
      * Retrieve current state of the opened window, if any.
      * @param context Graphics context handle
      * @param state Aspect of the window state to query for
      * @return State of the supplied aspect. If no window is opened, 0 is always returned.
      */
-    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state);
+    uint32_t GetWindowStateParam(HContext context, WindowState state);
 
     /**
      * Returns the specified dpi of default monitor.
@@ -334,20 +411,6 @@ namespace dmGraphics
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
 
     /**
-     * Begin frame rendering.
-     *
-     * @param context Graphics context handle
-     */
-    void BeginFrame(HContext context);
-
-    /**
-     * Flip screen buffers.
-     *
-     * @param context Graphics context handle
-     */
-    void Flip(HContext context);
-
-    /**
      * Set buffer swap interval.
      * 1 for base frequency, eg every frame (60hz)
      * 2 for every second frame
@@ -358,49 +421,27 @@ namespace dmGraphics
      */
     void SetSwapInterval(HContext context, uint32_t swap_interval);
 
-    /**
-     * Clear render target
-     * @param context Graphics context
-     * @param flags
-     * @param red
-     * @param green
-     * @param blue
-     * @param alpha
-     * @param depth
-     * @param stencil
-     */
-    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
-
     bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program);
-    void     DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
     void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration);
 
-    void     EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
-    void     DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
     uint32_t GetVertexBufferSize(HVertexBuffer vertex_buffer);
     uint32_t GetIndexBufferSize(HIndexBuffer buffer);
 
     void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
-    void     Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
     void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
-
-    HProgram             NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-    void                 DeleteProgram(HContext context, HProgram program);
 
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
 
-    void                 EnableProgram(HContext context, HProgram program);
-    void                 DisableProgram(HContext context);
     bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);
     void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     void             GetAttributeValues(const VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
+    void             GetAttributeValues(const VertexAttributeInfo& info, const uint8_t** data_ptr, uint32_t* data_size);
     Type             GetGraphicsType(VertexAttribute::DataType data_type);
 
     float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
@@ -411,10 +452,17 @@ namespace dmGraphics
     uint32_t         GetUniformCount(HProgram prog);
     void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
 
+    // Uniform buffers
+    void                UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
+    void                GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
+    HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
+    void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
+    void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
+    void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
+    void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
+
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
-    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
-    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void SetFaceWinding(HContext context, FaceWinding face_winding);
     void SetPolygonOffset(HContext context, float factor, float units);
@@ -441,6 +489,30 @@ namespace dmGraphics
     // Asset handle helpers
     const char* GetAssetTypeLiteral(AssetType type);
     bool        IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
+    void        InvalidateGraphicsHandles(HContext context);
+
+    /** checks if the texture format is compressed
+     * @name IsFormatTranscoded
+     * @param format TextureImage::CompressionType
+     * @return true if the format is compressed
+     */
+    bool IsFormatTranscoded(TextureImage::CompressionType format);
+
+    /** checks if the texture format is compressed
+     * @name Transcode
+     * @param path The path of the texture
+     * @param image The input image
+     * @param format The desired output format
+     * @param images An array of transcoded mipmaps
+     * @param sizes An array of transcoded mipmap sizes
+     * @param num_transcoded_mips (in) the size of the input arrays, (out) the number of mipmaps stored in the arrays
+     * @param format TextureImage::CompressionType
+     * @return true if the format is transcoded
+     */
+    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
+
+    uint32_t    GetTypeSize(Type type);
+    const char* GetGraphicsTypeLiteral(Type type);
 
     static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
     {
@@ -507,6 +579,9 @@ namespace dmGraphics
             break;
         case VertexAttribute::SEMANTIC_TYPE_NONE:
             metadata.m_HasAttributeNone = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D:
+            metadata.m_HasAttributeTextureTransform2D = true;
             break;
         default:
             break;
@@ -602,31 +677,6 @@ namespace dmGraphics
         }
         return 0;
     }
-
-    void InvalidateGraphicsHandles(HContext context);
-
-    /** checks if the texture format is compressed
-     * @name IsFormatTranscoded
-     * @param format TextureImage::CompressionType
-     * @return true if the format is compressed
-     */
-    bool IsFormatTranscoded(TextureImage::CompressionType format);
-
-    /** checks if the texture format is compressed
-     * @name Transcode
-     * @param path The path of the texture
-     * @param image The input image
-     * @param format The desired output format
-     * @param images An array of transcoded mipmaps
-     * @param sizes An array of transcoded mipmap sizes
-     * @param num_transcoded_mips (in) the size of the input arrays, (out) the number of mipmaps stored in the arrays
-     * @param format TextureImage::CompressionType
-     * @return true if the format is transcoded
-     */
-    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
-
-    uint32_t    GetTypeSize(Type type);
-    const char* GetGraphicsTypeLiteral(Type type);
 
     // Test functions:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);

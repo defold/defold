@@ -17,6 +17,7 @@
 #include <jc_test/jc_test.h>
 
 #include <testmain/testmain.h>
+#include <platform/window.hpp>
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -24,7 +25,7 @@
 class dmRenderBufferTest : public jc_test_base_class
 {
 public:
-    dmPlatform::HWindow           m_Window;
+    HWindow                       m_Window;
     dmGraphics::HContext          m_GraphicsContext;
     dmRender::HRenderContext      m_RenderContext;
     dmRender::RenderContextParams m_Params;
@@ -32,9 +33,10 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
-        dmPlatform::WindowParams win_params = {};
+        WindowCreateParams win_params;
+        WindowCreateParamsInitialize(&win_params);
         win_params.m_Width = 20;
         win_params.m_Height = 10;
         win_params.m_ContextAlphabits = 8;

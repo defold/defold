@@ -12,13 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-/*# SDK Alloca API documentation
+/*# Alloca functions
  * Alloca functions.
  *
  * @document
  * @name Alloca
- * @namespace dmMemory
- * @language C++
+ * @language C
  */
 
 #ifndef DMSDK_DALLOCA_H

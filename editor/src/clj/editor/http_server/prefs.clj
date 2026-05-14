@@ -82,20 +82,20 @@
                       result)))))
     :array (if (vector? json)
              (let [{:keys [item]} schema]
-               (coll/transfer json []
+               (coll/into-> json []
                  (map #(parse-json % item))
                  (halt-when json-parse-error?)))
              (->JsonParseError json "is not an array"))
     :set (if (vector? json)
            (let [{:keys [item]} schema]
-             (coll/transfer json #{}
+             (coll/into-> json #{}
                (map #(parse-json % item))
                (halt-when json-parse-error?)))
            ;; sets should be represented as arrays in JSON
            (->JsonParseError json "is not an array"))
     :object (if (map? json)
               (let [{:keys [properties]} schema]
-                (coll/transfer json {}
+                (coll/into-> json {}
                   (map (fn [[k v]]
                          (let [kw (keyword k)]
                            (if-let [property-schema (kw properties)]
@@ -108,7 +108,7 @@
               (->JsonParseError json "is not an object"))
     :object-of (if (map? json)
                  (let [{:keys [key val]} schema]
-                   (coll/transfer json {}
+                   (coll/into-> json {}
                      (map (fn [[k v]]
                             (let [k-result (parse-json k key)]
                               (if (json-parse-error? k-result)
@@ -132,7 +132,7 @@
              (let [{:keys [items]} schema
                    n (count items)]
                (if (= n (count json))
-                 (coll/transfer (range n) []
+                 (coll/into-> (range n) []
                    (map #(parse-json (json %) (items %)))
                    (halt-when json-parse-error?))
                  (->JsonParseError json (format "should have %s elements" n))))
@@ -157,5 +157,30 @@
         (throw e)))))
 
 (defn routes [prefs]
-  {"/prefs/{*path}" {"GET" (partial #'handle-get-prefs prefs)
-                     "POST" (partial #'handle-post-prefs prefs)}})
+  (let [prefs-path-openapi-parameters
+        [{:name "path"
+          :in "path"
+          :required true
+          :description "Slash-delimited preference path. You can target either a preference group (for example `code/font`) or a leaf value (for example `code/font/size`)."
+          :schema {:type "string"}
+          :examples {"code-font" {:summary "Preference group"
+                                  :value "code/font"}
+                     "code-font-size" {:summary "Leaf value in preference group"
+                                       :value "code/font/size"}}}]]
+    {"/prefs/{*path}" {"GET" (with-meta
+                               (partial #'handle-get-prefs prefs)
+                               {:openapi
+                                {:summary "Read a preference value"
+                                 :parameters prefs-path-openapi-parameters
+                                 :responses {"200" {:description "Preference value"
+                                                    :content {"application/json" {}}}
+                                             "400" {:description "Invalid path"}}}})
+                       "POST" (with-meta
+                                (partial #'handle-post-prefs prefs)
+                                {:openapi
+                                 {:summary "Write a preference value"
+                                  :parameters prefs-path-openapi-parameters
+                                  :requestBody {:required true
+                                                :content {"application/json" {}}}
+                                  :responses {"200" {:description "Preference updated"}
+                                              "400" {:description "Invalid path or value"}}}})}}))

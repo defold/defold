@@ -15,6 +15,7 @@
 #include "graphics.h"
 
 #include <dlib/math.h>
+#include <string.h>
 
 namespace dmGraphics
 {
@@ -39,6 +40,7 @@ namespace dmGraphics
         uint8_t m_ChannelIndexColors;
         uint8_t m_ChannelIndexTexCoords;
         uint8_t m_ChannelIndexPageIndices;
+        uint8_t m_ChannelIndexTextureTransform2D;
     };
 
     struct UnpackAttributeData
@@ -56,30 +58,54 @@ namespace dmGraphics
         *data_size = attribute.m_Values.m_BinaryValues.m_Count;
     }
 
+    void GetAttributeValues(const dmGraphics::VertexAttributeInfo& info, const uint8_t** data_ptr, uint32_t* data_size)
+    {
+        *data_ptr  = info.m_ValuePtr;
+        *data_size = info.m_ValuePtr ? (info.m_ElementCount * dmGraphics::DataTypeToByteWidth(info.m_DataType)) : 0;
+    }
+
     uint8_t* WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type)
     {
         switch (data_type)
         {
             case dmGraphics::VertexAttribute::TYPE_BYTE:
-                *((int8_t*) value_write_ptr) = (int8_t) dmMath::Clamp(value, -128.0f, 127.0f);
+            {
+                int8_t typed_value = (int8_t) dmMath::Clamp(value, -128.0f, 127.0f);
+                memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 1;
+            }
             case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
-                *value_write_ptr = (uint8_t) dmMath::Clamp(value, 0.0f, 255.0f);
+            {
+                uint8_t typed_value = (uint8_t) dmMath::Clamp(value, 0.0f, 255.0f);
+                memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 1;
+            }
             case dmGraphics::VertexAttribute::TYPE_SHORT:
-                *((int16_t*) value_write_ptr) = (int16_t) dmMath::Clamp(value, -32768.0f, 32767.0f);
+            {
+                int16_t typed_value = (int16_t) dmMath::Clamp(value, -32768.0f, 32767.0f);
+                memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 2;
+            }
             case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
-                *((uint16_t*) value_write_ptr) = (uint16_t) dmMath::Clamp(value, 0.0f, 65535.0f);
+            {
+                uint16_t typed_value = (uint16_t) dmMath::Clamp(value, 0.0f, 65535.0f);
+                memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 2;
+            }
             case dmGraphics::VertexAttribute::TYPE_INT:
-                *((int32_t*) value_write_ptr) = (int32_t) dmMath::Clamp(value, -2147483648.0f, 2147483647.0f);
+            {
+                int32_t typed_value = (int32_t) dmMath::Clamp((double) value, -2147483648.0, 2147483647.0);
+                memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 4;
+            }
             case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
-                *((uint32_t*) value_write_ptr) = (uint32_t) dmMath::Clamp(value, 0.0f, 4294967295.0f);
+            {
+                uint32_t typed_value = (uint32_t) dmMath::Clamp((double) value, 0.0, 4294967295.0);
+                memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 4;
+            }
             case dmGraphics::VertexAttribute::TYPE_FLOAT:
-                *((float*) value_write_ptr) = value;
+                memcpy(value_write_ptr, &value, sizeof(value));
                 return value_write_ptr + 4;
             default:break;
         }
@@ -90,13 +116,48 @@ namespace dmGraphics
     {
         switch (data_type)
         {
-            case dmGraphics::VertexAttribute::TYPE_BYTE:           return (float) ((int8_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return (float) value_ptr[0];
-            case dmGraphics::VertexAttribute::TYPE_SHORT:          return (float) ((int16_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return (float) ((uint16_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_INT:            return (float) ((int32_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return (float) ((uint32_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return (float) ((float*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_BYTE:
+            {
+                int8_t typed_value;
+                memcpy(&typed_value, value_ptr, sizeof(typed_value));
+                return (float) typed_value;
+            }
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
+            {
+                uint8_t typed_value;
+                memcpy(&typed_value, value_ptr, sizeof(typed_value));
+                return (float) typed_value;
+            }
+            case dmGraphics::VertexAttribute::TYPE_SHORT:
+            {
+                int16_t typed_value;
+                memcpy(&typed_value, value_ptr, sizeof(typed_value));
+                return (float) typed_value;
+            }
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
+            {
+                uint16_t typed_value;
+                memcpy(&typed_value, value_ptr, sizeof(typed_value));
+                return (float) typed_value;
+            }
+            case dmGraphics::VertexAttribute::TYPE_INT:
+            {
+                int32_t typed_value;
+                memcpy(&typed_value, value_ptr, sizeof(typed_value));
+                return (float) typed_value;
+            }
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
+            {
+                uint32_t typed_value;
+                memcpy(&typed_value, value_ptr, sizeof(typed_value));
+                return (float) typed_value;
+            }
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:
+            {
+                float typed_value;
+                memcpy(&typed_value, value_ptr, sizeof(typed_value));
+                return typed_value;
+            }
             default:break;
         }
         return 0;
@@ -147,9 +208,7 @@ namespace dmGraphics
             {
                 for (uint32_t i = 0; i < dst_data.m_ElementCount; ++i)
                 {
-                    float float_value = (src_data.m_DataType == VertexAttribute::TYPE_FLOAT)
-                                        ? ((float*) src_data.m_ValuePtr)[i]
-                                        : VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + i * src_element_byte_width);
+                    float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + i * src_element_byte_width);
 
                     write_ptr = WriteVertexAttributeFromFloat(write_ptr, float_value, dst_data.m_DataType);
                 }
@@ -170,9 +229,7 @@ namespace dmGraphics
                     }
                     else
                     {
-                        float float_value = (src_data.m_DataType == VertexAttribute::TYPE_FLOAT)
-                                            ? ((float*) src_data.m_ValuePtr)[src_index]
-                                            : VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + src_index * src_element_byte_width);
+                        float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + src_index * src_element_byte_width);
 
                         write_ptr = WriteVertexAttributeFromFloat(write_ptr, float_value, dst_data.m_DataType);
                     }
@@ -200,9 +257,7 @@ namespace dmGraphics
                         }
                         else
                         {
-                            float float_value = (src_data.m_DataType == VertexAttribute::TYPE_FLOAT)
-                                            ? ((float*) read_ptr)[src_index]
-                                            : VertexAttributeDataTypeToFloat(src_data.m_DataType, read_ptr + src_index * src_element_byte_width);
+                            float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, read_ptr + src_index * src_element_byte_width);
 
                             WriteVertexAttributeFromFloat(write_ptr, float_value, dst_data.m_DataType);
                         }
@@ -240,13 +295,9 @@ namespace dmGraphics
         else
         {
             const uint32_t src_element_byte_width = DataTypeToByteWidth(src_data.m_DataType);
-            const float* float_value_ptr = (const float*) src_data.m_ValuePtr;
-
             for (uint32_t i = 0; i < num_src_elements_to_write; ++i)
             {
-                float float_value = (src_data.m_DataType == VertexAttribute::TYPE_FLOAT)
-                                    ? float_value_ptr[i]
-                                    : VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + i * src_element_byte_width);
+                float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + i * src_element_byte_width);
 
                 write_ptr = WriteVertexAttributeFromFloat(write_ptr, float_value, dst_data.m_DataType);
             }
@@ -276,9 +327,7 @@ namespace dmGraphics
         // Case 2: Convert source data type to float and then write to intermediate buffer
         else
         {
-            float float_value = (src_data.m_DataType == VertexAttribute::TYPE_FLOAT) ?
-                                *((const float*) src_data.m_ValuePtr) :
-                                VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr);
+            float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr);
 
             WriteVertexAttributeFromFloat(src_value_buffer, float_value, dst_data.m_DataType);
             src_value_read_ptr = src_value_buffer;
@@ -373,7 +422,14 @@ namespace dmGraphics
                 channel_index = unpack_state.m_ChannelIndexNormalMatrix++;
                 break;
 
+            case VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D:
+                stream_desc = &params.m_TextureTransform2D;
+                channel_index = unpack_state.m_ChannelIndexTextureTransform2D++;
+                break;
+
             case VertexAttribute::SEMANTIC_TYPE_NONE:
+            case VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS:
+            case VertexAttribute::SEMANTIC_TYPE_BONE_INDICES:
                 data->m_ValuePtr     = info.m_ValuePtr;
                 data->m_VectorType   = info.m_ValueVectorType;
                 data->m_DataType     = info.m_DataType;

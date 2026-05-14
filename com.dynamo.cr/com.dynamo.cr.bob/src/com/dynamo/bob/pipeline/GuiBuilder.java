@@ -32,6 +32,7 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
@@ -233,7 +234,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
         }
         if (n.getType() == Type.TYPE_TEMPLATE && n.getTemplate().isEmpty()) {
-            throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, "template"));
+            throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, "template", input));
         }
     }
 
@@ -369,8 +370,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                  throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
                          new String[] { scriptPath, suffix, "gui_script" } ));
             }
-            sceneBuilder.setScript(BuilderUtil.replaceExt(scriptPath, ".gui_script", ".gui_scriptc"));
-            sceneBuilder.setMaterial(BuilderUtil.replaceExt(sceneBuilder.getMaterial(), ".material", ".materialc"));
+            sceneBuilder.setScript(ResourceUtil.minifyPathAndReplaceExt(scriptPath, ".gui_script", ".gui_scriptc"));
+            sceneBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(sceneBuilder.getMaterial(), ".material", ".materialc"));
 
             for (FontDesc f : sceneBuilder.getFontsList()) {
                 if (fontNames.contains(f.getName())) {
@@ -378,7 +379,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 fontNames.add(f.getName());
-                newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(BuilderUtil.replaceExt(f.getFont(), ".font", ".fontc")).build());
+                newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(ResourceUtil.minifyPathAndReplaceExt(f.getFont(), ".font", ".fontc")).build());
             }
 
             for (SpineSceneDesc f : sceneBuilder.getSpineScenesList()) {
@@ -387,7 +388,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 resourceNames.add(f.getName());
-                ResourceDesc desc = ResourceDesc.newBuilder().setName(f.getName()).setPath(BuilderUtil.replaceExt(f.getSpineScene(), ".spinescene", ".spinescenec")).build();
+                ResourceDesc desc = ResourceDesc.newBuilder().setName(f.getName()).setPath(ResourceUtil.minifyPathAndReplaceExt(f.getSpineScene(), ".spinescene", ".spinescenec")).build();
                 newResourcesList.add(desc);
             }
 
@@ -397,7 +398,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 particlefxNames.add(f.getName());
-                newParticleFXList.add(ParticleFXDesc.newBuilder().mergeFrom(f).setParticlefx(BuilderUtil.replaceExt(f.getParticlefx(), ".particlefx", ".particlefxc")).build());
+                newParticleFXList.add(ParticleFXDesc.newBuilder().mergeFrom(f).setParticlefx(ResourceUtil.minifyPathAndReplaceExt(f.getParticlefx(), ".particlefx", ".particlefxc")).build());
             }
 
             for (TextureDesc f : sceneBuilder.getTexturesList()) {
@@ -415,7 +416,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 materialNames.add(f.getName());
-                newMaterialList.add(MaterialDesc.newBuilder().mergeFrom(f).setMaterial(BuilderUtil.replaceExt(f.getMaterial(), ".material", ".materialc")).build());
+                newMaterialList.add(MaterialDesc.newBuilder().mergeFrom(f).setMaterial(ResourceUtil.minifyPathAndReplaceExt(f.getMaterial(), ".material", ".materialc")).build());
             }
 
             for (ResourceDesc f : sceneBuilder.getResourcesList()) {
@@ -425,7 +426,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 }
                 // TODO: use the plugin for this
                 resourceNames.add(f.getName());
-                newResourcesList.add(ResourceDesc.newBuilder().mergeFrom(f).setPath(BuilderUtil.replaceExt(f.getPath(), ".spinescene", ".spinescenec")).build());
+                newResourcesList.add(ResourceDesc.newBuilder().mergeFrom(f).setPath(ResourceUtil.minifyPathAndReplaceExt(f.getPath(), ".spinescene", ".spinescenec")).build());
             }
 
             // transform scene internal resources

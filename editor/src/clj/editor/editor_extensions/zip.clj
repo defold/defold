@@ -17,14 +17,14 @@
             [clojure.string :as string]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.os :as os]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.path :as path])
   (:import [java.nio.file Files Path]
            [java.nio.file.attribute PosixFilePermission]
            [java.util EnumSet]
-           [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipArchiveOutputStream ZipFile ZipArchiveInputStream]
+           [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipArchiveOutputStream ZipFile]
            [org.apache.commons.io FilenameUtils]
            [org.luaj.vm2 LuaError LuaValue]))
 
@@ -53,7 +53,7 @@
    :stored ZipArchiveOutputStream/STORED})
 
 (defn- validate-entry-source-path! [p]
-  (when-not (fs/path-exists? p)
+  (when-not (path/exists? p)
     (throw (LuaError. (str "Source path does not exist: " p)))))
 
 (defn- absolute-path? [^Path p]
@@ -82,7 +82,7 @@
    (coll/pair PosixFilePermission/OTHERS_EXECUTE 0001)])
 
 (defn- get-unix-mode [^Path source]
-  (let [permissions (Files/getPosixFilePermissions source fs/empty-link-option-array)]
+  (let [permissions (path/posix-file-permissions source)]
     (transduce (map #(if (.contains permissions (key %)) (val %) 0)) + 0 permission-bits)))
 
 (defn- get-permissions [unix-mode]
@@ -100,8 +100,8 @@
       zos
       (doto (ZipArchiveEntry. entry-name)
         (cond-> (not (os/is-win32?)) (.setUnixMode (get-unix-mode source)))
-        (.setSize (fs/path-size source))
-        (.setTime (fs/path-last-modified-time source))))
+        (.setSize (path/byte-size source))
+        (.setTime (path/last-modified-ms source))))
     (with-open [is (io/input-stream source)]
       (io/copy is zos))
     (.closeArchiveEntry zos)))
@@ -119,9 +119,9 @@
        (-> (future/io
              (let [output-path (.normalize (.resolve project-path archive-path))]
                (cond
-                 (not (fs/path-exists? output-path)) (fs/make-path-parents output-path)
-                 (fs/path-is-directory? output-path) (throw (LuaError. (str "Output path is a directory: " archive-path)))
-                 :else (fs/delete-path-file! output-path))
+                 (not (path/exists? output-path)) (path/create-parent-directories! output-path)
+                 (path/directory? output-path) (throw (LuaError. (str "Output path is a directory: " archive-path)))
+                 :else (path/delete! output-path))
                (with-open [zos (ZipArchiveOutputStream. (.toFile output-path))]
                  (run!
                    (fn pack-entry [entry]
@@ -129,15 +129,15 @@
                            source-str ^String (get entry 1)
                            source (doto (.resolve project-path source-str) validate-entry-source-path!)
                            target-str (get entry 2 source-str)
-                           target (doto (.normalize (fs/path target-str)) validate-entry-target-path!)
+                           target (doto (path/normalized target-str) validate-entry-target-path!)
                            method (method-enum->value (:method entry) default-method)
                            level (:level entry default-level)]
                        (.setMethod zos method)
                        (.setLevel zos level)
-                       (if (fs/path-is-directory? source)
+                       (if (path/directory? source)
                          (run! (fn pack-file [^Path file-path]
                                  (write-file! zos file-path (.resolve target (.relativize source file-path))))
-                               (fs/path-walker source))
+                               (path/tree-walker source))
                          (write-file! zos source target))))
                    entries))))
            (future/then (fn [_] (reload-resources!)))
@@ -152,7 +152,7 @@
                            #(pos? (count %)) "at least one option is required")
                 :paths :? (coerce/vector-of
                             (-> coerce/string
-                                (coerce/wrap-transform #(.normalize (fs/path %)))
+                                (coerce/wrap-transform path/normalized)
                                 (coerce/wrap-with-pred #(not (.startsWith ^Path % "..")) "is above root")
                                 (coerce/wrap-with-pred #(not (absolute-path? %)) "is absolute")
                                 (coerce/wrap-transform #(FilenameUtils/separatorsToUnix (str %)))
@@ -171,8 +171,8 @@
                                       (.resolve project-path target-path)
                                       (.getParent archive-path))]
               (cond
-                (not (fs/path-exists? archive-path)) (throw (LuaError. (str "Archive path does not exist: " archive-path)))
-                (fs/path-is-directory? archive-path) (throw (LuaError. (str "Archive path is a directory: " archive-path))))
+                (not (path/exists? archive-path)) (throw (LuaError. (str "Archive path does not exist: " archive-path)))
+                (path/directory? archive-path) (throw (LuaError. (str "Archive path is a directory: " archive-path))))
               (with-open [zip (ZipFile. (.toFile archive-path))]
                 (let [entries (.getEntries zip)]
                   (while (.hasMoreElements entries)
@@ -186,21 +186,21 @@
                                                           (= \/ (.charAt entry-path-str (.length s)))
                                                           (.startsWith entry-path-str s))))
                                                paths))
-                            (let [target-relative-path (.normalize (fs/path entry-path-str))]
+                            (let [target-relative-path (path/normalized entry-path-str)]
                               (when-not paths
                                 ;; when we have paths, we only allow the valid
                                 ;; ones already; if we don't have paths, we need
                                 ;; to validate them separately
                                 (validate-entry-target-path! target-relative-path))
                               (let [target (.resolve target-path target-relative-path)]
-                                (when (or (not (fs/path-exists? target))
+                                (when (or (not (path/exists? target))
                                           (case (:on_conflict opts)
                                             :skip false
-                                            :overwrite (if (fs/path-is-directory? target)
+                                            :overwrite (if (path/directory? target)
                                                          (throw (LuaError. (str "Can't overwrite directory: " target)))
                                                          true)
                                             :error (throw (LuaError. (str "Path already exists: " target)))))
-                                  (fs/create-path-parent-directories! target)
+                                  (path/create-parent-directories! target)
                                   (with-open [in (.getInputStream zip e)
                                               out (io/output-stream target)]
                                     (io/copy in out))

@@ -19,9 +19,9 @@
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.node-util :as node-util]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -35,8 +35,7 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.id-vec :as iv]
-            [util.murmur :as murmur]
-            [util.text-util :as text-util])
+            [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
@@ -603,6 +602,12 @@
         {}
         (keyword->name k)))))
 
+(defn label-message
+  "Return a (memoized) MessagePattern for a property label"
+  ([k] (label-message nil k))
+  ([domain k]
+   (memoized-label-message domain k)))
+
 (defn label-dynamic
   "Create a fnk that returns a memoized property label MessagePattern
 
@@ -1054,7 +1059,7 @@
                 (not= :all source-prop-kws)
                 (select-keys source-prop-kws))]
     (coll/not-empty
-      (coll/transfer source-prop-infos-by-prop-kw {}
+      (coll/into-> source-prop-infos-by-prop-kw {}
         (filter (fn [[_prop-kw prop-info]]
                   ;; Note that properties that have validation errors may be
                   ;; included in the transfer.
@@ -1130,10 +1135,10 @@
          (vector? target-infos)
          (not (coll/empty? target-infos))]}
   (let [property-transfers
-        (coll/transfer source-prop-infos-by-prop-kw []
+        (coll/into-> source-prop-infos-by-prop-kw []
           (map (fn [[source-prop-kw source-prop-info]]
                  (let [property-transfer-targets
-                       (coll/transfer target-infos []
+                       (coll/into-> target-infos []
                          (map (fn [{:keys [target-aspect target-node-id target-prop-infos-by-prop-kw] :as target-info}]
                                 {:pre [(or (nil? target-aspect) (property-transfer-target-aspect? target-aspect))
                                        (g/node-id? target-node-id)
@@ -1199,25 +1204,25 @@
    (update
      transfer-overrides-plan :property-transfers
      (fn [property-transfers]
-       (coll/transfer property-transfers (coll/empty-with-meta property-transfers)
+       (coll/into-> property-transfers (coll/empty-with-meta property-transfers)
          (map (fn [{:keys [source-node-id] :as property-transfer}]
                 {:pre [(g/node-id? source-node-id)]}
                 (as-> property-transfer property-transfer
                       (merge (sorted-map
                                :source-node-type-kw (g/node-type-kw basis source-node-id)
-                               :source-node-path (gu/node-debug-label-path source-node-id evaluation-context))
+                               :source-node-path (node-util/node-debug-label-path source-node-id evaluation-context))
                              property-transfer)
                       (update property-transfer :targets
                               (fn [property-transfer-targets]
-                                (coll/transfer property-transfer-targets (coll/empty-with-meta property-transfer-targets)
+                                (coll/into-> property-transfer-targets (coll/empty-with-meta property-transfer-targets)
                                   (map (fn [{:keys [target-node-id target-prop-node-id] :as property-transfer-target}]
                                          {:pre [(g/node-id? target-node-id)
                                                 (g/node-id? target-prop-node-id)]}
                                          (merge (sorted-map
                                                   :target-node-type-kw (g/node-type-kw basis target-node-id)
-                                                  :target-node-path (gu/node-debug-label-path target-node-id evaluation-context)
+                                                  :target-node-path (node-util/node-debug-label-path target-node-id evaluation-context)
                                                   :target-prop-node-type-kw (g/node-type-kw basis target-prop-node-id)
-                                                  :target-prop-node-path (gu/node-debug-label-path target-prop-node-id evaluation-context))
+                                                  :target-prop-node-path (node-util/node-debug-label-path target-prop-node-id evaluation-context))
                                                 property-transfer-target))))))))))))))
 
 (defn transfer-overrides-status
@@ -1265,14 +1270,14 @@
   {:pre [(transfer-overrides-plan? transfer-overrides-plan)]
    :post [(localization/message-pattern? %)]}
   (let [{:keys [property-transfers override-transfer-type]} transfer-overrides-plan
-        property-transfer-targets (coll/transfer property-transfers []
+        property-transfer-targets (coll/into-> property-transfers []
                                     (mapcat :targets))
-        target-node-ids (coll/transfer property-transfer-targets #{}
+        target-node-ids (coll/into-> property-transfer-targets #{}
                           (keep :target-node-id))
-        target-aspects (coll/transfer property-transfer-targets #{}
+        target-aspects (coll/into-> property-transfer-targets #{}
                          (keep :target-aspect))
         target-aspect-count (count target-aspects)
-        target-proj-paths (coll/transfer property-transfer-targets #{}
+        target-proj-paths (coll/into-> property-transfer-targets #{}
                             (keep :target-owner-resource)
                             (map resource/proj-path))]
     (-> (case override-transfer-type
@@ -1282,7 +1287,7 @@
           {"property_count" (count property-transfers)
            "property" (:source-prop-label (first property-transfers))
            "target_count" (count target-node-ids)
-           "target" (or (gu/node-qualifier-label (first target-node-ids) evaluation-context) "undefined")
+           "target" (or (node-util/node-qualifier-label (first target-node-ids) evaluation-context) "undefined")
            "aspect_count" target-aspect-count
            "aspect" (if (= 1 target-aspect-count)
                       (first (first target-aspects))
@@ -1331,7 +1336,7 @@
   (let [property-transfers (get transfer-overrides-plan :property-transfers ::not-found)]
     (assert (not= ::not-found property-transfers))
     (coll/not-empty
-      (coll/transfer property-transfers []
+      (coll/into-> property-transfers []
         (mapcat #(property-transfer-tx-data % evaluation-context))))))
 
 (defn transfer-overrides!
@@ -1348,7 +1353,7 @@
   [override-transfer-type source-prop-infos-by-prop-kw target-node-ids {:keys [basis] :as evaluation-context}]
   {:pre [(not (coll/empty? target-node-ids))]}
   (let [target-infos
-        (coll/transfer target-node-ids []
+        (coll/into-> target-node-ids []
           (map (fn [target-node-id]
                  (let [target-prop-infos-by-prop-kw (:properties (g/node-value target-node-id :_properties evaluation-context))]
                    {:target-node-id target-node-id
@@ -1368,7 +1373,7 @@
   [source-node-id source-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
   (when-let [original-node-id (g/override-original basis source-node-id)]
     (let [original-node-ids (iterate #(g/override-original basis %) original-node-id)]
-      (coll/transfer
+      (coll/into->
         original-node-ids []
         (take-while some?)
         (map (fn [original-node-id]

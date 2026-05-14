@@ -15,7 +15,7 @@
 #ifndef DM_PLATFORM_WINDOW_OSX_H
 #define DM_PLATFORM_WINDOW_OSX_H
 
-#include "platform_window.h"
+#include "window.hpp"
 
 #include <objc/objc.h>
 

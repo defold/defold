@@ -20,8 +20,10 @@ import java.lang.reflect.Method;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
@@ -64,6 +66,15 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     }
 
     private static void addFieldsToDigest(Descriptors.Descriptor descriptor, MessageDigest digest) {
+        addFieldsToDigest(descriptor, digest, new HashSet<Descriptors.Descriptor>());
+    }
+
+    private static void addFieldsToDigest(Descriptors.Descriptor descriptor, MessageDigest digest, Set<Descriptors.Descriptor> visited) {
+        // Avoid infinite recursion on cyclic descriptor graphs (e.g. recursive messages)
+        if (!visited.add(descriptor)) {
+            return;
+        }
+
         for (Descriptors.FieldDescriptor field : descriptor.getFields()) {
             digest.update(field.getName().getBytes());
             digest.update(field.getType().toString().getBytes());
@@ -76,9 +87,12 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
             if (field.getType() == Descriptors.FieldDescriptor.Type.MESSAGE) {
                 Descriptors.Descriptor subDescriptor = field.getMessageType();
                 digest.update(subDescriptor.getFullName().getBytes());
-                addFieldsToDigest(subDescriptor, digest);
+                addFieldsToDigest(subDescriptor, digest, visited);
             }
         }
+
+        // Allow the descriptor to appear again in a different independent path
+        visited.remove(descriptor);
     }
 
     static public void addMessageClass(String ext, Class<? extends GeneratedMessageV3> klass) {

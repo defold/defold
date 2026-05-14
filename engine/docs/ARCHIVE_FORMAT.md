@@ -7,7 +7,6 @@ When building the game content, Defold outputs all the game content into a few c
 * The index file (`game.arci`)
 * The data file (`game.arcd`)
 * The manifest file (`game.dmanifest`)
-* The public certificate (`game.public.der`)
 
 This is not an uncommon practice, and some famous examples are the [.WAD](https://zdoom.org/wiki/WAD) and [.PAK](https://quakewiki.org/wiki/.pak) formats (Doom, Quake, Half Life, Far Cry and many others)
 
@@ -104,7 +103,7 @@ PAD
 
 ### The manifest file `.dmanifest`
 
-The manifest file contains cryptographic checksums of both the entire data set, as well as the individual files.
+The manifest file contains checksums of the packaged resources together with compatibility metadata such as supported engine versions.
 The manifest file is mainly used for Live Update content on the platforms that support this feature.
 Each entry in the manifest may have a list of dependants, which is a list of url hashes. The dependants refer to which oother files are required to be loaded in order for the resource itself to be loaded.
 
@@ -115,9 +114,5 @@ See [ManifestBuilder.java](https://github.com/defold/defold/blob/dev/com.dynamo.
 #### Debugging
 
 It is possible to print the contents of a `.dmanifest` by calling `<defold>/scripts/unpack_ddf.py /path/to/game.dmanifest`
-
-### The public key `.public.der`
-
-The public key is used to verify any downloaded manifest or resource file when using the Live Update feature.
 
 

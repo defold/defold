@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.lsp :as lsp]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -75,7 +76,7 @@
                          (not (excluded-ext? (:ext resource-type))))))
 
                 loadable-resource-types-by-proj-paths
-                (coll/transfer loadable-resource-type-colls-by-editability (sorted-map)
+                (coll/into-> loadable-resource-type-colls-by-editability (sorted-map)
                   (mapcat val)
                   (map (juxt resource-type->proj-path identity)))
 
@@ -96,7 +97,7 @@
               (g/with-auto-evaluation-context evaluation-context
                 (let [basis (:basis evaluation-context)]
                   (doseq [proj-path loadable-resource-proj-paths]
-                    (let [resource (workspace/find-resource workspace proj-path evaluation-context)
+                    (let [resource (workspace/find-resource basis workspace proj-path)
                           resource-node (project/get-resource-node project resource evaluation-context)
                           resource-type (resource/resource-type resource)]
                       (testing proj-path
@@ -111,7 +112,8 @@
                           (is (not (g/error? (g/node-value resource-node :node-outline evaluation-context))))
                           (is (not (g/error? (g/node-value resource-node :build-targets evaluation-context))))
                           (when (resource-type-has-view-type? resource-type :scene)
-                            (is (not (g/error? (g/node-value resource-node :scene evaluation-context))))))))))))))))))
+                            (is (not (g/error? (g/node-value resource-node :scene evaluation-context)))))))))))
+              (lsp/await (lsp/get-node-lsp project)))))))))
 
 (defn- loaded-proj-path? [project proj-path]
   (let [resource-node-id (project/get-resource-node project proj-path)]
@@ -342,7 +344,8 @@
                 (testing "Only the externally modified files were reloaded."
                   (is (= ["/loaded_referencing_unloaded_go.collection"]
                          (mapv (comp resource/proj-path :resource first)
-                               node-load-info-tx-data-calls))))))))))))
+                               node-load-info-tx-data-calls))))))
+            (lsp/await (lsp/get-node-lsp project))))))))
 
 (deftest defunload-scene-edit-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
@@ -420,7 +423,7 @@
                     (call-logged-transact!
                       (-> (project/get-resource-node project "/loaded_referencing_unloaded_go.collection")
                           (test-util/referenced-game-objects)
-                          (coll/transfer []
+                          (coll/into-> []
                             (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.go")})))))]
 
                 (is (= []
@@ -440,7 +443,7 @@
                     (call-logged-transact!
                       (-> (project/get-resource-node project "/first_loaded_referencing_unloaded_tilemap.go")
                           (test-util/referenced-components)
-                          (coll/transfer []
+                          (coll/into-> []
                             (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.tilemap")})))))]
 
                 (is (= ["/unloaded/unloaded.tilemap"
@@ -462,12 +465,13 @@
                       (call-logged-transact!
                         (-> (project/get-resource-node project "/second_loaded_referencing_unloaded_tilemap.go")
                             (test-util/referenced-components)
-                            (coll/transfer []
+                            (coll/into-> []
                               (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.tilemap")})))))]
 
                   (is (= []
                          (mapv (comp resource/proj-path :resource first)
-                               node-load-info-tx-data-calls))))))))))))
+                               node-load-info-tx-data-calls))))))
+            (lsp/await (lsp/get-node-lsp project))))))))
 
 (deftest defunload-script-edit-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
@@ -608,4 +612,6 @@
 
                   (is (= []
                          (mapv (comp resource/proj-path :resource first)
-                               node-load-info-tx-data-calls))))))))))))
+                               node-load-info-tx-data-calls))))))
+
+            (lsp/await (lsp/get-node-lsp project))))))))

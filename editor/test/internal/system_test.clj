@@ -420,7 +420,7 @@
         (is (= nil (g/node-value sink :loud)))))))
 
 (defn- successors [node-id label]
-  (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :successors node-id label]))
+  (g/successors (g/now) node-id label))
 
 (defn- sarcs [node-id label]
   (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :sarcs node-id label]))

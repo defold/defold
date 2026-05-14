@@ -18,6 +18,7 @@
             [editor.collection :as collection]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
+            [editor.lsp :as lsp]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -351,4 +352,6 @@
 
             (testing "On house collection."
               (is (= [house-referenced-room] (test-util/referenced-collections house)))
-              (is (= room (g/override-original (test-util/to-collection-node-id house-referenced-room)))))))))))
+              (is (= room (g/override-original (test-util/to-collection-node-id house-referenced-room))))))
+
+          (lsp/await (lsp/get-node-lsp project)))))))

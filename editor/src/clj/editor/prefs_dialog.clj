@@ -31,6 +31,7 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
+            [editor.analytics :as analytics]
             [editor.fxui :as fxui]
             [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
@@ -121,7 +122,8 @@
    :to-string localization/locale-display-name
    :value (localization/current-locale localization-state)
    :items (localization/available-locales localization-state)
-   :on-value-changed #(localization/set-locale! localization %)})
+   :on-value-changed #(do (localization/set-locale! localization %)
+                          (analytics/track-locale! %))})
 
 (defn- describe-command-cell [keymap command]
   (if command

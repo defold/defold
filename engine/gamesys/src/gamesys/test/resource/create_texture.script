@@ -363,6 +363,15 @@ local function test_2d_array_texture()
     end)
 end
 
+local function get_function_name(func)
+    for name, value in pairs(_G) do
+        if value == func then
+            return name
+        end
+    end
+    return "Not found"
+end
+
 function update(self)
     self.update_counter = self.update_counter + 1
 
@@ -383,6 +392,7 @@ function update(self)
     }
 
     if tests[self.update_counter] ~= nil then
+        print(string.format("TEST %d: %s", self.update_counter, get_function_name(tests[self.update_counter])))
         tests[self.update_counter](self)
     else
         -- some tests can take more iterations, so we roll back here

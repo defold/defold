@@ -28,17 +28,35 @@
 
 (deftest aabb
   (test-util/with-loaded-project
-    (let [node-id (test-util/resource-node project "/mesh/test.dae")
+    (let [node-id (test-util/resource-node project "/builtins/assets/gltf/cube.gltf")
           scene (g/node-value node-id :scene)
           aabb (:aabb scene)
           min ^Point3d (types/min-p aabb)
           max ^Point3d (types/max-p aabb)
-          dist (.distance max min)] ; distance in meters (converted from centimeters in the loader)
-      (is (< 10 dist 20)))))
+          dist (.distance max min)]
+      (is (< 1 dist 2)))))
 
-(deftest invalid-scene
+(deftest gltf-valid-scene
   (test-util/with-loaded-project
-    (let [node-id (test-util/resource-node project "/mesh/invalid.dae")
+    ;; Valid .gltf should load successfully via model_loader and glTF validation.
+    (let [node-id (test-util/resource-node project "/mesh/triangle/gltf/Triangle.gltf")
           scene (log/without-logging
                   (g/node-value node-id :scene))]
-      (is (g/error? scene)))))
+      (is (not (g/error? scene))))
+    ;; Valid .glb should load successfully via model_loader and glTF validation.
+    (let [node-id (test-util/resource-node project "/mesh/triangle/glb/valid.glb")
+          scene (log/without-logging
+                  (g/node-value node-id :scene))]
+      (is (not (g/error? scene))))))
+
+(deftest gltf-invalid-scene
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/mesh/accessor_element_out_of_max_bound.gltf")
+          scene (log/without-logging
+                  (g/node-value node-id :scene))]
+      (is (g/error? scene))
+      (let [errors (g/flatten-errors scene)
+            msg    (some-> errors g/error-message test-util/localization)]
+        (is (re-find #"glTF validation failed" msg))
+        (is (re-find #"ACCESSOR_MAX_MISMATCH" msg))
+        (is (re-find #"ACCESSOR_ELEMENT_OUT_OF_MAX_BOUND" msg))))))

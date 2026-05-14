@@ -56,7 +56,7 @@
 
 namespace dmGraphics
 {
-    /*# SDK Graphics API documentation
+    /*# Graphics API documentation
      *
      * Platform specific native graphics functions.
      *

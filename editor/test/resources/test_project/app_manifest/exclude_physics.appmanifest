@@ -35,15 +35,6 @@ platforms:
             libs: ["physics_null"]
             linkFlags: []
 
-    js-web:
-        context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
-            excludeJsLibs: []
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["physics_null"]
-            linkFlags: []
-
     wasm-web:
         context:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
@@ -124,4 +115,3 @@ platforms:
             libs: ["physics_null"]
             frameworks: []
             linkFlags: []
-

@@ -12,6 +12,8 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
+go.property("my_material_a", resource.material("/gui/material_script_functions_a.material"))
+go.property("my_material_b", resource.material("/gui/material_script_functions_b.material"))
 go.property("my_material", resource.material())
 
 local ret_code = 0
@@ -24,16 +26,16 @@ local function assert_cond(assert_that)
 end
 
 function do_test(self)
-    assert_cond(go.get("#gui", "materials", { key = "material_a" }) == hash("/gui/material_script_functions_a.materialc"))
-    assert_cond(go.get("#gui", "materials", { key = "material_b" }) == hash("/gui/material_script_functions_b.materialc"))
+    assert_cond(go.get("#gui", "materials", { key = "material_a" }) == self.my_material_a)
+    assert_cond(go.get("#gui", "materials", { key = "material_b" }) == self.my_material_b)
 
     -- replace material_a with our custom material (material_c)
     go.set("#gui", "materials", self.my_material, { key = "material_a" })
-    assert_cond(go.get("#gui", "materials", { key = "material_a" }) == hash("/gui/material_script_functions_c.materialc"))
+    assert_cond(go.get("#gui", "materials", { key = "material_a" }) == self.my_material)
 
     -- create a named material slot in the list with our custom material (material_c)
     go.set("#gui", "materials", self.my_material, { key = "my_custom_material" })
-    assert_cond(go.get("#gui", "materials", { key = "my_custom_material" }) == hash("/gui/material_script_functions_c.materialc"))
+    assert_cond(go.get("#gui", "materials", { key = "my_custom_material" }) == self.my_material)
 end
 
 function do_exit(self)

@@ -18,11 +18,12 @@
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/font/text_layout.h>
 
-typedef void (*FTextLayoutFree)(HTextLayout layout);
+typedef void (*FTextLayoutDestroy)(HTextLayout layout);
 
 struct TextLayout
 {
-    FTextLayoutFree    m_Free;
+    FTextLayoutDestroy m_Destroy;
+    uint32_t           m_RefCount;
 
     // TODO: Make these C arrays?
     dmArray<TextGlyph> m_Glyphs;
@@ -49,5 +50,7 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
 TextResult TextLayoutSkribidiCreate(HFontCollection collection,
                                 uint32_t* codepoints, uint32_t num_codepoints,
                                 TextLayoutSettings* settings, HTextLayout* outlayout);
+
+uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints);
 
 #endif // DM_TEXT_LAYOUT_H

@@ -28,6 +28,7 @@
             [editor.math :as math]
             [editor.model-loader :as model-loader]
             [editor.model-util :as model-util]
+            [editor.pose :as pose]
             [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -47,8 +48,8 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
-(def model-file-types ["dae" "gltf" "glb"])
-(def animation-file-types ["animationset" "dae" "gltf" "glb"])
+(def model-file-types ["gltf" "glb"])
+(def animation-file-types ["animationset" "gltf" "glb"])
 
 (defn- make-attribute-float-buffer
   ^FloatBuffer [input-floats input-component-count output-component-count output-component-fill]
@@ -295,8 +296,8 @@
 (g/defnk produce-bones [content]
   (:bones content))
 
-(g/defnk produce-content [_node-id resource]
-  (model-loader/load-scene _node-id resource))
+(g/defnk produce-content [_node-id resource project-settings]
+  (model-loader/load-scene _node-id resource project-settings))
 
 (g/defnk produce-animation-info [resource]
   [{:path (resource/proj-path resource) :parent-id "" :resource resource}])
@@ -462,7 +463,6 @@
             aabb (geom/coords->aabb aabb-min aabb-max)
             material-name (mesh-material-index->material-name material-index)
             ;; TODO(instancing): These doesn't appear to actually be per-mesh? Replace model-loader :material-ids with list of Rig$Material in map format.
-            ;; TODO(instancing): Do we even have Rig$Materials in the :mesh-set for Collada scenes?
             mesh-material-data (nth (:materials mesh-set) material-index)
             material-data (make-renderable-material-data mesh-material-data)]
         {:aabb aabb
@@ -472,10 +472,10 @@
 
 (defn- make-renderable-model [model model-request-id mesh-set mesh-material-index->material-name]
   (let [{:keys [translation rotation scale]} (:local model)
-        model-transform (math/clj->mat4 translation rotation scale)
+        model-pose (pose/make translation rotation scale)
 
         renderable-meshes
-        (coll/transfer (:meshes model) []
+        (coll/into-> (:meshes model) []
           (map-indexed
             (fn [mesh-index mesh]
               (let [mesh-request-id (assoc model-request-id :mesh-index mesh-index)]
@@ -487,7 +487,7 @@
                          geom/aabb-union
                          geom/null-aabb
                          renderable-meshes)]
-        {:transform model-transform
+        {:pose model-pose
          :aabb model-aabb
          :renderable-meshes renderable-meshes}))))
 
@@ -500,8 +500,8 @@
 
     (g/precluding-errors renderable-models
       (let [mesh-set-aabb (transduce
-                            (map (fn [{:keys [aabb transform]}]
-                                   (geom/aabb-transform aabb transform)))
+                            (map (fn [{:keys [aabb pose]}]
+                                   (geom/aabb-transform aabb (pose/matrix pose))))
                             geom/aabb-union
                             geom/null-aabb
                             renderable-models)]
@@ -557,10 +557,10 @@
      :renderable renderable}))
 
 (defn- make-model-scene [scene-node-id renderable-model]
-  (let [{:keys [transform aabb renderable-meshes]} renderable-model
+  (let [{:keys [pose aabb renderable-meshes]} renderable-model
         mesh-scenes (mapv #(make-mesh-scene scene-node-id %)
                           renderable-meshes)]
-    {:transform transform
+    {:pose pose
      :aabb aabb
      :children mesh-scenes}))
 
@@ -585,8 +585,8 @@
   (make-scene _node-id renderable-mesh-set))
 
 (defn- finalize-claim-scene [scene _old-node-id new-node-id]
-  (update scene :children coll/mapv>
-          update :children coll/mapv>
+  (update scene :children coll/mapv->
+          update :children coll/mapv->
           update-in [:renderable :user-data :attribute-bindings]
           attribute/claim-transformed-attribute-buffer-bindings
           assoc :scene-node-id new-node-id))
@@ -672,8 +672,17 @@
     (fn material-name->material-scene-info [^String material-name]
       (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
 
+(defn load-model-scene-node [project self resource]
+  (let [workspace-node (resource/workspace resource)
+        disk-sha256 (resource/resource->sha256-hex resource)]
+    (concat
+      (g/connect project :settings self :project-settings)
+      (workspace/set-disk-sha256 workspace-node self disk-sha256))))
+
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)
+
+  (input project-settings g/Any)
 
   (output content g/Any :cached produce-content)
   (output bones g/Any produce-bones)
@@ -691,6 +700,7 @@
     :ext model-file-types
     :label (localization/message "resource.type.model-scene")
     :node-type ModelSceneNode
+    :load-fn load-model-scene-node
     :icon mesh-icon
     :icon-class :design
     :view-types [:scene :text]))

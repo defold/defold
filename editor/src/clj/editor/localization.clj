@@ -17,7 +17,6 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.code.lang.java-properties :as java-properties]
-            [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.system :as system]
@@ -26,7 +25,8 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.path :as path])
   (:import [clojure.lang AFn Agent IFn IRef]
            [com.defold.editor.localization MessagePattern]
            [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width LocaleDisplayNames MessageFormat]
@@ -358,19 +358,21 @@
     initial-bundle         initial bundle map, a map from localization file
                            paths to 0-arg functions that produce
                            a java.io.Reader for java properties file
+    error-handler          1-arg fn used for reporting errors, receives an
+                           instance of a Throwable
 
   Returns a localization system agent"
-  [prefs initial-bundle-key initial-bundle]
+  [prefs initial-bundle-key initial-bundle error-handler]
   (->Localization
     prefs
     (agent
       (make-localization-state (prefs/get prefs [:window :locale]) {initial-bundle-key initial-bundle} (WeakHashMap.))
       :error-handler (fn report-localization-error [_ exception]
-                       (error-reporting/report-exception! exception)))))
+                       (error-handler exception)))))
 
 (defn make-editor
   "Create localization configured for use in the editor"
-  [prefs]
+  [prefs error-handler]
   (letfn [(get-bundle [resource-dir]
             (->> resource-dir
                  (fs/class-path-walker java/class-loader)
@@ -382,26 +384,27 @@
                      ;; the zip file), but the actual reading is done later,
                      ;; during reload. Converting path to a URL allows reading
                      ;; from the zip file later.
-                     (let [url (.toURL (.toUri (fs/path path)))]
+                     (let [url (.toURL (.toUri (path/of path)))]
                        #(io/reader url))))))]
     (let [resource-dir "localization"
-          localization (make prefs ::editor (get-bundle resource-dir))]
+          localization (make prefs ::editor (get-bundle resource-dir) error-handler)]
       (when (system/defold-dev?)
         (let [url (io/resource resource-dir)]
           (when (.startsWith (str url) "file:")
-            (let [resource-path (fs/path url)
+            (let [resource-path (path/of url)
                   watch-service (.newWatchService (.getFileSystem resource-path))]
               (.register resource-path watch-service (into-array WatchEvent$Kind [StandardWatchEventKinds/ENTRY_CREATE
                                                                                   StandardWatchEventKinds/ENTRY_DELETE
                                                                                   StandardWatchEventKinds/ENTRY_MODIFY
                                                                                   StandardWatchEventKinds/OVERFLOW]))
               (future
-                (error-reporting/catch-all!
+                (try
                   (while true
                     (let [watch-key (.take watch-service)]
                       (when (pos? (count (.pollEvents watch-key)))
                         (set-bundle! localization ::editor (get-bundle resource-dir)))
-                      (.reset watch-key)))))))))
+                      (.reset watch-key)))
+                  (catch Throwable e (error-handler e))))))))
       localization)))
 
 (defn- impl-simple-message [k m fallback ^LocalizationState state]
@@ -655,6 +658,7 @@
 (defn natural-sort-by-label
   "Localization-aware function that sorts the items on their :label vals"
   [localization-state items]
+  {:pre [(localization-state? localization-state)]}
   (->> items
        (mapv #(coll/pair (localization-state (:label %)) %))
        (sort-by key eutil/natural-order)
@@ -669,6 +673,4 @@
     items))
 
 ;; TODO:
-;;  - build errors
-;;  - missed things...
 ;;  - extensions: resource types, properties, outlines...

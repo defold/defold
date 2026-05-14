@@ -252,11 +252,16 @@ namespace dmHttpService
         // Headers are either 0, of a list of strings "header1: value\nheader2: value\n"
         const char* current = (const char*)worker->m_Request->m_Headers;
         const char* headers_end = current + worker->m_Request->m_HeadersLength;
+        uint32_t header_length = strlen(header);
         while (current < headers_end)
         {
-            const char* end = strchr(current, '\n');
+            const char* end = (const char*) memchr(current, '\n', headers_end - current);
+            if (!end)
+            {
+                end = headers_end;
+            }
             uint32_t length = end - current;
-            if (strstr(current, header) == current)
+            if (length >= header_length && memcmp(current, header, header_length) == 0)
             {
                 if (length < buffer_length)
                 {
@@ -265,7 +270,7 @@ namespace dmHttpService
                     return buffer;
                 }
             }
-            current += length+1;
+            current = end + (end < headers_end ? 1 : 0);
         }
         return 0;
     }
@@ -288,7 +293,6 @@ namespace dmHttpService
             url.m_Path[1] = '\0';
         }
 
-
         dmURI::Parts proxy_url;
         if (request->m_Proxy)
         {
@@ -298,6 +302,10 @@ namespace dmHttpService
                 SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, worker->m_Request->m_Url, 0, 0, 0, 0);
                 return;
             }
+        }
+        else
+        {
+            memset(&proxy_url, 0, sizeof(proxy_url));
         }
 
         if (worker->m_Client == 0 ||
@@ -332,6 +340,7 @@ namespace dmHttpService
         worker->m_RangeStart = 0;
         worker->m_RangeEnd = 0;
         worker->m_DocumentSize = 0;
+        worker->m_ReportProgress = false;
 
         if (request->m_ReportProgress)
         {
@@ -503,6 +512,7 @@ namespace dmHttpService
             worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
             worker->m_Canceled = 0;
+            worker->m_ReportProgress = false;
             service->m_Workers.Push(worker);
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");

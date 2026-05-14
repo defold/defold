@@ -65,9 +65,11 @@
 ;; anim data
 
 (defn- ->anim-frame
-  [page-index quad-tex-coords tex-dim frame-geometry]
+  [page-index quad-tex-coords quad-tex-coords-raw tex-dim frame-geometry]
   {:page-index page-index
    :tex-coords quad-tex-coords
+   :tex-coords-raw quad-tex-coords-raw
+   :atlas-rotated (true? (:rotated frame-geometry))
    :width (:width tex-dim)
    :height (:height tex-dim)
    :pivot [(or (:pivot-x frame-geometry) 0.0) (or (:pivot-y frame-geometry) 0.0)]})
@@ -85,7 +87,7 @@
            (range 0 (count double-vector) 2)))))
 
 (defn- ->anim-frame-from-geometry
-  [page-index quad-tex-coords frame-geometry scale-factors reverse]
+  [page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse]
   (let [^double scale-x (scale-factors 0)
         ^double scale-y (scale-factors 1)
         ^double pivot-x (or (:pivot-x frame-geometry) 0.0)
@@ -94,6 +96,8 @@
         vertex-tex-coords (double-vector->2d-points (:uvs frame-geometry) reverse)]
     {:page-index page-index
      :tex-coords quad-tex-coords
+     :tex-coords-raw quad-tex-coords-raw
+     :atlas-rotated (true? (:rotated frame-geometry))
      :vertex-coords vertex-coords
      :pivot [pivot-x pivot-y]
      :vertex-tex-coords vertex-tex-coords
@@ -112,16 +116,18 @@
         tex-coord-order (flip-strategy->tex-coord-order flip-strategy)
         scale-factors (flip-strategy->scale-factors flip-strategy)
         reverse (not (zero? (bit-xor flip-horizontal flip-vertical)))
+        tex-coord-order-unflipped (flip-strategy->tex-coord-order 0)
         frames (mapv (fn [i]
                        (let [frame-index (frame-indices i)
                              page-index (page-indices frame-index)
                              frame-geometry (geometries frame-index)
-                             quad-tex-coords (->quad-tex-coords frame-index tex-coords tex-coord-order)]
+                             quad-tex-coords (->quad-tex-coords frame-index tex-coords tex-coord-order)
+                             quad-tex-coords-raw (->quad-tex-coords frame-index tex-coords tex-coord-order-unflipped)]
                          (if (and use-geometries
                                   (not= :sprite-trim-mode-off
                                         (:trim-mode frame-geometry)))
-                           (->anim-frame-from-geometry page-index quad-tex-coords frame-geometry scale-factors reverse)
-                           (->anim-frame page-index quad-tex-coords (->tex-dim frame-index tex-dims) frame-geometry))))
+                           (->anim-frame-from-geometry page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse)
+                           (->anim-frame page-index quad-tex-coords quad-tex-coords-raw (->tex-dim frame-index tex-dims) frame-geometry))))
                      (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
@@ -191,10 +197,42 @@
             (assoc vtx 0 x 1 y)))
         vertices))
 
+;; Affine from unit square (s,t) to atlas UV — same packing as engine ResolveAnimationData (mat3 column-major).
+;; quad-unflipped must match Bob's tex_coord order for the quad: unrotated BL,TL,TR,BR; rotated TL,TR,BR,BL.
+;; Animation flip is applied only to vertex UVs at runtime, not to this transform.
+(defn- tex-coords->texture-transform-2d [quad-unflipped atlas-rotated]
+  (if atlas-rotated
+    (let [[tl tr br bl] quad-unflipped
+          u-bl (double (nth bl 0))
+          v-bl (double (nth bl 1))
+          u-br (double (nth br 0))
+          v-br (double (nth br 1))
+          u-tl (double (nth tl 0))
+          v-tl (double (nth tl 1))]
+      (vector-of :double
+                 (- u-br u-bl) (- v-br v-bl) 0.0
+                 (- u-tl u-bl) (- v-tl v-bl) 0.0
+                 u-bl v-bl 1.0))
+    (let [[bl tl tr br] quad-unflipped
+          u-bl (double (nth bl 0))
+          v-bl (double (nth bl 1))
+          u-br (double (nth br 0))
+          v-br (double (nth br 1))
+          u-tl (double (nth tl 0))
+          v-tl (double (nth tl 1))]
+      (vector-of :double
+                 (- u-br u-bl) (- v-br v-bl) 0.0
+                 (- u-tl u-bl) (- v-tl v-bl) 0.0
+                 u-bl v-bl 1.0))))
+
+(def ^:private texture-transform-identity
+  (vector-of :double 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0))
+
 (defn- frame-vertex-data [animation-frame size pivot]
   (let [use-geometries (:use-geometries animation-frame)
         corner-points (corner-points size pivot)
         line-data (corner-points->line-data corner-points)
+        tex-coords (:tex-coords animation-frame)
 
         position-data
         (if use-geometries
@@ -212,15 +250,21 @@
 
         uv-data
         (if use-geometries
-          (let [tex-coords (:vertex-tex-coords animation-frame)
+          (let [vertex-tex-coords (:vertex-tex-coords animation-frame)
                 indices (:indices animation-frame)]
-            (mapv tex-coords indices))
-          (let [[uvnw uvsw uvse uvne] (:tex-coords animation-frame)]
-            [uvnw uvne uvsw uvne uvse uvsw]))]
+            (mapv vertex-tex-coords indices))
+          (let [[uvnw uvsw uvse uvne] tex-coords]
+            [uvnw uvne uvsw uvne uvse uvsw]))
+
+        ;; Prefer :tex-coords-raw (Bob order) so the transform matches runtime; legacy frames may only have :tex-coords.
+        texture-transform
+        (let [raw (or (:tex-coords-raw animation-frame) (:tex-coords animation-frame))]
+          (tex-coords->texture-transform-2d raw (true? (:atlas-rotated animation-frame))))]
 
     {:position-data position-data
      :uv-data uv-data
-     :line-data line-data}))
+     :line-data line-data
+     :texture-transform texture-transform}))
 
 (def ^:private default-quad-uv-data
   [(vector-of :double 0.0 0.0)
@@ -236,7 +280,8 @@
         line-data (corner-points->line-data corner-points)]
     {:position-data position-data
      :uv-data default-quad-uv-data
-     :line-data line-data}))
+     :line-data line-data
+     :texture-transform texture-transform-identity}))
 
 (defn vertex-data [animation-frame size-mode size slice9 pivot]
   (let [out (-> (cond
@@ -245,7 +290,12 @@
 
                   (and (= :size-mode-manual size-mode)
                        (slice9/sliced? slice9))
-                  (slice9/vertex-data animation-frame size slice9 pivot)
+                  (-> (slice9/vertex-data animation-frame size slice9 pivot)
+                      (assoc :texture-transform
+                             (if-some [raw (or (:tex-coords-raw animation-frame)
+                                               (:tex-coords animation-frame))]
+                               (tex-coords->texture-transform-2d raw (true? (:atlas-rotated animation-frame)))
+                               texture-transform-identity)))
 
                   :else
                   (frame-vertex-data animation-frame size pivot))

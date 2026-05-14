@@ -17,14 +17,13 @@
 
 #include <stdint.h>
 
-/*# SDK Font API documentation
+/*# Font API for loading fonts
  *
  * Font API for loading a font (truetype), getting glyph metrics and bitmap/sdf data
  *
  * @document
  * @name Font
- * @path engine/font/src/dmsdk/font/font.h
- * @language C++
+ * @language C
  */
 
 /*#

@@ -17,7 +17,7 @@
 
 namespace dmMutex
 {
-    /*# SDK Mutex API documentation
+    /*# Mutex API documentation
      *
      * API for platform independent mutex synchronization primitive.
      *
@@ -86,6 +86,16 @@ namespace dmMutex
      */
     void Unlock(HMutex mutex);
 
+    /*# get native Mutex handle.
+     *
+     * Get the platform-specific native mutex handle.
+     *
+     * @name dmMutex::GetNativeHandle
+     * @param mutex [type:dmMutex::HMutex] Mutex handle.
+     * @return handle [type:void*] Native mutex handle.
+     */
+    void* GetNativeHandle(HMutex mutex);
+
     struct ScopedLock
     {
         HMutex m_Mutex;
@@ -101,19 +111,18 @@ namespace dmMutex
         }
     };
 
-    /*# macro for scope lifetime Mutex locking
-     *
-     * Will lock a Mutex and automatically unlock it at the end of the scope.
-     *
-     * @macro
-     * @name DM_MUTEX_SCOPED_LOCK
-     * @param mutex [type:dmMutex::HMutex] Mutex handle to lock.
-     *
-     */
-    #define SCOPED_LOCK_PASTE(x, y) x ## y
-    #define SCOPED_LOCK_PASTE2(x, y) SCOPED_LOCK_PASTE(x, y)
-    #define DM_MUTEX_SCOPED_LOCK(mutex) dmMutex::ScopedLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
-
+/*# macro for scope lifetime Mutex locking
+ *
+ * Will lock a Mutex and automatically unlock it at the end of the scope.
+ *
+ * @macro
+ * @name DM_MUTEX_SCOPED_LOCK
+ * @param mutex [type:dmMutex::HMutex] Mutex handle to lock.
+ *
+ */
+#define SCOPED_LOCK_PASTE(x, y) x##y
+#define SCOPED_LOCK_PASTE2(x, y) SCOPED_LOCK_PASTE(x, y)
+#define DM_MUTEX_SCOPED_LOCK(mutex) dmMutex::ScopedLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
 
     /*# macro for scope lifetime optional mutex locking
      *
@@ -127,19 +136,22 @@ namespace dmMutex
      */
     struct OptionalScopedMutexLock
     {
-        OptionalScopedMutexLock(dmMutex::HMutex mutex) : m_Mutex(mutex) {
+        OptionalScopedMutexLock(dmMutex::HMutex mutex)
+            : m_Mutex(mutex)
+        {
             if (m_Mutex)
                 dmMutex::Lock(m_Mutex);
         }
-        ~OptionalScopedMutexLock() {
+        ~OptionalScopedMutexLock()
+        {
             if (m_Mutex)
                 dmMutex::Unlock(m_Mutex);
         }
 
         dmMutex::HMutex m_Mutex;
     };
-    #define DM_MUTEX_OPTIONAL_SCOPED_LOCK(mutex) dmMutex::OptionalScopedMutexLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
+#define DM_MUTEX_OPTIONAL_SCOPED_LOCK(mutex) dmMutex::OptionalScopedMutexLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
 
-}  // namespace dmMutex
+} // namespace dmMutex
 
 #endif // #ifndef DMSDK_MUTEX_H

@@ -17,7 +17,11 @@
 #include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
-#include "../platform_window.h"
+#include "../window.h"
+
+#if defined(ANDROID)
+#include "../platform_window_android.h"
+#endif
 
 #define APP_TITLE "PlatformTest"
 #define WIDTH 8u
@@ -32,7 +36,7 @@ protected:
         uint32_t m_Height;
     };
 
-    dmPlatform::HWindow m_Window;
+    HWindow m_Window;
     ResizeData          m_ResizeData;
 
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
@@ -44,12 +48,13 @@ protected:
 
     void SetUp() override
     {
-        m_Window = dmPlatform::NewWindow();
+        m_Window = WindowNew();
 
         m_ResizeData.m_Width = 0;
         m_ResizeData.m_Height = 0;
 
-        dmPlatform::WindowParams params = {};
+        WindowCreateParams params;
+        WindowCreateParamsInitialize(&params);
         params.m_ResizeCallback = OnWindowResize;
         params.m_ResizeCallbackUserData = &m_ResizeData;
         params.m_Title = APP_TITLE;
@@ -59,18 +64,19 @@ protected:
         params.m_PrintDeviceInfo = false;
         params.m_ContextAlphabits = 8;
 
-        dmPlatform::OpenWindow(m_Window, params);
+        WindowOpen(m_Window, &params);
     }
 
     void TearDown() override
     {
-        dmPlatform::DeleteWindow(m_Window);
+        WindowDelete(m_Window);
     }
 };
 
 TEST_F(dmPlatformTest, DoubleOpenWindow)
 {
-    dmPlatform::WindowParams params;
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
     params.m_Title = APP_TITLE;
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
@@ -78,19 +84,20 @@ TEST_F(dmPlatformTest, DoubleOpenWindow)
     params.m_PrintDeviceInfo = false;
     params.m_ContextAlphabits = 8;
 
-    ASSERT_EQ(dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED, dmPlatform::OpenWindow(m_Window, params));
+    ASSERT_EQ(WINDOW_RESULT_WINDOW_ALREADY_OPENED, WindowOpen(m_Window, &params));
 }
 
 TEST_F(dmPlatformTest, CloseWindow)
 {
-    dmPlatform::CloseWindow(m_Window);
-    dmPlatform::CloseWindow(m_Window);
+    WindowClose(m_Window);
+    WindowClose(m_Window);
 }
 
 TEST_F(dmPlatformTest, CloseOpenWindow)
 {
-    dmPlatform::CloseWindow(m_Window);
-    dmPlatform::WindowParams params;
+    WindowClose(m_Window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
     params.m_Title = APP_TITLE;
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
@@ -99,27 +106,55 @@ TEST_F(dmPlatformTest, CloseOpenWindow)
     params.m_ContextAlphabits = 8;
     dmLogSetLevel(LOG_SEVERITY_INFO);
 
-    ASSERT_EQ(dmPlatform::PLATFORM_RESULT_OK, dmPlatform::OpenWindow(m_Window, params));
+    ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(m_Window, &params));
     dmLogSetLevel(LOG_SEVERITY_WARNING);
 }
 
 TEST_F(dmPlatformTest, TestWindowState)
 {
-    ASSERT_TRUE(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED) ? true : false);
-    dmPlatform::CloseWindow(m_Window);
-    ASSERT_FALSE(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+    ASSERT_TRUE(WindowGetStateParam(m_Window, WINDOW_STATE_OPENED) ? true : false);
+    WindowClose(m_Window);
+    ASSERT_FALSE(WindowGetStateParam(m_Window, WINDOW_STATE_OPENED));
 }
 
 TEST_F(dmPlatformTest, TestWindowSize)
 {
     uint32_t width = WIDTH * 2;
     uint32_t height = HEIGHT * 2;
-    dmPlatform::SetWindowSize(m_Window, width, height);
-    ASSERT_EQ(width, dmPlatform::GetWindowWidth(m_Window));
-    ASSERT_EQ(height, dmPlatform::GetWindowHeight(m_Window));
+    WindowSetSize(m_Window, width, height);
+    ASSERT_EQ(width, WindowGetWidth(m_Window));
+    ASSERT_EQ(height, WindowGetHeight(m_Window));
     ASSERT_EQ(width, m_ResizeData.m_Width);
     ASSERT_EQ(height, m_ResizeData.m_Height);
 }
+
+#if defined(ANDROID)
+
+namespace
+{
+    template <typename T>
+    static void ReferenceAndroidSymbol(T symbol)
+    {
+        volatile T referenced_symbol = symbol;
+        (void) referenced_symbol;
+    }
+}
+
+TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
+{
+    ReferenceAndroidSymbol(&dmPlatform::AndroidVerifySurface);
+    ReferenceAndroidSymbol(&dmPlatform::AndroidBeginFrame);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidEGLContext);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidEGLSurface);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidJavaVM);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidActivity);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidApp);
+    ReferenceAndroidSymbol(&dmPlatform::GetSafeAreaAndroid);
+    ReferenceAndroidSymbol(&dmPlatform::SetAndroidInputMethod);
+    ReferenceAndroidSymbol(&dmPlatform::SetAndroidFullscreenParameters);
+    SKIP();
+}
+#endif
 
 int main(int argc, char **argv)
 {

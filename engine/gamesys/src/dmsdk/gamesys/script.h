@@ -28,7 +28,7 @@ extern "C"
 }
 
 
-/*# SDK Script API documentation
+/*# Script API documentation
  *
  * Built-in scripting functions.
  *

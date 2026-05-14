@@ -30,7 +30,7 @@
 #include <dlib/transform.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
-#include <dlib/trig_lookup.h>
+#include <dmsdk/dlib/trig_lookup.h>
 
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
@@ -78,6 +78,7 @@ namespace dmGui
     static uint32_t g_ClonedNodeCount = 0;
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
+    inline void CalculateNodeSize(InternalNode* in);
     static void SetSceneSafeAreaAdjust(Scene* scene, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y);
     static void ComputeSafeAreaAdjust(SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
                                       int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom,
@@ -85,6 +86,20 @@ namespace dmGui
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
     static inline void ResetInternalNode(HScene scene, InternalNode* n);
     static void RemoveFromNodeList(HScene scene, InternalNode* n);
+
+    static void ResetTextLayout(TextLayout* text_layout)
+    {
+        memset(text_layout, 0, sizeof(*text_layout));
+    }
+
+    static void FreeTextLayout(TextLayout* text_layout)
+    {
+        if (text_layout->m_Handle)
+        {
+            TextLayoutRelease(text_layout->m_Handle);
+        }
+        ResetTextLayout(text_layout);
+    }
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -652,6 +667,8 @@ namespace dmGui
             n->m_Node.m_RenderConstants = 0;
         }
 
+        FreeTextLayout(&n->m_Node.m_TextLayout);
+
         free((void*)n->m_Node.m_Text);
         n->m_Node.m_Text = 0;
 
@@ -716,11 +733,17 @@ namespace dmGui
             {
                 nodes[i].m_Node.m_Texture     = texture_source;
                 nodes[i].m_Node.m_TextureType = texture_type;
+
+                if (texture_type == NODE_TEXTURE_TYPE_TEXTURE_SET)
+                {
+                    UpdateTextureSetAnimData(scene, &nodes[i]);
+                    CalculateNodeSize(&nodes[i]);
+                }
             }
         }
     }
 
-    static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
+    static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, uint32_t image_type)
     {
         if (info_array.Full())
             return RESULT_OUT_OF_RESOURCES;
@@ -733,7 +756,7 @@ namespace dmGui
 
     Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
-        return AddTexture(scene, scene->m_Textures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
+        return AddTexture(scene, scene->m_Textures, texture_name_hash, texture_source, texture_type, original_width, original_height, UINT32_MAX);
     }
 
     Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
@@ -741,12 +764,15 @@ namespace dmGui
         TextureInfo* t = scene->m_DynamicTextures.Get(texture_name_hash);
         if (t)
         {
-            uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
-            DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, -buffer_size_mb);
+            if (t->m_ImageType != UINT32_MAX)
+            {
+                uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel((dmImage::Type) t->m_ImageType);
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, -buffer_size_mb);
+            }
 
             scene->m_DeleteTextureResourceCallback(scene, texture_name_hash, t->m_TextureSource);
         }
-        return AddTexture(scene, scene->m_DynamicTextures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
+        return AddTexture(scene, scene->m_DynamicTextures, texture_name_hash, texture_source, texture_type, original_width, original_height, UINT32_MAX);
     }
 
     static void UnassignTexture(HScene scene, dmhash_t texture_name_hash)
@@ -922,8 +948,11 @@ namespace dmGui
             return RESULT_RESOURCE_NOT_FOUND;
         }
 
-        uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
-        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
+        if (t->m_ImageType != UINT32_MAX)
+        {
+            uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel((dmImage::Type) t->m_ImageType);
+            DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
+        }
 
         scene->m_DeleteTextureResourceCallback(scene, texture_hash, t->m_TextureSource);
         scene->m_DynamicTextures.Erase(texture_hash);
@@ -971,12 +1000,17 @@ namespace dmGui
         scene->m_SetTextureResourceCallback(scene, texture_hash, width, height, type, compression_type, data, buffer_size);
         free(flipped_data);
 
+        float buffer_size_orig_mb = 0.0f;
+        if (t->m_ImageType != UINT32_MAX)
+        {
+            buffer_size_orig_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel((dmImage::Type) t->m_ImageType);
+        }
+
         t->m_OriginalWidth  = width;
         t->m_OriginalHeight = height;
         t->m_ImageType      = type;
 
-        uint32_t buffer_size_orig_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
-        uint32_t buffer_size_mb      = buffer_size / 1024.0 / 1024.0 - buffer_size_orig_mb;
+        float buffer_size_mb = buffer_size / 1024.0 / 1024.0 - buffer_size_orig_mb;
         DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
 
         return RESULT_OK;
@@ -1377,8 +1411,11 @@ namespace dmGui
         {
             const dmhash_t key = dynamic_textures_iter.GetKey();
             const TextureInfo texture = dynamic_textures_iter.GetValue();
-            float buffer_size = texture.m_OriginalWidth * texture.m_OriginalHeight * dmImage::BytesPerPixel(texture.m_ImageType) / 1024.0 / 1024.0;
-            DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
+            if (texture.m_ImageType <= dmImage::TYPE_LUMINANCE_ALPHA)
+            {
+                float buffer_size = texture.m_OriginalWidth * texture.m_OriginalHeight * dmImage::BytesPerPixel((dmImage::Type) texture.m_ImageType) / 1024.0 / 1024.0;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
+            }
             scene->m_DeleteTextureResourceCallback(scene, key, texture.m_TextureSource);
         }
         scene->m_DynamicTextures.Clear();
@@ -1455,9 +1492,18 @@ namespace dmGui
                 scope.m_RefVal |= parent_scope->m_RefVal;
             }
         } else {
-            scope.m_RefVal = 1 << (7 - index);
-            if (parent_scope != 0x0) {
-                scope.m_RefVal |= (CalcMask(bit_field_offset) & parent_scope->m_RefVal);
+            if (index >= 8)
+            {
+                dmLogOnceError("Stencil buffer exceeded for inverted clipping node, clipping will not work as expected.");
+                // Match the previous backend behavior without relying on undefined shifting.
+                scope.m_RefVal = 0;
+            }
+            else
+            {
+                scope.m_RefVal = 1u << (7 - index);
+                if (parent_scope != 0x0) {
+                    scope.m_RefVal |= (CalcMask(bit_field_offset) & parent_scope->m_RefVal);
+                }
             }
         }
         if (inverted && node->m_Node.m_ClippingVisible) {
@@ -2385,8 +2431,11 @@ namespace dmGui
         uint32_t node_count = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
 
+		// It's needed in cases when texture reloaded using hot reload
+		// There is no way to notify nodes about it
         if (dLib::IsDebugMode())
         {
+            DM_PROFILE("DebugUpdateTextureSetAnimData");
             for (uint32_t i = 0; i < node_count; ++i)
             {
                 InternalNode* node = &nodes[i];
@@ -2817,6 +2866,7 @@ namespace dmGui
         {
             scene->m_Nodes.SetSize(node_index);
         }
+        FreeTextLayout(&n->m_Node.m_TextLayout);
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
         free(n->m_Node.m_ResetPointProperties);
@@ -3724,6 +3774,27 @@ namespace dmGui
         return RESULT_OK;
     }
 
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
+    {
+        InternalNode* n = GetNode(scene, node);
+        *out_text_layout = n->m_Node.m_TextLayout;
+    }
+
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout)
+    {
+        InternalNode* n = GetNode(scene, node);
+        TextLayout& current_text_layout = n->m_Node.m_TextLayout;
+        if (text_layout.m_Handle && current_text_layout.m_Handle != text_layout.m_Handle)
+        {
+            TextLayoutAcquire(text_layout.m_Handle);
+        }
+        if (current_text_layout.m_Handle && current_text_layout.m_Handle != text_layout.m_Handle)
+        {
+            TextLayoutRelease(current_text_layout.m_Handle);
+        }
+        current_text_layout = text_layout;
+    }
+
     BlendMode GetNodeBlendMode(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -4239,8 +4310,8 @@ namespace dmGui
 
     bool PickNode(HScene scene, HNode node, float x, float y)
     {
-        Vector4 scale((float) scene->m_AdjustWidth / (float) scene->m_Context->m_DefaultProjectWidth,
-                (float) scene->m_AdjustHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
+        Vector4 scale((float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Context->m_DefaultProjectWidth,
+                (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
         Matrix4 transform;
         InternalNode* n = GetNode(scene, node);
         CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
@@ -4386,6 +4457,18 @@ namespace dmGui
     static Vector3 ScreenToLocalPosition(HScene scene, InternalNode* node, InternalNode* parent_node, dmVMath::Vector3 screen_position)
     {
         Matrix4 parent_m;
+
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_DISABLED)
+        {
+            if (parent_node == 0x0)
+            {
+                return screen_position;
+            }
+
+            CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
+            Vector4 local_position = inverse(parent_m) * Vector4(screen_position, 1.0f);
+            return local_position.getXYZ();
+        }
 
         Vector4 reference_scale;
         Vector4 adjust_scale;
@@ -4543,6 +4626,7 @@ namespace dmGui
         out_n->m_Node = n->m_Node;
         out_n->m_Node.m_HasResetPoint = 0;
         out_n->m_Node.m_ResetPointProperties = 0;
+        ResetTextLayout(&out_n->m_Node.m_TextLayout);
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
         

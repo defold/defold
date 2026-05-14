@@ -23,6 +23,7 @@ def configure(conf):
     dynamo_home = conf.env.DYNAMO_HOME
     includes = [os.getcwd(),
                 os.path.join(dynamo_home, 'sdk', 'include')]
+    includes += conf.env['INCLUDES']
 
     def make_path(path):
         cwd = os.getcwd()

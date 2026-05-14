@@ -58,14 +58,19 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket:
 
 
 int g_HttpPort = -1;
-int g_HttpPortSSL = -1;
-int g_HttpPortSSLTest = -1;
+int g_HttpPortTLS = -1;
+int g_HttpPortTLS12 = -1;
+int g_HttpPortTLS13 = -1;
+int g_HttpPortTLSTest = -1;
+int g_HttpPortProxy = -1;
 char SERVER_IP[64] = "localhost";
 
 #define NAME_SERVER_IP "localhost"
 #define NAME_SOCKET "{server_socket}"
-#define NAME_SOCKET_SSL "{server_socket_ssl}"
-#define NAME_SOCKET_SSL_TEST "{server_socket_ssl_test}"
+#define NAME_SOCKET_TLS "{server_socket_tls}"
+#define NAME_SOCKET_TLS12 "{server_socket_tls12}"
+#define NAME_SOCKET_TLS13 "{server_socket_tls13}"
+#define NAME_SOCKET_TLS_TEST "{server_socket_tls_test}"
 
 class dmHttpClientTest: public jc_test_params_class<const char*>
 {
@@ -241,13 +246,21 @@ public:
         {
             port = g_HttpPort;
         }
-        else if( strcmp(NAME_SOCKET_SSL, portstr) == 0 )
+        else if( strcmp(NAME_SOCKET_TLS, portstr) == 0 )
         {
-            port = g_HttpPortSSL;
+            port = g_HttpPortTLS;
         }
-        else if( strcmp(NAME_SOCKET_SSL_TEST, portstr) == 0 )
+        else if( strcmp(NAME_SOCKET_TLS12, portstr) == 0 )
         {
-            port = g_HttpPortSSLTest;
+            port = g_HttpPortTLS12;
+        }
+        else if( strcmp(NAME_SOCKET_TLS13, portstr) == 0 )
+        {
+            port = g_HttpPortTLS13;
+        }
+        else if( strcmp(NAME_SOCKET_TLS_TEST, portstr) == 0 )
+        {
+            port = g_HttpPortTLSTest;
         }
         else {
             // no port
@@ -285,7 +298,7 @@ public:
     }
 };
 
-class dmHttpClientTestSSL : public dmHttpClientTest
+class dmHttpClientTestTLS : public dmHttpClientTest
 {
     // for jctest
 };
@@ -735,6 +748,29 @@ static void ShutdownThread(void *args)
     }
 }
 
+static void ProxyHandshakeShutdownThread(void *args)
+{
+    ShutdownThreadContext* ctx = (ShutdownThreadContext*)args;
+    while (!dmAtomicGet32(&ctx->m_GotIt))
+    {
+        if (dmHttpClient::GetNumPoolConnections() == 0)
+        {
+            dmTime::Sleep(1000);
+            continue;
+        }
+
+        // The proxy socket is published before the CONNECT tunnel is upgraded to TLS.
+        // Wait a bit so shutdown lands during the delayed SSL handshake on the test port.
+        dmTime::Sleep(200 * 1000);
+
+        if (dmHttpClient::ShutdownConnectionPool() > 0) {
+            dmAtomicStore32(&ctx->m_GotIt, 1);
+        } else {
+            break;
+        }
+    }
+}
+
 TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 {
     dmHttpClient::ShutdownConnectionPool();
@@ -1014,7 +1050,7 @@ TEST_P(dmHttpClientTestExternal, PostExternal)
 // Until we've figured out how to access the local server on windows from the PS4
 #if !(defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
 
-const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
+const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_TLS};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
 
 #endif
@@ -1030,7 +1066,7 @@ const char* params_http_client_external_test[] = {  // They expire after a few d
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestExternal, dmHttpClientTestExternal, jc_test_values_in(params_http_client_external_test));
 #endif
 
-TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
+TEST_P(dmHttpClientTestTLS, FailedSSLHandshake)
 {
     for( int i = 0; i < 3; ++i )
     {
@@ -1062,11 +1098,52 @@ TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
     }
 }
 
+// Covers the shutdown gap where the raw socket exists but the connection has not yet been
+// committed back into the pool. The same publication path is used for plain TCP connect and
+// the subsequent SSL handshake, but the handshake stall is easy to reproduce locally.
+TEST_P(dmHttpClientTestTLS, ClientThreadedShutdownDuringHandshake)
+{
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
+    ShutdownThreadContext ctx;
+    ctx.m_GotIt = 0;
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 10 * 1000000);
+
+    uint64_t elapsed = 0;
+    dmHttpClient::Result r = dmHttpClient::RESULT_OK;
+    for (int i = 0; i < 3; ++i)
+    {
+        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &ctx, "cts-ssl");
+
+        uint64_t timestart = dmTime::GetMonotonicTime();
+        r = HttpGet("/sleep/5000");
+        elapsed = dmTime::GetMonotonicTime() - timestart;
+
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+        ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+
+        dmThread::Join(thr);
+
+        if (dmAtomicGet32(&ctx.m_GotIt))
+            break;
+
+        dmHttpClient::ReopenConnectionPool();
+    }
+
+    ASSERT_EQ(1, dmAtomicGet32(&ctx.m_GotIt));
+    ASSERT_LT(elapsed, 3 * 1000000ULL);
+    ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+
+    dmHttpClient::ReopenConnectionPool();
+}
+
 // Until we've figured out how to access the local server on windows from the device
 #if !(defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
 
-const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
-INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
+const char* params_http_client_test_tls[] = {"https://localhost:" NAME_SOCKET_TLS_TEST};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestTLS, dmHttpClientTestTLS, jc_test_values_in(params_http_client_test_tls));
 
 #endif
 
@@ -1366,6 +1443,324 @@ INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_va
 
 #endif // #ifndef DM_DISABLE_HTTPCLIENT_TESTS
 
+class ProxyRequestHelper
+{
+public:
+    ProxyRequestHelper(const char* url, const char* proxy_url)
+    {
+        memset(&m_URI, 0, sizeof(m_URI));
+        memset(&m_ProxyURI, 0, sizeof(m_ProxyURI));
+        m_Client = 0;
+        m_Valid = false;
+        m_StatusCode = -1;
+
+        if (dmURI::Parse(url, &m_URI) != dmURI::RESULT_OK)
+            return;
+
+        if (dmURI::Parse(proxy_url, &m_ProxyURI) != dmURI::RESULT_OK)
+            return;
+
+        dmHttpClient::NewParams params;
+        params.m_Userdata = this;
+        params.m_HttpContent = ProxyRequestHelper::HttpContent;
+        m_Client = dmHttpClient::New(&params, &m_URI, 0, &m_ProxyURI);
+        m_Valid = m_Client != 0;
+    }
+
+    ~ProxyRequestHelper()
+    {
+        if (m_Client)
+            dmHttpClient::Delete(m_Client);
+    }
+
+    bool IsValid() const
+    {
+        return m_Valid;
+    }
+
+    dmHttpClient::HClient GetClient()
+    {
+        return m_Client;
+    }
+
+    dmHttpClient::Result Get(const char* path)
+    {
+        m_StatusCode = -1;
+        m_Content.clear();
+        return dmHttpClient::Get(m_Client, path);
+    }
+
+    dmSocket::Result GetLastSocketResult() const
+    {
+        return dmHttpClient::GetLastSocketResult(m_Client);
+    }
+
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                            uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                            const char* method)
+    {
+        ProxyRequestHelper* self = (ProxyRequestHelper*) user_data;
+        self->m_StatusCode = status_code;
+        self->m_Content.append((const char*) content_data, content_data_size);
+    }
+
+    int m_StatusCode;
+    std::string m_Content;
+
+private:
+    dmHttpClient::HClient m_Client;
+    dmURI::Parts m_URI;
+    dmURI::Parts m_ProxyURI;
+    bool m_Valid;
+};
+
+static void MakeLocalUrl(char* buffer, uint32_t buffer_size, bool secure, int port)
+{
+    // Use IPv4 loopback explicitly so the standalone proxy and Jetty test servers
+    // don't depend on platform-specific localhost address-family resolution.
+    dmSnPrintf(buffer, buffer_size, "%s://127.0.0.1:%d", secure ? "https" : "http", port);
+}
+
+class DirectRequestHelper
+{
+public:
+    DirectRequestHelper(const char* url)
+    {
+        memset(&m_URI, 0, sizeof(m_URI));
+        m_Client = 0;
+        m_Valid = false;
+        m_StatusCode = -1;
+
+        if (dmURI::Parse(url, &m_URI) != dmURI::RESULT_OK)
+            return;
+
+        dmHttpClient::NewParams params;
+        params.m_Userdata = this;
+        params.m_HttpContent = DirectRequestHelper::HttpContent;
+        m_Client = dmHttpClient::New(&params, &m_URI);
+        m_Valid = m_Client != 0;
+    }
+
+    ~DirectRequestHelper()
+    {
+        if (m_Client)
+            dmHttpClient::Delete(m_Client);
+    }
+
+    bool IsValid() const
+    {
+        return m_Valid;
+    }
+
+    dmHttpClient::Result Get(const char* path)
+    {
+        m_StatusCode = -1;
+        m_Content.clear();
+        return dmHttpClient::Get(m_Client, path);
+    }
+
+    dmSocket::Result GetLastSocketResult() const
+    {
+        return dmHttpClient::GetLastSocketResult(m_Client);
+    }
+
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                            uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                            const char* method)
+    {
+        DirectRequestHelper* self = (DirectRequestHelper*) user_data;
+        self->m_StatusCode = status_code;
+        self->m_Content.append((const char*) content_data, content_data_size);
+    }
+
+    int m_StatusCode;
+    std::string m_Content;
+
+private:
+    dmHttpClient::HClient m_Client;
+    dmURI::Parts m_URI;
+    bool m_Valid;
+};
+
+static void MakeLocalProxyUrl(char* buffer, uint32_t buffer_size)
+{
+    dmSnPrintf(buffer, buffer_size, "http://127.0.0.1:%d", g_HttpPortProxy);
+}
+
+static void TlsProtocolRequest(int port, const char* expected_protocol)
+{
+    ASSERT_NE(-1, port);
+
+    char url[128];
+    MakeLocalUrl(url, sizeof(url), true, port);
+
+    DirectRequestHelper helper(url);
+    ASSERT_TRUE(helper.IsValid());
+
+    dmHttpClient::Result r = helper.Get("/tls-info");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, helper.m_StatusCode);
+    ASSERT_STREQ(expected_protocol, helper.m_Content.c_str());
+
+    r = helper.Get("/add/10/20");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, helper.m_StatusCode);
+    ASSERT_EQ(30, strtol(helper.m_Content.c_str(), 0, 10));
+}
+
+static void TlsProtocolRequestOrDarwinUnsupported(int port, const char* expected_protocol)
+{
+    ASSERT_NE(-1, port);
+
+    char url[128];
+    MakeLocalUrl(url, sizeof(url), true, port);
+
+    DirectRequestHelper helper(url);
+    ASSERT_TRUE(helper.IsValid());
+
+    dmHttpClient::Result r = helper.Get("/tls-info");
+    if (r == dmHttpClient::RESULT_OK)
+    {
+        ASSERT_EQ(200, helper.m_StatusCode);
+        ASSERT_STREQ(expected_protocol, helper.m_Content.c_str());
+        return;
+    }
+
+#if defined(__MACH__)
+    // CFStream/SecureTransport does not negotiate TLS 1.3 and fails the TLS 1.3-only connector.
+    ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
+    ASSERT_NE(dmSocket::RESULT_OK, helper.GetLastSocketResult());
+#else
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+#endif
+}
+
+static void ProxyAddRequest(bool secure, int port)
+{
+    char url[128];
+    char proxy_url[128];
+    MakeLocalUrl(url, sizeof(url), secure, port);
+    MakeLocalProxyUrl(proxy_url, sizeof(proxy_url));
+
+    ProxyRequestHelper helper(url, proxy_url);
+    ASSERT_TRUE(helper.IsValid());
+
+    dmHttpClient::Result r = helper.Get("/add/10/20");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, helper.m_StatusCode);
+    ASSERT_EQ(30, strtol(helper.m_Content.c_str(), 0, 10));
+}
+
+static void ProxyCloseReusedDoesNotLeakPoolHandles(bool secure, int port, uint32_t iterations)
+{
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
+    char url[128];
+    char proxy_url[128];
+    MakeLocalUrl(url, sizeof(url), secure, port);
+    MakeLocalProxyUrl(proxy_url, sizeof(proxy_url));
+
+    ProxyRequestHelper helper(url, proxy_url);
+    ASSERT_TRUE(helper.IsValid());
+
+    dmHttpClient::SetOptionInt(helper.GetClient(), dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
+
+    dmHttpClient::Result r = helper.Get("/close-reused");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, helper.m_StatusCode);
+    ASSERT_STREQ("reused connection is healthy.", helper.m_Content.c_str());
+    ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+
+    for (uint32_t i = 0; i < iterations; ++i)
+    {
+        r = helper.Get("/close-reused");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(200, helper.m_StatusCode);
+        ASSERT_STREQ("reused connection is healthy.", helper.m_Content.c_str());
+        ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+    }
+
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+}
+
+struct ProxyShutdownThreadContext
+{
+    int32_atomic_t m_GotIt;
+};
+
+static void ProxyHandshakeShutdownThreadLocal(void *args)
+{
+    ProxyShutdownThreadContext* ctx = (ProxyShutdownThreadContext*)args;
+    while (!dmAtomicGet32(&ctx->m_GotIt))
+    {
+        if (dmHttpClient::GetNumPoolConnections() == 0)
+        {
+            dmTime::Sleep(1000);
+            continue;
+        }
+
+        // The proxy socket is published before the CONNECT tunnel is upgraded to TLS.
+        // Wait a bit so shutdown lands during the delayed SSL handshake on the test port.
+        dmTime::Sleep(200 * 1000);
+
+        if (dmHttpClient::ShutdownConnectionPool() > 0) {
+            dmAtomicStore32(&ctx->m_GotIt, 1);
+        } else {
+            break;
+        }
+    }
+}
+
+static void ProxyThreadedShutdownDuringHandshake(int port)
+{
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
+    char url[128];
+    char proxy_url[128];
+    MakeLocalUrl(url, sizeof(url), true, port);
+    MakeLocalProxyUrl(proxy_url, sizeof(proxy_url));
+
+    ProxyRequestHelper helper(url, proxy_url);
+    ASSERT_TRUE(helper.IsValid());
+
+    ProxyShutdownThreadContext ctx;
+    ctx.m_GotIt = 0;
+
+    dmHttpClient::SetOptionInt(helper.GetClient(), dmHttpClient::OPTION_REQUEST_TIMEOUT, 15 * 1000000);
+
+    uint64_t elapsed = 0;
+    dmHttpClient::Result r = dmHttpClient::RESULT_OK;
+    for (int i = 0; i < 3; ++i)
+    {
+        dmThread::Thread thr = dmThread::New(&ProxyHandshakeShutdownThreadLocal, 65536, &ctx, "cts-proxy-ssl");
+
+        uint64_t timestart = dmTime::GetMonotonicTime();
+        r = helper.Get("/sleep/5000");
+        elapsed = dmTime::GetMonotonicTime() - timestart;
+
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+        ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+        ASSERT_NE(dmSocket::RESULT_OK, dmHttpClient::GetLastSocketResult(helper.GetClient()));
+
+        dmThread::Join(thr);
+
+        if (dmAtomicGet32(&ctx.m_GotIt))
+            break;
+
+        dmHttpClient::ReopenConnectionPool();
+    }
+
+    ASSERT_EQ(1, dmAtomicGet32(&ctx.m_GotIt));
+    ASSERT_GT(elapsed, 100 * 1000ULL);
+    ASSERT_LT(elapsed, 3 * 1000000ULL);
+    ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+
+    dmHttpClient::ReopenConnectionPool();
+}
+
 TEST(dmHttpClient, HostNotFound)
 {
     dmURI::Parts uri;
@@ -1386,14 +1781,121 @@ TEST(dmHttpClient, ConnectionRefused)
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
-    #if defined(WIN32)
-    ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
-    #elif defined(__linux__) || defined(DM_PLATFORM_VENDOR)
+    #if defined(__linux__) || defined(DM_PLATFORM_VENDOR)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, dmHttpClient::GetLastSocketResult(client));
+    #elif defined(WIN32)
+    ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
     #else
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
     #endif
     dmHttpClient::Delete(client);
+}
+
+TEST(dmHttpClient, Proxy)
+{
+    char proxy_server_url[1024];
+    dmSnPrintf(proxy_server_url, sizeof(proxy_server_url), "http://localhost:%d", g_HttpPort);
+    dmURI::Parts proxy;
+    dmURI::Parse(proxy_server_url, &proxy);
+
+    dmURI::Parts uri;
+    dmURI::Parse("http://www.google.com", &uri);
+
+    // create a client which is establishing a proxy tunnel from
+    // localhost to www.google.com/proxy/to/www.google.com
+    // in this test we're not actually doing a request to google
+    // but we check that the httpclient first does a CONNECT and then
+    // a GET
+    dmHttpClient::NewParams params;
+    dmHttpClient::HClient client = dmHttpClient::New(&params, &uri, 0, &proxy);
+    ASSERT_NE((void*) 0, client);
+    dmHttpClient::Result r = dmHttpClient::Request(client, "GET", "/proxy/to/www.google.com");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    dmHttpClient::Delete(client);
+
+    // create another client and check that we properly handle
+    // connection issues
+    client = dmHttpClient::New(&params, &uri, 0, &proxy);
+    ASSERT_NE((void*) 0, client);
+    r = dmHttpClient::Request(client, "GET", "/proxy/broken");
+    ASSERT_NE(dmHttpClient::RESULT_OK, r);
+    dmHttpClient::Delete(client);
+}
+
+// Verifies that HTTPS requests still work when the client tunnels through an HTTP CONNECT proxy.
+TEST(dmHttpClient, ProxyHttps)
+{
+    ProxyAddRequest(true, g_HttpPortTLS);
+}
+
+TEST(dmHttpClient, Tls12)
+{
+    TlsProtocolRequest(g_HttpPortTLS12, "TLSv1.2");
+}
+
+TEST(dmHttpClient, Tls13)
+{
+    TlsProtocolRequestOrDarwinUnsupported(g_HttpPortTLS13, "TLSv1.3");
+}
+
+// Verifies that shutting down the pool interrupts the TLS handshake performed after an HTTP CONNECT proxy tunnel is established.
+TEST(dmHttpClient, ProxyHttpsThreadedShutdownDuringHandshake)
+{
+    ProxyThreadedShutdownDuringHandshake(g_HttpPortTLSTest);
+}
+
+// Verifies that a non-200 CONNECT response from the proxy is preserved as an HTTP error for HTTPS requests.
+TEST(dmHttpClient, ProxyHttpsConnectFailureReturnsHttpError)
+{
+    char proxy_url[128];
+    MakeLocalProxyUrl(proxy_url, sizeof(proxy_url));
+
+    ProxyRequestHelper helper("https://127.0.0.1:1", proxy_url);
+    ASSERT_TRUE(helper.IsValid());
+
+    dmHttpClient::Result r = helper.Get("/");
+    ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
+    ASSERT_EQ(502, helper.m_StatusCode);
+}
+
+// Verifies that reconnecting through a proxy after a reused HTTP connection is closed does not leak pool handles.
+TEST(dmHttpClient, ProxyReusedConnectionCloseDoesNotLeakPoolHandles)
+{
+    ProxyCloseReusedDoesNotLeakPoolHandles(false, g_HttpPort, 20);
+}
+
+// Verifies the same reused-connection reconnect path for HTTPS traffic tunneled through a proxy.
+TEST(dmHttpClient, ProxySecureReusedConnectionCloseDoesNotLeakPoolHandles)
+{
+    ProxyCloseReusedDoesNotLeakPoolHandles(true, g_HttpPortTLS, 20);
+}
+
+// Verifies the direct retry path: when the server closes a reused keep-alive connection, the client reconnects
+// and does not leave any in-use handles behind in the pool.
+TEST_P(dmHttpClientTest, ReusedConnectionCloseDoesNotLeakPoolHandles)
+{
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
+
+    dmHttpClient::Result r = HttpGet("/close-reused");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, m_StatusCode);
+    ASSERT_STREQ("reused connection is healthy.", m_Content.c_str());
+    ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+
+    for (uint32_t i = 0; i < 40; ++i)
+    {
+        r = HttpGet("/close-reused");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(200, m_StatusCode);
+        ASSERT_STREQ("reused connection is healthy.", m_Content.c_str());
+        ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+    }
+
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
 }
 
 static void Usage()
@@ -1423,7 +1925,10 @@ int main(int argc, char **argv)
         const char* ip = dmConfigFile::GetString(config, "server.ip", "localhost");
         dmStrlCpy(SERVER_IP, ip, sizeof(SERVER_IP));
 
-        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
+        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortTLS, &g_HttpPortTLSTest);
+        g_HttpPortTLS12 = dmConfigFile::GetInt(config, "server.socket_tls12", -1);
+        g_HttpPortTLS13 = dmConfigFile::GetInt(config, "server.socket_tls13", -1);
+        g_HttpPortProxy = dmConfigFile::GetInt(config, "server.socket_proxy", -1);
         dmConfigFile::Delete(config);
     }
     else

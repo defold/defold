@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.error-values
-  (:require [clojure.string :as string]
+  (:require [editor.localization :as localization]
             [internal.graph.types :as gt]
             [util.coll :as coll]))
 
@@ -44,7 +44,7 @@
   (assert (if-some [node-id (:_node-id m)] (gt/node-id? node-id) true))
   (assert (if-some [label (:_label m)] (keyword? label) true))
   (assert (if-some [severity (:severity m)] (contains? severity-levels severity) true))
-  (assert (if-some [message (:message m)] (string? message) true))
+  (assert (if-some [message (:message m)] (or (string? message) (localization/message-pattern? message)) true))
   (map->ErrorValue m))
 
 (defn ->error
@@ -78,15 +78,13 @@
 (def error-warning? (partial severity? :warning))
 (def error-fatal?   (partial severity? :fatal))
 
-(defn- error-seq [e]
-  (tree-seq :causes :causes e))
-
-(defn- error-messages [e]
-  (distinct (keep :message (error-seq e))))
-
-(defn error-message
-  ^String [e]
-  (string/join "\n" (error-messages e)))
+(defn error-message [e]
+  (localization/join
+    "\n"
+    (coll/into-> [e] []
+      (coll/tree-xf :causes :causes)
+      (keep :message)
+      (distinct))))
 
 (defn error-aggregate
   ([es]

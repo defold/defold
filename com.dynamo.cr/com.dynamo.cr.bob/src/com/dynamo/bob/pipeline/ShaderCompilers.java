@@ -16,14 +16,18 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import com.google.protobuf.ByteString;
 
 public class ShaderCompilers {
 
@@ -92,8 +96,7 @@ public class ShaderCompilers {
                     }
             }
             else
-            if (platform == Platform.JsWeb ||
-                platform == Platform.WasmWeb ||
+            if (platform == Platform.WasmWeb ||
                 platform == Platform.WasmPthreadWeb) {
                     if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
@@ -108,6 +111,11 @@ public class ShaderCompilers {
             else
             if (platform == Platform.Arm64NX64) {
                 outputSpirv = true;
+            }
+            else
+            if (platform == Platform.X86_64XBone) {
+                hlslSupported = true;
+                outputHLSL = true;
             }
             else {
                 return null;
@@ -143,6 +151,9 @@ public class ShaderCompilers {
 
         public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions compileOptions) throws IOException, CompileExceptionError {
 
+            // We need this for e.g. Win32 when creating the root signature bindings, to get a deterministic order.
+            shaderModules.sort(Comparator.comparingInt(m -> m.type.getNumber()));
+
             boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
             boolean outputSpirv = false;
             boolean outputHLSL = false;
@@ -152,7 +163,8 @@ public class ShaderCompilers {
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
             opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
-
+            opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
+            opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
 
             for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
                 boolean isHLSL = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
@@ -181,10 +193,14 @@ public class ShaderCompilers {
             shaderLanguages.addAll(compileOptions.forceIncludeShaderLanguages);
 
             HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
+            Shaderc.HLSLRootSignature hlslRootSignature = null;
 
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
 
                 boolean arrayTextureFallbackRequired = ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage);
+
+                boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
+                List<Shaderc.ShaderCompileResult> compiled_shaders = new ArrayList<>();
 
                 for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
 
@@ -209,6 +225,12 @@ public class ShaderCompilers {
                     if (variantTextureArray) {
                         builder.setVariantTextureArray(true);
                     }
+
+                    compiled_shaders.add(crossCompileResult);
+                }
+
+                if (create_hlsl_root_signature) {
+                    hlslRootSignature = pipeline.createRootSignature(shaderLanguage, compiled_shaders);
                 }
             }
 
@@ -218,6 +240,8 @@ public class ShaderCompilers {
             for(ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
                 compileResult.reflectors.add(pipeline.getReflectionData(type));
             }
+
+            compileResult.hlslRootSignature = hlslRootSignature != null ? hlslRootSignature.hLSLRootSignature : null;
 
             ShaderCompilePipeline.destroyShaderPipeline(pipeline);
 
@@ -239,7 +263,7 @@ public class ShaderCompilers {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430); // Compute
         } else if (platform == Platform.Arm64Linux || platform == Platform.Armv7Android || platform == Platform.Arm64Android ||
-                platform == Platform.JsWeb || platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
+                platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
         }

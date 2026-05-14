@@ -1,0 +1,47 @@
+images {
+  image: "/assets/images/01.png"
+  pivot_x: 0.0
+  pivot_y: 0.0
+}
+images {
+  image: "/assets/images/02.png"
+  pivot_x: 0.0
+  pivot_y: 0.0
+}
+images {
+  image: "/assets/images/03.png"
+  pivot_x: 0.0
+  pivot_y: 0.0
+}
+images {
+  image: "/assets/images/04.png"
+  pivot_x: 0.0
+  pivot_y: 0.0
+}
+images {
+  image: "/assets/images/05.png"
+  pivot_x: 0.0
+  pivot_y: 0.0
+}
+images {
+  image: "/assets/images/06.png"
+  pivot_x: 0.0
+  pivot_y: 0.0
+}
+images {
+  image: "/assets/images/07.png"
+  pivot_x: 0.0
+  pivot_y: 0.0
+}
+images {
+  image: "/assets/images/08.png"
+  pivot_x: 0.0
+  pivot_y: 0.0
+}
+images {
+  image: "/assets/images/09.png"
+  pivot_x: 0.0
+  pivot_y: 0.0
+}
+max_page_width: 32
+max_page_height: 32

@@ -548,20 +548,24 @@ namespace dmGameSystem
         DM_PROFILE("CreateVertexData");
         /*
          *   0----3
-         *   | \  |
-         *   |  \ |
+         *   |  / |
+         *   | /  |
          *   1____2
+         *
+         * CCW winding order (OpenGL front-face default)
+         * Triangle 1: v0(BL) -> v1(BR) -> v2(TR)
+         * Triangle 2: v3(TR) -> v4(TL) -> v5(BL)
         */
         static int tex_coord_order[] = {
-            0,1,2,2,3,0,
-            3,2,1,1,0,3,    //h
-            1,0,3,3,2,1,    //v
-            2,3,0,0,1,2,    //hv
+            0,3,2,2,1,0,
+            3,0,1,1,2,3,    //h
+            1,2,3,3,0,1,    //v
+            2,1,0,0,3,2,    //hv
             // rotate 90 degrees:
-            3,0,1,1,2,3,
-            0,3,2,2,1,0,    //h
-            2,1,0,0,3,2,    //v
-            1,2,3,3,0,1     //hv
+            3,2,1,1,0,3,
+            0,1,2,2,3,0,    //h
+            2,3,0,0,1,2,    //v
+            1,0,3,3,2,1     //hv
         };
 
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
@@ -625,11 +629,12 @@ namespace dmGameSystem
                             where[_I].v = _V; \
                         }
 
+                    // CCW winding: BL, BR, TR, TR, TL, BL
                     SET_VERTEX(0, p[0], p[1], z, puv[tex_lookup[0] * 2], puv[tex_lookup[0] * 2 + 1]);
-                    SET_VERTEX(1, p[0], p[3], z, puv[tex_lookup[1] * 2], puv[tex_lookup[1] * 2 + 1]);
+                    SET_VERTEX(1, p[2], p[1], z, puv[tex_lookup[1] * 2], puv[tex_lookup[1] * 2 + 1]);
                     SET_VERTEX(2, p[2], p[3], z, puv[tex_lookup[2] * 2], puv[tex_lookup[2] * 2 + 1]);
                     SET_VERTEX(3, p[2], p[3], z, puv[tex_lookup[3] * 2], puv[tex_lookup[3] * 2 + 1]);
-                    SET_VERTEX(4, p[2], p[1], z, puv[tex_lookup[4] * 2], puv[tex_lookup[4] * 2 + 1]);
+                    SET_VERTEX(4, p[0], p[3], z, puv[tex_lookup[4] * 2], puv[tex_lookup[4] * 2 + 1]);
                     SET_VERTEX(5, p[0], p[1], z, puv[tex_lookup[5] * 2], puv[tex_lookup[5] * 2 + 1]);
 
                     where += 6;
@@ -969,7 +974,9 @@ namespace dmGameSystem
         {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component), out_value);
         }
-        return GetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompTileGridGetConstantCallback, component);
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
+        return GetMaterialConstant(GetMaterial(component), params.m_PropertyId, value_index, out_value, true, CompTileGridGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompTileGridSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -985,7 +992,9 @@ namespace dmGameSystem
             ReHash(component);
             return res;
         }
-        return SetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompTileGridSetConstantCallback, component);
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
+        return SetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Value, value_index, CompTileGridSetConstantCallback, component);
     }
 
     static bool CompTileGridIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

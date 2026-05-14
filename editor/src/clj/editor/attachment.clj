@@ -51,7 +51,8 @@
   (:require [dynamo.graph :as g]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
-            [util.coll :as coll]))
+            [util.coll :as coll])
+  (:import [clojure.lang IReduceInit]))
 
 (defn- assoc-list-definition [state node-type list-kw {:keys [aliases] :as definition}]
   (let [state (assoc-in state [node-type :lists list-kw] definition)]
@@ -153,30 +154,34 @@
   [workspace node-type alternative-fn]
   (g/update-property workspace :node-attachments #(update % node-type assoc :alternative alternative-fn)))
 
-(defn find-alternative
-  "Returns first truthy value given an alternative chain
+(defn alternatives
+  "Return reducible of a node id and all other node ids in its alternative chain
 
   Args:
     workspace             the workspace that defines node alternatives
     node-id               initial node id
-    pred                  predicate fn, will receive 1 arg: node id
     evaluation-context    the evaluation context"
-  [workspace node-id pred {:keys [basis] :as evaluation-context}]
+  [workspace node-id {:keys [basis] :as evaluation-context}]
   (let [current-state (workspace/node-attachments basis workspace)]
-    (loop [node-id node-id]
-      (or (pred node-id)
-          (when-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* basis node-id)))]
-            (some-> (alternative-fn node-id evaluation-context) recur))))))
+    (reify IReduceInit
+      (reduce [_ rf init]
+        (loop [node-id node-id
+               acc init]
+          (let [acc (rf acc node-id)]
+            (if (reduced? acc)
+              @acc
+              (if-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* basis node-id)))]
+                (some-> (alternative-fn node-id evaluation-context) (recur acc))
+                acc))))))))
 
 (defn- get-list-definition
   "Internal. Returns either a tuple of node-id + list definition map or nil if
   it does not exist"
   [workspace node-id list-kw {:keys [basis] :as evaluation-context}]
   (let [current-state (workspace/node-attachments basis workspace)]
-    (find-alternative
-      workspace node-id
+    (coll/some
       #(some->> (list-kw (:lists (clojure.core/get current-state (g/node-type* basis %)))) (coll/pair %))
-      evaluation-context)))
+      (alternatives workspace node-id evaluation-context))))
 
 (defn- require-list-definition
   [workspace node-id list-kw evaluation-context]
@@ -188,6 +193,14 @@
   "Checks if a node-type is extended to define a list-kw list"
   [workspace node-id list-kw evaluation-context]
   (some? (get-list-definition workspace node-id list-kw evaluation-context)))
+
+(defn list-kws
+  "Return a set of all list keywords defined for a node"
+  [workspace node-id {:keys [basis] :as evaluation-context}]
+  (let [current-state (workspace/node-attachments basis workspace)]
+    (coll/into-> (alternatives workspace node-id evaluation-context) #{}
+      (keep #(:lists (clojure.core/get current-state (g/node-type* basis %))))
+      (mapcat keys))))
 
 (defn- list-definition-editable? [list-definition node-id evaluation-context]
   (and (contains? list-definition :add)
@@ -340,7 +353,7 @@
   [child-node-type]
   (fn get-nodes-by-type [node evaluation-context]
     (let [basis (:basis evaluation-context)]
-      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
+      (coll/into-> (g/explicit-arcs-by-target basis node :nodes) []
         (map gt/source-id)
         (filter #(= child-node-type (g/node-type* basis %)))))))
 

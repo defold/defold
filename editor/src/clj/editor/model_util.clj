@@ -136,6 +136,10 @@
                    :semantic-type-normal-matrix
                    (make-render-arg-attribute-binding-entries attribute-infos :normal)
 
-                   ;; else
-                   (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
-                     (make-attribute-binding-entries scene-node-id attribute-infos attribute-buffers name-key->attribute-bytes))))))))
+                  :semantic-type-texture-transform-2d
+                  ;; We currently don't support texture transforms for models.
+                  (make-attribute-binding-entries scene-node-id attribute-infos nil (constantly nil))
+
+                  ;; else
+                  (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
+                    (make-attribute-binding-entries scene-node-id attribute-infos attribute-buffers name-key->attribute-bytes))))))))

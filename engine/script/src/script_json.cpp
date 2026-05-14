@@ -88,7 +88,7 @@ namespace dmScript
      * @param json [type:string] json data
      * @param [options] [type:table] table with decode options
      *
-     * - [type:boolean] `decode_null_as_userdata`: wether to decode a JSON null value as json.null or nil (default is nil)
+     * - [type:boolean] `decode_null_as_userdata`: whether to decode a JSON null value as json.null or nil (default is nil)
      *
      * @return data [type:table] decoded json
      *
@@ -140,7 +140,7 @@ namespace dmScript
      * @param tbl [type:table] lua table to encode
      * @param [options] [type:table] table with encode options
      *
-     * - [type:string] `encode_empty_table_as_object`: wether to encode an empty table as an JSON object or array (default is object)
+     * - [type:string] `encode_empty_table_as_object`: whether to encode an empty table as an JSON object or array (default is object)
      *
      * @return json [type:string] encoded json
      *

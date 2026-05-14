@@ -51,7 +51,10 @@ def query(query, token, headers = None):
     import requests
     try:
         url = URL_GRAPHQL_API
-        json = { 'query': "query " + query }
+        if query.startswith("query"):
+            json = { 'query': query }
+        else:
+            json = { 'query': "query " + query }
         headers = _create_headers(headers, token)
         response = requests.post(url, json = json, headers = headers)
         response.raise_for_status()

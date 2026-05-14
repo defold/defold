@@ -20,6 +20,7 @@
 namespace dmRig
 {
     static const uint16_t INVALID_POSE_MATRIX_CACHE_ENTRY = 0xFFFF;
+    extern const float TEXTURE_TRANSFORM_2D_IDENTITY[9];
 
     typedef uint16_t HCachePoseMatrixEntry;
 

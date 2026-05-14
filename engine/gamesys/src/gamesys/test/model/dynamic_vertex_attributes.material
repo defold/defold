@@ -1,0 +1,14 @@
+name: "model"
+tags: "model"
+vertex_program: "/model/dynamic_vertex_attributes.vp"
+fragment_program: "/model/dynamic_vertex_attributes.fp"
+vertex_space: VERTEX_SPACE_LOCAL
+attributes {
+  name: "custom_color"
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+  }
+}

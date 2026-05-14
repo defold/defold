@@ -31,7 +31,7 @@ namespace dmMessage {
 
 namespace dmGameObject
 {
-    /*# SDK GameObject script API documentation
+    /*# GameObject script API documentation
      *
      * @document
      * @name Script

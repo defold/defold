@@ -29,6 +29,8 @@
 
 namespace dmGameObject
 {
+    const uint8_t MAX_PROPERTY_OPTIONS_COUNT = 4;
+
     enum PropertyLayer
     {
         PROPERTY_LAYER_INSTANCE = 0,
@@ -55,6 +57,29 @@ namespace dmGameObject
         uintptr_t m_ResolvePathUserData;
         dmScript::GetURLCallback m_GetURLCallback;
     };
+
+    struct PropertyOption
+    {
+        union
+        {
+            dmhash_t m_Key;
+            int32_t  m_Index;
+        };
+
+        uint8_t m_HasKey : 1;
+    };
+
+    struct PropertyOptions
+    {
+        PropertyOptions();
+        PropertyOption m_Options[MAX_PROPERTY_OPTIONS_COUNT];
+        uint8_t        m_OptionsCount;
+    };
+
+    bool AddPropertyOptionsKey(PropertyOptions* options, dmhash_t key);
+    bool AddPropertyOptionsIndex(PropertyOptions* options, int32_t index);
+    bool AddPropertyOption(PropertyOptions* options, PropertyOption option);
+    bool SetPropertyOptionsByIndex(PropertyOptions* options, uint32_t index, int32_t value);
 
     HProperties NewProperties(const NewPropertiesParams& params);
     void DeleteProperties(HProperties properties);

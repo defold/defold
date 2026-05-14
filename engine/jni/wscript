@@ -38,4 +38,4 @@ def build(bld):
     bld.install_files('${PREFIX}/include/jni', 'src/jni/jni_util.h')
 
 def shutdown(self):
-    waf_dynamo.run_tests(test_context, valgrind = True)
+    waf_dynamo.run_tests(test_context)

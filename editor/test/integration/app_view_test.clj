@@ -197,29 +197,24 @@
                                                                          ;; This is a project (i.e. not embedded) resource node.
                                                                          (when-some [source-node-id (test-util/resource-node project source-resource)]
                                                                            (node-cacheable-build-target-endpoints source-node-id))))))
-                                                           (build/resolve-node-dependencies game-project project))]
-          (test-util/run-event-loop!
-            (fn [exit-event-loop!]
+                                                           (build/resolve-node-dependencies game-project project))
+              _ (g/clear-system-cache!)
+              build-results @(app-view/async-build! project
+                                                    :debug false
+                                                    :build-engine false
+                                                    :old-artifact-map artifact-map
+                                                    :prefs (test-util/make-test-prefs))]
+          (when (is (nil? (:error build-results)))
+
+            (testing "Build targets remain in cache even though we've exceeded the cache limit."
+              (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
+
+            (testing "Build targets are always evicted from the cache after their dependencies change."
+              (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
+                (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
+                (test-util/prop! background-atlas :margin 10)
+                (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
+
+            (testing "Build targets are always evicted from the cache when it is explicitly cleared."
               (g/clear-system-cache!)
-              (app-view/async-build! project
-                                     :debug false
-                                     :build-engine false
-                                     :old-artifact-map artifact-map
-                                     :prefs (test-util/make-test-prefs)
-                                     :result-fn (fn [build-results]
-                                                  (when (is (nil? (:error build-results)))
-
-                                                    (testing "Build targets remain in cache even though we've exceeded the cache limit."
-                                                      (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
-
-                                                    (testing "Build targets are always evicted from the cache after their dependencies change."
-                                                      (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
-                                                        (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
-                                                        (test-util/prop! background-atlas :margin 10)
-                                                        (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
-
-                                                    (testing "Build targets are always evicted from the cache when it is explicitly cleared."
-                                                      (g/clear-system-cache!)
-                                                      (is (empty? (g/cache)))))
-
-                                                  (exit-event-loop!))))))))))
+              (is (empty? (g/cache))))))))))

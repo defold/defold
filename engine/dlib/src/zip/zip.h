@@ -31,6 +31,32 @@
 #endif
 #endif
 
+/**
+ * Optional feature flags. All features are enabled by default.
+ * Define these to 0 before including zip.h (or via compiler flags) to disable.
+ *
+ * ZIP_ENABLE_INFLATE  - Enable decompression / extraction support.
+ * ZIP_ENABLE_DEFLATE  - Enable compression / archive creation support.
+ * ZIP_HAVE_SYMLINK    - Enable symlink support during extraction.
+ *                       When disabled, symlinks are extracted as regular files.
+ */
+#ifndef ZIP_ENABLE_INFLATE
+#define ZIP_ENABLE_INFLATE 1
+#endif
+
+#ifndef ZIP_ENABLE_DEFLATE
+#define ZIP_ENABLE_DEFLATE 1
+#endif
+
+#ifndef ZIP_HAVE_SYMLINK
+#if defined(_WIN32) || defined(__WIN32__) || defined(_MSC_VER) ||              \
+    defined(__MINGW32__)
+#define ZIP_HAVE_SYMLINK 0
+#else
+#define ZIP_HAVE_SYMLINK 1
+#endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -60,25 +86,6 @@ typedef long ssize_t; /* byte count or error */
  * Default zip compression level.
  */
 #define ZIP_DEFAULT_COMPRESSION_LEVEL 6
-
-/**
- * Default zip iterator stack size (in bytes)
- */
-#define ZIP_DEFAULT_ITER_BUF_SIZE 32*1024
-
-/**
- * If defined, supports deflate functionality
- */
-#if !defined(ZIP_NO_DEFLATE)
-#define ZIP_USE_DEFLATE
-#endif
-
-/**
- * If defined, supports using file operations
- */
-#if !defined(ZIP_NO_DISC_IO)
-#define ZIP_USE_DISC_IO
-#endif
 
 /**
  * Error codes
@@ -117,20 +124,22 @@ typedef long ssize_t; /* byte count or error */
 #define ZIP_EWRINIT -32     // cannot initialize writer from reader
 #define ZIP_EINVAL -33      // invalid argument
 #define ZIP_ENORITER -34    // cannot initialize reader iterator
+#define ZIP_ECHKDIR -35     // check dir error path exists but is not directory
+#define ZIP_NERRORS 36      /** number of error codes **/
 
 /**
  * Looks up the error message string corresponding to an error number.
  * @param errnum error number
- * @return error message string corresponding to errnum or NULL if error is not
- * found.
+ * @return error message string corresponding to errnum or NULL if error is
+ * not found.
  */
 extern ZIP_EXPORT const char *zip_strerror(int errnum);
 
 /**
  * @struct zip_t
  *
- * This data structure is used throughout the library to represent zip archive -
- * forward declaration.
+ * This data structure is used throughout the library to represent zip archive
+ * - forward declaration.
  */
 struct zip_t;
 
@@ -225,7 +234,8 @@ extern ZIP_EXPORT int zip_entry_opencasesensitive(struct zip_t *zip,
 /**
  * Opens a new entry by index in the zip archive.
  *
- * This function is only valid if zip archive was opened in 'r' (readonly) mode.
+ * This function is only valid if zip archive was opened in 'r' (readonly)
+ * mode.
  *
  * @param zip zip archive handler.
  * @param index index in local dictionary.
@@ -334,6 +344,8 @@ extern ZIP_EXPORT unsigned long long zip_entry_dir_offset(struct zip_t *zip);
  */
 extern ZIP_EXPORT unsigned long long zip_entry_header_offset(struct zip_t *zip);
 
+#if ZIP_ENABLE_DEFLATE
+
 /**
  * Compresses an input buffer for the current zip entry.
  *
@@ -355,6 +367,10 @@ extern ZIP_EXPORT int zip_entry_write(struct zip_t *zip, const void *buf,
  * @return the return code - 0 on success, negative number (< 0) on error.
  */
 extern ZIP_EXPORT int zip_entry_fwrite(struct zip_t *zip, const char *filename);
+
+#endif /* ZIP_ENABLE_DEFLATE */
+
+#if ZIP_ENABLE_INFLATE
 
 /**
  * Extracts the current zip entry into output buffer.
@@ -388,15 +404,15 @@ extern ZIP_EXPORT ssize_t zip_entry_read(struct zip_t *zip, void **buf,
  *       For large entries, please take a look at zip_entry_extract function.
  *
  * @return the return code - the number of bytes actually read on success.
- *         Otherwise a negative number (< 0) on error (e.g. bufsize is not large
- * enough).
+ *         Otherwise a negative number (< 0) on error (e.g. bufsize is not
+ * large enough).
  */
 extern ZIP_EXPORT ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf,
                                                 size_t bufsize);
 
 /**
- * Extracts the part of the current zip entry into a memory buffer using no memory
- * allocation for the buffer.
+ * Extracts the part of the current zip entry into a memory buffer using no
+ * memory allocation for the buffer.
  *
  * @param zip zip archive handler.
  * @param offset the offset of the entry (in bytes).
@@ -407,10 +423,13 @@ extern ZIP_EXPORT ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf,
  * @note each call will iterate from the start of the entry
  *
  * @return the return code - the number of bytes actually read on success.
- *         Otherwise a negative number (< 0) on error (e.g. offset is too large).
+ *         Otherwise a negative number (< 0) on error (e.g. offset is too
+ * large).
  */
 extern ZIP_EXPORT ssize_t zip_entry_noallocreadwithoffset(struct zip_t *zip,
-                                        size_t offset, size_t size, void *buf);
+                                                          size_t offset,
+                                                          size_t size,
+                                                          void *buf);
 
 /**
  * Extracts the current zip entry into output file.
@@ -438,8 +457,11 @@ zip_entry_extract(struct zip_t *zip,
                                        const void *data, size_t size),
                   void *arg);
 
+#endif /* ZIP_ENABLE_INFLATE */
+
 /**
- * Returns the number of all entries (files and directories) in the zip archive.
+ * Returns the number of all entries (files and directories) in the zip
+ * archive.
  *
  * @param zip zip archive handler.
  *
@@ -447,6 +469,8 @@ zip_entry_extract(struct zip_t *zip,
  *         (< 0) on error.
  */
 extern ZIP_EXPORT ssize_t zip_entries_total(struct zip_t *zip);
+
+#if ZIP_ENABLE_DEFLATE
 
 /**
  * Deletes zip archive entries.
@@ -471,6 +495,10 @@ extern ZIP_EXPORT ssize_t zip_entries_deletebyindex(struct zip_t *zip,
                                                     size_t entries[],
                                                     size_t len);
 
+#endif /* ZIP_ENABLE_DEFLATE */
+
+#if ZIP_ENABLE_INFLATE
+
 /**
  * Extracts a zip archive stream into directory.
  *
@@ -488,12 +516,12 @@ extern ZIP_EXPORT ssize_t zip_entries_deletebyindex(struct zip_t *zip,
  *
  * @return the return code - 0 on success, negative number (< 0) on error.
  */
-#if defined(ZIP_USE_DISC_IO)
 extern ZIP_EXPORT int
 zip_stream_extract(const char *stream, size_t size, const char *dir,
                    int (*on_extract)(const char *filename, void *arg),
                    void *arg);
-#endif
+
+#endif /* ZIP_ENABLE_INFLATE */
 
 /**
  * Opens zip archive stream into memory.
@@ -504,7 +532,9 @@ zip_stream_extract(const char *stream, size_t size, const char *dir,
  * @param mode file access mode.
  *        - 'r': opens a file for reading/extracting (the file must exists).
  *        - 'w': creates an empty file for writing.
- *        - 'a': appends to an existing archive.
+ *        - 'd': deletes entries from an existing archive. The caller
+ *               retains ownership of the stream buffer. Use
+ *               zip_stream_copy() to obtain the modified archive.
  *
  * @return the zip archive handler or NULL on error
  */
@@ -521,7 +551,9 @@ extern ZIP_EXPORT struct zip_t *zip_stream_open(const char *stream, size_t size,
  * @param mode file access mode.
  *        - 'r': opens a file for reading/extracting (the file must exists).
  *        - 'w': creates an empty file for writing.
- *        - 'a': appends to an existing archive.
+ *        - 'd': deletes entries from an existing archive. The caller
+ *               retains ownership of the stream buffer. Use
+ *               zip_stream_copy() to obtain the modified archive.
  * @param errnum 0 on success, negative number (< 0) on error.
  *
  * @return the zip archive handler or NULL on error
@@ -553,8 +585,8 @@ extern ZIP_EXPORT ssize_t zip_stream_copy(struct zip_t *zip, void **buf,
 extern ZIP_EXPORT void zip_stream_close(struct zip_t *zip);
 
 /**
- * Opens zip archive from existing FILE stream with compression level using the
- * given mode. The stream will not be closed when calling zip_close.
+ * Opens zip archive from existing FILE stream with compression level using
+ * the given mode. The stream will not be closed when calling zip_close.
  *
  * @param stream C FILE stream.
  * @param level compression level (0-9 are the standard zlib-style levels).
@@ -570,9 +602,9 @@ extern ZIP_EXPORT struct zip_t *zip_cstream_open(FILE *stream, int level,
                                                  char mode);
 
 /**
- * Opens zip archive from existing FILE stream with compression level using the
- * given mode. The function additionally returns @param errnum - The stream will
- * not be closed when calling zip_close.
+ * Opens zip archive from existing FILE stream with compression level using
+ * the given mode. The function additionally returns @param errnum - The
+ * stream will not be closed when calling zip_close.
  *
  * @param stream C FILE stream.
  * @param level compression level (0-9 are the standard zlib-style levels).
@@ -595,6 +627,8 @@ zip_cstream_openwitherror(FILE *stream, int level, char mode, int *errnum);
  */
 extern ZIP_EXPORT void zip_cstream_close(struct zip_t *zip);
 
+#if ZIP_ENABLE_DEFLATE
+
 /**
  * Creates a new archive and puts files into a single zip archive.
  *
@@ -604,10 +638,12 @@ extern ZIP_EXPORT void zip_cstream_close(struct zip_t *zip);
  *
  * @return the return code - 0 on success, negative number (< 0) on error.
  */
-#if defined(ZIP_USE_DEFLATE)
 extern ZIP_EXPORT int zip_create(const char *zipname, const char *filenames[],
                                  size_t len);
-#endif
+
+#endif /* ZIP_ENABLE_DEFLATE */
+
+#if ZIP_ENABLE_INFLATE
 
 /**
  * Extracts a zip archive file into directory.
@@ -629,6 +665,9 @@ extern ZIP_EXPORT int zip_extract(const char *zipname, const char *dir,
                                   int (*on_extract_entry)(const char *filename,
                                                           void *arg),
                                   void *arg);
+
+#endif /* ZIP_ENABLE_INFLATE */
+
 /** @} */
 #ifdef __cplusplus
 }

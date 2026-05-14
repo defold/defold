@@ -18,7 +18,7 @@ from waflib.TaskGen import extension, feature, after, before
 from waflib.Logs import error
 import waflib.Utils
 
-CONST_ARCHIVEBUILDER      = '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.archive.ArchiveBuilder'
+CONST_ARCHIVEBUILDER      = '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.archive.ArchiveBuilder'
 CONST_ARCHIVEBUILDER_ARGS = '${ARCHIVEBUILDER_ROOT} ${ARCHIVEBUILDER_OUTPUT} ${ARCHIVEBUILDER_FLAGS} ${SRC}'
 waflib.Task.task_factory('resource_archive', '%s %s' % (CONST_ARCHIVEBUILDER, CONST_ARCHIVEBUILDER_ARGS),
     color='PINK', shell=False)
@@ -48,11 +48,16 @@ def apply_barchive_after(self):
     #     I'm not 100% sure why the new waf doesn't pick them up automatically,
     #     so instead we generate the process manually here.
     self.source = waflib.Utils.to_list(self.source)
+    compiled_extensions = ('.adc', '.scriptc', '.cont', '.foo')
     for x in self.source:
         if isinstance(x, str):
             x = self.path.make_node(x)
 
         has_live_update = has_live_update or 'liveupdate' in x.name
+
+        if x.name.endswith(compiled_extensions):
+            builder.inputs.append(x)
+            continue
 
         hook = self.get_hook(x)
         hook(self, x)
@@ -68,7 +73,7 @@ def apply_barchive_after(self):
             builder.set_run_after(task)
             builder.inputs.extend(task.outputs)
 
-    extensions = ['dmanifest', 'arci', 'arcd', 'public', 'manifest_hash']
+    extensions = ['dmanifest', 'arci', 'arcd', 'manifest_hash']
     if has_live_update:
         extensions.append('zip')
 

@@ -54,16 +54,14 @@
                       (throw t))))]
      (reset! load-info [loader boot-loaded-promise]))))
 
-(defn wait-until-editor-boot-loaded
-  []
+(defn wait-until-editor-boot-loaded []
   (let [result @(second @load-info)]
     (when (instance? Throwable result)
       (throw result))))
 
-(defn load-synchronous
-  [print-to-stdout]
+(defn load-synchronous [print-to-stdout]
   (load-boot print-to-stdout)
-  (wait-until-editor-boot-loaded))
+  (deref (first @load-info)))
 
 (defn main
   [args]

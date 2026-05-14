@@ -15,6 +15,7 @@ target_compile_definitions(defold_sdk INTERFACE DM_HOSTFS=\"\")
 target_compile_options(defold_sdk INTERFACE
   -gdwarf-2
   -ffunction-sections
+  -fdata-sections
   -fstack-protector
   -fomit-frame-pointer
   -fno-strict-aliasing
@@ -41,6 +42,7 @@ endif()
 
 # Link options (with generator expressions for arch-specific flags)
 target_link_options(defold_sdk INTERFACE
+  -Wl,--gc-sections
   -Wl,--no-undefined
   -Wl,-z,noexecstack
   -landroid
@@ -48,4 +50,3 @@ target_link_options(defold_sdk INTERFACE
   -z text
   -Wl,--build-id=uuid
   -static-libstdc++)
-

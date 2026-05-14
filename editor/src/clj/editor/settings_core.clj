@@ -16,9 +16,8 @@
   (:require [clojure.string :as string]
             [editor.system :as system]
             [editor.url :as url]
-            [internal.util :as util]
             [util.coll :as coll]
-            [util.fn :as fn]
+            [util.eduction :as e]
             [util.text-util :as text-util])
   (:import [clojure.lang MultiFn]))
 
@@ -101,18 +100,6 @@
     empty-parse-state
     (line-seq reader)))
 
-(defn inject-jvm-properties [^String raw-setting-value]
-  ;; Replace patterns such as {{defold.extension.spine.url}} with JVM property values.
-  (string/replace
-    raw-setting-value
-    #"\{\{(.+?)\}\}" ; Match the text inside the an {{...}} expression.
-    (fn [[_ jvm-property-key]]
-      (or (System/getProperty jvm-property-key)
-          (throw (ex-info (format "Required JVM property `%s` is not defined."
-                                  jvm-property-key)
-                          {:jvm-property-key jvm-property-key
-                           :raw-setting-value raw-setting-value}))))))
-
 (defmulti parse-setting-value (fn [meta-setting ^String raw] (:type meta-setting)))
 
 (defmethod parse-setting-value :string [_ raw]
@@ -144,7 +131,7 @@
 ;; branch of an extension in the integration tests as we develop new features.
 (if (system/defold-dev?)
   (defmethod parse-setting-value :url [_ raw]
-    (some-> raw inject-jvm-properties url/try-parse))
+    (some-> raw ((requiring-resolve 'local-extensions/inject-jvm-properties)) url/try-parse))
   (defmethod parse-setting-value :url [_ raw]
     (some-> raw url/try-parse)))
 
@@ -188,32 +175,9 @@
                                 (type-defaults type)))))
                   settings))))
 
-(declare render-raw-setting-value)
-
-(defn- add-to-from-string [meta-info]
-  (update meta-info :settings
-          (fn [settings]
-            (mapv (fn [meta-setting]
-                    (if (contains? meta-setting :options)
-                      (assoc meta-setting
-                        :from-string (fn/partial parse-setting-value meta-setting)
-                        :to-string (fn/partial render-raw-setting-value meta-setting))
-                      meta-setting))
-                  settings))))
-
-(defn remove-to-from-string [meta-info]
-  (update meta-info :settings
-          (fn [settings]
-            (mapv (fn [meta-setting]
-                    (if (contains? meta-setting :options)
-                      (dissoc meta-setting :from-string :to-string)
-                      meta-setting))
-                  settings))))
-
 (defn finalize-meta-info [meta-info]
   (-> meta-info
-      ensure-type-defaults
-      add-to-from-string))
+      ensure-type-defaults))
 
 (defn label [key]
   (->> (string/split (name key) #"(_|\s+)")
@@ -230,7 +194,7 @@
                    {:path setting-path
                     :type :string
                     :help (label (last setting-path))
-                    :unknown-setting? true})))
+                    :unknown-setting true})))
           settings)))
 
 (defn add-meta-info-for-unknown-settings [meta-info settings]
@@ -249,7 +213,26 @@
    (coll/merge-with-kv
      (fn [k a b]
        (case k
-         :settings (into [] (comp cat (util/distinct-by :path)) [a b])
+         :settings (->> (e/concat a b)
+                        (reduce
+                          (fn [e setting]
+                            (let [path->index (key e)
+                                  settings (val e)]
+                              (if-let [index (path->index (:path setting))]
+                                (if (and (:unknown-setting (settings index))
+                                         (not (:unknown-setting setting)))
+                                  (coll/pair
+                                    path->index
+                                    (assoc! settings index setting))
+                                  e)
+                                (coll/pair
+                                  (assoc! path->index (:path setting) (count settings))
+                                  (conj! settings setting)))))
+                          (coll/pair
+                            #_path->index (transient {})
+                            #_settings (transient [])))
+                        val
+                        persistent!)
          :group-order (into [] (comp cat (distinct)) [a b])
          :categories (coll/merge-with coll/merge a b)
          b))

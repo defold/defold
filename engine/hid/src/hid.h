@@ -23,13 +23,8 @@
 
 #include <stdint.h>
 
-#include <dmsdk/hid/hid.h>
-
-namespace dmPlatform
-{
-    struct dmWindow;
-    typedef dmWindow* HWindow;
-};
+#include "dmsdk/hid/hid.h"
+#include <dmsdk/platform/window.h>
 
 namespace dmHID
 {
@@ -123,9 +118,9 @@ namespace dmHID
      * Set the window handle.
      *
      * @param context context for which the window handle should be set
-     * @param window [type: dmPlatform::HWindow] the window handle
+     * @param window [type: HWindow] the window handle
      */
-    void SetWindow(HContext context, dmPlatform::HWindow window);
+    void SetWindow(HContext context, HWindow window);
 
     /**
      * Initializes a hid context.
@@ -151,6 +146,14 @@ namespace dmHID
     bool Update(HContext context);
 
     /**
+     * Tells the gamepad to use legacy (non SDL) button/axis layout
+     *
+     * @param gamepad gamepad handle
+     * @param legacy true if the legacy layout is to be used (currently true by default)
+     */
+    void SetGamepadLayoutLegacy(HGamepad gamepad, bool legacy);
+
+    /**
      * Retrieves the number of buttons on a given gamepad.
      *
      * @param gamepad gamepad handle
@@ -171,12 +174,22 @@ namespace dmHID
     /**
      * Retrieves the platform-specific device name of a given gamepad.
      *
+     * @name GetGamepadDeviceName
      * @param context the hid context
      * @param gamepad gamepad handle
-     * @param buffer a pointer to memory where the name should be stored
-     * @param buffer_length the size of the buffer parameter
+     * @param buffer a pointer to memory where the name should be stored (size dmHID::MAX_GAMEPAD_NAME_LENGTH)
      */
     void GetGamepadDeviceName(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH]);
+
+    /**
+     * Retrieves the platform-specific device name of a given gamepad.
+     *
+     * @name GetGamepadDeviceNameSDL
+     * @param context the hid context
+     * @param gamepad gamepad handle
+     * @param buffer a pointer to memory where the name should be stored (size dmHID::MAX_GAMEPAD_NAME_LENGTH)
+     */
+    void GetGamepadDeviceNameSDL(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH]);
 
     /**
      * Check if a keyboard is connected.

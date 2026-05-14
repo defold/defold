@@ -1,17 +1,3 @@
-// Copyright 2020-2026 The Defold Foundation
-// Copyright 2014-2020 King
-// Copyright 2009-2014 Ragnar Svensson, Christian Murray
-// Licensed under the Defold License version 1.0 (the "License"); you may not use
-// this file except in compliance with the License.
-//
-// You may obtain a copy of the License, together with FAQs at
-// https://www.defold.com/license
-//
-// Unless required by applicable law or agreed to in writing, software distributed
-// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-// CONDITIONS OF ANY KIND, either express or implied. See the License for the
-// specific language governing permissions and limitations under the License.
-
 #include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/log.h>
 #include "socket.h"
@@ -43,16 +29,13 @@
 // Helper and utility functions
 namespace dmSocket
 {
-#if defined(_WIN32)
-    #define DM_SOCKET_NATIVE_TO_RESULT_CASE(x) case WSAE##x: return RESULT_##x
-#else
     #define DM_SOCKET_NATIVE_TO_RESULT_CASE(x) case E##x: return RESULT_##x
-#endif
     Result NativeToResult(const char* filename, int line, int r)
     {
         switch (r)
         {
             DM_SOCKET_NATIVE_TO_RESULT_CASE(ACCES);
+            case EPERM: return RESULT_ACCES;
             DM_SOCKET_NATIVE_TO_RESULT_CASE(AFNOSUPPORT);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(WOULDBLOCK);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(BADF);
@@ -75,10 +58,7 @@ namespace dmSocket
             //DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTDIR);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTSOCK);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(OPNOTSUPP);
-#ifndef _WIN32
-            // NOTE: EPIPE is not availble on winsock
             DM_SOCKET_NATIVE_TO_RESULT_CASE(PIPE);
-#endif
             DM_SOCKET_NATIVE_TO_RESULT_CASE(PROTONOSUPPORT);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(PROTOTYPE);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(TIMEDOUT);
@@ -98,10 +78,7 @@ namespace dmSocket
 
     #define NATIVETORESULT(_R_) NativeToResult(__FILE__, __LINE__, _R_)
 
-    // Use this function for BSD socket compatibility
-    // However, don't use it blindly as we return code ETIMEDOUT is "lost".
-    // The background is that ETIMEDOUT is returned rather than EWOULDBLOCK on windows
-    // on socket timeout.
+    // Use this function when socket timeout errors should be reported as would-block.
     static Result NativeToResultCompat(int r)
     {
         Result res = NativeToResult(__FILE__, __LINE__, r);
@@ -113,14 +90,6 @@ namespace dmSocket
 
     bool IsSocketIPv4(Socket socket)
     {
-#if defined(_WIN32)
-        WSAPROTOCOL_INFO ss = {0};
-        socklen_t sslen = sizeof(ss);
-        int result = getsockopt( socket, SOL_SOCKET, SO_PROTOCOL_INFO, (char*)&ss, (int*)&sslen );
-        if (result == 0) {
-            return ss.iAddressFamily == AF_INET;
-        }
-#else
         struct sockaddr_storage ss = { 0 };
         socklen_t sslen = sizeof(ss);
         int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
@@ -128,7 +97,6 @@ namespace dmSocket
         {
             return ss.ss_family == AF_INET;
         }
-#endif
         dmLogError("Failed to retrieve address family (%d): %s",
             NATIVETORESULT(DM_SOCKET_ERRNO), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
 
@@ -137,14 +105,6 @@ namespace dmSocket
 
     bool IsSocketIPv6(Socket socket)
     {
-#if defined(_WIN32)
-        WSAPROTOCOL_INFO ss = {0};
-        socklen_t sslen = sizeof(ss);
-        int result = getsockopt( socket, SOL_SOCKET, SO_PROTOCOL_INFO, (char*)&ss, (int*)&sslen );
-        if (result == 0) {
-            return ss.iAddressFamily == AF_INET6;
-        }
-#else
         struct sockaddr_storage ss = { 0 };
         socklen_t sslen = sizeof(ss);
         int result = getsockname(socket, (struct sockaddr*) &ss, &sslen);
@@ -152,14 +112,12 @@ namespace dmSocket
         {
             return ss.ss_family == AF_INET6;
         }
-#endif
 
         dmLogError("Failed to retrieve address family (%d): %s",
             NATIVETORESULT(DM_SOCKET_ERRNO), ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
         return false;
     }
 
-#if !defined(_WIN32)
     Result PlatformInitialize()
     {
         return RESULT_OK;
@@ -169,7 +127,6 @@ namespace dmSocket
     {
         return RESULT_OK;
     }
-#endif
 
     static int TypeToNative(Type type)
     {
@@ -316,11 +273,7 @@ namespace dmSocket
         {
             return RESULT_BADF;
         }
-#if defined(_WIN32)
-        int result = closesocket(socket);
-#else
         int result = close(socket);
-#endif
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
@@ -443,15 +396,9 @@ namespace dmSocket
     {
         switch(type)
         {
-#if defined(_WIN32)
-            case SHUTDOWNTYPE_READ:         return SD_RECEIVE;
-            case SHUTDOWNTYPE_WRITE:        return SD_SEND;
-            case SHUTDOWNTYPE_READWRITE:    return SD_BOTH;
-#else
             case SHUTDOWNTYPE_READ:         return SHUT_RD;
             case SHUTDOWNTYPE_WRITE:        return SHUT_WR;
             case SHUTDOWNTYPE_READWRITE:    return SHUT_RDWR;
-#endif
         }
         return 0;
     }
@@ -474,8 +421,6 @@ namespace dmSocket
         *sent_bytes = 0;
 #if defined(__linux__)
         ssize_t s = send(socket, buffer, length, MSG_NOSIGNAL);
-#elif defined(_WIN32)
-        int s = send(socket, (const char*) buffer, length, 0);
 #else
         ssize_t s = send(socket, buffer, length, 0);
 #endif
@@ -502,11 +447,7 @@ namespace dmSocket
             sock_addr.sin_addr.s_addr = *IPv4(&to_addr);
             sock_addr.sin_port = htons(to_port);
 
-#ifdef _WIN32
-            result = (int) sendto(socket, (const char*) buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
-#else
             result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
-#endif
         }
 #if !defined(DM_IPV6_UNSUPPORTED)
         else if (IsSocketIPv6(socket))
@@ -518,11 +459,7 @@ namespace dmSocket
             memcpy(&sock_addr.sin6_addr, IPv6(&to_addr), sizeof(struct in6_addr));
             sock_addr.sin6_port = htons(to_port);
 
-#ifdef _WIN32
-            result = (int) sendto(socket, (const char*) buffer, length, 0,  (const sockaddr*) &sock_addr, sizeof(sock_addr));
-#else
             result = (int) sendto(socket, buffer, length, 0, (const sockaddr*) &sock_addr, sizeof(sock_addr));
-#endif
         }
 #endif // no ipv6
         else
@@ -538,11 +475,7 @@ namespace dmSocket
     Result Receive(Socket socket, void* buffer, int length, int* received_bytes)
     {
         *received_bytes = 0;
-#ifdef _WIN32
-        int r = recv(socket, (char*) buffer, length, 0);
-#else
         int r = recv(socket, buffer, length, 0);
-#endif
 
         if (r < 0)
         {
@@ -566,11 +499,7 @@ namespace dmSocket
             struct sockaddr_in sock_addr = { 0 };
             socklen_t addr_len = sizeof(sock_addr);
 
-#ifdef _WIN32
-            result = recvfrom(socket, (char*) buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
-#else
             result = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
-#endif
             if (result >= 0)
             {
                 from_addr->m_family = dmSocket::DOMAIN_IPV4;
@@ -585,11 +514,7 @@ namespace dmSocket
             struct sockaddr_in6 sock_addr = { 0 };
             socklen_t addr_len = sizeof(sock_addr);
 
-#ifdef _WIN32
-            result = recvfrom(socket, (char*) buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
-#else
             result = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &sock_addr, &addr_len);
-#endif
             if (result >= 0)
             {
                 from_addr->m_family = dmSocket::DOMAIN_IPV6;
@@ -695,9 +620,8 @@ namespace dmSocket
             {
                 if (r->ifr_addr.sa_family == AF_INET)
                 {
-                    // This is used exclusively for SSDP, and our current SSDP
-                    // implementation does not support IPv6. Therefore we'll
-                    // only manage IPv4 interfaces.
+                    // Engine discovery currently uses this local address path,
+                    // and it only tracks IPv4 interfaces.
                     address->m_family = DOMAIN_IPV4;
                     *IPv4(address) = sin->sin_addr.s_addr;
                 }
@@ -711,7 +635,7 @@ namespace dmSocket
          * Get local address from reverse lookup of hostname
          * The method is potentially fragile. On iOS we iterate
          * over network adapter to the find actual address for en0
-         * See socket_cocoa.mm
+         * See socket_apple.mm
          */
         char hostname[256] = { 0 };
         Result r = dmSocket::GetHostname(hostname, sizeof(hostname));
@@ -737,7 +661,6 @@ namespace dmSocket
 
     Result SetBlocking(Socket socket, bool blocking)
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
         int flags = fcntl(socket, F_GETFL, 0);
         if (flags < 0)
         {
@@ -761,28 +684,6 @@ namespace dmSocket
         {
             return RESULT_OK;
         }
-#else
-        u_long arg;
-        if (blocking)
-        {
-            arg = 0;
-        }
-        else
-        {
-            arg = 1;
-        }
-
-        int ret = ioctlsocket(socket, FIONBIO, &arg);
-        if (ret == 0)
-        {
-            return RESULT_OK;
-        }
-        else
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-
-#endif
     }
 
     Result SetNoDelay(Socket socket, bool no_delay)
@@ -792,7 +693,7 @@ namespace dmSocket
 
     Result SetQuickAck(Socket socket, bool use_quick_ack)
     {
-#if defined(__MACH__) || defined(_WIN32)
+#if defined(__MACH__)
         return RESULT_OK;
 #else
         return SetSockoptBool(socket, IPPROTO_TCP, TCP_QUICKACK, use_quick_ack);
@@ -804,17 +705,9 @@ namespace dmSocket
 #if defined(__EMSCRIPTEN__)
         return NATIVETORESULT(DM_SOCKET_ERRNO);
 #else
-#ifdef WIN32
-        DWORD timeval = time / 1000;
-        if (time > 0 && timeval == 0) {
-            dmLogWarning("Socket timeout requested less than 1ms. Timeout set to 1ms.");
-            timeval = 1;
-        }
-#else
         struct timeval timeval;
         timeval.tv_sec = time / 1000000;
         timeval.tv_usec = time % 1000000;
-#endif
         int ret = setsockopt(socket, level, name, (char *) &timeval, sizeof(timeval));
         if (ret < 0)
         {

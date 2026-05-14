@@ -18,9 +18,10 @@
             [util.fn :as fn])
   (:import [java.lang Math]
            [java.math RoundingMode]
-           [javax.vecmath Matrix3d Matrix3f Matrix4d Matrix4f Point3d Quat4d SingularMatrixException Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
+           [javax.vecmath Matrix3d Matrix3f Matrix4d Matrix4f Point3d Quat4d SingularMatrixException Tuple2d Tuple3d Tuple4d VecmathUtils Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def ^:const epsilon 0.000001)
 (def ^:const epsilon-sq (* epsilon epsilon))
@@ -59,9 +60,10 @@
             middle-number (nth sorted-numbers middle-index)]
         (if (odd? count)
           middle-number
-          (-> middle-number
-              (+ (nth sorted-numbers (dec middle-index)))
-              (/ 2.0)))))))
+          (let [prior-index (dec middle-index)
+                prior-number (nth sorted-numbers prior-index)
+                middle-plus-prior (+ (double prior-number) (double middle-number))]
+            (/ middle-plus-prior 2.0)))))))
 
 (defn round-with-precision
   "Slow but precise rounding to a specified precision. Use with UI elements that
@@ -107,7 +109,8 @@
                     {:b b
                      :type (type b)}))))
 
-(defn project [^Vector3d from ^Vector3d onto] ^Double
+(defn project
+  ^double [^Vector3d from ^Vector3d onto]
   (let [onto-dot (.dot onto onto)]
     (assert (> (.dot onto onto) 0.0))
     (/ (.dot from onto) onto-dot)))
@@ -143,6 +146,7 @@
     (let [closest ^Point3d (project-lines circle-pos circle-axis line-pos line-dir)
           plane-dist (project (doto (Vector3d. closest) (.sub circle-pos)) circle-axis)
           closest (doto (Point3d. circle-axis) (.scaleAdd ^Double (- plane-dist) closest))
+          radius (double radius)
           radius-sq (* radius radius)
           dist-sq (.distanceSquared closest circle-pos)]
       (if (< dist-sq radius-sq)
@@ -151,16 +155,19 @@
 
 (defn euler->quat
   ^Quat4d [euler]
-  ; Implementation based on:
-  ; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
-  ; Rotation sequence: 231 (YZX)
-  (let [[x y z] euler]
-    (if (= 0.0 (double x) (double y))
-      (let [ha (* 0.5 (deg->rad z))
+  ;; Implementation based on:
+  ;; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
+  ;; Rotation sequence: 231 (YZX)
+  (let [[^double x-deg ^double y-deg ^double z-deg] euler]
+    (if (and (zero? x-deg)
+             (zero? y-deg))
+      (let [ha (* 0.5 (deg->rad z-deg))
             s (Math/sin ha)
             c (Math/cos ha)]
-        (Quat4d. 0 0 s c))
-      (let [[t1 t2 t3] (map deg->rad (map #(nth euler %) [1 2 0]))
+        (Quat4d. 0.0 0.0 s c))
+      (let [t1 (deg->rad y-deg)
+            t2 (deg->rad z-deg)
+            t3 (deg->rad x-deg)
             c1 (Math/cos (* t1 0.5))
             s1 (Math/sin (* t1 0.5))
             c2 (Math/cos (* t2 0.5))
@@ -182,27 +189,103 @@
         c (Math/cos ha)]
     (Quat4d. 0.0 0.0 s c)))
 
-(defn quat-components->euler [^double x ^double y ^double z ^double w]
-  (if (= 0.0 x y)
-    (let [ha (Math/atan2 z w)]
-      [0.0 0.0 (rad->deg (* 2.0 ha))])
-    (let [test (+ (* x y) (* z w))]
-      (cond
-        (or (> test 0.499) (< test -0.499)) ; singularity at north pole
-        (let [sign (Math/signum test)
-              heading (* sign 2.0 (Math/atan2 x w))
-              attitude (* sign Math/PI 0.5)
-              bank 0.0]
-          [(rad->deg bank) (rad->deg heading) (rad->deg attitude)])
+(defn- near-zero? [^double value]
+  (<= (Math/abs value) epsilon))
 
-        :default
-        (let [sqx (* x x)
-              sqy (* y y)
-              sqz (* z z)
-              heading (Math/atan2 (- (* 2.0 y w) (* 2.0 x z)) (- 1.0 (* 2.0 sqy) (* 2.0 sqz)))
-              attitude (Math/asin (* 2.0 test))
-              bank (Math/atan2 (- (* 2.0 x w) (* 2.0 y z)) (- 1.0 (* 2.0 sqx) (* 2.0 sqz)))]
-          [(rad->deg bank) (rad->deg heading) (rad->deg attitude)])))))
+(defn- normalize-euler-angle
+  ^double [^double degrees]
+  (let [normalized (- (double (mod (+ degrees 180.0) 360.0)) 180.0)]
+    (cond
+      (near-zero? normalized)
+      0.0
+
+      (or (near-zero? (+ normalized 180.0))
+          (near-zero? (- normalized 180.0)))
+      180.0
+
+      :else
+      normalized)))
+
+(defn- score-euler
+  ^double [[^double x ^double y ^double z]]
+  (let [;; We assume the euler angles have been normalized, so the absolute
+        ;; rotation components will be between 0.0 and 180.0 degrees.
+        abs-x (Math/abs x)
+        abs-y (Math/abs y)
+        abs-z (Math/abs z)
+
+        ;; A lower score gives higher priority. In order of significance:
+        ;; A penalty is imposed for each non-zero component.
+        non-zero-component-count-penalty
+        (+ (if (> abs-x epsilon) 1.0 0.0)
+           (if (> abs-y epsilon) 1.0 0.0)
+           (if (> abs-z epsilon) 1.0 0.0))
+
+        ;; A penalty is imposed for larger component magnitudes.
+        component-magnitude-penalty ; Max is 180.0 * 3.0 = 540.0.
+        (+ abs-x abs-y abs-z)
+
+        ;; A penalty is imposed for each negative component.
+        negative-component-count-penalty
+        (+ (if (neg? x) 1.0 0.0)
+           (if (neg? y) 1.0 0.0)
+           (if (neg? z) 1.0 0.0))
+
+        ;; Preference is given to Y > Z > X magnitudes (rotation order).
+        non-preferred-axis-penalty
+        (+ (if (> abs-z abs-x) 0.0 1.0)
+           (if (> abs-y abs-z) 0.0 1.0))]
+
+    (+ (* non-zero-component-count-penalty 100000.0) ; Contributes 0.0 - 300000.0.
+       (* component-magnitude-penalty 100.0) ; Contributes 0.0 - 54000.0.
+       (* negative-component-count-penalty 10.0) ; Contributes 0.0 - 30.0.
+       non-preferred-axis-penalty))) ; Contributes 0.0 - 2.0.
+
+(defn canonicalize-euler
+  [[^double x ^double y ^double z]]
+  (let [candidates
+        [[(normalize-euler-angle x)
+          (normalize-euler-angle y)
+          (normalize-euler-angle z)]
+         [(normalize-euler-angle (+ x 180.0))
+          (normalize-euler-angle (- y 180.0))
+          (normalize-euler-angle (- 180.0 z))]
+         [(normalize-euler-angle (- x 180.0))
+          (normalize-euler-angle (+ y 180.0))
+          (normalize-euler-angle (- 180.0 z))]]]
+
+    (loop [best (first candidates)
+           best-score (score-euler best)
+           candidates (rest candidates)]
+      (if-let [candidate (first candidates)]
+        (let [candidate-score (score-euler candidate)]
+          (if (< candidate-score best-score)
+            (recur candidate candidate-score (rest candidates))
+            (recur best best-score (rest candidates))))
+        best))))
+
+(defn quat-components->euler [^double x ^double y ^double z ^double w]
+  ;; Extract XYZ angles for the YZX rotation sequence used by euler->quat.
+  (canonicalize-euler
+    (if (and (zero? x)
+             (zero? y))
+      (let [half-angle (Math/atan2 z w)]
+        [0.0 0.0 (rad->deg (* 2.0 half-angle))])
+      (let [m00 (- 1.0 (* 2.0 y y) (* 2.0 z z))
+            m10 (+ (* 2.0 x y) (* 2.0 z w))
+            m11 (- 1.0 (* 2.0 x x) (* 2.0 z z))
+            m12 (- (* 2.0 y z) (* 2.0 x w))
+            m20 (- (* 2.0 x z) (* 2.0 y w))
+            m21 (+ (* 2.0 y z) (* 2.0 x w))
+            m22 (- 1.0 (* 2.0 x x) (* 2.0 y y))
+            attitude (Math/asin (max -1.0 (min 1.0 m10)))
+            cos-attitude (Math/cos attitude)]
+        (if (> (Math/abs cos-attitude) epsilon)
+          (let [heading (Math/atan2 (- m20) m00)
+                bank (Math/atan2 (- m12) m11)]
+            [(rad->deg bank) (rad->deg heading) (rad->deg attitude)])
+          (let [bank (Math/atan2 m21 m22)]
+            [(rad->deg bank) 0.0 (rad->deg attitude)]))))))
 
 (defn quat->euler [^Quat4d quat]
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
@@ -373,18 +456,13 @@
      (.mul q1 q)
      q1)))
 
-(defn from-to->quat [^Vector3d unit-from ^Vector3d unit-to]
+(defn from-to->quat
+  ^Quat4d [^Vector3d unit-from ^Vector3d unit-to]
   (let [dot (.dot unit-from unit-to)]
     (let [cos-half (Math/sqrt (* 2.0 (+ 1.0 dot)))
           recip-cos-half (/ 1.0 cos-half)
           axis (doto (Vector3d.) (.cross unit-from unit-to) (.scale recip-cos-half))]
       (doto (Quat4d. (.x axis) (.y axis) (.z axis) (* 0.5 cos-half))))))
-
-(defn unit-axis [^long dimension-index] ^Vector3d
-  (case dimension-index
-    0 (Vector3d. 1 0 0)
-    1 (Vector3d. 0 1 0)
-    2 (Vector3d. 0 0 1)))
 
 (defn ->mat4
   ^Matrix4d []
@@ -430,24 +508,12 @@
      (.setElement 2 2 z-scale)
      (.setElement 3 3 1.0))))
 
-(defn split-mat4 [^Matrix4d mat ^Tuple3d out-position ^Quat4d out-rotation ^Vector3d out-scale]
-  (let [tmp (Vector4d.)
-        _ (.getColumn mat 3 tmp)
-        _ (.set out-position (.getX tmp) (.getY tmp) (.getZ tmp))
-        tmp (Vector3d.)
-        mat3 (Matrix3d.)
-        _ (.getRotationScale mat mat3)
-        scale (double-array 3)]
-    (doseq [^long col (range 3)]
-      (.getColumn mat3 col tmp)
-      (let [s (.length tmp)
-            ^Vector3d axis (if (> s epsilon)
-                             (doto tmp (.scale (/ 1.0 s)))
-                             (unit-axis col))]
-        (aset scale col s)
-        (.setColumn mat3 col axis))
-      (.set out-rotation mat3)
-      (.set out-scale scale))))
+(defn split-mat4 [^Matrix4d matrix ^Tuple3d out-translation ^Quat4d out-rotation ^Vector3d out-scale]
+  (let [rotation-matrix (Matrix3d.)]
+    (VecmathUtils/extractTranslation matrix out-translation)
+    (VecmathUtils/extractRotationScaleOrthogonal matrix rotation-matrix out-scale)
+    (VecmathUtils/correctHandedness rotation-matrix out-scale)
+    (VecmathUtils/assignFromOrthonormal out-rotation rotation-matrix)))
 
 (defn inverse
   "Calculate the inverse of a matrix."
@@ -560,6 +626,16 @@
     (catch SingularMatrixException _
       identity-mat4)))
 
+(defn- inverse-or-identity
+  ^Matrix4d [^Matrix4d mat]
+  (try
+    (inverse mat)
+    (catch SingularMatrixException _
+      identity-mat4)
+    ;; Vecmath may also throw RuntimeException for some singular matrices.
+    (catch RuntimeException _
+      identity-mat4)))
+
 (defn derive-render-transforms
   "Given the world, view, projection, and texture transforms, derive the normal,
   view-proj, world-view, and world-view-proj transforms and return a map with
@@ -573,6 +649,12 @@
   (let [view-proj (doto (Matrix4d. projection) (.mul view))
         world-view (doto (Matrix4d. view) (.mul world))
         world-view-proj (doto (Matrix4d. view-proj) (.mul world))
+        world-inv (inverse-or-identity world)
+        view-inv (inverse-or-identity view)
+        projection-inv (inverse-or-identity projection)
+        view-proj-inv (inverse-or-identity view-proj)
+        world-view-inv (inverse-or-identity world-view)
+        world-view-proj-inv (inverse-or-identity world-view-proj)
         normal (derive-normal-transform world-view)]
     ;; Some of these may be overwritten by the rederive-render-transforms
     ;; function, so we include the actually derived transforms for all world
@@ -582,13 +664,19 @@
      :actual/world-view-proj world-view-proj
      :actual/normal normal
      :world world
+     :world-inv world-inv
      :view view
+     :view-inv view-inv
      :projection projection
+     :projection-inv projection-inv
      :texture texture
      :normal normal
      :view-proj view-proj
+     :view-proj-inv view-proj-inv
      :world-view world-view
-     :world-view-proj world-view-proj}))
+     :world-view-inv world-view-inv
+     :world-view-proj world-view-proj
+     :world-view-proj-inv world-view-proj-inv}))
 
 (defn rederive-render-transforms
   "Given a result from the derive-render-transforms function, returns a new
@@ -608,13 +696,16 @@
         has-world-space-normal (contains? world-space-semantic-types :semantic-type-normal)
         has-local-space-position (contains? local-space-semantic-types :semantic-type-position)
         has-local-space-normal (contains? local-space-semantic-types :semantic-type-normal)
-        {:keys [view view-proj]} derived-render-transforms]
+        {:keys [view view-inv view-proj view-proj-inv]} derived-render-transforms]
     (cond-> derived-render-transforms
 
             (and has-world-space-position (not has-local-space-position))
             (assoc :world identity-mat4
+                   :world-inv identity-mat4
                    :world-view view
-                   :world-view-proj view-proj)
+                   :world-view-inv view-inv
+                   :world-view-proj view-proj
+                   :world-view-proj-inv view-proj-inv)
 
             (and has-world-space-normal (not has-local-space-normal))
             (assoc :normal (derive-normal-transform view)
@@ -628,13 +719,19 @@
     :actual/world-view-proj
     :normal
     :projection
+    :projection-inv
     :texture
     :view
+    :view-inv
     :view-proj
+    :view-proj-inv
     :world
+    :world-inv
     :world-rotation
     :world-view
-    :world-view-proj})
+    :world-view-inv
+    :world-view-proj
+    :world-view-proj-inv})
 
 (fn/defamong render-transform-key? render-transform-keys)
 
@@ -671,7 +768,7 @@
 (defn vecmath-matrix-pprint-strings [matrix]
   (let [dim (vecmath-matrix-dim matrix)
         fmt-num #(eutil/format* "%.3f" %)
-        num-strs (coll/transfer (range dim) []
+        num-strs (coll/into-> (range dim) []
                    (mapcat (fn [^long row-index]
                              (let [row (vecmath-matrix-row matrix row-index)]
                                (map fmt-num row)))))
@@ -691,7 +788,7 @@
                               first-col-width-fmt
                               rest-col-width-fmt)]
                     (eutil/format* fmt num-str)))]
-    (coll/transfer num-strs []
+    (coll/into-> num-strs []
       (partition-all dim)
       (map (partial into [] (map-indexed fmt-col))))))
 

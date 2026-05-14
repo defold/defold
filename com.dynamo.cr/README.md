@@ -27,15 +27,15 @@ First of all, follow the engine setup instructions and build the engine at least
 
 2. Start the IDE and on the initial welcome screen choose _Open_ project. Navigate to Bob's source directory `com.dynamo.cr`.
 
-3. In case there is a popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference. Open `com.dynamo.cr.bob/build.gradle` and run `install` task. Open `com.dynamo.cr.common/build.gradle` and run `generateProtos` task.
+3. In case there is a popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference. Open `com.dynamo.cr.bob/build.gradle` and run `install` task.
 
 4. Open `File -> Project Structure` and in `Project Settings -> Project` add JDK 25
 
 5. Make sure Compiler output specified ![Compiler output](https://github.com/user-attachments/assets/83cd08c7-6206-4461-b1f9-9121d4c1a4e4)
 
-6. In `Project Settings -> Modules -> Sources` select `com.dynamo.cr.bob/generated`, `com.dynamo.cr.bob/src`, `com.dynamo.cr.common/generated` and `com.dynamo.cr.common/src` folders and click `Mark as: Sources`  ![Mark as: Sources](https://github.com/defold/defold/assets/2209596/fbc660ce-25a8-4612-a5a0-47d3615d4d98)
+6. In `Project Settings -> Modules -> Sources` select `com.dynamo.cr.bob/generated` and `com.dynamo.cr.bob/src` folders and click `Mark as: Sources`  ![Mark as: Sources](https://github.com/defold/defold/assets/2209596/fbc660ce-25a8-4612-a5a0-47d3615d4d98)
 
-7. Select `com.dynamo.cr.bob.test/src` and `com.dynamo.cr.common.test/src` folders and click `Mark as: Tests` ![Mark as: Tests](https://github.com/defold/defold/assets/2209596/88d4bde5-5d37-4f6b-8781-ffcc57519f2e)
+7. Select `com.dynamo.cr.bob.test/src` folder and click `Mark as: Tests` ![Mark as: Tests](https://github.com/defold/defold/assets/2209596/88d4bde5-5d37-4f6b-8781-ffcc57519f2e)
 
 8. Add `com.dynamo.cr.bob` as Resource Folder and `com.dynamo.cr.bob.test/test` ![resources](https://github.com/defold/defold/assets/2209596/49cec23b-f15c-411b-bdfc-495f78f44936)
 
@@ -43,7 +43,8 @@ First of all, follow the engine setup instructions and build the engine at least
 
 10. Change language level to `21 - Record patterns, pattern matching for switch` ![Change language level](https://github.com/defold/defold/assets/2209596/39e61b02-3867-4ca8-9d74-a960561aadfe)
 
-11. In  `Project Settings -> Modules -> Dependencies` click `+` then  `1 JARs or Directories...` and choose `com.dynamo.cr/com.dynamo.cr.common/ext` and repeat for `com.dynamo.cr/com.dynamo.cr.bob/lib`, `com.dynamo.cr/com.dynamo.cr.common/ext/aws`  and `com.dynamo.cr/com.dynamo.cr.bob.test/lib` ![Dependencies](https://github.com/defold/defold/assets/2209596/dd86e706-b91f-475b-b43d-aaac596ffa1f)
+11. In  `Project Settings -> Modules -> Dependencies` click `+` then  `1 JARs or Directories...` and choose `com.dynamo.cr/com.dynamo.cr.bob/lib` and `com.dynamo.cr/com.dynamo.cr.bob.test/lib` ![Dependencies](https://github.com/defold/defold/assets/2209596/dd86e706-b91f-475b-b43d-aaac596ffa1f)
+12. If you see missing AWS SDK classes (e.g. `com.amazonaws.services.s3`), add `com.dynamo.cr/com.dynamo.cr.bob/lib/aws` as a dependency too. IntelliJ does not always pick up nested jar folders.
 
 If you got `Unknown command-line option '-b'` error, then:
 <img width="2480" height="1482" alt="image" src="https://github.com/user-attachments/assets/48dfe9a6-0b20-4594-a87c-63ac9d4d63ca" />

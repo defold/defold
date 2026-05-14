@@ -524,7 +524,6 @@ namespace dmGameSystem
     {
         DM_PROFILE("LateUpdate");
         MeshContext* context = (MeshContext*)params.m_Context;
-        dmRender::HRenderContext render_context = context->m_RenderContext;
         MeshWorld* world = (MeshWorld*)params.m_World;
 
         UpdateTransforms(world);
@@ -1014,7 +1013,10 @@ namespace dmGameSystem
             }
         }
 
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompMeshGetConstantCallback, component);
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
+
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, value_index, out_value, true, CompMeshGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompMeshSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -1095,7 +1097,10 @@ namespace dmGameSystem
             }
         }
 
-        dmGameObject::PropertyResult res = SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompMeshSetConstantCallback, component);
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
+
+        dmGameObject::PropertyResult res = SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, value_index, CompMeshSetConstantCallback, component);
         component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
         return res;

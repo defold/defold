@@ -54,7 +54,7 @@
   (let [accessed-key? (.accessed volatile-cache)
         metadata (.metadata volatile-cache)
         cache (.cache volatile-cache)
-        pruned-cache (coll/transform cache
+        pruned-cache (coll/transform-> cache
                        (filter (fn [entry]
                                  (accessed-key? (key entry)))))]
     (VolatileCache. pruned-cache #{} metadata)))

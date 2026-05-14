@@ -57,9 +57,9 @@
 
 (defrecord TestSelectionProvider [selection]
   handler/SelectionProvider
-  (selection [this] selection)
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
+  (selection [_this _evaluation-context] selection)
+  (succeeding-selection [_this _evaluation-context] [])
+  (alt-selection [_this _evaluation-context] []))
 
 (defn- make-menu-items [scene menu-id command-context]
   (g/with-auto-evaluation-context evaluation-context

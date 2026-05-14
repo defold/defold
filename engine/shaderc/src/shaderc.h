@@ -130,24 +130,33 @@ namespace dmShaderc
         IMAGE_ACCESS_QUALIFIER_READ_WRITE,
     };
 
+    enum ShaderPrecision
+    {
+        SHADER_PRECISION_MEDIUMP,
+        SHADER_PRECISION_HIGHP,
+    };
+
     struct ShaderCompilerOptions
     {
         ShaderCompilerOptions()
         : m_Version(330)
         , m_EntryPoint("main")
+        , m_GlslEsDefaultFloatPrecision(SHADER_PRECISION_MEDIUMP)
+        , m_GlslEsDefaultIntPrecision(SHADER_PRECISION_HIGHP)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(true)
         , m_GlslEs(false)
         {}
 
-        uint32_t    m_Version;
-        const char* m_EntryPoint;
-
-        uint8_t     m_RemoveUnusedVariables      : 1;
-        uint8_t     m_No420PackExtension         : 1;
-        uint8_t     m_GlslEmitUboAsPlainUniforms : 1;
-        uint8_t     m_GlslEs                     : 1;
+        uint32_t        m_Version;
+        const char*     m_EntryPoint;
+        ShaderPrecision m_GlslEsDefaultFloatPrecision;
+        ShaderPrecision m_GlslEsDefaultIntPrecision;
+        uint8_t         m_RemoveUnusedVariables      : 1;
+        uint8_t         m_No420PackExtension         : 1;
+        uint8_t         m_GlslEmitUboAsPlainUniforms : 1;
+        uint8_t         m_GlslEs                     : 1;
     };
 
     struct ResourceType
@@ -225,10 +234,22 @@ namespace dmShaderc
         // that embeds a list of resources (called root signature) and their HLSL bind points (registers)
         // This must match resource bind points in the engine, so we need to output that information here.
         dmArray<HLSLResourceMapping> m_HLSLResourceMappings;
+
+        // In case of compiling HLSL > version 50, we want to have the root signature available for merging
+        dmArray<uint8_t> m_HLSLRootSignature;
+
         // When compiling compute shaders for HLSL, we need to store a reference to the
         // manufactured gl_NumWorkGroups constant buffer that was generated.
         // The value will be set to 0xFF otherwise.
-        uint8_t                    m_HLSLNumWorkGroupsId;
+        uint8_t m_HLSLNumWorkGroupsId;
+    };
+
+    struct HLSLRootSignature
+    {
+        const char*      m_LastError;
+
+        // In case of compiling HLSL > version 50, we want to have the root signature available for merging
+        dmArray<uint8_t> m_HLSLRootSignature;
     };
 
     // Shader context
@@ -246,6 +267,7 @@ namespace dmShaderc
     extern "C" DM_DLLEXPORT void                    SetResourceBinding(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t binding);
     extern "C" DM_DLLEXPORT void                    SetResourceSet(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t set);
     extern "C" DM_DLLEXPORT ShaderCompileResult*    Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
+    extern "C" DM_DLLEXPORT HLSLRootSignature*      HLSLMergeRootSignatures(ShaderCompileResult* shaders, uint32_t shaders_size);
     extern "C" DM_DLLEXPORT void                    FreeShaderCompileResult(ShaderCompileResult* result);
 
     void DebugPrintReflection(const ShaderReflection* reflection);

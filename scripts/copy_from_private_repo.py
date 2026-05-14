@@ -18,7 +18,7 @@
 import os, sys, shutil, subprocess
 
 PLATFORMS=[]
-for p in ['vendor','nx64', 'ps4', 'ps5']:
+for p in ['vendor','nx64', 'ps4', 'ps5', 'xbox', 'xbone']:
     PLATFORMS.append(p)
     PLATFORMS.append(p.upper())
 
@@ -54,6 +54,7 @@ LOCAL_PATTERNS.append('editor/tmp/')
 LOCAL_PATTERNS.append('editor/resources/_unpack')
 LOCAL_PATTERNS.append('dynamo_home')
 LOCAL_PATTERNS.append('local_sdks')
+LOCAL_PATTERNS.append('tmp')
 
 def is_local_file(path):
     for pattern in LOCAL_PATTERNS:

@@ -124,6 +124,22 @@
           "/main/main.collection" ["file_not_found"]
           (partial add-game-object-from-file! workspace main-collection)))
 
+      (testing "Build errors from embedded collection proxies link to the owning resource"
+        (with-open [_ (make-restore-point!)]
+          (let [collection-proxy-resource-type (workspace/get-resource-type workspace "collectionproxy")
+                embedded-component (test-util/add-embedded-component! game-object collection-proxy-resource-type)
+                embedded-resource-node (test-util/to-component-resource-node-id embedded-component)]
+            (test-util/prop! embedded-resource-node :collection (resource "/errors/missing.collection"))
+            (let [old-artifact-map (workspace/artifact-map workspace)
+                  build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
+                  error-value (:error build-results)]
+              (if (is (some? error-value))
+                (let [error-tree (build-errors-view/build-resource-tree error-value)
+                      error-item-of-parent-resource (first (:children error-tree))]
+                  (is (= [(resource "/main/main.collection") (resource-node "/main/main.collection")]
+                         (error-item-open-info-without-opts error-item-of-parent-resource))))
+                (workspace/artifact-map! workspace (:artifact-map build-results)))))))
+
       (testing "Errors from the same source are not duplicated"
         (with-open [_ (make-restore-point!)]
           (doseq [path ["/errors/button_break_self.gui"

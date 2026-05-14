@@ -14,30 +14,27 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.ArrayList;
 
-import javax.xml.stream.XMLStreamException;
-
-import org.apache.commons.io.FilenameUtils;
-
 import java.io.IOException;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.BobProjectProperties;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
 
-@BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes"})
+@BuilderParams(name="Meshset", inExts={".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes"})
 public class MeshsetBuilder extends Builder  {
     public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
@@ -75,72 +72,26 @@ public class MeshsetBuilder extends Builder  {
         return taskBuilder.build();
     }
 
-    public void buildCollada(Task task) throws CompileExceptionError, IOException {
-        // Previously ColladaModelBuilder.java
-        ByteArrayInputStream collada_is = new ByteArrayInputStream(task.input(0).getContent());
-
-        // MeshSet
-        ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-        MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-
-        boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
-        try {
-            ColladaUtil.loadMesh(collada_is, meshSetBuilder, true, split_meshes);
-        } catch (XMLStreamException e) {
-            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh: " + e.getLocalizedMessage(), e);
-        } catch (LoaderException e) {
-            throw new CompileExceptionError(task.input(0), -1, "Failed to compile mesh: " + e.getLocalizedMessage(), e);
-        }
-        meshSetBuilder.build().writeTo(out);
-        out.close();
-        task.output(0).setContent(out.toByteArray());
-
-        // Skeleton
-        out = new ByteArrayOutputStream(64 * 1024);
-        collada_is.reset();
-        Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
-        try {
-            ColladaUtil.loadSkeleton(collada_is, skeletonBuilder, new ArrayList<String>());
-        } catch (XMLStreamException e) {
-            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile skeleton: " + e.getLocalizedMessage(), e);
-        } catch (LoaderException e) {
-            throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton: " + e.getLocalizedMessage(), e);
-        }
-        skeletonBuilder.build().writeTo(out);
-        out.close();
-        task.output(1).setContent(out.toByteArray());
-
-        // Animationset
-        out = new ByteArrayOutputStream(64 * 1024);
-        collada_is.reset();
-        AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
-        try {
-            ColladaUtil.loadAnimations(collada_is, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
-        } catch (XMLStreamException e) {
-            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile animation: " + e.getLocalizedMessage(), e);
-        } catch (LoaderException e) {
-            throw new CompileExceptionError(task.input(0), -1, "Failed to compile animation: " + e.getLocalizedMessage(), e);
-        }
-        animationSetBuilder.build().writeTo(out);
-        out.close();
-        task.output(2).setContent(out.toByteArray());
-    }
-
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
 
         String suffix = BuilderUtil.getSuffix(task.input(0).getPath());
 
-        if (suffix.equals("dae")) {
-            buildCollada(task); // Until our model importer supports collada
-            return;
+        if (suffix.equals("gltf") || suffix.equals("glb")) {
+            validateGltf(task, suffix);
         }
+
+        BobProjectProperties projectProperties = this.project.getProjectProperties();
+        int morphTexW = projectProperties.getIntValue("model", "max_morph_target_texture_width", 1024);
+        int morphTexH = projectProperties.getIntValue("model", "max_morph_target_texture_height", 1024);
 
         Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
-        Modelimporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
-        if (scene == null) {
-            throw new CompileExceptionError(task.input(0), -1, "Error loading model");
+        Modelimporter.Scene scene;
+        try {
+            scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
+        } catch (IOException e) {
+            throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
         // MeshSet
@@ -152,7 +103,11 @@ public class MeshsetBuilder extends Builder  {
                 ModelUtil.splitMeshes(scene);
             }
 
-            ModelUtil.loadModels(scene, meshSetBuilder);
+            try {
+                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH);
+            } catch (LoaderException e) {
+                throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+            }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
             meshSetBuilder.build().writeTo(out);
@@ -191,5 +146,39 @@ public class MeshsetBuilder extends Builder  {
         }
 
         ModelUtil.unloadScene(scene);
+    }
+
+    private static boolean isPhysicalFile(IResource resource) {
+        return new File(resource.getAbsPath()).isFile();
+    }
+
+    private void validateGltf(Task task, String suffix) throws CompileExceptionError {
+        IResource input = task.input(0);
+        try {
+
+            GLTFValidator.ValidateResult validateResult;
+
+            // NOTE: If the file is part of an archive, we cannot validate embedded or external resources
+            if (isPhysicalFile(input)) {
+                validateResult = GLTFValidator.validateGltf(input.getAbsPath(), true);
+            } else {
+                validateResult = GLTFValidator.validateGltf(input.getContent(), suffix, false);
+            }
+
+            if (!validateResult.result()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("Errors reported by gltf_validator:\n");
+
+                for (GLTFValidator.ValidateError err : validateResult.errors()) {
+                    String line = String.format(" - %s (pointer: %s, code: %s)\n", err.message(), err.pointer(), err.code());
+                    sb.append(line);
+                }
+
+                throw new CompileExceptionError(input, 0, sb.toString());
+            }
+        } catch (IOException exc) {
+            throw new CompileExceptionError(input, 0,
+                    String.format("Failed to run glTF validator: %s", exc.getMessage()));
+        }
     }
 }

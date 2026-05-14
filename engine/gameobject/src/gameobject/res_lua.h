@@ -16,6 +16,7 @@
 #define DM_GAMEOBJECT_RES_LUA_H
 
 #include <dmsdk/gameobject/res_lua.h>
+#include <resource/resource.h>
 
 namespace dmGameObject
 {
@@ -41,6 +42,22 @@ namespace dmGameObject
      * bytecode to a 32-bit equivalent.
      */
     void PatchLuaBytecode(dmLuaDDF::LuaSource *source);
+
+    /*# Load a Lua module resource
+     *
+     * Loads a Lua module DDF message from the resource system and patches its
+     * bytecode for the current runtime architecture.
+     *
+     * @note The caller owns the returned message and must release it using
+     * `dmDDF::FreeMessage(module)`.
+     *
+     * @name LoadLuaModule
+     * @param factory [type:dmResource::HFactory] Resource factory
+     * @param path [type:const char*] Path to the `.luac` resource
+     * @param module [type:dmLuaDDF::LuaModule**] Output pointer to the loaded module
+     * @return result [type:dmResource::Result] `RESULT_OK` on success
+     */
+    dmResource::Result LoadLuaModule(dmResource::HFactory factory, const char* path, dmLuaDDF::LuaModule** module);
 }
 
 #endif // DM_GAMEOBJECT_RES_LUA_H

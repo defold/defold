@@ -17,7 +17,8 @@
             [clojure.string :as string]
             [editor.code.syntax :as syntax]
             [editor.code.util :as util]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
            [java.util Collections]
@@ -30,15 +31,18 @@
 (def ^:private clipboard-mime-type-plain-text "text/plain")
 (def ^:private clipboard-mime-type-multi-selection "application/x-string-vector")
 
-(defprotocol Clipboard
+(defonce/protocol Clipboard
   (has-content? [this mime-type])
   (get-content [this mime-type])
   (set-content! [this representation-by-mime-type]))
 
-(defprotocol GlyphMetrics
+(defonce/protocol GlyphMetrics
   (ascent [this] "A rounded double representing the distance from the baseline to the top.")
   (line-height [this] "A rounded double representing the line height.")
   (char-width [this character] "A rounded double representing the width of the specified character."))
+
+(defmacro clamp [value minimum maximum]
+  `(max ~minimum (min ~value ~maximum)))
 
 (defn- identifier-character-at-index? [line ^long index]
   (if-some [^char character (get line index)]
@@ -74,7 +78,7 @@
 
 (def ^:private compare-extra-cursor-fields (partial compare-extra-fields #{:row :col}))
 
-(defrecord Cursor [^long row ^long col]
+(defonce/record Cursor [^long row ^long col]
   Comparable
   (compareTo [this other]
     (util/comparisons
@@ -113,7 +117,7 @@
 (declare cursor-range-start cursor-range-end)
 (def ^:private compare-extra-cursor-range-fields (partial compare-extra-fields #{:from :to}))
 
-(defrecord CursorRange [^Cursor from ^Cursor to]
+(defonce/record CursorRange [^Cursor from ^Cursor to]
   Comparable
   (compareTo [this other]
     (util/comparisons
@@ -454,7 +458,7 @@
 (defn string->lines [^String string]
   (util/split-lines string))
 
-(defrecord Rect [^double x ^double y ^double w ^double h])
+(defonce/record Rect [^double x ^double y ^double w ^double h])
 
 (defn rect-contains? [^Rect r ^double x ^double y]
   (and (<= (.x r) x (+ (.x r) (.w r)))
@@ -466,6 +470,27 @@
           (- (.y r) y)
           (+ (.w r) (* 2.0 x))
           (+ (.h r) (* 2.0 y))))
+
+(defn rect-intersection
+  "Returns either nil if no intersection or a Rect of some area where the two
+  input rectangles intersect. See also cursor-range-intersection."
+  ^Rect [^Rect a ^Rect b]
+  (let [al (.x a)
+        at (.y a)
+        ar (+ al (.w a))
+        ab (+ at (.h a))
+        bl (.x b)
+        bt (.y b)
+        br (+ bl (.w b))
+        bb (+ bt (.h b))
+        l (clamp al bl br)
+        r (clamp ar bl br)
+        t (clamp at bt bb)
+        b (clamp ab bt bb)
+        w (- r l)
+        h (- b t)]
+    (when (and (pos? w) (pos? h))
+      (->Rect l t w h))))
 
 (defn- outer-bounds
   ^Rect [^Rect a ^Rect b]
@@ -479,7 +504,7 @@
         height (- bottom top)]
     (->Rect left top width height)))
 
-(defrecord GestureInfo [type button ^long click-count ^double x ^double y])
+(defonce/record GestureInfo [type button ^long click-count ^double x ^double y])
 
 (defn- button? [value]
   (case value (:primary :secondary :middle) true false))
@@ -500,19 +525,19 @@
     (->GestureInfo type button click-count x y)
     (merge (->GestureInfo type button click-count x y) extras)))
 
-(defrecord LayoutInfo [line-numbers
-                       canvas
-                       minimap
-                       glyph
-                       tab-stops
-                       scroll-tab-x
-                       scroll-tab-y
-                       ^double scroll-x
-                       ^double scroll-y
-                       ^double scroll-y-remainder
-                       ^double document-width
-                       ^long drawn-line-count
-                       ^long dropped-line-count])
+(defonce/record LayoutInfo [line-numbers
+                            canvas
+                            minimap
+                            glyph
+                            tab-stops
+                            scroll-tab-x
+                            scroll-tab-y
+                            ^double scroll-x
+                            ^double scroll-y
+                            ^double scroll-y-remainder
+                            ^double document-width
+                            ^long drawn-line-count
+                            ^long dropped-line-count])
 
 (defn- next-tab-stop-x
   ^double [tab-stops ^double x]
@@ -838,12 +863,12 @@
   [coll]
   (get coll (dec (count coll))))
 
-(defrecord Subsequence [^String first-line middle-lines ^String last-line])
+(defonce/record Subsequence [^String first-line middle-lines ^String last-line])
 
 (defn- empty-subsequence? [subsequence]
   (and (empty? (:first-line subsequence))
        (empty? (:middle-lines subsequence))
-       (empty? (:last-line subsequence))))
+       (nil? (:last-line subsequence))))
 
 (defn lines->subsequence
   ^Subsequence [lines]
@@ -1679,7 +1704,7 @@
                     {:start start
                      :end end}))))
 
-(defrecord SpliceInfo [^Cursor start ^Cursor end ^long row-offset ^long col-offset])
+(defonce/record SpliceInfo [^Cursor start ^Cursor end ^long row-offset ^long col-offset])
 
 (defn- col-affected-row
   ^long [^SpliceInfo splice-info]
@@ -2887,7 +2912,8 @@
         {:type :ui-element :ui-element :minimap}))
 
     (in-gutter? layout x)
-    {:type :ui-element :ui-element :gutter}
+    (when-some [hovered-row (y->existing-row layout lines y)]
+      {:type :gutter-row :row hovered-row})
 
     :else
     (when-some [clickable-region (some (fn [region]
@@ -2898,24 +2924,19 @@
                                        visible-regions)]
       {:type :region :region clickable-region})))
 
-(defn- mouse-hover [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout hovered-element hovered-row x y]
-  (let [new-hovered-element (element-at-position lines visible-regions layout minimap-layout x y)
-        new-hovered-row (y->row layout y)
-        row-changed (not= hovered-row new-hovered-row)
-        element-changed (not= hovered-element new-hovered-element)]
-    (when (or row-changed element-changed)
-      (cond-> {}
-        row-changed (assoc :hovered-row new-hovered-row)
-        element-changed (assoc :hovered-element new-hovered-element)))))
+(defn- mouse-hover [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout hovered-element x y]
+  (let [new-hovered-element (element-at-position lines visible-regions layout minimap-layout x y)]
+    (when (not= hovered-element new-hovered-element)
+      {:hovered-element new-hovered-element})))
 
-(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start hovered-element hovered-row x y]
+(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start hovered-element x y]
   (if (some? gesture-start)
     (mouse-gesture lines cursor-ranges layout minimap-layout gesture-start x y)
-    (mouse-hover lines visible-regions layout minimap-layout hovered-element hovered-row x y)))
+    (mouse-hover lines visible-regions layout minimap-layout hovered-element x y)))
 
-(defn mouse-released [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button hovered-row x y]
+(defn mouse-released [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))
-    (assoc (mouse-hover lines visible-regions layout minimap-layout ::force-evaluation hovered-row x y)
+    (assoc (mouse-hover lines visible-regions layout minimap-layout ::force-evaluation x y)
       :cursor-ranges (mapv #(dissoc % :dragged) cursor-ranges)
       :gesture-start nil)))
 
@@ -3340,3 +3361,43 @@
    (-> (apply-edits lines regions cursor-ranges ascending-cursor-ranges-and-replacements)
        (update-document-width-after-splice layout)
        (frame-cursor layout))))
+
+(defn duplicate-selection [lines cursor-ranges regions ^LayoutInfo layout]
+  (let [adjusted-cursor-ranges (mapv (partial adjust-cursor-range lines) cursor-ranges)
+        ret
+        (if (coll/every? cursor-range-empty? adjusted-cursor-ranges)
+          ;; No text selection: duplicate full lines for each distinct cursor
+          ;; row. We keep text edits and cursor movement as two separate steps:
+          ;; 1. apply line-end insertions without cursor-ranges, so text
+          ;;    duplication is stable.
+          ;; 2. move original cursor-ranges by a row delta based on how many
+          ;;    duplicated rows are at-or-before their row (`row->offset`).
+          ;; This makes every cursor on a duplicated row land on the inserted
+          ;; copy while otherwise preserving duplicate cursor-ranges as-is.
+          (let [rows (cursor-ranges->start-rows lines adjusted-cursor-ranges)
+                row->offset (into {}
+                                  (map-indexed (fn [^long index ^long row]
+                                                 (pair row (unchecked-inc index))))
+                                  rows)
+                ascending-cursor-ranges-and-replacements
+                (mapv (fn [^long row]
+                        (let [line-end-cursor (->Cursor row (count (lines row)))]
+                          [(->CursorRange line-end-cursor line-end-cursor) ["" (lines row)]]))
+                      rows)
+                moved-cursor-ranges
+                (mapv #(offset-cursor-range % :both (row->offset (.row (CursorRange->Cursor %))) 0)
+                      adjusted-cursor-ranges)]
+            (-> (apply-edits lines regions [] ascending-cursor-ranges-and-replacements)
+                (update-document-width-after-splice layout)
+                (assoc :cursor-ranges moved-cursor-ranges)))
+          ;; At least one non-empty selection exists: duplicate only selected
+          ;; text ranges. For each selected range we insert an exact copy at
+          ;; selection end.
+          (let [ascending-cursor-ranges-and-replacements
+                (mapv (fn [^CursorRange cursor-range]
+                        [(cursor-range-end-range cursor-range)
+                         (subsequence->lines (cursor-range-subsequence lines cursor-range))])
+                      adjusted-cursor-ranges)]
+            (-> (splice lines regions ascending-cursor-ranges-and-replacements)
+                (update-document-width-after-splice layout))))]
+    (frame-cursor ret layout)))

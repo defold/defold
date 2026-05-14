@@ -60,6 +60,52 @@
       (is (not= (digestable/sha1-hash (->DigestableType nil))
                 (digestable/sha1-hash (->OtherDigestableType nil))))))
 
+  (testing "Digests object arrays."
+
+    (testing "Written data is included in the hash."
+      (is (= "ba71caf800ed923e5812a1a07237c0403b959d74"
+             (digestable/sha1-hash (object-array []))))
+      (is (= "f87effae651a022f773908bac12d54895a059268"
+             (digestable/sha1-hash (object-array ["one"]))))
+      (is (= "5462d9ca2c2f1304b9e01aebe9db4b96586a66bd"
+             (digestable/sha1-hash (object-array ["one" "two"])))))
+
+    (testing "Type information is included in the hash."
+      (is (not= (digestable/sha1-hash (make-array Object 0))
+                (digestable/sha1-hash (make-array String 0))))))
+
+  (testing "Digests primitive arrays."
+
+    (testing "Written data is included in the hash."
+      (is (= "8a8d332d960dc43a867aa4a66859f373dd7f5d5f"
+             (digestable/sha1-hash (long-array []))))
+      (is (= "72d64f042701bc96a42a23c237c5010f6e91c451"
+             (digestable/sha1-hash (long-array [1]))))
+      (is (= "19155570fcf1725d7a1fd0ef2ed25632cb002e59"
+             (digestable/sha1-hash (long-array [1 2])))))
+
+    (testing "Type information is included in the hash."
+      (is (not= (digestable/sha1-hash (long-array 0))
+                (digestable/sha1-hash (int-array 0))))
+      (is (not= (digestable/sha1-hash (long-array 0))
+                (digestable/sha1-hash (make-array Long 0))))))
+
+  (testing "Digests nested arrays."
+
+    (testing "Written data is included in the hash."
+      (is (= "206c1f053bb77562b36ffa45c684d3f362d597b7"
+             (digestable/sha1-hash (object-array [(object-array [])]))))
+      (is (= "b5802bec0c5df7eef69a3447b7a7a3816ea051f4"
+             (digestable/sha1-hash (object-array [(object-array ["one"])]))))
+      (is (= "7e3b748e36e4436a0e0e9429dce8c5a3c88bc9a5"
+             (digestable/sha1-hash (object-array [(object-array ["one" "two"])])))))
+
+    (testing "Type information is included in the hash."
+      (is (not= (digestable/sha1-hash (object-array [(make-array Object 0)]))
+                (digestable/sha1-hash (object-array [(make-array String 0)]))))
+      (is (not= (digestable/sha1-hash (make-array String 0))
+                (digestable/sha1-hash (make-array String/1 0))))))
+
   (testing "Throws when it encounters an undigestable value."
     (is (thrown-with-msg? Exception #"Encountered undigestable value"
                           (digestable/sha1-hash (Object.))))))

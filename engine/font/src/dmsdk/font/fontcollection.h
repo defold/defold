@@ -19,14 +19,13 @@
 
 #include <stdint.h>
 
-/*# SDK Font Collection API documentation
+/*# Font API for managing multiple fonts as a collection
  *
- * Font API for grouping multiple fonts into a collection
+ * Font API for managing multiple fonts as a collection
  *
  * @document
  * @name FontCollection
- * @path engine/font/src/dmsdk/font/fontcollection.h
- * @language C++
+ * @language C
  */
 
 /*#

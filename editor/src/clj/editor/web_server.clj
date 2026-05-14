@@ -13,9 +13,94 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.web-server
-  (:require [util.http-server :as http-server]))
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.lsp.async :as lsp.async]
+            [editor.util :as util]
+            [reitit.core :as reitit]
+            [util.coll :as coll]
+            [util.http-server :as http-server])
+  (:import [java.nio.charset StandardCharsets]
+           [java.security MessageDigest SecureRandom]
+           [java.util Base64]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
+
+(defn make-token []
+  (let [bytes (byte-array 32)]
+    (.nextBytes (SecureRandom.) bytes)
+    (-> (Base64/getUrlEncoder)
+        (.withoutPadding)
+        (.encodeToString bytes))))
+
+(defn require-authorized! [request token]
+  (let [authorization (get-in request [:headers "authorization"])]
+    (when-not (and (string? authorization)
+                   (MessageDigest/isEqual
+                     (.getBytes (str "Bearer " token) StandardCharsets/UTF_8)
+                     (.getBytes ^String authorization StandardCharsets/UTF_8)))
+      (throw (http-server/error (http-server/response 401 {"www-authenticate" "Bearer"} "Unauthorized\n"))))))
+
+(defn- openapi-paths [router]
+  (coll/into-> (reitit/routes router) {}
+    (keep
+      (fn [[path method->handler]]
+        (let [method->operation (coll/into-> method->handler {}
+                                  (keep (fn [[method handler]]
+                                          (when-let [operation (:openapi (meta handler))]
+                                            (coll/pair (util/lower-case* method) operation)))))]
+          (when-not (coll/empty? method->operation)
+            ;; Convert reitit rest-parameter syntax `{*param}` to OpenAPI `{param}`.
+            (coll/pair (string/replace path #"\{\*([^}]+)\}" "{$1}") method->operation)))))))
+
+(defn- openapi-response [request]
+  (http-server/json-response
+    {:openapi "3.0.3"
+     :info {:title "Defold Editor HTTP API"
+            :version "1.0"}
+     :components {:securitySchemes {"token" {:type "http"
+                                             :scheme "bearer"
+                                             :bearerFormat "opaque"
+                                             :description "Read per-session token from `.internal/editor.token`, then send it as `Authorization: Bearer <token>`."}}}
+     :paths (openapi-paths (:router request))}))
+
+(defn- html-escape [s]
+  (string/escape s {\& "&amp;"
+                    \< "&lt;"
+                    \> "&gt;"
+                    \" "&quot;"
+                    \' "&#39;"}))
+
+(defn- index-response [project]
+  (lsp.async/with-auto-evaluation-context evaluation-context
+    (let [project-path (-> project
+                           (g/node-value :workspace evaluation-context)
+                           (g/node-value :root evaluation-context))
+          project-title-html (html-escape
+                               (or (-> project
+                                       (g/maybe-node-value :settings evaluation-context)
+                                       (get ["project" "title"]))
+                                   (FilenameUtils/getName project-path)))]
+      (http-server/response
+        200
+        {"content-type" "text/html; charset=utf-8"}
+        (str "<!doctype html>\n"
+             "<html>\n"
+             "  <head>\n"
+             "    <meta charset=\"utf-8\">\n"
+             "    <title>Defold Editor HTTP Server - " project-title-html "</title>\n"
+             "  </head>\n"
+             "  <body>\n"
+             "    <h1>Defold Editor HTTP Server - " project-title-html "</h1>\n"
+             "    <p><strong>Project:</strong> <code>" (html-escape project-path) "</code></p>\n"
+             "    <p><a href=\"/openapi.json\">OpenAPI spec</a></p>\n"
+             "  </body>\n"
+             "</html>\n")))))
+
+(defn built-in-routes [project]
+  {"/" {"GET" (bound-fn [_] (index-response project))}
+   "/openapi.json" {"GET" openapi-response}})
 
 (defn make-dynamic-handler
   "Create an HTTP request handler that supports setting dynamic routes
@@ -40,3 +125,22 @@
   (let [{::keys [built-in-routes state]} (meta web-handler)]
     (reset! state (http-server/router-handler (into built-in-routes dynamic-routes))))
   nil)
+
+(comment
+
+  ;; If you are adding built-in OpenAPI routes, this is a handy validator tool
+  ;; to run against a running server:
+  (println
+    (editor.process/exec!
+      {:err :stdout}
+      "sh" "-lc"
+      (str "curl -sS " (http-server/local-url (dev/web-server)) "/openapi.json"
+           " | npx -y @redocly/cli lint /dev/stdin"
+           "   --skip-rule no-empty-servers"
+           "   --skip-rule security-defined"
+           "   --skip-rule info-license"
+           "   --skip-rule operation-operationId"
+           "   --skip-rule operation-4xx-response"
+           " || true")))
+
+  #__)

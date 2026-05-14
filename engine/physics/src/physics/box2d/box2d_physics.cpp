@@ -165,6 +165,9 @@ namespace dmPhysics
             DeleteContext2D(context);
             return 0x0;
         }
+
+        b2Version version = b2GetVersion();
+        dmLogInfo("Created physics context: Box2D v%d.%d.%d", version.major, version.minor, version.revision);
         return context;
     }
 
@@ -269,19 +272,19 @@ namespace dmPhysics
 
     static dmArray<b2ShapeId>& GetSensorOverlapBuffer(HWorld2D world, b2ShapeId shapeId)
     {
-        int num_overlaps = b2Shape_GetSensorCapacity(shapeId);
+        int capacity = b2Shape_GetSensorCapacity(shapeId);
 
-        if (world->m_GetSensorOverlapsScratchBuffer.Capacity() < num_overlaps)
+        if (world->m_GetSensorOverlapsScratchBuffer.Capacity() < capacity)
         {
-            world->m_GetSensorOverlapsScratchBuffer.SetCapacity(num_overlaps);
+            world->m_GetSensorOverlapsScratchBuffer.SetCapacity(capacity);
         }
 
+        int num_overlaps = 0;
+        if (capacity > 0)
+        {
+            num_overlaps = b2Shape_GetSensorOverlaps(shapeId, world->m_GetSensorOverlapsScratchBuffer.Begin(), capacity);
+        }
         world->m_GetSensorOverlapsScratchBuffer.SetSize(num_overlaps);
-
-        if (num_overlaps > 0)
-        {
-            num_overlaps = b2Shape_GetSensorOverlaps(shapeId, world->m_GetSensorOverlapsScratchBuffer.Begin(), num_overlaps);
-        }
         return world->m_GetSensorOverlapsScratchBuffer;
     }
 
@@ -704,8 +707,6 @@ namespace dmPhysics
             world->m_RayCastRequests.SetSize(0);
         }
 
-        b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
-
         if (step_context.m_CollisionCallback)
         {
             DM_PROFILE("CollisionCallbacks");
@@ -753,6 +754,8 @@ namespace dmPhysics
         {
             DM_PROFILE("TriggerCallbacks");
 
+            b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
+
             OverlapCacheAddData add_data;
             add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
             add_data.m_TriggerEnteredUserData = step_context.m_TriggerEnteredUserData;
@@ -785,8 +788,11 @@ namespace dmPhysics
                 {
                     continue;
                 }
-                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, ToOpaqueHandle(b2Shape_GetBody(shapeIdA)));
-                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, ToOpaqueHandle(b2Shape_GetBody(shapeIdB)));
+
+                uint64_t body_a = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
+                uint64_t body_b = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, body_a, body_b);
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, body_b, body_a);
             }
 
             OverlapCachePruneData prune_data;
@@ -1411,6 +1417,33 @@ namespace dmPhysics
         return ret;
     }
 
+    static bool IsPolygonAreaValid(const ShapeData* shape, const b2Transform& transform, float scale)
+    {
+        if (shape->m_Type != SHAPE_TYPE_POLYGON)
+            return true;
+
+        const PolygonShapeData* poly_shape = (const PolygonShapeData*) shape;
+        int32_t count = poly_shape->m_Polygon.count;
+        if (count < 3)
+            return false;
+
+        b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
+        for (int32_t i = 0; i < count; ++i)
+        {
+            vertices[i] = TransformScaleB2(transform, scale, poly_shape->m_Polygon.vertices[i]);
+        }
+
+        b2Vec2 origin = vertices[0];
+        float area = 0.0f;
+        for (int i = 1; i < count - 1; ++i)
+        {
+            b2Vec2 e1 = b2Sub(vertices[i], origin);
+            b2Vec2 e2 = b2Sub(vertices[i + 1], origin);
+            area += 0.5f * b2Cross(e1, e2);
+        }
+        return area > FLT_EPSILON;
+    }
+
     /*
      * NOTE: In order to support shape transform we create a copy of shapes using the function TransformCopyShape() above
      * This is required as the transform is part of the shape and due to absence of a compound shape, aka list shape
@@ -1472,6 +1505,37 @@ namespace dmPhysics
             else
             {
                 dmLogWarning("Collision object created at origin, this will result in a performance hit if multiple objects are created there in the same frame.");
+            }
+        }
+
+        // NOTE: Box2D's ComputeCentroid contains an assert that fires when a polygon's area is too close to zero, which
+        // would crash the editor with an ugly callstack. To prevent this, we replicate the same area computation here
+        // so we can detect the issue early and fail gracefully instead of hitting the assert.
+        for (uint32_t i = 0; i < shape_count; ++i)
+        {
+            ShapeData* s = (ShapeData*) shapes[i];
+            if (s->m_Type != SHAPE_TYPE_POLYGON)
+                continue;
+
+            b2Vec2 t;
+            b2Rot r;
+            if (translations && rotations)
+            {
+                ToB2(translations[i], t, context->m_Scale * scale);
+                r = b2MakeRot(atan2(2.0f * (rotations[i].getZ() * rotations[i].getW()),
+                                    1.0f - 2.0f * rotations[i].getZ() * rotations[i].getZ()));
+            }
+            else
+            {
+                t = b2Vec2_zero;
+                r = b2Rot_identity;
+            }
+
+            b2Transform transform = {t, r};
+            if (!IsPolygonAreaValid(s, transform, scale))
+            {
+                dmLogError("Collision object has a polygon shape with invalid (near-zero) area.");
+                return 0x0;
             }
         }
 

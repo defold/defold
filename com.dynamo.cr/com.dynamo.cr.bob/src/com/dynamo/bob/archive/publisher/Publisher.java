@@ -35,14 +35,6 @@ public abstract class Publisher {
         this.settings = settings;
     }
 
-    public String getManifestPublicKey() {
-        return this.settings.getManifestPublicKey();
-    }
-    
-    public String getManifestPrivateKey() {
-        return this.settings.getManifestPrivateKey();
-    }
-
     public IResource getPublisherSettingsResorce() { return this.settings.getResource(); }
 
     public String getSupportedVersions() {

@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.lua-parser :as lp]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -25,9 +26,11 @@
 
 (defn- lua-info
   ([code]
-   (lp/lua-info nil fn/constantly-true code))
+   (g/with-auto-or-fake-evaluation-context evaluation-context
+     (lp/lua-info (:basis evaluation-context) nil fn/constantly-true code)))
   ([workspace valid-resource-kind? code]
-   (lp/lua-info workspace valid-resource-kind? code)))
+   (g/with-auto-or-fake-evaluation-context evaluation-context
+     (lp/lua-info (:basis evaluation-context) workspace valid-resource-kind? code))))
 
 (deftest test-require
   (testing "bare require function call"
@@ -112,7 +115,7 @@
                                  :status :ok}
                                 {:name "quat"
                                  :type :script-property-type-quat
-                                 :value [0.0 72.05474677020722 90.0]
+                                 :value [0.0 0.0 90.0]
                                  :status :ok}
                                 {:name "quat2"
                                  :type :script-property-type-quat
@@ -204,7 +207,7 @@
               {:type :script-property-type-vector4 :value [4.0 4.0 4.0 4.0]}
               {:type :script-property-type-vector4 :value [1.0 2.0 3.0 4.0]}
               {:type :script-property-type-quat :value [0.0 0.0 0.0]}
-              {:type :script-property-type-quat :value [0.0 28.072486935852957 90.0]}
+              {:type :script-property-type-quat :value [0.0 0.0 90.0]}
               {:type :script-property-type-resource :resource-kind "atlas" :value nil}
               {:type :script-property-type-resource :resource-kind "atlas" :value nil}
               {:type :script-property-type-resource :resource-kind "atlas" :value (resolve-workspace-resource "/absolute/path/to/resource.atlas")}
@@ -251,7 +254,7 @@
                                        "go.property(\"test\", vmath.vector4(4))"
                                        "go.property(\"test\", vmath.vector4(1, 2, 3, 4))"
                                        "go.property(\"test\", vmath.quat())"
-                                       "go.property(\"test\", vmath.quat(1, 2, 3, 4))"
+                                       "go.property(\"test\", vmath.quat(0.0, 0.0, 0.707, 0.707))"
                                        "go.property(\"test\", resource.atlas())"
                                        "go.property(\"test\", resource.atlas(''))"
                                        "go.property(\"test\", resource.atlas('/absolute/path/to/resource.atlas'))"

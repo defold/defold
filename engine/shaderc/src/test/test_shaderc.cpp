@@ -23,6 +23,10 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#if defined(_WIN32)
+#include <d3d12.h>
+#include <d3d12shader.h>
+#endif
 
 static void* ReadFile(const char* path, uint32_t* file_size)
 {
@@ -512,6 +516,129 @@ TEST(Shaderc, TestMetal)
     free(data);
 }
 
+TEST(Shaderc, GlslEsPrecisionOptions)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/reflection.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_GLSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version                     = 100;
+    options.m_GlslEs                      = 1;
+    options.m_EntryPoint                  = "main";
+
+    // Case 1: highp float, mediump int
+    options.m_GlslEsDefaultFloatPrecision = dmShaderc::SHADER_PRECISION_HIGHP;
+    options.m_GlslEsDefaultIntPrecision   = dmShaderc::SHADER_PRECISION_MEDIUMP;
+
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    const char* src = (const char*) dst->m_Data.Begin();
+    const char* float_highp_block =
+        "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+        "    precision highp float;\n"
+        "#else\n"
+        "    precision mediump float;\n"
+        "#endif";
+
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, float_highp_block));
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump int;"));
+
+    dmShaderc::FreeShaderCompileResult(dst);
+
+    // Case 2: mediump float, highp int
+    options.m_GlslEsDefaultFloatPrecision = dmShaderc::SHADER_PRECISION_MEDIUMP;
+    options.m_GlslEsDefaultIntPrecision   = dmShaderc::SHADER_PRECISION_HIGHP;
+
+    dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    src = (const char*) dst->m_Data.Begin();
+    const char* int_highp_block =
+        "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+        "    precision highp int;\n"
+        "#else\n"
+        "    precision mediump int;\n"
+        "#endif";
+
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump float;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, int_highp_block));
+
+    dmShaderc::FreeShaderCompileResult(dst);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
+TEST(Shaderc, HLSLMergeRootSignatures)
+{
+#if !defined(DM_BINARY_HLSL_SUPPORTED)
+    // Skip on non-Windows platforms
+    ASSERT_TRUE(true);
+    return;
+#else
+    // Prepare two shaders with resources to produce root signatures
+    uint32_t vs_size = 0;
+    void* vs_spv = ReadFile("./build/src/test/data/bindings.spv", &vs_size);
+    ASSERT_NE((void*)0, vs_spv);
+
+    uint32_t fs_size = 0;
+    void* fs_spv = ReadFile("./build/src/test/data/reflection.spv", &fs_size);
+    ASSERT_NE((void*)0, fs_spv);
+
+    dmShaderc::HShaderContext vs_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, vs_spv, vs_size);
+    dmShaderc::HShaderContext fs_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, fs_spv, fs_size);
+
+    dmShaderc::HShaderCompiler vs_comp = dmShaderc::NewShaderCompiler(vs_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::HShaderCompiler fs_comp = dmShaderc::NewShaderCompiler(fs_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+
+    dmShaderc::ShaderCompilerOptions opts = {};
+    opts.m_Version = 51; // ensure RS path
+    opts.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* vs_res = dmShaderc::Compile(vs_ctx, vs_comp, opts);
+    dmShaderc::ShaderCompileResult* fs_res = dmShaderc::Compile(fs_ctx, fs_comp, opts);
+
+    ASSERT_NE((void*)0, vs_res);
+    ASSERT_NE((void*)0, fs_res);
+    ASSERT_GT(vs_res->m_HLSLRootSignature.Size(), 0u);
+    ASSERT_GT(fs_res->m_HLSLRootSignature.Size(), 0u);
+
+    dmShaderc::ShaderCompileResult arr[2];
+    arr[0] = *vs_res;
+    arr[1] = *fs_res;
+
+    dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
+    ASSERT_NE((void*)0, merged);
+    ASSERT_GT(merged->m_HLSLRootSignature.Size(), 0u);
+
+    // Validate the merged blob deserializes
+    ID3D12RootSignatureDeserializer* deser = 0;
+    HRESULT hr = D3D12CreateRootSignatureDeserializer(
+        merged->m_HLSLRootSignature.Begin(),
+        merged->m_HLSLRootSignature.Size(),
+        IID_PPV_ARGS(&deser));
+    ASSERT_EQ(S_OK, hr);
+    const D3D12_ROOT_SIGNATURE_DESC* desc = deser->GetRootSignatureDesc();
+    ASSERT_NE((void*)0, desc);
+    ASSERT_GT(desc->NumParameters, 0u);
+    deser->Release();
+
+    dmShaderc::FreeShaderCompileResult(vs_res);
+    dmShaderc::FreeShaderCompileResult(fs_res);
+    dmShaderc::DeleteShaderCompiler(vs_comp);
+    dmShaderc::DeleteShaderCompiler(fs_comp);
+    dmShaderc::DeleteShaderContext(vs_ctx);
+    dmShaderc::DeleteShaderContext(fs_ctx);
+#endif
+}
+
 static int TestStandalone(const char* filename, const char* languageStr, const char* stageStr)
 {
     uint32_t data_size;
@@ -593,4 +720,3 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
-

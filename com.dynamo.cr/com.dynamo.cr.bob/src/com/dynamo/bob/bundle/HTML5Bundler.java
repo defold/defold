@@ -50,7 +50,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.archive.EngineVersion;
 
-@BundlerParams(platforms = {"js-web", "wasm-web", "wasm_pthread-web"})
+@BundlerParams(platforms = {"wasm-web", "wasm_pthread-web"})
 public class HTML5Bundler implements IBundler {
     private static Logger logger = Logger.getLogger(HTML5Bundler.class.getName());
 
@@ -70,8 +70,6 @@ public class HTML5Bundler implements IBundler {
     private String WasmPthreadjsSHA1 = "";
     private long WasmPthreadjsSize = 250000;
 
-    private String AsmjsSHA1 = "";
-    private long AsmjsSize = 4000000;
     public static final String MANIFEST_NAME = "engine_template.html";
 
     @Override
@@ -119,8 +117,6 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_WASMJS_PTHREAD_SIZE", WasmPthreadjsSize);
         properties.put("DEFOLD_ENGINE_VERSION", EngineVersion.version);
         properties.put("DEFOLD_SDK_SHA1", project.option("defoldsdk", EngineVersion.sha1));
-        properties.put("ASMJS_SHA1", AsmjsSHA1);
-        properties.put("ASMJS_SIZE", AsmjsSize);
 
         String splashImage = projectProperties.getStringValue("html5", "splash_image", null);
         if (splashImage != null) {
@@ -316,7 +312,7 @@ public class HTML5Bundler implements IBundler {
     }
 
     URL getResource(String name) {
-        return getClass().getResource(String.format("resources/jsweb/%s", name));
+        return getClass().getResource(String.format("resources/web/%s", name));
     }
 
     private void createDmLoader(BundleHelper helper, URL inputResource, File targetFile) throws IOException {
@@ -423,9 +419,8 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy symbols for relevant web pairs (js-web, wasm-web, wasm_pthread-web)
+        // Copy symbols for relevant web pairs.
         String[] webSymbolPairs = new String[] {
-            Platform.JsWeb.getExtenderPair(),
             Platform.WasmWeb.getExtenderPair(),
             Platform.WasmPthreadWeb.getExtenderPair()
         };
@@ -450,9 +445,7 @@ public class HTML5Bundler implements IBundler {
                 File symbolsDir = new File(appDir.getParentFile(), enginePrefix + "_symbols");
                 symbolsDir.mkdirs();
                 String destName;
-                if (pair.equals(Platform.JsWeb.getExtenderPair())) {
-                    destName = enginePrefix + "_asmjs.js.symbols";
-                } else if (pair.equals(Platform.WasmWeb.getExtenderPair())) {
+                if (pair.equals(Platform.WasmWeb.getExtenderPair())) {
                     destName = enginePrefix + "_wasm.js.symbols";
                 } else if (pair.equals(Platform.WasmPthreadWeb.getExtenderPair())) {
                     destName = enginePrefix + "_pthread_wasm.js.symbols";
@@ -464,38 +457,6 @@ public class HTML5Bundler implements IBundler {
             }
         }
 
-
-        if (architectures.contains(Platform.JsWeb)) {
-            BundleHelper.throwIfCanceled(canceled);
-            Platform targetPlatform = Platform.JsWeb;
-            List<File> binsAsmjs = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
-            if (binsAsmjs == null) {
-                try {
-                    binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-                } catch(IOException e) {
-                    System.err.println("Unable to bundle js-web: " + e.getMessage());
-                }
-            }
-            else {
-                logger.info("Using extender binary for Asm.js");
-            }
-            if(binsAsmjs != null) {
-                // Copy engine binaries
-                for (File bin : binsAsmjs) {
-                    BundleHelper.throwIfCanceled(canceled);
-                    String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
-                    if (binExtension.equals("js")) {
-                        FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
-                        AsmjsSize = bin.length();
-                        if (project.hasOption("with-sha1")) {
-                            AsmjsSHA1 = HTML5Bundler.calculateSHA1(bin);
-                        }
-                    } else {
-                        throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
-                    }
-                }
-            }
-        }
 
         if (architectures.contains(Platform.WasmWeb)) {
             buildWasm(project, canceled, Platform.WasmWeb, appDir, variant, enginePrefix, "");

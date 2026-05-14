@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include <dmsdk/dlib/array.h>
 
-/*# SDK Object Pool API documentation
+/*# Object Pool API documentation
  *
  * @document
  * @name ObjectPool

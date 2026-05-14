@@ -144,7 +144,6 @@ namespace dmGui
         NODE_TYPE_TEXT = 1,
         NODE_TYPE_PIE  = 2,
         NODE_TYPE_TEMPLATE = 3,
-        NODE_TYPE_SPINE = 4, // Deprecated. Used in the ddf for loading old content
         NODE_TYPE_PARTICLEFX = 5,
         NODE_TYPE_CUSTOM = 6,
         NODE_TYPE_COUNT = 7,

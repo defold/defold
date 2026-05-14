@@ -183,6 +183,7 @@ namespace dmGraphics
     }
 
     VkResult CreateInstance(VkInstance* vkInstanceOut,
+                            uint32_t api_version,
                             const char** extensionNames, uint16_t extensionNameCount,
                             const char** validationLayers, uint16_t validationLayerCount,
                             const char** validationLayerExtensions, uint16_t validationLayerExtensionCount)
@@ -194,9 +195,9 @@ namespace dmGraphics
         vk_application_info.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         vk_application_info.pApplicationName   = "Defold";
         vk_application_info.pEngineName        = "Defold Engine";
-        vk_application_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-        vk_application_info.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
-        vk_application_info.apiVersion         = VK_API_VERSION_1_0;
+        vk_application_info.applicationVersion = api_version;
+        vk_application_info.engineVersion      = api_version;
+        vk_application_info.apiVersion         = api_version;
 
         vk_required_extensions.SetCapacity(extensionNameCount + validationLayerExtensionCount);
 

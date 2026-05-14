@@ -15,15 +15,20 @@
 #include "graphics.h"
 #include "graphics_private.h"
 #include "graphics_adapter.h"
+#include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_IOS)
 #include  <glfw/glfw_native.h> // for glfwAppBootstrap
 #endif
 #include <string.h>
 #include <assert.h>
+
+#include <dlib/dalloca.h>
 #include <dlib/profile.h>
 #include <dlib/math.h>
 #include <dlib/image.h>
+
+#include <dmsdk/dlib/atomic.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
@@ -51,6 +56,9 @@ namespace dmGraphics
         adapter->m_Priority      = priority;
         g_adapter_list           = adapter;
     }
+
+    // FWD declarations:
+    static uint32_t CalculateStd140StructSize(const ShaderResourceTypeInfo* type_infos, uint32_t type_index, bool update_offsets);
 
     static bool SelectAdapterByFamily(AdapterFamily family)
     {
@@ -280,13 +288,7 @@ namespace dmGraphics
 
     #undef SHADERDESC_ENUM_TO_STR_CASE
 
-    ContextParams::ContextParams()
-    {
-        memset(this, 0x0, sizeof(*this));
-        m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-        m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
-        m_SwapInterval            = 1;
-    }
+
 
     AttachmentToBufferType::AttachmentToBufferType()
     {
@@ -295,6 +297,22 @@ namespace dmGraphics
         m_AttachmentToBufferType[ATTACHMENT_DEPTH] = BUFFER_TYPE_DEPTH_BIT;
         m_AttachmentToBufferType[ATTACHMENT_STENCIL] = BUFFER_TYPE_STENCIL_BIT;
     }
+
+    ContextParams::ContextParams()
+    : m_Window(0)
+    , m_JobContext(0)
+    , m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+    , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
+    , m_Width(0)
+    , m_Height(0)
+    , m_GraphicsMemorySize(0)
+    , m_SwapInterval(1)
+    , m_GraphicsApiVersionMajorHint(0)
+    , m_GraphicsApiVersionMinorHint(0)
+    , m_VerifyGraphicsCalls(0)
+    , m_PrintDeviceInfo(0)
+    , m_UseValidationLayers(0)
+    {}
 
     HContext NewContext(const ContextParams& params)
     {
@@ -533,10 +551,47 @@ namespace dmGraphics
         return (Type) 0xffffffff;
     }
 
+    ShaderDesc::ShaderDataType GraphicsTypeToShaderDataType(Type graphics_type)
+    {
+        switch(graphics_type)
+        {
+            case TYPE_INT:              return ShaderDesc::SHADER_TYPE_INT;
+            case TYPE_UNSIGNED_INT:     return ShaderDesc::SHADER_TYPE_UINT;
+            case TYPE_FLOAT:            return ShaderDesc::SHADER_TYPE_FLOAT;
+            case TYPE_FLOAT_VEC2:       return ShaderDesc::SHADER_TYPE_VEC2;
+            case TYPE_FLOAT_VEC3:       return ShaderDesc::SHADER_TYPE_VEC3;
+            case TYPE_FLOAT_VEC4:       return ShaderDesc::SHADER_TYPE_VEC4;
+            case TYPE_FLOAT_MAT2:       return ShaderDesc::SHADER_TYPE_MAT2;
+            case TYPE_FLOAT_MAT3:       return ShaderDesc::SHADER_TYPE_MAT3;
+            case TYPE_FLOAT_MAT4:       return ShaderDesc::SHADER_TYPE_MAT4;
+            case TYPE_SAMPLER:          return ShaderDesc::SHADER_TYPE_SAMPLER;
+            case TYPE_SAMPLER_CUBE:     return ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
+            case TYPE_TEXTURE_CUBE:     return ShaderDesc::SHADER_TYPE_TEXTURE_CUBE;
+            // 2D
+            case TYPE_SAMPLER_2D:       return ShaderDesc::SHADER_TYPE_SAMPLER2D;
+            case TYPE_SAMPLER_2D_ARRAY: return ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY;
+            case TYPE_IMAGE_2D:         return ShaderDesc::SHADER_TYPE_IMAGE2D;
+            case TYPE_TEXTURE_2D:       return ShaderDesc::SHADER_TYPE_TEXTURE2D;
+            case TYPE_TEXTURE_2D_ARRAY: return ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY;
+            // 3D
+            case TYPE_SAMPLER_3D:       return ShaderDesc::SHADER_TYPE_SAMPLER3D;
+            case TYPE_SAMPLER_3D_ARRAY: return ShaderDesc::SHADER_TYPE_SAMPLER3D_ARRAY;
+            case TYPE_IMAGE_3D:         return ShaderDesc::SHADER_TYPE_IMAGE3D;
+            case TYPE_TEXTURE_3D:       return ShaderDesc::SHADER_TYPE_TEXTURE3D;
+            case TYPE_TEXTURE_3D_ARRAY: return ShaderDesc::SHADER_TYPE_TEXTURE3D_ARRAY;
+            default: break;
+        }
+
+        // Not supported
+        return (ShaderDesc::ShaderDataType) 0xffffffff;
+    }
+
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
         memset(sd, 0, sizeof(*sd));
+
+        sd->m_Streams.SetCapacity(8);
         return sd;
     }
 
@@ -554,20 +609,19 @@ namespace dmGraphics
 
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize)
     {
-        if (stream_declaration->m_StreamCount >= MAX_VERTEX_STREAM_COUNT)
+        if (stream_declaration->m_Streams.Full())
         {
-            dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)",
-                dmHashReverseSafe64(name_hash), MAX_VERTEX_STREAM_COUNT);
-            return;
+            stream_declaration->m_Streams.OffsetCapacity(8);
         }
 
-        uint8_t stream_index = stream_declaration->m_StreamCount;
-        stream_declaration->m_Streams[stream_index].m_NameHash  = name_hash;
-        stream_declaration->m_Streams[stream_index].m_Size      = size;
-        stream_declaration->m_Streams[stream_index].m_Type      = type;
-        stream_declaration->m_Streams[stream_index].m_Normalize = normalize;
-        stream_declaration->m_Streams[stream_index].m_Stream    = stream_index;
-        stream_declaration->m_StreamCount++;
+        VertexStream stream;
+        stream.m_NameHash  = name_hash;
+        stream.m_Size      = size;
+        stream.m_Type      = type;
+        stream.m_Normalize = normalize;
+        stream.m_Stream    = stream_declaration->m_Streams.Size();
+
+        stream_declaration->m_Streams.Push(stream);
     }
 
     void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration)
@@ -577,6 +631,13 @@ namespace dmGraphics
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
+        // Free dynamically allocated stream storage if present
+        if (vertex_declaration && vertex_declaration->m_Streams)
+        {
+            delete [] vertex_declaration->m_Streams;
+            vertex_declaration->m_Streams = 0;
+            vertex_declaration->m_StreamCount = 0;
+        }
         delete vertex_declaration;
     }
 
@@ -596,9 +657,8 @@ namespace dmGraphics
 
     uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
     {
-        uint32_t count = vertex_declaration->m_StreamCount;
         VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
-        for (int i = 0; i < count; ++i)
+        for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             if (streams[i].m_NameHash == name_hash)
             {
@@ -881,12 +941,17 @@ namespace dmGraphics
         ps.m_WriteColorMask           = DM_GRAPHICS_STATE_WRITE_R | DM_GRAPHICS_STATE_WRITE_G | DM_GRAPHICS_STATE_WRITE_B | DM_GRAPHICS_STATE_WRITE_A;
         ps.m_WriteDepth               = 1;
         ps.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
-        ps.m_DepthTestEnabled         = 1;
+        ps.m_DepthTestEnabled         = 0;
         ps.m_DepthTestFunc            = COMPARE_FUNC_LESS;
         ps.m_BlendEnabled             = 0;
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
+        ps.m_BlendSrcFactorAlpha      = BLEND_FACTOR_ZERO;
+        ps.m_BlendDstFactorAlpha      = BLEND_FACTOR_ZERO;
+        ps.m_BlendEquationColor       = BLEND_EQUATION_ADD;
+        ps.m_BlendEquationAlpha       = BLEND_EQUATION_ADD;
         ps.m_StencilEnabled           = 0;
+        ps.m_ScissorTestEnabled       = 0;
         ps.m_StencilFrontOpFail       = STENCIL_OP_KEEP;
         ps.m_StencilFrontOpDepthFail  = STENCIL_OP_KEEP;
         ps.m_StencilFrontOpPass       = STENCIL_OP_KEEP;
@@ -900,6 +965,7 @@ namespace dmGraphics
         ps.m_StencilReference         = 0x0;
         ps.m_CullFaceEnabled          = 0;
         ps.m_CullFaceType             = FACE_TYPE_BACK;
+        ps.m_FaceWinding              = FACE_WINDING_CCW;
         ps.m_PolygonOffsetFillEnabled = 0;
         return ps;
     }
@@ -996,6 +1062,9 @@ namespace dmGraphics
             case STATE_DEPTH_TEST:
                 pipeline_state.m_DepthTestEnabled = value;
             break;
+            case STATE_SCISSOR_TEST:
+                pipeline_state.m_ScissorTestEnabled = value;
+            break;
             case STATE_STENCIL_TEST:
                 pipeline_state.m_StencilEnabled = value;
             break;
@@ -1027,7 +1096,7 @@ namespace dmGraphics
         }
     }
 
-    static void PutShaderResourceBindings(const ShaderDesc::ResourceBinding* bindings, uint32_t bindings_count, dmArray<ShaderResourceBinding>& bindings_out, ShaderResourceBinding::BindingFamily family)
+    static void PutShaderResourceBindings(const ShaderDesc::ResourceBinding* bindings, uint32_t bindings_count, dmArray<ShaderResourceBinding>& bindings_out, ShaderResourceBindingFamily family)
     {
         bindings_out.SetCapacity(bindings_count);
         bindings_out.SetSize(bindings_count);
@@ -1065,10 +1134,10 @@ namespace dmGraphics
 
     void CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta)
     {
-        PutShaderResourceBindings(ddf->m_UniformBuffers.m_Data, ddf->m_UniformBuffers.m_Count, meta->m_UniformBuffers, ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER);
-        PutShaderResourceBindings(ddf->m_StorageBuffers.m_Data, ddf->m_StorageBuffers.m_Count, meta->m_StorageBuffers, ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER);
-        PutShaderResourceBindings(ddf->m_Textures.m_Data, ddf->m_Textures.m_Count, meta->m_Textures, ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
-        PutShaderResourceBindings(ddf->m_Inputs.m_Data, ddf->m_Inputs.m_Count, meta->m_Inputs, ShaderResourceBinding::BINDING_FAMILY_GENERIC);
+        PutShaderResourceBindings(ddf->m_UniformBuffers.m_Data, ddf->m_UniformBuffers.m_Count, meta->m_UniformBuffers, BINDING_FAMILY_UNIFORM_BUFFER);
+        PutShaderResourceBindings(ddf->m_StorageBuffers.m_Data, ddf->m_StorageBuffers.m_Count, meta->m_StorageBuffers, BINDING_FAMILY_STORAGE_BUFFER);
+        PutShaderResourceBindings(ddf->m_Textures.m_Data, ddf->m_Textures.m_Count, meta->m_Textures, BINDING_FAMILY_TEXTURE);
+        PutShaderResourceBindings(ddf->m_Inputs.m_Data, ddf->m_Inputs.m_Count, meta->m_Inputs, BINDING_FAMILY_GENERIC);
 
         meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
         meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
@@ -1080,8 +1149,8 @@ namespace dmGraphics
             ShaderResourceTypeInfo& info = meta->m_TypeInfos[i];
             info.m_Name     = strdup(ddf->m_Types[i].m_Name);
             info.m_NameHash = ddf->m_Types[i].m_NameHash;
-            info.m_Members.SetCapacity(ddf->m_Types[i].m_Members.m_Count);
-            info.m_Members.SetSize(ddf->m_Types[i].m_Members.m_Count);
+            info.m_MemberCount = ddf->m_Types[i].m_Members.m_Count;
+            info.m_Members = new ShaderResourceMember[info.m_MemberCount];
 
             for (int j = 0; j < ddf->m_Types[i].m_Members.m_Count; ++j)
             {
@@ -1123,13 +1192,12 @@ namespace dmGraphics
         for (int i = 0; i < meta.m_TypeInfos.Size(); ++i)
         {
             free(meta.m_TypeInfos[i].m_Name);
-            for (int j = 0; j < meta.m_TypeInfos[i].m_Members.Size(); ++j)
+            for (int j = 0; j < meta.m_TypeInfos[i].m_MemberCount; ++j)
             {
-                free(meta.m_TypeInfos[i].m_Members[j].m_Name);
+                free((char*) meta.m_TypeInfos[i].m_Members[j].m_Name);
             }
 
-            meta.m_TypeInfos[i].m_Members.SetSize(0);
-            meta.m_TypeInfos[i].m_Members.SetCapacity(0);
+            delete[] meta.m_TypeInfos[i].m_Members;
         }
         meta.m_TypeInfos.SetSize(0);
         meta.m_TypeInfos.SetCapacity(0);
@@ -1143,8 +1211,7 @@ namespace dmGraphics
         }
 
         const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
-        const uint32_t num_members = type_info.m_Members.Size();
-        for (int i = 0; i < num_members; ++i)
+        for (int i = 0; i < type_info.m_MemberCount; ++i)
         {
             const ShaderResourceMember& member = type_info.m_Members[i];
             count += CountShaderResourceLeafMembers(type_infos, member.m_Type, count);
@@ -1194,8 +1261,8 @@ namespace dmGraphics
         uint32_t                                base_offset = 0)
     {
         const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
-        const uint32_t num_members = type_info.m_Members.Size();
-        for (int i = 0; i < num_members; ++i)
+
+        for (int i = 0; i < type_info.m_MemberCount; ++i)
         {
             const ShaderResourceMember& member = type_info.m_Members[i];
 
@@ -1253,8 +1320,8 @@ namespace dmGraphics
         const ProgramResourceBinding* next;
         while((next = it.Next()))
         {
-            if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
-                next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE ||
+                next->m_Res->m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
             {
                 CreateUniformLeafMembersCallbackParams params = {};
                 params.m_CanonicalName = next->m_Res->m_Name;
@@ -1262,7 +1329,7 @@ namespace dmGraphics
 
                 callback(params, user_data);
             }
-            else if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
+            else if (next->m_Res->m_BindingFamily == BINDING_FAMILY_UNIFORM_BUFFER)
             {
                 uint32_t canonical_name_buffer_offset = 0;
 
@@ -1289,6 +1356,31 @@ namespace dmGraphics
                 const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
                 VisitUniformLeafNodes(callback, user_data, next, type_infos, next->m_Res->m_Type, next->m_Res->m_Name, next->m_Res->m_InstanceName, &canonical_name_buffer, canonical_name_buffer_offset);
             }
+        }
+    }
+
+    void IterateProgramResourceBindings(HProgram prog, ShaderResourceBindingFamily family, IterateProgramResourceBindingsCallback callback, void* user_data)
+    {
+        Program* program = (Program*) prog;
+        ProgramResourceBindingIterator it(program);
+
+        const ProgramResourceBinding* binding;
+        while ((binding = it.Next()))
+        {
+            if (!binding->m_Res || binding->m_Res->m_BindingFamily != family)
+            {
+                continue;
+            }
+
+            const dmArray<ShaderResourceTypeInfo>& type_infos = *binding->m_TypeInfos;
+            uint32_t root_type_index = binding->m_Res->m_Type.m_TypeIndex;
+            if (root_type_index >= (uint32_t) type_infos.Size())
+            {
+                continue;
+            }
+
+            const ShaderResourceTypeInfo* root_type = &type_infos[root_type_index];
+            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, root_type, user_data);
         }
     }
 
@@ -1324,8 +1416,25 @@ namespace dmGraphics
 
         program->m_Uniforms.SetCapacity(0);
         program->m_Uniforms.SetSize(0);
+        program->m_UniformBufferLayouts.SetCapacity(0);
+        program->m_UniformBufferLayouts.SetSize(0);
+        memset(program->m_ResourceBindings, 0, sizeof(program->m_ResourceBindings));
+        program->m_MaxSet     = 0;
+        program->m_MaxBinding = 0;
 
         DestroyShaderMeta(program->m_ShaderMeta);
+    }
+
+    UniformBufferLayout* AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    {
+        // Create a uniform buffer layout that can be used to check uniform buffer compatability
+        UniformBufferLayout ubo_layout;
+        GetUniformBufferLayout(res->m_Type.m_TypeIndex, type_infos, num_type_infos, &ubo_layout);
+
+        uint32_t layout_offset = program->m_UniformBufferLayouts.Size();
+        program->m_UniformBufferLayouts.Push(ubo_layout);
+
+        return program->m_UniformBufferLayouts.Begin() + layout_offset;
     }
 
     void FillProgramResourceBindings(
@@ -1354,11 +1463,11 @@ namespace dmGraphics
 
                 switch(res.m_BindingFamily)
                 {
-                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                    case BINDING_FAMILY_TEXTURE:
                         program_resource_binding.m_TextureUnit = info.m_TextureCount;
                         info.m_TextureCount++;
                         break;
-                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                    case BINDING_FAMILY_STORAGE_BUFFER:
                         program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                         info.m_StorageBufferCount++;
 
@@ -1367,17 +1476,18 @@ namespace dmGraphics
                     #endif
 
                         break;
-                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                    case BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        program_resource_binding.m_DataOffset = info.m_UniformDataSize;
+                        program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
+                        program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(program, &res, stage_type_infos.Begin(), stage_type_infos.Size());
 
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
                     }
                     break;
-                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                    case BINDING_FAMILY_GENERIC:
                     default:break;
                 }
 
@@ -1385,7 +1495,7 @@ namespace dmGraphics
                 info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
 
             #if 0
-                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d, texture_unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset, program_resource_binding.m_TextureUnit);
+                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d, texture_unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_UniformBufferOffset, program_resource_binding.m_TextureUnit);
             #endif
             }
         }
@@ -1400,10 +1510,148 @@ namespace dmGraphics
     {
         if (program)
         {
+            program->m_UniformBufferLayouts.SetCapacity(program->m_ShaderMeta.m_UniformBuffers.Capacity());
+
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_UniformBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_StorageBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_Textures, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
         }
+    }
+
+    static uint32_t GetStd140BaseAlignment(dmGraphics::ShaderDesc::ShaderDataType type)
+    {
+        switch (type)
+        {
+            case ShaderDesc::SHADER_TYPE_FLOAT:
+            case ShaderDesc::SHADER_TYPE_INT:
+            case ShaderDesc::SHADER_TYPE_UINT:
+                return 4;
+            case ShaderDesc::SHADER_TYPE_VEC2:
+                return 8;
+            case ShaderDesc::SHADER_TYPE_VEC3:
+            case ShaderDesc::SHADER_TYPE_VEC4:
+                return 16;
+            case ShaderDesc::SHADER_TYPE_MAT2:
+            case ShaderDesc::SHADER_TYPE_MAT3:
+            case ShaderDesc::SHADER_TYPE_MAT4:
+                return 16;
+            default:
+                return 16; // conservative default for structs
+        }
+    }
+
+    static uint32_t CalculateStd140MemberSize(const ShaderResourceTypeInfo* type_infos, const ShaderResourceMember& member, bool update_offsets)
+    {
+        uint32_t element_size = 0;
+
+        if (member.m_Type.m_UseTypeIndex)
+        {
+            // Nested struct
+            uint32_t struct_size = CalculateStd140StructSize(type_infos, member.m_Type.m_TypeIndex, update_offsets);
+
+            // Structs are always rounded up to 16 in std140
+            element_size = DM_ALIGN(struct_size, 16);
+        }
+        else
+        {
+            element_size = GetShaderTypeSize(member.m_Type.m_ShaderType);
+        }
+
+        // Arrays: stride rounded up to 16
+        if (member.m_ElementCount > 1)
+        {
+            uint32_t stride = DM_ALIGN(element_size, 16);
+            return stride * member.m_ElementCount;
+        }
+
+        return element_size;
+    }
+
+    static uint32_t CalculateStd140StructSize(const ShaderResourceTypeInfo* type_infos, uint32_t type_index, bool update_offsets)
+    {
+        const ShaderResourceTypeInfo& type_info = type_infos[type_index];
+
+        const uint32_t STRUCT_ALIGNMENT = 16;
+        uint32_t offset        = 0;
+        uint32_t max_alignment = STRUCT_ALIGNMENT;
+
+        for (uint32_t i = 0; i < type_info.m_MemberCount; ++i)
+        {
+            ShaderResourceMember& member = type_info.m_Members[i];
+
+            uint32_t alignment = STRUCT_ALIGNMENT;
+
+            if (!member.m_Type.m_UseTypeIndex)
+            {
+                alignment = GetStd140BaseAlignment(member.m_Type.m_ShaderType);
+            }
+
+            offset = DM_ALIGN(offset, alignment);
+
+            if (update_offsets)
+                member.m_Offset = offset;
+
+            offset += CalculateStd140MemberSize(type_infos, member, update_offsets);
+
+            max_alignment = dmMath::Max(max_alignment, alignment);
+        }
+
+        return DM_ALIGN(offset, max_alignment);
+    }
+
+    static uint32_t CalculateShaderTypesSize(uint32_t root_type_index, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    {
+        assert(root_type_index < num_type_infos);
+        uint32_t size = CalculateStd140StructSize(type_infos, root_type_index, false);
+
+        // UBO size must always be aligned to 16 bytes
+        return DM_ALIGN(size, 16);
+    }
+
+    static void HashTypeRecursive(uint32_t type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, HashState32* hash_state, bool* visited)
+    {
+        assert(type_index < num_types);
+
+        if (visited[type_index])
+            return;
+
+        visited[type_index] = true;
+
+        const ShaderResourceTypeInfo& type = types[type_index];
+
+        for (uint32_t j = 0; j < type.m_MemberCount; ++j)
+        {
+            const auto& member = type.m_Members[j];
+
+            // Hash member layout
+            dmHashUpdateBuffer32(hash_state, &member.m_Offset,       sizeof(member.m_Offset));
+            dmHashUpdateBuffer32(hash_state, &member.m_ElementCount, sizeof(member.m_ElementCount));
+
+            uint8_t use_type_index = member.m_Type.m_UseTypeIndex ? 1 : 0;
+            dmHashUpdateBuffer32(hash_state, &use_type_index, sizeof(use_type_index));
+
+            if (use_type_index)
+            {
+                uint32_t child_type = member.m_Type.m_TypeIndex;
+                // Hash the type's name so the layout hash is independent of type array order
+                // (shader reflection may order types differently than manually built layouts).
+                dmhash_t child_name_hash = types[child_type].m_NameHash;
+                dmHashUpdateBuffer32(hash_state, &child_name_hash, sizeof(child_name_hash));
+
+                // Recurse into referenced type
+                HashTypeRecursive(child_type, types, num_types, hash_state, visited);
+            }
+            else
+            {
+                ShaderDesc::ShaderDataType shader_type = member.m_Type.m_ShaderType;
+                dmHashUpdateBuffer32(hash_state, &shader_type, sizeof(shader_type));
+            }
+        }
+    }
+
+    void UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    {
+        CalculateStd140StructSize(type_infos, 0, true);
     }
 
     void InitializeSetTextureAsyncState(SetTextureAsyncState& state)
@@ -1488,13 +1736,42 @@ namespace dmGraphics
         return false;
     }
 
+    AdapterFamily GetAdapterFamily(HGraphicsAdapter adapter)
+    {
+        if (!adapter)
+            return ADAPTER_FAMILY_NONE;
+        return adapter->m_Family;
+    }
+
     AdapterFamily GetInstalledAdapterFamily()
     {
-        if (g_adapter)
+        return GetAdapterFamily(g_adapter);
+    }
+
+    uint32_t GetRegisteredAdaptersCount()
+    {
+        uint32_t adapter_count = 0;
+        GraphicsAdapter* next = g_adapter_list;
+        while(next)
         {
-            return g_adapter->m_Family;
+            adapter_count++;
+            next = next->m_Next;
         }
-        return ADAPTER_FAMILY_NONE;
+        return adapter_count;
+    }
+
+    const HGraphicsAdapter GetRegisteredAdapter(uint32_t index)
+    {
+        uint32_t adapter_count = 0;
+        GraphicsAdapter* next = g_adapter_list;
+        while(next)
+        {
+            if (adapter_count == index)
+                return next;
+            adapter_count++;
+            next = next->m_Next;
+        }
+        return 0;
     }
 
     void Finalize()
@@ -1506,15 +1783,15 @@ namespace dmGraphics
     ///////////////////////////////////////////////////
     ////// PLATFORM / WINDOWS SPECIFIC FUNCTIONS //////
 
-    dmPlatform::HWindow GetWindow(HContext context)
+    HWindow GetWindow(HContext context)
     {
         return g_functions.m_GetWindow(context);
     }
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), dmPlatform::WINDOW_STATE_REFRESH_RATE);
+        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), WINDOW_STATE_REFRESH_RATE);
     }
-    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state)
+    uint32_t GetWindowStateParam(HContext context, WindowState state)
     {
         return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), state);
     }
@@ -1551,7 +1828,22 @@ namespace dmGraphics
         Program* p = (Program*) prog;
         *uniform_desc = p->m_Uniforms[index];
     }
+    // This function expects that the offsets are already calculated! I.e, if the types are created manually
+    // you can use the UpdateShaderTypesOffsets function (graphics_private.h) first.
+    void GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc)
+    {
+        HashState32 hash_state;
+        dmHashInit32(&hash_state, false);
+        assert(root_type_index < num_types);
 
+        bool* visited = (bool*)dmAlloca(sizeof(bool) * num_types);
+        memset(visited, 0, sizeof(bool) * num_types);
+
+        HashTypeRecursive(root_type_index, types, num_types, &hash_state, visited);
+
+        layout_desc->m_Hash = dmHashFinal32(&hash_state);
+        layout_desc->m_Size = CalculateShaderTypesSize(root_type_index, types, num_types);
+    }
     ///////////////////////////////////////////////////
     ////////// ADAPTER SPECIFIC FUNCTIONS /////////////
     void CloseWindow(HContext context)
@@ -1561,6 +1853,17 @@ namespace dmGraphics
     uint32_t GetDisplayDpi(HContext context)
     {
         return g_functions.m_GetDisplayDpi(context);
+    }
+    void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits)
+    {
+        GraphicsContext* gc = (GraphicsContext*) context;
+        limits = gc->m_Limits;
+    }
+    void GetAdapterVersion(HContext context, uint16_t& major, uint16_t& minor)
+    {
+        GraphicsContext* gc = (GraphicsContext*) context;
+        major = gc->m_AdapterVersionMajor;
+        minor = gc->m_AdapterVersionMinor;
     }
     uint32_t GetWidth(HContext context)
     {
@@ -1732,6 +2035,28 @@ namespace dmGraphics
     {
         g_functions.m_SetSampler(context, location, unit);
     }
+
+    HUniformLocation FindUniformLocation(HProgram program, dmhash_t name_hash)
+    {
+        uint32_t uniform_count = GetUniformCount(program);
+        for (uint32_t i = 0; i < uniform_count; ++i)
+        {
+            Uniform uniform;
+            GetUniform(program, i, &uniform);
+            if (uniform.m_NameHash == name_hash)
+            {
+                return uniform.m_Location;
+            }
+        }
+
+        return INVALID_UNIFORM_LOCATION;
+    }
+
+    HUniformLocation FindUniformLocation(HProgram program, const char* name)
+    {
+        dmhash_t name_hash = dmHashString64(name);
+        return FindUniformLocation(program, name_hash);
+    }
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         g_functions.m_SetViewport(context, x, y, width, height);
@@ -1747,6 +2072,14 @@ namespace dmGraphics
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         g_functions.m_SetBlendFunc(context, source_factor, destinaton_factor);
+    }
+    void SetBlendFuncSeparate(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        g_functions.m_SetBlendFuncSeparate(context, src_factor_color, dst_factor_color, src_factor_alpha, dst_factor_alpha);
+    }
+    void SetBlendEquationSeparate(HContext context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        g_functions.m_SetBlendEquationSeparate(context, equation_color, equation_alpha);
     }
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
@@ -1850,31 +2183,52 @@ namespace dmGraphics
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureWidth(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_Width : 0;
     }
     uint16_t GetTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureHeight(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_Height : 0;
     }
     uint16_t GetTextureDepth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureDepth(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_Depth : 0;
     }
     uint16_t GetOriginalTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureWidth(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_OriginalWidth : 0;
     }
     uint16_t GetOriginalTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureHeight(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_OriginalHeight : 0;
     }
     uint8_t GetTextureMipmapCount(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureMipmapCount(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_MipMapCount : 0;
     }
     TextureType GetTextureType(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureType(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_Type : TEXTURE_TYPE_2D;
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
@@ -1890,7 +2244,15 @@ namespace dmGraphics
     }
     uint32_t GetTextureStatusFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureStatusFlags(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        uint32_t flags = TEXTURE_STATUS_OK;
+        if (t && dmAtomicGet32(&((Texture*)t)->m_DataState))
+        {
+            flags |= TEXTURE_STATUS_DATA_PENDING;
+        }
+        return flags;
     }
     void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
@@ -1931,11 +2293,21 @@ namespace dmGraphics
     }
     uint8_t GetNumTextureHandles(HContext context, HTexture texture)
     {
-        return g_functions.m_GetNumTextureHandles(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        if (!t)
+        {
+            return 0;
+        }
+        return (uint8_t)dmMath::Min<uint32_t>(255u, (uint32_t)t->m_NumTextureIds);
     }
     uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureUsageHintFlags(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? (uint32_t)t->m_UsageHintFlags : 0;
     }
     uint8_t GetTexturePageCount(HTexture texture)
     {
@@ -1954,11 +2326,42 @@ namespace dmGraphics
     {
         g_functions.m_GetViewport(context, x, y, width, height);
     }
+    HUniformBuffer NewUniformBuffer(HContext context, const UniformBufferLayout& layout)
+    {
+        return g_functions.m_NewUniformBuffer(context, layout);
+    }
+    void DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer)
+    {
+        g_functions.m_DeleteUniformBuffer(context, uniform_buffer);
+    }
+    void SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        g_functions.m_SetUniformBuffer(context, uniform_buffer, offset, size, data);
+    }
+    void EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t set, uint32_t binding)
+    {
+        g_functions.m_EnableUniformBuffer(context, uniform_buffer, binding, set);
+    }
+    void DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer)
+    {
+        g_functions.m_DisableUniformBuffer(context, uniform_buffer);
+    }
 
+// TODO: Make graphics.cpp backend agnostic
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
+#if !defined(DM_GRAPHICS_NULL)
         glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
+#endif
     }
 #endif
+
+    ///////////////////////////////////////////////////
+    /////////// UNIT TEST ONLY FUNCTIONS //////////////
+    const ShaderMeta* GetShaderMeta(HProgram prog)
+    {
+        Program* p = (Program*)prog;
+        return &p->m_ShaderMeta;
+    }
 }

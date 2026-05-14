@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-/*# SDK Utf8 API documentation
+/*# Utf8 API documentation
  *
  * @document
  * @name Utf8

@@ -66,7 +66,8 @@
             [util.coll :as coll]
             [util.crypto :as crypto]
             [util.eduction :as e]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.path :as path])
   (:import [java.io ByteArrayInputStream PushbackReader]
            [java.nio.charset StandardCharsets]
            [java.nio.file Path]
@@ -245,7 +246,13 @@
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple
                                          :items [{:type :number} {:type :number} {:type :number} {:type :number}]
-                                         :default [0.5 0.5 0.5 1.0]}}}}}
+                                         :default [0.5 0.5 0.5 1.0]}}}
+             :perspective-camera {:type :object
+                                  :scope :project
+                                  :properties {:speed {:type :number :default 1.0}
+                                               :look-sensitivity {:type :number :default 0.15}
+                                               :invert-y {:type :boolean :default false}
+                                               :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :one-of
@@ -385,7 +392,7 @@
 (s/def ::values (s/coll-of any? :min-count 1 :kind vector?))
 (defmethod type-spec :enum [_] (s/keys :req-un [::values]))
 
-(s/def ::scopes (s/map-of ::scope fs/path? :min-count 1))
+(s/def ::scopes (s/map-of ::scope path/path? :min-count 1))
 (s/def ::schemas (s/coll-of any? :kind vector? :distinct true :min-count 1))
 (s/def ::preferences (s/keys :req-un [::scopes ::schemas]))
 
@@ -394,7 +401,7 @@
 ;; region internal global state
 
 (defn- read-config! [path]
-  (if (fs/path-exists? path)
+  (if (path/exists? path)
     (with-open [rdr (PushbackReader. (io/reader path))]
       (try
         (edn/read {:default fn/constantly-nil} rdr)
@@ -406,7 +413,7 @@
     ::not-found))
 
 (defn- write-config! [path config]
-  (fs/create-path-parent-directories! path)
+  (path/create-parent-directories! path)
   (with-open [w (io/writer path)]
     (letfn [(write-contents-indented! [prefix suffix xs indent]
               (let [child-indent (+ indent 2)
@@ -704,7 +711,7 @@
     :parent     a parent preferences map, defines initial scopes and schemas"
   [& {:keys [scopes schemas parent]}]
   {:post [(s/assert ::preferences %)]}
-  (let [scopes (coll/pair-map-by key #(-> % val fs/path .toAbsolutePath (doto ensure-loaded!)) scopes)
+  (let [scopes (coll/pair-map-by key #(-> % val path/absolute (doto ensure-loaded!)) scopes)
         scopes (cond->> (or scopes {}) parent (conj (:scopes parent)))
         schemas (into [] (comp cat (distinct)) [(:schemas parent) schemas])]
     {:scopes scopes
@@ -790,7 +797,7 @@
 
   Any attempt to get project-scoped values will return defaults"
   ([]
-   (global (fs/path
+   (global (path/of
              (case (os/os)
                :macos (fs/evaluate-path "~/Library/Preferences")
                :linux (some fs/evaluate-path ["$XDG_CONFIG_HOME" "~/.config"])
@@ -809,9 +816,9 @@
   ([project-path]
    (project project-path (global)))
   ([project-path parent-prefs]
-   (let [real-path (fs/real-path project-path)]
+   (let [real-path (path/real project-path)]
      (make :parent parent-prefs
-           :scopes {:project (fs/path real-path ".editor_settings")}
+           :scopes {:project (path/of real-path ".editor_settings")}
            :schemas [real-path]))))
 
 (defn register-project-schema!
@@ -819,7 +826,7 @@
 
   Uses real path of the project root of the project root as a schema id"
   [project-path schema]
-  (register-schema! (fs/real-path project-path) schema))
+  (register-schema! (path/real project-path) schema))
 
 (defn sync!
   "Immediately write all unsaved preference changes into files"

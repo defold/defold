@@ -99,13 +99,20 @@
     :constant-type-normal false
     :constant-type-worldview false
     :constant-type-worldviewproj false
+    :constant-type-time false
+    :constant-type-world-inverse false
+    :constant-type-view-inverse false
+    :constant-type-projection-inverse false
+    :constant-type-viewproj-inverse false
+    :constant-type-worldview-inverse false
+    :constant-type-worldviewproj-inverse false
     :constant-type-user-matrix4 true))
 
 (defn sanitize-constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
-  (cond-> constant
-          (not (editable-constant-type? (:type constant)))
-          (dissoc :value)))
+  (if (editable-constant-type? (:type constant))
+    (update constant :value #(or % [protobuf/vector4-zero]))
+    (dissoc constant :value)))
 
 (defn- constant->editable-constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
@@ -125,7 +132,7 @@
 
 (def ^:private editable-sampler-optional-field-defaults
   (-> Material$MaterialDesc$Sampler
-      (protobuf/default-message #{:optional})
+      (protobuf/optional-field-defaults)
       (dissoc :name-hash :texture))) ; TODO: Support assigning a default :texture for Samplers.
 
 (defn sampler->editable-sampler [sampler]

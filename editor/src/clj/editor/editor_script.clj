@@ -22,11 +22,14 @@
             [editor.lua :as lua]
             [editor.resource :as resource]))
 
+(def ^:private editor-extension-compilation-failed-message
+  (localization/message "error.editor-extension-compilation-failed"))
+
 (g/defnk produce-prototype [_node-id lines resource]
   (try
     (rt/read (data/lines-input-stream lines) (resource/resource->proj-path resource))
     (catch Exception e
-      (g/->error _node-id :prototype :fatal e "Could not compile editor extension"))))
+      (g/->error _node-id :prototype :fatal e editor-extension-compilation-failed-message))))
 
 (def completions
   (merge-with into lua/std-libs-docs lua/editor-completions))
@@ -43,6 +46,7 @@
                                  :language "lua"
                                  :label (localization/message "resource.type.editor-script")
                                  :icon "icons/32/Icons_29-AT-Unknown.png"
+                                 :category (localization/message "resource.category.editor")
                                  :view-types [:code :default]
                                  :view-opts script/lua-code-opts
                                  :node-type EditorScript

@@ -19,31 +19,40 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.dynamo.bob.test.util.MockResource;
 import com.dynamo.bob.TaskResult;
@@ -180,7 +189,7 @@ public class JBobTest {
     }
 
     List<TaskResult> build() throws IOException, CompileExceptionError, MultipleCompileException {
-        return project.build(new NullProgress(), "build");
+        return project.build(Progress.discarding(), "build");
     }
 
     @After
@@ -200,7 +209,7 @@ public class JBobTest {
         project.setInputs(Arrays.asList("test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
-        IResource testOut = fileSystem.get("test.out").output();
+        IResource testOut = fileSystem.get(ResourceUtil.minifyPath("test.out")).output();
         assertNotNull(testOut);
         assertThat(new String(testOut.getContent()), is("test data"));
     }
@@ -219,9 +228,35 @@ public class JBobTest {
         project.setInputs(Arrays.asList("/root/test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
-        IResource testOut = fileSystem.get("/root/test.out").output();
+        IResource testOut = fileSystem.get(ResourceUtil.minifyPath("/root/test.out")).output();
         assertThat(testOut.exists(), is(true));
         assertThat(new String(testOut.getContent()), is("test data"));
+    }
+
+    @Test
+    public void testExtractRejectsZipSlipEntries() throws Exception {
+        Path zipPath = Files.createTempFile("bob-extract-test", ".zip");
+        Path targetDir = Files.createTempDirectory("bob-extract-test");
+        Path outsideFile = targetDir.resolveSibling("escaped.txt");
+        try {
+            try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(zipPath))) {
+                zip.putNextEntry(new ZipEntry("../escaped.txt"));
+                zip.write("escaped".getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+
+            try {
+                Bob.extractToFolder(zipPath.toUri().toURL(), targetDir.toFile(), false);
+                fail("Expected IOException");
+            } catch (IOException exception) {
+                assertTrue(exception.getMessage(), exception.getMessage().contains("resolves outside"));
+            }
+            assertFalse(Files.exists(outsideFile));
+        } finally {
+            Files.deleteIfExists(zipPath);
+            Files.deleteIfExists(outsideFile);
+            FileUtils.deleteDirectory(targetDir.toFile());
+        }
     }
 
     @Test
@@ -259,7 +294,7 @@ public class JBobTest {
         assertThat(result.size(), is(1));
 
         // remove output
-        fileSystem.get("test.out").output().remove();
+        fileSystem.get(ResourceUtil.minifyPath("test.out")).output().remove();
 
         // rebuild
         result = build();
@@ -276,7 +311,7 @@ public class JBobTest {
         assertThat(result.size(), is(3));
 
         // remove generated output, ie input to another task
-        fileSystem.get("test_0.numberc").output().remove();
+        fileSystem.get(ResourceUtil.minifyPath("test_0.numberc")).output().remove();
 
         // rebuild
         result = build();
@@ -336,8 +371,8 @@ public class JBobTest {
         project.setInputs(Arrays.asList("test.dynamic"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(3));
-        assertThat(getResourceString("test_0.numberc"), is("10"));
-        assertThat(getResourceString("test_1.numberc"), is("20"));
+        assertThat(getResourceString(ResourceUtil.minifyPath("test_0.numberc")), is("10"));
+        assertThat(getResourceString(ResourceUtil.minifyPath("test_1.numberc")), is("20"));
         assertThat(result.get(1).getTask().getProductOf(), is((Task) result.get(0).getTask()));
         assertThat(result.get(2).getTask().getProductOf(), is((Task) result.get(0).getTask()));
     }

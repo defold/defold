@@ -16,7 +16,7 @@
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <stdio.h>
-#include <stdlib.h> // getenv
+#include <stdlib.h> // getenv, free, strdup
 #include <string.h>
 
 
@@ -48,12 +48,23 @@ struct ModelImporterInitializer
     }
 } g_ModelImporterInitializer;
 
-
 namespace dmModelImporter
 {
 
 Options::Options()
 {
+}
+
+void SetLoadError(Scene* scene, const char* message)
+{
+    if (!scene)
+        return;
+    free(scene->m_LoadError);
+    scene->m_LoadError = 0;
+    if (message && message[0])
+    {
+        scene->m_LoadError = strdup(message);
+    }
 }
 
 static void DestroySampler(Sampler* sampler)
@@ -85,6 +96,14 @@ static void DestroyMesh(Mesh* mesh)
     mesh->m_TexCoords0.SetCapacity(0);
     mesh->m_TexCoords1.SetCapacity(0);
     mesh->m_Indices.SetCapacity(0);
+    for (uint32_t i = 0; i < mesh->m_MorphTargets.Size(); ++i)
+    {
+        mesh->m_MorphTargets[i].m_Positions.SetCapacity(0);
+        mesh->m_MorphTargets[i].m_Normals.SetCapacity(0);
+        mesh->m_MorphTargets[i].m_Tangents.SetCapacity(0);
+    }
+    mesh->m_MorphTargets.SetCapacity(0);
+    mesh->m_MorphBaseWeights.SetCapacity(0);
     free((void*)mesh->m_Name);
 }
 
@@ -123,6 +142,9 @@ static void DestroyNodeAnimation(NodeAnimation* node_animation)
     node_animation->m_TranslationKeys.SetCapacity(0);
     node_animation->m_RotationKeys.SetCapacity(0);
     node_animation->m_ScaleKeys.SetCapacity(0);
+    node_animation->m_MorphWeightKeyTimes.SetCapacity(0);
+    node_animation->m_MorphWeightKeyValues.SetCapacity(0);
+    node_animation->m_MorphWeightDimensions = 0;
 }
 
 static void DestroyAnimation(Animation* animation)
@@ -168,18 +190,12 @@ bool LoadFinalize(Scene* scene)
     return true;
 }
 
-void DestroyScene(Scene* scene)
+void ClearScene(Scene* scene)
 {
     if (!scene)
-    {
         return;
-    }
-
     if (!scene->m_OpaqueSceneData)
-    {
-        printf("Already deleted!\n");
         return;
-    }
 
     scene->m_DestroyFn(scene);
     scene->m_OpaqueSceneData = 0;
@@ -229,6 +245,20 @@ void DestroyScene(Scene* scene)
         DestroySampler(&scene->m_Samplers[i]);
     scene->m_Samplers.SetCapacity(0);
 
+    scene->m_LoadFinalizeFn = 0;
+    scene->m_ValidateFn = 0;
+    scene->m_DestroyFn = 0;
+}
+
+void DestroyScene(Scene* scene)
+{
+    if (!scene)
+        return;
+
+    free(scene->m_LoadError);
+    scene->m_LoadError = 0;
+
+    ClearScene(scene);
     delete scene;
 }
 
@@ -273,6 +303,20 @@ Scene* LoadFromPath(Options* options, const char* path)
     if (!scene)
     {
         dmLogError("Failed to create scene from path '%s'", path);
+        free(data);
+        return 0;
+    }
+
+    if (scene->m_LoadError && scene->m_LoadError[0])
+    {
+        char errbuf[512];
+        errbuf[0] = 0;
+        dmStrlCpy(errbuf, scene->m_LoadError, sizeof(errbuf));
+        DestroyScene(scene);
+        printf("Failed to load '%s'\n", path);
+        if (errbuf[0])
+            dmLogError("%s", errbuf);
+        free(data);
         return 0;
     }
 
@@ -299,8 +343,15 @@ Scene* LoadFromPath(Options* options, const char* path)
 
     if (!dmModelImporter::LoadFinalize(scene))
     {
+        char errbuf[512];
+        errbuf[0] = 0;
+        if (scene->m_LoadError && scene->m_LoadError[0])
+            dmStrlCpy(errbuf, scene->m_LoadError, sizeof(errbuf));
         DestroyScene(scene);
         printf("Failed to load '%s'\n", path);
+        if (errbuf[0])
+            dmLogError("%s", errbuf);
+        free(data);
         return 0;
     }
 

@@ -327,6 +327,12 @@ static jobject CreateNodeAnimation(JNIEnv* env, dmModelImporter::jni::TypeInfos*
     dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.translationKeys, CreateKeyFramesArray(env, types, node_anim->m_TranslationKeys.Begin(), node_anim->m_TranslationKeys.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.rotationKeys, CreateKeyFramesArray(env, types, node_anim->m_RotationKeys.Begin(), node_anim->m_RotationKeys.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.scaleKeys, CreateKeyFramesArray(env, types, node_anim->m_ScaleKeys.Begin(), node_anim->m_ScaleKeys.Size()));
+    if (node_anim->m_MorphWeightDimensions > 0 && node_anim->m_MorphWeightKeyTimes.Size() > 0)
+    {
+        dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.morphWeightKeyTimes, dmJNI::C2J_CreateFloatArray(env, node_anim->m_MorphWeightKeyTimes.Begin(), node_anim->m_MorphWeightKeyTimes.Size()));
+        dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.morphWeightKeyValues, dmJNI::C2J_CreateFloatArray(env, node_anim->m_MorphWeightKeyValues.Begin(), node_anim->m_MorphWeightKeyValues.Size()));
+    }
+    dmJNI::SetUInt(env, obj, types->m_NodeAnimationJNI.morphWeightDimensions, node_anim->m_MorphWeightDimensions);
     dmJNI::SetFloat(env, obj, types->m_NodeAnimationJNI.startTime, node_anim->m_StartTime);
     dmJNI::SetFloat(env, obj, types->m_NodeAnimationJNI.endTime, node_anim->m_EndTime);
     return obj;
@@ -541,6 +547,26 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 
 } // namespace
 
+static void ThrowModelLoadException(JNIEnv* env, const char* message)
+{
+    const char* msg = (message && message[0]) ? message : "Failed to load model";
+    jclass jcls = env->FindClass(JAVA_PACKAGE_NAME "/ModelImporterJni$ModelException");
+    if (!jcls)
+    {
+        env->ExceptionClear();
+        dmLogError("Failed to find ModelImporterJni.ModelException class");
+        return;
+    }
+    env->ThrowNew(jcls, msg);
+    env->DeleteLocalRef(jcls);
+}
+
+static void ThrowModelLoadExceptionFromScene(JNIEnv* env, dmModelImporter::Scene* scene, const char* fallback_message)
+{
+    const char* err = (scene && scene->m_LoadError && scene->m_LoadError[0]) ? scene->m_LoadError : fallback_message;
+    ThrowModelLoadException(env, err);
+}
+
 static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
 {
     dmLogDebug("CreateJavaScene: env = %p\n", env);
@@ -551,10 +577,10 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
     const char* suffix = strrchr(path, '.');
     if (!suffix) {
         dmLogError("No suffix found in path: %s", path);
+        ThrowModelLoadException(env, "No file suffix in path");
         return 0;
-    } else {
-        suffix++; // skip the '.'
     }
+    suffix++; // skip the '.'
 
     jsize file_size = env->GetArrayLength(array);
     jbyte* file_data = env->GetByteArrayElements(array, 0);
@@ -565,6 +591,16 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
     if (!scene)
     {
         dmLogError("Failed to load %s", path);
+        env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+        ThrowModelLoadException(env, "Failed to load model");
+        return 0;
+    }
+
+    if (scene->m_LoadError && scene->m_LoadError[0])
+    {
+        ThrowModelLoadExceptionFromScene(env, scene, "Failed to load model");
+        dmModelImporter::DestroyScene(scene);
+        env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
         return 0;
     }
 
@@ -587,6 +623,9 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
                 dmLogError("JNI ExceptionCheck failed:");
                 env->ExceptionDescribe();
                 env->ExceptionClear();
+                dmModelImporter::DestroyScene(scene);
+                env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+                ThrowModelLoadException(env, "Exception while resolving external buffers");
                 return 0;
             }
             if (bytes)
@@ -614,8 +653,22 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
 
     if (resolved && !dmModelImporter::NeedsResolve(scene))
     {
-        dmModelImporter::LoadFinalize(scene);
+        if (!dmModelImporter::LoadFinalize(scene))
+        {
+            ThrowModelLoadExceptionFromScene(env, scene, "Failed to finalize model load");
+            dmModelImporter::DestroyScene(scene);
+            env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+            return 0;
+        }
         dmModelImporter::Validate(scene);
+    }
+
+    if (dmModelImporter::NeedsResolve(scene))
+    {
+        dmModelImporter::DestroyScene(scene);
+        env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+        ThrowModelLoadException(env, "Missing external buffer data for glTF");
+        return 0;
     }
 
     if (dmLogGetLevel() == LOG_SEVERITY_DEBUG) // verbose mode
@@ -623,11 +676,7 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
         dmModelImporter::DebugScene(scene);
     }
 
-    jobject jscene = 0;
-    if (!dmModelImporter::NeedsResolve(scene))
-    {
-        jscene = dmModelImporter::CreateJavaScene(env, scene);
-    }
+    jobject jscene = dmModelImporter::CreateJavaScene(env, scene);
 
     dmModelImporter::DestroyScene(scene);
 

@@ -18,6 +18,10 @@
 #include <dmsdk/dlib/log.h>
 #include <dlib/message.h>
 
+#if defined(_WIN32) || defined(_GAMING_XBOX)
+#include <winerror.h> // HRESULT
+#endif
+
 namespace dmLog
 {
 
@@ -52,25 +56,6 @@ struct LogMessage
 };
 
 const uint32_t MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(LogMessage);
-struct LogParams
-{
-    LogParams()
-    {
-    }
-};
-
-/**
- * Initialize logging system. Running this function is only required in order to start the log-server.
- * The function will never fail even if the log-server can't be started. Any errors will be reported to stderr though
- * @param params log parameters
- */
-void LogInitialize(const LogParams* params);
-
-
-/**
- * Finalize logging system
- */
-void LogFinalize();
 
 /**
  * Get log server port
@@ -99,6 +84,10 @@ bool SetLogFile(const char* path);
  */
 void __ios_log_print(LogSeverity severity, const char* str_buf);
 
+#if defined(_WIN32)
+bool HResultToString(HRESULT hr, char* buffer, size_t buffer_size);
+void LogHResult(LogSeverity severity, HRESULT hr, const char* str_buf);
+#endif
 
 } //namespace dmLog
 

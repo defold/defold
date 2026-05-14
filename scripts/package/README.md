@@ -61,9 +61,9 @@ Run the script (hostsystem is any of darwin/linux/windows):
 and it will output a package (depending on hostsystem):
 
 ```
-	_tmpdir/darwin/android-sdk-darwin-android-35.tar.gz
-	_tmpdir/linux/android-sdk-linux-android-35.tar.gz
-	_tmpdir/windows/android-sdk-windows-android-35.tar.gz
+	_tmpdir/darwin/android-sdk-darwin-android-36.tar.gz
+	_tmpdir/linux/android-sdk-linux-android-36.tar.gz
+	_tmpdir/windows/android-sdk-windows-android-36.tar.gz
 ```
 
 An alternative approach could be using GitHub Actions. See *Package Android SDKs* (`pack-android-sdks.yml`).  
@@ -104,6 +104,8 @@ and it will output files in `local_sdks` (version depends on which is the curren
 Run the script
 
 	./scripts/package/package_win32_sdk.sh
+
+The script uses the system-installed `vswhere.exe` from the Visual Studio Installer to locate the active MSVC toolchain and Windows 10 SDK.
 
 ## HTML5
 

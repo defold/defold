@@ -16,7 +16,7 @@
 #define DMSDK_SHARED_LIBRARY_H
 
 
-/*# SDK Shared library API documentation
+/*# Shared library API documentation
  *
  * Utility functions for shared library export/import
  *

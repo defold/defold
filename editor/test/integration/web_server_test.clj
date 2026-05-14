@@ -37,8 +37,9 @@
             [util.coll :as coll]
             [util.eduction :as e]
             [util.http-client :as http]
-            [util.http-server :as http-server])
-  (:import [java.io ByteArrayInputStream ByteArrayOutputStream]
+            [util.http-server :as http-server]
+            [util.path :as path])
+  (:import [java.io BufferedReader ByteArrayInputStream ByteArrayOutputStream InputStreamReader OutputStream]
            [java.nio.charset StandardCharsets]
            [javafx.scene Scene]
            [javafx.scene.layout Region]
@@ -77,7 +78,7 @@
   ;; file->path
   (is (= {:status 200
           :headers {"content-type" "text/plain"}
-          :body (fs/path "project.clj")}
+          :body (path/of "project.clj")}
          (http-server/response 200 (io/file "project.clj"))))
   ;; resource: jar file url
   (is (= {:status 200
@@ -93,7 +94,7 @@
     ;; editor resources: file->path
     (is (= {:status 200
             :headers {"content-type" "text/plain"}
-            :body (fs/path (workspace/project-directory workspace) "game.project")}
+            :body (path/of (workspace/project-directory workspace) "game.project")}
            (http-server/response 200 (workspace/find-resource workspace "/game.project"))))
     ;; editor resources: zip as is
     (is (= {:status 200
@@ -111,9 +112,18 @@
             (io/copy is baos))]
     (count (.toByteArray baos))))
 
+(deftest explicit-ipv4-bind-test
+  (with-open [server (http-server/start!
+                       (http-server/router-handler
+                         {"/" {"GET" (constantly (http-server/response 200 "OK"))}})
+                       :host "127.0.0.1")]
+    (let [response @(http/request (http-server/url server) :as :string)]
+      (is (= 200 (:status response)))
+      (is (= "OK" (:body response))))))
+
 (deftest response-write-test
   ;; file
-  (let [project-clj-size (fs/path-size (fs/path "project.clj"))]
+  (let [project-clj-size (path/byte-size "project.clj")]
     (is (= {:status 200
             :headers {"content-length" (str project-clj-size)
                       "content-type" "text/plain"}
@@ -160,6 +170,16 @@
            (http-server/response
              200
              (ByteArrayInputStream. (.getBytes "input stream" StandardCharsets/UTF_8)))
+           :as :string)))
+  (is (= {:status 200
+          :headers {"transfer-encoding" "chunked"}
+          :body "connection write"}
+         (get-written-response
+           (http-server/response
+             200
+             (reify http-server/ConnectionWrite
+               (connection-write! [_ output-stream]
+                 (.write ^OutputStream output-stream (.getBytes "connection write" StandardCharsets/UTF_8)))))
            :as :string))))
 
 (defn- schema-leaves
@@ -260,9 +280,9 @@
                               {:workspace workspace
                                :changes-view workspace}
                               (reify handler/SelectionProvider
-                                (selection [_])
-                                (succeeding-selection [_])
-                                (alt-selection [_]))))
+                                (selection [_this _evaluation-context])
+                                (succeeding-selection [_this _evaluation-context])
+                                (alt-selection [_this _evaluation-context]))))
           view-graph (g/node-id->graph-id app-view)
           console (g/make-node! view-graph console/ConsoleNode)
           console-view (g/make-node! view-graph view/CodeEditorView :gutter-view (console/->ConsoleGutterView))]
@@ -271,11 +291,30 @@
         (with-open [server (http-server/start!
                              (web-server/make-dynamic-handler
                                (into [] cat [(engine-profiler/routes)
+                                             (web-server/built-in-routes project)
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
-                                             (command-requests/router root progress/null-render-progress!)])))]
+                                             (command-requests/router root test-util/localization progress/null-render-progress!)])))]
           (let [url (http-server/local-url server)]
+            (let [{:keys [status headers body]} @(http/request (str url "/") :as :string)]
+              (is (= 200 status))
+              (is (= "text/html; charset=utf-8" (get headers "content-type")))
+              (is (string/includes? body "Defold Editor HTTP Server"))
+              (is (string/includes? body "/openapi.json")))
+            (let [{:keys [status headers body]} @(http/request (str url "/openapi.json") :as :string)]
+              (is (= 200 status))
+              (is (= "application/json" (get headers "content-type")))
+              (let [json-body (json/read-str body)]
+                (is (= "3.0.3" (get json-body "openapi")))
+                (is (= "Read per-session token from `.internal/editor.token`, then send it as `Authorization: Bearer <token>`."
+                       (get-in json-body ["components" "securitySchemes" "token" "description"])))
+                (is (contains? (get json-body "paths") "/console"))
+                (is (contains? (get json-body "paths") "/console/stream"))
+                (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]
+                  (is (= "Execute an editor command" (get post-command "summary")))
+                  (is (string/includes? (get post-command "description") "`build-html5`"))
+                  (is (some #{"build-html5"} (get-in post-command ["parameters" 0 "schema" "enum"]))))))
             (let [{:keys [status headers body]} @(http/request (str url "/engine-profiler/") :as :string)]
               (is (= 200 status))
               (is (= "text/html" (get headers "content-type")))
@@ -288,10 +327,21 @@
               (is (= 200 status))
               (is (= "application/json" (get headers "content-type")))
               (is (string/includes? body "\"lines\":")))
-            (let [{:keys [status headers body]} (update @(http/request (str url "/command/") :as :string) :body json/read-str :key-fn keyword)]
-              (is (= 200 status))
-              (is (= "application/json" (get headers "content-type")))
-              (is (contains? body :build-html5)))
+            (testing "Console streaming"
+              (console/clear-console!)
+              (console/append-console-line! "before")
+              (let [{:keys [status headers body]} @(http/request (str url "/console/stream") :as :input-stream)]
+                (is (= 200 status))
+                (is (= "text/plain; charset=utf-8" (get headers "content-type")))
+                (with-open [^java.io.InputStream body body
+                            ^BufferedReader reader (BufferedReader. (InputStreamReader. body StandardCharsets/UTF_8))]
+                  (is (= "before" (deref (future (.readLine reader)) 2000 ::timeout)))
+                  (console/append-console-line! "after")
+                  (is (= "after" (deref (future (.readLine reader)) 2000 ::timeout)))
+                  (console/clear-console!)
+                  (is (= "" (deref (future (.readLine reader)) 2000 ::timeout))))))
+            (let [{:keys [status]} @(http/request (str url "/command/") :as :string)]
+              (is (= 404 status)))
             (let [{:keys [status headers body]} @(http/request (str url "/command/build-html5") :as :string)]
               (is (= 405 status))
               (is (= "OPTIONS, POST" (get headers "allow")))

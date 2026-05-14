@@ -29,6 +29,7 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
@@ -432,7 +433,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 b.setScale3(MathUtil.vecmathToDDFOne(new Vector3d(s, s, s)));
             }
 
-            b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));
+            b.setPrototype(ResourceUtil.minifyPathAndReplaceExt(b.getPrototype(), ".go", ".goc"));
+
             for (int j = 0; j < b.getComponentPropertiesCount(); ++j) {
                 ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder(b.getComponentProperties(j));
                 PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();

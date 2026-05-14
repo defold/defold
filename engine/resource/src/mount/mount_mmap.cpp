@@ -146,22 +146,19 @@ namespace dmResource
     {
         MountInfo* info = (MountInfo*) mount_info;
 
-        if (!info)
+        if (info)
         {
-            return;
-        }
+            if (info->index_map)
+            {
+                munmap(info->index_map, info->index_length);
+            }
 
-        if (info->index_map)
-        {
-            munmap(info->index_map, info->index_length);
+            if (info->data_map)
+            {
+                munmap(info->data_map, info->data_length);
+            }
+            delete info;
         }
-
-        if (info->data_map)
-        {
-            munmap(info->data_map, info->data_length);
-        }
-
-        delete info;
 
         dmResourceArchive::Delete(archive);
     }

@@ -46,7 +46,7 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
     @Override
     public IResource get(String path) {
         // Paths are always root relative.
-        if (path.startsWith("/"))
+        while (path.startsWith("/") || path.startsWith("\\"))
             path = path.substring(1);
         IResource resource = getFromMountPoints(path);
         if (resource != null) {

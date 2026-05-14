@@ -19,7 +19,7 @@
 #include <dmsdk/font/font.h>
 #include <dmsdk/extension/extension.h>
 
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dmsdk/gamesys/resources/res_font.h>
 
 struct TextGlyph; // font/text_layout.h
@@ -39,8 +39,8 @@ namespace dmGameSystem
     FontGenJobData* FontGenCreateJobData(FontResource* resource, uint32_t num_glyphs);
     void            FontGenDestroyJobData(FontGenJobData* jobdata);
 
-    dmJobThread::HJob FontGenAddGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t glyph_index, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
-    dmJobThread::HJob FontGenAddGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
+    HJob FontGenAddGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t glyph_index, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
+    HJob FontGenAddGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
 
     // If we're busy waiting for created glyphs
     void FontGenFlushFinishedJobs(uint64_t timeout);

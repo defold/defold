@@ -31,7 +31,7 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
@@ -93,7 +93,7 @@ public class MacOSBundlerTest {
             project.setOption("architectures", Platform.X86_64MacOS.getPair());
             project.setOption("archive", "true");
             project.setOption("bundle-output", outputDir);
-            project.build(new NullProgress(), "clean", "build", "bundle");
+            project.build(Progress.discarding(), "clean", "build", "bundle");
         } catch (Exception e) {
             System.err.printf("Failed to build: %s\n", e.getMessage());
             throw e;

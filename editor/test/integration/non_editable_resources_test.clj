@@ -19,11 +19,11 @@
             [dynamo.graph :as g]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
+            [editor.lsp :as lsp]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.workspace :as workspace]
             [integration.test-util :as tu]
             [internal.util :as util]
@@ -241,6 +241,7 @@
                                        :house (g/node-value house :build-targets)}}]
                   (tu/save-project! project)
                   (tu/set-non-editable-directories! project-path ["/assets"])
+                  (lsp/await (lsp/get-node-lsp project))
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.
@@ -253,7 +254,8 @@
                       :let [non-editable-node-id (non-editable-node-ids-by-node-key node-key)]]
                 (testing (str node-key)
                   (is (= editable-build-source-paths
-                         (tu/node-built-source-paths non-editable-node-id))))))))))))
+                         (tu/node-built-source-paths non-editable-node-id))))))
+            (lsp/await (lsp/get-node-lsp (:project non-editable-node-ids-by-node-key)))))))))
 
 (deftest build-target-test
   (doseq [atlas-property-proj-paths-by-node-key
@@ -332,7 +334,8 @@
                 (is (= "/non-editable-room/go" (:id non-editable-room-instance-pb-map)))
                 (is (string/includes? (:prototype editable-room-instance-pb-map) "generated"))
                 (is (= (:prototype editable-room-instance-pb-map)
-                       (:prototype non-editable-room-instance-pb-map)))))))))))
+                       (:prototype non-editable-room-instance-pb-map))))))
+          (lsp/await (lsp/get-node-lsp project)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; scene-test
@@ -366,9 +369,9 @@
 
       (doto chair-embedded-sprite
         (tu/prop! :id "chair-embedded-sprite")
-        (tu/prop! :position [1.1 1.2 1.3])
-        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 1.0)))
-        (tu/prop! :scale [1.4 1.5 1.6])
+        (tu/prop! :position (vector-of :float 1.1 1.2 1.3))
+        (tu/prop! :rotation (into (vector-of :float) (math/vecmath->clj (math/euler-z->quat 1.0))))
+        (tu/prop! :scale (vector-of :float 1.4 1.5 1.6))
         (tu/prop! :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
         (tu/prop! :default-animation "from-chair-embedded-sprite"))
 
@@ -377,21 +380,21 @@
 
       (doto chair-referenced-sprite
         (tu/prop! :id "chair-referenced-sprite")
-        (tu/prop! :position [2.1 2.2 2.3])
-        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 2.0)))
-        (tu/prop! :scale [2.4 2.5 2.6]))
+        (tu/prop! :position (vector-of :float 2.1 2.2 2.3))
+        (tu/prop! :rotation (into (vector-of :float) (math/vecmath->clj (math/euler-z->quat 2.0))))
+        (tu/prop! :scale (vector-of :float 2.4 2.5 2.6)))
 
       (doto room-embedded-chair
         (tu/prop! :id "room-embedded-chair")
-        (tu/prop! :position [3.1 3.2 3.3])
-        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 3.0)))
-        (tu/prop! :scale [3.4 3.5 3.6]))
+        (tu/prop! :position (vector-of :float 3.1 3.2 3.3))
+        (tu/prop! :rotation (into (vector-of :float) (math/vecmath->clj (math/euler-z->quat 3.0))))
+        (tu/prop! :scale (vector-of :float 3.4 3.5 3.6)))
 
       (doto room-embedded-chair-embedded-sprite
         (tu/prop! :id "room-embedded-chair-embedded-sprite")
-        (tu/prop! :position [4.1 4.2 4.3])
-        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 4.0)))
-        (tu/prop! :scale [4.4 4.5 4.6])
+        (tu/prop! :position (vector-of :float 4.1 4.2 4.3))
+        (tu/prop! :rotation (into (vector-of :float) (math/vecmath->clj (math/euler-z->quat 4.0))))
+        (tu/prop! :scale (vector-of :float 4.4 4.5 4.6))
         (tu/prop! :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
         (tu/prop! :default-animation "from-room-embedded-chair-embedded-sprite"))
 
@@ -400,21 +403,21 @@
 
       (doto room-embedded-chair-referenced-sprite
         (tu/prop! :id "room-embedded-chair-referenced-sprite")
-        (tu/prop! :position [5.1 5.2 5.3])
-        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 5.0)))
-        (tu/prop! :scale [5.4 5.5 5.6]))
+        (tu/prop! :position (vector-of :float 5.1 5.2 5.3))
+        (tu/prop! :rotation (into (vector-of :float) (math/vecmath->clj (math/euler-z->quat 5.0))))
+        (tu/prop! :scale (vector-of :float 5.4 5.5 5.6)))
 
       (doto room-referenced-chair
         (tu/prop! :id "room-referenced-chair")
-        (tu/prop! :position [6.1 6.2 6.3])
-        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 6.0)))
-        (tu/prop! :scale [6.4 6.5 6.6]))
+        (tu/prop! :position (vector-of :float 6.1 6.2 6.3))
+        (tu/prop! :rotation (into (vector-of :float) (math/vecmath->clj (math/euler-z->quat 6.0))))
+        (tu/prop! :scale (vector-of :float 6.4 6.5 6.6)))
 
       (doto house-referenced-room
         (tu/prop! :id "house-referenced-room")
-        (tu/prop! :position [7.1 7.2 7.3])
-        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 7.0)))
-        (tu/prop! :scale [7.4 7.5 7.6]))
+        (tu/prop! :position (vector-of :float 7.1 7.2 7.3))
+        (tu/prop! :rotation (into (vector-of :float) (math/vecmath->clj (math/euler-z->quat 7.0))))
+        (tu/prop! :scale (vector-of :float 7.4 7.5 7.6)))
 
       {:chair chair
        :house house
@@ -446,6 +449,7 @@
                                :house (g/node-value house :scene)}}]
                   (tu/save-project! project)
                   (tu/set-non-editable-directories! project-path ["/assets"])
+                  (lsp/await (lsp/get-node-lsp project))
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.

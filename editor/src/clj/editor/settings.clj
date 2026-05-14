@@ -18,12 +18,15 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.library :as library]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.eduction :as e])
+  (:import [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Result]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]
@@ -44,9 +47,38 @@
   ;; resource-setting-reference only consumed by SettingsNode and already cached there.
   (output resource-setting-reference g/Any (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
 
-(g/defnk produce-settings-map [meta-info raw-settings resource-settings]
-  (let [meta-settings (:settings meta-info)
-        sanitized-settings (settings-core/sanitize-settings meta-settings (settings-core/settings-with-value raw-settings))
+(defn- resolve-resource-settings [settings value-field resolve-resource-fn]
+  (mapv (fn [setting]
+          (cond-> setting
+                  ;; Resolve string resource values so the form gets typed values.
+                  ;; This covers raw settings without ResourceSettingNodes, and
+                  ;; defaults from metadata merged after load.
+                  (and (= :resource (:type setting))
+                       (string? (get setting value-field)))
+                  (update value-field resolve-resource-fn)))
+        settings))
+
+(defn- type-annotate-settings [settings meta-settings]
+  (let [meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
+    (mapv #(assoc % :type (:type (meta-settings-map (:path %)))) settings)))
+
+(defn- resolve-resource-settings-from-raw [basis raw-settings meta-settings owner-resource]
+  ;; evaluation context is an `^:unsafe` part of the output: can be used only
+  ;; for resource resolution (that are then only needed for paths)
+  (let [resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+    (-> raw-settings
+        (settings-core/settings-with-value)
+        (->> (settings-core/sanitize-settings meta-settings))
+        (type-annotate-settings meta-settings)
+        (resolve-resource-settings :value resolve-resource))))
+
+(g/defnk produce-settings-map [^:unsafe _evaluation-context owner-resource meta-info raw-settings resource-settings]
+  ;; we use evaluation context to resolve a resource; we only need the resource
+  ;; for its path, so it's safe to use it here
+  (let [basis (:basis _evaluation-context)
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)
+        meta-settings (resolve-resource-settings (:settings meta-info) :default resolve-resource)
+        sanitized-settings (resolve-resource-settings-from-raw basis raw-settings meta-settings owner-resource)
         all-settings (concat (settings-core/make-default-settings meta-settings) sanitized-settings resource-settings)
         settings-map (settings-core/make-settings-map all-settings)]
     settings-map))
@@ -177,26 +209,28 @@
   library.defold_min_version)."
   [dependencies]
   (into []
-        (comp
-          (filter #(and (= :error (:status %))
-                        (= :defold-min-version (:reason %))))
-          (map (fn [{:keys [uri required current]}]
-                 (g/map->error
-                   {:severity :fatal
-                    :message (format "Library '%s' requires Defold %s or newer (current Defold version is %s). Update Defold or check older extension versions for compatibility."
-                                     (str uri) (str required) (str current))}))))
+        (keep
+          (fn [^Library$Result result]
+            (when-let [problem (.problem result)]
+              (when (instance? Library$Problem$DefoldMinVersion problem)
+                (g/map->error {:severity :fatal :message (library/result-message result)})))))
         dependencies))
 
-(g/defnk produce-form-data [_node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
-  (let [meta-settings (:settings meta-info)
-        sanitized-settings (settings-core/sanitize-settings meta-settings (settings-core/settings-with-value raw-settings))
+(g/defnk produce-form-data [^:unsafe _evaluation-context _node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
+  ;; we use evaluation context to resolve a resource; we only need the resource
+  ;; for its path, so it's safe to use it here
+  (let [basis (:basis _evaluation-context)
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)
+        meta-info (update meta-info :settings resolve-resource-settings :default resolve-resource)
+        meta-settings (:settings meta-info)
+        sanitized-settings (resolve-resource-settings-from-raw basis raw-settings meta-settings owner-resource)
         non-defaulted-setting-paths (into #{}
                                           (comp
                                             (filter :value)
                                             (map :path))
                                           sanitized-settings)
-        non-default-resource-settings (filter (comp non-defaulted-setting-paths :path) resource-settings)
-        all-settings (concat sanitized-settings non-default-resource-settings)]
+        non-default-resource-settings (filterv (comp non-defaulted-setting-paths :path) resource-settings)
+        all-settings (e/concat sanitized-settings non-default-resource-settings)]
     (make-form-data
       {:user-data {:node-id _node-id
                    :project project
@@ -222,12 +256,21 @@
   (input meta-infos g/Any)
   (input project-dependencies g/Any)
 
+  (output resource-setting-references g/Any :cached
+          (g/fnk [resource-setting-references meta-info]
+            (let [meta-settings (:settings meta-info)
+                  meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
+              ;; We filter out nodes for settings that were resource, but stopped
+              ;; being them; which may happen when we define a resource setting
+              ;; using, e.g., game.properties file, then set the property, and
+              ;; then we change the type to be a string
+              (filterv #(= :resource (:type (meta-settings-map (:path %)))) resource-setting-references))))
   (output resource-setting-nodes g/Any :cached
           (g/fnk [resource-setting-references]
-                 (into {} (map (juxt :path :node-id) resource-setting-references))))
+            (into {} (map (juxt :path :node-id) resource-setting-references))))
   (output resource-settings g/Any :cached
           (g/fnk [resource-setting-references]
-                 (map #(select-keys % [:path :value]) resource-setting-references)))
+            (mapv #(select-keys % [:path :value]) resource-setting-references)))
 
   (output merged-raw-settings g/Any :cached
           (g/fnk [raw-settings meta-info resource-settings]
@@ -261,24 +304,15 @@
                       project-meta-info (settings-core/merge-meta-infos project-meta-info)
                       (and ext-meta-info (= "project" (resource/type-ext owner-resource))) (settings-core/merge-meta-infos ext-meta-info))))))
 
-(defn- resolve-resource-settings [settings base-resource value-field]
-  (mapv (fn [setting]
-          (if (= :resource (:type setting))
-            (update setting value-field #(workspace/resolve-resource base-resource %))
-            setting))
-        settings))
-
-(defn- type-annotate-settings [settings meta-settings]
-  (let [meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
-    (mapv #(assoc % :type (:type (meta-settings-map (:path %)))) settings)))
-
 (defn load-settings-node [project owner-resource-node self resource raw-settings initial-meta-info resource-setting-connections]
-  (let [meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
-                      (update :settings resolve-resource-settings resource :default))
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
+        meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
+                      (update :settings resolve-resource-settings :default resolve-resource))
         meta-settings (:settings meta-info)
         settings (-> (settings-core/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
                      (type-annotate-settings meta-settings)
-                     (resolve-resource-settings resource :value))
+                     (resolve-resource-settings :value resolve-resource))
         resource-setting-paths (set (map :path (filter #(= :resource (:type %)) meta-settings)))]
     (concat
       ;; We retain the actual raw string settings and update these when/if the user changes a setting,

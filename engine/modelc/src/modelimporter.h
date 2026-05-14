@@ -217,6 +217,13 @@ namespace dmModelImporter
         bool                    m_Unlit;
     };
 
+    struct MorphTarget
+    {
+        dmArray<float> m_Positions;   // 3 floats per vertex (delta)
+        dmArray<float> m_Normals;     // 3 floats per vertex (delta)
+        dmArray<float> m_Tangents;    // 4 floats per vertex (delta, w from GLTF)
+    };
+
     struct Mesh
     {
         const char*         m_Name;
@@ -237,6 +244,9 @@ namespace dmModelImporter
 
         dmArray<uint32_t>   m_Indices;
         uint32_t            m_VertexCount;
+
+        dmArray<MorphTarget> m_MorphTargets;
+        dmArray<float>       m_MorphBaseWeights; // GLTF mesh/node weights (one per morph target)
     };
 
     // forward declaration for jni generation
@@ -301,6 +311,10 @@ namespace dmModelImporter
         dmArray<KeyFrame>   m_TranslationKeys;
         dmArray<KeyFrame>   m_RotationKeys;
         dmArray<KeyFrame>   m_ScaleKeys;
+        // Sparse keys for GLTF weights morph animation; m_MorphWeightDimensions floats per key
+        dmArray<float>      m_MorphWeightKeyTimes;
+        dmArray<float>      m_MorphWeightKeyValues;
+        uint32_t            m_MorphWeightDimensions;
         float               m_StartTime;
         float               m_EndTime;
     };
@@ -340,6 +354,9 @@ namespace dmModelImporter
 
         // When we need to dynamically create materials
         dmArray<Material*>  m_DynamicMaterials;
+
+        // Last load error for this scene (heap-allocated; freed in DestroyScene). ClearScene does not free it. Non-null means load failed fatally.
+        char*               m_LoadError;
     };
 
     struct Options
@@ -378,6 +395,10 @@ namespace dmModelImporter
 
     // Switches between warning and debug level
     extern "C" DM_DLLEXPORT void EnableDebugLogging(bool enable);
+
+    // Frees all scene resources except m_LoadError (caller may read it first, then call DestroyScene).
+    void ClearScene(Scene* scene);
+    void SetLoadError(Scene* scene, const char* message);
 
     void DebugScene(Scene* scene);
     void DebugStructScene(Scene* scene);

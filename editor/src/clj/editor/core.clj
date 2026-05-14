@@ -119,4 +119,4 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
        (recur basis scope-id node-type)))))
 
 (defprotocol Adaptable
-  (adapt [this t]))
+  (adapt [this t evaluation-context]))

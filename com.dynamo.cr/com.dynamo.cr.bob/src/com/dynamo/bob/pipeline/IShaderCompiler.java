@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import com.dynamo.bob.pipeline.Shaderc;
 
 public interface IShaderCompiler {
     class CompileOptions implements Serializable {
@@ -28,6 +29,8 @@ public interface IShaderCompiler {
         public int maxPageCount;
         public boolean forceSplitSamplers;
         public boolean excludeGlesSm100;
+        public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
     };
 
     ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions options) throws IOException, CompileExceptionError;

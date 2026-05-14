@@ -208,7 +208,7 @@
     (coll/not-empty
       (if (nil? output-info)
         (force input-source-endpoints-delay)
-        (coll/transfer (:dependencies output-info) []
+        (coll/into-> (:dependencies output-info) []
           (mapcat
             (fn [dep-label]
               (if (= label dep-label)
@@ -229,9 +229,7 @@
            :root endpoint})))))
 
 (defn- endpoint-successors [basis endpoint]
-  (let [node-id (g/endpoint-node-id endpoint)
-        graph-id (g/node-id->graph-id node-id)]
-    (get-in basis [:graphs graph-id :successors node-id (g/endpoint-label endpoint)])))
+  (g/successors basis (g/endpoint-node-id endpoint) (g/endpoint-label endpoint)))
 
 (r/defaction ::defold:successors [x ann]
   (when-some [endpoint (as-endpoint x ann)]
@@ -446,7 +444,7 @@
     (-> (buffers/wrap-byte-array bytes byte-order)
         (buffers/as-typed-buffer primitive-type)
         (buffers/reducible)
-        (coll/transfer (vector-of primitive-type)))))
+        (coll/into-> (vector-of primitive-type)))))
 
 (defn- bytes-to-primitive-vec-action [value byte-order primitive-type]
   (when (bytes? value)
@@ -508,11 +506,11 @@
         (r/raw-string "[" {:fill :object})
         (apply
           r/vertical
-          (coll/transfer row-col-strs :eduction
+          (coll/into-> row-col-strs :eduction
             (map (fn [col-strs]
                    (apply
                      r/horizontal
-                     (coll/transfer col-strs :eduction
+                     (coll/into-> col-strs :eduction
                        (map (fn [col-str]
                               (let [style (if (math/zero-vecmath-matrix-col-str? col-str)
                                             {:fill :util}
@@ -540,7 +538,7 @@
       r/horizontal
       (r/raw-string "[" {:fill :object})
       (-> component-values
-          (coll/transfer :eduction
+          (coll/into-> :eduction
             (map r/stream)
             (interpose r/separator))
           (e/conj (r/raw-string "]" {:fill :object}))))))

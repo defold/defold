@@ -32,6 +32,7 @@
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
+            [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
             [editor.shaders :as shaders]
             [editor.validation :as validation]
@@ -244,9 +245,6 @@
         dh (double display-height)]
     (if (true? is-orthographic)
       (let [zoom (double (or orthographic-zoom 1.0))
-            zoom (if (= orthographic-mode :ortho-mode-fixed)
-                   zoom
-                   1.0)
             ow (/ dw zoom)
             oh (/ dh zoom)]
         (camera/simple-orthographic-projection-matrix near far ow oh))
@@ -257,15 +255,17 @@
   (loop [renderables renderables
          vbuf (->color-vtx (* renderable-count camera-preview-mesh-vertices-count))]
     (if-let [renderable (first renderables)]
-      (let [color (colors/renderable-outline-color renderable)
+      (let [color (if (= pass/selection (:pass render-args))
+                    (scene-picking/picking-id->color (:picking-id renderable))
+                    (colors/renderable-outline-color renderable))
             cr (get color 0)
             cg (get color 1)
             cb (get color 2)
             {:keys [is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode]} (:user-data renderable)
             world-translation (:world-translation renderable)
             world-rotation (:world-rotation renderable)]
-        ;; Hide frustum preview when orthographic zoom is invalid (<= 0) in fixed mode
-        (if (and is-orthographic (= orthographic-mode :ortho-mode-fixed)
+        ;; Hide frustum preview when orthographic zoom is invalid (<= 0).
+        (if (and is-orthographic
                  (not (> (double (or orthographic-zoom 0.0)) 0.0)))
           (recur (rest renderables) vbuf)
           (let [;; Pixel-stable scale for the small camera mesh at the camera position.
@@ -285,14 +285,14 @@
       (persistent! vbuf))))
 
 (defn- render-frustum-outlines [^GL2 gl render-args renderables ^long renderable-count]
-  (assert (= pass/outline (:pass render-args)))
+  (assert (contains? #{pass/outline pass/selection} (:pass render-args)))
   (let [vertex-buffer (gen-outline-vertex-buffer render-args renderables renderable-count)
         outline-vertex-binding (vtx/use-with ::frustum-outline vertex-buffer outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vertex-buffer)))))
 
 (g/defnk produce-camera-scene
-  [_node-id fov aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height]
+[_node-id fov aspect-ratio auto-aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height project-render-clear-color]
   ;; TODO: Better AABB calculation
   (let [^double ext-x far-z
         ^double ext-y far-z
@@ -306,24 +306,27 @@
                  :aabb aabb
                  :renderable {:render-fn render-frustum-outlines
                               :batch-key [outline-shader]
-                              :tags #{:camera :outline}
+                              :tags #{:camera :gizmo :outline}
                               :select-batch-key _node-id
                               :user-data {:fov (math/rad->deg fov) ; TODO: FOV should be edited as degrees, not radians.
                                           :aspect-ratio aspect-ratio
+                                          :auto-aspect-ratio auto-aspect-ratio
                                           :near-z near-z
                                           :far-z far-z
                                           :is-orthographic orthographic-projection
                                           :orthographic-zoom orthographic-zoom
                                           :orthographic-mode orthographic-mode
                                           :display-width project-display-width
-                                          :display-height project-display-height}
-                              :passes [pass/outline]}}]}))
+                                          :display-height project-display-height
+                                          :render-clear-color project-render-clear-color}
+                              :passes [pass/outline pass/selection]}}]}))
 
 (defn load-camera [project self _resource camera-desc]
   {:pre [(map? camera-desc)]} ; Camera$CameraDesc in map format.
   (concat
     (g/connect project :display-width self :project-display-width)
     (g/connect project :display-height self :project-display-height)
+    (g/connect project :render-clear-color self :project-render-clear-color)
     (gu/set-properties-from-pb-map self Camera$CameraDesc camera-desc
       aspect-ratio :aspect-ratio
       fov :fov
@@ -333,6 +336,8 @@
       orthographic-projection (protobuf/int->boolean :orthographic-projection)
       orthographic-zoom :orthographic-zoom
       orthographic-mode :orthographic-mode)))
+
+(def ^:private orthographic-zoom-message (properties/label-message :camera :orthographic-zoom))
 
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
@@ -366,11 +371,14 @@
   (property orthographic-zoom g/Num (default (protobuf/default Camera$CameraDesc :orthographic-zoom))
             (dynamic label (properties/label-dynamic :camera :orthographic-zoom))
             (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-zoom))
-            (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed)))))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? orthographic-zoom)))
+            (dynamic edit-type (g/constantly {:type g/Num :min Double/MIN_NORMAL}))
+            (dynamic read-only? (g/fnk [orthographic-projection] (not orthographic-projection)))
+            (dynamic error (g/fnk [_node-id orthographic-zoom]
+                             (validation/prop-error :fatal _node-id :orthographic-zoom validation/prop-zero-or-below? orthographic-zoom orthographic-zoom-message))))
 
   (input project-display-width g/Num)
   (input project-display-height g/Num)
+  (input project-render-clear-color g/Any)
 
   (output form-data g/Any produce-form-data)
 
@@ -393,6 +401,7 @@
     :load-fn load-camera
     :icon camera-icon
     :icon-class :property
+    :category (localization/message "resource.category.components")
     :view-types [:cljfx-form-view :text]
     :view-opts {}
     :tags #{:component}

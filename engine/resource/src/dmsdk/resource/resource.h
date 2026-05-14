@@ -15,13 +15,13 @@
 #ifndef DMSDK_RESOURCE_H
 #define DMSDK_RESOURCE_H
 
-/*# Resource
+/*# Functions for managing resource and resource types
  *
- * Functions for managing resource types.
+ * Functions for managing resource and resource types
  *
  * @document
  * @name Resource
- * @language C++
+ * @language C
  */
 
 #include <stdbool.h>
@@ -162,7 +162,7 @@ void ResourceUnregisterReloadedCallback(HResourceFactory factory, FResourceReloa
 /*#
  * Encrypts a resource in-place
  * @typedef
- * @name FResourceDecrypt
+ * @name FResourceDecryption
  * @param buffer [type: void*] The input/output buffer
  * @param buffer_len [type: uint32_t] The size of the buffer (in bytes)
  * @return RESULT_OK on success
@@ -248,7 +248,7 @@ ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void**
 
 /*#
  * Get resource descriptor from resource (name)
- * @name GetDescriptor
+ * @name ResourceGetDescriptor
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: dmhash_t] Resource path
  * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor. Temporary, don't copy.
@@ -258,7 +258,7 @@ ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path,
 
 /*#
  * Get resource descriptor from resource (name)
- * @name GetDescriptorByHash
+ * @name ResourceGetDescriptorByHash
  * @param factory [type: HResourceFactory] Factory handle
  * @param path_hash [type: dmhash_t] Resource path hash
  * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor. Temporary, don't copy.

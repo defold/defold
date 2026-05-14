@@ -1,8 +1,19 @@
 #! /usr/bin/env python
 
 def build(bld):
+    libs = 'TESTMAIN SOCKET APP GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB PROFILE_NULL PLATFORM_NULL LUA FONT RENDER profilerext'
+    exported_symbols = ['GraphicsAdapterNull']
+
     bld.program(features = 'cxx test skip_test',
                 source = 'test_profilerext_null.cpp',
                 use = 'TESTMAIN DLIB profilerext_null',
                 includes = ['../../../src'],
                 target = 'test_profilerext_null')
+
+    bld.program(features = 'cxx cprogram test',
+                source = 'test_profilerext_render.cpp',
+                use = libs,
+                exported_symbols = exported_symbols,
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                includes = ['../../../src'],
+                target = 'test_profilerext_render')

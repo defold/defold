@@ -28,7 +28,7 @@ namespace dmBuffer
     struct StreamDeclaration;
 }
 
-/*# SDK Gui Component API documentation
+/*# Gui Component API documentation
  *
  * Built-in scripting functions.
  *
@@ -42,13 +42,15 @@ namespace dmGameSystem
 {
     /*#
      * Gui component node type create/destroy context
-     * @struct CompGuiNodeTypeCtx
+     * @struct
+     * @name CompGuiNodeTypeCtx
     */
     struct CompGuiNodeTypeCtx;
 
     /*#
      * Gui component node type
-     * @struct GuiNodeType
+     * @struct
+     * @name GuiNodeType
     */
     struct CompGuiNodeType;
 

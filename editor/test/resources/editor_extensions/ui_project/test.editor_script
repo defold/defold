@@ -1,10 +1,20 @@
 local M = {}
 
+local function expect_error(msg, fn, ...)
+    local success, error = pcall(fn, ...)
+    if success then
+        print(("%s => unexpected success!"):format(msg))
+    else
+        print(("%s => %s"):format(msg, error))
+    end
+end
+
 function M.get_commands()
     return {
         {
             label = "Test UI",
             locations = {"Edit"},
+            id = "defold.test",
             run = function()
                 local dialog = editor.ui.dialog({
                     title = "Dialog title",
@@ -44,6 +54,68 @@ function M.get_commands()
                                             editor.ui.button({ icon = editor.ui.ICON.MINUS }),
                                             editor.ui.button({ icon = editor.ui.ICON.OPEN_RESOURCE }),
                                             editor.ui.button({ icon = editor.ui.ICON.PLUS }),
+                                        }
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Images",
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                    }),
+                                    editor.ui.grid({
+                                        spacing = editor.ui.SPACING.NONE,
+                                        children = {
+                                            {
+                                                -- resources
+                                                editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png",
+                                                    width = 16,
+                                                    alignment = editor.ui.ALIGNMENT.BOTTOM_LEFT
+                                                }),
+                                                editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png",
+                                                    width = 32,
+                                                    alignment = editor.ui.ALIGNMENT.CENTER
+                                                }),
+                                                editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png",
+                                                    width = 64
+                                                })
+                                            },
+                                            {
+                                                -- URLs
+                                                editor.ui.image({
+                                                    image = "https://avatars.githubusercontent.com/u/111111",
+                                                    width = 32
+                                                }),
+                                                editor.ui.image({
+                                                    image = "https://avatars.githubusercontent.com/u/732554",
+                                                    width = 32
+                                                }),
+                                                editor.ui.image({
+                                                    image = "https://avatars.githubusercontent.com/u/123456",
+                                                    width = 32,
+                                                    alignment = editor.ui.ALIGNMENT.RIGHT
+                                                })
+                                            },
+                                            {
+                                                -- invalid resources
+                                                editor.ui.image({
+                                                    image = "/does-not-exist.png"
+                                                }),
+                                                editor.ui.image({
+                                                    image = "/game.project"
+                                                })
+                                            },
+                                            {
+                                                -- invalid URLs
+                                                editor.ui.image({
+                                                    image = "https://defold.com/"
+                                                }),
+                                                editor.ui.image({
+                                                    image = "https://probably-does-not-exist.com/"
+                                                }),
+                                            }
                                         }
                                     })
                                 },
@@ -187,6 +259,11 @@ function M.get_commands()
                         })
                     }
                 })
+
+                expect_error("editor.ui.image({})", editor.ui.image, {})
+                expect_error("editor.ui.image({image = false})", editor.ui.image, {image = false})
+                expect_error("editor.ui.image({image = 'foo', width = false})", editor.ui.image, {image = 'foo', width = false})
+                expect_error("editor.ui.image({image = 'foo', width = -1})", editor.ui.image, {image = 'foo', width = -1})
 
                 -- editor.ui.show_dialog(dialog)
             end

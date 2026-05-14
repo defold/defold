@@ -12,15 +12,6 @@ The alpha channel is automatically released for every successful push to dev.
 
 * If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender/blob/dev/README.md#releasing-stage-server), which updates https://build-stage.defold.com.
 
-1. Merge `editor-dev` into `dev`
-
-        $ git checkout editor-dev
-        $ git pull
-        $ git checkout dev
-        $ git pull
-        $ git merge editor-dev
-        $ git push
-
 1. Merge `dev` into `beta`
 
         $ git checkout beta
@@ -34,6 +25,15 @@ The alpha channel is automatically released for every successful push to dev.
 and add the "BETA" tag to the headline
 
 * Note: The release notes script requires a github access token to work correctly (https://github.com/settings/tokens). If the token is incorrect, you will likely get an error saying 'Unable to find GitHub project for version x.x.x'. Create a "classic" github token and add permissions to read projects. If the script still fails, you might need more permissions.
+
+1. Bump version on `dev`:
+
+        $ git checkout dev
+        $ ./scripts/build.py bump
+        $ git diff
+        $ git add VERSION
+        $ git commit -m "Bumped version to X.Y.Z"
+        $ git push
 
 ### Update private repos
 
@@ -71,29 +71,14 @@ and add the "BETA" tag to the headline
 
     * The refdoc will be updated in the [defold.github.io](https://github.com/defold/defold.github.io) repo
 
-1. Merge `master` into `editor-dev`:
+1. Merge `master` into `dev`:
 
-        $ git checkout editor-dev
+        $ git checkout dev
         $ git pull
-        $ git merge master -m "Merged master into editor-dev"
+        $ git merge master -m "Merged master into dev"
         $ git push
 
     After a successful build, the editors are published under the stable engine tag in [GitHub Releases](https://github.com/defold/defold/releases)
-
-1. Merge `editor-dev` into `dev`:
-
-        $ cd defold
-        $ git checkout dev
-        $ git pull
-        $ git merge editor-dev -m "Merged editor-dev into dev"
-
-1. Bump version:
-
-        $ ./scripts/build.py bump
-        $ git diff
-        $ git add VERSION
-        $ git commit -m "Bumped version to X.Y.Z"
-        $ git push
 
 1. Repost the releasenotes on the [forum](https://forum.defold.com/) and remove the "BETA" part from the headline
 

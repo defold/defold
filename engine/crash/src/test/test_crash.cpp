@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -85,6 +86,10 @@ TEST_F(dmCrashTest, TestLoad)
     ASSERT_EQ(0, strcmp(info.m_DeviceLanguage, dmCrash::GetSysField(d, dmCrash::SYSFIELD_DEVICE_LANGUAGE)));
     ASSERT_EQ(0, strcmp(info.m_Territory, dmCrash::GetSysField(d, dmCrash::SYSFIELD_TERRITORY)));
 
+#if defined(__EMSCRIPTEN__)
+    ASSERT_EQ(0xDEAD, dmCrash::GetSignum(d));
+    ASSERT_LT(0u, strlen(dmCrash::GetExtraData(d)));
+#else
     uint32_t addresses = dmCrash::GetBacktraceAddrCount(d);
     ASSERT_GE(addresses, 2u);
     for (uint32_t i=0;i!=addresses;i++)
@@ -116,6 +121,7 @@ TEST_F(dmCrashTest, TestLoad)
     }
 
     ASSERT_GT(count, 3);
+#endif
 }
 
 TEST_F(dmCrashTest, TestPurgeCustomPath)
@@ -205,6 +211,11 @@ TEST_F(dmCrashTest, TestSIGSEGV) // using the signal handler, not the exception 
 
 int main(int argc, char **argv)
 {
+#if defined(DM_CRASH_TEST_NULL)
+    printf("Skipping crash null tests: target only verifies that the null crash backend links.\n");
+    return 0;
+#endif
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

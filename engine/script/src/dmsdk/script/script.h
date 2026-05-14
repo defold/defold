@@ -31,7 +31,7 @@ extern "C"
 
 namespace dmScript
 {
-    /*# SDK Script API documentation
+    /*# Script API documentation
      *
      * Built-in scripting functions.
      *

@@ -14,6 +14,7 @@
 
 (ns integration.test-util
   (:require [clojure.java.io :as io]
+            [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [clojure.test :as test :refer [is testing]]
             [clojure.test.check.clojure-test]
@@ -31,7 +32,10 @@
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.input :as input]
+            [editor.library :as library]
             [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -56,12 +60,14 @@
             [internal.system :as is]
             [internal.util :as util]
             [lambdaisland.deep-diff2 :as deep-diff]
+            [local-extensions :as local-extensions]
             [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
+            [util.path :as path]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [ch.qos.logback.classic Level Logger]
@@ -96,6 +102,19 @@
 ;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}
 (alter-var-root #'clojure.test.check.clojure-test/*report-completion* (constantly false))
 
+;; Use shared lib dir to skip re-downloading deps
+(def ^:dynamic *shared-lib-dir* (path/of "tmp/lib"))
+
+(alter-var-root
+  #'library/directory
+  (fn [f]
+    (fn overridden-library-directory [& args]
+      (or *shared-lib-dir* (apply f args)))))
+
+(defmacro with-project-default-library-directory [& body]
+  `(binding [*shared-lib-dir* nil]
+     ~@body))
+
 (def project-path "test/resources/test_project")
 
 (def ^:private ^:const system-cache-size 1000)
@@ -104,11 +123,11 @@
 ;; These extensions register additional protobuf resource types that we want to
 ;; cover in our tests.
 (def sanctioned-extension-urls
-  (mapv #(System/getProperty %)
-        ["defold.extension.rive.url"
-         "defold.extension.simpledata.url"
-         "defold.extension.spine.url"
-         "defold.extension.texturepacker.url"]))
+  (mapv local-extensions/inject-jvm-properties
+        ["{{defold.extension.rive.url}}"
+         "{{defold.extension.simpledata.url}}"
+         "{{defold.extension.spine.url}}"
+         "{{defold.extension.texturepacker.url}}"]))
 
 (defn number-type-preserving? [a b]
   (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
@@ -184,7 +203,12 @@
 (defn make-directory-deleter
   "Returns an AutoCloseable that deletes the directory at the specified
   path when closed. Suitable for use with the (with-open) macro. The
-  directory path must be a temp directory."
+  directory path must be a temp directory.
+
+  IMPORTANT! If you use the deleter for a project directory where you set up a
+  system, you need to use (lsp/await (lsp/get-node-lsp project)) before the
+  body returns, otherwise you might get `:editor.resource/project-directory`
+  spec failures in the output."
   ^AutoCloseable [directory-path]
   (let [directory (io/file directory-path)]
     (assert (string/starts-with? (.getCanonicalPath directory)
@@ -245,7 +269,11 @@
               :schemas [:default]))
 
 (def localization
-  (localization/make (make-test-prefs) ::test {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}))
+  (localization/make
+    (make-test-prefs)
+    ::test
+    {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}
+    ^[] Throwable/.printStackTrace))
 
 (declare resolve-prop)
 
@@ -364,9 +392,13 @@
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
-    (->> (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
+
+(defn set-cached-project-dependencies! [workspace library-uris]
+  (->> (library/cached (workspace/project-directory workspace) library-uris)
+       (workspace/set-project-dependencies! workspace)))
 
 (defn set-libraries! [workspace library-uris]
   (let [library-uris
@@ -378,8 +410,8 @@
                   :else (throw (ex-info "library-uris contain invalid values."
                                         {:library-uris library-uris}))))
               library-uris)]
-    (->> (workspace/fetch-and-validate-libraries workspace library-uris progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (library/fetch! (workspace/project-directory workspace) library-uris progress/null-render-progress!)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn distinct-resource-types-by-editability
@@ -428,10 +460,11 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (resource/lookup-resource-type (g/now) workspace this))
+  (resource-type [this] (resource/lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
+  (symlink? [this] false)
   (path [this] (if (= "" (.getName file)) "" (resource/relative-path (io/file ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))
@@ -517,6 +550,7 @@
           (concat
             (g/connect node-id :_node-id view :resource-node)
             (g/connect node-id :valid-node-id+type+resource view :node-id+type+resource)
+            (g/connect app-view :selected-node-properties view :selected-node-properties)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])
@@ -559,9 +593,6 @@
         [@g/*the-system* workspace project]))))
 
 (def load-system-and-project (fn/memoize load-system-and-project-raw))
-
-(defn clear-cached-libraries! []
-  (fn/clear-memoized! (var-get #'editor.library/fetch-library!)))
 
 (defn clear-cached-projects! []
   (fn/clear-memoized! load-system-and-project))
@@ -686,8 +717,10 @@
            (workspace/resource-sync! ~'workspace)
            (fetch-libraries! ~'workspace)
            (let [~'project (setup-project! ~'workspace)
-                 ~'app-view (setup-app-view! ~'project)]
-             ~@body))))))
+                 ~'app-view (setup-app-view! ~'project)
+                 ret# (do ~@body)]
+             (lsp/await (lsp/get-node-lsp ~'project))
+             ret#))))))
 
 (defmacro with-ui-run-later-rebound
   [& forms]
@@ -740,7 +773,8 @@
                         {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
-     (scene/dispatch-input handlers action user-data))))
+     ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
+     (scene/dispatch-input handlers (input/make-input-state) action user-data))))
 
 (defn mouse-press!
   ([view x y]
@@ -781,19 +815,31 @@
   {:pre [(vector? offset-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-move evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath offset-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath offset-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-move scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-rotate! [scene-node-id euler-xyz]
   {:pre [(vector? euler-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-rotate evaluation-context scene-node-id (math/euler->quat euler-xyz)))))
+      (let [delta (math/euler->quat euler-xyz)]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-rotate scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-scale! [scene-node-id scale-xyz]
   {:pre [(vector? scale-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-scale evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath scale-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath scale-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-scale scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn dump-frame! [view path]
   (let [^BufferedImage image (g/node-value view :frame)]
@@ -970,9 +1016,9 @@
   (File. (workspace/project-directory workspace) path))
 
 (defn selection [app-view]
-  (-> app-view
-    app-view/->selection-provider
-    handler/selection))
+  (let [selection-provider (app-view/->selection-provider app-view)]
+    (g/with-auto-evaluation-context evaluation-context
+      (handler/selection selection-provider evaluation-context))))
 
 ;; Extension library server
 
@@ -1003,20 +1049,34 @@
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
 
+(defn handler-enabled? [command command-contexts user-data]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (if (nil? handler+command-context)
+        false
+        (handler/enabled? handler+command-context evaluation-context)))))
+
 (defn handler-run [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/run)))
+  (g/let-ec [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+             handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+    (when handler+command-context
+      (handler/run handler+command-context))))
 
 (defn handler-options [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/options)))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (when handler+command-context
+        (handler/options handler+command-context evaluation-context)))))
 
 (defn handler-state [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/state)))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (if (nil? handler+command-context)
+        false
+        (handler/state handler+command-context evaluation-context)))))
 
 (defmacro with-prop [binding & forms]
   (let [[node-id# property# value#] binding]
@@ -1577,7 +1637,7 @@
 (defn save-project! [project]
   (let [workspace (project/workspace project)
         save-data (project/dirty-save-data project)
-        post-save-actions (disk/write-save-data-to-disk! save-data nil nil)]
+        post-save-actions (disk/write-save-data-to-disk! save-data nil localization nil)]
     (disk/process-post-save-actions! workspace post-save-actions)))
 
 (defn dirty-proj-paths [project]
@@ -1708,7 +1768,7 @@
   (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
 (defmethod edit-resource-node "rivemodel" [resource-node-id]
-  (g/update-property resource-node-id :create-go-bones not))
+  (g/update-property resource-node-id :auto-bind not))
 
 (defmethod edit-resource-node "rivescene" [resource-node-id]
   (g/set-property resource-node-id :rive-file nil))

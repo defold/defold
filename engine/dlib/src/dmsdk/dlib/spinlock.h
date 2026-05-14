@@ -15,7 +15,7 @@
 #ifndef DMSDK_SPINLOCK_H
 #define DMSDK_SPINLOCK_H
 
-/*# SDK Spinlock API documentation
+/*# Spinlock API documentation
  *
  * API for platform independent spinlock synchronization primitive.
  *

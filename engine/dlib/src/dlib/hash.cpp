@@ -90,6 +90,7 @@ struct ReverseHashContainer
                 IncreaseTableCapacity(&m_HashTable32Entries, m_HashTableCapacityIncrement);
             if (m_HashTable64Entries.Full())
                 IncreaseTableCapacity(&m_HashTable64Entries, m_HashTableCapacityIncrement);
+            m_HashTable32Entries.Clear();
             m_HashTable64Entries.Clear();
             m_HashStates.SetCapacity(m_HashStatesCapacity);
             m_HashStates.SetSize(m_HashStatesCapacity);
@@ -732,10 +733,8 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
 
 #if defined(DM_PLATFORM_VENDOR)
     #include <dmsdk/dlib/hash_vendor.h>
-#elif defined(__linux__) && !defined(__ANDROID__)
-    #define DM_HASH_LONG_FMT "%lu"
 #else
-    #define DM_HASH_LONG_FMT "%llu"
+    #define DM_HASH_LONG_FMT "%" PRIu64
 #endif
 
 DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64_t hash)

@@ -35,6 +35,8 @@
    :free  (- (:free after) (:free before))
    :used  (- (:used after) (:used before))})
 
+(def ^:const ^:long max-engine-instance-count 4)
+
 (defn os-name
   ^String []
   (System/getProperty "os.name"))
@@ -91,6 +93,10 @@
 (defn defold-dev? []
   (or (some? (System/getProperty "defold.dev"))
       (not (defold-version))))
+
+(defn defold-log-dir
+  ^String []
+  (System/getProperty "defold.log.dir"))
 
 (defn defold-unpack-path
   ^String []

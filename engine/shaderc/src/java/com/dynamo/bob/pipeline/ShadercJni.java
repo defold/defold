@@ -91,6 +91,7 @@ public class ShadercJni {
     public static native void SetResourceStageFlags(long context, long nameHash, int stageFlags);
 
     public static native Shaderc.ShaderCompileResult Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
+    public static native Shaderc.HLSLRootSignature   HLSLMergeRootSignatures(Shaderc.ShaderCompileResult[] shaders);
 
     public static byte[] ReadFile(File file) throws IOException
     {

@@ -15,7 +15,8 @@
 (ns util.fn-test
   (:require [clojure.test :refer :all]
             [util.fn :as fn])
-  (:import [clojure.lang ArityException]))
+  (:import [clojure.lang ArityException ExceptionInfo]
+           [java.util.concurrent ExecutionException]))
 
 (defn- arity-void-test-fn
   ([]))
@@ -110,6 +111,9 @@
     (is (true? (fn/has-explicit-arity? arity-variadic-test-anonymous-fn 1)))
     (is (false? (fn/has-explicit-arity? arity-variadic-test-anonymous-fn 2)))))
 
+(defn- memoized-fn-cache [memoized-fn]
+  (deref (::fn/memoize-cache (meta memoized-fn))))
+
 (deftest memoize-test
   (testing "Returns unique instances"
     (is (not (identical? (fn/memoize identity) (fn/memoize identity)))))
@@ -164,7 +168,113 @@
       (is (= 1 @call-count-atom))
       (is (identical? (memoized-fn 2 3 4 5 6) (memoized-fn 2 3 4 5 6)))
       (is (= 2 @call-count-atom))
-      (is (= "1, 2, 3, 4, 5, 6, 7, 8, 9" (memoized-fn 1 2 3 4 5 6 7 8 9))))))
+      (is (= "1, 2, 3, 4, 5, 6, 7, 8, 9" (memoized-fn 1 2 3 4 5 6 7 8 9)))))
+
+  (testing "Limited unary function"
+    (let [memoized-fn (fn/memoize {:limit 1} #(str ":" % "::"))]
+      (is (= {} (memoized-fn-cache memoized-fn)))
+      (memoized-fn :f)
+      (is (= {:f "::f::"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :i)
+      (is (= {:i "::i::"}
+             (memoized-fn-cache memoized-fn))))
+    (let [memoized-fn (fn/memoize {:limit 3} #(str ":" % "::"))]
+      (is (= {} (memoized-fn-cache memoized-fn)))
+      (memoized-fn :f)
+      (memoized-fn :i)
+      (memoized-fn :f)
+      (is (= {:f "::f::"
+              :i "::i::"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :o)
+      (is (= {:f "::f::"
+              :i "::i::"
+              :o "::o::"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :n)
+      (is (= {:i "::i::"
+              :o "::o::"
+              :n "::n::"}
+             (memoized-fn-cache memoized-fn)))))
+
+  (testing "Limited binary function"
+    (let [memoized-fn (fn/memoize {:limit 1} #(str ":" %1 ":" %2 "::"))]
+      (memoized-fn :f 0)
+      (is (= {[:f 0] "::f:0::"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :i 1)
+      (is (= {[:i 1] "::i:1::"}
+             (memoized-fn-cache memoized-fn))))
+    (let [memoized-fn (fn/memoize {:limit 3} #(str ":" %1 ":" %2 "::"))]
+      (memoized-fn :f 0)
+      (memoized-fn :i 1)
+      (memoized-fn :f 0)
+      (is (= {[:f 0] "::f:0::"
+              [:i 1] "::i:1::"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :o 2)
+      (is (= {[:f 0] "::f:0::"
+              [:i 1] "::i:1::"
+              [:o 2] "::o:2::"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :n 3)
+      (is (= {[:i 1] "::i:1::"
+              [:o 2] "::o:2::"
+              [:n 3] "::n:3::"}
+             (memoized-fn-cache memoized-fn)))))
+
+  (testing "Limited general function"
+    (let [memoized-fn (fn/memoize {:limit 1} #(str ":" %1 ":" %2 ":" %3 "::"))]
+      (memoized-fn :f 0 "A")
+      (is (= {[:f 0 "A"] "::f:0:A::"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :i 1 "B")
+      (is (= {[:i 1 "B"] "::i:1:B::"}
+             (memoized-fn-cache memoized-fn))))
+    (let [memoized-fn (fn/memoize {:limit 3} #(str ":" %1 ":" %2 ":" %3 "::"))]
+      (memoized-fn :f 0 "A")
+      (memoized-fn :i 1 "B")
+      (memoized-fn :f 0 "A")
+      (is (= {[:f 0 "A"] "::f:0:A::"
+              [:i 1 "B"] "::i:1:B::"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :o 2 "C")
+      (is (= {[:f 0 "A"] "::f:0:A::"
+              [:i 1 "B"] "::i:1:B::"
+              [:o 2 "C"] "::o:2:C::"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :n 3 "D")
+      (is (= {[:i 1 "B"] "::i:1:B::"
+              [:o 2 "C"] "::o:2:C::"
+              [:n 3 "D"] "::n:3:D::"}
+             (memoized-fn-cache memoized-fn)))))
+
+  (testing "Limited variadic function"
+    (let [memoized-fn (fn/memoize {:limit 1} str)]
+      (memoized-fn :f 0 "A")
+      (is (= {[:f 0 "A"] ":f0A"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :i 1 "B")
+      (is (= {[:i 1 "B"] ":i1B"}
+             (memoized-fn-cache memoized-fn))))
+    (let [memoized-fn (fn/memoize {:limit 3} str)]
+      (memoized-fn :f 0 "A")
+      (memoized-fn :i 1 "B")
+      (memoized-fn :f 0 "A")
+      (is (= {[:f 0 "A"] ":f0A"
+              [:i 1 "B"] ":i1B"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :o 2 "C")
+      (is (= {[:f 0 "A"] ":f0A"
+              [:i 1 "B"] ":i1B"
+              [:o 2 "C"] ":o2C"}
+             (memoized-fn-cache memoized-fn)))
+      (memoized-fn :n 3 "D")
+      (is (= {[:i 1 "B"] ":i1B"
+              [:o 2 "C"] ":o2C"
+              [:n 3 "D"] ":n3D"}
+             (memoized-fn-cache memoized-fn))))))
 
 (deftest clear-memoized!-test
   (testing "Non-memoized function"
@@ -321,6 +431,69 @@
       (is (= "2, 3, 4, 5, 6" (memoized-fn 2 3 4 5 6)))
       (is (= 3 @call-count-atom))
       (is (nil? (fn/evict-memoized! memoized-fn 1 2 3 4 5 6 7 8 9))))))
+
+;; region memoize-late-bound
+
+(declare ^:private memoize-late-bound-memoized-fn)
+
+(defn- memoize-late-bound-memoized-fn-raw [arg]
+  (case arg
+    :outer (let [inner-fn (memoize-late-bound-memoized-fn :inner)]
+             (fn outer-fn [^long depth]
+               (case depth
+                 0 (inner-fn 1)
+                 2 "outer -> inner -> outer")))
+    :inner (let [outer-fn (memoize-late-bound-memoized-fn :outer)]
+             (fn inner-fn [^long depth]
+               (case depth
+                 1 (outer-fn 2))))))
+
+;; Calling the resulting function would cause a StackOverflowError
+;; if we were using the basic memoize function.
+(def ^:private memoize-late-bound-memoized-fn (fn/memoize-late-bound {:timeout-ms 0} memoize-late-bound-memoized-fn-raw))
+
+(deftest memoize-late-bound-allows-memoized-fn-to-call-itself
+  (try
+    (let [outer (memoize-late-bound-memoized-fn :outer)]
+      (is (= "outer -> inner -> outer" (outer 0))))
+    (finally
+      (ns-unmap *ns* 'memoize-late-bound-memoized-fn))))
+
+(deftest memoize-late-bound-retries-if-higher-order-fn-throws-test
+  (let [attempt-count-atom (atom 0)
+
+        memoized-fn
+        (fn/memoize-late-bound
+          {:timeout-ms 0}
+          (fn higher-order-fn [arg]
+            (if (= 1 (swap! attempt-count-atom inc))
+              (throw (ex-info "Thrown from higher-order-fn." {:arg arg}))
+              (fn lower-order-fn []
+                arg))))]
+
+    (is (thrown-with-msg? ExceptionInfo #"Thrown from higher-order-fn." (memoized-fn :arg)))
+    (let [lower-order-fn (memoized-fn :arg)]
+      (is (= :arg (lower-order-fn))))
+    (is (= 2 @attempt-count-atom))))
+
+(deftest memoize-late-bound-delivers-throwing-lower-order-fn-if-higher-order-fn-throws-test
+  (let [memoized-fn
+        (fn/memoize-late-bound
+          {:timeout-ms 100}
+          (fn higher-order-fn [arg]
+            (Thread/sleep 20)
+            (throw (ex-info "Thrown from higher-order-fn." {:arg arg}))))
+
+        concurrent-future
+        (future
+          (Thread/sleep 10)
+          (let [lower-order-fn (memoized-fn :arg)]
+            (lower-order-fn)))]
+
+    (is (thrown-with-msg? ExceptionInfo #"Thrown from higher-order-fn." (memoized-fn :arg)))
+    (is (thrown-with-msg? ExecutionException #"An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn." (deref concurrent-future)))))
+
+;; endregion
 
 (def ^:private defined-constant :default)
 (defn- defined-function [_arg])

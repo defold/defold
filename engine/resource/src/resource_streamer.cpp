@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/log.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dmsdk/resource/resource.h>
 #include "resource_private.h"
 #include "resource_util.h"
@@ -32,7 +32,7 @@ struct ResourceStreamJob
     const char*             m_CanonicalPath;
 };
 
-static int JobProcess(dmJobThread::HContext, dmJobThread::HJob hjob, void* context, void* data)
+static int JobProcess(HJobContext, HJob hjob, void* context, void* data)
 {
     HFactory factory = (HFactory)context;
     ResourceStreamJob* job = (ResourceStreamJob*)data;
@@ -55,7 +55,7 @@ static int JobProcess(dmJobThread::HContext, dmJobThread::HJob hjob, void* conte
     return 1;
 }
 
-static void JobCallback(dmJobThread::HContext, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* context, void* data, int result)
+static void JobCallback(HJobContext, HJob hjob, JobSystemStatus status, void* context, void* data, int result)
 {
     HFactory factory = (HFactory)context;
     ResourceStreamJob* job = (ResourceStreamJob*)data;
@@ -95,17 +95,17 @@ Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t
     job->m_CanonicalPath = strdup(canonical_path);
     job->m_Path = strdup(path);
 
-    dmJobThread::HContext job_context = dmResource::GetJobThread(factory);
+    HJobContext job_context = dmResource::GetJobThread(factory);
     assert(job_context != 0);
 
-    dmJobThread::Job threadjob = {0};
+    Job threadjob = {0};
     threadjob.m_Process = JobProcess;
     threadjob.m_Callback = JobCallback;
     threadjob.m_Context = (void*) factory;
     threadjob.m_Data = (void*) job;
 
-    dmJobThread::HJob hjob = dmJobThread::CreateJob(job_context, &threadjob);
-    dmJobThread::PushJob(job_context, hjob);
+    HJob hjob = JobSystemCreateJob(job_context, &threadjob);
+    JobSystemPushJob(job_context, hjob);
 
     return dmResource::RESULT_OK;
 }

@@ -20,6 +20,7 @@
     <item key="dynamo.graph/deftype" resolves-as="clojure.core/def" />
     <item key="util.defonce/type" resolves-as="clojure.core/deftype" />
     <item key="dynamo.graph/defnode" resolves-as="clojure.core/def" />
+    <item key="dynamo.graph/let-ec" resolves-as="clojure.core/let" />
     <currentScheme>PROJECT</currentScheme>
   </component>
 </project>

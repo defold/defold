@@ -5,6 +5,7 @@
     },
     "extensionsUsed" : [
         "KHR_materials_clearcoat",
+        "KHR_materials_pbrSpecularGlossiness",
         "KHR_materials_transmission",
         "KHR_materials_specular",
         "KHR_materials_ior",
@@ -48,33 +49,36 @@
             "extensions" : {
                 "KHR_materials_pbrSpecularGlossiness" : {
                     "diffuseTexture": { "index": 0 },
-                    "specularGlossinessTexture": { "index": 0 },
+                    "specularGlossinessTexture": { "index": 0 }
                 },
                 "KHR_materials_clearcoat" : {
                     "clearcoatTexture": { "index": 0 },
                     "clearcoatNormalTexture": { "index": 0 },
-                    "clearcoatRoughnessTexture": { "index": 0 },
+                    "clearcoatRoughnessTexture": { "index": 0 }
                 },
                 "KHR_materials_transmission" : {
-                    "transmissionTexture": { "index": 0 },
+                    "transmissionTexture": { "index": 0 }
                 },
                 "KHR_materials_specular" : {
                     "specularTexture" : { "index": 0 },
-                    "specularColorTexture" : { "index": 0 },
+                    "specularColorTexture" : { "index": 0 }
+                },
+                "KHR_materials_ior" : {
+                    "ior" : 1.17000000178813934
                 },
                 "KHR_materials_volume": {
-                    "thicknessTexture": { "index": 0 },
+                    "thicknessTexture": { "index": 0 }
                 },
                 "KHR_materials_sheen": {
                   "sheenColorTexture": { "index": 0 },
-                  "sheenRoughnessTexture": { "index": 0 },
+                  "sheenRoughnessTexture": { "index": 0 }
                 },
                 "KHR_materials_emissive_strength": {
                   "emissiveStrength": 0.245
                 },
                 "KHR_materials_iridescence": {
                   "iridescenceTexture": { "index": 0 },
-                  "iridescenceThicknessTexture": { "index": 0 },
+                  "iridescenceThicknessTexture": { "index": 0 }
                 },
                 "KHR_materials_unlit": {}
             },

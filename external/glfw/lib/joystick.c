@@ -35,6 +35,124 @@
 //****                    GLFW user functions                         ****
 //************************************************************************
 
+static unsigned short glfwCrc16ForByte( unsigned char value )
+{
+    unsigned short crc;
+    unsigned int bit;
+
+    crc = 0;
+    for( bit = 0; bit < 8; ++bit )
+    {
+        crc = (unsigned short)((((crc ^ value) & 1) ? 0xA001 : 0) ^ (crc >> 1));
+        value >>= 1;
+    }
+    return crc;
+}
+
+
+static unsigned short glfwCrc16( unsigned short crc, const char* string )
+{
+    if( string )
+    {
+        while( *string )
+        {
+            crc = (unsigned short)(glfwCrc16ForByte( (unsigned char)crc ^ (unsigned char)*string++ ) ^ (crc >> 8));
+        }
+    }
+
+    return crc;
+}
+
+
+static void glfwSetGuidWord( unsigned char guid_data[16], unsigned int offset, unsigned short value )
+{
+    guid_data[offset + 0] = (unsigned char)(value & 0xff);
+    guid_data[offset + 1] = (unsigned char)(value >> 8);
+}
+
+
+static void glfwEncodeGuid( const unsigned char guid_data[16], char guid[GLFW_JOYSTICK_DEVICE_GUID_LENGTH + 1] )
+{
+    static const char hex[] = "0123456789abcdef";
+    unsigned int i;
+
+    for( i = 0; i < 16; ++i )
+    {
+        guid[i * 2 + 0] = hex[(guid_data[i] >> 4) & 0x0f];
+        guid[i * 2 + 1] = hex[guid_data[i] & 0x0f];
+    }
+
+    guid[GLFW_JOYSTICK_DEVICE_GUID_LENGTH] = '\0';
+}
+
+
+//========================================================================
+// Create an SDL-compatible joystick device guid
+//========================================================================
+
+GLFWAPI void GLFWAPIENTRY glfwCreateJoystickDeviceGuid( unsigned short bus,
+                                                        unsigned short vendor,
+                                                        unsigned short product,
+                                                        unsigned short version,
+                                                        const char* vendor_name,
+                                                        const char* product_name,
+                                                        unsigned char driver_signature,
+                                                        unsigned char driver_data,
+                                                        char guid[GLFW_JOYSTICK_DEVICE_GUID_LENGTH + 1] )
+{
+    unsigned char guid_data[16];
+    unsigned short crc;
+    unsigned int i;
+
+    memset( guid_data, 0, sizeof( guid_data ) );
+    crc = 0;
+
+    if( vendor_name && *vendor_name && product_name && *product_name )
+    {
+        crc = glfwCrc16( crc, vendor_name );
+        crc = glfwCrc16( crc, " " );
+        crc = glfwCrc16( crc, product_name );
+    }
+    else if( product_name )
+    {
+        crc = glfwCrc16( crc, product_name );
+    }
+
+    glfwSetGuidWord( guid_data, 0, bus );
+    glfwSetGuidWord( guid_data, 2, crc );
+
+    if( vendor )
+    {
+        glfwSetGuidWord( guid_data, 4, vendor );
+        glfwSetGuidWord( guid_data, 8, product );
+        glfwSetGuidWord( guid_data, 12, version );
+        guid_data[14] = driver_signature;
+        guid_data[15] = driver_data;
+    }
+    else
+    {
+        unsigned int available_space = sizeof( guid_data ) - 4;
+
+        if( driver_signature )
+        {
+            available_space -= 2;
+            guid_data[14] = driver_signature;
+            guid_data[15] = driver_data;
+        }
+
+        if( product_name )
+        {
+            for( i = 0; i + 1 < available_space && product_name[i]; ++i )
+            {
+                guid_data[4 + i] = (unsigned char)product_name[i];
+            }
+        }
+    }
+
+    glfwEncodeGuid( guid_data, guid );
+}
+
+
 //========================================================================
 // Determine joystick capabilities
 //========================================================================

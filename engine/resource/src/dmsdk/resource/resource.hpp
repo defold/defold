@@ -15,9 +15,9 @@
 #ifndef DMSDK_RESOURCE_HPP
 #define DMSDK_RESOURCE_HPP
 
-/*# Resource
+/*# Functions for managing resource and resource types
  *
- * Functions for managing resource types.
+ * Functions for managing resource and resource types
  *
  * @document
  * @name Resource
@@ -96,8 +96,8 @@ namespace dmResource
     * @name CreateResource
     * @param factory [type: dmResource::HFactory] Factory handle
     * @param name [type: dmhash_t] Resource name
-    * @param data Resource data
-    * @param data_size Resource data size
+    * @param data [type: void*] Resource data
+    * @param data_size [type: uint32_t] Resource data size
     * @param resource [type: void**] (out) Created resource
     * @return result [type: dmResource::Result]  RESULT_OK on success
     */
@@ -233,26 +233,31 @@ namespace dmResource
 
    /*#
     * @note Deprecated in favor of ResourceTypeSetPreloadFn
+    * @name FResourcePreload
     */
    typedef dmResource::Result (*FResourcePreload)(const dmResource::ResourcePreloadParams* params);
 
    /*#
     * @note Deprecated in favor of ResourceTypeSetCreateFn
+    * @name FResourceCreate
     */
    typedef dmResource::Result (*FResourceCreate)(const dmResource::ResourceCreateParams* params);
 
    /*#
     * @note Deprecated in favor of ResourceTypeSetPostCreateFn
+    * @name FResourcePostCreate
     */
    typedef dmResource::Result (*FResourcePostCreate)(const dmResource::ResourcePostCreateParams* params);
 
    /*#
     * @note Deprecated in favor of ResourceTypeSetDestroyFn
+    * @name FResourceDestroy
     */
    typedef dmResource::Result (*FResourceDestroy)(const dmResource::ResourceDestroyParams* params);
 
    /*#
     * @note Deprecated in favor of ResourceTypeSetRecreateFn
+    * @name FResourceRecreate
     */
    typedef dmResource::Result (*FResourceRecreate)(const dmResource::ResourceRecreateParams* params);
 

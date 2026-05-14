@@ -17,7 +17,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/dstrings.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 #include "hid_private.h"
 #include "hid.h"
@@ -76,6 +76,12 @@ namespace dmHID
     void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
         dmStrlCpy(name, "null_device", MAX_GAMEPAD_NAME_LENGTH);
+    }
+
+    bool GetGamepadDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid)
+    {
+        memset(guid, 0, sizeof(*guid));
+        return true;
     }
 
     // platform implementations

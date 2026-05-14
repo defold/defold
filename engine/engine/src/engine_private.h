@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/configfile.h>
 #include <dlib/hashtable.h>
+#include <dlib/jobsystem.h>
 #include <dlib/message.h>
 #include <dlib/http_cache.h>
 
@@ -110,7 +111,7 @@ namespace dmEngine
         Engine(dmEngineService::HEngineService engine_service);
         dmEngineService::HEngineService             m_EngineService;
         dmConfigFile::HConfig                       m_Config;
-        dmPlatform::HWindow                         m_Window;
+        HWindow                                     m_Window;
 
         RunResult                                   m_RunResult;
         bool                                        m_Alive;
@@ -124,7 +125,7 @@ namespace dmEngine
 
         float                                       m_MouseSensitivity;
 
-        dmJobThread::HContext                       m_JobThreadContext;
+        HJobContext                                 m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;

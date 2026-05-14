@@ -7,7 +7,7 @@ from waflib.TaskGen import extension
 from waflib.Options import options
 from waf_dynamo import platform_supports_feature
 
-waflib.Task.task_factory('proto_encode', "protoc -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}",
+waflib.Task.task_factory('proto_encode', "${PROTOC} -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}",
                       color='PINK',
                       before='c cxx')
 

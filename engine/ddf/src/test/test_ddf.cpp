@@ -885,8 +885,9 @@ TEST(OneOfTests, Save)
     e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, (void**)&saved_message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
+    ASSERT_EQ(message->m_OneOfFieldOneOfIndex, saved_message->m_OneOfFieldOneOfIndex);
+    ASSERT_EQ(message->m_OneOfFieldStringOneOfIndex, saved_message->m_OneOfFieldStringOneOfIndex);
     ASSERT_EQ(message->m_OneOfField.m_IntVal, saved_message->m_OneOfField.m_IntVal);
-    ASSERT_EQ((int)message->m_OneOfField.m_BoolVal, (int)saved_message->m_OneOfField.m_BoolVal);
     ASSERT_STREQ(message->m_OneOfFieldString.m_StringVal, saved_message->m_OneOfFieldString.m_StringVal);
 
     dmDDF::FreeMessage(saved_message);
@@ -1410,7 +1411,7 @@ TEST(Struct, Simple)
     // String value
     {
         dmStructDDF::Value value;
-        value.set_string_value("world");
+        value.set_string("world");
 
         (*struct_desc.mutable_fields())["hello"] = value;
     }
@@ -1418,7 +1419,7 @@ TEST(Struct, Simple)
     // Number value
     {
         dmStructDDF::Value v;
-        v.set_number_value(1337.0f);
+        v.set_number(1337.0f);
 
         (*struct_desc.mutable_fields())["number"] = v;
     }
@@ -1426,7 +1427,7 @@ TEST(Struct, Simple)
     // Boolean value
     {
         dmStructDDF::Value v;
-        v.set_bool_value(true);
+        v.set_bool_(true);
 
         (*struct_desc.mutable_fields())["boolean"] = v;
     }
@@ -1434,7 +1435,7 @@ TEST(Struct, Simple)
     // Null value
     {
         dmStructDDF::Value v;
-        v.set_null_value(dmStructDDF::NULL_VALUE);
+        v.set_null(dmStructDDF::NULL_VALUE);
 
         (*struct_desc.mutable_fields())["nothing"] = v;
     }
@@ -1453,17 +1454,17 @@ TEST(Struct, Nested)
     dmStructDDF::Struct struct_desc;
 
     dmStructDDF::Value user_value;
-    dmStructDDF::Struct* user_struct = user_value.mutable_struct_value();
+    dmStructDDF::Struct* user_struct = user_value.mutable_struct_();
 
     {
         dmStructDDF::Value id;
-        id.set_number_value(123);
+        id.set_number(123);
         (*user_struct->mutable_fields())["id"] = id;
     }
 
     {
         dmStructDDF::Value name;
-        name.set_string_value("Mr.X");
+        name.set_string("Mr.X");
         (*user_struct->mutable_fields())["name"] = name;
     }
 
@@ -1483,26 +1484,26 @@ TEST(Struct, List)
     dmStructDDF::Struct struct_desc;
 
     dmStructDDF::Value list_value;
-    dmStructDDF::ListValue* list = list_value.mutable_list_value();
+    dmStructDDF::ListValue* list = list_value.mutable_list();
 
     // 1
     {
         dmStructDDF::Value v;
-        v.set_number_value(1);
+        v.set_number(1);
         *list->add_values() = v;
     }
 
     // "two"
     {
         dmStructDDF::Value v;
-        v.set_string_value("two");
+        v.set_string("two");
         *list->add_values() = v;
     }
 
     // false
     {
         dmStructDDF::Value v;
-        v.set_bool_value(false);
+        v.set_bool_(false);
         *list->add_values() = v;
     }
 
@@ -1534,30 +1535,30 @@ TEST(Struct, JSON)
     // name
     {
         dmStructDDF::Value v;
-        v.set_string_value("engine");
+        v.set_string("engine");
         (*struct_desc.mutable_fields())["name"] = v;
     }
 
     // version
     {
         dmStructDDF::Value v;
-        v.set_number_value(3);
+        v.set_number(3);
         (*struct_desc.mutable_fields())["version"] = v;
     }
 
     // features (array)
     {
         dmStructDDF::Value v;
-        auto* list = v.mutable_list_value();
+        auto* list = v.mutable_list();
 
         {
             dmStructDDF::Value e;
-            e.set_string_value("rendering");
+            e.set_string("rendering");
             *list->add_values() = e;
         }
         {
             dmStructDDF::Value e;
-            e.set_string_value("physics");
+            e.set_string("physics");
             *list->add_values() = e;
         }
 
@@ -1567,10 +1568,10 @@ TEST(Struct, JSON)
     // config (nested object)
     {
         dmStructDDF::Value v;
-        auto* cfg = v.mutable_struct_value();
+        auto* cfg = v.mutable_struct_();
 
         dmStructDDF::Value dbg;
-        dbg.set_bool_value(true);
+        dbg.set_bool_(true);
         (*cfg->mutable_fields())["debug"] = dbg;
 
         (*struct_desc.mutable_fields())["config"] = v;

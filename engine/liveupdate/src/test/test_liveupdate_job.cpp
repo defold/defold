@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 
 #if DM_TEST_THREAD_COUNT==0
 #define TestClassName AsyncTestNoThread
@@ -39,16 +39,16 @@ class AsyncTestThread : public jc_test_base_class
 public:
     void SetUp() override
     {
-        dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+        JobSystemCreateParams job_thread_create_param = {0};
         job_thread_create_param.m_ThreadCount = DM_TEST_THREAD_COUNT;
-        m_JobThread = dmJobThread::Create(job_thread_create_param);
+        m_JobContext = JobSystemCreate(&job_thread_create_param);
     }
     void TearDown() override
     {
-        dmJobThread::Destroy(m_JobThread);
+        JobSystemDestroy(m_JobContext);
     }
 
-    dmJobThread::HContext m_JobThread;
+    HJobContext m_JobContext;
 };
 
 struct JobData
@@ -57,7 +57,7 @@ struct JobData
     int  m_Result;
 };
 
-static int ProcessData(dmJobThread::HContext, dmJobThread::HJob, void* context, void* _data)
+static int ProcessData(HJobContext, HJob, void* context, void* _data)
 {
     HashState64* hash_state = (HashState64*)context;
     JobData* data = (JobData*)_data;
@@ -67,21 +67,21 @@ static int ProcessData(dmJobThread::HContext, dmJobThread::HJob, void* context, 
     return data->m_Char;
 }
 
-static void FinishData(dmJobThread::HContext, dmJobThread::HJob, dmJobThread::JobStatus status, void* context, void* _data, int result)
+static void FinishData(HJobContext, HJob, JobSystemStatus status, void* context, void* _data, int result)
 {
     JobData* data = (JobData*)_data;
     data->m_Result = result;
 }
 
-static void PushJob(dmJobThread::HContext thread, HashState64* hash_state, JobData* data)
+static void PushJob(HJobContext thread, HashState64* hash_state, JobData* data)
 {
-    dmJobThread::Job job = {0};
+    Job job = {0};
     job.m_Process = ProcessData;
     job.m_Callback = FinishData;
     job.m_Context = (void*)hash_state;
     job.m_Data = (void*)data;
-    dmJobThread::HJob hjob = dmJobThread::CreateJob(thread, &job);
-    dmJobThread::PushJob(thread, hjob);
+    HJob hjob = JobSystemCreateJob(thread, &job);
+    JobSystemPushJob(thread, hjob);
 }
 
 #if DM_TEST_THREAD_COUNT==0
@@ -102,7 +102,7 @@ TEST_F(AsyncTestThread, TestJobs)
         contexts[i].m_Char = test_data[i] + 1;
         contexts[i].m_Result = 0;
 
-        PushJob(m_JobThread, &hash_state, &contexts[i]);
+        PushJob(m_JobContext, &hash_state, &contexts[i]);
     }
 
     uint64_t time_start = dmTime::GetMonotonicTime();
@@ -114,7 +114,7 @@ TEST_F(AsyncTestThread, TestJobs)
             break;
         }
 
-        dmJobThread::Update(m_JobThread, 0); // Flushes finished async jobs', and calls any Lua callbacks
+        JobSystemUpdate(m_JobContext, 0); // Flushes finished async jobs', and calls any Lua callbacks
 
         int num_finished = 0;
         for (uint32_t i = 0; i < num_jobs; ++i)

@@ -159,7 +159,7 @@ public class ShaderCompilePipelineTest {
                 in mediump vec2 texcoord0;
                 out mediump vec2 var_texcoord0;
                 uniform vs_uniforms { highp mat4 view_proj; };
-                uniform shared_uniforms { vec4 tint; };  
+                uniform shared_uniforms { vec4 tint; };
                 uniform sampler2D shared_texture;
                 void main()
                 {
@@ -251,7 +251,7 @@ public class ShaderCompilePipelineTest {
                 """
                 #version 430
                 out vec4 out_fragColor;
-               
+
                 struct nested
                 {
                     float nested;
@@ -336,14 +336,14 @@ public class ShaderCompilePipelineTest {
                 in vec4 color;
                 out vec2 var_texcoord0;
                 out vec4 var_color;
-                out vec3 var_position;          
+                out vec3 var_position;
                 void main()
                 {
                     var_position = position;
                     var_texcoord0 = texcoord0;
                     var_color = vec4(color.rgb * color.a, color.a);
                     gl_Position = vec4(position.xyz, 1.0);
-                }                    
+                }
                 """;
 
         String fsShader =
@@ -547,6 +547,51 @@ public class ShaderCompilePipelineTest {
         assertEquals(1, ubos.size());
         assertEquals("_DMENGINE_GENERATED_UB_FS_0", ubos.get(0).name);
         assertEquals("tint", types.get(0).members[0].name);
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
+    }
+
+    @Test
+    public void testLegacyPipelineGlesSm100HighpPrecisionWorkaround() throws Exception {
+        String fsShaderLegacy =
+                """
+                varying vec4 frag_color;
+                void main() {
+                    gl_FragColor = frag_color;
+                }
+                """;
+
+        ShaderCompilePipeline.ShaderModuleDesc fsDescLegacy = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDescLegacy.source = fsShaderLegacy;
+        fsDescLegacy.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        options.glslEsDefaultIntPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+
+        ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testLegacyPrecisionWorkaround");
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, options);
+
+        Shaderc.ShaderCompileResult compileResult = pipelineFragmentLegacy.crossCompile(
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        String src = new String(compileResult.data);
+
+        String expectedFloatHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp float;\n" +
+                "#else\n" +
+                "    precision mediump float;\n" +
+                "#endif";
+        String expectedIntHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp int;\n" +
+                "#else\n" +
+                "    precision mediump int;\n" +
+                "#endif";
+
+        assertTrue(src.contains(expectedFloatHighpPrecision));
+        assertTrue(src.contains(expectedIntHighpPrecision));
 
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
     }

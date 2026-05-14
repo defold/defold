@@ -22,7 +22,8 @@
             [editor.types :as types]
             [schema.core :as s]
             [util.coll :as coll]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.path :as path])
   (:import [java.io IOException]))
 
 (set! *warn-on-reflection* true)
@@ -34,25 +35,25 @@
 
 (g/defnk produce-sync-hash [_node-id root script-annotations]
   (try
-    (let [root-path (fs/path root ".internal" "lua-annotations")
+    (let [root-path (path/of root ".internal" "lua-annotations")
           path->mtime+lines (coll/pair-map-by
                               #(.normalize (.resolve root-path (fs/without-leading-slash (resource/proj-path (:resource %)))))
-                              (coll/pair-fn #(fs/path-last-modified-time (fs/path (io/as-file (:resource %))))
+                              (coll/pair-fn #(path/last-modified-ms (:resource %))
                                             :lines)
                               script-annotations)]
       ;; Remove files that are no longer relevant
-      (when (fs/path-exists? root-path)
-        (->> root-path (fs/path-walker) (e/remove path->mtime+lines) (run! fs/delete-path-file!)))
+      (when (path/exists? root-path)
+        (->> root-path (path/tree-walker) (e/remove path->mtime+lines) (run! path/delete!)))
       ;; Write changed files
       (run!
         (fn [[path [mtime lines]]]
-          (when-not (and (fs/path-exists? path)
-                         (= mtime (fs/path-last-modified-time path)))
-            (fs/create-path-parent-directories! path)
+          (when-not (and (path/exists? path)
+                         (= mtime (path/last-modified-ms path)))
+            (path/create-parent-directories! path)
             (with-open [writer (io/writer path)]
               (.write writer "---@meta\n")
               (io/copy (data/lines-reader lines) writer))
-            (fs/set-path-last-modified-time! path mtime)))
+            (path/set-last-modified-ms! path mtime)))
         path->mtime+lines)
       (hash path->mtime+lines))
     (catch IOException e

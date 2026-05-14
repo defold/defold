@@ -17,16 +17,16 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.util :as util]
             [reitit.core :as reitit]
-            [service.log :as log])
+            [service.log :as log]
+            [util.path :as path])
   (:import [com.sun.net.httpserver Headers HttpHandler HttpServer]
            [java.io Closeable File IOException]
            [java.net InetSocketAddress URI URL]
            [java.nio.charset StandardCharsets]
-           [java.nio.file Files Path]
+           [java.nio.file Path]
            [java.util List]
            [org.apache.commons.io FilenameUtils]
            [org.apache.commons.io.output ByteArrayOutputStream]))
@@ -96,9 +96,10 @@
 (defprotocol ContentType (content-type [body] "static content-type string or nil if unknown; default nil"))
 (defprotocol ContentLength (content-length [body] "static content-length in bytes (long) or nil if unknown; default nil"))
 (defprotocol ->Data (->data [body] "convert body to reusable immutable data"))
-(defprotocol ->Connection (->connection [data] "open connection to HTTP response data that might know it's content-type and content-length when sent, should be io/IOFactory, could be Closeable; default identity"))
+(defprotocol ->Connection (->connection [data] "open connection to HTTP response data before sending; the connection may know its content-type and content-length at send time, is written via connection-write!, and may be Closeable; default identity"))
 (defprotocol ConnectionContentType (connection-content-type [connection] "dynamic content-type string or nil if unknown; default nil"))
 (defprotocol ConnectionContentLength (connection-content-length [connection] "dynamic content-length in bytes (long) or nil if unknown; default nil"))
+(defprotocol ConnectionWrite (connection-write! [connection output-stream] "write HTTP response body directly to output-stream"))
 ;; During response creation, if content-length and content-type weren't
 ;; explicitly provided, we try to infer them. We use `content-type` fn on a
 ;; provided body, and then try it on the data produced using `->data`. We
@@ -156,7 +157,9 @@
     status     HTTP status code, e.g. 200
     headers    HTTP headers map, string->string, lower-case keys
     body       response body, either nil, string (text content) or anything that
-               satisfies io/IOFactory (e.g. InputStream, File, Path, etc.)"
+               the server knows how to write after ->data/->connection
+               normalization, typically an io/IOFactory value such as
+               InputStream, File, or Path"
   ([]
    (response 200 nil nil))
   ([status]
@@ -217,7 +220,7 @@
     (format "http://%s:%d" (.getHostString address) (.getPort address))))
 
 (extend-protocol ConnectionContentLength
-  Path (connection-content-length [path] (fs/path-size path))
+  Path (connection-content-length [path] (path/byte-size path))
   Object (connection-content-length [_])
   nil (connection-content-length [_]))
 
@@ -249,6 +252,12 @@
   Object (->connection [x] x)
   nil (->connection [x] x))
 
+(extend-protocol ConnectionWrite
+  Object (connection-write! [connection output-stream]
+           (with-open [input-stream (io/input-stream connection)]
+             (io/copy input-stream output-stream)))
+  nil (connection-write! [_ _]))
+
 (defn error [response]
   (ex-info "HTTP server error" {::response response}))
 
@@ -270,11 +279,12 @@
                  :headers    optional response headers map, string->string;
                              header names should be lower-case
                  :body       optional response body, could be nil, string
-                             content, or anything that satisfies io/IOFactory
-                             (e.g. InputStream, File, Path etc.). If body is
-                             Closeable, it will be closed even if it's not
-                             written (which might happen when responding to HEAD
-                             requests)
+                             content, or anything the server knows how to write
+                             after ->data/->connection normalization, typically
+                             an io/IOFactory value such as InputStream, File,
+                             or Path. If the opened connection is Closeable, it
+                             will be closed even if it's not written (which
+                             might happen when responding to HEAD requests)
                Use [[response]] fn to produce the response
 
   Kv-args (all optional):
@@ -359,8 +369,7 @@
                                         (if (zero? n) -1 n))
                                       0)))
                                 (when connection
-                                  (with-open [is (io/input-stream connection)]
-                                    (io/copy is (.getResponseBody exchange)))))
+                                  (connection-write! connection (.getResponseBody exchange))))
                               ;; A browser or remote http client can close the
                               ;; connection before we finished sending the response
                               ;; headers/body: we only log such exceptions since
@@ -397,8 +406,8 @@
         method-set (cond-> method-set (contains? method-set "GET") (conj "HEAD"))]
     (string/join ", " (sort method-set))))
 
-(defn- invoke-handler [handler request match]
-  (handler (assoc request :path-params (:path-params match))))
+(defn- invoke-handler [handler request router match]
+  (handler (assoc request :path-params (:path-params match) :router router)))
 
 (defn router-handler
   "Create HTTP request handler function from reitit routes
@@ -432,10 +441,11 @@
     :headers    optional response headers map, string->string;
                 header names should be lower-case
     :body       optional response body, could be nil, string
-                content, or anything that satisfies io/IOFactory
-                (e.g. InputStream, File, Path etc.). If body is AutoCloseable,
-                it will be closed even if it's not written (which might happen
-                when responding to HEAD requests)
+                content, or anything the server knows how to write after
+                ->data/->connection normalization, typically an io/IOFactory
+                value such as InputStream, File, or Path. If the opened
+                connection is AutoCloseable, it will be closed even if it's not
+                written (which might happen when responding to HEAD requests)
   See also:
     https://cljdoc.org/d/metosin/reitit-core/0.8.0-alpha1/doc/introduction"
   [routes]
@@ -449,7 +459,7 @@
           (let [method->handler (:data match)
                 method (:method request)]
             (if-let [handler (method->handler method)]
-              (invoke-handler handler request match)
+              (invoke-handler handler request router match)
               (case method
                 "OPTIONS" (response
                             200
@@ -457,7 +467,7 @@
                              "access-control-allow-methods" (allowed-methods method->handler)}
                             nil)
                 "HEAD" (if-let [get-handler (method->handler "GET")]
-                         (invoke-handler get-handler request match) ;; http server will strip the body
+                         (invoke-handler get-handler request router match) ;; http server will strip the body
                          (update method-not-allowed :headers assoc "allow" (allowed-methods method->handler)))
                 (update method-not-allowed :headers assoc "allow" (allowed-methods method->handler)))))
           not-found)))))

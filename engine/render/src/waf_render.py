@@ -20,25 +20,20 @@ from waf_content import proto_compile_task
 def configure(conf):
     pass
 
-waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT} ${SHADER_NAME} ${CONTENT_ROOT}',
+waflib.Task.task_factory('material', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT} ${SHADER_NAME} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
                       shell=False)
 
-waflib.Task.task_factory('material_shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
+waflib.Task.task_factory('material_shaderbuilder', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
                       shell=False)
-
-GENERATOR_ID = 0
 
 @extension('.material')
 def material_file(self, node):
-    global GENERATOR_ID
-    GENERATOR_ID = GENERATOR_ID + 1
-
     import google.protobuf.text_format
     import render.material_ddf_pb2
     import dlib
@@ -59,8 +54,10 @@ def material_file(self, node):
 
     if shader_name == None:
         shader_hash = dlib.dmHashBuffer64(msg.vertex_program + msg.fragment_program)
-        # make sure the name is unique, as each task requires unique outputs
-        shader_name = 'shader_%d_%d_%s' % (shader_hash, GENERATOR_ID, '.spc')
+        material_path = node.path_from(self.path).replace(os.sep, '/')
+        material_hash = dlib.dmHashBuffer64(material_path)
+        # Make sure the name is unique and deterministic, as each task requires unique outputs.
+        shader_name = 'shader_%d_%d%s' % (shader_hash, material_hash, '.spc')
 
     material.env['CLASSPATH']    = os.pathsep.join(classpath)
     material.env['CONTENT_ROOT'] = material.generator.content_root
@@ -82,7 +79,7 @@ def material_file(self, node):
     # Ensure shader runs first, material builders depend on reflection data from shaders
     material.set_run_after(shader)
 
-waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${TGT} ${CONTENT_ROOT} ${DYNAMIC}',
+waflib.Task.task_factory('fontmap', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${TGT} ${CONTENT_ROOT} ${DYNAMIC}',
                          color='PINK',
                          after='proto_gen_py',
                          before='c cxx',

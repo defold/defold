@@ -552,6 +552,7 @@ namespace dmGameObject
      * @param [options] [type:table] optional options table
      * - index [type:number] index into array property (1 based)
      * - key [type:hash] name of internal property
+     * - keys [type:table] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
      * @return value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value of the specified property
      *
      * @examples
@@ -597,11 +598,24 @@ namespace dmGameObject
      * Get a named property
      *
      * ```lua
-     * function init(self)
-     *     -- get the resource of a certain gui font
-     *     local font_hash = go.get("#gui", "fonts", {key = "system_font_BIG"})
-     * end
+     * -- get the resource of a certain gui font
+     * local font_hash = go.get("#gui", "fonts", {key = "system_font_BIG"})
      * ```
+     *
+     * @examples
+     * Get a property from a sub-component, using the "keys" options table
+     * 
+     * ```lua
+     * -- Addressing the first level of a component:
+     * go.get("#particlefx", "material", { keys = { "cone_emitter" } })
+     * ```
+     *
+     * @examples
+     * Get a property into a deeper sub-hierarchy (if the component supports it).
+     *
+     * ```lua
+     * -- Note: There is currently no component that supports this, but a custom component could.
+     * go.get("#my_component", "some_property", { keys = { "root", "child_node" } })
      */
     int Script_Get(lua_State* L)
     {
@@ -631,26 +645,26 @@ namespace dmGameObject
             return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
         }
 
-        dmGameObject::PropertyOptions property_options;
-        property_options.m_Index = 0;
-        property_options.m_HasKey = 0;
-        bool index_requested = false;
+        LuaToPropertyOptionsResult options_result = {};
 
         // Options table
         if (lua_gettop(L) > 2)
         {
-            dmGameObject::LuaToPropertyOptions(L, 3, &property_options, property_id, &index_requested);
+            dmGameObject::LuaToPropertyOptions(L, 3, &options_result);
         }
-        dmGameObject::PropertyDesc property_desc;
-        dmGameObject::PropertyResult result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
 
-        if (result == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && property_desc.m_ArrayLength > 1)
+        dmGameObject::PropertyDesc property_desc;
+        dmGameObject::PropertyResult result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, options_result.m_Options, property_desc);
+        if (result == dmGameObject::PROPERTY_RESULT_OK && !options_result.m_IndexRequested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && property_desc.m_ArrayLength > 1)
         {
             lua_newtable(L);
 
+            dmGameObject::PropertyOptions get_arrayed_property_opts;
+            dmGameObject::AddPropertyOptionsIndex(&get_arrayed_property_opts, 0);
+
             // We already have the first value, so no need to get it again.
             // But we do need to check the result, we could still get errors even if the result is OK
-            int handle_go_get_result = CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
+            int handle_go_get_result = CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, get_arrayed_property_opts, options_result.m_IndexRequested, options_result.m_KeysRequested);
             if (handle_go_get_result != 1)
             {
                 return handle_go_get_result;
@@ -660,9 +674,10 @@ namespace dmGameObject
             // Get the rest of the array elements and check each result individually
             for (int i = 1; i < property_desc.m_ArrayLength; ++i)
             {
-                property_options.m_Index = i;
-                result                   = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
-                handle_go_get_result     = CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
+                SetPropertyOptionsByIndex(&get_arrayed_property_opts, 0, i);
+                result                   = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, get_arrayed_property_opts, property_desc);
+                handle_go_get_result     = CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, get_arrayed_property_opts, options_result.m_IndexRequested, options_result.m_KeysRequested);
+
                 if (handle_go_get_result != 1)
                 {
                     return handle_go_get_result;
@@ -673,7 +688,7 @@ namespace dmGameObject
             return 1;
         }
 
-        return CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
+        return CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, options_result.m_Options, options_result.m_IndexRequested, options_result.m_KeysRequested);
     }
 
     /*# sets a named property of the specified game object or component, or a material constant
@@ -685,6 +700,7 @@ namespace dmGameObject
      * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
+     * - keys [type:table] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
      * @examples
      *
      * Set a property "speed" of a script "player", the property must be declared in the player-script:
@@ -731,6 +747,23 @@ namespace dmGameObject
      *     go.set("#gui", "fonts", self.big_font, {key = "system_font_BIG"})
      * end
      * ```
+     *
+     * @examples
+     * Set a property on a sub-component, using the "keys" options table
+     * 
+     * ```lua
+     * go.property("my_material", resource.material)
+     * function init(self)
+     *     go.set("#particlefx", "material", self.my_material, { keys = { "cone_emitter" } })
+     * end
+     * ```
+     *
+     * @examples
+     * Set a property in a deeper sub-hierarchy (if the component supports it).
+     *
+     * ```lua
+     * -- Note: There is currently no component that supports this, but a custom component could.
+     * go.set("#my_component", "some_property", some_value, { keys = { "root", "child_node" } })
      */
     int Script_Set(lua_State* L)
     {
@@ -764,14 +797,11 @@ namespace dmGameObject
             return luaL_error(L, "could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
         }
 
-        dmGameObject::PropertyOptions property_options = {};
+        LuaToPropertyOptionsResult options_result = {};
+
         if (lua_gettop(L) > 3)
         {
-            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_id, 0);
-            if (options_result != 0)
-            {
-                return options_result;
-            }
+            LuaToPropertyOptions(L, 4, &options_result);
         }
 
         if (lua_istable(L, 3))
@@ -795,14 +825,17 @@ namespace dmGameObject
                 dmGameObject::PropertyVar property_var;
                 dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, -1, property_var);
 
-                property_options.m_Index = table_index_lua - 1;
+                dmGameObject::PropertyOptions set_arrayed_property_opts;
+                dmGameObject::AddPropertyOptionsIndex(&set_arrayed_property_opts, 0);
+
+                SetPropertyOptionsByIndex(&set_arrayed_property_opts, 0, table_index_lua - 1);
 
                 if (result == PROPERTY_RESULT_OK)
                 {
-                    result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
+                    result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, set_arrayed_property_opts, property_var);
                     if (result != PROPERTY_RESULT_OK)
                     {
-                        return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
+                        return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, set_arrayed_property_opts);
                     }
                 }
 
@@ -817,10 +850,10 @@ namespace dmGameObject
 
             if (result == PROPERTY_RESULT_OK)
             {
-                result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
+                result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, options_result.m_Options, property_var);
             }
 
-            return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
+            return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, options_result.m_Options);
         }
 
         return 0;
@@ -1787,8 +1820,6 @@ namespace dmGameObject
             return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
 
         dmGameObject::PropertyOptions opt;
-        opt.m_Index = 0;
-
         dmGameObject::PropertyResult res = dmGameObject::CancelAnimations(collection, target_instance, target.m_Fragment, property_id);
 
         switch (res)
@@ -1807,6 +1838,7 @@ namespace dmGameObject
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {
+                dmGameObject::PropertyOptions opt;
                 dmGameObject::PropertyDesc property_desc;
                 dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, opt, property_desc);
                 return luaL_error(L, "The property '%s' must be of a numerical type", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
@@ -2794,6 +2826,17 @@ bail:
      * @examples
      */
 
+    /*# called at the end of the frame for a final update of the script component
+     *
+     * This is a callback-function, which is called by the engine at the end of the frame to update the state of a script
+     * component. Use it to make final adjustments to the game object instance.
+     *
+     * @name late_update
+     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
+     * @examples
+     */
+
     /*# called when a message has been sent to the script component
      *
      * This is a callback-function, which is called by the engine whenever a message has been sent to the script component.
@@ -2887,15 +2930,17 @@ bail:
      *
      * Gamepad specific fields:
      *
-     * Field             | Description
-     * ----------------- | ----------------------------------------------------------
-     * `gamepad`         | The index of the gamepad device that provided the input.
-     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
-     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
-     * `gamepad_name`    | Name of the gamepad
-     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
-     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
-     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
+     * Field               | Description
+     * ------------------- | ----------------------------------------------------------
+     * `gamepad`           | The index of the gamepad device that provided the input.
+     * `userid`            | Id of the user associated with the controller. Usually only relevant on consoles.
+     * `gamepad_guid`      | The guid of the gamepad controller. Only passed with "connected" action.
+     * `gamepad_guid_info` | Parsed guid info table. Only passed with "connected" action. See table below.
+     * `gamepad_unknown`   | True if the input originated from an unknown/unmapped gamepad.
+     * `gamepad_name`      | Name of the gamepad
+     * `gamepad_axis`      | List of gamepad axis values. For raw gamepad input only.
+     * `gamepadhats`       | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_buttons`   | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:
      *
@@ -2912,6 +2957,17 @@ bail:
      * `acc_x`     | Accelerometer x value (if present).
      * `acc_y`     | Accelerometer y value (if present).
      * `acc_z`     | Accelerometer z value (if present).
+     *
+     * Guid info table:
+     * This info is only passed with a `connected` action.
+     *
+     * Field     | Description
+     * --------- | ----------------------------------------------------------
+     * `vendor`  | USB vendor id. E.g. Nintendo 0x057e, Sony 0x054c, or Microsoft 0x045e
+     * `product` | USB product id
+     * `bus`     | How device is communicating. E.g.0x0003 for USB devices and 0x0005 for Bluetooth devices.
+     * `crc`     | SDL CRC16 signature, typically used when vendor and product ids are unavailable
+     * `version` | The device or firmware version
      *
      * @name on_input
      * @param self [type:userdata] reference to the script state to be used for storing data

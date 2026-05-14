@@ -2,7 +2,7 @@
 import os, re, sys
 import sdk
 import waf_dynamo
-from waf_dynamo import is_platform_private, platform_supports_feature
+from waf_dynamo import feature_enabled, is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
@@ -53,9 +53,12 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if extra_defines != None:
         req_defines.extend(extra_defines)
 
-    local_libs = 'dlib mbedtls zip'.split()
+    local_libs = 'dlib zip'.split()
+    if feature_enabled('mbedtls') or target_os not in ['macos', 'ios']:
+        local_libs.append('mbedtls')
 
-    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    use_profile_null = bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
+    if use_profile_null:
         local_libs += ['profile_null']
     else:
         local_libs += ['profile']
@@ -76,7 +79,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     use_lib_list = '%s %s %s' % (' '.join(req_libs), ' '.join(local_libs), ' '.join(extra_local_libs))
     task_args = {
         'features': ' '.join(req_features),
-        'source': extra_source + (name + '.cpp').split() + platform_source + bld.path.ant_glob('../dlib/testutil.cpp'),
+        'source': extra_source + (name + '.cpp').split() + platform_source,
         'use': use_lib_list,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
@@ -89,6 +92,10 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     test = bld(**task_args)
     test.install_path = None
+    if target_os in ['macos', 'ios']:
+        test.env.append_value('LINKFLAGS', ['-framework', 'CFNetwork', '-framework', 'Security'])
+    elif 'win32' in bld.env.PLATFORM:
+        test.env.append_value('LINKFLAGS', bld.env['LINKFLAGS_DLIB'])
 
     js_lib_paths = {}
     js_lib_paths['library_sys.js'] = '../src/dlib/js'
@@ -111,11 +118,13 @@ def build(bld):
         name='test_http_server',
         source_root='http_server')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
+    bld.env["JAVACFLAGS"] = '-g --release 8 -Xlint:-options'.split()
 
     extra_defines = []
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
+
+    use_profile_null = bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5')
 
     skip_run = False
     if 'web' in bld.env['PLATFORM']:
@@ -125,16 +134,16 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM']:
         skip_http_run = True
 
-    skip_ssdp = False
-    if 'win32' in bld.env['PLATFORM'] or sdk.is_wsl():
-        skip_ssdp = True
-
     skip_http = False
     skip_threads = False
-    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    if bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web'):
         skip_http = True
-        if bld.env in ('js-web', 'wasm-web'):
+        if bld.env.PLATFORM == 'wasm-web':
             skip_threads = True
+
+    if 'android' in bld.env['PLATFORM']:
+        # MAWE: test_httpclient etc still has a lot of issues
+        skip_http = True
 
     if _is_mac_ci():
         skip_http = True
@@ -150,7 +159,8 @@ def build(bld):
     create_test(bld, 'test_double_linked_list')
     create_test(bld, 'test_set')
     create_test(bld, 'test_indexpool')
-    create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
+    create_test(bld, 'test_dlib', extra_libs = ['THREAD'], extra_features = ['c'], extra_source = ['test_endian.c'])
+    create_test(bld, 'test_hash', extra_libs = ['THREAD'], extra_features = ['c'], extra_source = ['test_hash.c'])
 
     create_test(bld, 'test_time')
 
@@ -159,7 +169,7 @@ def build(bld):
         create_test(bld, 'test_thread', extra_libs = ['THREAD'])
         create_test(bld, 'test_mutex', extra_libs =['THREAD'])
 
-    create_test(bld, 'test_profile', extra_libs = ['THREAD'], extra_source = ['test_profiler_dummy.cpp'])
+    create_test(bld, 'test_profile', extra_libs = ['THREAD'], extra_source = ['test_profiler_dummy.cpp'], skip_run = use_profile_null)
     create_test(bld, 'test_profile',
                                         extra_libs = ['THREAD'],
                                         extra_local_libs = ['profile_null'],
@@ -197,12 +207,11 @@ def build(bld):
         create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
         create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
         create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
-        create_test(bld, 'test_job_thread')
+        create_test(bld, 'test_job_system')
 
-    create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines)
+    create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_run)
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
-    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
-    create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
+    create_test(bld, 'test_mdns', extra_libs = ['THREAD'], skip_run = skip_run)
     if not skip_threads:
         create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
@@ -215,26 +224,43 @@ def build(bld):
     if bld.env.PLATFORM in ['arm64-linux', 'x86_64-linux']:
         create_test(bld, 'test_xdg', extra_libs = ['THREAD'])
 
-    create_test(bld, 'test_zip', extra_features = ['embed'], extra_libs = ['THREAD'], embed_source = ['data/foo.zip'])
-    create_test(bld, 'test_zlib', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = ['data/foo.gz', 'data/foo.deflate'])
+    create_test(bld, 'test_zip', extra_libs = ['THREAD'])
+    create_test(bld, 'test_zlib', extra_libs = ['THREAD'])
 
     create_test(bld, 'test_lz4', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/foo.lz4'])
 
-    create_test(bld, 'test_image', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = ['data/color_check_2x2.png',
-                                'data/color_check_2x2_premult.png',
-                                'data/color_check_2x2_indexed.png',
-                                'data/case2319.jpg',
-                                'data/color16_check_2x2.png',
-                                'data/gray_check_2x2.png',
-                                'data/gray_alpha_check_2x2.png',
-                                'data/defold_64.jpg',
-                                'data/defold_64_progressive.jpg'],
+    image_embed_source = ['data/color_check_2x2.png',
+                          'data/color_check_2x2_premult.png',
+                          'data/color_check_2x2_indexed.png',
+                          'data/case2319.jpg',
+                          'data/color16_check_2x2.png',
+                          'data/gray_check_2x2.png',
+                          'data/gray_alpha_check_2x2.png',
+                          'data/defold_64.jpg',
+                          'data/defold_64_progressive.jpg',
+                          'data/valid.astc',
+                          'data/invalid.astc']
+
+    bld.stlib(features     = 'cxx embed test',
+              target       = 'test_image_embeds',
+              source       = 'test_image_embeds_dummy.cpp',
+              includes     = '.. ../../src',
+              embed_source = image_embed_source)
+
+    bld.add_group()
+
+    create_test(bld, 'test_image', extra_libs = ['THREAD'],
+                extra_local_libs = ['image', 'test_image_embeds'],
                 extra_includes = ['.']
                 )
 
+    create_test(bld, 'test_image', extra_libs = ['THREAD'],
+                extra_local_libs = ['image_null', 'test_image_embeds'],
+                extra_includes = ['.'],
+                skip_run = True,
+                target_name = 'test_image_null'
+                )
 
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
     create_test(bld, 'test_objectpool')

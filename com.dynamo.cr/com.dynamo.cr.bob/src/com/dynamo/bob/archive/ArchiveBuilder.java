@@ -406,8 +406,6 @@ public class ArchiveBuilder {
         File filepathArchiveIndex   = new File(args[1] + ".arci");
         File filepathArchiveData    = new File(args[1] + ".arcd");
         File filepathManifest       = new File(args[1] + ".dmanifest");
-        File filepathPublicKey      = new File(args[1] + ".public");
-        File filepathPrivateKey     = new File(args[1] + ".private");
         File filepathManifestHash   = new File(args[1] + ".manifest_hash");
         File filepathZipArchive     = new File(args[1] + ".zip");
 
@@ -446,13 +444,9 @@ public class ArchiveBuilder {
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
 
-        System.out.println("Generating private key: " + filepathPrivateKey.getCanonicalPath());
-        System.out.println("Generating public key: " + filepathPublicKey.getCanonicalPath());
-        ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, filepathPrivateKey.getAbsolutePath(), filepathPublicKey.getAbsolutePath());
-        manifestBuilder.setPrivateKeyFilepath(filepathPrivateKey.getAbsolutePath());
-        manifestBuilder.setPublicKeyFilepath(filepathPublicKey.getAbsolutePath());
-
         Project project = new Project(new DefaultFileSystem());
+        // Keep builtins archives deterministic; parallel writes make .arcd offsets depend on thread scheduling.
+        project.setOption("max-cpu-threads", "1");
         ResourceGraph resourceGraph = new ResourceGraph(project);
         manifestBuilder.setResourceGraph(resourceGraph);
 

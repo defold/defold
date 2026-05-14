@@ -71,9 +71,9 @@
   (property counter g/Any)
 
   (output outline g/Any :cached
-          (g/fnk [_node-id outline]
-                 (swap! (g/node-value _node-id :counter) inc)
-                 outline)))
+          (g/fnk [counter outline]
+            (swap! counter inc)
+            outline)))
 
 (defn remove-fns
   "Dynamic functions are never equal. Strip them out of the outline"

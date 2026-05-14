@@ -99,7 +99,11 @@ namespace dmPhysics
         uint16_t                m_GroupB;
     };
 
-    void OverlapCacheDecreaseCount(OverlapCache* cache, uint64_t object);
+    /**
+     * Decrements overlap count for the pair (object_a, object_b) on object_a's side only.
+     * Call twice with arguments swapped to update both directions after a touch ends.
+     */
+    void OverlapCacheDecreaseCount(OverlapCache* cache, uint64_t object_a, uint64_t object_b);
 
     /**
      * Adds an overlap to the cache and potentially calls the trigger entered callback

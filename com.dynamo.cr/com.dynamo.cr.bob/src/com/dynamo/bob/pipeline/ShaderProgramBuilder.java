@@ -68,6 +68,7 @@ public class ShaderProgramBuilder extends Builder {
     static public class ShaderCompileResult {
         public ArrayList<ShaderBuildResult> shaderBuildResults;
         public ArrayList<SPIRVReflector>    reflectors = new ArrayList<>();
+        public byte[]                       hlslRootSignature;
     }
 
     ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modulesDescs = new ArrayList<>();
@@ -118,6 +119,14 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
+    static Shaderc.ShaderPrecision shaderPrecisionFromString(String value) throws CompileExceptionError {
+        if (value.equals("highp"))
+            return Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        else if (value.equals("mediump"))
+            return Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        throw new CompileExceptionError("Unknown shader precision: " + value);
+    }
+
     @Override
     public void build(Task task) throws IOException, CompileExceptionError {
         String resourceOutputPath = task.getOutputs().get(0).getPath();
@@ -133,6 +142,9 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         compileOptions.excludeGlesSm100 = getExcludeGlesSm100Flag();
+        compileOptions.glslEsDefaultFloatPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_float", "mediump"));
+        compileOptions.glslEsDefaultIntPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_int", "highp"));
+
         if (getOutputHlslFlag()) {
             addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_51);
         }
@@ -206,6 +218,9 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflectors));
+        if (shaderCompileresult.hlslRootSignature != null) {
+            shaderDescBuilder.setHlslRootSignature(ByteString.copyFrom(shaderCompileresult.hlslRootSignature));
+        }
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
 
@@ -474,7 +489,7 @@ public class ShaderProgramBuilder extends Builder {
         } else if (path.endsWith(".cp")) {
             return ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
         }
-        throw new CompileExceptionError("Unknown shader type.%n for path" + path);
+        throw new CompileExceptionError("Unknown shader type for path" + path);
     }
 
     static public ShaderCompilePipeline newShaderPipeline(String resourcePath, ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderDescs, ShaderCompilePipeline.Options options) throws IOException, CompileExceptionError {
@@ -493,9 +508,21 @@ public class ShaderProgramBuilder extends Builder {
         if (newShaders.size() > 0 && oldShaders.size() > 0) {
             System.out.println("Warning: Mixing old shaders with new shaders is slow. Consider migrating old shaders to using the new shader pipeline.");
 
+            System.out.print("  Old shaders:");
+            for (ShaderCompilePipeline.ShaderModuleDesc old : oldShaders) {
+                System.out.print(" " + old.resourcePath);
+            }
+            System.out.println();
+
+            System.out.print("  New shaders:");
+            for (ShaderCompilePipeline.ShaderModuleDesc shader : newShaders) {
+                System.out.print(" " + shader.resourcePath);
+            }
+            System.out.println();
+
             ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newDescs = new ArrayList<>(newShaders);
             for (ShaderCompilePipeline.ShaderModuleDesc old : oldShaders) {
-                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers);
+                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers, options.glslEsDefaultFloatPrecision, options.glslEsDefaultIntPrecision);
                 ShaderCompilePipeline.ShaderModuleDesc transformedDesc = new ShaderCompilePipeline.ShaderModuleDesc();
                 transformedDesc.type = old.type;
                 transformedDesc.source = transformResult.output;
@@ -604,9 +631,16 @@ public class ShaderProgramBuilder extends Builder {
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_PSSL);
             }
 
-            ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
-            ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
-            shaderDescResult.shaderDesc.writeTo(os);
+
+            try {
+                ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
+                ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
+                shaderDescResult.shaderDesc.writeTo(os);
+
+            } catch (Exception e) {
+                System.err.printf("Error: %s\n", e.getMessage());
+                throw e;
+            }
         }
     }
 }

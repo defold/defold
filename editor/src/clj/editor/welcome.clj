@@ -793,7 +793,8 @@
        (.setValue language-selector locale)
        (.setButtonCell language-selector (.call cell-factory nil))
        (.setCellFactory language-selector cell-factory))
-     (.addListener (.valueProperty language-selector) ^ChangeListener #(localization/set-locale! localization %3))
+     (.addListener (.valueProperty language-selector) ^ChangeListener #(do (localization/set-locale! localization %3)
+                                                                           (analytics/track-locale! %3)))
 
      ;; Install pending update check.
      (when (some? updater)

@@ -17,7 +17,7 @@
 #include "../gamesys.h"
 #include <script/script.h>
 #include <hid/hid.h>
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 #include "script_window.h"
 
@@ -47,7 +47,7 @@ enum WindowEvent
 struct WindowInfo
 {
     dmHID::HContext m_HidContext;
-    dmPlatform::HWindow m_Window;
+    HWindow m_Window;
     dmScript::LuaCallbackInfo* m_Callback;
     int m_Width;
     int m_Height;
@@ -307,7 +307,7 @@ static int GetSafeArea(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
-    dmPlatform::SafeArea safe_area;
+    WindowSafeArea safe_area;
     if (!dmPlatform::GetSafeArea(g_Window.m_Window, &safe_area))
     {
         safe_area.m_X = 0;

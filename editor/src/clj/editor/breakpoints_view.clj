@@ -121,10 +121,11 @@
 
 (defn restore-breakpoints! [project prefs]
   (g/with-auto-evaluation-context evaluation-context
-    (let [breakpoints (keep #(when-some [resource (workspace/find-resource (project/workspace project)
-                                                                           (:proj-path %)
-                                                                           evaluation-context)]
-                               (assoc % :resource resource))
+    (let [basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          breakpoints (keep (fn [breakpoint]
+                              (when-some [resource (workspace/find-resource basis workspace (:proj-path breakpoint))]
+                                (assoc breakpoint :resource resource)))
                             (prefs/get prefs [:code :breakpoints]))
           script-bps (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)]
       (g/transact
@@ -309,9 +310,9 @@
 
 (defn- ->breakpoints-selection-provider [table-view breakpoints]
   (reify handler/SelectionProvider
-    (selection [_] (mapv #(get breakpoints %) (ui/selection table-view)))
-    (succeeding-selection [_] [])
-    (alt-selection [_] [])))
+    (selection [_this _evaluation-context] (mapv #(get breakpoints %) (ui/selection table-view)))
+    (succeeding-selection [_this _evaluation-context] [])
+    (alt-selection [_this _evaluation-context] [])))
 
 (def ^:private prop-table-context-menu
   (fx.prop/make (fx.mutator/setter ui/register-context-menu) fx.lifecycle/scalar))
@@ -488,8 +489,8 @@
 (comment
   ;; Recreate the breakpoints view
   (let [bp-container (.lookup (ui/main-root) "#breakpoints-container")
-        open-resource (partial #'editor.app-view/open-resource
-                               (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
+        open-resource (partial #'editor.app-view/open-resource!
+                               (dev/app-view) (dev/prefs) (dev/localization) (dev/project))
         bp-view (make-breakpoints-view (dev/workspace) (dev/project) open-resource
                                        editor.boot-open-project/*view-graph*
                                        (dev/prefs) bp-container)

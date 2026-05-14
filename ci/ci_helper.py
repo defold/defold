@@ -21,20 +21,25 @@ We rely on this script being able to output the unaltered text.
 
 import os, sys, platform
 
-PLATFORMS_PRIVATE = ('x86_64-ps4', 'x86_64-ps5', 'arm64-nx64')
+PLATFORMS_NINTENDO = ['arm64-nx64']
+PLATFORMS_SONY     = ['x86_64-ps4', 'x86_64-ps5']
+PLATFORMS_XBOX     = ['x86_64-xbone']
+PLATFORMS_PRIVATE = PLATFORMS_NINTENDO + PLATFORMS_SONY + PLATFORMS_XBOX
+
+def repo_name_to_platforms(repository):
+    # repo is of the form defold/defold-switch
+    if 'defold-switch' in repository:
+        return PLATFORMS_NINTENDO
+    if 'defold-ps4' in repository:
+        return PLATFORMS_SONY
+    if 'defold-xbox' in repository:
+        return PLATFORMS_XBOX
+    return []
 
 # We use this function to determine if we should skip this platform
 def can_build_private_platform(repository, platform):
-    return False
-
-def repo_name_to_platforms(repository):
-    return None
-
-DIRNAME=os.path.dirname(os.path.abspath(__file__))
-if os.path.exists(os.path.join(DIRNAME, 'ci_private.py')):
-    import ci_private
-    can_build_private_platform = ci_private.can_build_private_platform
-    repo_name_to_platforms = ci_private.repo_name_to_platforms
+    platforms = repo_name_to_platforms(repository)
+    return platform in platforms
 
 def is_platform_private(platform):
     return platform in PLATFORMS_PRIVATE

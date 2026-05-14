@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "android_jni.h"
+#include <assert.h>
 
 
 JNIEnv* JNIAttachCurrentThread()
@@ -33,6 +34,37 @@ void JNIDetachCurrentThread()
 {
     JavaVM* vm = g_AndroidApp->activity->vm;
     (*vm)->DetachCurrentThread(vm);
+}
+
+void JNIAttachCurrentThreadIfNeeded(int* did_attach)
+{
+    JavaVM* vm = g_AndroidApp->activity->vm;
+    JNIEnv* env = 0;
+    assert(did_attach != NULL);
+    *did_attach = 0;
+
+    jint res = (*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_6);
+    if (res == JNI_EDETACHED)
+    {
+        JavaVMAttachArgs lJavaVMAttachArgs;
+        lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+        lJavaVMAttachArgs.name = "NativeThread";
+        lJavaVMAttachArgs.group = NULL;
+
+        if ((*vm)->AttachCurrentThread(vm, &env, &lJavaVMAttachArgs) == JNI_OK)
+        {
+            *did_attach = 1;
+        }
+    }
+}
+
+void JNIDetachCurrentThreadIfNeeded(int did_attach)
+{
+    if (did_attach)
+    {
+        JavaVM* vm = g_AndroidApp->activity->vm;
+        (*vm)->DetachCurrentThread(vm);
+    }
 }
 
 jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, char* method, char* signature)

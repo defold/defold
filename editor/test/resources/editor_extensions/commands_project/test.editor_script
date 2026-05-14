@@ -7,7 +7,7 @@ function M.get_commands()
     return {
         {
             label = command_label,
-            locations = {"Outline"},
+            locations = {"Edit", "Outline"},
             query = {selection = {type = "outline", cardinality = "one"}},
             active = function(opts)
                 local node = opts.selection

@@ -131,6 +131,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.collisionobject', '.collisionobjectc')
         c.component = c.component.replace('.particlefx', '.particlefxc')
         c.component = c.component.replace('.gui', '.guic')
+        c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.model', '.modelc')
         c.component = c.component.replace('.animationset', '.animationsetc')
         c.component = c.component.replace('.script', '.scriptc')
@@ -138,7 +139,6 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.factory', '.factoryc')
         c.component = c.component.replace('.collectionfactory', '.collectionfactoryc')
         c.component = c.component.replace('.label', '.labelc')
-        c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
         c.component = c.component.replace('.tileset', '.t.texturesetc')
         c.component = c.component.replace('.tilesource', '.t.texturesetc')
@@ -151,10 +151,11 @@ def transform_gameobject(task, msg):
 def compile_model(task):
 
     def _replace_model_ext(orig, newext):
-        if 'dae' in orig:
-            return orig.replace(".dae", newext)
-        else:
-            return orig.replace(".gltf", newext)
+        return (orig.replace(".prebuilt_meshsetc", newext)
+                    .replace(".prebuilt_skeletonc", newext)
+                    .replace(".prebuilt_animationsetc", newext)
+                    .replace(".gltf", newext)
+                    .replace(".glb", newext))
 
     try:
         import google.protobuf.text_format
@@ -219,7 +220,7 @@ def model_file(self, node):
     out_rigscene = node.change_ext(rig_ext)
     task.set_outputs([out_model, out_rigscene])
 
-waflib.Task.task_factory('shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${SRC} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
+waflib.Task.task_factory('shaderbuilder', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${SRC} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -500,7 +501,6 @@ proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_bin
 proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
 proto_compile_task('factory', 'gamesys_ddf_pb2', 'FactoryDesc', '.factory', '.factoryc', transform_factory)
 proto_compile_task('collectionfactory', 'gamesys_ddf_pb2', 'CollectionFactoryDesc', '.collectionfactory', '.collectionfactoryc', transform_collectionfactory)
-proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 proto_compile_task('label', 'label_ddf_pb2', 'LabelDesc', '.label', '.labelc', transform_label)
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
 proto_compile_task('render_target', 'render.render_target_ddf_pb2', 'render_target_ddf_pb2.RenderTargetDesc', '.render_target', '.render_targetc')
@@ -510,6 +510,8 @@ proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transform_mesh)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
+proto_compile_task('data', 'data_ddf_pb2', 'Data', '.data', '.datac')
+proto_compile_task('light', 'data_ddf_pb2', 'Data', '.light', '.lightc')
 
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('glsl', '.glsl', '.glslc')
@@ -643,19 +645,8 @@ waflib.Task.task_factory('model_file',
                          func    = compile_mesh,
                          color   = 'PINK')
 
-@extension('.dae')
-def dae_file(self, node):
-    mesh = self.create_task('model_file')
-    mesh.set_inputs(node)
-    ext_skeleton      = '.skeletonc'
-    ext_mesh_set      = '.meshsetc'
-    ext_animation_set = '.animationsetc'
-    out_skeleton      = node.change_ext(ext_skeleton)
-    out_mesh_set      = node.change_ext(ext_mesh_set)
-    out_animation_set = node.change_ext(ext_animation_set)
-    mesh.set_outputs([out_skeleton, out_mesh_set, out_animation_set])
-
 @extension('.gltf')
+@extension('.glb')
 def gltf_file(self, node):
     mesh = self.create_task('model_file')
     mesh.set_inputs(node)
@@ -683,7 +674,7 @@ def render_script_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-waflib.Task.task_factory('atlas', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.AtlasBuilder ${SRC} ${TGT} ${CONTENT_ROOT}',
+waflib.Task.task_factory('atlas', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.AtlasBuilder ${SRC} ${TGT} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -703,7 +694,7 @@ def tileset_file(self, node):
 
     atlas.set_outputs([texture_set, texture])
 
-waflib.Task.task_factory('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.tile.TileSetc ${SRC} ${TGT}',
+waflib.Task.task_factory('tileset', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.tile.TileSetc ${SRC} ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -720,7 +711,7 @@ def tileset_file(self, node):
     tileset.set_outputs(out)
 
 
-waflib.Task.task_factory('compute', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeBuilder ${SRC} ${SPC} ${TGT}',
+waflib.Task.task_factory('compute', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeBuilder ${SRC} ${SPC} ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',

@@ -126,14 +126,16 @@ namespace dmGameSystem
 
         if (tile_set->m_HullSet)
             dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);
+        tile_set->m_TexturesGeneration = 0;
     }
 
     static uint32_t GetResourceSize(TextureSetResource* res, uint32_t ddf_size)
     {
         uint32_t size = sizeof(TextureSetResource);
         size += ddf_size;
-        size += res->m_HullCollisionGroups.Capacity()*sizeof(dmhash_t);
-        size += res->m_AnimationIds.Capacity()*(sizeof(dmhash_t)+sizeof(uint32_t));
+        size += res->m_HullCollisionGroups.Capacity() * sizeof(dmhash_t);
+        size += res->m_AnimationIds.Capacity() * (sizeof(dmhash_t) + sizeof(uint32_t));
+        size += res->m_FrameIds.Capacity() * (sizeof(dmhash_t) + sizeof(uint32_t));
         return size;
     }
 
@@ -194,6 +196,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(physics_context->m_Context, params->m_Factory, texture_set_ddf, &tmp_tile_set, params->m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
+            uint8_t current_generation = tile_set->m_TexturesGeneration;
             ReleaseResources(params->m_Factory, tile_set);
 
             tile_set->m_TextureSet = tmp_tile_set.m_TextureSet;
@@ -201,7 +204,9 @@ namespace dmGameSystem
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
             tile_set->m_HullSet = tmp_tile_set.m_HullSet;
             tile_set->m_AnimationIds.Swap(tmp_tile_set.m_AnimationIds);
+            tile_set->m_FrameIds.Swap(tmp_tile_set.m_FrameIds);
             dmResource::SetResourceSize(params->m_Resource, GetResourceSize(tile_set, params->m_BufferSize));
+            tile_set->m_TexturesGeneration = current_generation + 1;
         }
         else
         {

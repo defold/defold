@@ -43,7 +43,7 @@ namespace dmPlatform
         return glfwGetiOSEAGLContext();
     }
 
-    bool GetSafeAreaiOS(HWindow window, SafeArea* out)
+    bool GetSafeAreaiOS(HWindow window, WindowSafeArea* out)
     {
         UIView* view = (UIView*)glfwGetiOSUIView();
         if (!view || ![view respondsToSelector:@selector(safeAreaInsets)])

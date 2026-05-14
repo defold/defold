@@ -53,6 +53,10 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private id-message (properties/label-message :id))
+(def ^:private name-message (properties/label-message :name))
+(def ^:private path-message (properties/label-message :path))
+
 (defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
   (-> (protobuf/make-map-without-defaults GameObject$EmbeddedInstanceDesc
         :id id
@@ -85,7 +89,7 @@
                                    ;; creating nodes from editor scripts. At
                                    ;; that point, id-counts may be nil
                                    (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id))
-                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
+                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id id-message))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
   (property url g/Str
@@ -213,8 +217,8 @@
    :label ""})
 
 (defn- path-error [node-id resource]
-  (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
-      (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
+  (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource path-message)
+      (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource path-message)))
 
 (defn- component-property-error [node-id ddf-message]
   (when-some [errors (not-empty (sequence (comp (mapcat :properties) ; Extract GameObject$PropertyDescs from GameObject$ComponentPropertyDescs.
@@ -273,8 +277,8 @@
   (output node-outline-extras g/Any (g/constantly {}))
   (output build-targets g/Any :abstract)
 
-  (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
-                                (-> (collection-common/any-instance-scene _node-id id transform scene)
+  (output scene g/Any :cached (g/fnk [_node-id id pose scene child-scenes]
+                                (-> (collection-common/any-instance-scene _node-id id pose scene)
                                     (update :children util/intov child-scenes))))
   (output go-inst-ids g/Any (g/fnk [_node-id id] {id _node-id}))
   (output ddf-properties g/Any (g/fnk [id ddf-component-properties] {:id id :properties ddf-component-properties})))
@@ -484,8 +488,9 @@
     (outline-coll-resolve-id self-id child-id)
     (tx-attach-coll-coll self-id child-id)))
 
-(g/defnk produce-coll-outline [_node-id child-outlines]
-  (let [{go-outlines false coll-outlines true} (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
+(g/defnk produce-coll-outline [^:unsafe _evaluation-context _node-id child-outlines]
+  (let [basis (:basis _evaluation-context)
+        {go-outlines false coll-outlines true} (group-by #(g/node-instance? basis CollectionInstanceNode (:node-id %)) child-outlines)]
     {:node-id _node-id
      :node-outline-key "Collection"
      :label (localization/message "outline.collection")
@@ -507,7 +512,7 @@
 
   (property name g/Str
             (dynamic error (g/fnk [_node-id name]
-                             (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name "Name"))))
+                             (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name name-message))))
 
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now
@@ -669,8 +674,8 @@
                                     :scale3 scale
                                     :instance-properties ddf-properties)
                                   (collection-common/strip-default-scale-from-any-instance-desc))))
-  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
-                                (collection-common/any-instance-scene _node-id id transform scene)))
+  (output scene g/Any :cached (g/fnk [_node-id id pose scene]
+                                (collection-common/any-instance-scene _node-id id pose scene)))
   (output build-targets g/Any produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
                                                   (map (fn [m] (update m :id (fn [s] (format "%s/%s" id s)))) ddf-properties)))
@@ -697,13 +702,17 @@
       (when select-fn
         (select-fn [go-node])))))
 
-(defn- selection->collection [selection]
-  (g/override-root (if-some [collection-instance (handler/adapt-single selection CollectionInstanceNode)]
-                     (g/node-feeding-into collection-instance :source-resource)
-                     (handler/adapt-single selection CollectionNode))))
+(defn- selection->collection [selection evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (g/override-root
+      basis
+      (if-some [collection-instance (handler/adapt-single selection CollectionInstanceNode evaluation-context)]
+        (g/node-feeding-into basis collection-instance :source-resource)
+        (handler/adapt-single selection CollectionNode evaluation-context)))))
 
-(defn- selection->game-object-instance [selection]
-  (g/override-root (handler/adapt-single selection GameObjectInstanceNode)))
+(defn- selection->game-object-instance [selection evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (g/override-root basis (handler/adapt-single selection GameObjectInstanceNode evaluation-context))))
 
 (defn add-referenced-game-object! [coll-node parent resource select-fn]
   (let [base (resource/base-name resource)
@@ -718,11 +727,11 @@
 
 (handler/defhandler :edit.add-referenced-component :workbench
   :label (localization/message "command.edit.add-referenced-component.variant.collection")
-  (active? [selection] (selection->collection selection))
+  (active? [selection evaluation-context] (selection->collection selection evaluation-context))
   (run [workspace project app-view selection]
-       (let [collection (selection->collection selection)]
-         (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title (localization/message "dialog.select-game-object-file.title")}))]
-           (add-referenced-game-object! collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
+    (g/let-ec [collection (selection->collection selection evaluation-context)]
+      (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title (localization/message "dialog.select-game-object-file.title")}))]
+        (add-referenced-game-object! collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
 (defn- connect-embedded-go [node-type resource-node go-node]
   (gu/connect-existing-outputs node-type resource-node go-node
@@ -769,10 +778,10 @@
 
 (handler/defhandler :edit.add-embedded-component :workbench
   :label (localization/message "command.edit.add-embedded-component.variant.collection")
-  (active? [selection] (selection->collection selection))
+  (active? [selection evaluation-context] (selection->collection selection evaluation-context))
   (run [selection workspace project user-data app-view]
-       (let [collection (selection->collection selection)]
-         (add-embedded-game-object! workspace project collection collection (fn [node-ids] (app-view/select app-view node-ids))))))
+    (g/let-ec [collection (selection->collection selection evaluation-context)]
+      (add-embedded-game-object! workspace project collection collection (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn- make-collection-instance [self source-resource id transform-properties overrides select-fn]
   (let [path {:resource source-resource
@@ -797,11 +806,12 @@
 
 (handler/defhandler :edit.add-secondary-embedded-component :workbench
   :label (localization/message "command.edit.add-secondary-embedded-component.variant.collection-game-object")
-  (active? [selection] (selection->game-object-instance selection))
+  (active? [selection evaluation-context] (selection->game-object-instance selection evaluation-context))
   (run [selection project workspace app-view]
-       (let [go-node (selection->game-object-instance selection)
-             collection (core/scope-of-type go-node CollectionNode)]
-         (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
+    (g/let-ec [basis (:basis evaluation-context)
+               go-node (selection->game-object-instance selection evaluation-context)
+               collection (core/scope-of-type basis go-node CollectionNode)]
+      (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn- contains-resource? [project collection resource evaluation-context]
   (let [acc-fn (fn [target-node]
@@ -809,78 +819,94 @@
     (project/node-refers-to-resource? project collection resource acc-fn)))
 
 (handler/defhandler :edit.add-secondary-referenced-component :workbench
-  (active? [selection] (or (selection->collection selection)
-                         (selection->game-object-instance selection)))
-  (label [selection] (if (selection->collection selection)
-                       (localization/message "command.edit.add-secondary-referenced-component.variant.collection")
-                       (localization/message "command.edit.add-secondary-referenced-component.variant.collection-game-object")))
+  (active? [selection evaluation-context]
+    (or (selection->collection selection evaluation-context)
+        (selection->game-object-instance selection evaluation-context)))
+  (label [selection evaluation-context]
+    (if (selection->collection selection evaluation-context)
+      (localization/message "command.edit.add-secondary-referenced-component.variant.collection")
+      (localization/message "command.edit.add-secondary-referenced-component.variant.collection-game-object")))
   (run [selection workspace project app-view]
-       (if-let [coll-node (selection->collection selection)]
-         (let [ext "collection"]
-           (when-let [resource (first
-                                 (g/with-auto-evaluation-context evaluation-context
-                                   (resource-dialog/make
-                                     workspace project
-                                     {:ext ext
-                                      :title (localization/message "dialog.select-collection-file.title")
-                                      :accept-fn #(not (contains-resource? project coll-node % evaluation-context))})))]
-             (let [base (resource/base-name resource)
-                   id (gen-instance-id coll-node base)
+    (if-let [coll-node (g/with-auto-evaluation-context evaluation-context
+                         (selection->collection selection evaluation-context))]
+      (let [ext "collection"]
+        (when-let [resource
+                   (first
+                     (g/with-auto-evaluation-context evaluation-context
+                       (resource-dialog/make
+                         workspace project
+                         {:ext ext
+                          :title (localization/message "dialog.select-collection-file.title")
+                          :accept-fn #(not (contains-resource? project coll-node % evaluation-context))})))]
+          (let [base (resource/base-name resource)
+                id (gen-instance-id coll-node base)
+                select-fn (fn [node-ids] (app-view/select app-view node-ids))]
+            (add-referenced-collection! coll-node resource id nil nil select-fn))))
+      (when-let [resource (select-go-file workspace project)]
+        (g/let-ec [basis (:basis evaluation-context)
+                   go-node (selection->game-object-instance selection evaluation-context)
+                   coll-node (core/scope-of-type basis go-node CollectionNode)
                    select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-               (add-referenced-collection! coll-node resource id nil nil select-fn))))
-         (when-let [resource (select-go-file workspace project)]
-           (let [go-node (selection->game-object-instance selection)
-                 coll-node (core/scope-of-type go-node CollectionNode)
-                 select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-             (add-referenced-game-object! coll-node go-node resource select-fn))))))
+          (add-referenced-game-object! coll-node go-node resource select-fn))))))
+
+(defn- validate-child-references! [id->nid child->parent]
+  (run!
+    (fn [[child parent]]
+      (when (and parent (not (id->nid child)))
+        (throw (IllegalStateException.
+                 (format "Unresolved child id '%s' referenced by parent '%s'." child parent)))))
+    child->parent))
 
 (defn load-collection [project self resource collection]
   {:pre [(map? collection)]} ; GameObject$CollectionDesc in map format.
-  (concat
-    (gu/set-properties-from-pb-map self GameObject$CollectionDesc collection
-      name :name
-      scale-along-z (protobuf/int->boolean :scale-along-z))
-    (let [tx-go-creation (flatten
-                           (concat
-                             (for [game-object (:instances collection)
-                                   :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
-                               (make-ref-go self source-resource (:id game-object) game-object nil (:component-properties game-object) nil))
-                             (for [embedded (:embedded-instances collection)]
-                               (do
-                                 ;; Note: We only need to check that the
-                                 ;; EmbeddedInstanceDesc has been string-decoded
-                                 ;; here. Any EmbeddedComponentDescs inside will
-                                 ;; be validated by the game-object :load-fn.
-                                 (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded resource)
-                                 (make-embedded-go self project (:data embedded) (:id embedded) embedded nil nil)))))
-          id->nid (-> tx-go-creation
-                      (g/tx-data-added-nodes)
-                      (coll/transfer {}
-                        (filter #(g/node-instance*? GameObjectInstanceNode %))
-                        (map (fn [node]
-                               (pair (:id node)
-                                     (g/node-id node))))))
-          child->parent (-> {}
-                            (into (map #(pair (key %) nil))
-                                  id->nid)
-                            (into
-                              (comp cat
-                                    (mapcat (fn [{:keys [children id]}]
-                                              (map #(pair % id)
-                                                   children))))
-                              (pair (:instances collection)
-                                    (:embedded-instances collection))))]
-      (concat
-        tx-go-creation
-        (for [[child parent] child->parent
-              :let [child-id (id->nid child)
-                    parent-id (if parent (id->nid parent) self)]]
-          (if parent
-            (child-go-go parent-id child-id)
-            (child-coll-any self child-id)))))
-    (for [coll-instance (:collection-instances collection)
-          :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
-      (make-collection-instance self source-resource (:id coll-instance) coll-instance (:instance-properties coll-instance) nil))))
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
+    (concat
+      (gu/set-properties-from-pb-map self GameObject$CollectionDesc collection
+        name :name
+        scale-along-z (protobuf/int->boolean :scale-along-z))
+      (let [tx-go-creation (flatten
+                             (concat
+                               (for [game-object (:instances collection)
+                                     :let [source-resource (resolve-resource (:prototype game-object))]]
+                                 (make-ref-go self source-resource (:id game-object) game-object nil (:component-properties game-object) nil))
+                               (for [embedded (:embedded-instances collection)]
+                                 (do
+                                   ;; Note: We only need to check that the
+                                   ;; EmbeddedInstanceDesc has been string-decoded
+                                   ;; here. Any EmbeddedComponentDescs inside will
+                                   ;; be validated by the game-object :load-fn.
+                                   (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded resource)
+                                   (make-embedded-go self project (:data embedded) (:id embedded) embedded nil nil)))))
+            id->nid (-> tx-go-creation
+                        (g/tx-data-added-nodes)
+                        (coll/into-> {}
+                          (filter #(g/node-instance*? GameObjectInstanceNode %))
+                          (map (fn [node]
+                                 (pair (:id node)
+                                       (g/node-id node))))))
+            child->parent (-> {}
+                              (into (map #(pair (key %) nil))
+                                    id->nid)
+                              (into
+                                (comp cat
+                                      (mapcat (fn [{:keys [children id]}]
+                                                (map #(pair % id)
+                                                     children))))
+                                (pair (:instances collection)
+                                      (:embedded-instances collection))))]
+        (validate-child-references! id->nid child->parent)
+        (concat
+          tx-go-creation
+          (for [[child parent] child->parent
+                :let [child-id (id->nid child)
+                      parent-id (if parent (id->nid parent) self)]]
+            (if parent
+              (child-go-go parent-id child-id)
+              (child-coll-any self child-id)))))
+      (for [coll-instance (:collection-instances collection)
+            :let [source-resource (resolve-resource (:collection coll-instance))]]
+        (make-collection-instance self source-resource (:id coll-instance) coll-instance (:instance-properties coll-instance) nil)))))
 
 (defn- sanitize-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
@@ -916,8 +942,9 @@
            (mapv #(add-dropped-resource root-id transform-props % evaluation-context))))))
 
 (defmethod ext-graph/create-extra-nodes ::EmbeddedGOInstanceNode [evaluation-context _rt project workspace _attachment node-id]
-  (let [resource-type ((resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable) "go")
-        pb-map (game-object-common/template-pb-map workspace resource-type evaluation-context)
+  (let [basis (:basis evaluation-context)
+        resource-type (get (resource/resource-types-by-type-ext basis workspace :editable) "go")
+        pb-map (game-object-common/template-pb-map basis workspace resource-type)
         resource (resource/make-memory-resource workspace resource-type pb-map)
         graph (g/node-id->graph-id node-id)
         node-type (:node-type resource-type)]
@@ -998,6 +1025,7 @@
       :string-encode-fn (partial string-encode-collection workspace)
       :icon collection-common/collection-icon
       :icon-class :design
+      :category (localization/message "resource.category.objects")
       :view-types [:scene :text]
       :view-opts {:scene {:grid true
                           :drop-fn handle-drop}})))

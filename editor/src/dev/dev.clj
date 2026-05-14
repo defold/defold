@@ -32,11 +32,11 @@
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.game-object :as game-object]
-            [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.node-util :as node-util]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -60,6 +60,7 @@
             [lambdaisland.deep-diff2.printer-impl :as deep-diff.printer-impl]
             [lambdaisland.deep-diff2.puget.color :as puget.color]
             [lambdaisland.deep-diff2.puget.printer :as puget.printer]
+            [macro]
             [potemkin.namespaces :as namespaces]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
@@ -70,7 +71,7 @@
   (:import [com.defold.util WeakInterner]
            [com.dynamo.bob Platform]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
-           [com.google.protobuf Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
+           [com.google.protobuf Descriptors$Descriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
            [editor.code.data Cursor CursorRange]
            [editor.gl.pass RenderPass]
            [editor.gl.vertex2 VertexBuffer]
@@ -90,7 +91,8 @@
 
 (namespaces/import-vars
   [util.debug-util stack-trace]
-  [integration.test-util outline-node-id outline-node-info resource-outline-node-id resource-outline-node-info])
+  [integration.test-util outline-node-id outline-node-info resource-outline-node-id resource-outline-node-info]
+  [macro pprint-code pprint-macroexpanded simplify-expression])
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))
@@ -99,7 +101,7 @@
   0)
 
 (defn project []
-  (ffirst (g/targets-of (workspace) :resource-map)))
+  (ffirst (g/targets-of (workspace) :resource-list)))
 
 (defn app-view []
   (ffirst (g/targets-of (project) :selected-node-ids-by-resource-node)))
@@ -148,7 +150,7 @@
          original-node-id (g/override-original basis node-id)
          override-node-ids (g/overrides basis node-id)]
      (cond-> (into (array-map :node-id node-id)
-                   (gu/node-debug-info node-id evaluation-context))
+                   (node-util/node-debug-info node-id evaluation-context))
 
              (some? original-node-id)
              (assoc :original-node-id original-node-id)
@@ -230,7 +232,10 @@
   (prefs/project (workspace/project-directory (workspace))))
 
 (defn localization []
-  (some #(-> % :env :localization) (ui/contexts (ui/main-scene))))
+  (some #(-> % :env :localization) (ui/contexts (ui/main-scene) true)))
+
+(defn web-server []
+  (some #(-> % :env :web-server) (ui/contexts (ui/main-scene) true)))
 
 (declare ^:private exclude-keys-deep-helper)
 
@@ -240,7 +245,7 @@
     (exclude-keys-deep-helper excluded-map-entry? value)
 
     (coll? value)
-    (coll/transform value
+    (coll/transform-> value
       (map (partial exclude-keys-deep-value-helper excluded-map-entry?)))
 
     :else
@@ -304,6 +309,18 @@
   (let [wrapped-value-fn (deep-keep-kv-wrapped-value-fn value-fn)]
     (util/deep-keep-kv deep-keep-finalize-coll-value-fn wrapped-value-fn value)))
 
+(defn nodes-of-type
+  ([node-type]
+   (nodes-of-type (g/now) node-type))
+  ([basis node-type]
+   (sequence
+     (comp (map val)
+           (mapcat :nodes)
+           (map val)
+           (filter #(g/node-instance*? node-type %))
+           (map gt/node-id))
+     (:graphs basis))))
+
 (defn views-of-type [node-type]
   (keep (fn [node-id]
           (when (g/node-instance? node-type node-id)
@@ -326,7 +343,8 @@
    (when-some [focused-control (focused-control)]
      (command-contexts focused-control)))
   ([^Node control]
-   (ui/node-contexts control true)))
+   (g/with-auto-evaluation-context evaluation-context
+     (ui/node-contexts control true evaluation-context))))
 
 (defn command-env
   ([command]
@@ -628,113 +646,6 @@
         (map (comp :k g/node-type))
         graphs))))
 
-(defn- ns->namespace-name
-  ^String [ns]
-  (name (ns-name ns)))
-
-(defn- class->canonical-symbol [^Class class]
-  (symbol (.getName class)))
-
-(defn- make-alias-names-by-namespace-name [ns]
-  (into {(ns->namespace-name 'clojure.core) nil
-         (ns->namespace-name ns) nil}
-        (map (fn [[alias-symbol referenced-ns]]
-               (pair (ns->namespace-name referenced-ns)
-                     (name alias-symbol))))
-        (ns-aliases ns)))
-
-(defn- make-simple-symbols-by-canonical-symbol [ns]
-  (into {}
-        (map (fn [[alias-symbol imported-class]]
-               (pair (class->canonical-symbol imported-class)
-                     alias-symbol)))
-        (ns-imports ns)))
-
-(defn- simplify-namespace-name [namespace-name alias-names-by-namespace-name]
-  {:pre [(or (nil? namespace-name) (string? namespace-name))
-         (map? alias-names-by-namespace-name)]}
-  (let [alias-name (get alias-names-by-namespace-name namespace-name ::not-found)]
-    (case alias-name
-      ::not-found namespace-name
-      alias-name)))
-
-(defn- simplify-symbol-name [symbol-name]
-  (string/replace symbol-name
-                  #"__(\d+)__auto__$"
-                  "#"))
-
-(defn- simplify-symbol [expression alias-names-by-namespace-name]
-  (-> expression
-      (namespace)
-      (simplify-namespace-name alias-names-by-namespace-name)
-      (symbol (-> expression name simplify-symbol-name))
-      (with-meta (meta expression))))
-
-(defn- simplify-keyword [expression alias-names-by-namespace-name]
-  (-> expression
-      (namespace)
-      (simplify-namespace-name alias-names-by-namespace-name)
-      (keyword (name expression))))
-
-(defn- simplify-expression-impl [expression alias-names-by-namespace-name simple-symbols-by-canonical-symbol]
-  (cond
-    (record? expression)
-    expression
-
-    (map? expression)
-    (into (coll/empty-with-meta expression)
-          (map (fn [[key value]]
-                 (pair (simplify-expression-impl key alias-names-by-namespace-name simple-symbols-by-canonical-symbol)
-                       (simplify-expression-impl value alias-names-by-namespace-name simple-symbols-by-canonical-symbol))))
-          expression)
-
-    (or (vector? expression)
-        (set? expression))
-    (into (coll/empty-with-meta expression)
-          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol))
-          expression)
-
-    (coll/list-or-cons? expression)
-    (into (coll/empty-with-meta expression)
-          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol))
-          (reverse expression))
-
-    (symbol? expression)
-    (or (get simple-symbols-by-canonical-symbol expression)
-        (simplify-symbol expression alias-names-by-namespace-name))
-
-    (keyword? expression)
-    (simplify-keyword expression alias-names-by-namespace-name)
-
-    :else
-    expression))
-
-(defmacro simplify-expression
-  ([expression]
-   `(simplify-expression *ns* ~expression))
-  ([ns expression]
-   `(let [ns# ~ns]
-      (#'simplify-expression-impl
-        ~expression
-        (#'make-alias-names-by-namespace-name ns#)
-        (#'make-simple-symbols-by-canonical-symbol ns#)))))
-
-(defn- pprint-code-impl [expression]
-  (binding [pprint/*print-suppress-namespaces* false
-            pprint/*print-right-margin* 100
-            pprint/*print-miser-width* 60]
-    (pprint/with-pprint-dispatch
-      pprint/code-dispatch
-      (pprint/pprint expression))))
-
-(defmacro pprint-code
-  "Pretty-print the supplied code expression while attempting to retain readable
-  formatting. Useful when developing macros."
-  ([expression]
-   `(#'pprint-code-impl (simplify-expression ~expression)))
-  ([ns expression]
-   `(#'pprint-code-impl (simplify-expression ~ns ~expression))))
-
 (defn println-err
   [& more]
   (binding [*out* *err*]
@@ -774,7 +685,7 @@
                            (let [node-id (gt/endpoint-node-id endpoint)
                                  label (gt/endpoint-label endpoint)
                                  immediate-predecessors (set (immediate-predecessor-endpoints basis node-id label))]
-                             (coll/transfer immediate-predecessors immediate-predecessors
+                             (coll/into-> immediate-predecessors immediate-predecessors
                                (mapcat (comp deref endpoint->predecessors-ref)))))
                   predecessors-ref)))]
       (let [endpoint (gt/endpoint node-id label)]
@@ -798,9 +709,8 @@
                                identity
                                (fn [endpoint]
                                  (let [node-id (gt/endpoint-node-id endpoint)
-                                       label (gt/endpoint-label endpoint)
-                                       graph-id (gt/node-id->graph-id node-id)]
-                                   (cond->> (get-in basis [:graphs graph-id :successors node-id label])
+                                       label (gt/endpoint-label endpoint)]
+                                   (cond->> (g/successors basis node-id label)
                                             successor-filter
                                             (into [] (filter #(successor-filter [endpoint %])))))))))
                          endpoints)]
@@ -1095,8 +1005,6 @@
    (clear-caches! :project :scene :system))
   ([& cache-kws]
    (let [clear-cache? (set cache-kws)]
-     (when (clear-cache? :library)
-       (test-util/clear-cached-libraries!))
      (when (clear-cache? :project)
        (test-util/clear-cached-projects!))
      (when (clear-cache? :scene)
@@ -1240,7 +1148,7 @@
                                                       :number
                                                       :string)]
                                         (col-txt printer element num-str)))
-                            data (coll/transfer row-col-strs [:align]
+                            data (coll/into-> row-col-strs [:align]
                                    (map (fn [col-strs]
                                           (interpose " " (map fmt-col col-strs))))
                                    (interpose :break))]
@@ -1416,26 +1324,48 @@
                    (build-output-infos->diff-data bob-build-output-infos)
                    opts))))
 
-(defn pb-class-info
-  ([^Class pb-class]
-   (pb-class-info pb-class fn/constantly-true))
-  ([^Class pb-class field-info-predicate]
-   (into (sorted-map)
-         (keep (fn [^Descriptors$FieldDescriptor field-desc]
-                 (let [field-name (.getName field-desc)
-                       field-value-class (protobuf/field-value-class pb-class field-desc)
-                       field-rule (cond (.isRepeated field-desc) :repeated
-                                        (.isRequired field-desc) :required
-                                        (.isOptional field-desc) :optional
-                                        :else (assert false))
-                       field-info (cond-> {:value-type field-value-class
-                                           :field-rule field-rule}
+(defn- pb-desc-info-impl
+  [^Descriptors$Descriptor desc seen-descs field-info-predicate]
+  (letfn [(recurse [^Descriptors$FieldDescriptor field-desc]
+            (when (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
+              (let [value-desc (.getMessageType field-desc)]
+                (when-not (contains? seen-descs value-desc)
+                  (let [seen-descs (conj seen-descs value-desc)]
+                    (pb-desc-info-impl value-desc seen-descs field-info-predicate))))))]
+    (into (sorted-map)
+          (keep (fn [^Descriptors$FieldDescriptor field-desc]
+                  (let [{:keys [key-info value-info]}
+                        (if (.isMapField field-desc)
+                          (let [map-entry-desc (.getMessageType field-desc)
+                                key-field-desc (.findFieldByName map-entry-desc "key")
+                                value-field-desc (.findFieldByName map-entry-desc "value")
+                                key-class (protobuf/pb-field-desc-class key-field-desc)
+                                value-class (protobuf/pb-field-desc-class value-field-desc)
+                                value-message (recurse value-field-desc)]
+                            {:key-info {:key-class key-class}
+                             :value-info (cond-> {:value-class value-class}
+                                                 value-message (assoc :value-message value-message))})
+                          (let [value-class (protobuf/pb-field-desc-class field-desc)
+                                value-message (recurse field-desc)]
+                            {:value-info (cond-> {:value-class value-class}
+                                                 value-message (assoc :value-message value-message))}))
 
-                                          (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
-                                          (assoc :message (pb-class-info field-value-class field-info-predicate)))]
-                   (when (field-info-predicate field-info)
-                     (pair field-name field-info)))))
-         (.getFields (protobuf/pb-class->descriptor pb-class)))))
+                        field-name (.getName field-desc)
+                        field-kind (protobuf/pb-field-desc-field-kind field-desc)
+                        field-info (coll/merge {:field-kind field-kind}
+                                               key-info
+                                               value-info)]
+                    (when (field-info-predicate field-info)
+                      (pair field-name field-info)))))
+          (.getFields desc))))
+
+(defn pb-desc-info
+  ([^Descriptors$Descriptor desc]
+   (pb-desc-info-impl desc #{} fn/constantly-true))
+  ([^Descriptors$Descriptor desc field-info-predicate]
+   (pb-desc-info-impl desc #{} field-info-predicate)))
+
+(def pb-class-info (comp pb-desc-info protobuf/pb-class->descriptor))
 
 (defn pb-resource-type-info
   ([workspace]
@@ -1447,8 +1377,8 @@
                    (let [read-defaults (:read-defaults test-info)
                          pb-class-info (pb-class-info pb-class field-info-predicate)]
                      (pair ext {:read-defaults read-defaults
-                                :value-type pb-class
-                                :message pb-class-info})))))
+                                :value-class pb-class
+                                :value-message pb-class-info})))))
          (workspace/get-resource-type-map workspace))))
 
 (defn pb-resource-exts-that-read-defaults [workspace]
@@ -1457,11 +1387,11 @@
 (def class-name-comparator #(compare (.getName ^Class %1) (.getName ^Class %2)))
 
 (defn resource-pb-classes [workspace]
-  (letfn [(info->value-types [{:keys [message value-type]}]
-            (cond->> (mapcat info->value-types (vals message))
-                     (and message value-type) (cons value-type)))]
+  (letfn [(info->value-classes [{:keys [value-class value-message]}]
+            (cond->> (mapcat info->value-classes (vals value-message))
+                     (and value-message value-class) (cons value-class)))]
     (into (sorted-set-by class-name-comparator)
-          (mapcat info->value-types)
+          (mapcat info->value-classes)
           (vals (pb-resource-type-info workspace)))))
 
 (defn resource-pb-class-field-types
@@ -1471,9 +1401,9 @@
    (into (sorted-map-by class-name-comparator)
          (keep (fn [^Class pb-class]
                  (some->> (into (sorted-map)
-                                (keep (fn [[field-name {:keys [^Class value-type] :as field-info}]]
+                                (keep (fn [[field-name {:keys [^Class value-class] :as field-info}]]
                                         (when (field-info-predicate field-info)
-                                          (pair field-name value-type))))
+                                          (pair field-name value-class))))
                                 (pb-class-info pb-class))
                           (not-empty)
                           (pair pb-class))))
@@ -1707,6 +1637,7 @@
          (persistent! batches))))))
 
 (defn clear-enable-all! []
+  (g/forget-logged-evaluation-context-scope-violations!)
   (clear-caches!)
   (handler/enable-disabled-handlers!)
   (ui/enable-stopped-timers!)

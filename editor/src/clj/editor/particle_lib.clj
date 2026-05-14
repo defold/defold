@@ -15,17 +15,16 @@
 (ns editor.particle-lib
   (:require [editor.buffers :as buffers]
             [editor.graphics.types :as graphics.types]
-            [editor.math :as math]
             [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
-  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos]
+  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchResourcesCallback ParticleLibrary$FetchResourcesData ParticleLibrary$FetchResourcesParams ParticleLibrary$FetchResourcesResult ParticleLibrary$InstanceStats ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.jogamp.common.nio Buffers]
-           [com.sun.jna Pointer]
+           [com.sun.jna Pointer Structure]
            [com.sun.jna.ptr IntByReference]
            [java.nio ByteBuffer]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d VecmathUtils Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -58,13 +57,19 @@
   (let [position (Point3d.)
         rotation (Quat4d.)
         scale (Vector3d.)
-        _ (math/split-mat4 transform position rotation scale)
-        ; Corresponds to how uniform scale is computed in the engine
-        min-scale (min (.x scale) (.y scale) (.z scale))]
-    (ParticleLibrary/Particle_SetPosition context instance (point3d->plib position))
-    (ParticleLibrary/Particle_SetRotation context instance (quat4d->plib rotation))
-    (ParticleLibrary/Particle_SetScale context instance min-scale)
-    instance))
+        rotation-matrix (Matrix3d.)]
+    ;; This is similar to how we do it in math/split-mat4, but here we skip
+    ;; correcting the handedness of the resulting rotation matrix. This seems to
+    ;; be what is happening in the runtime. The effect can be seen when one or
+    ;; more axes of the parent transform have a negative scale.
+    (VecmathUtils/extractTranslation transform position)
+    (VecmathUtils/extractRotationScaleOrthogonal transform rotation-matrix scale)
+    (VecmathUtils/assignFromOrthonormal rotation rotation-matrix)
+    (let [min-scale (min (.x scale) (.y scale) (.z scale))]
+      (ParticleLibrary/Particle_SetPosition context instance (point3d->plib position))
+      (ParticleLibrary/Particle_SetRotation context instance (quat4d->plib rotation))
+      (ParticleLibrary/Particle_SetScale context instance min-scale)
+      instance)))
 
 (def ^:private playback-map
   {:playback-none ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_NONE
@@ -75,27 +80,31 @@
    :playback-loop-backward ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_LOOP_BACKWARD
    :playback-loop-pingpong ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_LOOP_PINGPONG})
 
-(defn- fetch-animation [tile-source hash ^ParticleLibrary$AnimationData out-data fetch-anim-fn]
-  (let [index (int (Pointer/nativeValue tile-source))
-        data (fetch-anim-fn (dec index))]
+(defn- fetch-resources [^ParticleLibrary$FetchResourcesParams params ^ParticleLibrary$FetchResourcesData out-data fetch-anim-fn]
+  (let [emitter-index (.emitterIndex params)
+        data (fetch-anim-fn emitter-index)]
     (if (or (nil? data) (nil? (:texture-set-anim data)))
-      ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_NOT_FOUND
-      (let [anim (:texture-set-anim data)]
-        (assert (= hash (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
-        (set! (. out-data texture) (Pointer. index))
-        (set! (. out-data texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
-        (set! (. out-data pageIndices) (.asIntBuffer ^ByteBuffer (:page-indices data)))
-        (set! (. out-data frameIndices) (.asIntBuffer ^ByteBuffer (:frame-indices data)))
-        (set! (. out-data playback) (get playback-map (:playback anim)))
-        (set! (. out-data tileWidth) (int (:width anim)))
-        (set! (. out-data tileHeight) (int (:height anim)))
-        (set! (. out-data startTile) (:start anim))
-        (set! (. out-data endTile) (:end anim))
-        (set! (. out-data fps) (:fps anim))
-        (set! (. out-data hFlip) (:flip-horizontal anim))
-        (set! (. out-data vFlip) (:flip-vertical anim))
-        (set! (. out-data structSize) (.size out-data))
-        ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK))))
+      ParticleLibrary$FetchResourcesResult/FETCH_RESOURCES_NOT_FOUND
+      (let [anim (:texture-set-anim data)
+            ^ParticleLibrary$AnimationData anim-out (.animationData out-data)]
+        (assert (= (.animation params) (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
+        (set! (. anim-out texture) (Pointer. (inc emitter-index)))
+        (set! (. anim-out texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
+        (when-let [tex-dims ^ByteBuffer (:tex-dims data)]
+          (set! (. anim-out texDims) (.asFloatBuffer tex-dims)))
+        (set! (. anim-out pageIndices) (.asIntBuffer ^ByteBuffer (:page-indices data)))
+        (set! (. anim-out frameIndices) (.asIntBuffer ^ByteBuffer (:frame-indices data)))
+        (set! (. anim-out playback) (get playback-map (:playback anim)))
+        (set! (. anim-out tileWidth) (int (:width anim)))
+        (set! (. anim-out tileHeight) (int (:height anim)))
+        (set! (. anim-out startTile) (:start anim))
+        (set! (. anim-out endTile) (:end anim))
+        (set! (. anim-out fps) (:fps anim))
+        (set! (. anim-out hFlip) (:flip-horizontal anim))
+        (set! (. anim-out vFlip) (:flip-vertical anim))
+        (set! (. anim-out structSize) (.size anim-out))
+        (set! (. out-data material) Pointer/NULL)
+        ParticleLibrary$FetchResourcesResult/FETCH_RESOURCES_OK))))
 
 (defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
   (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
@@ -141,9 +150,9 @@
 
 
 (defn simulate [sim dt fetch-anim-fn instance-transforms]
-  (let [anim-callback (reify ParticleLibrary$FetchAnimationCallback
-                        (invoke [_ tile-source hash out-data]
-                          (fetch-animation tile-source hash out-data fetch-anim-fn)))
+  (let [anim-callback (reify ParticleLibrary$FetchResourcesCallback
+                        (invoke [_ params out-data]
+                          (fetch-resources params out-data fetch-anim-fn)))
         sim (if (sleeping? sim)
               (-> sim
                 (reset)
@@ -167,7 +176,7 @@
     (:coordinate-space-world :coordinate-space-local) (graphics.types/coordinate-space-pb-int coordinate-space)
     Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE))
 
-(defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
+(defn- attribute-info->particle-attribute-info ^ParticleLibrary$VertexAttributeInfo [^Pointer context ^ParticleLibrary$VertexAttributeInfo particle-attribute-info attribute-info vertex-attribute-bytes]
   (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
         attribute-semantic-type (graphics.types/semantic-type-pb-int (:semantic-type attribute-info))
         attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
@@ -178,8 +187,8 @@
         attribute-bytes-count (if (nil? attribute-bytes)
                                 0
                                 (.capacity attribute-bytes))
-        particle-attribute-info (ParticleLibrary$VertexAttributeInfo.)
-        context-attribute-scratch-ptr (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)]
+        context-attribute-scratch-ptr (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)
+        element-count (graphics.types/vector-type-component-count (:vector-type attribute-info))]
     (set! (. particle-attribute-info nameHash) attribute-name-hash)
     (set! (. particle-attribute-info semanticType) attribute-semantic-type)
     (set! (. particle-attribute-info dataType) attribute-data-type)
@@ -188,20 +197,30 @@
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
     (set! (. particle-attribute-info valueVectorType) attribute-vector-type)
+    (set! (. particle-attribute-info elementCount) (int element-count))
     (set! (. particle-attribute-info normalize) (boolean (:normalize attribute-info)))
     particle-attribute-info))
 
 (defn- make-particle-attribute-infos [^Pointer context vertex-description vertex-attribute-bytes]
   (let [vertex-stride (:size vertex-description)
         attribute-infos (:attributes vertex-description)
-        infos (ParticleLibrary$VertexAttributeInfos.)
         num-attribute-infos (count attribute-infos)]
     (ParticleLibrary/Particle_ResetAttributeScratchBuffer context)
-    (doseq [i (range num-attribute-infos)]
-      (aset (.infos infos) i (attribute-info->particle-attribute-info context (get attribute-infos i) vertex-attribute-bytes)))
-    (set! (. infos vertexStride) (int vertex-stride))
-    (set! (. infos numInfos) (int num-attribute-infos))
-    infos))
+    (let [first-particle-attribute-info (ParticleLibrary$VertexAttributeInfo.)
+          particle-attribute-info-array (.toArray first-particle-attribute-info num-attribute-infos)
+          infos (ParticleLibrary$VertexAttributeInfos.)]
+      (doseq [i (range num-attribute-infos)]
+        (attribute-info->particle-attribute-info context
+                                                 (aget ^objects particle-attribute-info-array i)
+                                                 (get attribute-infos i)
+                                                 vertex-attribute-bytes))
+      ;; Sync each struct to native memory so the native library sees our data
+      (doseq [i (range num-attribute-infos)]
+        (.write ^Structure (aget ^objects particle-attribute-info-array i)))
+      (set! (. infos infos) (.getPointer ^ParticleLibrary$VertexAttributeInfo (aget ^objects particle-attribute-info-array 0)))
+      (set! (. infos numInfos) (int num-attribute-infos))
+      (set! (. infos vertexStride) (int vertex-stride))
+      infos)))
 
 (defn- emitter-vertex-data [sim emitter-index max-particle-count vertex-description]
   (or (get (:raw-vbufs sim) emitter-index)
@@ -210,7 +229,6 @@
 (defn gen-emitter-vertex-data [sim emitter-index color max-particle-count vertex-description vertex-attribute-bytes]
   (when-let [raw-vbuf ^ByteBuffer (emitter-vertex-data sim emitter-index max-particle-count vertex-description)]
     (let [context (:context sim)
-          dt (:last-dt sim)
           out-size (IntByReference. 0)
           [r g b a] color
           instances (:instances sim)
@@ -218,7 +236,7 @@
       (assert (= 1 (count instances)))
       (.position raw-vbuf 0)
       (.limit raw-vbuf (.capacity raw-vbuf))
-      (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index particle-attribute-infos (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size)
+      (ParticleLibrary/Particle_GenerateVertexData context (first instances) emitter-index particle-attribute-infos (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size)
       (.position raw-vbuf (.getValue out-size))
       (.flip raw-vbuf)
       raw-vbuf)))

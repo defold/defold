@@ -20,6 +20,7 @@
             [editor.binary-file :as binary-file]
             [editor.buffer :as buffer]
             [editor.camera-editor :as camera]
+            [editor.data :as data]
             [editor.code.script :as code-script]
             [editor.code.shader :as code-shader]
             [editor.code.text-file :as code-text-file]
@@ -106,6 +107,7 @@
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
+      (data/register-resource-types workspace)
       (code-script/register-resource-types workspace)
       (code-shader/register-resource-types workspace)
       (code-text-file/register-resource-types workspace)

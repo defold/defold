@@ -17,7 +17,7 @@
 
 #include <Windows.h>
 
-#include "platform_window.h"
+#include "window.hpp"
 
 namespace dmPlatform
 {

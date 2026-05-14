@@ -21,7 +21,9 @@
 #include <script/script.h>
 
 #include "component.h"
+#include "gameobject_private.h"
 #include "gameobject_script.h"
+#include "gameobject_props.h"
 #include "gameobject_props_lua.h"
 
 extern "C"
@@ -65,6 +67,7 @@ namespace dmGameObject
         uint16_t            m_Composite : 1;
         uint16_t            m_Backwards : 1;
         uint16_t            m_FirstUpdate : 1;
+        uint16_t            m_IsGameObjectTransformProperty : 1;
     };
 
     struct AnimWorld
@@ -183,7 +186,7 @@ namespace dmGameObject
         AnimWorld* world = (AnimWorld*)params.m_World;
         world->m_InUpdate = 1;
         uint32_t size = world->m_Animations.Size();
-        uint32_t orig_size = size;
+        bool transforms_updated = false;
 
         DM_PROPERTY_ADD_U32(rmtp_ComponentsAnim, size);
 
@@ -211,7 +214,8 @@ namespace dmGameObject
                     {
                         PropertyDesc desc;
                         PropertyOptions property_opt;
-                        property_opt.m_Index = 0;
+                        AddPropertyOptionsIndex(&property_opt, 0);
+
                         GetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, desc);
                         anim.m_From = (float)desc.m_Variant.m_Number;
                     }
@@ -317,9 +321,10 @@ namespace dmGameObject
                 else
                 {
                     PropertyOptions property_opt;
-                    property_opt.m_Index = 0;
+                    AddPropertyOptionsIndex(&property_opt, 0);
                     SetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, PropertyVar(v));
                 }
+                transforms_updated |= anim.m_IsGameObjectTransformProperty;
             }
             if (completed)
             {
@@ -384,7 +389,7 @@ namespace dmGameObject
             }
         }
         world->m_InUpdate = 0;
-        update_result.m_TransformsUpdated = orig_size != 0;
+        update_result.m_TransformsUpdated = transforms_updated;
         return result;
     }
 
@@ -478,6 +483,7 @@ namespace dmGameObject
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
         animation.m_Composite = composite ? 1 : 0;
+        animation.m_IsGameObjectTransformProperty = component_id == 0 && IsGameObjectTransformProperty(property_id) ? 1 : 0;
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
             animation.m_Backwards = 1;
         animation.m_FirstUpdate = 1;
@@ -548,7 +554,8 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
         PropertyDesc prop_desc;
         PropertyOptions property_opt;
-        property_opt.m_Index = 0;
+        AddPropertyOptionsIndex(&property_opt, 0);
+
         PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)
         {
@@ -623,7 +630,7 @@ namespace dmGameObject
         }
         PropertyDesc prop_desc;
         PropertyOptions property_opt;
-        property_opt.m_Index = 0;
+        AddPropertyOptionsIndex(&property_opt, 0);
         PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)
         {

@@ -79,6 +79,16 @@ public class ResizableImageView extends ImageView {
     }
 
     @Override
+    public double maxWidth(double v) {
+        return Double.MAX_VALUE;
+    }
+
+    @Override
+    public double maxHeight(double v) {
+        return Double.MAX_VALUE;
+    }
+
+    @Override
     public Orientation getContentBias() {
         return Orientation.HORIZONTAL;
     }

@@ -14,7 +14,6 @@
 
 (ns integration.extension-spine-test
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
@@ -24,10 +23,10 @@
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.gui-test :as gui-test]
             [integration.test-util :as test-util]
+            local-extensions
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
             [util.diff :as diff]))
@@ -38,7 +37,7 @@
 
 (def ^:private migration-project-path "test/resources/spine_migration_project")
 
-(def ^:private extension-spine-url (settings-core/inject-jvm-properties "{{defold.extension.spine.url}}"))
+(def ^:private extension-spine-url (local-extensions/inject-jvm-properties "{{defold.extension.spine.url}}"))
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
@@ -285,9 +284,8 @@
                               error-item-of-parent-resource (first (:children error-tree))
                               error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
                           (is (= :resource (:type error-item-of-parent-resource)))
-                          (is (string/starts-with?
-                                (:message error-item-of-faulty-node)
-                                (str "The file '" error-resource-path "' could not be loaded")))))]
+                          (is (= (localization/message "error.resource-not-loaded-with-error" {"resource" error-resource-path "error" "irrelevant"})
+                                 (localization/vary-message-variables (:message error-item-of-faulty-node) assoc "error" "irrelevant")))))]
                 (is (invalid-content-error? "/main/main.collection" (test-util/build-error! main-collection)))
                 (is (invalid-content-error? "/main/main.gui" (test-util/build-error! main-gui))))))
           ;; Before unloading the project, generate the content for a migrated

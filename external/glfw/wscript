@@ -93,7 +93,7 @@ def build(bld):
             outdir      ='java',
             source_root = 'java')
 
-        bld.env['JAVACFLAGS'] = '-g -source 1.8 -target 1.8'.split()
+        bld.env['JAVACFLAGS'] = '-g --release 8 -Xlint:-options'.split()
 
         bld(features = 'jar seq',
             basedir  = 'java',
@@ -139,7 +139,7 @@ def create_package(self):
 
 
 def shutdown(self):
-    waf_dynamo.run_tests(test_context, valgrind = True)
+    waf_dynamo.run_tests(test_context)
 
 def package(self):
     pass

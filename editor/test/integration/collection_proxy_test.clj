@@ -26,9 +26,11 @@
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
         (is (= nil (g/node-value node-id :collection)))
+        (is (= false (g/node-value node-id :exclude)))
         (is (= (localization/message "outline.collection-proxy") (:label outline)))
         (is (empty? (:children outline)))
-        (is (= nil (get-in form-data [:values [:collection]])))))))
+        (is (= nil (get-in form-data [:values [:collection]])))
+        (is (= false (get-in form-data [:values [:exclude]])))))))
 
 (deftest collection-proxy-with-collection
   (testing "A collection proxy with a collection set"
@@ -37,10 +39,12 @@
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
         (is (= "/collection_proxy/default.collection" (resource/resource->proj-path (g/node-value node-id :collection))))
+        (is (= false (g/node-value node-id :exclude)))
         (is (= (localization/message "outline.collection-proxy") (:label outline)))
         (is (empty? (:children outline)))
         (is (= "/collection_proxy/default.collection"
-               (resource/resource->proj-path (get-in form-data [:values [:collection]]))))))))
+               (resource/resource->proj-path (get-in form-data [:values [:collection]]))))
+        (is (= false (get-in form-data [:values [:exclude]])))))))
 
 (deftest validation
   (test-util/with-loaded-project

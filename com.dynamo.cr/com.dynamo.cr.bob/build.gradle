@@ -23,16 +23,13 @@ allprojects {
 
 repositories {
     flatDir {
-        dirs 'lib', "${project.commonDir}/ext", "${project.bobDir}/lib"
+        dirs 'lib', "${project.bobDir}/lib", "${project.bobDir}/lib/aws"
     }
 }
 
 dependencies {
     implementation fileTree(dir: "${project.bobDir}/lib", include: '*.jar')
-    implementation fileTree(dir: "${project.commonDir}/ext", include: [
-            'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
-            'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar', 'aws/*.jar'
-    ])
+    implementation fileTree(dir: "${project.bobDir}/lib/aws", include: '*.jar')
 }
 
 task cleanDirs(type: Delete) {
@@ -170,12 +167,20 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
 
 task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
     doLast {
+        def bundletoolJar = file("${project.dynamoHome}/ext/share/java/bundletool-all.jar")
+        if (bundletoolJar.exists()) {
+            copy {
+                from bundletoolJar
+                into "${project.bobDir}/libexec"
+            }
+        }
+
         def platformFiles = [
-                'x86_64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
-                'arm64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
-                'x86_64-linux': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
-                'arm64-linux': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
-                'x86_64-win32': ['glslang.exe', 'spirv-opt.exe', 'luajit-64.exe', 'lipo.exe', 'tint.exe'],
+                'x86_64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint', 'gltf_validator'],
+                'arm64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint', 'gltf_validator'],
+                'x86_64-linux': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint', 'gltf_validator'],
+                'arm64-linux': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint', 'gltf_validator'],
+                'x86_64-win32': ['glslang.exe', 'spirv-opt.exe', 'luajit-64.exe', 'lipo.exe', 'tint.exe', 'gltf_validator.exe'],
                 'x86-win32': ['glslang.exe', 'spirv-opt.exe']
         ]
 
@@ -247,21 +252,9 @@ task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     from {
-        fileTree(dir: "${project.commonDir}/ext", include: [
-                'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
-                'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar',
-                'httpcore-4.1.4.jar'
-        ]).collect { zipTree(it) }
-    }
-    from {
         fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').collect { zipTree(it) }
     }
 
-    inputs.files(fileTree(dir: "${project.commonDir}/ext", include: [
-            'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
-            'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar',
-            'httpcore-4.1.4.jar'
-    ]).files)
     inputs.files(fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').files)
     outputs.file("${project.bobDir}/tmp/external-libs-light.jar")
 
@@ -291,6 +284,7 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
     from fileTree(project.bobDir) {
         include 'libexec/**/glslang*',
                 'libexec/**/tint*',
+                'libexec/**/gltf_validator*',
                 'libexec/**/spirv-opt*',
                 'libexec/**/luajit*',
                 'libexec/**/aapt2*'
@@ -323,12 +317,7 @@ task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGen
 
     Set<File> jarFiles = new HashSet<>()
 
-    jarFiles.addAll(fileTree(dir: "${project.commonDir}/ext", include: [
-            'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
-            'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar'
-    ]).files as Set<File>)
-
-    jarFiles.addAll(fileTree(dir: "${project.commonDir}/ext/aws", include: '*.jar').files as Set<File>)
+    jarFiles.addAll(fileTree(dir: "${project.bobDir}/lib/aws", include: '*.jar').files as Set<File>)
 
     jarFiles.addAll(fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').files as Set<File>)
 

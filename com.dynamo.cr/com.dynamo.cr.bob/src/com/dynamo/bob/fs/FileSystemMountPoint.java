@@ -149,5 +149,18 @@ public class FileSystemMountPoint implements IMountPoint {
         public boolean isCacheable() {
             return resource.isCacheable();
         }
+
+        @Override
+        public IResource disableMinifyPath() {
+            // Preserve the mounted wrapper for fluent chains like
+            // disableMinifyPath().changeExt(...), otherwise changeExt() runs on
+            // the mounted filesystem resource and loses the root-fs output mapping.
+            resource.disableMinifyPath();
+            return this;
+        }
+
+        @Override
+        public boolean isMinifyPath() { return resource.isMinifyPath(); }
+
     }
 }

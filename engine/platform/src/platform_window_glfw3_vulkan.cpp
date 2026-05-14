@@ -15,7 +15,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <glfw/glfw3.h>
 
-#include "platform_window.h"
+#include "window.hpp"
 #include "platform_window_glfw3_private.h"
 
 namespace dmPlatform

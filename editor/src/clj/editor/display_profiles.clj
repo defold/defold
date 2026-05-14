@@ -32,6 +32,7 @@
              :view-types [:cljfx-form-view :text]
              :icon "icons/32/Icons_50-Display-profiles.png"
              :icon-class :property
+             :category (localization/message "resource.category.project_settings")
              :pb-class Render$DisplayProfiles})
 
 (def ^:private comma-separated-string->non-empty-vector
@@ -171,4 +172,5 @@
     :load-fn load-display-profiles
     :icon (:icon pb-def)
     :icon-class (:icon-class pb-def)
+    :category (localization/message "resource.category.project_settings")
     :view-types (:view-types pb-def)))

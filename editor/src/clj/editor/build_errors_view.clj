@@ -13,21 +13,27 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.build-errors-view
-  (:require [clojure.string :as string]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.tree-cell :as fx.tree-cell]
+            [cljfx.fx.tree-item :as fx.tree-item]
+            [cljfx.fx.tree-view :as fx.tree-view]
             [dynamo.graph :as g]
             [editor.code.data :refer [CursorRange->line-number]]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
+            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.coll :refer [pair]])
+            [util.coll :as coll]
+            [util.coll :refer [pair]]
+            [util.eduction :as e]
+            [util.fn :as fn])
   (:import [clojure.lang PersistentQueue]
            [java.io File]
-           [java.util Collection]
-           [javafx.collections ObservableList]
            [javafx.scene.control TreeItem TreeView]
            [javafx.scene.input Clipboard ClipboardContent]))
 
@@ -37,10 +43,12 @@
   (conj PersistentQueue/EMPTY item))
 
 (defn- openable-resource [evaluation-context node-id]
-  (when (g/node-instance? (:basis evaluation-context) resource/ResourceNode node-id)
-    (when-some [resource (g/node-value node-id :resource evaluation-context)]
-      (when (resource/openable-resource? resource)
-        resource))))
+  (let [basis (:basis evaluation-context)]
+    (when-let [owner-resource-node-id (resource-node/owner-resource-node-id basis node-id)]
+      (when-some [resource (g/node-value owner-resource-node-id :resource evaluation-context)]
+        (when (resource/openable-resource? resource)
+          {:node-id owner-resource-node-id
+           :resource resource})))))
 
 (defn- node-id-at-override-depth [override-depth node-id]
   (if (and (some? node-id) (pos? override-depth))
@@ -52,9 +60,7 @@
         (let [basis (:basis evaluation-context)]
           (when (or (nil? origin-override-id)
                     (not= origin-override-id (g/override-id basis node-id)))
-            (when-some [resource (openable-resource evaluation-context node-id)]
-              {:node-id (or (g/override-original basis node-id) node-id)
-               :resource resource}))))
+            (openable-resource evaluation-context node-id))))
       (when-some [remaining-errors (next errors)]
         (recur evaluation-context remaining-errors origin-override-depth origin-override-id))))
 
@@ -170,38 +176,41 @@
    :children (error-items root-error)})
 
 (defmulti make-tree-cell
-  (fn [tree-item] (:type tree-item)))
+  (fn make-tree-cell-dispatch [_localization-state tree-item]
+    (:type tree-item)))
 
-(defmethod make-tree-cell :resource
-  [tree-item]
+(defmethod make-tree-cell :resource [_localization-state tree-item]
   (let [resource (-> tree-item :value :resource)]
     {:text (resource/proj-path resource)
-     :icon (workspace/resource-icon resource)
-     :style (resource/style-classes resource)}))
+     :style-class (into ["cell" "indexed-cell" "tree-cell"] (resource/style-classes resource))
+     :graphic {:fx/type ui/image-icon :path (workspace/resource-icon resource) :size 16.0}}))
 
-(defmethod make-tree-cell :unknown-parent
-  [tree-item]
-  {:text "Unknown source"
-   :icon "icons/32/Icons_29-AT-Unknown.png"
-   :style #{"severity-info"}})
+(def ^:private unknown-source-message (localization/message "error.unknown-source"))
+
+(defmethod make-tree-cell :unknown-parent [localization-state _tree-item]
+  {:text (localization-state unknown-source-message)
+   :style-class ["cell" "indexed-cell" "tree-cell" "severity-info"]
+   :graphic {:fx/type ui/image-icon :path "icons/32/Icons_29-AT-Unknown.png" :size 16.0}})
+
+(defn- error-text [{:keys [cursor-range message]} localization-state]
+  (localization-state
+    (if cursor-range
+      (localization/message "error.at-line" {"line" (CursorRange->line-number cursor-range) "error" message})
+      message)))
 
 (defmethod make-tree-cell :default
-  [error-item]
-  (let [cursor-range (:cursor-range error-item)
-        message (cond->> (:message error-item)
-                         (some? cursor-range)
-                         (str "Line " (CursorRange->line-number cursor-range) ": "))
-        icon (case (:severity error-item)
+  [localization-state {:keys [severity] :as error-item}]
+  (let [icon (case severity
                :info "icons/32/Icons_E_00_info.png"
                :warning "icons/32/Icons_E_01_warning.png"
                "icons/32/Icons_E_02_error.png")
-        style (case (:severity error-item)
-                :info #{"severity-info"}
-                :warning #{"severity-warning"}
-                #{"severity-error"})]
-    {:text message
-     :icon icon
-     :style style}))
+        style-class (case severity
+                      :info "severity-info"
+                      :warning "severity-warning"
+                      "severity-error")]
+    {:text (error-text error-item localization-state)
+     :style-class ["cell" "indexed-cell" "tree-cell" style-class]
+     :graphic {:fx/type ui/image-icon :path icon :size 16.0}}))
 
 (defn- find-outline-node [resource-node-id error-node-id]
   (or (when error-node-id
@@ -242,13 +251,7 @@
           (when (.exists file)
             {:type :file :file file})))))
 
-(defn- error-line-for-clipboard [error-item]
-  (let [message (:message error-item)
-        line (when-some [cursor-range (:cursor-range error-item)]
-               (str "Line " (CursorRange->line-number cursor-range) ": "))]
-    (str line message)))
-
-(defn- error-text-for-clipboard [selection]
+(defn- error-text-for-clipboard [selection localization]
   (let [children    (:children selection)
         resource    (or (get-in selection [:value :resource])
                         (get-in selection [:parent :resource]))
@@ -257,18 +260,18 @@
                       (str res-path next-line)
                       "")
         error-lines (if (not-empty children)
-                      (string/join next-line (map error-line-for-clipboard children))
-                      (error-line-for-clipboard selection))]
+                      (coll/join-to-string next-line (e/map #(error-text % localization) children))
+                      (error-text selection localization))]
     (str proj-path error-lines)))
 
 (handler/defhandler :edit.copy :build-errors-view
   (active? [selection] (not-empty selection))
   (enabled? [selection] (not-empty selection))
-  (run [build-errors-view]
+  (run [build-errors-view localization]
     (let [clipboard (Clipboard/getSystemClipboard)
           content    (ClipboardContent.)
           selection  (first (ui/selection build-errors-view))
-          error-text (error-text-for-clipboard selection)]
+          error-text (error-text-for-clipboard selection localization)]
       (.putString content error-text)
       (.setContent clipboard content))))
 
@@ -276,11 +279,31 @@
   [{:label (localization/message "command.edit.copy")
     :command :edit.copy}])
 
-(defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
+(def ^:private ext-with-tree-view-props (fx/make-ext-with-props fx.tree-view/props))
+
+(defn- make-tree-item [tree]
+  {:fx/type fx.tree-item/lifecycle
+   :value tree
+   :expanded true
+   :children (mapv make-tree-item (:children tree))})
+
+(fxui/defc build-errors-view
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (-> props :tree-view TreeView/.getProperties (.get ::localization))
+              :key :localization-state}]}
+  [{:keys [tree-view localization-state tree]}]
+  {:fx/type ext-with-tree-view-props
+   :desc {:fx/type fxui/ext-value :value tree-view}
+   :props (cond-> {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
+                                  :describe (fn/partial #'make-tree-cell localization-state)}}
+                  tree (assoc :root (make-tree-item tree)))})
+
+(defn make-build-errors-view [^TreeView errors-tree localization open-resource-fn]
   (doto errors-tree
-    (ui/customize-tree-view! {:double-click-expand? false})
+    (ui/customize-tree-view! {:double-click-expand false})
     (.setShowRoot false)
-    (ui/cell-factory! make-tree-cell)
+    (-> .getProperties (.put ::localization localization))
+    (fxui/advance-ui-user-data-component! ::view {:fx/type build-errors-view :tree-view errors-tree})
     (ui/on-double! (fn [_]
                      (when-let [{:keys [type] :as open-info} (some-> errors-tree ui/selection first error-item-open-info)]
                        (case type
@@ -289,38 +312,13 @@
                          :file (ui/open-file (:file open-info))))))
     (ui/register-context-menu ::build-errors-menu)
     (ui/context! :build-errors-view
-                 {:build-errors-view errors-tree}
+                 {:build-errors-view errors-tree :localization localization}
                  (ui/->selection-provider errors-tree))))
 
-(declare tree-item)
-
-(defn- list-children
-  ^Collection [parent]
-  (map tree-item (:children parent)))
-
-(defn- tree-item [parent]
-  (let [cached (atom false)]
-    (proxy [TreeItem] [parent]
-      (isLeaf []
-        (empty? (:children (.getValue ^TreeItem this))))
-      (getChildren []
-        (let [this ^TreeItem this
-              ^ObservableList children (proxy-super getChildren)]
-          (when-not @cached
-            (reset! cached true)
-            (.setAll children (list-children (.getValue this))))
-          children)))))
-
-(defn update-build-errors [^TreeView errors-tree build-errors]
-  (let [res-tree (build-resource-tree build-errors)
-        new-root (tree-item res-tree)]
-    (.setRoot errors-tree new-root)
-    (doseq [^TreeItem item (ui/tree-item-seq (.getRoot errors-tree))]
-      (.setExpanded item true))
-    (when-let [first-error (->> (ui/tree-item-seq (.getRoot errors-tree))
-                                (filter (fn [^TreeItem item] (.isLeaf item)))
-                                first)]
-      (.select (.getSelectionModel errors-tree) first-error))))
+(defn update-build-errors [^TreeView errors-tree error-value]
+  (fxui/advance-ui-user-data-component! errors-tree ::view {:fx/type build-errors-view :tree-view errors-tree :tree (build-resource-tree error-value)})
+  (when-let [first-error (coll/first-where TreeItem/.isLeaf (ui/tree-item-seq (.getRoot errors-tree)))]
+    (.select (.getSelectionModel errors-tree) first-error)))
 
 (defn clear-build-errors [^TreeView errors-tree]
-  (.setRoot errors-tree nil))
+  (fxui/advance-ui-user-data-component! errors-tree ::view {:fx/type build-errors-view :tree-view errors-tree}))

@@ -46,7 +46,7 @@
 (g/deftype Regions [TRegion])
 (g/deftype RegionGrouping {s/Any [TRegion]})
 
-(def ^:private default-indent-type :tabs)
+(def default-indent-type :tabs)
 
 (defn make-code-error-user-data [^String path line-number]
   (let [cursor-range (some-> line-number data/line-number->CursorRange)]

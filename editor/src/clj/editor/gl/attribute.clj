@@ -361,7 +361,7 @@
   transformation, but the W value in the output vector will be that of the input
   vector."
   ^TransformedAttributeValueBinding [untransformed-vector-or-value-array ^ElementType element-type transform-render-arg-key w-component base-location]
-  (ensure/argument math/render-transform-key? transform-render-arg-key)
+  (ensure/argument transform-render-arg-key math/render-transform-key?)
   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (let [w-component (double w-component)
 

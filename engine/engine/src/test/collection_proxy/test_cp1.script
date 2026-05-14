@@ -13,14 +13,7 @@
 -- specific language governing permissions and limitations under the License.
 
 function init(self)
-    self.init = true
-end
-
-function update(self, dt)
-    if self.init and not self.update then
-        self.update = true
-        msg.post("test_collection_proxy:/test_id#script", "unload_me")
-    end
+    msg.post("test_collection_proxy:/test_id#script", "im_loaded")
 end
 
 function final(self)

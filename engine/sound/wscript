@@ -45,4 +45,4 @@ def shutdown(self):
     if sys.platform == 'linux' and not os.path.exists('/dev/snd/controlC0'):
         print ("SKIPPING TESTS SINCE WE DETECTED NO SOUND CARD")
         return
-    waf_dynamo.run_tests(test_context, valgrind = True)
+    waf_dynamo.run_tests(test_context)

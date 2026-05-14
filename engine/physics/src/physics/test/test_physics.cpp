@@ -2051,6 +2051,65 @@ TYPED_TEST(PhysicsTest, TriggerEnterExit)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
 }
 
+// Three triggers: two overlap from creation (one enter pair), a third moves into both (two enters),
+// then leaves (two exits). Exercises trigger–trigger overlaps and a third body overlapping two triggers.
+TYPED_TEST(PhysicsTest, TriggerThreeOverlapping)
+{
+    float radius = 0.5f;
+
+    VisualObject vo_t1;
+    vo_t1.m_Position = Point3(0.0f, 0.0f, 0.0f);
+    VisualObject vo_t2;
+    vo_t2.m_Position = Point3(0.4f, 0.0f, 0.0f);
+    VisualObject vo_t3;
+    vo_t3.m_Position = Point3(10.0f, 0.0f, 0.0f);
+
+    dmPhysics::CollisionObjectData data_t;
+    typename TypeParam::CollisionShapeType shape_t1 = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+    typename TypeParam::CollisionShapeType shape_t2 = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+    typename TypeParam::CollisionShapeType shape_t3 = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+    data_t.m_Group = 1;
+    data_t.m_Mask = 1;
+    data_t.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+    data_t.m_Mass = 0.0f;
+    data_t.m_Restitution = 1.0f;
+
+    data_t.m_UserData = &vo_t1;
+    typename TypeParam::CollisionObjectType co_t1 = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_t, &shape_t1, 1u);
+    data_t.m_UserData = &vo_t2;
+    typename TypeParam::CollisionObjectType co_t2 = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_t, &shape_t2, 1u);
+
+    TriggerUserData ud = {0, 0, 0};
+    TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = TriggerEntered;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &ud;
+    TestFixture::m_StepWorldContext.m_TriggerExitedCallback = TriggerExited;
+    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &ud;
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1, ud.m_Count);
+
+    data_t.m_UserData = &vo_t3;
+    typename TypeParam::CollisionObjectType co_t3 = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_t, &shape_t3, 1u);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1, ud.m_Count);
+
+    // Inside both t1 and t2 (overlap region of the two circles)
+    vo_t3.m_Position = Point3(0.2f, 0.0f, 0.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(3, ud.m_Count);
+
+    vo_t3.m_Position = Point3(10.0f, 0.0f, 0.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1, ud.m_Count);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co_t3);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co_t2);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co_t1);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_t3);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_t2);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_t1);
+}
+
 // Verify that enter/exit callbacks are used correctly when objects are deleted inside a trigger.
 TYPED_TEST(PhysicsTest, TriggerEnterExitDelete)
 {

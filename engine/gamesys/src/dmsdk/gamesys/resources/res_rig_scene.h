@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_GAMESYS_RES_SPINE_SCENE_H
-#define DMSDK_GAMESYS_RES_SPINE_SCENE_H
+#ifndef DMSDK_GAMESYS_RES_RIG_SCENE_H
+#define DMSDK_GAMESYS_RES_RIG_SCENE_H
 
 #include <stdint.h>
 
@@ -40,4 +40,4 @@ namespace dmGameSystem
     };
 }
 
-#endif // DMSDK_GAMESYS_RES_SPINE_SCENE_H
+#endif // DMSDK_GAMESYS_RES_RIG_SCENE_H

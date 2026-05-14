@@ -33,8 +33,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
-           [javax.vecmath Matrix4d]))
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -53,11 +52,6 @@
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
   (let [scale (or scale3 scene/default-scale)]
     (pose/make position rotation scale)))
-
-(defn- any-instance-desc->transform-matrix
-  ^Matrix4d [any-instance-desc]
-  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  (pose/matrix (any-instance-desc->pose any-instance-desc)))
 
 (defn- component-property-desc-with-go-props [component-property-desc proj-path->source-resource]
   ;; GameObject$ComponentPropertyDesc in map format.
@@ -276,9 +270,9 @@
          (ifn? child-id->desc)]}
   (letfn [(desc->instance-scene [desc]
             (let [id (:id desc)
-                  transform-matrix (any-instance-desc->transform-matrix desc)
+                  instance-pose (any-instance-desc->pose desc)
                   source-scene (desc->source-scene desc)
-                  instance-scene (collection-common/any-instance-scene node-id id transform-matrix source-scene)
+                  instance-scene (collection-common/any-instance-scene node-id id instance-pose source-scene)
                   child-instance-scenes (map (comp desc->instance-scene child-id->desc)
                                              (:children desc))]
               (cond-> instance-scene

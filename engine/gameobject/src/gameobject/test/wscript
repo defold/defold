@@ -16,7 +16,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         out = node.change_ext(compiled_ext)
         task.set_outputs(out)
 
-    cmd = 'protoc --encode=%s -I ../src/gameobject/test -I ../src/gameobject/test/input -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
+    cmd = '${PROTOC} --encode=%s -I ../src/gameobject/test -I ../src/gameobject/test/input -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
     waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
     extension(ext)(create)
 

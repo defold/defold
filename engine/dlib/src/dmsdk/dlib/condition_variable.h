@@ -19,7 +19,7 @@
 
 namespace dmConditionVariable
 {
-    /*# SDK Condition Variable API documentation
+    /*# Condition Variable API documentation
      *
      * API for platform independent mutex synchronization primitive.
      *

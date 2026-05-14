@@ -115,6 +115,16 @@
                 {{#application-queries-schemes}}<string>{{.}}</string>{{/application-queries-schemes}}
         </array>
 
+        {{^variant_release}}
+        <key>NSBonjourServices</key>
+        <array>
+                <string>_defold._tcp</string>
+        </array>
+
+        <key>NSLocalNetworkUsageDescription</key>
+        <string>Discover Defold targets on the local network.</string>
+        {{/variant_release}}
+
         <key>UILaunchStoryboardName</key>
         <string>{{launch-screen}}</string>
 
