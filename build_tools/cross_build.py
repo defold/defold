@@ -268,7 +268,7 @@ def get_feature_extra_tags(platform, extra_tags):
     return tags
 
 
-def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred_tags = None):
+def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred_tags = None, required = True):
     """Return (selected_files, feature_files) for feature_name.
 
     Rules:
@@ -281,7 +281,7 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
     * extra tag matches are appended to platform tag matches before fallback tags.
     * fallback tags and default are used only when no platform file matched.
     * platform roots are searched before the public repo for platform tag matches.
-    * missing feature files or missing selected files fail the build.
+    * missing feature files or missing selected files fail the build when required is True.
     """
     files = []
     feature_files = []
@@ -342,9 +342,9 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
     for node in tag_files:
         append_file(files, node)
 
-    if not feature_files:
+    if required and not feature_files:
         bld.fatal('Could not find any source files for feature %s' % feature_name)
-    if not files:
+    if required and not files:
         bld.fatal('Could not find selected source files for feature %s on platform %s' % (feature_name, platform))
 
     return files, feature_files
