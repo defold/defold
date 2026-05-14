@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os, re
 from waf_dynamo import dmsdk_add_files, copy_file_task, platform_supports_feature, platform_graphics_libs_and_symbols
+from cross_build import find_feature_files
 import waflib.Options
 import waf_dynamo
 
@@ -30,20 +31,16 @@ def build(bld):
               target = 'engine_service_null')
 
     source = [
-        'engine.cpp',
         'engine_main.cpp',
         'engine_loop.cpp',
         'extension.cpp',
         './script/script_engine.cpp']
 
-    if bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web'):
-        source.append('engine_web.cpp')
-    elif 'arm64-nx64' in bld.env.PLATFORM:
-        source.append('nx64/main_nx64.cpp nx64/engine_nx64.cpp')
-    elif bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
-        source.append('engine_ps4.cpp')
-    elif bld.env.PLATFORM in ('x86_64-xbone'):
-        source.append('engine_xbox.cpp')
+    if 'arm64-nx64' in bld.env.PLATFORM:
+        source += ['engine.cpp', 'nx64/main_nx64.cpp', 'nx64/engine_nx64.cpp']
+    else:
+        engine_feature_sources, _ = find_feature_files(bld, 'engine', bld.env.PLATFORM, extra_tags = {'ps5': ['ps4']})
+        source += engine_feature_sources
 
     engine_defines = []
     if bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web'):
