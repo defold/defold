@@ -54,6 +54,8 @@ elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
         include(platform_linux)
 elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
         include(platform_windows)
+elseif (TARGET_PLATFORM MATCHES "x86_64-xbone")
+        include(platform_xbone)
 elseif (TARGET_PLATFORM MATCHES "arm64-nx64")
         # Mark this configuration as using a private vendor platform (e.g., Switch)
         set(DEFOLD_IS_PRIVATE_VENDOR ON CACHE BOOL "Building with private vendor platform configuration" FORCE)
@@ -84,15 +86,24 @@ if(MSVC_CL)
     target_compile_options(defold_sdk INTERFACE /GR- /W3)
 else()
     # Apply per-language flags via target options
-    target_compile_options(defold_sdk INTERFACE
+    set(_DEFOLD_NON_MSVC_OPTIONS
         -Wall
         -Werror=format
         -Werror=return-type
-        -fPIC
         -fvisibility=hidden
         -fno-exceptions
         $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
         -g)
+    if(NOT DEFINED DEFOLD_PLATFORM_SUPPORTS_FPIC)
+        set(DEFOLD_PLATFORM_SUPPORTS_FPIC ON)
+        if(TARGET_PLATFORM_OS STREQUAL "win32")
+            set(DEFOLD_PLATFORM_SUPPORTS_FPIC OFF)
+        endif()
+    endif()
+    if(DEFOLD_PLATFORM_SUPPORTS_FPIC)
+        list(APPEND _DEFOLD_NON_MSVC_OPTIONS -fPIC)
+    endif()
+    target_compile_options(defold_sdk INTERFACE ${_DEFOLD_NON_MSVC_OPTIONS})
 endif()
 
 

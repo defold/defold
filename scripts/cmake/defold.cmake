@@ -18,6 +18,8 @@ if(_defold_cmake_idx EQUAL -1)
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
 endif()
 
+include("${CMAKE_CURRENT_LIST_DIR}/private_repos.cmake")
+
 set(DEFOLD_SDK_ROOT "$ENV{DYNAMO_HOME}" CACHE PATH "Path to Defold SDK (e.g. defold/tmp/dynamo_home)")
 if(NOT DEFOLD_SDK_ROOT)
   if(EXISTS "${DEFOLD_HOME}/tmp/dynamo_home")

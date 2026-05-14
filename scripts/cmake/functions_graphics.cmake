@@ -13,6 +13,11 @@ defold_log("functions_graphics.cmake:")
 #   # _SYMS now contains a semicolon-separated list, e.g. "GraphicsAdapterOpenGL;GraphicsAdapterVulkan"
 
 function(defold_get_graphics_symbols OUT_VAR PLATFORM)
+    if(DEFINED DEFOLD_PLATFORM_GRAPHICS_SYMBOLS)
+        set(${OUT_VAR} "${DEFOLD_PLATFORM_GRAPHICS_SYMBOLS}" PARENT_SCOPE)
+        return()
+    endif()
+
     # Read feature toggles with default OFF if not defined
     set(_WITH_OPENGL  OFF)
     set(_WITH_VULKAN  OFF)
@@ -89,6 +94,14 @@ function(defold_target_link_graphics target platform)
 
     if(NOT platform)
         message(FATAL_ERROR "functions_graphics: platform argument is required")
+    endif()
+
+    if(DEFINED DEFOLD_PLATFORM_GRAPHICS_LIBS)
+        target_link_libraries(${target} ${DGL_SCOPE} ${DEFOLD_PLATFORM_GRAPHICS_LIBS})
+        if(DEFINED DEFOLD_PLATFORM_GRAPHICS_LINK_OPTIONS)
+            target_link_options(${target} ${DGL_SCOPE} ${DEFOLD_PLATFORM_GRAPHICS_LINK_OPTIONS})
+        endif()
+        return()
     endif()
 
     # Compute Waf-like mapping variables (STLIB_* + GL/Vulkan lists)

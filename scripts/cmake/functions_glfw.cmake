@@ -48,6 +48,10 @@ function(defold_target_link_glfw target platform)
         message(FATAL_ERROR "defold_target_link_glfw: target and platform are required")
     endif()
 
+    if(DEFINED DEFOLD_PLATFORM_HAS_GLFW AND NOT DEFOLD_PLATFORM_HAS_GLFW)
+        return()
+    endif()
+
     # Determine GLFW version for this platform
     defold_get_glfw_version(_GLFW_VER "${platform}")
 
