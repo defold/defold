@@ -15,6 +15,7 @@
 
 import json
 import os
+import subprocess
 
 
 DEFOLD_PLATFORMS_FILE = '.defold-platforms'
@@ -63,6 +64,21 @@ def get_platform_roots(platform):
     return roots
 
 
+def git_sha1(repo_root, ref = None):
+    repo_root = os.path.abspath(repo_root)
+    args = ['git', '-c', 'safe.directory=%s' % os.path.normpath(repo_root), '-C', repo_root, 'rev-parse']
+    args.append(ref or 'HEAD')
+    out = subprocess.check_output(args)
+    return out.decode().splitlines()[0].strip()
+
+
+def get_private_platform_sha1(platform):
+    roots = get_platform_roots(platform)
+    if not roots:
+        return ''
+    return git_sha1(roots[0])
+
+
 def _path_key(path):
     return os.path.normcase(os.path.normpath(path))
 
@@ -82,26 +98,10 @@ def _existing_dirs(paths):
     return [path for path in paths if os.path.isdir(path)]
 
 
-def get_private_dynamo_homes(platform):
-    return [os.path.join(root, 'tmp', 'dynamo_home') for root in get_platform_roots(platform)]
-
-
-def get_private_include_paths(platform):
-    paths = []
-    for dynamo_home in get_private_dynamo_homes(platform):
-        paths += [
-            os.path.join(dynamo_home, 'sdk', 'include'),
-            os.path.join(dynamo_home, 'include', platform),
-            os.path.join(dynamo_home, 'include'),
-            os.path.join(dynamo_home, 'ext', 'include', platform),
-            os.path.join(dynamo_home, 'ext', 'include'),
-        ]
-    return _dedupe_paths(_existing_dirs(paths))
-
-
 def get_private_library_paths(platform):
     paths = []
-    for dynamo_home in get_private_dynamo_homes(platform):
+    for root in get_platform_roots(platform):
+        dynamo_home = os.path.join(root, 'tmp', 'dynamo_home')
         paths += [
             os.path.join(dynamo_home, 'lib', platform),
             os.path.join(dynamo_home, 'ext', 'lib', platform),

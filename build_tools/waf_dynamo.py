@@ -20,7 +20,7 @@ from waflib.Logs import error
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
-from cross_build import find_feature_files, find_platform_file, get_configured_platforms, get_private_include_paths, get_private_library_paths, get_private_path_mirrors, remove_source_files
+from cross_build import find_feature_files, find_platform_file, get_configured_platforms, get_private_library_paths, get_private_path_mirrors, remove_source_files
 from private_hooks import call_hook, get_hook_modules
 import sdk
 import wasm_runner
@@ -102,8 +102,11 @@ def prepend_unique_paths(env, name, paths):
     env[name] = result
 
 def prepend_private_search_paths(env, platform):
-    prepend_unique_paths(env, 'INCLUDES', get_private_include_paths(platform))
     prepend_unique_paths(env, 'LIBPATH', get_private_library_paths(platform))
+
+def include_path_contains_dmsdk(path):
+    path = os.path.normpath(path)
+    return os.path.basename(path) == 'dmsdk' or os.path.isdir(os.path.join(path, 'dmsdk'))
 
 def prepend_private_task_paths(task_gen, platform):
     for name in ('includes', 'libpath'):
@@ -111,6 +114,8 @@ def prepend_private_task_paths(task_gen, platform):
             current_paths = task_gen.to_list(getattr(task_gen, name))
             private_paths = get_private_path_mirrors(platform, task_gen.path.abspath(), current_paths)
             if private_paths:
+                if name == 'includes':
+                    private_paths = [path for path in private_paths if not include_path_contains_dmsdk(path)]
                 setattr(task_gen, name, private_paths + current_paths)
 
 def platform_glfw_version(platform):

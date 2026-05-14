@@ -836,7 +836,11 @@ namespace dmEngine
     */
     bool Init(HEngine engine, int argc, char *argv[])
     {
+#if defined(DM_PLATFORM_VENDOR)
+        dmLogInfo("Defold Engine %s (%.7s, %.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1, dmEngineVersion::PRIVATE_VERSION_SHA1);
+#else    
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+#endif
 
         dmCrash::SetExtraInfoCallback(CrashHandlerCallback, engine);
 

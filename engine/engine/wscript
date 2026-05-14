@@ -13,6 +13,7 @@ from waflib import Logs
 import waflib.Options
 import TestContext
 from build_constants import TargetOS
+from cross_build import get_private_platform_sha1
 
 test_context = None
 
@@ -33,6 +34,7 @@ namespace dmEngineVersion
     static const char* PLATFORM = "%(platform)s";
     static const char* VERSION = "%(version)s";
     static const char* VERSION_SHA1 = "%(sha1)s";
+    static const char* PRIVATE_VERSION_SHA1 = "%(private_sha1)s";
 }
 """
     full = self.outputs[0].abspath()
@@ -44,10 +46,11 @@ namespace dmEngineVersion
     full = os.path.normpath(full)
 
     sha1 = self.env['ENGINE_SHA1']
+    private_sha1 = self.env['ENGINE_PRIVATE_SHA1']
     platform = self.env['ENGINE_PLATFORM']
     version = self.env['ENGINE_VERSION']
     with open(full, 'w') as f:
-        f.write(engine_version % {"version": version, "sha1": sha1, "platform": platform})
+        f.write(engine_version % {"version": version, "sha1": sha1, "private_sha1": private_sha1, "platform": platform})
 
 
 def configure(conf):
@@ -195,9 +198,14 @@ def build(bld):
 
     b = bld(rule = create_engine_version,
             target = 'engine_version.h',
-            vars = ['ENGINE_SHA1', 'ENGINE_PLATFORM', 'ENGINE_VERSION'])
+            vars = ['ENGINE_SHA1', 'ENGINE_PRIVATE_SHA1', 'ENGINE_PLATFORM', 'ENGINE_VERSION'])
     b.env['ENGINE_SHA1'] = build_util.git_sha1()
-    b.env['ENGINE_PLATFORM'] = build_util.get_target_platform()
+    target_platform = build_util.get_target_platform()
+    try:
+        b.env['ENGINE_PRIVATE_SHA1'] = get_private_platform_sha1(target_platform)
+    except subprocess.CalledProcessError as ex:
+        bld.fatal('Could not resolve private engine sha1 for %s: %s' % (target_platform, ex))
+    b.env['ENGINE_PLATFORM'] = target_platform
     b.env['ENGINE_VERSION'] = build_util.get_defold_version()
 
     bld.add_group()
