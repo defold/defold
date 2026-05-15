@@ -8,7 +8,7 @@ Args:
   3: server IP (default: localhost)
   4: server port (default: 9001)
   5: path to config file to write (default: unittest.cfg in CWD)
-  6: path to engine/script directory (where test_script_server.py lives)
+  6+: Python import directories for test_script_server.py and optional plugins
 """
 
 import sys
@@ -37,15 +37,15 @@ def main() -> int:
     ip = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else 'localhost'
     port = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 9001
     cfgpath = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else 'unittest.cfg'
-    server_dir = sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else None
+    server_dirs = [p for p in sys.argv[6:] if p]
 
-    if server_dir:
+    for server_dir in reversed(server_dirs):
         sys.path.insert(0, os.path.normpath(server_dir))
 
     try:
         import test_script_server  # type: ignore
     except Exception as e:
-        print('Failed to import test_script_server from', server_dir, '\n', e)
+        print('Failed to import test_script_server from', server_dirs, '\n', e)
         return 2
 
     if workdir:
@@ -71,4 +71,3 @@ def main() -> int:
 
 if __name__ == '__main__':
     sys.exit(main())
-

@@ -50,6 +50,7 @@ defold_protoc_gen_py("${GS_PROTO_PY_DIR}/sound_ddf_pb2.py" "${GS_PROTO_DIR}/soun
 defold_protoc_gen_py("${GS_PROTO_PY_DIR}/mesh_ddf_pb2.py" "${GS_PROTO_DIR}/mesh_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 defold_protoc_gen_py("${GS_PROTO_PY_DIR}/atlas_ddf_pb2.py" "${GS_PROTO_DIR}/atlas_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 defold_protoc_gen_py("${GS_PROTO_PY_DIR}/buffer_ddf_pb2.py" "${GS_PROTO_DIR}/buffer_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
+defold_protoc_gen_py("${GS_PROTO_PY_DIR}/data_ddf_pb2.py" "${GS_PROTO_DIR}/data_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 defold_protoc_gen_py("${GS_PROTO_PY_DIR}/model_ddf_pb2.py" "${GS_PROTO_DIR}/model_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 list(APPEND GS_PROTO_PY
   "${GS_PROTO_PY_DIR}/physics_ddf_pb2.py"
@@ -64,10 +65,11 @@ list(APPEND GS_PROTO_PY
   "${GS_PROTO_PY_DIR}/mesh_ddf_pb2.py"
   "${GS_PROTO_PY_DIR}/atlas_ddf_pb2.py"
   "${GS_PROTO_PY_DIR}/buffer_ddf_pb2.py"
+  "${GS_PROTO_PY_DIR}/data_ddf_pb2.py"
   "${GS_PROTO_PY_DIR}/model_ddf_pb2.py"
 )
 
-add_custom_target(gamesys_proto_py DEPENDS ${GS_PROTO_PY})
+add_custom_target(gamesys_proto_py ALL DEPENDS ${GS_PROTO_PY})
 
 set(GAMESYS_PROTO_PY_DIR "${GS_PROTO_PY_DIR}" CACHE INTERNAL "Generated gamesys python protobuf modules")
 
@@ -150,7 +152,9 @@ target_include_directories(gamesys_rig_null PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_S
 # ========= script_box2d =========
 defold_add_library(script_box2d STATIC
     "${GS_SRC_DIR}/scripts/box2d/script_box2d.cpp"
-    "${GS_SRC_DIR}/scripts/box2d/script_box2d_body.cpp")
+    "${GS_SRC_DIR}/scripts/box2d/v3/script_box2d_body_v3.cpp"
+    "${GS_SRC_DIR}/scripts/box2d/v3/script_box2d_joint_v3.cpp"
+    "${GS_SRC_DIR}/scripts/box2d/v3/script_box2d_shape_v3.cpp")
 # Default to the Defold-provided Box2D headers
 target_include_directories(script_box2d PUBLIC
     "${GS_SRC_DIR}"
@@ -162,7 +166,10 @@ target_include_directories(script_box2d PUBLIC
 
 defold_add_library(script_box2d_defold STATIC
     "${GS_SRC_DIR}/scripts/box2d/script_box2d.cpp"
-    "${GS_SRC_DIR}/scripts/box2d/script_box2d_body_defold.cpp")
+    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_body_v2.cpp"
+    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_fixture_v2.cpp"
+    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_joint_v2.cpp"
+    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_shape_v2.cpp")
 target_include_directories(script_box2d_defold PUBLIC
     "${GS_SRC_DIR}"
     "${GS_DMSDK_SRC_DIR}"
@@ -194,6 +201,8 @@ install(TARGETS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig
 install(FILES "${GS_SRC_DIR}/gamesys.h" DESTINATION include/gamesys)
 install(FILES "${GS_SRC_DIR}/components/comp_gui.h" DESTINATION include/gamesys/components)
 install(FILES ${GS_PROTO_FILES} DESTINATION share/proto/gamesys)
+install(FILES "${GS_ROOT}/src/waf_gamesys.py" DESTINATION lib/python)
+install(FILES ${GS_PROTO_PY} DESTINATION lib/python)
 
 # ========= Tests =========
 if(BUILD_TESTS)

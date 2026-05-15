@@ -1,62 +1,93 @@
 #! /usr/bin/env python
 
-import sys, os
+import os
+import subprocess
+import sys
 
-import waflib.Task, waflib.TaskGen, waflib.Options
-from waflib.TaskGen import extension
+import waflib.Options
+import waflib.Task
 from waf_dynamo import platform_supports_feature
 
 def configure(conf):
     if platform_supports_feature(conf.env.PLATFORM, 'compute', None):
         conf.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
 
+def _read_manifest_lines(bld, path):
+    node = bld.path.find_resource(path)
+    if not node:
+        bld.fatal('Missing gamesys test manifest %s' % path)
+
+    lines = []
+    for line in node.read().splitlines():
+        line = line.split('#', 1)[0].strip()
+        if line:
+            lines.append(line)
+    return lines
+
+def _read_test_data_folders(bld):
+    return _read_manifest_lines(bld, 'test_data_folders.txt')
+
+def _read_embed_sources(bld):
+    return _read_manifest_lines(bld, 'embed_resources.txt')
+
+def _test_data_output_root(path):
+    return os.path.abspath(os.path.join(path.abspath(), '..', '..', '..',
+                                        'build', 'src', 'gamesys', 'test'))
+
+def _absolute_node(bld, path):
+    return bld.root.make_node(os.path.abspath(path).lstrip(os.sep))
+
+def _build_test_data(task):
+    generator = task.generator
+    cmd = [sys.executable,
+           generator.build_script.abspath(),
+           '--bob-light', os.path.join(generator.bld.env['DYNAMO_HOME'], 'share/java/bob-light.jar'),
+           '--root', generator.path.abspath(),
+           '--folder', generator.test_data_folder,
+           '--inputs', generator.inputs_file.abspath(),
+           '--output-root', generator.output_root,
+           '--stamp', task.outputs[0].abspath(),
+           '--platform', generator.bld.env['PLATFORM']]
+    return subprocess.call(cmd)
+
+waflib.Task.task_factory('gamesys_test_data',
+                         func  = _build_test_data,
+                         color = 'PINK')
+
+def _create_test_data_tasks(bld, folders):
+    build_script = bld.path.find_resource('build_test_data.py')
+    if not build_script:
+        bld.fatal('Missing gamesys test data build helper')
+
+    for folder in folders:
+        inputs_file = bld.path.find_resource(os.path.join(folder, 'build.inputs'))
+        if not inputs_file:
+            bld.fatal('Missing build.inputs for gamesys test data folder %s' % folder)
+
+        sources = bld.path.ant_glob('%s/*' % folder, excl = [
+            '%s/build.inputs' % folder,
+            '%s/build' % folder,
+            '%s/*.prebuilt_*' % folder,
+            '%s/.DS_Store' % folder,
+        ])
+        task_inputs = [build_script, inputs_file] + sources
+
+        task_gen = bld(name = 'gamesys_test_data_%s' % folder,
+                       build_script = build_script,
+                       inputs_file = inputs_file,
+                       output_root = _test_data_output_root(bld.path),
+                       test_data_folder = folder)
+        task = task_gen.create_task('gamesys_test_data')
+        task.set_inputs(task_inputs)
+        task.set_outputs(_absolute_node(bld, os.path.join(task_gen.output_root, '.bob', '%s.stamp' % folder)))
+
 def build(bld):
-    dirs = ['animationset/*',
-            'atlas/*',
-            'buffer/*',
-            'data/*',
-            'camera/*',
-            'collection_factory/*',
-            'collection_proxy/*',
-            'convex_shape/*',
-            'display_profiles/*',
-            'emitter/*',
-            'factory/*',
-            'font/*',
-            'fragment_program/*',
-            'gui/**',
-            'image/*',
-            'input/*',
-            'label/*',
-            'light/*',
-            'lua/*',
-            'material/*',
-            'mesh/*',
-            'meshset/*',
-            'misc/**',
-            'model/*',
-            'particlefx/*',
-            'render/*',
-            'render_script/*',
-            'render_target/*',
-            'resource/*',
-            'script/*',
-            'shader/*',
-            'sound/*',
-            'sprite/**',
-            'sys/**',
-            'texture/*',
-            'textureset/*',
-            'tile/*',
-            'tilegrid/*',
-            'vertex_program/*',
-            'window/*']
+    test_data_folders = _read_test_data_folders(bld)
+    if not test_data_folders:
+        bld.fatal('No gamesys test data folders listed')
 
-    excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd', '**/*.DS_Store']
-
-    if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
-        excl_pattern.append('**/*.cp')
-        excl_pattern.append('**/*.compute')
+    _create_test_data_tasks(bld, test_data_folders)
+    bld.add_group()
 
     exported_symbols = ['ComponentTypeAnim',
                         'ComponentTypeGui',
@@ -85,39 +116,39 @@ def build(bld):
                         'ScriptFont',
                         'ScriptHttp']
 
-    embed_source = ['resource/booster_on_sfx.wav', 'resource/layer_guitar_a.ogg']
+    embed_source = _read_embed_sources(bld)
 
     dynamic_fonts = [
         'dyn_glyph_bank_test_1.font'
     ]
 
-    test_gamesys = bld.program(features = 'cxx cprogram embed test',
-                               includes = '../../../src ../../../proto .',
-                               use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
-                               exported_symbols = exported_symbols + ['ScriptModelExt'],
-                               web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
-                               content_root='../test',
-                               dynamic_fonts = dynamic_fonts,
-                               source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=excl_pattern),
-                               embed_source = embed_source,
-                               target = 'test_gamesys')
+    bld.program(features = 'cxx cprogram embed test',
+                includes = '../../../src ../../../proto .',
+                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
+                exported_symbols = exported_symbols + ['ScriptModelExt'],
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                content_root = '../test',
+                dynamic_fonts = dynamic_fonts,
+                source = bld.path.ant_glob('test_gamesys.cpp'),
+                embed_source = embed_source,
+                target = 'test_gamesys')
 
-    test_gamesys_physics = bld.program(features='cxx cprogram embed test',
-                                includes='../../../src ../../../proto',
-                                use='TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
-                                exported_symbols = exported_symbols + ['ScriptModelExt'],
-                                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
-                                content_root='../test',
-                                source=bld.path.ant_glob('test_gamesys_physics.cpp') + bld.path.ant_glob('collision_object/*'),
-                                target='test_gamesys_physics')
+    bld.program(features = 'cxx cprogram embed test',
+                includes = '../../../src ../../../proto',
+                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
+                exported_symbols = exported_symbols + ['ScriptModelExt'],
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                content_root = '../test',
+                source = bld.path.ant_glob('test_gamesys_physics.cpp'),
+                target = 'test_gamesys_physics')
 
-    if not 'web' in bld.env['PLATFORM']:
-        test_gamesys_http = bld.program(features = 'cxx cprogram test',
-                                        includes = '../../../src ../../../proto',
-                                        use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig_null gamesys_model_null',
-                                        exported_symbols = exported_symbols,
-                                        source = bld.path.ant_glob('test_gamesys_http.cpp') + bld.path.ant_glob('http/*'),
-                                        target = 'test_gamesys_http')
+    if 'web' not in bld.env['PLATFORM']:
+        bld.program(features = 'cxx cprogram test',
+                    includes = '../../../src ../../../proto',
+                    use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig_null gamesys_model_null',
+                    exported_symbols = exported_symbols,
+                    source = bld.path.ant_glob('test_gamesys_http.cpp'),
+                    target = 'test_gamesys_http')
 
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
             bld.add_group() # uses test data from http/* and we only want to build it once
@@ -128,5 +159,5 @@ def build(bld):
                         source = ['test_script_http.cpp'],
                         target = 'test_script_http')
 
-    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'arm64-macos', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:
+    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'arm64-macos', 'x86_64-linux') and not waflib.Options.options.with_vulkan:
         bld.recurse('fontview')

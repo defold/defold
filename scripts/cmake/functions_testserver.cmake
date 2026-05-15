@@ -11,7 +11,7 @@ defold_log("functions_testserver.cmake:")
 # Effect:
 #   - Creates a run target named run_<target>_server that:
 #       1) Writes a unittest config file with [server] ip+socket
-#       2) Starts engine/script/test_script_server.Server(ip,port)
+#       2) Starts test_script_server.Server(ip,port)
 #       3) Executes the test binary
 #       4) Stops the server and removes the config file
 #   - Adds run_<target>_server under the global run_tests aggregate
@@ -61,7 +61,10 @@ function(defold_register_test_with_server target platform)
     set(_RUN_DIR_ABS "")
   endif()
 
-  set(_SERVER_DIR "${CMAKE_SOURCE_DIR}/engine/script")
+  set(_SERVER_DIRS "${DEFOLD_SDK_ROOT}/lib/python")
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_script_server_plugin.py")
+    list(APPEND _SERVER_DIRS "${CMAKE_CURRENT_SOURCE_DIR}")
+  endif()
   set(_CFG_PATH "${CMAKE_CURRENT_BINARY_DIR}/${DTS_CONFIG_NAME}")
   set(_WRAP "${DEFOLD_CMAKE_DIR}/testserver.py")
 
@@ -69,7 +72,7 @@ function(defold_register_test_with_server target platform)
   set(_run_target "run_${target}_server")
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
-      COMMAND ${Python3_EXECUTABLE} "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_DEFOLD_TS_IP}" "${DTS_PORT}" "${_CFG_PATH}" "${_SERVER_DIR}"
+      COMMAND ${Python3_EXECUTABLE} "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_DEFOLD_TS_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
       DEPENDS ${target}
       USES_TERMINAL
       COMMENT "Running ${target} with Defold test server on ${_DEFOLD_TS_IP}:${DTS_PORT}")

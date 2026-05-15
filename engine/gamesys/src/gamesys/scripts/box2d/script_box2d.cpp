@@ -14,8 +14,6 @@
 
 #include <stdio.h>
 
-#include <Box2D/Box2D.h>
-
 #include <dlib/log.h>
 #include <gameobject/script.h>
 

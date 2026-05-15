@@ -285,7 +285,7 @@ _CONTENT_RULES: Dict[str, ContentRule] = {
     '.gamepads': ContentRule('input_ddf_pb2', 'GamepadMaps', None, '.gamepadsc'),
     '.factory': ContentRule('gamesys_ddf_pb2', 'FactoryDesc', transform_factory, '.factoryc'),
     '.collectionfactory': ContentRule('gamesys_ddf_pb2', 'CollectionFactoryDesc', transform_collectionfactory, '.collectionfactoryc'),
-    '.light': ContentRule('gamesys_ddf_pb2', 'LightDesc', None, '.lightc'),
+    '.light': ContentRule('data_ddf_pb2', 'Data', None, '.lightc'),
     '.label': ContentRule('label_ddf_pb2', 'LabelDesc', transform_label, '.labelc'),
     '.render': ContentRule('render_ddf_pb2', 'RenderPrototypeDesc', transform_render, '.renderc'),
     '.render_target': ContentRule('render_target_ddf_pb2', 'RenderTargetDesc', None, '.render_targetc'),

@@ -8701,7 +8701,7 @@ TEST_F(ShaderTest, ComputeResource)
     dmRender::HComputeProgram compute_program = compute_program_res->m_Program;
 
     dmGraphics::HProgram graphics_compute_program = dmRender::GetComputeProgram(compute_program);
-    ASSERT_EQ(9, dmGraphics::GetUniformCount(graphics_compute_program));
+    ASSERT_EQ(7, dmGraphics::GetUniformCount(graphics_compute_program));
 
     dmRender::HConstant ca, cb, cc, cd;
     ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_a"), ca));
@@ -8759,7 +8759,7 @@ TEST_F(ShaderTest, ComputeResource)
 
     ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_b);
     ASSERT_EQ(dmHashString64("texture_b"),            sampler_tex_b->m_NameHash);
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_TEXTURE_2D,    sampler_tex_b->m_Type);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,            sampler_tex_b->m_Type);
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST,     sampler_tex_b->m_MinFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST,     sampler_tex_b->m_MagFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_UWrap);
@@ -8768,7 +8768,7 @@ TEST_F(ShaderTest, ComputeResource)
 
     ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_c);
     ASSERT_EQ(dmHashString64("texture_c"),             sampler_tex_c->m_NameHash);
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_TEXTURE_2D,     sampler_tex_c->m_Type);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,             sampler_tex_c->m_Type);
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,       sampler_tex_c->m_MinFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,       sampler_tex_c->m_MagFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,  sampler_tex_c->m_UWrap);
