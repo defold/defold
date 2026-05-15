@@ -16,19 +16,6 @@ defold_log("functions_testserver.cmake:")
 #       4) Stops the server and removes the config file
 #   - Adds run_<target>_server under the global run_tests aggregate
 
-# Internal: Resolve the default IP used by tests for a platform tuple.
-# For desktop targets we use "localhost" (mirroring gamesys/wscript:shutdown).
-# For others, we still default to "localhost" for robustness.
-function(_defold_testserver_default_ip OUT_VAR PLATFORM)
-  # Desktop and simulator targets
-  if("${PLATFORM}" MATCHES "(win32|x86_64-win32|x86_64-linux|x86_64-macos|arm64-macos)")
-    set(_ip "localhost")
-  else()
-    set(_ip "localhost")
-  endif()
-  set(${OUT_VAR} "${_ip}" PARENT_SCOPE)
-endfunction()
-
 # Register a test run target that wraps execution with the test server lifecycle.
 function(defold_register_test_with_server target platform)
   if(NOT TARGET ${target})
@@ -47,13 +34,8 @@ function(defold_register_test_with_server target platform)
     set(DTS_CONFIG_NAME "unittest.cfg")
   endif()
 
-  # Resolve IP address
-  _defold_testserver_default_ip(_DEFOLD_TS_IP "${platform}")
-
-  # Locate Python to run the server wrapper
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-  # Paths used by the wrapper
   set(_RUN_DIR "${DTS_WORKDIR}")
   if(_RUN_DIR)
     get_filename_component(_RUN_DIR_ABS "${_RUN_DIR}" ABSOLUTE)
@@ -67,18 +49,17 @@ function(defold_register_test_with_server target platform)
   endif()
   set(_CFG_PATH "${CMAKE_CURRENT_BINARY_DIR}/${DTS_CONFIG_NAME}")
   set(_WRAP "${DEFOLD_CMAKE_DIR}/testserver.py")
+  set(_SERVER_IP "localhost")
 
-  # Create a run target that calls the shared Python wrapper
   set(_run_target "run_${target}_server")
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
-      COMMAND ${Python3_EXECUTABLE} "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_DEFOLD_TS_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
+      COMMAND ${Python3_EXECUTABLE} "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_SERVER_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
       DEPENDS ${target}
       USES_TERMINAL
-      COMMENT "Running ${target} with Defold test server on ${_DEFOLD_TS_IP}:${DTS_PORT}")
+      COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")
   endif()
 
-  # Make sure global run_tests exists and include this run target
   if(NOT TARGET run_tests)
     add_custom_target(run_tests)
   endif()
