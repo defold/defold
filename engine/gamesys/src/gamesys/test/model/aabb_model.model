@@ -1,0 +1,3 @@
+name: "aabb"
+mesh: "/model/aabb_model.gltf"
+material: "/model/mesh_mesh.material"

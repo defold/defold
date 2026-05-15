@@ -12,8 +12,8 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-local ATLAS_A = "/gui/texture_setter_override_a.t.texturesetc"
-local ATLAS_B = "/gui/texture_setter_override_b.t.texturesetc"
+local ATLAS_A = "/gui/texture_setter_override_a.a.texturesetc"
+local ATLAS_B = "/gui/texture_setter_override_b.a.texturesetc"
 
 function init(self)
     self.updated = false

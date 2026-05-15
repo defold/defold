@@ -1,0 +1,16 @@
+/sprite/atlas_valid_64x64.atlas
+/sprite/cursor.go
+/sprite/flipbook_cursor.script
+/sprite/frame_count_sprite_frame_count.go
+/sprite/image_get_set_image_by_hash.go
+/sprite/image_get_set_image_by_hash_noscript.go
+/sprite/image_stale_animation_id_in_range.atlas
+/sprite/invalid_sprite.go
+/sprite/invalid_vertexspace.sprite
+/sprite/sprite_flipbook_anim.go
+/sprite/sprite_property_anim.go
+/sprite/sprite_slice9.go
+/sprite/test_comp.go
+/sprite/texture_transform_multi.go
+/sprite/texture_transform_sprite.go
+/sprite/valid_sprite.go

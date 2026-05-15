@@ -1,43 +1,43 @@
 animations {
   id: "issue_11956"
   images {
-    image: "/resource/issue_11956/a.png"
+    image: "/resource/issue_11956_a.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
-    image: "/resource/issue_11956/2.png"
+    image: "/resource/issue_11956_2.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
-    image: "/resource/issue_11956/3.png"
+    image: "/resource/issue_11956_3.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
-    image: "/resource/issue_11956/4.png"
+    image: "/resource/issue_11956_4.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
-    image: "/resource/issue_11956/5.png"
+    image: "/resource/issue_11956_5.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
-    image: "/resource/issue_11956/28.png"
+    image: "/resource/issue_11956_28.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
-    image: "/resource/issue_11956/29.png"
+    image: "/resource/issue_11956_29.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
-    image: "/resource/issue_11956/30.png"
+    image: "/resource/issue_11956_30.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
-    image: "/resource/issue_11956/31.png"
+    image: "/resource/issue_11956_31.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
-    image: "/resource/issue_11956/32.png"
+    image: "/resource/issue_11956_32.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
 }

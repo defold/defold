@@ -1,0 +1,7 @@
+/factory/dynamic_factory_test.go
+/factory/dynamic_prototype_sprite.go
+/factory/factory_create_test.go
+/factory/factory_hash_test.go
+/factory/factory_test.go
+/factory/test_comp.go
+/factory/valid_factory.go

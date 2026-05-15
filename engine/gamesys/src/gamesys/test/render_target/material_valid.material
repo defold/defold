@@ -1,0 +1,3 @@
+name: "valid_material"
+vertex_program: "/render_target/material_vertex_program_valid.vp"
+fragment_program: "/render_target/material_fragment_program_valid.fp"
