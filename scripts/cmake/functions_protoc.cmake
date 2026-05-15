@@ -107,6 +107,62 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
 endfunction()
 
 ######################################################################
+# Generate a binary proto descriptor set.
+#
+# Usage:
+#   defold_protoc_gen_bproto(
+#     "${CMAKE_CURRENT_BINARY_DIR}/particle/particle_ddf.bproto"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/proto/particle/particle_ddf.proto"
+#     INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/proto"
+#   )
+function(defold_protoc_gen_bproto OUT_BPROTO SRC_PROTO)
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs INCLUDES)
+    cmake_parse_arguments(DPB "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if(NOT OUT_BPROTO OR NOT SRC_PROTO)
+        message(FATAL_ERROR "defold_protoc_gen_bproto: require OUT_BPROTO and SRC_PROTO")
+    endif()
+
+    get_filename_component(_src_abs "${SRC_PROTO}" ABSOLUTE)
+    get_filename_component(_out_abs "${OUT_BPROTO}" ABSOLUTE)
+    get_filename_component(_out_dir "${_out_abs}" DIRECTORY)
+    get_filename_component(_src_dir "${_src_abs}" DIRECTORY)
+
+    set(_inc_dirs ${_src_dir})
+    if(DPB_INCLUDES)
+        list(APPEND _inc_dirs ${DPB_INCLUDES})
+    endif()
+    if(DEFOLD_SDK_ROOT)
+        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
+    endif()
+    list(REMOVE_DUPLICATES _inc_dirs)
+
+    set(_inc_flags)
+    foreach(_inc IN LISTS _inc_dirs)
+        list(APPEND _inc_flags -I "${_inc}")
+    endforeach()
+
+    file(MAKE_DIRECTORY "${_out_dir}")
+
+    set(_PROTOC_BIN protoc)
+    if(DEFINED DEFOLD_PROTOC_EXECUTABLE AND EXISTS "${DEFOLD_PROTOC_EXECUTABLE}")
+        set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
+    endif()
+
+    add_custom_command(
+        OUTPUT "${_out_abs}"
+        COMMAND ${_PROTOC_BIN} -o "${_out_abs}" ${_inc_flags} "${_src_abs}"
+        DEPENDS "${_src_abs}"
+        VERBATIM
+        COMMENT "Generating binary proto descriptor ${OUT_BPROTO}"
+    )
+
+    set_source_files_properties("${_out_abs}" PROPERTIES GENERATED TRUE)
+endfunction()
+
+######################################################################
 # Encode a text/binary .proto message file using protoc --encode
 #
 # Usage:

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 4.0)
 
-# Top-level CMake for Defold components (hid, input)
+# Top-level CMake for Defold components
 
 # Set module path and run SDK detection early so toolchains (e.g., Emscripten)
 # can set CMAKE_TOOLCHAIN_FILE before compilers are enabled by project().
@@ -17,6 +17,10 @@ include("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/defold.cmake")
 add_subdirectory(engine/platform)
 add_subdirectory(engine/hid)
 add_subdirectory(engine/input)
+add_subdirectory(engine/font)
+add_subdirectory(engine/particle)
+add_subdirectory(engine/lua)
+add_subdirectory(engine/physics)
 add_subdirectory(engine/gamesys)
 
 # ===================== CMake package export =====================

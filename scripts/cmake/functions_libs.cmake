@@ -9,9 +9,9 @@ defold_log("functions_libs.cmake:")
 #
 # Behavior:
 # - For Windows platforms (…-win32), each library name in <libs> is prefixed
-#   with "lib" unless it already starts with "lib", is an absolute path,
-#   is a generator expression (starts with "$<"), is a linker flag (starts with "-"),
-#   or already ends with ".lib".
+#   with "lib" unless it is an existing CMake target, already starts with
+#   "lib", is an absolute path, is a generator expression (starts with "$<"),
+#   is a linker flag (starts with "-"), or already ends with ".lib".
 # - Exceptions (these already follow Windows naming): hid, hid_null, input,
 #   platform, platform_null, platform_vulkan.
 # - Other platforms link the names as-is.
@@ -44,6 +44,10 @@ function(defold_target_link_libraries target platform)
       if(_lib STREQUAL "hid" OR _lib STREQUAL "hid_null"
          OR _lib STREQUAL "input"
          OR _lib STREQUAL "platform" OR _lib STREQUAL "platform_null" OR _lib STREQUAL "platform_vulkan")
+        set(_is_exception ON)
+      endif()
+
+      if(TARGET "${_lib}")
         set(_is_exception ON)
       endif()
 

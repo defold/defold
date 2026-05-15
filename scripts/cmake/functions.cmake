@@ -101,6 +101,7 @@ endfunction()
 
 include(functions_app)
 include(functions_bullet)
+include(functions_csharp)
 include(functions_embed)
 include(functions_glfw)
 include(functions_graphics)

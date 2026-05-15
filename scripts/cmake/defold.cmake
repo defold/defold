@@ -218,15 +218,41 @@ endif()
 # Attach SDK include/lib search paths to defold_sdk INTERFACE
 # Core include dirs (non-system)
 target_include_directories(defold_sdk INTERFACE
-  "${DEFOLD_INCLUDE_DIR}"
-  "${DEFOLD_DMSDK_INCLUDE_DIR}"
-  ${DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS})
+  "$<BUILD_INTERFACE:${DEFOLD_INCLUDE_DIR}>"
+  "$<BUILD_INTERFACE:${DEFOLD_DMSDK_INCLUDE_DIR}>"
+  "$<INSTALL_INTERFACE:include>"
+  "$<INSTALL_INTERFACE:sdk/include>")
+foreach(_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR IN LISTS DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS)
+  target_include_directories(defold_sdk INTERFACE
+    "$<BUILD_INTERFACE:${_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR}>")
+endforeach()
 # External/platform include dirs as SYSTEM to reduce warnings
 target_include_directories(defold_sdk SYSTEM INTERFACE
-  "${DEFOLD_EXT_INCLUDE_DIR}"
-  ${_DEFOLD_PLATFORM_INCLUDE_DIRS})
+  "$<BUILD_INTERFACE:${DEFOLD_EXT_INCLUDE_DIR}>"
+  "$<INSTALL_INTERFACE:ext/include>")
+foreach(_DEFOLD_PLATFORM_INCLUDE_DIR IN LISTS _DEFOLD_PLATFORM_INCLUDE_DIRS)
+  target_include_directories(defold_sdk SYSTEM INTERFACE
+    "$<BUILD_INTERFACE:${_DEFOLD_PLATFORM_INCLUDE_DIR}>")
+endforeach()
+target_include_directories(defold_sdk SYSTEM INTERFACE
+  "$<INSTALL_INTERFACE:ext/include/${TARGET_PLATFORM}>")
+if(TARGET_PLATFORM STREQUAL "x86-win32")
+  target_include_directories(defold_sdk SYSTEM INTERFACE
+    "$<INSTALL_INTERFACE:ext/include/win32>")
+endif()
 # Library search directories
-target_link_directories(defold_sdk INTERFACE ${_DEFOLD_PLATFORM_LIB_DIRS})
+foreach(_DEFOLD_PLATFORM_LIB_DIR IN LISTS _DEFOLD_PLATFORM_LIB_DIRS)
+  target_link_directories(defold_sdk INTERFACE
+    "$<BUILD_INTERFACE:${_DEFOLD_PLATFORM_LIB_DIR}>")
+endforeach()
+target_link_directories(defold_sdk INTERFACE
+  "$<INSTALL_INTERFACE:lib/${TARGET_PLATFORM}>"
+  "$<INSTALL_INTERFACE:ext/lib/${TARGET_PLATFORM}>")
+if(TARGET_PLATFORM STREQUAL "x86-win32")
+  target_link_directories(defold_sdk INTERFACE
+    "$<INSTALL_INTERFACE:lib/win32>"
+    "$<INSTALL_INTERFACE:ext/lib/win32>")
+endif()
 
 # Enable IPO/LTO when supported
 include(CheckIPOSupported)
@@ -252,9 +278,18 @@ defold_log("Install prefix set to DEFOLD_SDK_ROOT: ${CMAKE_INSTALL_PREFIX}")
 # CMake libraries may be built before every Waf library has populated its
 # dmsdk compatibility headers. Mirror Waf's dmsdk_add_files convention here.
 foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
-  install(DIRECTORY "${_DEFOLD_DMSDK_DIR}/"
-          DESTINATION sdk/include/dmsdk
-          FILES_MATCHING
-          PATTERN "*.h"
-          PATTERN "*.hpp")
+  file(GLOB_RECURSE _DEFOLD_DMSDK_HEADERS CONFIGURE_DEPENDS
+       RELATIVE "${_DEFOLD_DMSDK_DIR}"
+       "${_DEFOLD_DMSDK_DIR}/*.h"
+       "${_DEFOLD_DMSDK_DIR}/*.hpp")
+  foreach(_DEFOLD_DMSDK_HEADER IN LISTS _DEFOLD_DMSDK_HEADERS)
+    get_filename_component(_DEFOLD_DMSDK_HEADER_DIR "${_DEFOLD_DMSDK_HEADER}" DIRECTORY)
+    if(_DEFOLD_DMSDK_HEADER_DIR)
+      install(FILES "${_DEFOLD_DMSDK_DIR}/${_DEFOLD_DMSDK_HEADER}"
+              DESTINATION "sdk/include/dmsdk/${_DEFOLD_DMSDK_HEADER_DIR}")
+    else()
+      install(FILES "${_DEFOLD_DMSDK_DIR}/${_DEFOLD_DMSDK_HEADER}"
+              DESTINATION sdk/include/dmsdk)
+    endif()
+  endforeach()
 endforeach()
