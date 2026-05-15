@@ -1213,27 +1213,39 @@
     (let [current-value (prefs/get prefs prefs-key-walking-mode)]
       (prefs/set! prefs prefs-key-walking-mode (not current-value)))))
 
-(defn show-settings! [^Parent owner prefs keymap localization]
+(defn show-settings! [camera-node ^Parent owner prefs keymap localization]
+  (println (mode-2d? (g/node-value camera-node :camera)))
   (let [descriptors
-        [{:type :reset-all
-          :on-reset (fn [swap-state]
-                      (prefs/reset-path! prefs [:scene :perspective-camera])
-                      (swap-state merge (prefs/get prefs [:scene :perspective-camera])))}
-         {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0 :snap-to 0.25
-          :value (prefs/get prefs prefs-key-move-speed)
-          :on-value-changed #(prefs/set! prefs prefs-key-move-speed %)
-          :slider-value->string (fn [^double v] (str (math/round-with-precision v 0.01) "x"))}
-         {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4
-          :value (prefs/get prefs prefs-key-look-speed)
-          :on-value-changed #(prefs/set! prefs prefs-key-look-speed %)
-          :slider-value->string (fn [^double v]
-                                  (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
-                                    (str (math/round-with-precision scaled 0.1))))}
-         {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y
-          :value (prefs/get prefs prefs-key-invert-y)
-          :on-value-changed #(prefs/set! prefs prefs-key-invert-y %)}
-         {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode
-          :value (prefs/get prefs prefs-key-walking-mode)
-          :on-value-changed #(prefs/set! prefs prefs-key-walking-mode %)}]
+        (filterv some?
+          [{:type :reset-all
+            :on-reset (fn [swap-state]
+                        (prefs/reset-path! prefs [:scene :perspective-camera])
+                        (swap-state merge (prefs/get prefs [:scene :perspective-camera])))}
+           {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0 :snap-to 0.25
+            :value (prefs/get prefs prefs-key-move-speed)
+            :on-value-changed #(prefs/set! prefs prefs-key-move-speed %)
+            :slider-value->string (fn [^double v] (str (math/round-with-precision v 0.01) "x"))}
+           {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4
+            :value (prefs/get prefs prefs-key-look-speed)
+            :on-value-changed #(prefs/set! prefs prefs-key-look-speed %)
+            :slider-value->string (fn [^double v]
+                                    (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
+                                      (str (math/round-with-precision scaled 0.1))))}
+           (when (= :perspective (:type (g/node-value camera-node :camera)))
+             {:key :fov :type :slider :label "scene-popup.camera.fov" :min 5.0 :max 150.0
+              :value (:fov-y (g/node-value camera-node :local-camera))
+              :on-value-changed #(let [camera (g/node-value camera-node :local-camera)
+                                       aspect (/ (double (:fov-x camera)) (double (:fov-y camera)))]
+                                   (when (= :perspective (:type camera))
+                                     (g/update-property! camera-node :local-camera assoc
+                                                         :fov-y %
+                                                         :fov-x %)))
+              :slider-value->string (fn [^double v] (str (Math/round v) "°"))})
+           {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y
+            :value (prefs/get prefs prefs-key-invert-y)
+            :on-value-changed #(prefs/set! prefs prefs-key-invert-y %)}
+           {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode
+            :value (prefs/get prefs prefs-key-walking-mode)
+            :on-value-changed #(prefs/set! prefs prefs-key-walking-mode %)}])
         initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
-    (settings-popup/show! owner keymap localization initial-state 255 descriptors)))
+    (settings-popup/show! owner keymap localization initial-state 255 descriptors #_fov-fn)))
