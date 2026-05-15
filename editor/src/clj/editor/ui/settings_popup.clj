@@ -107,7 +107,7 @@
                    (.setOnMouseExited  (ui/event-handler _ (.setAutoHide ^PopupControl popup true)))))
    :desc (assoc (dissoc props :popup) :fx/type fx.slider/lifecycle)})
 
-(defn- make-slider-row [{:keys [popup key label min max snap-to state swap-state slider-value->string on-value-changed]}]
+(defn- make-slider-row [{:keys [popup key label disabled? min max snap-to state swap-state slider-value->string on-value-changed]}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
         snap-fn (if snap-to
                   (fn [^double v]
@@ -115,6 +115,7 @@
                   identity)]
     {:fx/type fxui/horizontal
      :style-class "spaced"
+     :disable (boolean (when disabled? (disabled? state)))
      :children [{:fx/type fxui/label
                  :text (or label "")
                  :h-box/hgrow :always
@@ -315,16 +316,16 @@
                :space        an empty spacer row
                :separator    a horizontal rule divider
     :label                 localization message key for the row label
-    :command               for :toggle, keymap command used to display an accelerator
-                           label and to register a handler listener that toggles the
-                           setting when the command is invoked
-    :min / :max            for :slider, numeric bounds
-    :snap-to               for :slider, snaps value to multiples of this number
-    :slider-value->string  for :slider, 1-arg fn formatting the displayed value
+    :command               keymap command used to display an accelerator label and
+                           auto-register a handler listener that toggles the setting when
+                           the command is invoked, used for :toggle
+    :min / :max            numeric bounds, used for :slider
+    :snap-to               snaps value to multiples of this number, used for :slider
+    :slider-value->string  1-arg fn formatting the displayed value, used for :slider
     :on-value-changed      1-arg callback invoked when this setting's value changes
-    :disabled?             for :toggle, 1-arg fn of state returning truthy to disable
-                           the row
-    :on-reset              for :reset-all, 1-arg callback receiving swap-state"
+    :disabled?             1-arg fn of state returning truthy to disable the row,
+                           used for :toggle and :slider
+    :on-reset              1-arg callback receiving swap-state, used for :reset-all"
   ([^Parent owner keymap localization state width setting-descriptors]
    (show! owner keymap localization state width setting-descriptors nil))
   ([^Parent owner keymap localization state width setting-descriptors on-closed]

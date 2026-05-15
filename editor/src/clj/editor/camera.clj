@@ -36,6 +36,7 @@
 
 (def ^:private prefs-key-move-speed   [:scene :perspective-camera :speed])
 (def ^:private prefs-key-look-speed   [:scene :perspective-camera :look-sensitivity])
+(def ^:private prefs-key-fov          [:scene :perspective-camera :fov])
 (def ^:private prefs-key-invert-y     [:scene :perspective-camera :invert-y])
 (def ^:private prefs-key-walking-mode [:scene :perspective-camera :walking-mode])
 
@@ -781,8 +782,13 @@
                      [(g/set-property camera-node :local-camera end-camera)
                       (g/set-property camera-node :animating false)])
                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                   (when-let [advance! (g/node-value camera-node :popup-advance-fn)]
+                     (advance!))
                    (when on-animation-end (on-animation-end)))))
-     (g/set-property! camera-node :local-camera end-camera))
+     (do
+       (g/set-property! camera-node :local-camera end-camera)
+       (when-let [advance! (g/node-value camera-node :popup-advance-fn)]
+         (advance!))))
    nil))
 
 (defn- toggle-free-cam-css [image-view active]
@@ -840,8 +846,7 @@
         camera))))
 
 (defn perspective-fov-y [camera-node]
-  ;; NOTE: Abstracting away because soon we will read from prefs
-  fov-y-35mm-full-frame)
+  (prefs/get (g/node-value camera-node :prefs) prefs-key-fov))
 
 (defn set-camera-type! [camera-node projection-type]
   (let [old-camera (g/node-value camera-node :local-camera)
@@ -1172,6 +1177,7 @@
   (property animating g/Bool)
   (property movements-enabled g/Any (default #{:dolly :track :tumble :look}))
   (property cursor-type g/Keyword)
+  (property popup-advance-fn g/Any)
 
   (input scene-aabb AABB)
   (input viewport Region)
@@ -1214,13 +1220,25 @@
       (prefs/set! prefs prefs-key-walking-mode (not current-value)))))
 
 (defn show-settings! [camera-node ^Parent owner prefs keymap localization]
-  (println (mode-2d? (g/node-value camera-node :camera)))
-  (let [descriptors
+  (let [fov-fn
+        (fn [^double value]
+          (let [camera (g/node-value camera-node :local-camera)
+                fov-y-old (double (:fov-y camera))
+                fov-x-old (double (:fov-x camera))
+                aspect (/ (Math/tan (Math/toRadians (/ fov-x-old 2.0)))
+                          (Math/tan (Math/toRadians (/ fov-y-old 2.0))))]
+            (when (= :perspective (:type camera))
+              (g/update-property! camera-node :local-camera assoc
+                                  :fov-y value
+                                  :fov-x (Math/toDegrees
+                                           (* 2.0 (Math/atan (* aspect (Math/tan (Math/toRadians (/ value 2.0)))))))))))
+        descriptors
         (filterv some?
           [{:type :reset-all
             :on-reset (fn [swap-state]
                         (prefs/reset-path! prefs [:scene :perspective-camera])
-                        (swap-state merge (prefs/get prefs [:scene :perspective-camera])))}
+                        (swap-state merge (prefs/get prefs [:scene :perspective-camera]))
+                        (fov-fn (prefs/get prefs prefs-key-fov)))}
            {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0 :snap-to 0.25
             :value (prefs/get prefs prefs-key-move-speed)
             :on-value-changed #(prefs/set! prefs prefs-key-move-speed %)
@@ -1231,21 +1249,28 @@
             :slider-value->string (fn [^double v]
                                     (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
                                       (str (math/round-with-precision scaled 0.1))))}
-           (when (= :perspective (:type (g/node-value camera-node :camera)))
-             {:key :fov :type :slider :label "scene-popup.camera.fov" :min 5.0 :max 150.0
-              :value (:fov-y (g/node-value camera-node :local-camera))
-              :on-value-changed #(let [camera (g/node-value camera-node :local-camera)
-                                       aspect (/ (double (:fov-x camera)) (double (:fov-y camera)))]
-                                   (when (= :perspective (:type camera))
-                                     (g/update-property! camera-node :local-camera assoc
-                                                         :fov-y %
-                                                         :fov-x %)))
-              :slider-value->string (fn [^double v] (str (Math/round v) "°"))})
+           {:key :fov :type :slider :label "scene-popup.camera.fov" :min 5.0 :max 150.0
+            :value #(prefs/get prefs prefs-key-fov)
+            :disabled? (fn [state] (not (:perspective state)) )
+            :on-value-changed (fn [val]
+                                (prefs/set! prefs prefs-key-fov val)
+                                (fov-fn val))
+            :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
            {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y
             :value (prefs/get prefs prefs-key-invert-y)
             :on-value-changed #(prefs/set! prefs prefs-key-invert-y %)}
            {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode
             :value (prefs/get prefs prefs-key-walking-mode)
             :on-value-changed #(prefs/set! prefs prefs-key-walking-mode %)}])
-        initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
-    (settings-popup/show! owner keymap localization initial-state 255 descriptors #_fov-fn)))
+        compute-state (fn []
+                        (-> (into {} (keep (fn [{:keys [key value]}]
+                                             (when key
+                                               [key (if (fn? value) (value) value)])))
+                                  descriptors)
+                            (assoc :perspective (= :perspective (:type (g/node-value camera-node :local-camera))))))
+        advance! (settings-popup/show! owner keymap localization (compute-state) 255 descriptors
+                                       (fn []
+                                         (g/set-property! camera-node :popup-advance-fn nil)))
+        advance-with-state! #(advance! (compute-state))]
+    (when advance!
+      (g/set-property! camera-node :popup-advance-fn advance-with-state!))))
