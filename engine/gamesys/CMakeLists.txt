@@ -200,6 +200,11 @@ install(TARGETS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig
 
 install(FILES "${GS_SRC_DIR}/gamesys.h" DESTINATION include/gamesys)
 install(FILES "${GS_SRC_DIR}/components/comp_gui.h" DESTINATION include/gamesys/components)
+install(DIRECTORY "${GS_ROOT}/src/dmsdk/"
+        DESTINATION sdk/include/dmsdk
+        FILES_MATCHING
+        PATTERN "*.h"
+        PATTERN "*.hpp")
 install(FILES ${GS_PROTO_FILES} DESTINATION share/proto/gamesys)
 install(FILES "${GS_ROOT}/src/waf_gamesys.py" DESTINATION lib/python)
 install(FILES ${GS_PROTO_PY} DESTINATION lib/python)
