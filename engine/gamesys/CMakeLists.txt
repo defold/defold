@@ -27,11 +27,14 @@ foreach(_pf IN LISTS _ALL_PROTO_FILES)
 endforeach()
 
 set(GS_PROTO_CC)
+set(GS_PROTO_HEADERS)
 foreach(_pf IN LISTS GS_PROTO_FILES)
   get_filename_component(_base "${_pf}" NAME_WE)
   set(_out_cc "${CMAKE_CURRENT_BINARY_DIR}/gamesys/${_base}.pb.cc")
+  set(_out_h "${CMAKE_CURRENT_BINARY_DIR}/gamesys/${_base}.h")
   defold_protoc_gen_cpp("${_out_cc}" "${_pf}" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
   list(APPEND GS_PROTO_CC "${_out_cc}")
+  list(APPEND GS_PROTO_HEADERS "${_out_h}")
 endforeach()
 
 # Generate Python protobuf modules required by content tooling
@@ -128,6 +131,7 @@ target_include_directories(gamesys PUBLIC
 # ========= gamesys_model =========
 set(GS_MODEL_PROTO "${GS_PROTO_DIR}/model_ddf.proto")
 set(GS_MODEL_CC "${CMAKE_CURRENT_BINARY_DIR}/gamesys/model_ddf.pb.cc")
+set(GS_MODEL_HEADER "${CMAKE_CURRENT_BINARY_DIR}/gamesys/model_ddf.h")
 defold_protoc_gen_cpp("${GS_MODEL_CC}" "${GS_MODEL_PROTO}" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 
 defold_add_library(gamesys_model STATIC
@@ -200,12 +204,14 @@ install(TARGETS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig
 
 install(FILES "${GS_SRC_DIR}/gamesys.h" DESTINATION include/gamesys)
 install(FILES "${GS_SRC_DIR}/components/comp_gui.h" DESTINATION include/gamesys/components)
+install(FILES "${GS_SRC_DIR}/fontgen/fontgen.h" DESTINATION include/gamesys/fontgen)
+install(FILES ${GS_PROTO_HEADERS} "${GS_MODEL_HEADER}" DESTINATION include/gamesys)
 install(DIRECTORY "${GS_ROOT}/src/dmsdk/"
         DESTINATION sdk/include/dmsdk
         FILES_MATCHING
         PATTERN "*.h"
         PATTERN "*.hpp")
-install(FILES ${GS_PROTO_FILES} DESTINATION share/proto/gamesys)
+install(FILES ${_ALL_PROTO_FILES} DESTINATION share/proto/gamesys)
 install(FILES "${GS_ROOT}/src/waf_gamesys.py" DESTINATION lib/python)
 install(FILES ${GS_PROTO_PY} DESTINATION lib/python)
 
