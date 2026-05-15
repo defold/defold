@@ -60,6 +60,7 @@ namespace dmMouseCapture
         context->m_AccDx = 0.0;
         context->m_AccDy = 0.0;
 
+        CGWarpMouseCursorPosition(CGPointMake(save_cursor_x, save_cursor_y));
         CGAssociateMouseAndMouseCursorPosition(NO);
 
         context->m_LocalMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:kMotionMask
