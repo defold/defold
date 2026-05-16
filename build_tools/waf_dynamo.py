@@ -39,6 +39,86 @@ def import_lib(module_name, path):
     # How import initializes the module.
     loader.exec_module(module)
 
+EXACT_WINDOWS_STATIC_LIBS = set('''
+    basis_encoder
+    basis_encoder_noasan
+    basis_transcoder
+    ddf
+    ddf_noasan
+    dlib
+    dlib_noasan
+    extension
+    font
+    font_skribidi
+    gamesys
+    gamesys_model
+    gamesys_model_null
+    gamesys_rig
+    gamesys_rig_null
+    graphics
+    graphics_dx12
+    graphics_null
+    graphics_null_noasan
+    graphics_opengles
+    graphics_proto
+    graphics_proto_noasan
+    graphics_transcoder_basisu
+    graphics_transcoder_null
+    graphics_vulkan
+    graphics_webgpu
+    graphics_webgpu_wagyu
+    hid
+    hid_null
+    image
+    image_noasan
+    image_null
+    image_null_noasan
+    input
+    lua
+    mbedtls
+    mbedtls_noasan
+    particle
+    physics
+    physics_2d
+    physics_2d_defold
+    physics_3d
+    physics_null
+    platform
+    platform_null
+    platform_vulkan
+    profile
+    profile_noasan
+    profile_null
+    profile_null_noasan
+    render
+    render_font_default
+    resource
+    rig
+    rig_null
+    script
+    script_box2d
+    script_box2d_defold
+    testmain
+    zip
+    zip_noasan
+'''.split())
+
+def _normalize_exact_windows_static_libs(env, uselib):
+    if env.PLATFORM not in ['win32', 'x86_64-win32']:
+        return
+
+    stlib_key = 'STLIB_%s' % uselib
+    libs = Utils.to_list(env[stlib_key])
+    if not libs:
+        return
+
+    exact_libs = [lib for lib in libs if lib in EXACT_WINDOWS_STATIC_LIBS]
+    if not exact_libs:
+        return
+
+    env[stlib_key] = [lib for lib in libs if lib not in EXACT_WINDOWS_STATIC_LIBS]
+    env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in exact_libs])
+
 def static_libs(conf, uselib, libs, exact_windows_libs = None):
     # Waf expands STLIB entries to lib%s.lib on Windows. Libraries built outside Waf
     # may need their exact .lib filename instead, while keeping the usual STLIB path elsewhere.
@@ -49,6 +129,13 @@ def static_libs(conf, uselib, libs, exact_windows_libs = None):
         conf.env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in libs if lib in exact_windows_libs])
     else:
         conf.env['STLIB_%s' % uselib] = libs
+
+@feature('c', 'cxx', 'uselib')
+@before('propagate_uselib_vars')
+def normalize_exact_windows_static_libs(self):
+    for key in self.env.keys():
+        if key.startswith('STLIB_'):
+            _normalize_exact_windows_static_libs(self.env, key[6:])
 
 # import the vendor specific build setup
 script_dir = os.path.dirname(__file__)
@@ -2251,7 +2338,8 @@ def detect(conf):
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
 
-    conf.env['STLIB_DDF'] = 'ddf'
+    static_libs(conf, 'DDF', ['ddf'])
+    static_libs(conf, 'DDF_NOASAN', ['ddf_noasan'])
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
 
@@ -2275,15 +2363,17 @@ def detect(conf):
             conf.env['STLIB_RECORD'] = 'record_null'
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
-    static_libs(conf, 'GRAPHICS',          ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
-    static_libs(conf, 'GRAPHICS_OPENGLES', ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
-    static_libs(conf, 'GRAPHICS_VULKAN',   ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
-    static_libs(conf, 'GRAPHICS_DX12',     ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS',          ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_OPENGLES', ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_VULKAN',   ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_DX12',     ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
     if 'wagyu' in Options.options.enable_features:
-        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
     else:
-        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
-    static_libs(conf, 'GRAPHICS_NULL', ['graphics_null', 'image', 'graphics_transcoder_null'], ['image'])
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_NULL', ['graphics_null', 'image', 'graphics_transcoder_null'])
+    static_libs(conf, 'GRAPHICS_PROTO', ['graphics_proto'])
+    static_libs(conf, 'GRAPHICS_NULL_NOASAN', ['graphics_null_noasan', 'image_noasan', 'graphics_proto_noasan'])
 
     static_libs(conf, 'FONT', ['font'])
     static_libs(conf, 'FONT_LAYOUT', ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi'], ['font_skribidi'])

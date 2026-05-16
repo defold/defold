@@ -60,7 +60,7 @@ platforms:
             excludeLibs: ["platform"]
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["libgraphics_vulkan.lib", "platform_vulkan.lib", "vulkan-1.lib"]
+            libs: ["graphics_vulkan.lib", "platform_vulkan.lib", "vulkan-1.lib"]
             linkFlags: []
 
     x86_64-win32:
@@ -68,7 +68,7 @@ platforms:
             excludeLibs: ["platform"]
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["libgraphics_vulkan.lib", "platform_vulkan.lib", "vulkan-1.lib"]
+            libs: ["graphics_vulkan.lib", "platform_vulkan.lib", "vulkan-1.lib"]
             linkFlags: []
 
     armv7-android:
@@ -117,4 +117,3 @@ platforms:
             libs: []
             frameworks: []
             linkFlags: []
-

@@ -107,6 +107,75 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
 endfunction()
 
 ######################################################################
+# Generate regular protobuf C++ sources from a .proto file.
+#
+# Usage:
+#   defold_protoc_gen_protobuf_cpp(
+#     "${CMAKE_CURRENT_BINARY_DIR}/test/test_ddf_proto.pb.cc"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_ddf_proto.proto"
+#     INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/src")
+function(defold_protoc_gen_protobuf_cpp OUT_CC SRC_PROTO)
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs INCLUDES)
+    cmake_parse_arguments(DPBCPP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if(NOT OUT_CC OR NOT SRC_PROTO)
+        message(FATAL_ERROR "defold_protoc_gen_protobuf_cpp: require OUT_CC and SRC_PROTO")
+    endif()
+
+    get_filename_component(_out_dir "${OUT_CC}" DIRECTORY)
+    get_filename_component(_src_abs "${SRC_PROTO}" ABSOLUTE)
+    get_filename_component(_src_name_we "${SRC_PROTO}" NAME_WE)
+    get_filename_component(_src_dir "${_src_abs}" DIRECTORY)
+
+    set(_out_cc "${_out_dir}/${_src_name_we}.pb.cc")
+    set(_out_h "${_out_dir}/${_src_name_we}.pb.h")
+
+    set(_inc_dirs ${_src_dir})
+    if(DPBCPP_INCLUDES)
+        list(APPEND _inc_dirs ${DPBCPP_INCLUDES})
+    endif()
+    if(DEFOLD_SDK_ROOT)
+        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
+    endif()
+    list(REMOVE_DUPLICATES _inc_dirs)
+
+    set(_inc_flags)
+    foreach(_inc IN LISTS _inc_dirs)
+        list(APPEND _inc_flags -I "${_inc}")
+    endforeach()
+
+    file(MAKE_DIRECTORY "${_out_dir}")
+
+    set(_PROTOC_BIN protoc)
+    if(DEFINED DEFOLD_PROTOC_EXECUTABLE AND EXISTS "${DEFOLD_PROTOC_EXECUTABLE}")
+        set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
+    endif()
+
+    add_custom_command(
+        OUTPUT "${_out_cc}" "${_out_h}"
+        COMMAND ${_PROTOC_BIN} --cpp_out=${_out_dir} ${_inc_flags} "${_src_abs}"
+        DEPENDS "${_src_abs}"
+        VERBATIM
+        COMMENT "Generating protobuf C++ from ${SRC_PROTO}"
+    )
+
+    set_source_files_properties("${_out_cc}" "${_out_h}" PROPERTIES GENERATED TRUE)
+
+    if(NOT "${OUT_CC}" STREQUAL "${_out_cc}")
+        add_custom_command(
+            OUTPUT "${OUT_CC}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_out_cc}" "${OUT_CC}"
+            DEPENDS "${_out_cc}"
+            VERBATIM
+            COMMENT "Copying ${_out_cc} to ${OUT_CC}"
+        )
+        set_source_files_properties("${OUT_CC}" PROPERTIES GENERATED TRUE)
+    endif()
+endfunction()
+
+######################################################################
 # Generate a binary proto descriptor set.
 #
 # Usage:
