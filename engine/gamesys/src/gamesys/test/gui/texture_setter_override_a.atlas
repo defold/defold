@@ -1,7 +1,7 @@
 animations {
   id: "frame"
   images {
-    image: "/texture/valid_png_128.png"
+    image: "/gui/texture_valid_png_128.png"
     sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
 }

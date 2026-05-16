@@ -16,5 +16,5 @@ components {
 }
 components {
   id: "gui"
-  component: "/gui/valid.gui"
+  component: "/resource/gui_valid.gui"
 }

@@ -15,7 +15,6 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
-import java.util.List;
 import java.io.File;
 import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
@@ -24,20 +23,30 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 @BuilderParams(name = "Opus", inExts = ".opus", outExt = ".opusc", paramsForSignature = {"sound-stream-enabled"})
 public class OpusBuilder extends CopyBuilder{
+    private static Logger logger = Logger.getLogger(OpusBuilder.class.getName());
     private static String oggzValidateExePath;
+    private static boolean missingOggzValidateWarningShown;
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        Platform curr_platform = Platform.getHostPlatform();
+        oggzValidateExePath = Bob.getOptionalHostExeOnce("oggz-validate", oggzValidateExePath);
+        if (oggzValidateExePath == null) {
+            if (!missingOggzValidateWarningShown) {
+                logger.warning("oggz-validate not found for host platform, skipping Opus validation.");
+                missingOggzValidateWarningShown = true;
+            }
+            return super.create(input);
+        }
+
         File tmpOggFile = null;
         try {
             tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
@@ -51,7 +60,6 @@ public class OpusBuilder extends CopyBuilder{
             throw new CompileExceptionError(input, 0, 
                 String.format("Cannot copy opus(ogg) file to further process", new String(exc.getMessage())));
         }
-        oggzValidateExePath = Bob.getHostExeOnce("oggz-validate", oggzValidateExePath);
         Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
         if (result.ret != 0) {

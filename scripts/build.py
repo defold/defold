@@ -416,7 +416,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-CMAKE_SUPPORT = ['platform', 'hid', 'input']
+CMAKE_SUPPORT = ['platform', 'hid', 'input', 'gamesys']
 
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 
@@ -1708,13 +1708,14 @@ class Configuration(object):
                 self._log(f"Warning: CMake build currently ignores '{option}'")
         return defines
 
-    def _build_engine_lib_cmake(self, lib, platform, directory):
+    def _build_engine_lib_cmake(self, lib, platform, skip_tests, directory):
         libdir = join(directory, lib)
         builddir = join(libdir, 'build')
 
         build_type = self._find_cmake_build_type(self.waf_options)
-        build_tests = '--skip-build-tests' not in self.waf_options
-        supports_tests = build_tests and self._can_run_tests()
+        can_run_tests = self._can_run_tests()
+        build_tests = (not skip_tests) and can_run_tests and '--skip-build-tests' not in self.waf_options
+        supports_tests = build_tests
 
         if not self.incremental:
             self._remove_tree(builddir) # distclean
@@ -1724,12 +1725,12 @@ class Configuration(object):
 
         env = self._form_env()
 
-        is_verbose = ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
-        verbose = '-v' if is_verbose else ''
+        is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
         test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
         install = 'install'
+        self._log(f"CMake settings for {lib}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={'ON' if test else 'OFF'}")
 
         trace = '' #'--trace-expand'
 
@@ -1749,10 +1750,29 @@ class Configuration(object):
         log_cmd_build = f'Ninja build {lib} {build_test}'
         self.build_tracker.start_command(log_cmd_build)
 
-        ninja_build_args = f"ninja all {build_test} {install} {verbose}".split()
+        ninja_build_args = ['ninja']
+        if is_verbose:
+            ninja_build_args.append('-v')
+        ninja_build_args.append('all')
+        if build_test:
+            ninja_build_args.append(build_test)
         run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
 
         self.build_tracker.end_command(log_cmd_build)
+
+        # Keep install as a separate phase. CMake's install target depends on
+        # 'all', but not on our custom 'build_tests' aggregate. Some installed
+        # test-side artifacts can otherwise race the install step.
+        log_cmd_install = f'Ninja install {lib}'
+        self.build_tracker.start_command(log_cmd_install)
+
+        ninja_install_args = ['ninja']
+        if is_verbose:
+            ninja_install_args.append('-v')
+        ninja_install_args.append(install)
+        run.env_command(self._form_env(), ninja_install_args, cwd = builddir)
+
+        self.build_tracker.end_command(log_cmd_install)
 
         # ***************************************************************************************
         # run the build
@@ -1760,7 +1780,10 @@ class Configuration(object):
             log_cmd_tests = f'Ninja run_tests {lib}'
             self.build_tracker.start_command(log_cmd_tests)
 
-            ninja_build_args = f"ninja run_tests {verbose}".split()
+            ninja_build_args = ['ninja']
+            if is_verbose:
+                ninja_build_args.append('-v')
+            ninja_build_args.append('run_tests')
             run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
 
             self.build_tracker.end_command(log_cmd_tests)
@@ -1771,7 +1794,7 @@ class Configuration(object):
         if lib in CMAKE_SUPPORT:
             if platform == 'win32':
                 platform = 'x86-win32'
-            self._build_engine_lib_cmake(lib, platform, directory)
+            self._build_engine_lib_cmake(lib, platform, skip_tests, directory)
         else:
             self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
 

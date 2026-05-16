@@ -40,6 +40,7 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
@@ -123,6 +124,22 @@ public class ProjectBuildTest {
         count++;
 
         return count;
+    }
+
+    @Test
+    public void testBuildInputFileWithoutGameProject() throws Exception {
+        Files.delete(new File(contentRoot, "game.project").toPath());
+        createFile(contentRoot, "data/valid.data", "tags: \"tag-one\"\ndata { string: \"hello\" }\n");
+        createFile(contentRoot, "build.inputs", "# direct test data roots\n/data/valid.data\n\n");
+
+        Bob.InvocationResult result = Bob.invoke(null, Progress.discarding(), null, new String[]{
+                "--root", contentRoot,
+                "--build-input-file", "build.inputs",
+                "build"
+        });
+
+        assertTrue(result.success);
+        assertTrue(new File(contentRoot, "build/default/data/valid.datac").exists());
     }
 
     @Test

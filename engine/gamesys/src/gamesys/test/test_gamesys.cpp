@@ -409,14 +409,14 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "materialc", &res_type_material));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "render_targetc", &res_type_render_target));
 
-    HResourceDescriptor rd_mat = dmResource::FindByHash(m_Factory, dmHashString64("/material/valid.materialc"));
+    HResourceDescriptor rd_mat = dmResource::FindByHash(m_Factory, dmHashString64("/render/material_valid.materialc"));
     ASSERT_NE((void*)0, rd_mat);
 
-    HResourceDescriptor rd_rt = dmResource::FindByHash(m_Factory, dmHashString64("/render_target/valid.render_targetc"));
+    HResourceDescriptor rd_rt = dmResource::FindByHash(m_Factory, dmHashString64("/render/render_target_valid.render_targetc"));
     ASSERT_NE((void*)0, rd_rt);
 
-    HResourceType types[] = { res_type_material, res_type_render_target, res_type_material };
-    void* resources[] = { dmResource::GetResource(rd_mat), dmResource::GetResource(rd_rt), dmResource::GetResource(rd_mat) };
+    HResourceType types[] = { res_type_material, res_type_material, res_type_render_target };
+    void* resources[] = { dmResource::GetResource(rd_mat), dmResource::GetResource(rd_mat), dmResource::GetResource(rd_rt) };
 
     for (int i = 0; i < render_prototype->m_RenderResources.Size(); ++i)
     {
@@ -922,10 +922,10 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_NE((void*)0, go);
 
     dmGameSystem::TextureSetResource* texture_set_res = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &texture_set_res));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/resource/tile_valid.t.texturesetc", (void**) &texture_set_res));
 
     dmGraphics::HTexture backing_texture = texture_set_res->m_Texture->m_Texture;
-    ASSERT_EQ(dmGraphics::GetTextureWidth(m_GraphicsContext, backing_texture), 64);
+    ASSERT_EQ(dmGraphics::GetTextureWidth(m_GraphicsContext, backing_texture), 128);
     ASSERT_EQ(dmGraphics::GetTextureHeight(m_GraphicsContext, backing_texture), 64);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -1983,7 +1983,7 @@ TEST_P(ResourcePropTest, ResourceRefCounting)
 TEST_F(ComponentTest, ModelTexturePropertyAllTextureSlots)
 {
     const char* go_path = "/resource/res_getset_prop.goc";
-    const char* tex_path = "/tile/mario_tileset.texturec";
+    const char* tex_path = "/resource/texture_valid_png.texturec";
     dmhash_t tex_hash = dmHashString64(tex_path);
     dmhash_t comp_name = dmHashString64("model");
 
@@ -2078,7 +2078,7 @@ TEST_F(SpriteTest, FlipbookAnim)
 
 TEST_F(SpriteTest, FrameCount)
 {
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count_sprite_frame_count.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     WaitForTestsDone(100, false, 0);
@@ -2102,10 +2102,10 @@ TEST_F(SpriteTest, GetSetSliceProperty)
 TEST_F(SpriteTest, GetSetImagesByHash)
 {
     void* atlas=0;
-    dmResource::Result res = dmResource::Get(m_Factory, "/atlas/valid_64x64.t.texturesetc", &atlas);
+    dmResource::Result res = dmResource::Get(m_Factory, "/sprite/atlas_valid_64x64.a.texturesetc", &atlas);
     ASSERT_EQ(dmResource::RESULT_OK, res);
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image/get_set_image_by_hash.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image_get_set_image_by_hash.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2122,13 +2122,13 @@ TEST_F(SpriteTest, SetImageThenPlayAnimationDoesNotLogErrors)
     dmhash_t sprite_comp_id = dmHashString64("sprite");
     dmhash_t image_prop_id = dmHashString64("image");
     dmhash_t animation_prop_id = dmHashString64("animation");
-    dmhash_t atlas_b = dmHashString64("/atlas/valid_64x64.t.texturesetc");
-    dmhash_t animation_b = dmHashString64("valid_png");
+    dmhash_t atlas_b = dmHashString64("/sprite/atlas_valid_64x64.a.texturesetc");
+    dmhash_t animation_b = dmHashString64("atlas_texture_valid_png");
     dmGameSystem::TextureSetResource* atlas_resource = 0;
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/atlas/valid_64x64.t.texturesetc", (void**) &atlas_resource));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/atlas_valid_64x64.a.texturesetc", (void**) &atlas_resource));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image/get_set_image_by_hash_noscript.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image_get_set_image_by_hash_noscript.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2246,10 +2246,10 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstTrimmedAnimationWithoutLogging)
     dmhash_t animation_prop_id = dmHashString64("animation");
     dmhash_t old_animation_id = dmHashString64("anim_loop_pingpong");
     dmhash_t fallback_animation_id = dmHashString64("frame_0");
-    dmhash_t new_image_id = dmHashString64("/sprite/image/stale_animation_id_in_range.t.texturesetc");
+    dmhash_t new_image_id = dmHashString64("/sprite/image_stale_animation_id_in_range.a.texturesetc");
     dmGameSystem::TextureSetResource* image_resource = 0;
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/image/stale_animation_id_in_range.t.texturesetc", (void**) &image_resource));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/image_stale_animation_id_in_range.a.texturesetc", (void**) &image_resource));
     ASSERT_TRUE(image_resource->m_TextureSet->m_Animations.m_Count > 6);
     ASSERT_NE(dmGameSystemDDF::SPRITE_TRIM_MODE_OFF, image_resource->m_TextureSet->m_Geometries[0].m_TrimMode);
     ASSERT_EQ((uint32_t*)0, image_resource->m_AnimationIds.Get(old_animation_id));
@@ -2626,16 +2626,16 @@ TEST_F(GuiTest, TextureResources)
     dmGameSystem::TextureSetResource* valid_atlas = 0;
     dmGameSystem::TextureResource* valid_texture = 0;
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/atlas/valid.t.texturesetc", (void**) &valid_atlas));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/atlas_valid.a.texturesetc", (void**) &valid_atlas));
     ASSERT_TRUE(valid_atlas != 0x0);
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/valid_png.texturec", (void**) &valid_texture));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/texture_valid_png.texturec", (void**) &valid_texture));
     ASSERT_TRUE(valid_atlas != 0x0);
 
     dmGraphics::HTexture valid_atlas_th = valid_atlas->m_Texture->m_Texture;
     dmGraphics::HTexture valid_texture_th = valid_texture->m_Texture;
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_resources/texture_resources.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_resources_texture_resources.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0x0, go);
 
     dmResource::Release(m_Factory, valid_atlas);
@@ -2706,7 +2706,7 @@ TEST_F(GuiTest, TextureResources)
 TEST_F(GuiTest, TextureSetterOverrideRefreshesAtlasState)
 {
     dmGameSystem::TextureSetResource* expected_atlas = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/texture_setter_override_b.t.texturesetc", (void**)&expected_atlas));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/texture_setter_override_b.a.texturesetc", (void**)&expected_atlas));
     ASSERT_NE((void*)0x0, expected_atlas);
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_setter_override.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -2749,7 +2749,7 @@ TEST_F(GuiTest, TextureSetterOverrideRefreshesAtlasState)
 TEST_F(GuiTest, TextureReloadRefreshesAtlasState)
 {
     dmGameSystem::TextureSetResource* expected_atlas = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/texture_setter_override_a.t.texturesetc", (void**)&expected_atlas));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/texture_setter_override_a.a.texturesetc", (void**)&expected_atlas));
     ASSERT_NE((void*)0x0, expected_atlas);
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_reload_override.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -3221,18 +3221,18 @@ TEST_P(FactoryTest, Test)
 {
     const char* resource_path[] = {
             "/factory/factory_resource.goc",
-            "/sprite/valid.spritec",
-            "/tile/valid.t.texturesetc",
-            "/sprite/sprite.materialc",
+            "/factory/sprite_valid.spritec",
+            "/factory/tile_valid.t.texturesetc",
+            "/factory/sprite_sprite.materialc",
     };
     const char* dyn_prototype_empty_resource_path[] = {
             "/factory/empty.goc",
     };
     const char* dyn_prototype_sprite_resource_path[] = {
             "/factory/dynamic_prototype_sprite.goc",
-            "/sprite/valid.spritec",
-            "/tile/valid.t.texturesetc",
-            "/sprite/sprite.materialc",
+            "/factory/sprite_valid.spritec",
+            "/factory/tile_valid.t.texturesetc",
+            "/factory/sprite_sprite.materialc",
     };
     const char** dyn_prototype_resource_path = 0;
     uint32_t num_dyn_prototype_resources = 0;
@@ -3852,9 +3852,9 @@ TEST_P(CollectionFactoryTest, Test)
     const char* resource_path[] = {
             "/collection_factory/collectionfactory_test.collectionc", // prototype resource (loaded in collection factory resource)
             "/collection_factory/collectionfactory_resource.goc", // two instances referenced in factory collection protoype
-            "/sprite/valid.spritec", // single instance (subresource of go's)
-            "/tile/valid.t.texturesetc", // single instance (subresource of sprite)
-            "/sprite/sprite.materialc", // single instance (subresource of sprite)
+            "/collection_factory/sprite_valid.spritec", // single instance (subresource of go's)
+            "/collection_factory/tile_valid.t.texturesetc", // single instance (subresource of sprite)
+            "/collection_factory/sprite_sprite.materialc", // single instance (subresource of sprite)
     };
     uint32_t num_resources = DM_ARRAY_SIZE(resource_path);
 
@@ -4477,7 +4477,7 @@ TEST_F(GuiTest, GuiPreparedTextLayoutInvalidation)
     ASSERT_EQ(1u, initial.m_TextEntryCount);
     ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
     ASSERT_EQ(0u, initial.m_TextBufferSize);
-    ASSERT_EQ(dmHashString64("/font/valid.ttf"), GetTextLayoutGlyphFontPathHash(dynamic_font_resource, initial.m_TextLayout));
+    ASSERT_EQ(dmHashString64("/gui/font_valid.ttf"), GetTextLayoutGlyphFontPathHash(dynamic_font_resource, initial.m_TextLayout));
 
     dmGui::GetNodeTextLayout(scene, node, &text_layout);
     ASSERT_EQ(initial.m_TextLayout, text_layout.m_Handle);
@@ -4531,7 +4531,7 @@ TEST_F(GuiTest, GuiPreparedTextLayoutInvalidation)
     ASSERT_NE(font_changed.m_TextLayout, dynamic_font_changed.m_TextLayout);
 
     uint32_t dynamic_font_version = dmGameSystem::ResFontGetVersion(dynamic_font_resource);
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/gui/font_dyn_glyph_bank_test_1.fontc", 0));
     ASSERT_EQ(dynamic_font_version + 1, dmGameSystem::ResFontGetVersion(dynamic_font_resource));
 
     GuiTextSubmitResult reloaded_font = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
@@ -5334,7 +5334,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_test/dispatch_buffers_test.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_test_dispatch_buffers_test.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     // Play particlefx
@@ -5365,7 +5365,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
     }
 
-    // Vertex format for /misc/dispatch_buffers_test/vs_format_a.vp:
+    // Vertex format for /misc/dispatch_buffers_test_vs_format_a.vp:
     // attribute vec4 position;
     // attribute float page_index;
     struct vs_format_a
@@ -5374,7 +5374,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         float page_index;
     };
 
-    // Vertex format for /misc/dispatch_buffers_test/vs_format_b.vp:
+    // Vertex format for /misc/dispatch_buffers_test_vs_format_b.vp:
     // attribute vec4 position;
     // attribute vec3 my_custom_attribute;
     struct vs_format_b
@@ -5500,19 +5500,19 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         float p2[] = { -1.0, -1.0 };
         float p3[] = {  1.0, -1.0 };
 
-        SET_VTX_A(model_a[0], p0[0], p0[1], 1.0f, 0.0f);
-        SET_VTX_A(model_a[1], p1[0], p1[1], 1.0f, 0.0f);
-        SET_VTX_A(model_a[2], p2[0], p2[1], 1.0f, 0.0f);
-        SET_VTX_A(model_a[3], p0[0], p0[1], 1.0f, 0.0f);
-        SET_VTX_A(model_a[4], p2[0], p2[1], 1.0f, 0.0f);
-        SET_VTX_A(model_a[5], p3[0], p3[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[0], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[1], p3[0], p3[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[2], p0[0], p0[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[3], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[4], p0[0], p0[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[5], p1[0], p1[1], 1.0f, 0.0f);
 
-        SET_VTX_B(model_b[0], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[1], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[2], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[3], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[4], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[5], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[0], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[1], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[2], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[3], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[4], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[5], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
 
         for (int i = 0; i < num_draws; ++i)
         {
@@ -5713,7 +5713,7 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
     ASSERT_NE((void*) 0, model_world);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_instancing_test/dispatch_buffers_instancing_test.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_instancing_test_dispatch_buffers_instancing_test.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -5756,8 +5756,8 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
     /////////////////////////////////////////////
     {
         dmGameSystem::MaterialResource *material_a, *material_b;
-        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/misc/dispatch_buffers_instancing_test/material_a.materialc", (void**) &material_a));
-        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/misc/dispatch_buffers_instancing_test/material_b.materialc", (void**) &material_b));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/misc/dispatch_buffers_instancing_test_material_a.materialc", (void**) &material_a));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/misc/dispatch_buffers_instancing_test_material_b.materialc", (void**) &material_b));
 
         ASSERT_NE((void*)0, material_a->m_Material);
         ASSERT_NE((void*)0, material_b->m_Material);
@@ -5935,14 +5935,14 @@ INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resourc
 
 /* MeshSet */
 
-const char* valid_meshset_resources[] = {"/meshset/valid_gltf.meshsetc", "/meshset/valid_gltf.skeletonc", "/meshset/valid_gltf.animationsetc"};
+const char* valid_meshset_resources[] = {"/meshset/valid_gltf.meshsetc", "/meshset/valid_gltf.skeletonc", "/meshset/valid_gltf_generated_0.animationsetc"};
 INSTANTIATE_TEST_CASE_P(MeshSet, ResourceTest, jc_test_values_in(valid_meshset_resources));
 
 ResourceFailParams invalid_mesh_resources[] =
 {
     {"/meshset/valid_gltf.meshsetc", "/meshset/missing.meshsetc"},
     {"/meshset/valid_gltf.skeletonc", "/meshset/missing.skeletonc"},
-    {"/meshset/valid_gltf.animationsetc", "/meshset/missing.animationsetc"},
+    {"/meshset/valid_gltf_generated_0.animationsetc", "/meshset/missing.animationsetc"},
 };
 INSTANTIATE_TEST_CASE_P(MeshSet, ResourceFailTest, jc_test_values_in(invalid_mesh_resources));
 
@@ -6273,10 +6273,10 @@ ResourcePropParams res_prop_params[] =
     // property, val, val-not-found, val-invalid-ext, component0, ..., componentN
     {"material", "/resource/resource_alt.materialc", "/not_found.materialc", "/resource/res_getset_prop.goc", "label", "model", "gui", "tilemap", 0},
     {"font", "/resource/font.fontc", "/not_found.fontc", "/resource/res_getset_prop.goc", "label", 0},
-    {"image", "/tile/valid2.t.texturesetc", "", "/resource/res_getset_prop.goc", "sprite", 0},
-    {"texture0", "/tile/mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
-    {"texture1", "/tile/mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
-    {"tile_source", "/tile/valid2.t.texturesetc", "", "/resource/res_getset_prop.goc", "tilemap", 0},
+    {"image", "/resource/tileset.t.texturesetc", "", "/resource/res_getset_prop.goc", "sprite", 0},
+    {"texture0", "/resource/tile_mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
+    {"texture1", "/resource/tile_mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
+    {"tile_source", "/resource/tileset.t.texturesetc", "", "/resource/res_getset_prop.goc", "tilemap", 0},
 };
 
 INSTANTIATE_TEST_CASE_P(ResourceProperty, ResourcePropTest, jc_test_values_in(res_prop_params));
@@ -6610,12 +6610,11 @@ bool RunFile(lua_State* L, const char* filename)
     if (res != dmDDF::RESULT_OK)
         return false;
 
-    char* buffer = (char*) malloc(ddf->m_Source.m_Script.m_Count + 1);
-    memcpy((void*) buffer, ddf->m_Source.m_Script.m_Data, ddf->m_Source.m_Script.m_Count);
-    buffer[ddf->m_Source.m_Script.m_Count] = '\0';
-
-    int ret = luaL_dostring(L, buffer);
-    free(buffer);
+    int ret = dmScript::LuaLoad(L, &ddf->m_Source);
+    if (ret == 0)
+    {
+        ret = dmScript::PCall(L, 0, 0);
+    }
     dmDDF::FreeMessage(ddf);
 
     if (ret != 0)
@@ -8634,9 +8633,9 @@ TEST_F(SysTest, LoadBufferASync)
     large_buffer[0]                   = 127;
     large_buffer[large_buffer_size-1] = 255;
 
-    dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
+    dmResource::AddFile(m_Factory, "/sys/non_disk_content_large_file.raw", large_buffer_size, large_buffer);
     ASSERT_TRUE(RunTestLoadBufferASync(2, m_Scriptlibcontext, m_Collection, &m_UpdateContext, false));
-    dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
+    dmResource::RemoveFile(m_Factory, "/sys/non_disk_content_large_file.raw");
     delete[] large_buffer;
 
     // Test 3
@@ -8656,7 +8655,7 @@ TEST_F(SysTest, LoadBufferASync)
 TEST_F(ShaderTest, Compute)
 {
     dmGraphics::ShaderDesc* ddf;
-    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.cp.spc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.spc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
     ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, ddf->m_Shaders[0].m_ShaderType);
     ASSERT_NE(0, ddf->m_Shaders.m_Count);
 
@@ -8702,7 +8701,7 @@ TEST_F(ShaderTest, ComputeResource)
     dmRender::HComputeProgram compute_program = compute_program_res->m_Program;
 
     dmGraphics::HProgram graphics_compute_program = dmRender::GetComputeProgram(compute_program);
-    ASSERT_EQ(9, dmGraphics::GetUniformCount(graphics_compute_program));
+    ASSERT_EQ(7, dmGraphics::GetUniformCount(graphics_compute_program));
 
     dmRender::HConstant ca, cb, cc, cd;
     ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_a"), ca));
@@ -8760,7 +8759,7 @@ TEST_F(ShaderTest, ComputeResource)
 
     ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_b);
     ASSERT_EQ(dmHashString64("texture_b"),            sampler_tex_b->m_NameHash);
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_TEXTURE_2D,    sampler_tex_b->m_Type);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,            sampler_tex_b->m_Type);
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST,     sampler_tex_b->m_MinFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST,     sampler_tex_b->m_MagFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_UWrap);
@@ -8769,7 +8768,7 @@ TEST_F(ShaderTest, ComputeResource)
 
     ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_c);
     ASSERT_EQ(dmHashString64("texture_c"),             sampler_tex_c->m_NameHash);
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_TEXTURE_2D,     sampler_tex_c->m_Type);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,             sampler_tex_c->m_Type);
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,       sampler_tex_c->m_MinFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,       sampler_tex_c->m_MagFilter);
     ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,  sampler_tex_c->m_UWrap);

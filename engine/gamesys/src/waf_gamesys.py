@@ -499,7 +499,6 @@ proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic', transfor
 proto_compile_task('camera', 'camera_ddf_pb2', 'CameraDesc', '.camera', '.camerac')
 proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_binding', '.input_bindingc')
 proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
-proto_compile_task('script', 'gamesys_ddf_pb2', 'ScriptDesc', '.script', '.scriptc', transform_factory)
 proto_compile_task('factory', 'gamesys_ddf_pb2', 'FactoryDesc', '.factory', '.factoryc', transform_factory)
 proto_compile_task('collectionfactory', 'gamesys_ddf_pb2', 'CollectionFactoryDesc', '.collectionfactory', '.collectionfactoryc', transform_collectionfactory)
 proto_compile_task('label', 'label_ddf_pb2', 'LabelDesc', '.label', '.labelc', transform_label)

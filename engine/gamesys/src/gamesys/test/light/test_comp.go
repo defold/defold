@@ -4,6 +4,6 @@ components {
 }
 components {
   id: "script"
-  component: "/script/test_component.script"
+  component: "/light/script_test_component.script"
 }
 

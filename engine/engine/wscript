@@ -133,9 +133,13 @@ def configure(conf):
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
     if 'box2dv3' in waflib.Options.options.enable_features:
-        conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
+        gamesys_libs = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
     else:
-        conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
+        gamesys_libs = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
+    if target_os == TargetOS.WINDOWS:
+        conf.env['LINKFLAGS_GAMESYS'] = ['%s.lib' % lib for lib in gamesys_libs]
+    else:
+        conf.env['STLIB_GAMESYS'] = gamesys_libs
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_DMGLFW'] = glfw_lib

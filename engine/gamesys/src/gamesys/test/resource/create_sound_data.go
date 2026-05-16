@@ -5,6 +5,6 @@ components {
 
 components {
   id: "sound"
-  component: "/sound/valid.sound"
+  component: "/resource/sound_valid.sound"
 }
 

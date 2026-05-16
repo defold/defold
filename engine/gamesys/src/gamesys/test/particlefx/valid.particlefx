@@ -14,9 +14,9 @@ emitters {
     z: 0.0
     w: 1.0
   }
-  tile_source: "/tile/valid.tileset"
+  tile_source: "/particlefx/tile_valid.tileset"
   animation: "anim"
-  material: "/material/valid.material"
+  material: "/particlefx/material_valid.material"
   blend_mode: BLEND_MODE_ADD
   particle_orientation: PARTICLE_ORIENTATION_DEFAULT
   inherit_velocity: 0.0

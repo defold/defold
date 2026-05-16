@@ -33,5 +33,5 @@ pivot: PIVOT_CENTER
 blend_mode: BLEND_MODE_ALPHA
 line_break: false
 text: "Label"
-font: "/font/valid_font.font"
-material: "/material/valid.material"
+font: "/label/font_valid_font.font"
+material: "/label/material_valid.material"

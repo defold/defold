@@ -77,7 +77,6 @@ function(defold_get_graphics_symbols OUT_VAR PLATFORM)
     set(${OUT_VAR} "${_SYMS}" PARENT_SCOPE)
 endfunction()
 
-
 function(defold_target_link_graphics target platform)
     set(options)
     set(oneValueArgs SCOPE)

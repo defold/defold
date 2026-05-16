@@ -1,0 +1,15 @@
+/resource/default.texture_profiles
+/resource/booster_on_sfx.wav
+/resource/create_sound_data.go
+/resource/create_texture.go
+/resource/font.font
+/resource/label.go
+/resource/layer_guitar_a.ogg
+/resource/model.go
+/resource/res_getset_prop.go
+/resource/script_atlas.go
+/resource/script_buffer.go
+/resource/script_render_target.go
+/resource/set_texture.go
+/resource/sprite.go
+/resource/tilemap.go

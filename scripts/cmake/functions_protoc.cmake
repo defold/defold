@@ -248,15 +248,39 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
         set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
     endif()
 
-    add_custom_command(
-        OUTPUT "${_gen_py}" "${_init_py}"
-        COMMAND ${_PROTOC_BIN} --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
-        COMMAND ${CMAKE_COMMAND} -E touch "${_init_py}"
-        DEPENDS "${_src_abs}"
-        VERBATIM
-        COMMENT "Generating Python from ${SRC_PROTO} and ensuring package __init__.py"
-    )
-    set_source_files_properties("${_gen_py}" "${_init_py}" PROPERTIES GENERATED TRUE)
+    get_property(_defold_proto_py_init_dirs GLOBAL PROPERTY DEFOLD_PROTO_PY_INIT_DIRS)
+    if(NOT _defold_proto_py_init_dirs)
+        set(_defold_proto_py_init_dirs "")
+    endif()
+    list(FIND _defold_proto_py_init_dirs "${_out_dir}" _init_dir_index)
+    if(_init_dir_index EQUAL -1)
+        set(_produce_init TRUE)
+        list(APPEND _defold_proto_py_init_dirs "${_out_dir}")
+        set_property(GLOBAL PROPERTY DEFOLD_PROTO_PY_INIT_DIRS "${_defold_proto_py_init_dirs}")
+    else()
+        set(_produce_init FALSE)
+    endif()
+
+    if(_produce_init)
+        add_custom_command(
+            OUTPUT "${_gen_py}" "${_init_py}"
+            COMMAND ${_PROTOC_BIN} --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            COMMAND ${CMAKE_COMMAND} -E touch "${_init_py}"
+            DEPENDS "${_src_abs}"
+            VERBATIM
+            COMMENT "Generating Python from ${SRC_PROTO} and ensuring package __init__.py"
+        )
+        set_source_files_properties("${_init_py}" PROPERTIES GENERATED TRUE)
+    else()
+        add_custom_command(
+            OUTPUT "${_gen_py}"
+            COMMAND ${_PROTOC_BIN} --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            DEPENDS "${_src_abs}"
+            VERBATIM
+            COMMENT "Generating Python from ${SRC_PROTO}"
+        )
+    endif()
+    set_source_files_properties("${_gen_py}" PROPERTIES GENERATED TRUE)
 
     # Optional copy if OUT_PY differs from protoc default
     if(NOT "${OUT_PY}" STREQUAL "${_gen_py}")

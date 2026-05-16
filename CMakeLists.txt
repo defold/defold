@@ -17,6 +17,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/defold.cmake")
 add_subdirectory(engine/platform)
 add_subdirectory(engine/hid)
 add_subdirectory(engine/input)
+add_subdirectory(engine/gamesys)
 
 # ===================== CMake package export =====================
 # Export defold_sdk so external projects can find_package(Defold)

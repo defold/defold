@@ -1,0 +1,7 @@
+/light/invalid_directional_light.go
+/light/invalid_point_light.go
+/light/invalid_spot_light.go
+/light/test_comp.go
+/light/valid_directional_light.go
+/light/valid_point_light.go
+/light/valid_spot_light.go

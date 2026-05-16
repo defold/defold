@@ -5,16 +5,27 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.pipeline.ModelImporterJni;
 import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.lang.reflect.InvocationTargetException;
 import java.net.JarURLConnection;
 import java.net.URL;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarFile;
 
 public class PackedResources {
+    private static final String TOOLS_LOCK = ".bob-tools.lock";
+    private static final String TOOLS_COMPLETE = ".bob-tools-%s-complete";
+    private static final String LUAJIT_SHARE_ZIP = "lib/luajit-share.zip";
+    private static final String LUAJIT_SHARE_DIR = "luajit";
+
     // Async unpack state and synchronization
     private static volatile boolean unpackStarted = false;
     private static volatile boolean unpackDone = false;
@@ -84,9 +95,22 @@ public class PackedResources {
         return targetFile;
     }
 
-    private static void runUnpackAllLibsAsync(Platform platform) throws IOException {
-        TimeProfiler.start("runUnpackAllLibsAsync");
+    private static File getCompletionMarker(File rootFolder, String platformPair) {
+        return new File(rootFolder, String.format(TOOLS_COMPLETE, platformPair));
+    }
+
+    private static void atomicExtractLuaJITShare(URL luajitZip, File rootFolder) throws IOException {
+        File shareDir = new File(rootFolder, "share");
+        File luajitDir = new File(shareDir, LUAJIT_SHARE_DIR);
+        if (luajitDir.exists()) {
+            FileUtils.deleteDirectory(luajitDir);
+        }
+        Bob.atomicExtractDirectory(luajitZip, shareDir, LUAJIT_SHARE_DIR);
+    }
+
+    private static void unpackPlatformResources(Platform platform) throws IOException {
         String platformPair = platform.getPair();
+        File rootFolder = Bob.getRootFolder();
         File targetDir = new File(Bob.getRootFolder(), platformPair);
 
         // Ensure the target directory exists
@@ -111,7 +135,6 @@ public class PackedResources {
                 jarConnection.setUseCaches(false);
                 try (JarFile jarFile = jarConnection.getJarFile()) {
                     String basePath = "libexec/" + platformPair + "/";
-                    String luaZip = "lib/luajit-share.zip";
                     jarFile.stream().forEach(entry -> {
                         String name = entry.getName();
                         if (!entry.isDirectory()) {
@@ -127,9 +150,9 @@ public class PackedResources {
                                     throw new RuntimeException(String.format("Failed to copy packed tool '%s'", name), e);
                                 }
                             }
-                            else if (name.startsWith(luaZip)) {
+                            else if (name.equals(LUAJIT_SHARE_ZIP)) {
                                 try {
-                                    Bob.extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(Bob.getRootFolder(), "share"));
+                                    atomicExtractLuaJITShare(Bob.class.getResource("/" + LUAJIT_SHARE_ZIP), rootFolder);
                                 } catch (IOException e) {
                                     throw new RuntimeException("Failed to extract packed LuaJIT share archive: " + name, e);
                                 }
@@ -162,7 +185,7 @@ public class PackedResources {
             File luajitZip = new File(libDir, "luajit-share.zip");
             if (luajitZip.exists()) {
                 try {
-                    Bob.extract(luajitZip.toURI().toURL(), new File(Bob.getRootFolder(), "share"));
+                    atomicExtractLuaJITShare(luajitZip.toURI().toURL(), rootFolder);
                 } catch (IOException e) {
                     throw new RuntimeException("Failed to extract packed LuaJIT share archive: " + luajitZip.getAbsolutePath(), e);
                 }
@@ -170,7 +193,30 @@ public class PackedResources {
         } else {
             throw new IOException("Unsupported protocol for /libexec/" + platformPair + ": " + libexecRoot.getProtocol());
         }
-        TimeProfiler.stop();
+    }
+
+    private static void runUnpackAllLibsAsync(Platform platform) throws IOException {
+        TimeProfiler.start("runUnpackAllLibsAsync");
+        try {
+            File rootFolder = Bob.getRootFolder();
+            String platformPair = platform.getPair();
+            File lockFile = new File(rootFolder, TOOLS_LOCK);
+            File completionMarker = getCompletionMarker(rootFolder, platformPair);
+            lockFile.getParentFile().mkdirs();
+
+            try (RandomAccessFile lockAccess = new RandomAccessFile(lockFile, "rw");
+                 FileChannel lockChannel = lockAccess.getChannel();
+                 FileLock ignored = lockChannel.lock()) {
+                if (completionMarker.exists()) {
+                    return;
+                }
+
+                unpackPlatformResources(platform);
+                Files.write(completionMarker.toPath(), "ok\n".getBytes(StandardCharsets.UTF_8));
+            }
+        } finally {
+            TimeProfiler.stop();
+        }
     }
 
     /**

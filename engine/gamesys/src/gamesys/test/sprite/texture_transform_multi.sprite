@@ -1,11 +1,11 @@
-material: "/material/attributes_texture_transform_multi.material"
+material: "/sprite/material_attributes_texture_transform_multi.material"
 default_animation: "anim"
 textures {
   sampler: "tex0"
-  texture: "/tile/valid.tileset"
+  texture: "/sprite/tile_valid.tileset"
 }
 textures {
   sampler: "tex1"
-  texture: "/tile/valid2.tileset"
+  texture: "/sprite/tile_valid2.tileset"
 }
 

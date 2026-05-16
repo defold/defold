@@ -1,0 +1,8 @@
+/convex_shape/box.convexshape
+/convex_shape/capsule.convexshape
+/convex_shape/hull.convexshape
+/convex_shape/invalid_box.convexshape
+/convex_shape/invalid_capsule.convexshape
+/convex_shape/invalid_hull.convexshape
+/convex_shape/invalid_sphere.convexshape
+/convex_shape/sphere.convexshape

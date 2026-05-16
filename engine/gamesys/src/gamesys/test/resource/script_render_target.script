@@ -18,7 +18,7 @@ local function assert_attachment(attachment, t_info)
 end
 
 local function test_get_info(self)
-	local info = resource.get_render_target_info("/render_target/valid.render_targetc")
+	local info = resource.get_render_target_info("/resource/render_target_valid.render_targetc")
 	assert(info.handle ~= nil)
 	assert(#info.attachments == 3)
 	assert(info.attachments[1].width == 128)
@@ -37,7 +37,7 @@ local function test_get_info(self)
 end
 
 local function test_attachment_get_info(self)
-	local info = resource.get_render_target_info("/render_target/valid.render_targetc")
+	local info = resource.get_render_target_info("/resource/render_target_valid.render_targetc")
 
 	assert(info.attachments[1].texture ~= nil)
 	assert(info.attachments[2].texture ~= nil)
