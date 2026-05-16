@@ -244,7 +244,7 @@ def install(args):
 
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
                 with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
-                skip_docs = False, skip_builtins = False, archive = False):
+                skip_docs = False, skip_builtins = False, archive = False, verbose = False):
 
     install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
@@ -268,6 +268,8 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     opts.append('--platform=%s' % platform)
     # ccache isn't needed on CI
     opts.append('--disable-ccache')
+    if verbose:
+        opts.append('--verbose')
 
     args.append('build_engine')
 
@@ -492,6 +494,7 @@ def main(argv):
     parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
+    parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
@@ -556,7 +559,8 @@ def main(argv):
                 skip_tests = args.skip_tests,
                 skip_build_tests = args.skip_build_tests,
                 skip_builtins = args.skip_builtins,
-                skip_docs = args.skip_docs)
+                skip_docs = args.skip_docs,
+                verbose = args.verbose)
         elif command == "build-editor":
             if not platform:
                 raise Exception("No --platform specified.")
