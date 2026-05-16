@@ -13,6 +13,10 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   ddf_noasan
   dlib
   dlib_noasan
+  engine
+  engine_release
+  engine_service
+  engine_service_null
   extension
   font
   font_skribidi
