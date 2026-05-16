@@ -74,7 +74,23 @@ namespace dmCrypt
     bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
     {
         size_t out_len = 0;
-        int r = mbedtls_base64_decode(dst, *dst_len, &out_len, src, src_len);
+        int r;
+
+        uint32_t padding_needed = (4 - (src_len % 4)) % 4;
+        if (padding_needed > 0 && src_len > 0)
+        {
+            uint32_t padded_len = src_len + padding_needed;
+            uint8_t* padded_src = new uint8_t[padded_len];
+            memcpy(padded_src, src, src_len);
+            memset(padded_src + src_len, '=', padding_needed);
+            r = mbedtls_base64_decode(dst, *dst_len, &out_len, padded_src, padded_len);
+            delete[] padded_src;
+        }
+        else
+        {
+            r = mbedtls_base64_decode(dst, *dst_len, &out_len, src, src_len);
+        }
+
         if (r != 0)
         {
             if (*dst_len == 0)
