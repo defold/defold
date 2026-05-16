@@ -816,7 +816,7 @@ class Configuration(object):
 
     def _install_python_packages(self, packages):
         target = join(self.ext, 'lib', 'python')
-        wheelhouse = join(self.defold_root, 'packages')
+        wheelhouse = join(self.defold_root, 'packages', 'python')
         self._mkdirs(target)
 
         if packages:
