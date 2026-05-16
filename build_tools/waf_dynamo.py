@@ -39,6 +39,17 @@ def import_lib(module_name, path):
     # How import initializes the module.
     loader.exec_module(module)
 
+def static_libs(conf, uselib, libs, exact_windows_libs = None):
+    # Waf expands STLIB entries to lib%s.lib on Windows. Libraries built outside Waf
+    # may need their exact .lib filename instead, while keeping the usual STLIB path elsewhere.
+    libs = Utils.to_list(libs)
+    exact_windows_libs = set(Utils.to_list(exact_windows_libs or libs))
+    if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
+        conf.env['STLIB_%s' % uselib] = [lib for lib in libs if lib not in exact_windows_libs]
+        conf.env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in libs if lib in exact_windows_libs])
+    else:
+        conf.env['STLIB_%s' % uselib] = libs
+
 # import the vendor specific build setup
 script_dir = os.path.dirname(__file__)
 path = os.path.join(script_dir, 'waf_dynamo_vendor.py')
@@ -2203,11 +2214,11 @@ def detect(conf):
         use_vanilla = True
 
     if use_vanilla:
-        conf.env['STLIB_LUA'] = 'lua'
+        static_libs(conf, 'LUA', 'lua')
     else:
         conf.env['STLIB_LUA'] = 'luajit-5.1'
 
-    conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
+    static_libs(conf, 'TESTMAIN', ['testmain']) # we'll use this for all internal tests/tools
 
     if target_os != TargetOS.MACOS:
         conf.env['STLIB_UNWIND'] = 'unwind'
@@ -2233,9 +2244,10 @@ def detect(conf):
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
+    dlib_libs = ['dlib', 'image', 'zip']
     if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
-        conf.env['STLIB_DLIB'].append('mbedtls')
+        dlib_libs.append('mbedtls')
+    static_libs(conf, 'DLIB', dlib_libs)
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
 
@@ -2243,14 +2255,14 @@ def detect(conf):
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
 
-    conf.env['STLIB_PROFILE'] = ['profile']
-    conf.env['STLIB_PROFILE_NULL'] = ['profile_null']
+    static_libs(conf, 'PROFILE', ['profile'])
+    static_libs(conf, 'PROFILE_NULL', ['profile_null'])
     conf.env['STLIB_PROFILER_BASIC'] = ['profiler_basic']
     conf.env['STLIB_PROFILER_REMOTERY'] = ['profiler_remotery']
     conf.env['STLIB_PROFILER_NULL'] = ['profiler_null']
 
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
+    static_libs(conf, 'PROFILE_NULL_NOASAN', ['profile_null_noasan'])
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'
@@ -2263,18 +2275,18 @@ def detect(conf):
             conf.env['STLIB_RECORD'] = 'record_null'
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STLIB_GRAPHICS']          = ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    static_libs(conf, 'GRAPHICS',          ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_OPENGLES', ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_VULKAN',   ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_DX12',     ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
     if 'wagyu' in Options.options.enable_features:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
     else:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'image', 'graphics_transcoder_null']
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'], ['image', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_NULL', ['graphics_null', 'image', 'graphics_transcoder_null'], ['image'])
 
-    conf.env['STLIB_FONT']            = ['font']
-    conf.env['STLIB_FONT_LAYOUT']     = ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi']
+    static_libs(conf, 'FONT', ['font'])
+    static_libs(conf, 'FONT_LAYOUT', ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi'], ['font_skribidi'])
 
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'
@@ -2316,19 +2328,19 @@ def detect(conf):
 
     if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
-        conf.env['LINKFLAGS_DLIB']      = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp
+        conf.env.append_value('LINKFLAGS_DLIB', ['ole32.lib']) # CoTaskMemFree in sys_win32.cpp
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
 
 
     if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
-        conf.env['LINKFLAGS_HID']               = ['hid.lib']
-        conf.env['LINKFLAGS_HID_NULL']          = ['hid_null.lib']
-        conf.env['LINKFLAGS_INPUT']             = ['input.lib']
-        conf.env['LINKFLAGS_PLATFORM']          = ['platform.lib']
-        conf.env['LINKFLAGS_PLATFORM_VULKAN']   = ['platform_vulkan.lib']
-        conf.env['LINKFLAGS_PLATFORM_NULL']     = ['platform_null.lib']
+        static_libs(conf, 'HID', ['hid'])
+        static_libs(conf, 'HID_NULL', ['hid_null'])
+        static_libs(conf, 'INPUT', ['input'])
+        static_libs(conf, 'PLATFORM', ['platform'])
+        static_libs(conf, 'PLATFORM_VULKAN', ['platform_vulkan'])
+        static_libs(conf, 'PLATFORM_NULL', ['platform_null'])
     else:
         conf.env['STLIB_HID']               = ['hid']
         conf.env['STLIB_HID_NULL']          = ['hid_null']
@@ -2340,8 +2352,8 @@ def detect(conf):
     if target_os in [TargetOS.MACOS, TargetOS.IOS]:
         conf.env['FRAMEWORK_HID'] = ['GameController']
 
-    conf.env['STLIB_EXTENSION'] = 'extension'
-    conf.env['STLIB_SCRIPT'] = 'script'
+    static_libs(conf, 'EXTENSION', ['extension'])
+    static_libs(conf, 'SCRIPT', ['script'])
 
     if conf.env.IS_TARGET_DESKTOP:
 

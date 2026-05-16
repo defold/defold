@@ -129,23 +129,20 @@ def configure(conf):
     elif target_os == TargetOS.WEB:
         pass
 
-    conf.env['STLIB_EXTENSION'] = 'extension'
-    conf.env['STLIB_RESOURCE'] = 'resource'
-    conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
+    waf_dynamo.static_libs(conf, 'EXTENSION', ['extension'])
+    waf_dynamo.static_libs(conf, 'RESOURCE', ['resource'])
+    waf_dynamo.static_libs(conf, 'RENDER', 'render render_font_default'.split())
     if 'box2dv3' in waflib.Options.options.enable_features:
         gamesys_libs = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
     else:
         gamesys_libs = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
-    if target_os == TargetOS.WINDOWS:
-        conf.env['LINKFLAGS_GAMESYS'] = ['%s.lib' % lib for lib in gamesys_libs]
-    else:
-        conf.env['STLIB_GAMESYS'] = gamesys_libs
+    waf_dynamo.static_libs(conf, 'GAMESYS', gamesys_libs)
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
-    conf.env['STLIB_SCRIPT'] = 'script'
+    waf_dynamo.static_libs(conf, 'SCRIPT', ['script'])
     conf.env['STLIB_DMGLFW'] = glfw_lib
     conf.env['STLIB_GUI'] = 'gui'
-    conf.env['STLIB_PARTICLE'] = 'particle'
-    conf.env['STLIB_RIG'] = 'rig'
+    waf_dynamo.static_libs(conf, 'PARTICLE', ['particle'])
+    waf_dynamo.static_libs(conf, 'RIG', ['rig'])
     conf.env['STLIB_SOUND'] = sound_lib
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'
     conf.env['LIB_OPENSLES'] = 'OpenSLES'

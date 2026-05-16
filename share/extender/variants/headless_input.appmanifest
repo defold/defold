@@ -28,7 +28,7 @@ platforms:
 
     win32:
         context:
-            excludeLibs: ["librecord","libvpx","libsound","libtremolo","libgraphics","hid","platform"]
+            excludeLibs: ["librecord","vpx","libsound","libtremolo","libgraphics","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
             libs: ["librecord_null.lib","libsound_null.lib","libgraphics_null.lib","hid_null.lib","platform_null.lib"]
@@ -46,4 +46,3 @@ platforms:
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
             libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
-

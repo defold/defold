@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations under the License.
 
 import waflib.Logs, waflib.Options
-from waf_dynamo import platform_supports_feature
+from waf_dynamo import static_libs, platform_supports_feature
 
 def configure(conf):
     if 'physics' in waflib.Options.options.disable_features:
         waflib.Logs.info("physics disabled")
-        conf.env['STLIB_PHYSICS'] = ['physics_null']
+        static_libs(conf, 'PHYSICS', ['physics_null'])
     else:
         box2d_lib = 'box2d_defold'
         physics_lib = 'physics'
@@ -35,4 +35,4 @@ def configure(conf):
         else:
             waflib.Logs.info("box2dv2 selected")
 
-        conf.env['STLIB_PHYSICS'] = [physics_lib, 'BulletDynamics', 'BulletCollision', 'LinearMath', box2d_lib]
+        static_libs(conf, 'PHYSICS', [physics_lib, 'BulletDynamics', 'BulletCollision', 'LinearMath', box2d_lib], [physics_lib])

@@ -24,8 +24,8 @@ platforms:
 
     win32:
         context:
-            excludeLibs: ["libengine", "libengine_service", "libprofile", "libprofilerext", "libprofiler_remotery", "librecord", "vpx"]
-            libs: ["libengine_release.lib", "libengine_service_null.lib", "libprofile_null.lib", "libprofilerext_null.lib", "librecord_null.lib"]
+            excludeLibs: ["libengine", "libengine_service", "profile", "libprofilerext", "libprofiler_remotery", "librecord", "vpx"]
+            libs: ["libengine_release.lib", "libengine_service_null.lib", "profile_null.lib", "libprofilerext_null.lib", "librecord_null.lib"]
             linkFlags: ["-Wl,/subsystem:windows"]
             excludeSymbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 
