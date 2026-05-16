@@ -278,6 +278,8 @@ public class ResourceCacheKeyTest {
                 "auth",
                 "binary-output",
                 "build-artifacts",
+                "build-input",
+                "build-input-file",
                 "build-report",
                 "build-report-html",
                 "build-report-json",
