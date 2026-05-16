@@ -8,6 +8,7 @@ int   _glfwAndroidPlatformOpenWindow(int width, int height, const _GLFWwndconfig
 void  _glfwAndroidPlatformCloseWindow(void);
 void  _glfwAndroidPlatformSwapBuffers(void);
 void  _glfwAndroidPlatformSwapInterval(int interval);
+int32_t _glfwAndroidPlatformVerifySurface(void);
 void  _glfwAndroidPlatformSetPendingResizeBecauseOfInsets(void);
 void  _glfwAndroidPlatformOnTermWindow(void);
 void  _glfwAndroidPlatformOnInitWindow(void);

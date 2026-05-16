@@ -34,6 +34,7 @@
 #include "android_log.h"
 #include "android_jni.h"
 #include "android_util.h"
+#include "android_window_backend.h"
 
 #include <android/sensor.h>
 
@@ -458,25 +459,7 @@ GLFWAPI int32_t glfwAndroidWindowOpened()
 
 GLFWAPI int32_t glfwAndroidVerifySurface()
 {
-#if defined(DMGLFW_NO_GL)
-    return 1;
-#else
-    // Although it's the wrong place to do a eglSwapbuffers, we're already handling a bad state from the last opengl error
-    // Verifying the state of the surface is worth it.
-    if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
-    {
-        EGLint error = eglGetError();
-        int32_t result = _glfwAndroidVerifySurfaceError(error);
-        if (!result)
-        {
-            destroy_gl_surface(&_glfwWinAndroid);
-            _glfwWinAndroid.should_recreate_surface = 1;
-            _glfwWin.iconified = 1;
-            return result;
-        }
-    }
-    return 1; // surface is ok
-#endif
+    return _glfwAndroidPlatformVerifySurface();
 }
 
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {

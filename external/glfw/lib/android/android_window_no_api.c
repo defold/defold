@@ -52,6 +52,11 @@ void _glfwAndroidPlatformSwapInterval(int interval)
     (void)interval;
 }
 
+int32_t _glfwAndroidPlatformVerifySurface(void)
+{
+    return 1;
+}
+
 void _glfwAndroidPlatformSetPendingResizeBecauseOfInsets(void)
 {
     g_PendingResizeBecauseOfInsets = 1;
