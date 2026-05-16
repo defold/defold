@@ -73,8 +73,13 @@ def copy_file_once(src, dst):
         tmp = Path(tmp)
         os.close(fd)
         shutil.copy2(src, tmp)
-        os.replace(tmp, dst)
-        tmp = None
+        try:
+            os.replace(tmp, dst)
+            tmp = None
+        except PermissionError:
+            # Parallel CMake jobs may copy the same bob-light helper at the same time.
+            if not dst.exists() or dst.stat().st_size != src.stat().st_size:
+                raise
     finally:
         if tmp is not None and tmp.exists():
             tmp.unlink()
