@@ -188,12 +188,12 @@ add_dependencies(script_box2d_defold gamesys_proto_headers)
 # ========= Android Java (optional) =========
 if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
     find_package(Java 21 COMPONENTS Development QUIET)
-    if(Java_JAVAC_EXECUTABLE)
+    if(Java_JAVAC_EXECUTABLE AND Java_JAR_EXECUTABLE)
         file(GLOB_RECURSE GS_JAVA_SRC "${GS_ROOT}/src/java/*.java")
         set(GS_JAR "${CMAKE_CURRENT_BINARY_DIR}/gamesys_android.jar")
         add_custom_command(OUTPUT "${GS_JAR}"
-            COMMAND "${Java_JAVAC_EXECUTABLE}" -g -source 1.8 -target 1.8 -d "${CMAKE_CURRENT_BINARY_DIR}/java" ${GS_JAVA_SRC}
-            COMMAND jar cf "${GS_JAR}" -C "${CMAKE_CURRENT_BINARY_DIR}/java" .
+            COMMAND "${Java_JAVAC_EXECUTABLE}" -g --release 8 -Xlint:-options -classpath "${DEFOLD_ANDROID_JAR}" -d "${CMAKE_CURRENT_BINARY_DIR}/java" ${GS_JAVA_SRC}
+            COMMAND "${Java_JAR_EXECUTABLE}" cf "${GS_JAR}" -C "${CMAKE_CURRENT_BINARY_DIR}/java" .
             DEPENDS ${GS_JAVA_SRC}
             VERBATIM)
         add_custom_target(gamesys_android_jar ALL DEPENDS "${GS_JAR}")

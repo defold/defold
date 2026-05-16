@@ -1749,10 +1749,27 @@ class Configuration(object):
         log_cmd_build = f'Ninja build {lib} {build_test}'
         self.build_tracker.start_command(log_cmd_build)
 
-        ninja_build_args = f"ninja all {build_test} {install} {verbose}".split()
+        ninja_build_args = ['ninja', 'all']
+        if build_test:
+            ninja_build_args.append(build_test)
+        if verbose:
+            ninja_build_args.append(verbose)
         run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
 
         self.build_tracker.end_command(log_cmd_build)
+
+        # Keep install as a separate phase. CMake's install target depends on
+        # 'all', but not on our custom 'build_tests' aggregate. Some installed
+        # test-side artifacts can otherwise race the install step.
+        log_cmd_install = f'Ninja install {lib}'
+        self.build_tracker.start_command(log_cmd_install)
+
+        ninja_install_args = ['ninja', install]
+        if verbose:
+            ninja_install_args.append(verbose)
+        run.env_command(self._form_env(), ninja_install_args, cwd = builddir)
+
+        self.build_tracker.end_command(log_cmd_install)
 
         # ***************************************************************************************
         # run the build
