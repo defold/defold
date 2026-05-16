@@ -34,7 +34,10 @@ function(defold_register_test_with_server target platform)
     set(DTS_CONFIG_NAME "unittest.cfg")
   endif()
 
-  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  if(NOT DEFINED DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE "${Python3_EXECUTABLE}" CACHE INTERNAL "Python interpreter used by Defold test server targets")
+  endif()
 
   set(_RUN_DIR "${DTS_WORKDIR}")
   if(_RUN_DIR)
@@ -54,7 +57,7 @@ function(defold_register_test_with_server target platform)
   set(_run_target "run_${target}_server")
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
-      COMMAND ${Python3_EXECUTABLE} "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_SERVER_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
+      COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_SERVER_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
       DEPENDS ${target}
       USES_TERMINAL
       COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")

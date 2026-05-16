@@ -41,6 +41,28 @@ Run tests:
 cmake --build build --target run_tests
 ```
 
+## Features
+
+Pass comma-separated features with `DEFOLD_ENABLE_FEATURES`:
+
+```bash
+cmake -S engine/font -B engine/font/build -DDEFOLD_ENABLE_FEATURES=font_layout
+cmake -S engine/physics -B engine/physics/build -DDEFOLD_ENABLE_FEATURES=box2dv3
+cmake -S engine/gamesys -B engine/gamesys/build -DDEFOLD_ENABLE_FEATURES=box2dv3,font_layout
+```
+
+The semicolon form also works if quoted:
+
+```bash
+cmake -S engine/gamesys -B engine/gamesys/build -DDEFOLD_ENABLE_FEATURES="box2dv3;font_layout"
+```
+
+To clear features in an existing build directory, configure with an empty value:
+
+```bash
+cmake -S engine/gamesys -B engine/gamesys/build -DDEFOLD_ENABLE_FEATURES=
+```
+
 ## Common Overrides
 
 ```bash
