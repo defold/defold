@@ -1,0 +1,8 @@
+component.go
+component.script
+component_reload.go
+component_reload.script
+component_reload_fail.go
+component_reload_fail.script
+rt.go
+test.collection
