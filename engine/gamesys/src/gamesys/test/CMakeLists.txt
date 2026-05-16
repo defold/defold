@@ -151,10 +151,16 @@ set(_COMMON_EXPORTED
   ScriptFont
   ScriptHttp)
 
+defold_get_physics_libraries(_GAMESYS_TEST_PHYSICS_LIBS)
+defold_get_font_libraries(_GAMESYS_TEST_FONT_LIBS)
+defold_get_gamesys_libraries(_GAMESYS_TEST_GAMESYS_LIBS)
+
 set(_DEFOLD_TEST_LIBS
   testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
   particle rig gui liveupdate graphics_null profile_null platform_null hid_null
-  physics render render_font_default font sound_null box2d_defold)
+  render render_font_default sound_null
+  ${_GAMESYS_TEST_PHYSICS_LIBS}
+  ${_GAMESYS_TEST_FONT_LIBS})
 
 set(_GS_TEST_INCLUDES
   "${GS_SRC_ROOT}"
@@ -165,7 +171,7 @@ set(_GS_TEST_INCLUDES
 function(gamesys_configure_common_test target)
   add_dependencies(${target} gamesys_test_content)
   target_include_directories(${target} PRIVATE ${_GS_TEST_INCLUDES})
-  target_link_libraries(${target} PRIVATE gamesys gamesys_rig gamesys_model)
+  target_link_libraries(${target} PRIVATE ${_GAMESYS_TEST_GAMESYS_LIBS})
   defold_target_link_libraries(${target} ${TARGET_PLATFORM} ${_DEFOLD_TEST_LIBS})
   defold_target_link_bullet3d(${target} ${TARGET_PLATFORM})
   defold_target_link_lua(${target} ${TARGET_PLATFORM})

@@ -21,6 +21,7 @@ set(PHYSICS_NULL_2D_SOURCE "${PHYSICS_SRC_DIR}/physics_2d_null.cpp")
 set(PHYSICS_NULL_3D_SOURCE "${PHYSICS_SRC_DIR}/physics_3d_null.cpp")
 file(GLOB PHYSICS_BOX2D_SOURCES CONFIGURE_DEPENDS "${PHYSICS_SRC_DIR}/box2d/*.cpp")
 file(GLOB PHYSICS_BOX2D_DEFOLD_SOURCES CONFIGURE_DEPENDS "${PHYSICS_SRC_DIR}/box2d_defold/*.cpp")
+defold_get_box2d_library(PHYSICS_BOX2D_LIB)
 
 function(physics_configure_library target)
   target_include_directories(${target} PUBLIC
@@ -53,7 +54,7 @@ defold_add_library(physics_2d STATIC
 physics_configure_library(physics_2d)
 target_include_directories(physics_2d PUBLIC "${DEFOLD_EXT_INCLUDE_DIR}/box2d")
 target_include_directories(physics_2d BEFORE PUBLIC "${DEFOLD_EXT_INCLUDE_DIR}/box2d/..")
-defold_target_link_libraries(physics_2d "${TARGET_PLATFORM}" dlib box2d)
+defold_target_link_libraries(physics_2d "${TARGET_PLATFORM}" dlib ${PHYSICS_BOX2D_LIB})
 
 defold_add_library(physics_2d_defold STATIC
   ${PHYSICS_COMMON_SOURCES}
