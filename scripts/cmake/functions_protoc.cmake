@@ -265,7 +265,7 @@ endfunction()
 
 function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     set(options)
-    set(oneValueArgs)
+    set(oneValueArgs PYTHON_ROOT)
     set(multiValueArgs INCLUDES)
     cmake_parse_arguments(DPP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -277,13 +277,23 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     get_filename_component(_src_abs "${SRC_PROTO}" ABSOLUTE)
     get_filename_component(_src_name_we "${SRC_PROTO}" NAME_WE)
 
-    set(_gen_py "${_out_dir}/${_src_name_we}_pb2.py")
+    if(DPP_PYTHON_ROOT)
+        set(_python_out_dir "${DPP_PYTHON_ROOT}")
+        set(_gen_py "${OUT_PY}")
+    else()
+        set(_python_out_dir "${_out_dir}")
+        set(_gen_py "${_out_dir}/${_src_name_we}_pb2.py")
+    endif()
     set(_init_py "${_out_dir}/__init__.py")
 
     # Build include flags: user-specified + SDK defaults + proto's parent dir
     get_filename_component(_src_dir "${_src_abs}" DIRECTORY)
-    set(_inc_dirs ${_src_dir})
-    if(DPP_INCLUDES)
+    set(_inc_dirs)
+    if(DPP_PYTHON_ROOT AND DPP_INCLUDES)
+        list(APPEND _inc_dirs ${DPP_INCLUDES})
+    endif()
+    list(APPEND _inc_dirs ${_src_dir})
+    if(NOT DPP_PYTHON_ROOT AND DPP_INCLUDES)
         list(APPEND _inc_dirs ${DPP_INCLUDES})
     endif()
     if(DEFOLD_SDK_ROOT)
@@ -320,7 +330,7 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     if(_produce_init)
         add_custom_command(
             OUTPUT "${_gen_py}" "${_init_py}"
-            COMMAND ${_PROTOC_BIN} --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            COMMAND ${_PROTOC_BIN} --python_out=${_python_out_dir} ${_inc_flags} ${_src_abs}
             COMMAND ${CMAKE_COMMAND} -E touch "${_init_py}"
             DEPENDS "${_src_abs}"
             VERBATIM
@@ -330,7 +340,7 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     else()
         add_custom_command(
             OUTPUT "${_gen_py}"
-            COMMAND ${_PROTOC_BIN} --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            COMMAND ${_PROTOC_BIN} --python_out=${_python_out_dir} ${_inc_flags} ${_src_abs}
             DEPENDS "${_src_abs}"
             VERBATIM
             COMMENT "Generating Python from ${SRC_PROTO}"

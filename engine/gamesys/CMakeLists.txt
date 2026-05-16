@@ -126,6 +126,7 @@ target_include_directories(gamesys PUBLIC
     "${GS_ROOT}/src"
     "${GS_ROOT}/proto"
     "${CMAKE_CURRENT_BINARY_DIR}")
+defold_target_link_libraries(gamesys "${TARGET_PLATFORM}" SCOPE PUBLIC render)
 
 # ========= gamesys_model =========
 set(GS_MODEL_PROTO "${GS_PROTO_DIR}/model_ddf.proto")
@@ -140,6 +141,7 @@ defold_add_library(gamesys_model STATIC
     "${GS_SRC_DIR}/scripts/script_model.cpp"
     "${GS_MODEL_CC}")
 target_include_directories(gamesys_model PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}" "${GS_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}")
+defold_target_link_libraries(gamesys_model "${TARGET_PLATFORM}" SCOPE PUBLIC render rig)
 
 defold_add_library(gamesys_model_null STATIC
     "${GS_SRC_DIR}/resources/res_model_null.cpp"
@@ -149,6 +151,7 @@ target_include_directories(gamesys_model_null PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK
 # ========= gamesys_rig =========
 defold_add_library(gamesys_rig STATIC "${GS_SRC_DIR}/resources/res_rig_scene.cpp")
 target_include_directories(gamesys_rig PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}")
+defold_target_link_libraries(gamesys_rig "${TARGET_PLATFORM}" SCOPE PUBLIC rig)
 
 defold_add_library(gamesys_rig_null STATIC "${GS_SRC_DIR}/resources/res_rig_scene_null.cpp")
 target_include_directories(gamesys_rig_null PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}")

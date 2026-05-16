@@ -25,7 +25,6 @@ endforeach()
 add_custom_target(particle_test_data DEPENDS ${PARTICLEFX_OUTPUTS})
 
 defold_add_executable(test_particle "${PARTICLE_TEST_ROOT}/test_particle.cpp")
-add_dependencies(test_particle particle_test_data)
 target_include_directories(test_particle PRIVATE
   "${PARTICLE_TEST_ROOT}"
   "${PARTICLE_ROOT}/src"
@@ -50,3 +49,6 @@ endif()
 defold_register_test_target(test_particle ON "${PARTICLE_ROOT}"
   STAGE_FILES
     "build/src/test" "build/src/test")
+if(TARGET run_test_particle)
+  add_dependencies(run_test_particle particle_test_data)
+endif()
