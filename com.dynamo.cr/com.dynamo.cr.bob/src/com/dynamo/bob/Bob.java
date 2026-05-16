@@ -337,6 +337,26 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    private static String getOptionalExeWithExtension(Platform platform, String name, String extension) throws IOException {
+        init();
+        PackedResources.waitForuUpackAllLibsAsync();
+        TimeProfiler.start("getOptionalExeWithExtension %s.%s", name, extension);
+        String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
+        File f = new File(rootFolder, exeName);
+        if (!f.exists()) {
+            URL url = Bob.class.getResource("/libexec/" + exeName);
+            if (url == null) {
+                TimeProfiler.stop();
+                return null;
+            }
+
+            atomicCopy(url, f, true);
+        }
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
+        return f.getAbsolutePath();
+    }
+
     public static String getLibExecPath(String filename) throws IOException {
         init();
         TimeProfiler.start("getLibExecPath %s", filename);
@@ -359,6 +379,22 @@ public class Bob {
             return currentExe;
         }
         return Bob.getExe(Platform.getHostPlatform(), exeName);
+    }
+
+    public static String getOptionalHostExeOnce(String exeName, String currentExe) throws IOException {
+        if (currentExe != null && Files.exists(Path.of(currentExe))) {
+            return currentExe;
+        }
+
+        Platform platform = Platform.getHostPlatform();
+        String[] exeSuffixes = platform.getExeSuffixes();
+        for (String exeSuffix : exeSuffixes) {
+            String exe = getOptionalExeWithExtension(platform, exeName, exeSuffix);
+            if (exe != null) {
+                return exe;
+            }
+        }
+        return null;
     }
 
     public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
