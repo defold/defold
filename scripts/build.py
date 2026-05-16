@@ -914,7 +914,7 @@ class Configuration(object):
             'Pygments==2.12.0',
             'boto3==1.36.3',
             'protobuf==3.20.1',
-            'pyaml==26.2.1',
+            'PyYAML==6.0.3',
             'pystache==0.6.8',
             'rangehttpserver==1.4.0',
             'requests==2.34.2',
