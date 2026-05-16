@@ -61,6 +61,11 @@ _CMAKE_FEATURE_FLAG_MAP = {
     '--with-webgpu': 'WITH_WEBGPU'
 }
 
+_CMAKE_FEATURE_LIST_OPTIONS = {
+    '--enable-feature': 'DEFOLD_ENABLE_FEATURES',
+    '--disable-feature': 'DEFOLD_DISABLE_FEATURES'
+}
+
 JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
 
 sys.dont_write_bytecode = True
@@ -1703,10 +1708,31 @@ class Configuration(object):
     def _cmake_feature_defines(self):
         defines = []
         handled = set()
-        for option in self.waf_options:
+        feature_lists = {}
+        index = 0
+        while index < len(self.waf_options):
+            option = self.waf_options[index]
             if not option.startswith('--with-'):
+                feature_option = None
+                feature_name = None
+                for prefix in _CMAKE_FEATURE_LIST_OPTIONS:
+                    if option == prefix and index + 1 < len(self.waf_options):
+                        feature_option = prefix
+                        feature_name = self.waf_options[index + 1]
+                        index += 1
+                        break
+                    if option.startswith(prefix + '='):
+                        feature_option = prefix
+                        feature_name = option.split('=', 1)[1]
+                        break
+                if feature_option and feature_name:
+                    feature_lists.setdefault(_CMAKE_FEATURE_LIST_OPTIONS[feature_option], [])
+                    if feature_name not in feature_lists[_CMAKE_FEATURE_LIST_OPTIONS[feature_option]]:
+                        feature_lists[_CMAKE_FEATURE_LIST_OPTIONS[feature_option]].append(feature_name)
+                index += 1
                 continue
             if option in handled:
+                index += 1
                 continue
             handled.add(option)
             feature = _CMAKE_FEATURE_FLAG_MAP.get(option)
@@ -1714,6 +1740,9 @@ class Configuration(object):
                 defines.append(f"-D{feature}=ON")
             else:
                 self._log(f"Warning: CMake build currently ignores '{option}'")
+            index += 1
+        for option, features in feature_lists.items():
+            defines.append(f"-D{option}={';'.join(features)}")
         return defines
 
     def _build_engine_lib_cmake(self, lib, platform, skip_tests, directory):
