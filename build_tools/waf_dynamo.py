@@ -87,7 +87,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengl_compute':
         return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
@@ -267,6 +267,9 @@ def platform_graphics_libs_and_symbols(platform):
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
+    elif platform in ('armv7-android', 'arm64-android'):
+        use_opengles = Options.options.with_opengl or not Options.options.with_vulkan
+        use_vulkan = Options.options.with_vulkan or not Options.options.with_opengl
     else:
         use_opengl = True
         use_vulkan = Options.options.with_vulkan
@@ -280,7 +283,10 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_lib_symbols += ['GraphicsAdapterOpenGL']
 
     if use_vulkan:
-        graphics_libs += ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
+        glfw_lib = 'DMGLFW'
+        if platform in ('armv7-android', 'arm64-android') and not use_opengles:
+            glfw_lib = 'DMGLFW_VULKAN'
+        graphics_libs += ['GRAPHICS_VULKAN', glfw_lib, 'VULKAN']
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
     if Options.options.with_dx12 and platform_supports_feature(platform, 'dx12', {}):
@@ -2195,6 +2201,7 @@ def detect(conf):
         conf.env['STLIB_DMGLFW'] = 'glfw3'
     else:
         conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW_VULKAN'] = 'dmglfw_vulkan'
 
     # ***********************************************************
     # Vulkan
@@ -2213,7 +2220,7 @@ def detect(conf):
             conf.env.append_value('LIB_VULKAN', ['VkLayer_khronos_validation'])
 
     elif TargetOS.ANDROID == target_os:
-        conf.env['SHLIB_VULKAN'] = ['vulkan']
+        conf.env['SHLIB_VULKAN'] = []
     elif TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
