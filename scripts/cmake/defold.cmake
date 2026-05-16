@@ -147,6 +147,10 @@ list(APPEND CMAKE_PROJECT_TOP_LEVEL_INCLUDES "${DEFOLD_CMAKE_DIR}/defold_post_pr
 defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
 defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
 
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+endif()
+
 # Align try_compile configuration with active build configuration
 if(CMAKE_CONFIGURATION_TYPES)
   if(NOT CMAKE_TRY_COMPILE_CONFIGURATION)
@@ -178,6 +182,14 @@ include(features)
 
 # platform specific includes, lib paths, defines etc...
 include(platform)
+
+if(CMAKE_CONFIGURATION_TYPES)
+  set(_DEFOLD_BUILD_TYPE_DISPLAY "multi-config")
+else()
+  set(_DEFOLD_BUILD_TYPE_DISPLAY "${CMAKE_BUILD_TYPE}")
+endif()
+message(STATUS "Defold CMake settings: CMAKE_GENERATOR=${CMAKE_GENERATOR}, TARGET_PLATFORM=${TARGET_PLATFORM}, CMAKE_BUILD_TYPE=${_DEFOLD_BUILD_TYPE_DISPLAY}, BUILD_TESTS=${BUILD_TESTS}")
+unset(_DEFOLD_BUILD_TYPE_DISPLAY)
 
 # Prefer colored diagnostics from compilers that support it
 set(CMAKE_COLOR_DIAGNOSTICS ON)

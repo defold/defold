@@ -148,21 +148,24 @@ def _fail_if_unconfigured_cmake_library():
 This library has CMakeLists.txt and has not been configured by Waf.
 Use CMake/Ninja for this library instead:
 
+  Defaults from ./scripts/build.py shell:
+    CMAKE_GENERATOR=Ninja, TARGET_PLATFORM=%s, CMAKE_BUILD_TYPE=RelWithDebInfo, BUILD_TESTS=ON
+
   Configure with tests:
-    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=ON
+    cmake -S . -B build
 
   Configure without tests:
-    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=OFF
+    cmake -S . -B build -DBUILD_TESTS=OFF
 
   Build after configuring with tests:
-    ninja -C build all build_tests install
+    cmake --build build --target all build_tests install
 
   Build after configuring without tests:
-    ninja -C build all install
+    cmake --build build --target all install
 
   Run tests:
-    ninja -C build run_tests
-''' % (platform, platform))
+    cmake --build build --target run_tests
+''' % platform)
 
 _cmake_library_guard_installed = False
 

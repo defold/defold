@@ -416,7 +416,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-CMAKE_SUPPORT = ['platform', 'font', 'resource', 'extension', 'particle', 'lua', 'physics', 'script', 'render', 'rig', 'hid', 'input', 'gamesys']
+CMAKE_SUPPORT = ['testmain', 'dlib', 'platform', 'font', 'particle', 'lua', 'hid', 'input', 'physics', 'resource', 'extension', 'script', 'render', 'rig', 'gamesys']
 
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 
@@ -626,6 +626,9 @@ class Configuration(object):
         if not tp:
             raise RuntimeError('make_solution: target_platform must be specified')
 
+        build_type = self._find_cmake_build_type(self.waf_options)
+        build_tests = 'OFF' if '--skip-build-tests' in self.waf_options else 'ON'
+
         # Android guidance
         if 'android' in tp:
             self._log('Android: Open the top-level CMakeLists.txt directly in Android Studio to create a project.')
@@ -650,13 +653,19 @@ class Configuration(object):
             build_dir = os.path.join(self.defold_root, 'solutions', tp)
         self._mkdirs(build_dir)
 
-        cmake_cmd = ['cmake', '-S', self.defold_root, '-B', build_dir, f'-DTARGET_PLATFORM={tp}']
+        cmake_cmd = [
+            'cmake', '-S', self.defold_root, '-B', build_dir,
+            f'-DTARGET_PLATFORM={tp}',
+            f'-DCMAKE_BUILD_TYPE={build_type}',
+            f'-DBUILD_TESTS={build_tests}'
+        ]
         if generator:
             cmake_cmd += ['-G', generator]
         if arch_args:
             cmake_cmd += arch_args
 
         # Generate solution
+        self._log(f'CMake solution settings: platform={tp}, build_type={build_type}, build_tests={build_tests}')
         self._log('Generating solution with command: %s' % ' '.join(cmake_cmd))
         run.env_command(self._form_env(), cmake_cmd)
 
@@ -1682,14 +1691,13 @@ class Configuration(object):
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
     def _find_cmake_build_type(self, options):
-        opt_level = 2
         for x in options:
             if '--opt-level=' in x:
                 opt_level = x.replace('--opt-level=', '')
                 opt_level = int(opt_level)
-                break
-        if opt_level < 2:
-            return 'Debug'
+                if opt_level < 2:
+                    return 'Debug'
+                return 'RelWithDebInfo'
         return 'RelWithDebInfo'
 
     def _cmake_feature_defines(self):
@@ -1738,6 +1746,8 @@ class Configuration(object):
         log_cmd_config = f'CMake configure {lib}'
         self.build_tracker.start_command(log_cmd_config)
 
+        run_tests = 'ON' if test else 'OFF'
+        self._log(f'CMake settings for {lib}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={run_tests}')
         cmake_configure_args = f"cmake -S . -B build -GNinja {trace} -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS={cmake_build_tests}".split()
         cmake_configure_args += self._cmake_feature_defines()
         run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
@@ -2264,7 +2274,7 @@ class Configuration(object):
 
     def shell(self):
         self.check_python()
-        print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, CMAKE_GENERATOR, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
         # Many login shells (e.g. zsh on macOS) reset PATH via path_helper
         # or user startup files (Homebrew shellenv), which can shadow our tools.
@@ -2911,6 +2921,7 @@ class Configuration(object):
 
         env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home
+        env.setdefault('CMAKE_GENERATOR', 'Ninja')
 
         android_host = self.host
         if 'win32' in android_host:
@@ -2981,14 +2992,17 @@ gen_sdk_source   - Regenerate the dmSDK bindings from our C sdk
 
 Multiple commands can be specified
 
-To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
+CMake shorthand defaults from build.py shell: CMAKE_GENERATOR=Ninja, omitted --platform uses the host platform, CMAKE_BUILD_TYPE=RelWithDebInfo, and BUILD_TESTS=ON.
+Use -- --opt-level=0 for Debug, -- --skip-build-tests to skip building tests, or --skip-tests to skip running tests.
+
+To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
 '''
     parser = optparse.OptionParser(usage)
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
                       choices = get_target_platforms(),
-                      help = 'Target platform')
+                      help = 'Target platform. Defaults to the host platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
                       action = 'store_true',

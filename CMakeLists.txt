@@ -14,6 +14,8 @@ project(defold_libraries LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 include("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/defold.cmake")
 
 # Add subprojects
+add_subdirectory(engine/testmain)
+add_subdirectory(engine/dlib)
 add_subdirectory(engine/platform)
 add_subdirectory(engine/hid)
 add_subdirectory(engine/input)
