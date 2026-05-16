@@ -20,9 +20,7 @@
 #include <platform/platform_window_vulkan.h>
 
 #if ANDROID
-#include <android_native_app_glue.h>
-#include <dmsdk/dlib/android.h>
-#include <platform/platform_window_android.h>
+    #include "android/graphics_vulkan_android.h"
 #endif
 
 namespace dmGraphics
@@ -46,48 +44,6 @@ namespace dmGraphics
     static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
     extern VulkanContext* g_VulkanContext;
-
-#if ANDROID
-    static void SyncAndroidVulkanWindowSize(VulkanContext* context)
-    {
-        uint32_t width  = context->m_SwapChain->m_ImageExtent.width;
-        uint32_t height = context->m_SwapChain->m_ImageExtent.height;
-
-        context->m_WindowWidth          = width;
-        context->m_WindowHeight         = height;
-        context->m_BaseContext.m_Width  = width;
-        context->m_BaseContext.m_Height = height;
-
-        if (dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window) != width ||
-            dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window) != height)
-        {
-            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
-        }
-
-        context->m_AndroidVulkanWindowWidth  = width;
-        context->m_AndroidVulkanWindowHeight = height;
-    }
-
-    static VkResult RecreateAndroidWindowSurface(void* ctx)
-    {
-        VulkanContext* context = (VulkanContext*) ctx;
-
-        if (context->m_WindowSurface != VK_NULL_HANDLE)
-        {
-            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
-            context->m_WindowSurface = VK_NULL_HANDLE;
-        }
-
-        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI));
-        if (res == VK_SUCCESS)
-        {
-            android_app* app = dmAndroid::GetAndroidApp();
-            context->m_AndroidVulkanWindow = (void*) (app ? app->window : 0);
-            context->m_SwapChain->m_Surface = context->m_WindowSurface;
-        }
-        return res;
-    }
-#endif
 
     const char** GetExtensionNames(uint16_t* num_extensions)
     {
@@ -141,27 +97,14 @@ namespace dmGraphics
     {
         VulkanContext* context = (VulkanContext*) _context;
 #if ANDROID
-        dmPlatform::AndroidBeginFrame(context->m_BaseContext.m_Window);
+        AndroidVulkanBeginFrame(context);
 #endif
         uint32_t window_width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
         uint32_t window_height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
 
 #if ANDROID
-        android_app* app = dmAndroid::GetAndroidApp();
-        ANativeWindow* native_window = app ? app->window : 0;
-        ANativeWindow* context_native_window = (ANativeWindow*) context->m_AndroidVulkanWindow;
-        if (native_window && (native_window != context_native_window ||
-            window_width != context->m_AndroidVulkanWindowWidth ||
-            window_height != context->m_AndroidVulkanWindowHeight))
+        if (AndroidVulkanHandleWindowSurfaceChange(context, window_width, window_height))
         {
-            context->m_WindowWidth  = window_width;
-            context->m_WindowHeight = window_height;
-            SwapChainChanged(context,
-                &context->m_WindowWidth,
-                &context->m_WindowHeight,
-                native_window != context_native_window ? RecreateAndroidWindowSurface : 0,
-                context);
-            SyncAndroidVulkanWindowSize(context);
             return;
         }
 #endif
@@ -193,9 +136,7 @@ namespace dmGraphics
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 
 #if ANDROID
-        android_app* app = dmAndroid::GetAndroidApp();
-        context->m_AndroidVulkanWindow = (void*) (app ? app->window : 0);
-        SyncAndroidVulkanWindowSize(context);
+        AndroidVulkanInitializeContext(context);
 #endif
 
         return true;
