@@ -110,6 +110,61 @@ else()
 endif()
 
 
+set(_ANDROID_JAR_CANDIDATES)
+if(DEFINED DEFOLD_SDK_ROOT)
+    list(APPEND _ANDROID_JAR_CANDIDATES "${DEFOLD_SDK_ROOT}/ext/share/java/android.jar")
+
+    if(DEFINED SDK_VERSION_ANDROID_TARGET_API_LEVEL)
+        file(GLOB _PACKAGED_ANDROID_JARS
+            "${DEFOLD_SDK_ROOT}/ext/SDKs/android-sdk-*/platforms/android-${SDK_VERSION_ANDROID_TARGET_API_LEVEL}/android.jar")
+        list(APPEND _ANDROID_JAR_CANDIDATES ${_PACKAGED_ANDROID_JARS})
+    endif()
+endif()
+
+function(_defold_android_sdk_add_jar SDK_PATH)
+    if(NOT EXISTS "${SDK_PATH}" OR NOT DEFINED SDK_VERSION_ANDROID_TARGET_API_LEVEL)
+        return()
+    endif()
+
+    set(_jar "${SDK_PATH}/platforms/android-${SDK_VERSION_ANDROID_TARGET_API_LEVEL}/android.jar")
+    if(EXISTS "${_jar}")
+        list(APPEND _ANDROID_JAR_CANDIDATES "${_jar}")
+    endif()
+    set(_ANDROID_JAR_CANDIDATES "${_ANDROID_JAR_CANDIDATES}" PARENT_SCOPE)
+endfunction()
+
+if(DEFINED ENV{ANDROID_SDK_ROOT})
+    _defold_android_sdk_add_jar("$ENV{ANDROID_SDK_ROOT}")
+elseif(DEFINED ENV{ANDROID_HOME})
+    _defold_android_sdk_add_jar("$ENV{ANDROID_HOME}")
+endif()
+
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+    _defold_android_sdk_add_jar("$ENV{HOME}/Library/Android/sdk")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    _defold_android_sdk_add_jar("$ENV{HOME}/Android/Sdk")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+    if(DEFINED ENV{LOCALAPPDATA})
+        _defold_android_sdk_add_jar("$ENV{LOCALAPPDATA}/Android/Sdk")
+    endif()
+    if(DEFINED ENV{APPDATA})
+        _defold_android_sdk_add_jar("$ENV{APPDATA}/Android/Sdk")
+    endif()
+endif()
+
+foreach(_jar IN LISTS _ANDROID_JAR_CANDIDATES)
+    if(EXISTS "${_jar}")
+        set(DEFOLD_ANDROID_JAR "${_jar}" CACHE FILEPATH "Android platform android.jar" FORCE)
+        break()
+    endif()
+endforeach()
+
+if(NOT DEFOLD_ANDROID_JAR)
+    message(FATAL_ERROR "sdk_android: Failed to find android.jar for Android API ${SDK_VERSION_ANDROID_TARGET_API_LEVEL}")
+endif()
+
+defold_log("DEFOLD_ANDROID_JAR: ${DEFOLD_ANDROID_JAR}")
+
 if(TARGET_PLATFORM MATCHES "arm64-android")
     # For arm64-android, ensure Clang uses aarch64-linux-android21 target triple
     set(ANDROID_ABI "arm64-v8a" CACHE STRING "Android ABI" FORCE)
