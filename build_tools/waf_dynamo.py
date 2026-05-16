@@ -77,7 +77,15 @@ EXACT_WINDOWS_STATIC_LIBS = set('''
     image_null
     image_null_noasan
     input
+    liveupdate
+    liveupdate_null
     lua
+    crashext
+    crashext_null
+    decoder_ogg
+    decoder_opus
+    decoder_wav
+    launcherutil
     mbedtls
     mbedtls_noasan
     particle
@@ -93,6 +101,12 @@ EXACT_WINDOWS_STATIC_LIBS = set('''
     profile_noasan
     profile_null
     profile_null_noasan
+    profiler_js
+    profiler_remotery
+    profilerext
+    profilerext_null
+    record
+    record_null
     render
     render_font_default
     resource
@@ -101,6 +115,10 @@ EXACT_WINDOWS_STATIC_LIBS = set('''
     script
     script_box2d
     script_box2d_defold
+    sound
+    sound_nosimd
+    sound_null
+    sound_openal
     testmain
     zip
     zip_noasan

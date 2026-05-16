@@ -1,5 +1,89 @@
 defold_log("functions_libs.cmake:")
 
+set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
+  basis_encoder
+  basis_encoder_noasan
+  basis_transcoder
+  crashext
+  crashext_null
+  decoder_ogg
+  decoder_opus
+  decoder_wav
+  ddf
+  ddf_noasan
+  dlib
+  dlib_noasan
+  extension
+  font
+  font_skribidi
+  gameobject
+  gamesys
+  gamesys_model
+  gamesys_model_null
+  gamesys_rig
+  gamesys_rig_null
+  graphics
+  graphics_dx12
+  graphics_null
+  graphics_null_noasan
+  graphics_opengles
+  graphics_proto
+  graphics_proto_noasan
+  graphics_transcoder_basisu
+  graphics_transcoder_null
+  graphics_vulkan
+  graphics_webgpu
+  graphics_webgpu_wagyu
+  gui
+  gui_null
+  hid
+  hid_null
+  image
+  image_noasan
+  image_null
+  image_null_noasan
+  input
+  launcherutil
+  liveupdate
+  liveupdate_null
+  lua
+  mbedtls
+  mbedtls_noasan
+  particle
+  physics
+  physics_2d
+  physics_2d_defold
+  physics_3d
+  physics_null
+  platform
+  platform_null
+  platform_vulkan
+  profile
+  profile_noasan
+  profile_null
+  profile_null_noasan
+  profiler_js
+  profiler_remotery
+  profilerext
+  profilerext_null
+  record
+  record_null
+  render
+  render_font_default
+  resource
+  rig
+  rig_null
+  script
+  script_box2d
+  script_box2d_defold
+  sound
+  sound_nosimd
+  sound_null
+  sound_openal
+  testmain
+  zip
+  zip_noasan)
+
 # defold_target_link_libraries
 # Link libraries to a target with platform-aware name adjustments.
 #
@@ -39,11 +123,8 @@ function(defold_target_link_libraries target platform)
   if(_PLAT_OS STREQUAL "win32")
     foreach(_lib IN LISTS _LIBS)
       set(_mapped "${_lib}")
-      # Exceptions: these libs follow Windows naming (no implicit "lib" prefix)
       set(_is_exception OFF)
-      if(_lib STREQUAL "hid" OR _lib STREQUAL "hid_null"
-         OR _lib STREQUAL "input"
-         OR _lib STREQUAL "platform" OR _lib STREQUAL "platform_null" OR _lib STREQUAL "platform_vulkan")
+      if(_lib IN_LIST DEFOLD_EXACT_WINDOWS_STATIC_LIBS)
         set(_is_exception ON)
       endif()
 
