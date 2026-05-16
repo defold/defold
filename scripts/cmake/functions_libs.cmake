@@ -47,12 +47,15 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   image_null
   image_null_noasan
   input
+  jni
+  jni_noasan
   launcherutil
   liveupdate
   liveupdate_null
   lua
   mbedtls
   mbedtls_noasan
+  model
   particle
   physics
   physics_2d
@@ -80,11 +83,13 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   script
   script_box2d
   script_box2d_defold
+  shaderc
   sound
   sound_nosimd
   sound_null
   sound_openal
   testmain
+  texc
   zip
   zip_noasan)
 

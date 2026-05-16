@@ -28,9 +28,24 @@
 #include <d3d12shader.h>
 #endif
 
+#ifndef DM_SHADERC_TEST_DATA_DIR
+#define DM_SHADERC_TEST_DATA_DIR "./build/src/test/data"
+#endif
+
 static void* ReadFile(const char* path, uint32_t* file_size)
 {
     FILE* file = fopen(path, "rb");
+    char resolved_path[512];
+    resolved_path[0] = 0;
+    if (!file)
+    {
+        const char* filename = strrchr(path, '/');
+        if (filename)
+        {
+            dmSnPrintf(resolved_path, sizeof(resolved_path), "%s/%s", DM_SHADERC_TEST_DATA_DIR, filename + 1);
+            file = fopen(resolved_path, "rb");
+        }
+    }
     if (!file)
     {
         printf("Failed to load %s\n", path);
