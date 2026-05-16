@@ -50,6 +50,7 @@ EXACT_WINDOWS_STATIC_LIBS = set('''
     extension
     font
     font_skribidi
+    gameobject
     gamesys
     gamesys_model
     gamesys_model_null
@@ -67,6 +68,8 @@ EXACT_WINDOWS_STATIC_LIBS = set('''
     graphics_vulkan
     graphics_webgpu
     graphics_webgpu_wagyu
+    gui
+    gui_null
     hid
     hid_null
     image
