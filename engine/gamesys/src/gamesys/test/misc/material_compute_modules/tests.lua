@@ -165,6 +165,24 @@ function test_module_set_vertex_attribute(module, resource, attribute_name, valu
     assert_vertex_attribute(a_set, a)
 end
 
+function test_module_set_vertex_attributes(module, resource)
+    local attributes = module.get_vertex_attributes(resource)
+    local custom_one = get_by_name(attributes, "custom_one")
+    local custom_two = get_by_name(attributes, "custom_two")
+    custom_one.value = vmath.vector3(3, 2, 1)
+    custom_two.value = vmath.vector3(4, 5, 6)
+    custom_two.semantic_type = graphics.SEMANTIC_TYPE_COLOR
+
+    module.set_vertex_attribute(resource, {
+        custom_one = custom_one,
+        custom_two = custom_two,
+    })
+
+    local updated_attributes = module.get_vertex_attributes(resource)
+    assert_vertex_attribute(get_by_name(updated_attributes, "custom_one"), custom_one)
+    assert_vertex_attribute(get_by_name(updated_attributes, "custom_two"), custom_two)
+end
+
 function test_module_set_constant(module, resource, constant_name, value)
     local constants = module.get_constants(resource)
     local c = get_by_name(constants, constant_name)

@@ -53,6 +53,7 @@ function init(self)
     test_module_set_vertex_attribute(material, self.material, "custom_one", vmath.vector3(1,2,0), graphics.SEMANTIC_TYPE_COLOR)
     test_module_set_vertex_attribute(material, self.material, "custom_two", vmath.vector3(1,2,3), graphics.SEMANTIC_TYPE_NONE)
     test_module_set_vertex_attribute(material, self.material, "custom_three", vmath.vector4(1,2,3,4), graphics.SEMANTIC_TYPE_COLOR)
+    test_module_set_vertex_attributes(material, self.material)
 
     test_module_set_constant(material, self.material, "world", make_mat4(11,12,13,14,21,22,23,24,31,32,33,34,41,42,43,44), material.CONSTANT_TYPE_USER_MATRIX4)
     test_module_set_constant(material, self.material, "u_user_arr", { vmath.vector4(99,98,97,96), vmath.vector4(81,82,83,84) }, material.CONSTANT_TYPE_USER)

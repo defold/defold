@@ -17,8 +17,6 @@
 
 namespace dmGameSystem
 {
-    struct ScriptLibContext;
-    void ScriptComputeRegister(const ScriptLibContext& context);
 }
 
 #endif // DM_GAMESYS_SCRIPT_COMPUTE_H

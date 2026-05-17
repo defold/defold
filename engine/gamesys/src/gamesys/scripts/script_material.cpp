@@ -14,6 +14,7 @@
 
 #include <graphics/graphics_ddf.h>
 
+#include <extension/extension.hpp>
 #include <render/material_ddf.h>
 
 #include "../gamesys.h"
@@ -93,7 +94,7 @@ namespace dmGameSystem
      * : [type:hash] the hashed name of the vertex attribute
      *
      * `value`
-     * : [type:vmath.vector4|vmath.vector3|number] the value of the vertex attribute
+     * : [type:vmath.vector4|vmath.vector3|vmath.matrix4|number|table] the value of the vertex attribute. Matrix attributes that do not map to `vmath.matrix4` are returned as a table of numbers.
      *
      * `normalize`
      * : [type:boolean] whether the value is normalized when passed into the shader
@@ -125,6 +126,11 @@ namespace dmGameSystem
      *   - `graphics.SEMANTIC_TYPE_COLOR`
      *   - `graphics.SEMANTIC_TYPE_NORMAL`
      *   - `graphics.SEMANTIC_TYPE_TANGENT`
+     *   - `graphics.SEMANTIC_TYPE_WORLD_MATRIX`
+     *   - `graphics.SEMANTIC_TYPE_NORMAL_MATRIX`
+     *   - `graphics.SEMANTIC_TYPE_BONE_WEIGHTS`
+     *   - `graphics.SEMANTIC_TYPE_BONE_INDICES`
+     *   - `graphics.SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D`
      *
      * @examples
      * Get the vertex attributes from a material specified as a resource property
@@ -268,7 +274,7 @@ namespace dmGameSystem
     }
 
     /*# gets shader constants from a material
-     * Returns a table of all the shader contstants in the material. This function will return all the shader constants
+     * Returns a table of all the shader constants in the material. This function will return all the shader constants
      * that are used in both the vertex and the fragment shaders.
      *
      * @name material.get_constants
@@ -292,6 +298,13 @@ namespace dmGameSystem
      *   - `material.CONSTANT_TYPE_NORMAL`
      *   - `material.CONSTANT_TYPE_WORLDVIEW`
      *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
+     *   - `material.CONSTANT_TYPE_TIME`
+     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
+     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
+     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
+     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
+     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
+     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
      *
      * `value`
      * : [type:vmath.vector4|vmath.matrix4] the value(s) of the constant. If the constant is an array, the value will be a table of vmath.vector4 or vmath.matrix4 if the type is `material.CONSTANT_TYPE_USER_MATRIX4`.
@@ -370,25 +383,26 @@ namespace dmGameSystem
      *   - `graphics.TEXTURE_TYPE_2D_ARRAY`
      *   - `graphics.TEXTURE_TYPE_CUBE_MAP`
      *   - `graphics.TEXTURE_TYPE_IMAGE_2D`
+     *   - `graphics.TEXTURE_TYPE_3D`
+     *   - `graphics.TEXTURE_TYPE_IMAGE_3D`
      *
      * `flags`
      * : [type:number] the flags of the texture. This field is a bit mask of these supported flags:
      *
-     *   - `graphics.TEXTURE_USAGE_HINT_NONE`
-     *   - `graphics.TEXTURE_USAGE_HINT_SAMPLE`
-     *   - `graphics.TEXTURE_USAGE_HINT_MEMORYLESS`
-     *   - `graphics.TEXTURE_USAGE_HINT_STORAGE`
-     *   - `graphics.TEXTURE_USAGE_HINT_INPUT`
-     *   - `graphics.TEXTURE_USAGE_HINT_COLOR`
+     *   - `graphics.TEXTURE_USAGE_FLAG_SAMPLE`
+     *   - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS`
+     *   - `graphics.TEXTURE_USAGE_FLAG_STORAGE`
+     *   - `graphics.TEXTURE_USAGE_FLAG_INPUT`
+     *   - `graphics.TEXTURE_USAGE_FLAG_COLOR`
      *
      * @examples
-     * Get the shader constants from a material specified as a resource property
+     * Get the textures from a material specified as a resource property
      *
      * ```lua
      * go.property("my_material", resource.material())
      *
      * function init(self)
-     *     local constants = material.get_constants(self.my_material)
+     *     local textures = material.get_textures(self.my_material)
      * end
      * ```
      */
@@ -422,11 +436,11 @@ namespace dmGameSystem
      * @name material.set_vertex_attribute
      *
      * @param path [type:hash|string] The path to the resource
-     * @param name [type:hash|string] The vertex attribute
+     * @param name [type:hash|string|table] The vertex attribute, or a table keyed by vertex attribute name with args tables as values
      * @param args [type:table] A table of what to update in the vertex attribute (partial updates are supported). Supported entries:
      *
      * `value`
-     * : [type:vmath.vector4|vmath.vector3|number] the value of the vertex attribute
+     * : [type:vmath.vector4|vmath.vector3|vmath.matrix4|number|table] the value of the vertex attribute. Use a table of numbers for matrix attributes that do not map to `vmath.matrix4`.
      *
      * `normalize`
      * : [type:boolean] whether the value is normalized when passed into the shader
@@ -445,6 +459,7 @@ namespace dmGameSystem
      * `coordinate_space`
      * : [type:number] the coordinate space of the vertex attribute. Supported values:
      *
+     *   - `graphics.COORDINATE_SPACE_DEFAULT`
      *   - `graphics.COORDINATE_SPACE_WORLD`
      *   - `graphics.COORDINATE_SPACE_LOCAL`
      *
@@ -458,6 +473,11 @@ namespace dmGameSystem
      *   - `graphics.SEMANTIC_TYPE_COLOR`
      *   - `graphics.SEMANTIC_TYPE_NORMAL`
      *   - `graphics.SEMANTIC_TYPE_TANGENT`
+     *   - `graphics.SEMANTIC_TYPE_WORLD_MATRIX`
+     *   - `graphics.SEMANTIC_TYPE_NORMAL_MATRIX`
+     *   - `graphics.SEMANTIC_TYPE_BONE_WEIGHTS`
+     *   - `graphics.SEMANTIC_TYPE_BONE_INDICES`
+     *   - `graphics.SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D`
      *
      *
      * @examples
@@ -467,19 +487,21 @@ namespace dmGameSystem
      * go.property("my_material", resource.material())
      *
      * function init(self)
-     *     material.set_sampler(self.my_material, "tint_attribute",
+     *     material.set_vertex_attribute(self.my_material, "tint_attribute",
      *         { value         = vmath.vec4(1, 0, 0, 1),
      *           semantic_type = graphics.SEMANTIC_TYPE_COLOR,
      *           data_type     = graphics.DATA_TYPE_FLOAT })
+     *
+     *     material.set_vertex_attribute(self.my_material, {
+     *         tint_attribute = { value = vmath.vec4(1, 0, 0, 1), semantic_type = graphics.SEMANTIC_TYPE_COLOR },
+     *         weights        = { value = vmath.vec4(0, 1, 0, 0), semantic_type = graphics.SEMANTIC_TYPE_NONE }
+     *     })
      * end
      * ```
      */
-    static int Material_SetVertexAttribute(lua_State* L)
+    static int SetMaterialVertexAttribute(lua_State* L, MaterialResource* material_res, dmhash_t name_hash, int args_index)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-        MaterialResource* material_res = CheckMaterialResource(L, 1);
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
-
+        args_index = args_index < 0 ? lua_gettop(L) + args_index + 1 : args_index;
         dmRender::MaterialProgramAttributeInfo info = {};
         if (!dmRender::GetMaterialProgramAttributeInfo(material_res->m_Material, name_hash, info))
         {
@@ -500,8 +522,8 @@ namespace dmGameSystem
         uint32_t values_size = 0;
         float values_float[16] = {};
 
-        luaL_checktype(L, 3, LUA_TTABLE);
-        lua_pushvalue(L, 3);
+        luaL_checktype(L, args_index, LUA_TTABLE);
+        lua_pushvalue(L, args_index);
 
         // parse value
         {
@@ -525,6 +547,21 @@ namespace dmGameSystem
                     dmVMath::Matrix4* m4 = dmScript::CheckMatrix4(L, -1);
                     values_size = sizeof(dmVMath::Matrix4);
                     memcpy(values_float, m4, values_size);
+                }
+                else if (lua_istable(L, -1))
+                {
+                    uint32_t value_count = lua_objlen(L, -1);
+                    if (value_count > sizeof(values_float) / sizeof(values_float[0]))
+                    {
+                        return luaL_error(L, "Too many values in vertex attribute '%s'", dmHashReverseSafe64(name_hash));
+                    }
+                    for (uint32_t i = 0; i < value_count; ++i)
+                    {
+                        lua_rawgeti(L, -1, i + 1);
+                        values_float[i] = luaL_checknumber(L, -1);
+                        lua_pop(L, 1);
+                    }
+                    values_size = value_count * sizeof(float);
                 }
                 else
                 {
@@ -592,6 +629,39 @@ namespace dmGameSystem
         dmRender::SetMaterialProgramAttributes(material_res->m_Material, &attribute, 1);
 
         return 0;
+    }
+
+    static int Material_SetVertexAttribute(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
+
+        if (lua_istable(L, 2) && lua_gettop(L) == 2)
+        {
+            lua_pushnil(L);
+            while (lua_next(L, 2) != 0)
+            {
+                int args_index = lua_gettop(L);
+                dmhash_t name_hash = 0;
+                if (lua_type(L, -2) == LUA_TNUMBER)
+                {
+                    lua_getfield(L, args_index, "name");
+                    name_hash = dmScript::CheckHashOrString(L, -1);
+                    lua_pop(L, 1);
+                }
+                else
+                {
+                    name_hash = dmScript::CheckHashOrString(L, -2);
+                }
+
+                SetMaterialVertexAttribute(L, material_res, name_hash, args_index);
+                lua_pop(L, 1);
+            }
+            return 0;
+        }
+
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        return SetMaterialVertexAttribute(L, material_res, name_hash, 3);
     }
 
     /*# sets a texture sampler in a material
@@ -666,21 +736,17 @@ namespace dmGameSystem
 
         dmRender::HSampler sampler = dmRender::GetMaterialSampler(material_res->m_Material, unit);
 
-        uint32_t location;
-        dmGraphics::TextureType texture_type;
-        dmGraphics::TextureWrap u_wrap, v_wrap;
-        dmGraphics::TextureFilter min_filter, mag_filter;
-        float max_anisotropy;
-        dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        dmRender::SamplerInfo sampler_info = {};
+        dmRender::GetSamplerInfo(sampler, &sampler_info);
 
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushvalue(L, 3);
 
-        GetSamplerParametersFromLua(L, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
 
         lua_pop(L, 1);
 
-        dmRender::SetMaterialSampler(material_res->m_Material, name_hash, unit, u_wrap, v_wrap, min_filter, mag_filter, max_anisotropy);
+        dmRender::SetMaterialSampler(material_res->m_Material, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
 
         return 0;
     }
@@ -707,9 +773,16 @@ namespace dmGameSystem
      *   - `material.CONSTANT_TYPE_NORMAL`
      *   - `material.CONSTANT_TYPE_WORLDVIEW`
      *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
+     *   - `material.CONSTANT_TYPE_TIME`
+     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
+     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
+     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
+     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
+     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
+     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
      *
      * `value`
-     * : [type:vmath.vector4|vmath.matrix4] the value(s) of the constant. If the shader constant is an array, the amount of values to update depends on how many values that are passed in the 'value' field.
+     * : [type:vmath.vector4|vmath.vector3|vmath.matrix4|number|table] the value(s) of the constant. If the shader constant is an array, the amount of values to update depends on how many values that are passed in the 'value' field.
      *
      * @examples
      * Set a shader constant in a material specified as a resource property
@@ -740,7 +813,7 @@ namespace dmGameSystem
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushvalue(L, 3);
 
-        dmRenderDDF::MaterialDesc::ConstantType type_from_value;
+        dmRenderDDF::MaterialDesc::ConstantType type_from_value = dmRender::GetConstantType(constant);
 
         g_MaterialModule.m_ScratchValues.SetSize(0);
 
@@ -769,10 +842,7 @@ namespace dmGameSystem
      *
      * @param path [type:hash|string] The path to the resource
      * @param name [type:hash|string] The sampler name
-     * @param args [type:table] A table of what to update. Supported entries:
-     *
-     * `texture`
-     * : [type:hash] the texture resource to set.
+     * @param texture [type:hash|string] The texture resource to bind to the sampler.
      *
      * @examples
      * Set a texture in a material from a resource
@@ -782,7 +852,7 @@ namespace dmGameSystem
      * go.property("my_texture", resource.texture())
      *
      * function init(self)
-     *     material.set_texture(self.my_material, "my_texture", { texture = self.my_texture })
+     *     material.set_texture(self.my_material, "my_texture", self.my_texture)
      * end
      * ```
      */
@@ -805,14 +875,10 @@ namespace dmGameSystem
         dmGraphics::TextureType texture_type_in = dmGraphics::GetTextureType(graphics_context, texture_res->m_Texture);
         dmRender::HSampler sampler              = dmRender::GetMaterialSampler(material_res->m_Material, unit);
 
-        uint32_t location;
-        dmGraphics::TextureType texture_type;
-        dmGraphics::TextureWrap u_wrap, v_wrap;
-        dmGraphics::TextureFilter min_filter, mag_filter;
-        float max_anisotropy;
-        dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        dmRender::SamplerInfo sampler_info = {};
+        dmRender::GetSamplerInfo(sampler, &sampler_info);
 
-        dmGraphics::TextureType normalized_sampler_type = NormalizeBindableTextureType(texture_type);
+        dmGraphics::TextureType normalized_sampler_type = NormalizeBindableTextureType(sampler_info.m_TextureType);
 
         if (normalized_sampler_type != texture_type_in)
         {
@@ -880,15 +946,31 @@ namespace dmGameSystem
         SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_NORMAL,        CONSTANT_TYPE_NORMAL);
         SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLDVIEW,     CONSTANT_TYPE_WORLDVIEW);
         SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLDVIEWPROJ, CONSTANT_TYPE_WORLDVIEWPROJ);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_TIME,          CONSTANT_TYPE_TIME);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLD_INVERSE,  CONSTANT_TYPE_WORLD_INVERSE);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_VIEW_INVERSE,   CONSTANT_TYPE_VIEW_INVERSE);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_PROJECTION_INVERSE, CONSTANT_TYPE_PROJECTION_INVERSE);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_VIEWPROJ_INVERSE,   CONSTANT_TYPE_VIEWPROJ_INVERSE);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLDVIEW_INVERSE,  CONSTANT_TYPE_WORLDVIEW_INVERSE);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE, CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE);
 
         #undef SET_MATERIAL_DDF_ENUM_NAMED
 
         lua_pop(L, 1);
     }
 
-    void ScriptMaterialRegister(const ScriptLibContext& context)
+    static dmExtension::Result ScriptMaterialInitialize(dmExtension::Params* params)
     {
-        LuaInit(context.m_LuaState);
-        g_MaterialModule.m_Factory = context.m_Factory;
+        LuaInit(params->m_L);
+        g_MaterialModule.m_Factory = params->m_ResourceFactory;
+        return dmExtension::RESULT_OK;
     }
+
+    static dmExtension::Result ScriptMaterialFinalize(dmExtension::Params* params)
+    {
+        g_MaterialModule.m_Factory = 0;
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptMaterialExt, "ScriptMaterial", 0, 0, ScriptMaterialInitialize, 0, 0, ScriptMaterialFinalize)
 }

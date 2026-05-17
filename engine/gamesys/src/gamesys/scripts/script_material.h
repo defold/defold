@@ -15,12 +15,8 @@
 #ifndef DM_GAMESYS_SCRIPT_MATERIAL_H
 #define DM_GAMESYS_SCRIPT_MATERIAL_H
 
-struct lua_State;
-
 namespace dmGameSystem
 {
-    struct ScriptLibContext;
-    void ScriptMaterialRegister(const ScriptLibContext& context);
 }
 
 #endif // DM_GAMESYS_SCRIPT_MATERIAL_H

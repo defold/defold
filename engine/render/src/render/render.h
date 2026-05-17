@@ -220,6 +220,18 @@ namespace dmRender
         float            m_OuterConeAngle;
     };
 
+    struct SamplerInfo
+    {
+        dmhash_t                     m_NameHash;
+        dmGraphics::TextureType      m_TextureType;
+        dmGraphics::HUniformLocation m_Location;
+        dmGraphics::TextureWrap      m_UWrap;
+        dmGraphics::TextureWrap      m_VWrap;
+        dmGraphics::TextureFilter    m_MinFilter;
+        dmGraphics::TextureFilter    m_MagFilter;
+        float                        m_MaxAnisotropy;
+    };
+
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
@@ -355,7 +367,7 @@ namespace dmRender
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
     Result                          SetConstantValuesRef(HConstant constant, dmVMath::Vector4* values, uint32_t num_values);
-    bool                            GetSamplerInfo(HSampler sampler, dmhash_t* name_hash, dmGraphics::TextureType* texture_type, uint32_t* location, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
+    bool                            GetSamplerInfo(HSampler sampler, SamplerInfo* info);
 
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);

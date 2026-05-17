@@ -164,19 +164,19 @@ namespace dmRender
         return 0x0;
     }
 
-    bool GetSamplerInfo(HSampler sampler, dmhash_t* name_hash, dmGraphics::TextureType* texture_type, uint32_t* location, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
+    bool GetSamplerInfo(HSampler sampler, SamplerInfo* info)
     {
-        if (!sampler)
+        if (!sampler || !info)
             return false;
 
-        *name_hash      = sampler->m_NameHash;
-        *texture_type   = sampler->m_Type;
-        *location       = sampler->m_Location;
-        *u_wrap         = sampler->m_UWrap;
-        *v_wrap         = sampler->m_VWrap;
-        *min_filter     = sampler->m_MinFilter;
-        *mag_filter     = sampler->m_MagFilter;
-        *max_anisotropy = sampler->m_MaxAnisotropy;
+        info->m_NameHash      = sampler->m_NameHash;
+        info->m_TextureType   = sampler->m_Type;
+        info->m_Location      = sampler->m_Location;
+        info->m_UWrap         = sampler->m_UWrap;
+        info->m_VWrap         = sampler->m_VWrap;
+        info->m_MinFilter     = sampler->m_MinFilter;
+        info->m_MagFilter     = sampler->m_MagFilter;
+        info->m_MaxAnisotropy = sampler->m_MaxAnisotropy;
 
         return true;
     }

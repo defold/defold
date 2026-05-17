@@ -18,6 +18,8 @@
 #include "../resources/res_compute.h"
 #include "../resources/res_texture.h"
 
+#include <extension/extension.hpp>
+
 #include "script_compute.h"
 #include "script_material.h"
 
@@ -154,7 +156,7 @@ namespace dmGameSystem
     }
 
     /*# gets shader constants from a compute program
-     * Returns a table of all the shader contstants in the compute program.
+     * Returns a table of all the shader constants in the compute program.
      *
      * @name compute.get_constants
      *
@@ -177,6 +179,13 @@ namespace dmGameSystem
      *   - `material.CONSTANT_TYPE_NORMAL`
      *   - `material.CONSTANT_TYPE_WORLDVIEW`
      *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
+     *   - `material.CONSTANT_TYPE_TIME`
+     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
+     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
+     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
+     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
+     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
+     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
      *
      * `value`
      * : [type:vmath.vector4|vmath.matrix4] the value(s) of the constant. If the constant is an array, the value will be a table of vmath.vector4 or vmath.matrix4 if the type is `material.CONSTANT_TYPE_USER_MATRIX4`.
@@ -223,7 +232,7 @@ namespace dmGameSystem
     }
 
     /*# gets textures associated with a compute program
-     * Returns a table of all the textures from the compute progrma.
+     * Returns a table of all the textures from the compute program.
      *
      * @name compute.get_textures
      *
@@ -255,23 +264,24 @@ namespace dmGameSystem
      *   - `graphics.TEXTURE_TYPE_2D_ARRAY`
      *   - `graphics.TEXTURE_TYPE_CUBE_MAP`
      *   - `graphics.TEXTURE_TYPE_IMAGE_2D`
+     *   - `graphics.TEXTURE_TYPE_3D`
+     *   - `graphics.TEXTURE_TYPE_IMAGE_3D`
      *
      * `flags`
      * : [type:number] the flags of the texture. This field is a bit mask of these supported flags:
      *
-     *   - `graphics.TEXTURE_USAGE_HINT_NONE`
-     *   - `graphics.TEXTURE_USAGE_HINT_SAMPLE`
-     *   - `graphics.TEXTURE_USAGE_HINT_MEMORYLESS`
-     *   - `graphics.TEXTURE_USAGE_HINT_STORAGE`
-     *   - `graphics.TEXTURE_USAGE_HINT_INPUT`
-     *   - `graphics.TEXTURE_USAGE_HINT_COLOR`
+     *   - `graphics.TEXTURE_USAGE_FLAG_SAMPLE`
+     *   - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS`
+     *   - `graphics.TEXTURE_USAGE_FLAG_STORAGE`
+     *   - `graphics.TEXTURE_USAGE_FLAG_INPUT`
+     *   - `graphics.TEXTURE_USAGE_FLAG_COLOR`
      *
      * @examples
-     * Get the shader constants from a material specified as a resource property
+     * Get the textures from a compute program resource
      *
      * ```lua
      * function init(self)
-     *     local constants = compute.get_constants("/my_compute.computec")
+     *     local textures = compute.get_textures("/my_compute.computec")
      * end
      * ```
      */
@@ -372,21 +382,17 @@ namespace dmGameSystem
 
         dmRender::HSampler sampler = dmRender::GetComputeProgramSampler(compute_res->m_Program, unit);
 
-        uint32_t location;
-        dmGraphics::TextureType texture_type;
-        dmGraphics::TextureWrap u_wrap, v_wrap;
-        dmGraphics::TextureFilter min_filter, mag_filter;
-        float max_anisotropy;
-        dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        dmRender::SamplerInfo sampler_info = {};
+        dmRender::GetSamplerInfo(sampler, &sampler_info);
 
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushvalue(L, 3);
 
-        GetSamplerParametersFromLua(L, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
 
         lua_pop(L, 1);
 
-        dmRender::SetComputeProgramSampler(compute_res->m_Program, name_hash, unit, u_wrap, v_wrap, min_filter, mag_filter, max_anisotropy);
+        dmRender::SetComputeProgramSampler(compute_res->m_Program, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
 
         return 0;
     }
@@ -413,9 +419,16 @@ namespace dmGameSystem
      *   - `material.CONSTANT_TYPE_NORMAL`
      *   - `material.CONSTANT_TYPE_WORLDVIEW`
      *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ`
+     *   - `material.CONSTANT_TYPE_TIME`
+     *   - `material.CONSTANT_TYPE_WORLD_INVERSE`
+     *   - `material.CONSTANT_TYPE_VIEW_INVERSE`
+     *   - `material.CONSTANT_TYPE_PROJECTION_INVERSE`
+     *   - `material.CONSTANT_TYPE_VIEWPROJ_INVERSE`
+     *   - `material.CONSTANT_TYPE_WORLDVIEW_INVERSE`
+     *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
      *
      * `value`
-     * : [type:vmath.vector4|vmath.matrix4] the value(s) of the constant. If the shader constant is an array, the amount of values to update depends on how many values that are passed in the 'value' field.
+     * : [type:vmath.vector4|vmath.vector3|vmath.matrix4|number|table] the value(s) of the constant. If the shader constant is an array, the amount of values to update depends on how many values that are passed in the 'value' field.
      *
      * @examples
      * Set a shader constant in a compute program
@@ -446,7 +459,7 @@ namespace dmGameSystem
 
         g_ComputeModule.m_ScratchValues.SetSize(0);
 
-        dmRenderDDF::MaterialDesc::ConstantType type_from_value;
+        dmRenderDDF::MaterialDesc::ConstantType type_from_value = dmRender::GetConstantType(constant);
 
         GetConstantValuesFromLua(L, &type_from_value, &g_ComputeModule.m_ScratchValues);
 
@@ -472,10 +485,7 @@ namespace dmGameSystem
      *
      * @param path [type:hash|string] The path to the resource
      * @param name [type:hash|string] The sampler name
-     * @param args [type:table] A table of what to update. Supported entries:
-     *
-     * `texture`
-     * : [type:hash] the texture resource to set.
+     * @param texture [type:hash|string] The texture resource to bind to the sampler.
      *
      * @examples
      * Set a texture in a compute program from a resource
@@ -484,7 +494,7 @@ namespace dmGameSystem
      * go.property("my_texture", resource.texture())
      *
      * function init(self)
-     *     compute.set_texture("/my_compute.computec", "my_texture", { texture = self.my_texture })
+     *     compute.set_texture("/my_compute.computec", "my_texture", self.my_texture)
      * end
      * ```
      */
@@ -507,14 +517,10 @@ namespace dmGameSystem
         dmGraphics::TextureType texture_type_in = dmGraphics::GetTextureType(graphics_context, texture_res->m_Texture);
         dmRender::HSampler sampler              = dmRender::GetComputeProgramSampler(compute_res->m_Program, unit);
 
-        uint32_t location;
-        dmGraphics::TextureType texture_type;
-        dmGraphics::TextureWrap u_wrap, v_wrap;
-        dmGraphics::TextureFilter min_filter, mag_filter;
-        float max_anisotropy;
-        dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        dmRender::SamplerInfo sampler_info = {};
+        dmRender::GetSamplerInfo(sampler, &sampler_info);
 
-        dmGraphics::TextureType normalized_sampler_type = NormalizeBindableTextureType(texture_type);
+        dmGraphics::TextureType normalized_sampler_type = NormalizeBindableTextureType(sampler_info.m_TextureType);
 
         if (normalized_sampler_type != texture_type_in)
         {
@@ -569,16 +575,19 @@ namespace dmGameSystem
         lua_pop(L, 1);
     }
 
-    void ScriptComputeRegister(const ScriptLibContext& context)
+    static dmExtension::Result ScriptComputeInitialize(dmExtension::Params* params)
     {
-        LuaInit(context.m_LuaState);
-        g_ComputeModule.m_Factory = context.m_Factory;
+        LuaInit(params->m_L);
+        g_ComputeModule.m_Factory = params->m_ResourceFactory;
+        return dmExtension::RESULT_OK;
     }
 
-#else // !DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-    void ScriptComputeRegister(const ScriptLibContext& context)
+    static dmExtension::Result ScriptComputeFinalize(dmExtension::Params* params)
     {
-        // Not supported on this platform
+        g_ComputeModule.m_Factory = 0;
+        return dmExtension::RESULT_OK;
     }
+
+    DM_DECLARE_EXTENSION(ScriptComputeExt, "ScriptCompute", 0, 0, ScriptComputeInitialize, 0, 0, ScriptComputeFinalize)
 #endif
 }

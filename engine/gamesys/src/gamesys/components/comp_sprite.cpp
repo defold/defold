@@ -440,7 +440,7 @@ namespace dmGameSystem
 
         if (sampler_name_hash == 0)
         {
-            if (overrides->m_Textures.Size() == 0)
+            if (overrides->m_Textures.Empty())
             {
                 SpriteTexture empty = {};
                 overrides->m_Textures.SetCapacity(1);

@@ -36,9 +36,6 @@
 #include "scripts/script_buffer.h"
 #include "scripts/script_sys_gamesys.h"
 #include "scripts/script_camera.h"
-#include "scripts/script_material.h"
-#include "scripts/script_compute.h"
-
 #include "components/comp_gui.h"
 
 #include <dmsdk/gamesys/script.h>
@@ -119,7 +116,6 @@ namespace dmGameSystem
 {
     int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
     {
-        char msg[256];
         const char* format = 0;
         switch(result)
         {
@@ -133,8 +129,7 @@ namespace dmGameSystem
                 format = "The resource was not updated (%d): %llu, %s";
                 break;
         }
-        dmSnPrintf(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
-        return luaL_error(L, "%s", msg);
+        return luaL_error(L, format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
     }
 
     void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
@@ -223,35 +218,28 @@ namespace dmGameSystem
 
     void PushSampler(lua_State* L, dmRender::HSampler sampler)
     {
-        dmhash_t name_hash;
-        dmGraphics::TextureType texture_type;
-        uint32_t location;
-        dmGraphics::TextureWrap u_wrap;
-        dmGraphics::TextureWrap v_wrap;
-        dmGraphics::TextureFilter min_filter;
-        dmGraphics::TextureFilter mag_filter;
-        float max_anisotropy;
-        dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        dmRender::SamplerInfo info = {};
+        dmRender::GetSamplerInfo(sampler, &info);
 
-        dmScript::PushHash(L, name_hash);
+        dmScript::PushHash(L, info.m_NameHash);
         lua_setfield(L, -2, "name");
 
-        lua_pushinteger(L, (lua_Integer) texture_type);
+        lua_pushinteger(L, (lua_Integer) info.m_TextureType);
         lua_setfield(L, -2, "type");
 
-        lua_pushinteger(L, (lua_Integer) u_wrap);
+        lua_pushinteger(L, (lua_Integer) info.m_UWrap);
         lua_setfield(L, -2, "u_wrap");
 
-        lua_pushinteger(L, (lua_Integer) v_wrap);
+        lua_pushinteger(L, (lua_Integer) info.m_VWrap);
         lua_setfield(L, -2, "v_wrap");
 
-        lua_pushinteger(L, (lua_Integer) min_filter);
+        lua_pushinteger(L, (lua_Integer) info.m_MinFilter);
         lua_setfield(L, -2, "min_filter");
 
-        lua_pushinteger(L, (lua_Integer) mag_filter);
+        lua_pushinteger(L, (lua_Integer) info.m_MagFilter);
         lua_setfield(L, -2, "mag_filter");
 
-        lua_pushnumber(L, max_anisotropy);
+        lua_pushnumber(L, (lua_Number) info.m_MaxAnisotropy);
         lua_setfield(L, -2, "max_anisotropy");
     }
 
@@ -313,22 +301,37 @@ namespace dmGameSystem
         // Other constant types doesn't have a value
     }
 
-    void PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr)
+    static void PushVertexAttributeValue(lua_State* L, dmGraphics::VertexAttribute::VectorType vector_type, const float* values)
     {
-        float values[4] = {};
-        VertexAttributeToFloats(attribute, value_ptr, values);
+        uint32_t element_count = dmGraphics::VectorTypeToElementCount(vector_type);
 
-        if (attribute->m_ElementCount == 4)
+        if (vector_type == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4)
+        {
+            dmVMath::Matrix4 m;
+            memcpy(&m, values, sizeof(m));
+            dmScript::PushMatrix4(L, m);
+        }
+        else if (vector_type == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2 ||
+                 vector_type == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3)
+        {
+            lua_newtable(L);
+            for (uint32_t i = 0; i < element_count; ++i)
+            {
+                lua_pushnumber(L, values[i]);
+                lua_rawseti(L, -2, i + 1);
+            }
+        }
+        else if (element_count == 4)
         {
             dmVMath::Vector4 v(values[0], values[1], values[2], values[3]);
             dmScript::PushVector4(L, v);
         }
-        else if (attribute->m_ElementCount == 3 || attribute->m_ElementCount == 2)
+        else if (element_count == 3 || element_count == 2)
         {
             dmVMath::Vector3 v(values[0], values[1], values[2]);
             dmScript::PushVector3(L, v);
         }
-        else if (attribute->m_ElementCount == 1)
+        else if (element_count == 1)
         {
             lua_pushnumber(L, values[0]);
         }
@@ -336,13 +339,20 @@ namespace dmGameSystem
         {
             // We need to catch this error because it means there are type combinations
             // that we have added, but don't have support for here.
-            assert("Not supported!");
+            assert(false && "Not supported!");
         }
+    }
+
+    void PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr)
+    {
+        float values[16] = {};
+        VertexAttributeToFloats(attribute, value_ptr, values);
+        PushVertexAttributeValue(L, attribute->m_VectorType, values);
     }
 
     void PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttributeInfo* attribute, const uint8_t* value_ptr)
     {
-        float values[4] = {};
+        float values[16] = {};
         const uint8_t* read_ptr = value_ptr;
         uint32_t byte_size = 0;
         if (!read_ptr)
@@ -360,24 +370,7 @@ namespace dmGameSystem
             }
         }
 
-        if (attribute->m_ElementCount == 4)
-        {
-            dmVMath::Vector4 v(values[0], values[1], values[2], values[3]);
-            dmScript::PushVector4(L, v);
-        }
-        else if (attribute->m_ElementCount == 3 || attribute->m_ElementCount == 2)
-        {
-            dmVMath::Vector3 v(values[0], values[1], values[2]);
-            dmScript::PushVector3(L, v);
-        }
-        else if (attribute->m_ElementCount == 1)
-        {
-            lua_pushnumber(L, values[0]);
-        }
-        else
-        {
-            assert("Not supported!");
-        }
+        PushVertexAttributeValue(L, attribute->m_VectorType, values);
     }
 
     void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
@@ -445,6 +438,7 @@ namespace dmGameSystem
         {
             dmVMath::Vector3* v3 = dmScript::CheckVector3(L, index);
             v4_in->setXYZ(*v3);
+            v4_in->setW(0.0f);
             v4_in++;
         }
         else if (dmScript::IsMatrix4(L, index))
@@ -456,8 +450,7 @@ namespace dmGameSystem
         else
         {
             float value = luaL_checknumber(L, index);
-            dmVMath::Vector4 v4;
-            v4.setX(value);
+            *v4_in = dmVMath::Vector4(value, 0.0f, 0.0f, 0.0f);
             v4_in++;
         }
         return v4_in;
@@ -569,9 +562,6 @@ namespace dmGameSystem
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
         ScriptSysGameSysRegister(context);
-        ScriptMaterialRegister(context);
-        ScriptComputeRegister(context);
-
         assert(top == lua_gettop(L));
         return result;
     }
