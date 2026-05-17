@@ -20,9 +20,6 @@
 
 #include <extension/extension.hpp>
 
-#include "script_compute.h"
-#include "script_material.h"
-
 extern "C"
 {
     #include <lua/lua.h>

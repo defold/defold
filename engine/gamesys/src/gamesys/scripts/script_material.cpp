@@ -23,8 +23,6 @@
 #include "../resources/res_material.h"
 #include "../resources/res_texture.h"
 
-#include "script_material.h"
-
 extern "C"
 {
     #include <lua/lua.h>
