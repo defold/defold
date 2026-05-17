@@ -925,6 +925,17 @@ var Progress = {
     }
 };
 
+// Capture host opt-out before dmloader's `var Module = {...}` below
+// replaces the global. Embedding hosts that can't construct same-origin
+// Workers (e.g. a WebView wrapper serving the bundle from a custom URL
+// scheme) pre-set `Module.isWASMPthreadSupported = false` on the page
+// to force the single-threaded WASM; without this capture the
+// assignment that follows would discard the host-set property and the
+// guard at the probe site below would never see the opt-out.
+var DEFOLD_HOST_NO_PTHREAD = (typeof Module !== "undefined")
+    && Module
+    && Module.isWASMPthreadSupported === false;
+
 /* ********************************************************************* */
 /* Module is Emscripten namespace                                        */
 /* ********************************************************************* */
@@ -1308,13 +1319,11 @@ Module['onRuntimeInitialized'] = function() {
     Module.runApp("canvas");
 };
 
-// Pthread variant requires SharedArrayBuffer + crossOriginIsolated, but
-// some hosts that satisfy both still can't construct Workers (e.g. a
-// WebView wrapper serving the bundle from a custom URL scheme, where
-// Chromium's separate Worker origin check rejects `new Worker(...)`).
-// Let those hosts opt out by pre-setting `Module.isWASMPthreadSupported
-// = false` before dmloader.js executes; otherwise run the normal probe.
-if (Module["isWASMPthreadSupported"] !== false) {
+if (DEFOLD_HOST_NO_PTHREAD) {
+    // Host opted out before dmloader's `var Module = {...}` replaced
+    // the global; honour that and pick the single-threaded WASM.
+    Module["isWASMPthreadSupported"] = false;
+} else {
     Module["isWASMPthreadSupported"] = {{DEFOLD_HAS_WASM_PTHREAD_ENGINE}}
         && ((typeof window === 'undefined') || window.isSecureContext && window.crossOriginIsolated)
         && typeof SharedArrayBuffer !== 'undefined';
