@@ -97,6 +97,17 @@ cmake --build engine/build/arm64-macos --target all build_tests install
 cmake --build engine/build/arm64-macos --target run_tests
 ```
 
+To inspect task timing from Ninja, generate a standalone HTML timeline:
+
+```bash
+python3 scripts/cmake/plot_ninja_log.py engine/build/arm64-macos/.ninja_log -o build-tasks.html
+```
+
+The page supports mouse wheel zoom, sideways drag panning, horizontal trackpad
+panning, hover details, and search highlighting. Without a path, the script
+uses the newest `engine/**/.ninja_log`. It renders every log entry by default;
+pass `--latest` to render only the latest Ninja invocation.
+
 The top-level CMake cache lives under `engine/build/<platform>`. Each engine
 library gets its own binary directory under `engine/<lib>/build/<platform>`.
 The CMake path is incremental by default, so repeated builds should no-op at
