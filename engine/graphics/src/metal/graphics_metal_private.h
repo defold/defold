@@ -291,7 +291,7 @@ namespace dmGraphics
         MetalContext(const ContextParams& params);
 
         GraphicsContext                    m_BaseContext;
-        NSView*                            m_View;
+        void*                              m_View;
         CAMetalLayer*                      m_Layer;
         MetalFrameResource                 m_FrameResources[MAX_FRAMES_IN_FLIGHT];
         MTL::Device*                       m_Device;

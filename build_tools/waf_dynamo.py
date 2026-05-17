@@ -488,7 +488,7 @@ def default_flags(self):
     for f in ['CFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
-    if Options.options.with_metal:
+    if Options.options.with_metal or platform_supports_feature(build_util.get_target_platform(), 'metal', {}):
         self.env.append_value('CXXFLAGS', ['-std=c++17']) # Due to metal-cpp library
     elif not use_cl_exe:
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library

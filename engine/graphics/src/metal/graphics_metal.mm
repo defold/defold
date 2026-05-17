@@ -14,14 +14,14 @@
 
 #include <type_traits>
 
-#define NS_PRIVATE_IMPLEMENTATION
-#define CA_PRIVATE_IMPLEMENTATION
-#define MTL_PRIVATE_IMPLEMENTATION
-#include <Foundation/Foundation.h>
 // Metal.hpp is Taken from https://github.com/bkaradzic/metal-cpp/blob/metal-cpp_macOS15.2_iOS18.2/SingleHeader/Metal.hpp
 #include <Metal.hpp>
 #include <QuartzCore/QuartzCore.h>
-#import <Cocoa/Cocoa.h>
+#if defined(DM_PLATFORM_IOS)
+    #import <UIKit/UIKit.h>
+#else
+    #import <Cocoa/Cocoa.h>
+#endif
 
 #include <dlib/math.h>
 #include <dlib/dstrings.h>
@@ -500,6 +500,8 @@ namespace dmGraphics
         if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))  // A8+ class
         {
             context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGB_ETC1);
+            // Leave TEXTURE_FORMAT_RGBA_ETC2 unsupported for now. Metal.hpp exposes
+            // ETC2 RGB/RGB8A1 formats, but not the RGBA8 ETC2 variant this format expects.
         }
 
         // ASTC support
@@ -517,6 +519,8 @@ namespace dmGraphics
             TEXTURE_FORMAT_RGB_16BPP,
             TEXTURE_FORMAT_RGBA16F,
             TEXTURE_FORMAT_RGBA32F,
+            // RGB16F/RGB32F currently map to RGBA Metal formats, but the upload path
+            // does not expand RGB float data to RGBA yet, so they are not advertised.
             TEXTURE_FORMAT_R16F,
             TEXTURE_FORMAT_R32F,
             TEXTURE_FORMAT_RG16F,
@@ -845,6 +849,8 @@ namespace dmGraphics
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_3D_TEXTURES;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX;
+        // Storage buffers are deliberately not advertised: there is no user-facing
+        // SSBO support path for Metal yet.
         if (context->m_ASTCArrayTextureSupport)
         {
             context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES;
@@ -967,17 +973,26 @@ namespace dmGraphics
         context->m_DefaultTextureCubeMap = MetalNewTextureInternal(default_texture_creation_params);
         MetalSetTextureInternal(context, context->m_DefaultTextureCubeMap, default_texture_params);
 
-        NSWindow* mative_window = (NSWindow*) dmGraphics::GetNativeOSXNSWindow();
-        context->m_View         = [mative_window contentView];
-
         context->m_Layer               = [CAMetalLayer layer];
         context->m_Layer.device        = (__bridge id<MTLDevice>) context->m_Device;
         context->m_Layer.pixelFormat   = MTLPixelFormatBGRA8Unorm;
         context->m_Layer.drawableSize  = CGSizeMake(window_width, window_height);
+#if !defined(DM_PLATFORM_IOS)
         context->m_Layer.displaySyncEnabled = context->m_SwapInterval != 0;
+#endif
 
-        [context->m_View setLayer:context->m_Layer];
-        [context->m_View setWantsLayer:YES];
+#if defined(DM_PLATFORM_IOS)
+        UIView* native_view = (UIView*) dmGraphics::GetNativeiOSUIView();
+        context->m_View     = native_view;
+        context->m_Layer.frame = native_view.bounds;
+        [native_view.layer addSublayer:context->m_Layer];
+#else
+        NSWindow* native_window = (NSWindow*) dmGraphics::GetNativeOSXNSWindow();
+        NSView* native_view     = [native_window contentView];
+        context->m_View         = native_view;
+        [native_view setLayer:context->m_Layer];
+        [native_view setWantsLayer:YES];
+#endif
 
         MTL::TextureDescriptor* depthDesc = MTL::TextureDescriptor::texture2DDescriptor(
             MTL::PixelFormatDepth32Float_Stencil8,
