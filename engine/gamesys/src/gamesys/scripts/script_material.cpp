@@ -430,14 +430,13 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# sets a vertex attribute in a material
-     * Sets a vertex attribute in a material, if the vertex attribute exists.
+    /*# sets vertex attributes in a material
+     * Sets vertex attributes in a material, if the vertex attributes exist.
      *
-     * @name material.set_vertex_attribute
+     * @name material.set_vertex_attributes
      *
      * @param path [type:hash|string] The path to the resource
-     * @param name [type:hash|string|table] The vertex attribute, or a table keyed by vertex attribute name with args tables as values
-     * @param args [type:table] A table of what to update in the vertex attribute (partial updates are supported). Supported entries:
+     * @param attributes [type:table] A table keyed by vertex attribute name with args tables as values. Partial updates are supported. Supported entries:
      *
      * `value`
      * : [type:vmath.vector4|vmath.vector3|vmath.matrix4|number|table] the value of the vertex attribute. Use a table of numbers for matrix attributes that do not map to `vmath.matrix4`.
@@ -487,12 +486,7 @@ namespace dmGameSystem
      * go.property("my_material", resource.material())
      *
      * function init(self)
-     *     material.set_vertex_attribute(self.my_material, "tint_attribute",
-     *         { value         = vmath.vec4(1, 0, 0, 1),
-     *           semantic_type = graphics.SEMANTIC_TYPE_COLOR,
-     *           data_type     = graphics.DATA_TYPE_FLOAT })
-     *
-     *     material.set_vertex_attribute(self.my_material, {
+     *     material.set_vertex_attributes(self.my_material, {
      *         tint_attribute = { value = vmath.vec4(1, 0, 0, 1), semantic_type = graphics.SEMANTIC_TYPE_COLOR },
      *         weights        = { value = vmath.vec4(0, 1, 0, 0), semantic_type = graphics.SEMANTIC_TYPE_NONE }
      *     })
@@ -631,48 +625,42 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Material_SetVertexAttribute(lua_State* L)
+    static int Material_SetVertexAttributes(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         MaterialResource* material_res = CheckMaterialResource(L, 1);
 
-        if (lua_istable(L, 2) && lua_gettop(L) == 2)
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0)
         {
-            lua_pushnil(L);
-            while (lua_next(L, 2) != 0)
+            int args_index = lua_gettop(L);
+            dmhash_t name_hash = 0;
+            if (lua_type(L, -2) == LUA_TNUMBER)
             {
-                int args_index = lua_gettop(L);
-                dmhash_t name_hash = 0;
-                if (lua_type(L, -2) == LUA_TNUMBER)
-                {
-                    lua_getfield(L, args_index, "name");
-                    name_hash = dmScript::CheckHashOrString(L, -1);
-                    lua_pop(L, 1);
-                }
-                else
-                {
-                    name_hash = dmScript::CheckHashOrString(L, -2);
-                }
-
-                SetMaterialVertexAttribute(L, material_res, name_hash, args_index);
+                lua_getfield(L, args_index, "name");
+                name_hash = dmScript::CheckHashOrString(L, -1);
                 lua_pop(L, 1);
             }
-            return 0;
-        }
+            else
+            {
+                name_hash = dmScript::CheckHashOrString(L, -2);
+            }
 
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
-        return SetMaterialVertexAttribute(L, material_res, name_hash, 3);
+            SetMaterialVertexAttribute(L, material_res, name_hash, args_index);
+            lua_pop(L, 1);
+        }
+        return 0;
     }
 
-    /*# sets a texture sampler in a material
-     * Sets a texture sampler in a material, if the sampler exists. Use this function to change the settings of a texture sampler.
-     * To set an actual texture that should be bound to the sampler, use the `material.set_texture` function instead.
+    /*# sets texture samplers in a material
+     * Sets texture samplers in a material, if the samplers exist. Use this function to change the settings of texture samplers.
+     * To set actual textures that should be bound to the samplers, use the `material.set_textures` function instead.
      *
-     * @name material.set_sampler
+     * @name material.set_samplers
      *
      * @param path [type:hash|string] The path to the resource
-     * @param name [type:hash|string] The sampler name
-     * @param args [type:table] A table of what to update in the sampler (partial updates are supported). Supported entries:
+     * @param samplers [type:table] A table keyed by sampler name with args tables as values. Partial updates are supported. Supported entries:
      *
      * `u_wrap`
      * : [type:number] the u wrap mode of the texture sampler. Supported values:
@@ -718,15 +706,15 @@ namespace dmGameSystem
      * go.property("my_material", resource.material())
      *
      * function init(self)
-     *     material.set_sampler(self.my_material, "texture_sampler", { u_wrap = graphics.TEXTURE_WRAP_REPEAT, v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT })
+     *     material.set_samplers(self.my_material, {
+     *         texture_sampler = { u_wrap = graphics.TEXTURE_WRAP_REPEAT, v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT }
+     *     })
      * end
      * ```
      */
-    static int Material_SetSampler(lua_State* L)
+    static int SetMaterialSampler(lua_State* L, MaterialResource* material_res, dmhash_t name_hash, int args_index)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-        MaterialResource* material_res = CheckMaterialResource(L, 1);
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        args_index = args_index < 0 ? lua_gettop(L) + args_index + 1 : args_index;
 
         uint32_t unit = dmRender::GetMaterialSamplerUnit(material_res->m_Material, name_hash);
         if (unit == dmRender::INVALID_SAMPLER_UNIT)
@@ -739,8 +727,8 @@ namespace dmGameSystem
         dmRender::SamplerInfo sampler_info = {};
         dmRender::GetSamplerInfo(sampler, &sampler_info);
 
-        luaL_checktype(L, 3, LUA_TTABLE);
-        lua_pushvalue(L, 3);
+        luaL_checktype(L, args_index, LUA_TTABLE);
+        lua_pushvalue(L, args_index);
 
         GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
 
@@ -751,14 +739,29 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# sets a shader constant in a material
-     * Sets a shader constant in a material, if the constant exists.
+    static int Material_SetSamplers(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0)
+        {
+            dmhash_t name_hash = dmScript::CheckHashOrString(L, -2);
+            SetMaterialSampler(L, material_res, name_hash, lua_gettop(L));
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
+    /*# sets shader constants in a material
+     * Sets shader constants in a material, if the constants exist.
      *
-     * @name material.set_constant
+     * @name material.set_constants
      *
      * @param path [type:hash|string] The path to the resource
-     * @param name [type:hash|string] The constant name
-     * @param args [type:table] A table of what to update in the constant (a constant can be partially updated). Supported entries:
+     * @param constants [type:table] A table keyed by constant name with args tables as values. Constants can be partially updated. Supported entries:
      *
      * `type`
      * : [type:number] the type of the constant. Supported values:
@@ -792,17 +795,19 @@ namespace dmGameSystem
      *
      * function update(self)
      *     -- update the 'tint' constant
-     *     material.set_constant(self.my_material, "tint", { value = vmath.vector4(1, 0, 0, 1) })
+     *     material.set_constants(self.my_material, {
+     *         tint = { value = vmath.vector4(1, 0, 0, 1) }
+     *     })
      *     -- change the type of the 'view_proj' constant to CONSTANT_TYPE_USER_MATRIX4 so the renderer can set our custom data
-     *     material.set_constant(self.my_material, "view_proj", { value = self.my_view_proj, type = material.CONSTANT_TYPE_USER_MATRIX4 })
+     *     material.set_constants(self.my_material, {
+     *         view_proj = { value = self.my_view_proj, type = material.CONSTANT_TYPE_USER_MATRIX4 }
+     *     })
      * end
      * ```
      */
-    static int Material_SetConstant(lua_State* L)
+    static int SetMaterialConstant(lua_State* L, MaterialResource* material_res, dmhash_t name_hash, int args_index)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-        MaterialResource* material_res = CheckMaterialResource(L, 1);
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        args_index = args_index < 0 ? lua_gettop(L) + args_index + 1 : args_index;
 
         dmRender::HConstant constant;
         if (!dmRender::GetMaterialProgramConstant(material_res->m_Material, name_hash, constant))
@@ -810,8 +815,8 @@ namespace dmGameSystem
             return luaL_error(L, "Material constant '%s' not found", dmHashReverseSafe64(name_hash));
         }
 
-        luaL_checktype(L, 3, LUA_TTABLE);
-        lua_pushvalue(L, 3);
+        luaL_checktype(L, args_index, LUA_TTABLE);
+        lua_pushvalue(L, args_index);
 
         dmRenderDDF::MaterialDesc::ConstantType type_from_value = dmRender::GetConstantType(constant);
 
@@ -835,14 +840,29 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# sets a texture sampler in a material
-     * Sets a texture sampler in a material, if the sampler exists.
+    static int Material_SetConstants(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0)
+        {
+            dmhash_t name_hash = dmScript::CheckHashOrString(L, -2);
+            SetMaterialConstant(L, material_res, name_hash, lua_gettop(L));
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
+    /*# sets textures in a material
+     * Sets textures in a material, if the samplers exist.
      *
-     * @name material.set_texture
+     * @name material.set_textures
      *
      * @param path [type:hash|string] The path to the resource
-     * @param name [type:hash|string] The sampler name
-     * @param texture [type:hash|string] The texture resource to bind to the sampler.
+     * @param textures [type:table] A table keyed by sampler name with texture resources as values.
      *
      * @examples
      * Set a texture in a material from a resource
@@ -852,15 +872,15 @@ namespace dmGameSystem
      * go.property("my_texture", resource.texture())
      *
      * function init(self)
-     *     material.set_texture(self.my_material, "my_texture", self.my_texture)
+     *     material.set_textures(self.my_material, {
+     *         my_texture = self.my_texture
+     *     })
      * end
      * ```
      */
-    static int Material_SetTexture(lua_State* L)
+    static int SetMaterialTexture(lua_State* L, MaterialResource* material_res, dmhash_t name_hash, int texture_index)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-        MaterialResource* material_res = CheckMaterialResource(L, 1);
-        dmhash_t name_hash             = dmScript::CheckHashOrString(L, 2);
+        texture_index = texture_index < 0 ? lua_gettop(L) + texture_index + 1 : texture_index;
 
         uint32_t unit = dmRender::GetMaterialSamplerUnit(material_res->m_Material, name_hash);
         if (unit == dmRender::INVALID_SAMPLER_UNIT)
@@ -868,7 +888,7 @@ namespace dmGameSystem
             return luaL_error(L, "Material sampler '%s' not found", dmHashReverseSafe64(name_hash));
         }
 
-        dmhash_t texture_path        = dmScript::CheckHashOrString(L, 3);
+        dmhash_t texture_path        = dmScript::CheckHashOrString(L, texture_index);
         TextureResource* texture_res = (TextureResource*) CheckResource(L, g_MaterialModule.m_Factory, texture_path, "texturec");
 
         dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(dmRender::GetMaterialRenderContext(material_res->m_Material));
@@ -914,16 +934,32 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Material_SetTextures(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0)
+        {
+            dmhash_t name_hash = dmScript::CheckHashOrString(L, -2);
+            SetMaterialTexture(L, material_res, name_hash, lua_gettop(L));
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
     static const luaL_reg ScriptMaterial_methods[] =
     {
         {"get_vertex_attributes", Material_GetVertexAttributes},
         {"get_samplers",          Material_GetSamplers},
         {"get_constants",         Material_GetConstants},
         {"get_textures",          Material_GetTextures},
-        {"set_vertex_attribute",  Material_SetVertexAttribute},
-        {"set_sampler",           Material_SetSampler},
-        {"set_constant",          Material_SetConstant},
-        {"set_texture",           Material_SetTexture},
+        {"set_vertex_attributes", Material_SetVertexAttributes},
+        {"set_samplers",          Material_SetSamplers},
+        {"set_constants",         Material_SetConstants},
+        {"set_textures",          Material_SetTextures},
         {0, 0}
     };
 

@@ -145,22 +145,26 @@ local function get_by_name(table, name)
     assert(false, name .. " not found")
 end
 
-function test_module_set_sampler(module, resource, sampler_name)
+function test_module_set_samplers(module, resource, sampler_name)
     local samplers = module.get_samplers(resource)
     local s = get_by_name(samplers, sampler_name)
     s.u_wrap = graphics.TEXTURE_WRAP_REPEAT
     s.v_wrap = graphics.TEXTURE_WRAP_REPEAT
-    module.set_sampler(resource, sampler_name, s)
+    module.set_samplers(resource, {
+        [sampler_name] = s
+    })
     local s_set = get_by_name(module.get_samplers(resource), sampler_name)
     assert_sampler(s_set, s)
 end
 
-function test_module_set_vertex_attribute(module, resource, attribute_name, values, semantic_type)
+function test_module_set_vertex_attributes_single(module, resource, attribute_name, values, semantic_type)
     local attributes = module.get_vertex_attributes(resource)
     local a         = get_by_name(attributes, attribute_name)
     a.value         = values
     a.semantic_type = semantic_type
-    module.set_vertex_attribute(resource, attribute_name, a)
+    module.set_vertex_attributes(resource, {
+        [attribute_name] = a
+    })
     local a_set = get_by_name(module.get_vertex_attributes(resource), attribute_name)
     assert_vertex_attribute(a_set, a)
 end
@@ -173,7 +177,7 @@ function test_module_set_vertex_attributes(module, resource)
     custom_two.value = vmath.vector3(4, 5, 6)
     custom_two.semantic_type = graphics.SEMANTIC_TYPE_COLOR
 
-    module.set_vertex_attribute(resource, {
+    module.set_vertex_attributes(resource, {
         custom_one = custom_one,
         custom_two = custom_two,
     })
@@ -183,16 +187,18 @@ function test_module_set_vertex_attributes(module, resource)
     assert_vertex_attribute(get_by_name(updated_attributes, "custom_two"), custom_two)
 end
 
-function test_module_set_constant(module, resource, constant_name, value)
+function test_module_set_constants(module, resource, constant_name, value)
     local constants = module.get_constants(resource)
     local c = get_by_name(constants, constant_name)
     c.value = value
-    module.set_constant(resource, constant_name, c)
+    module.set_constants(resource, {
+        [constant_name] = c
+    })
     local c_set = get_by_name(module.get_constants(resource), constant_name)
     assert_constant(c_set, c)
 end
 
-function test_module_set_texture(module, resource_name, texture_name, texture_type)
+function test_module_set_textures(module, resource_name, texture_name, texture_type)
     local t_res_path = "/" .. texture_name .. ".texturec"
     local t_id = resource.create_texture(t_res_path, {
         width  = 128,
@@ -200,7 +206,9 @@ function test_module_set_texture(module, resource_name, texture_name, texture_ty
         type   = texture_type,
         format = graphics.TEXTURE_FORMAT_RGBA,
     })
-    module.set_texture(resource_name, texture_name, t_id)
+    module.set_textures(resource_name, {
+        [texture_name] = t_id
+    })
 
     local textures = module.get_textures(resource_name)
     local t_set = nil

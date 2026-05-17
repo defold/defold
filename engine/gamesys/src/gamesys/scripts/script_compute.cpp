@@ -312,15 +312,14 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# sets a texture sampler in a compute program
-     * Sets a texture sampler in a compute program, if the sampler exists. Use this function to change the settings of a texture sampler.
-     * To set an actual texture that should be bound to the sampler, use the `compute.set_texture` function instead.
+    /*# sets texture samplers in a compute program
+     * Sets texture samplers in a compute program, if the samplers exist. Use this function to change the settings of texture samplers.
+     * To set actual textures that should be bound to the samplers, use the `compute.set_textures` function instead.
      *
-     * @name compute.set_sampler
+     * @name compute.set_samplers
      *
      * @param path [type:hash|string] The path to the resource
-     * @param name [type:hash|string] The sampler name
-     * @param args [type:table] A table of what to update in the sampler (partial updates are supported). Supported entries:
+     * @param samplers [type:table] A table keyed by sampler name with args tables as values. Partial updates are supported. Supported entries:
      *
      * `u_wrap`
      * : [type:number] the u wrap mode of the texture sampler. Supported values:
@@ -364,15 +363,15 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *     compute.set_sampler("/my_compute.computec", "texture_sampler", { u_wrap = graphics.TEXTURE_WRAP_REPEAT, v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT })
+     *     compute.set_samplers("/my_compute.computec", {
+     *         texture_sampler = { u_wrap = graphics.TEXTURE_WRAP_REPEAT, v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT }
+     *     })
      * end
      * ```
      */
-    static int Compute_SetSampler(lua_State* L)
+    static int SetComputeSampler(lua_State* L, ComputeResource* compute_res, dmhash_t name_hash, int args_index)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-        ComputeResource* compute_res = CheckComputeResource(L, 1);
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        args_index = args_index < 0 ? lua_gettop(L) + args_index + 1 : args_index;
 
         uint32_t unit = dmRender::GetComputeProgramSamplerUnit(compute_res->m_Program, name_hash);
         if (unit == dmRender::INVALID_SAMPLER_UNIT)
@@ -385,8 +384,8 @@ namespace dmGameSystem
         dmRender::SamplerInfo sampler_info = {};
         dmRender::GetSamplerInfo(sampler, &sampler_info);
 
-        luaL_checktype(L, 3, LUA_TTABLE);
-        lua_pushvalue(L, 3);
+        luaL_checktype(L, args_index, LUA_TTABLE);
+        lua_pushvalue(L, args_index);
 
         GetSamplerParametersFromLua(L, &sampler_info.m_UWrap, &sampler_info.m_VWrap, &sampler_info.m_MinFilter, &sampler_info.m_MagFilter, &sampler_info.m_MaxAnisotropy);
 
@@ -397,14 +396,29 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# sets a shader constant in a compute program
-     * Sets a shader constant in a compute program, if the constant exists.
+    static int Compute_SetSamplers(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        ComputeResource* compute_res = CheckComputeResource(L, 1);
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0)
+        {
+            dmhash_t name_hash = dmScript::CheckHashOrString(L, -2);
+            SetComputeSampler(L, compute_res, name_hash, lua_gettop(L));
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
+    /*# sets shader constants in a compute program
+     * Sets shader constants in a compute program, if the constants exist.
      *
-     * @name compute.set_constant
+     * @name compute.set_constants
      *
      * @param path [type:hash|string] The path to the resource
-     * @param name [type:hash|string] The constant name
-     * @param args [type:table] A table of what to update in the constant (a constant can be partially updated). Supported entries:
+     * @param constants [type:table] A table keyed by constant name with args tables as values. Constants can be partially updated. Supported entries:
      *
      * `type`
      * : [type:number] the type of the constant. Supported values:
@@ -436,17 +450,19 @@ namespace dmGameSystem
      * ```lua
      * function update(self)
      *     -- update the 'tint' constant
-     *     compute.set_constant("/my_compute.computec", "tint", { value = vmath.vector4(1, 0, 0, 1) })
+     *     compute.set_constants("/my_compute.computec", {
+     *         tint = { value = vmath.vector4(1, 0, 0, 1) }
+     *     })
      *     -- change the type of the 'view_proj' constant to CONSTANT_TYPE_USER_MATRIX4 so the renderer can set our custom data
-     *     compute.set_constant("/my_compute.computec", "view_proj", { value = self.my_view_proj, type = material.CONSTANT_TYPE_USER_MATRIX4 })
+     *     compute.set_constants("/my_compute.computec", {
+     *         view_proj = { value = self.my_view_proj, type = material.CONSTANT_TYPE_USER_MATRIX4 }
+     *     })
      * end
      * ```
      */
-    static int Compute_SetConstant(lua_State* L)
+    static int SetComputeConstant(lua_State* L, ComputeResource* compute_res, dmhash_t name_hash, int args_index)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-        ComputeResource* compute_res = CheckComputeResource(L, 1);
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        args_index = args_index < 0 ? lua_gettop(L) + args_index + 1 : args_index;
 
         dmRender::HConstant constant;
         if (!dmRender::GetComputeProgramConstant(compute_res->m_Program, name_hash, constant))
@@ -454,8 +470,8 @@ namespace dmGameSystem
             return luaL_error(L, "Compute program constant '%s' not found", dmHashReverseSafe64(name_hash));
         }
 
-        luaL_checktype(L, 3, LUA_TTABLE);
-        lua_pushvalue(L, 3);
+        luaL_checktype(L, args_index, LUA_TTABLE);
+        lua_pushvalue(L, args_index);
 
         g_ComputeModule.m_ScratchValues.SetSize(0);
 
@@ -478,14 +494,29 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# sets a texture sampler in a compute program
-     * Sets a texture sampler in a compute program, if the sampler exists.
+    static int Compute_SetConstants(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        ComputeResource* compute_res = CheckComputeResource(L, 1);
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0)
+        {
+            dmhash_t name_hash = dmScript::CheckHashOrString(L, -2);
+            SetComputeConstant(L, compute_res, name_hash, lua_gettop(L));
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
+    /*# sets textures in a compute program
+     * Sets textures in a compute program, if the samplers exist.
      *
-     * @name compute.set_texture
+     * @name compute.set_textures
      *
      * @param path [type:hash|string] The path to the resource
-     * @param name [type:hash|string] The sampler name
-     * @param texture [type:hash|string] The texture resource to bind to the sampler.
+     * @param textures [type:table] A table keyed by sampler name with texture resources as values.
      *
      * @examples
      * Set a texture in a compute program from a resource
@@ -494,15 +525,15 @@ namespace dmGameSystem
      * go.property("my_texture", resource.texture())
      *
      * function init(self)
-     *     compute.set_texture("/my_compute.computec", "my_texture", self.my_texture)
+     *     compute.set_textures("/my_compute.computec", {
+     *         my_texture = self.my_texture
+     *     })
      * end
      * ```
      */
-    static int Compute_SetTexture(lua_State* L)
+    static int SetComputeTexture(lua_State* L, ComputeResource* compute_res, dmhash_t name_hash, int texture_index)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-        ComputeResource* compute_res = CheckComputeResource(L, 1);
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        texture_index = texture_index < 0 ? lua_gettop(L) + texture_index + 1 : texture_index;
 
         uint32_t unit = dmRender::GetComputeProgramSamplerUnit(compute_res->m_Program, name_hash);
         if (unit == dmRender::INVALID_SAMPLER_UNIT)
@@ -510,7 +541,7 @@ namespace dmGameSystem
             return luaL_error(L, "Compute program sampler '%s' not found", dmHashReverseSafe64(name_hash));
         }
 
-        dmhash_t texture_path = dmScript::CheckHashOrString(L, 3);
+        dmhash_t texture_path = dmScript::CheckHashOrString(L, texture_index);
         TextureResource* texture_res = (TextureResource*) CheckResource(L, g_ComputeModule.m_Factory, texture_path, "texturec");
 
         dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(dmRender::GetProgramRenderContext(compute_res->m_Program));
@@ -557,14 +588,30 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Compute_SetTextures(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        ComputeResource* compute_res = CheckComputeResource(L, 1);
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0)
+        {
+            dmhash_t name_hash = dmScript::CheckHashOrString(L, -2);
+            SetComputeTexture(L, compute_res, name_hash, lua_gettop(L));
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
     static const luaL_reg ScriptCompute_methods[] =
     {
         {"get_samplers",  Compute_GetSamplers},
         {"get_constants", Compute_GetConstants},
         {"get_textures",  Compute_GetTextures},
-        {"set_sampler",   Compute_SetSampler},
-        {"set_constant",  Compute_SetConstant},
-        {"set_texture",   Compute_SetTexture},
+        {"set_samplers",  Compute_SetSamplers},
+        {"set_constants", Compute_SetConstants},
+        {"set_textures",  Compute_SetTextures},
         {0, 0}
     };
 
