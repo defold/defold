@@ -1880,7 +1880,7 @@ namespace dmMDNS
         }
     }
 
-    static void HandleBrowserRecord(Browser* browser, const uint8_t* data, uint32_t size, uint32_t* offset)
+    static void HandleBrowserRecord(Browser* browser, const uint8_t* data, uint32_t size, uint32_t* offset, uint64_t now)
     {
         char name[256];
         uint16_t type = 0;
@@ -1942,8 +1942,8 @@ namespace dmMDNS
             }
 
             service.m_HasPtr = 1;
-            service.m_PtrExpires = GetNow() + SecondsToMicroSeconds(ttl);
-            service.m_PtrRefresh = GetNow() + HalfSecondsToMicroSeconds(ttl);
+            service.m_PtrExpires = now + SecondsToMicroSeconds(ttl);
+            service.m_PtrRefresh = now + HalfSecondsToMicroSeconds(ttl);
             service.m_PtrTtl = ttl;
             if (created)
             {
@@ -1990,8 +1990,8 @@ namespace dmMDNS
 
             service.m_Port = port;
             service.m_HasSrv = 1;
-            service.m_SrvExpires = GetNow() + SecondsToMicroSeconds(ttl);
-            service.m_SrvRefresh = GetNow() + HalfSecondsToMicroSeconds(ttl);
+            service.m_SrvExpires = now + SecondsToMicroSeconds(ttl);
+            service.m_SrvRefresh = now + HalfSecondsToMicroSeconds(ttl);
             service.m_SrvTtl = ttl;
             TryResolveService(browser, &service);
             return;
@@ -2022,8 +2022,8 @@ namespace dmMDNS
 
             service.m_TxtCount = txt_count;
             service.m_HasTxt = 1;
-            service.m_TxtExpires = GetNow() + SecondsToMicroSeconds(ttl);
-            service.m_TxtRefresh = GetNow() + HalfSecondsToMicroSeconds(ttl);
+            service.m_TxtExpires = now + SecondsToMicroSeconds(ttl);
+            service.m_TxtRefresh = now + HalfSecondsToMicroSeconds(ttl);
             service.m_TxtTtl = ttl;
 
             service.m_Id[0] = 0;
@@ -2067,8 +2067,8 @@ namespace dmMDNS
                        data[rdata_offset + 1],
                        data[rdata_offset + 2],
                        data[rdata_offset + 3]);
-            host.m_Expires = GetNow() + SecondsToMicroSeconds(ttl);
-            host.m_Refresh = GetNow() + HalfSecondsToMicroSeconds(ttl);
+            host.m_Expires = now + SecondsToMicroSeconds(ttl);
+            host.m_Refresh = now + HalfSecondsToMicroSeconds(ttl);
             host.m_Ttl = ttl;
 
             if (host_index >= 0)
@@ -2162,10 +2162,11 @@ namespace dmMDNS
             if (offset >= size)
                 continue;
 
+            const uint64_t now = GetNow();
             const uint32_t records = (uint32_t) ancount + (uint32_t) nscount + (uint32_t) arcount;
             for (uint32_t i = 0; i < records; ++i)
             {
-                HandleBrowserRecord(browser, browser->m_Buffer, size, &offset);
+                HandleBrowserRecord(browser, browser->m_Buffer, size, &offset, now);
                 if (offset >= size)
                     break;
             }
