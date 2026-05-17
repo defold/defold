@@ -30,6 +30,11 @@ namespace dmScript
 {
     #define SCRIPT_LIB_NAME "graphics"
 
+    struct GraphicsModule
+    {
+        dmGraphics::HContext m_GraphicsContext;
+    } g_GraphicsModule;
+
     /*# Graphics API documentation
      *
      * Graphics functions and constants.
@@ -641,13 +646,286 @@ namespace dmScript
      * @constant
      */
 
+    /*#
+     * Context feature flag indicating support for rendering to multiple color targets simultaneously.
+     * @name graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for texture arrays.
+     * @name graphics.CONTEXT_FEATURE_TEXTURE_ARRAY
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for compute shaders.
+     * @name graphics.CONTEXT_FEATURE_COMPUTE_SHADER
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for storage buffers.
+     * @name graphics.CONTEXT_FEATURE_STORAGE_BUFFER
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for vertical sync (vsync).
+     * @name graphics.CONTEXT_FEATURE_VSYNC
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for hardware instancing.
+     * @name graphics.CONTEXT_FEATURE_INSTANCING
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for 3D (volume) textures.
+     * @name graphics.CONTEXT_FEATURE_3D_TEXTURES
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for ASTC compressed 2D array textures.
+     * Some WebGL/GLES drivers fail array texture ASTC uploads while 2D ASTC works.
+     * @name graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES
+     * @constant
+     */
+
+    /*#
+     * Context feature flag indicating support for min/max blend equations.
+     * Requires GLES3+ or EXT_blend_minmax.
+     * @name graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX
+     * @constant
+     */
+
+    // Returns the short, lowercase Lua-facing name for an adapter family
+    // ("opengl", "vulkan", ...). Returns "<unsupported>" for values not
+    // covered below — never returns null.
+    static const char* AdapterFamilyToName(dmGraphics::AdapterFamily family)
+    {
+    #define ADAPTER_FAMILY_CASE(c, s) case dmGraphics::c: return s;
+        switch(family)
+        {
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_NONE,     "none");
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_NULL,     "null");
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_OPENGL,   "opengl");
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_OPENGLES, "opengles");
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_VULKAN,   "vulkan");
+        // TODO: For vendor platforms, we should probably return the actual platform literal.
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_VENDOR,   "vendor");
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_WEBGPU,   "webgpu");
+        ADAPTER_FAMILY_CASE(ADAPTER_FAMILY_DIRECTX,  "dx12");
+        default: break;
+        }
+    #undef ADAPTER_FAMILY_CASE
+        return "<unsupported>";
+    }
+
+    /*# get the list of graphics adapters that have been registered with the engine
+     *
+     * @name graphics.get_engine_adapters
+     * @return adapters [type:table] array of adapter family name strings (e.g. "opengl", "vulkan", "webgpu")
+     */
+    static int Graphics_GetEngineAdapters(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        uint32_t num_adapters = dmGraphics::GetRegisteredAdaptersCount();
+        lua_createtable(L, (int) num_adapters, 0);
+
+        for (uint32_t i = 0; i < num_adapters; ++i)
+        {
+            dmGraphics::HGraphicsAdapter adapter = dmGraphics::GetRegisteredAdapter(i);
+            dmGraphics::AdapterFamily adapter_family = dmGraphics::GetAdapterFamily(adapter);
+
+            lua_pushstring(L, AdapterFamilyToName(adapter_family));
+            lua_rawseti(L, -2, (int) i + 1);
+        }
+
+        return 1;
+    }
+
+    /*# get information about the currently installed graphics adapter
+     *
+     * Returns a table describing the active graphics context: the adapter family,
+     * its hardware limits, the list of driver-reported extensions, and the set of
+     * optional context features supported by the backend.
+     *
+     * @name graphics.get_adapter_info
+     * @return info [type:table] table with the following fields:
+     *
+     *   `family`         [type:string]   adapter family name (e.g. "opengl", "vulkan")
+     *   `version_major`  [type:number]   adapter API major version (e.g. 1 for Vulkan 1.4)
+     *   `version_minor`  [type:number]   adapter API minor version (e.g. 4 for Vulkan 1.4)
+     *
+     *   `limits`         [type:table]    hardware/driver limits:
+     *
+     *     `max_texture_size_2d`              [type:number]  max 2D texture dimension in texels
+     *     `max_texture_size_3d`              [type:number]  max 3D (volume) texture dimension in texels
+     *     `max_texture_size_cube`            [type:number]  max cube map face dimension in texels
+     *     `max_texture_array_layers`         [type:number]  max layers in an array texture
+     *     `max_framebuffer_width`            [type:number]  max framebuffer width in pixels
+     *     `max_framebuffer_height`           [type:number]  max framebuffer height in pixels
+     *     `max_color_attachments`            [type:number]  max simultaneous color attachments
+     *     `max_samplers_per_stage`           [type:number]  max texture samplers per shader stage
+     *     `max_textures_per_stage`           [type:number]  max sampled textures per shader stage
+     *     `max_vertex_attributes`            [type:number]  max vertex attributes
+     *     `max_vertex_buffers`               [type:number]  max vertex buffer bindings
+     *     `max_compute_workgroup_size_x`     [type:number]  max compute workgroup size (X)
+     *     `max_compute_workgroup_size_y`     [type:number]  max compute workgroup size (Y)
+     *     `max_compute_workgroup_size_z`     [type:number]  max compute workgroup size (Z)
+     *     `max_compute_workgroup_invocations` [type:number] max invocations per compute workgroup
+     *     `max_compute_shared_memory_size`   [type:number]  max shared memory per compute workgroup (bytes)
+     *     `max_uniform_buffer_range`         [type:number]  max bindable uniform buffer range (bytes)
+     *     `max_storage_buffer_range`         [type:number]  max bindable storage buffer range (bytes)
+     *
+     *   `extensions`     [type:table]    array of driver-reported extension name strings
+     *
+     *   `features`       [type:table]    array of supported context feature ids:
+     *
+     *     `graphics.CONTEXT_FEATURE_MULTI_TARGET_RENDERING`  multi-target rendering
+     *     `graphics.CONTEXT_FEATURE_TEXTURE_ARRAY`           texture arrays
+     *     `graphics.CONTEXT_FEATURE_COMPUTE_SHADER`          compute shaders
+     *     `graphics.CONTEXT_FEATURE_STORAGE_BUFFER`          storage buffers
+     *     `graphics.CONTEXT_FEATURE_VSYNC`                   vertical sync
+     *     `graphics.CONTEXT_FEATURE_INSTANCING`              hardware instancing
+     *     `graphics.CONTEXT_FEATURE_3D_TEXTURES`             3D (volume) textures
+     *     `graphics.CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES`     ASTC compressed 2D array textures
+     *     `graphics.CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX`  min/max blend equations
+     */
+    static int Graphics_GetAdapterInfo(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmGraphics::HContext context = g_GraphicsModule.m_GraphicsContext;
+
+        lua_newtable(L);
+
+        // adapter family literal
+        {
+            const char* family_name = "none";
+            if (context)
+            {
+                family_name = AdapterFamilyToName(dmGraphics::GetInstalledAdapterFamily());
+            }
+            lua_pushstring(L, family_name);
+            lua_setfield(L, -2, "family");
+        }
+
+        // adapter API version
+        {
+            uint16_t major = 0, minor = 0;
+            if (context)
+            {
+                dmGraphics::GetAdapterVersion(context, major, minor);
+            }
+            lua_pushinteger(L, (lua_Integer) major);
+            lua_setfield(L, -2, "version_major");
+            lua_pushinteger(L, (lua_Integer) minor);
+            lua_setfield(L, -2, "version_minor");
+        }
+
+        // limits sub-table
+        {
+            lua_newtable(L);
+
+            dmGraphics::GraphicsContextLimits limits = {};
+            if (context)
+            {
+                dmGraphics::GetGraphicsContextLimits(context, limits);
+            }
+
+            // Lua numbers are doubles, so uint64_t fields can lose precision above
+            // 2^53. The buffer ranges we report fit comfortably below that today,
+            // but cast through lua_Number deliberately so a future change shows
+            // up in code review.
+        #define PUSH_LIMIT(field, key) \
+            lua_pushnumber(L, (lua_Number) limits.field); \
+            lua_setfield(L, -2, key);
+
+            // Texture limits
+            PUSH_LIMIT(m_MaxTextureSize2D,                "max_texture_size_2d");
+            PUSH_LIMIT(m_MaxTextureSize3D,                "max_texture_size_3d");
+            PUSH_LIMIT(m_MaxTextureSizeCube,              "max_texture_size_cube");
+            PUSH_LIMIT(m_MaxTextureArrayLayers,           "max_texture_array_layers");
+
+            // Framebuffer limits
+            PUSH_LIMIT(m_MaxFramebufferWidth,             "max_framebuffer_width");
+            PUSH_LIMIT(m_MaxFramebufferHeight,            "max_framebuffer_height");
+            PUSH_LIMIT(m_MaxColorAttachments,             "max_color_attachments");
+
+            // Per-stage binding limits
+            PUSH_LIMIT(m_MaxSamplersPerStage,             "max_samplers_per_stage");
+            PUSH_LIMIT(m_MaxTexturesPerStage,             "max_textures_per_stage");
+            PUSH_LIMIT(m_MaxVertexAttributes,             "max_vertex_attributes");
+            PUSH_LIMIT(m_MaxVertexBuffers,                "max_vertex_buffers");
+
+            // Compute limits
+            PUSH_LIMIT(m_MaxComputeWorkgroupSizeX,        "max_compute_workgroup_size_x");
+            PUSH_LIMIT(m_MaxComputeWorkgroupSizeY,        "max_compute_workgroup_size_y");
+            PUSH_LIMIT(m_MaxComputeWorkgroupSizeZ,        "max_compute_workgroup_size_z");
+            PUSH_LIMIT(m_MaxComputeWorkgroupInvocations,  "max_compute_workgroup_invocations");
+            PUSH_LIMIT(m_MaxComputeSharedMemorySize,      "max_compute_shared_memory_size");
+
+            // Buffer limits
+            PUSH_LIMIT(m_MaxUniformBufferRange,           "max_uniform_buffer_range");
+            PUSH_LIMIT(m_MaxStorageBufferRange,           "max_storage_buffer_range");
+
+        #undef PUSH_LIMIT
+
+            lua_setfield(L, -2, "limits");
+        }
+
+        // extensions array
+        {
+            uint32_t num_extensions = context ? dmGraphics::GetNumSupportedExtensions(context) : 0;
+            lua_createtable(L, (int) num_extensions, 0);
+
+            for (uint32_t i = 0; i < num_extensions; ++i)
+            {
+                const char* ext = dmGraphics::GetSupportedExtension(context, i);
+                lua_pushstring(L, ext ? ext : "");
+                lua_rawseti(L, -2, (int) i + 1);
+            }
+
+            lua_setfield(L, -2, "extensions");
+        }
+
+        // features array (list of supported CONTEXT_FEATURE_* ids)
+        {
+            lua_createtable(L, (int) dmGraphics::MAX_CONTEXT_FEATURE_COUNT, 0);
+
+            int supported_features_count = 0;
+            for (int i = 0; i < (int) dmGraphics::MAX_CONTEXT_FEATURE_COUNT; ++i)
+            {
+                if (context && dmGraphics::IsContextFeatureSupported(context, (dmGraphics::ContextFeature) i))
+                {
+                    lua_pushnumber(L, (lua_Number) i);
+                    lua_rawseti(L, -2, ++supported_features_count);
+                }
+            }
+
+            lua_setfield(L, -2, "features");
+        }
+
+        return 1;
+    }
+
     static const luaL_reg ScriptGraphics_methods[] =
     {
+        {"get_engine_adapters", Graphics_GetEngineAdapters},
+        {"get_adapter_info", Graphics_GetAdapterInfo},
         {0, 0}
     };
 
     void InitializeGraphics(lua_State* L, dmGraphics::HContext graphics_context)
     {
+        g_GraphicsModule.m_GraphicsContext = graphics_context;
+
         DM_LUA_STACK_CHECK(L, 0);
 
         luaL_register(L, SCRIPT_LIB_NAME, ScriptGraphics_methods);
@@ -837,6 +1115,17 @@ namespace dmScript
         // CoordinateSpace
         SET_GRAPHICS_ENUM(COORDINATE_SPACE_WORLD);
         SET_GRAPHICS_ENUM(COORDINATE_SPACE_LOCAL);
+
+        // Context features
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_TEXTURE_ARRAY);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_COMPUTE_SHADER);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_STORAGE_BUFFER);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_VSYNC);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_INSTANCING);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_3D_TEXTURES);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
+        SET_GRAPHICS_ENUM(CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
 
     #undef SET_GRAPHICS_ENUM_NAMED
     #undef SET_GRAPHICS_ENUM

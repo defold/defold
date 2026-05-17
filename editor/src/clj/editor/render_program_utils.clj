@@ -100,6 +100,12 @@
     :constant-type-worldview false
     :constant-type-worldviewproj false
     :constant-type-time false
+    :constant-type-world-inverse false
+    :constant-type-view-inverse false
+    :constant-type-projection-inverse false
+    :constant-type-viewproj-inverse false
+    :constant-type-worldview-inverse false
+    :constant-type-worldviewproj-inverse false
     :constant-type-user-matrix4 true))
 
 (defn sanitize-constant [constant]

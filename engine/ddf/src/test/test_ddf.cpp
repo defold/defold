@@ -885,8 +885,9 @@ TEST(OneOfTests, Save)
     e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, (void**)&saved_message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
+    ASSERT_EQ(message->m_OneOfFieldOneOfIndex, saved_message->m_OneOfFieldOneOfIndex);
+    ASSERT_EQ(message->m_OneOfFieldStringOneOfIndex, saved_message->m_OneOfFieldStringOneOfIndex);
     ASSERT_EQ(message->m_OneOfField.m_IntVal, saved_message->m_OneOfField.m_IntVal);
-    ASSERT_EQ((int)message->m_OneOfField.m_BoolVal, (int)saved_message->m_OneOfField.m_BoolVal);
     ASSERT_STREQ(message->m_OneOfFieldString.m_StringVal, saved_message->m_OneOfFieldString.m_StringVal);
 
     dmDDF::FreeMessage(saved_message);

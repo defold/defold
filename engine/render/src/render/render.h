@@ -469,6 +469,7 @@ namespace dmRender
     void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
     float                           GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera);
+    float                           GetRenderCameraOrthographicAutoZoom(HRenderContext render_context, HRenderCamera camera);
 
     /** Lights
      * A light prototype is essentially the data that represents the light and has a set of basic parameters,

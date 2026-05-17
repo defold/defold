@@ -368,7 +368,15 @@ namespace dmGameSystem
         return VerifyBodyInternal(L, luabody, 0);
     }
 
-    static dmhash_t GetBodyInstanceId(b2Body* body)
+    dmGameObject::HCollection GetBodyCollection(lua_State* L, int index)
+    {
+        B2DLuaBody* luabody = CheckBodyInternal(L, index);
+        B2DBodyMeta* body_meta = 0;
+        VerifyBodyInternal(L, luabody, &body_meta);
+        return body_meta ? body_meta->m_Collection : 0;
+    }
+
+    dmhash_t GetBodyInstanceId(b2Body* body)
     {
         void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
 
@@ -609,6 +617,31 @@ namespace dmGameSystem
             lua_rawseti(L, -2, fixture_index);
             fixture = fixture->GetNext();
             ++fixture_index;
+        }
+
+        return 1;
+    }
+
+    static int Body_GetJoints(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        B2DLuaBody* luabody = CheckBodyInternal(L, 1);
+        B2DBodyMeta* body_meta = 0;
+        b2Body* body = VerifyBodyInternal(L, luabody, &body_meta);
+
+        lua_newtable(L);
+
+        b2JointEdge* joint_edge = body->GetJointList();
+        int joint_index = 1;
+        while (joint_edge)
+        {
+            if (IsJointTracked(joint_edge->joint))
+            {
+                PushJoint(L, joint_edge->joint, body_meta ? body_meta->m_Collection : 0);
+                lua_rawseti(L, -2, joint_index);
+                ++joint_index;
+            }
+            joint_edge = joint_edge->next;
         }
 
         return 1;
@@ -1003,6 +1036,7 @@ namespace dmGameSystem
         {"set_mass_data", Body_SetMassData},
         {"reset_mass_data", Body_ResetMassData},
         {"get_fixtures", Body_GetFixtures},
+        {"get_joints", Body_GetJoints},
         {"destroy_fixture", Body_DestroyFixture},
         {"get_angle", Body_GetAngle},
 
@@ -1094,6 +1128,7 @@ namespace dmGameSystem
 
         lua_setfield(L, -2, "body");
 
+        ScriptBox2DInitializeJoint(L);
         ScriptBox2DInitializeFixture(L);
         ScriptBox2DInitializeShape(L);
     }
@@ -1118,6 +1153,13 @@ namespace dmGameSystem
             fixture = next_fixture;
         }
 
+        b2JointEdge* joint_edge = b2_body->GetJointList();
+        while (joint_edge)
+        {
+            ScriptBox2DInvalidateJoint(joint_edge->joint);
+            joint_edge = joint_edge->next;
+        }
+
         HOpaqueHandle* handle = g_BodyToHandle.Get(BodyPtrToKey(b2_body));
         if (handle)
         {
@@ -1133,6 +1175,7 @@ namespace dmGameSystem
         ClearFixtureShapes();
         g_BodyToHandle.Clear();
         g_BodyMeta.Clear();
+        ScriptBox2DFinalizeJoint();
     }
 }
 
@@ -1144,6 +1187,7 @@ namespace dmGameSystem
  * @name b2d.body
  * @namespace b2d.body
  * @language Lua
+ * @version 2
  */
 
 /*# Static (immovable) body
@@ -1532,10 +1576,10 @@ namespace dmGameSystem
  * @return enabled [type: boolean] is the rotation fixed
  */
 
-/** Get the list of all joints attached to this body.
- * @name b2d.body.get_joint_list
+/*# Get the joints attached to this body.
+ * @name b2d.body.get_joints
  * @param body [type: b2Body] body
- * @return edge [type: b2JointEdge] the first joint
+ * @return joints [type: table] array of `b2Joint` handles created by `b2d.joint`
  */
 
 /** Get the list of all contacts attached to this body.

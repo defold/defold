@@ -25,6 +25,7 @@ import build_android
 import run
 import s3
 import sdk
+import wasm_runner
 import release_to_github
 import release_to_steam
 import release_to_egs
@@ -560,6 +561,7 @@ class Configuration(object):
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
         self.target_platform = target_platform
+        self.sdk_info = None
 
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
@@ -812,27 +814,29 @@ class Configuration(object):
         waf_path = make_package_path(self.defold_root, 'common', waf_package)
         self._extract_tgz(waf_path, self.ext)
 
-    def _install_python_packages(self, packages, whl_patterns):
+    def _install_python_packages(self, packages):
         target = join(self.ext, 'lib', 'python')
+        wheelhouse = join(self.defold_root, 'packages', 'python')
         self._mkdirs(target)
 
         if packages:
-            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', target] + packages)
-
-        for pattern in whl_patterns:
-            for whl in sorted(glob(join(self.defold_root, 'packages', pattern))):
-                self._log('Installing %s' % basename(whl))
-                run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', target, whl])
+            run.env_command(self._form_env(), self.get_python() + [
+                '-m', 'pip',
+                '-q', '-q',
+                'install',
+                '--no-index',
+                '--find-links', wheelhouse,
+                '--only-binary', ':all:',
+                '--upgrade',
+                '-t', target,
+            ] + packages)
 
     def install_release_dependencies(self):
         print("Installing release python dependencies")
         self._install_python_packages(
-            ['requests'],
             [
-                'boto3-*.whl',
-                'botocore-*.whl',
-                's3transfer-*.whl',
-                'urllib3-*.whl',
+                'boto3==1.36.3',
+                'requests==2.34.2',
             ])
 
     def install_ext(self):
@@ -905,7 +909,16 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        self._install_python_packages(['requests', 'pyaml', 'rangehttpserver', 'pystache'], ['*.whl'])
+        self._install_python_packages([
+            'Markdown==3.3.7',
+            'Pygments==2.12.0',
+            'boto3==1.36.3',
+            'protobuf==3.20.1',
+            'PyYAML==6.0.3',
+            'pystache==0.6.8',
+            'rangehttpserver==1.4.0',
+            'requests==2.34.2',
+        ])
 
         print("Installing javascripts")
         for n in 'web-pre.js'.split():
@@ -952,19 +965,44 @@ class Configuration(object):
                 return fullpath
         return None
 
+    def _get_emsdk_node_candidate(self):
+        if not wasm_runner.is_web_platform(self.target_platform):
+            return None
+
+        sdk_info = self.sdk_info
+        if not sdk_info:
+            sdkfolder = join(self.ext, 'SDKs')
+            sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, False)
+
+        if not sdk_info:
+            return None
+
+        return sdk_info.get('emsdk', {}).get('node')
+
+    def _find_wasm_test_runner(self):
+        node_candidate = self._get_emsdk_node_candidate()
+        node_candidates = [node_candidate] if node_candidate else []
+        return wasm_runner.find_wasm_runner(node_candidates = node_candidates)
+
+    def _format_wasm_runner_error(self, errors):
+        message = "Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests."
+        if errors:
+            message += "\nChecked runners:\n  " + "\n  ".join(errors)
+        return message
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
-        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, True)
+        self.sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, True)
 
         # TODO: Make sure this check works for all platforms
         if not self.sdk_info:
             if not self.verbose:
                 # Do it again, with verbose on, so that we can get more info straight away:
-                sdk.get_sdk_info(sdkfolder, target_platform, True)
+                sdk.get_sdk_info(sdkfolder, self.target_platform, True)
 
             url = "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks"
-            self._log(f"Failed to get sdk info for platform {target_platform}.")
+            self._log(f"Failed to get sdk info for platform {self.target_platform}.")
             self._log(f" * Is the local sdk setup correctly?")
             self._log(f" * Or have you called `install_sdk`?")
             self._log(f"We recommend you follow the setup guide found here: {url}")
@@ -975,9 +1013,18 @@ class Configuration(object):
             pprint.pprint(self.sdk_info)
 
 
-        result = sdk.test_sdk(target_platform, self.sdk_info, verbose = self.verbose)
+        result = sdk.test_sdk(self.target_platform, self.sdk_info, verbose = self.verbose)
         if not result:
             self.fatal("Failed sdk check")
+
+        if wasm_runner.is_web_platform(self.target_platform):
+            runner, errors = self._find_wasm_test_runner()
+            if runner:
+                self._log("Found wasm test runner: %s" % runner.description())
+            elif self.skip_tests:
+                self._log("Warning: %s" % self._format_wasm_runner_error(errors))
+            else:
+                self.fatal(self._format_wasm_runner_error(errors))
 
         cmake = shutil.which('cmake')
         if not cmake:
@@ -1496,21 +1543,20 @@ class Configuration(object):
                 if self.target_platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
                     pdb = join(bin_dir, os.path.splitext(engine_name)[0] + '.pdb')
                     self.upload_to_archive(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
-
-            if 'web' in self.target_platform:
-                engine_mem = join(bin_dir, engine_name + '.mem')
-                if os.path.exists(engine_mem):
-                    self.upload_to_archive(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
-                engine_symbols = join(bin_dir, engine_name + '.symbols')
-                if os.path.exists(engine_symbols):
-                    self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
-                engine_dwarf = join(bin_dir, engine_name + '.debug.wasm')
-                if os.path.exists(engine_dwarf):
-                    self.upload_to_archive(engine_symbols, '%s/%s.debug.wasm' % (full_archive_path, engine_name))
-            elif 'macos' in self.target_platform or 'ios' in self.target_platform:
-                engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
-                if os.path.exists(engine_symbols):
-                    self.upload_to_archive(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
+                if 'web' in self.target_platform:
+                    engine_mem = join(bin_dir, engine_name + '.mem')
+                    if os.path.exists(engine_mem):
+                        self.upload_to_archive(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
+                    engine_symbols = join(bin_dir, engine_name + '.symbols')
+                    if os.path.exists(engine_symbols):
+                        self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
+                    engine_dwarf = join(bin_dir, engine_name + '.debug.wasm')
+                    if os.path.exists(engine_dwarf):
+                        self.upload_to_archive(engine_dwarf, '%s/%s.debug.wasm' % (full_archive_path, engine_name))
+                elif 'macos' in self.target_platform or 'ios' in self.target_platform:
+                    engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
+                    if os.path.exists(engine_symbols):
+                        self.upload_to_archive(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
 
         zip_archs = []
         if not self.skip_docs:
@@ -1570,7 +1616,20 @@ class Configuration(object):
                 supported_tests['x86_64-linux'].extend(android_tests)
                 supported_tests['x86_64-win32'].extend(android_tests)
 
-        return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+        can_run_platform = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+        if not can_run_platform:
+            return False
+
+        if wasm_runner.is_web_platform(self.target_platform):
+            if self.skip_tests:
+                return False
+
+            runner, errors = self._find_wasm_test_runner()
+            if not runner:
+                self.fatal(self._format_wasm_runner_error(errors))
+            self._log("Found wasm test runner: %s" % runner.description())
+
+        return True
 
     def _get_build_flags(self):
         supports_tests = self._can_run_tests()

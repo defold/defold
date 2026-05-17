@@ -1580,14 +1580,14 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(m_Context, texture);
 }
 
-#if defined(DM_HAS_THREADS)
-
 static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
 {
     assert(dmGraphics::GetOpaqueHandle(texture) != INVALID_OPAQUE_HANDLE);
     int* value = (int*)user_data;
     *value = 1;
 }
+
+#if defined(DM_HAS_THREADS)
 
 TEST_F(dmGraphicsTest, TestTextureAsync)
 {
@@ -1783,6 +1783,39 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
 }
 #endif // DM_HAS_THREADS
+
+TEST_F(dmGraphicsSynchronousTest, TestTextureAsyncCallbackWithoutAsyncSupport)
+{
+    bool tmp_async_load = m_NullContext->m_UseAsyncTextureLoad;
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+
+    dmGraphics::TextureCreationParams creation_params;
+    dmGraphics::TextureParams params;
+
+    creation_params.m_Width          = WIDTH;
+    creation_params.m_Height         = HEIGHT;
+    creation_params.m_OriginalWidth  = WIDTH;
+    creation_params.m_OriginalHeight = HEIGHT;
+
+    params.m_DataSize = WIDTH * HEIGHT;
+    params.m_Data     = new char[params.m_DataSize];
+    params.m_Width    = WIDTH;
+    params.m_Height   = HEIGHT;
+    params.m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+
+    int callback_value = 0;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+    dmGraphics::SetTextureAsync(m_Context, texture, params, TestTextureAsyncCallback, &callback_value);
+
+    ASSERT_EQ(1, callback_value);
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
+
+    dmGraphics::DeleteTexture(m_Context, texture);
+    delete [] (char*)params.m_Data;
+
+    m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
+}
 
 TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
 {

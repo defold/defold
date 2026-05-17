@@ -22,6 +22,8 @@
 #include <dlib/message.h>
 
 #include <dlib/log.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "gameobject/test/message/test_gameobject_message_ddf.h"
@@ -42,7 +44,8 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/message");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/message"));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);

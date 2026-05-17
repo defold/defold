@@ -70,8 +70,6 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context           = dmRender::GetGraphicsContext(render_context);
         const dmArray<RenderConstant>& render_constants = compute_program->m_Constants;
-        dmGraphics::HProgram program                    = compute_program->m_Program;
-        dmGraphics::ShaderDesc::Language language       = dmGraphics::GetProgramLanguage(program);
 
         dmVMath::Matrix4 world_matrix;
         dmVMath::Matrix4 texture_matrix;
@@ -82,7 +80,7 @@ namespace dmRender
             const HConstant constant                     = material_constant.m_Constant;
             dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
-            SetProgramConstant(render_context, graphics_context, world_matrix, texture_matrix, language, type, program, location, constant);
+            SetProgramConstant(render_context, graphics_context, world_matrix, texture_matrix, type, location, constant);
         }
     }
 

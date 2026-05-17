@@ -260,8 +260,10 @@ struct SetTextureAsyncRequest
     TextureResource*           m_TextureResource;
     uint8_t*                   m_RawData;
     dmBuffer::HBuffer          m_Buffer;
+    dmGraphics::HTexture       m_Texture;
     int32_t                    m_BufferRef;
     HOpaqueHandle              m_Handle;
+    uint8_t                    m_Completed : 1;
 };
 
 struct ResourceModule
@@ -650,13 +652,20 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     return 0;
 }
 
-static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data)
+static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
 {
-    SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
-
-    // Swap out the texture
+    // Swap out the texture when the resource callback is dispatched so that
+    // create_texture_async keeps a consistent Lua-facing async boundary.
     dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_TextureResource->m_Texture);
-    request->m_TextureResource->m_Texture = texture;
+    request->m_TextureResource->m_Texture        = request->m_Texture;
+    request->m_TextureResource->m_OriginalWidth  = dmGraphics::GetOriginalTextureWidth(g_ResourceModule.m_GraphicsContext, request->m_Texture);
+    request->m_TextureResource->m_OriginalHeight = dmGraphics::GetOriginalTextureHeight(g_ResourceModule.m_GraphicsContext, request->m_Texture);
+
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, request->m_PathHash);
+    if (rd)
+    {
+        dmResource::SetResourceSize(rd, dmGraphics::GetTextureResourceSize(g_ResourceModule.m_GraphicsContext, request->m_Texture));
+    }
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
     {
@@ -695,6 +704,14 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
 
     g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
     delete request;
+}
+
+static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data)
+{
+    SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
+
+    request->m_Texture   = texture;
+    request->m_Completed = 1;
 }
 
 /*# create a texture
@@ -1150,8 +1167,10 @@ static int CreateTextureAsync(lua_State* L)
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
     request->m_Buffer            = create_params.m_Buffer;
+    request->m_Texture           = 0;
     request->m_PathHash          = create_params.m_PathHash;
     request->m_RawData           = raw_data;
+    request->m_Completed         = 0;
 
     dmGraphics::TextureParams texture_params;
     texture_params.m_Width  = create_params.m_Width;
@@ -1199,6 +1218,10 @@ static int CreateTextureAsync(lua_State* L)
 
     // Execute the upload, the upload buffer should now be locked by this request
     dmGraphics::SetTextureAsync(g_ResourceModule.m_GraphicsContext, texture_dst, texture_params, HandleRequestCompleted, request);
+    if (!request->m_Completed && dmGraphics::GetTextureStatusFlags(g_ResourceModule.m_GraphicsContext, texture_dst) == dmGraphics::TEXTURE_STATUS_OK)
+    {
+        HandleRequestCompleted(texture_dst, request);
+    }
 
     dmScript::PushHash(L, create_params.m_PathHash);
     lua_pushnumber(L, request_handle);
@@ -3071,7 +3094,7 @@ void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
  * : [type:buffer] the buffer to bind to this resource
  *
  * * `transfer_ownership`
- * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object (default true)
+ * : [type:boolean] optional flag to determine whether or not the resource should take over ownership of the buffer object (default true)
  *
  * @return path [type:hash] Returns the buffer resource path
  *
@@ -3300,7 +3323,7 @@ static int GetBuffer(lua_State* L)
  * @param [table] [type:table] A table containing info about how to set the buffer. Supported entries:
  *
  * * `transfer_ownership`
- * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object (default false)
+ * : [type:boolean] optional flag to determine whether or not the resource should take over ownership of the buffer object (default false)
  *
  * @examples
  * How to set the data from a buffer
@@ -3651,6 +3674,21 @@ void ScriptResourceRegister(const ScriptLibContext& context)
     LuaInit(context.m_LuaState, context.m_GraphicsContext);
     g_ResourceModule.m_Factory         = context.m_Factory;
     g_ResourceModule.m_GraphicsContext = context.m_GraphicsContext;
+}
+
+void ScriptResourceUpdate(const ScriptLibContext& context)
+{
+    (void)context;
+
+    uint32_t request_count = g_ResourceModule.m_LoadRequests.Capacity();
+    for (uint32_t i = 0; i < request_count; ++i)
+    {
+        SetTextureAsyncRequest* request = g_ResourceModule.m_LoadRequests.GetByIndex(i);
+        if (request && request->m_Completed)
+        {
+            DispatchCompletedRequest(request);
+        }
+    }
 }
 
 void ScriptResourceFinalize(const ScriptLibContext& context)

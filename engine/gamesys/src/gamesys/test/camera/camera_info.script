@@ -28,6 +28,12 @@ function init(self)
 
 	-- Test new auto aspect ratio APIs
 	local cam = cams[1]
+	local component_auto_zoom = go.get("#camera_1", "orthographic_auto_zoom")
+	assert(math.abs(component_auto_zoom - 1.0) < 0.001, "Fixed mode orthographic auto zoom should be 1.0")
+	local ok = pcall(go.set, "#camera_1", "orthographic_auto_zoom", 2.0)
+	assert(ok == false, "Orthographic auto zoom should be read-only")
+	ok = pcall(go.set, "#camera_1", "orthographic_zoom", 0.0)
+	assert(ok == false, "Orthographic zoom should be positive")
 	
 	-- Test 1: Get initial auto aspect ratio state (should be false by default)
 	local auto_enabled = camera.get_auto_aspect_ratio(cam)

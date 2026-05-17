@@ -527,7 +527,8 @@ void GamesysTest<T>::SetUp()
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     params.m_JobThreadContext = m_JobContext;
 
-    m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
+    char path[1024];
+    m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gamesys/test"));
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
     WindowCreateParams win_params;

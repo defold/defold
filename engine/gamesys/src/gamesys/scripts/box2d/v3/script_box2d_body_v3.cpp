@@ -179,6 +179,13 @@ namespace dmGameSystem
         return &luabody->m_Body;
     }
 
+    dmGameObject::HCollection GetBodyCollection(lua_State* L, int index)
+    {
+        B2DLuaBody* luabody = CheckBodyInternal(L, index);
+        VerifyBodyInternal(L, luabody);
+        return luabody->m_Collection;
+    }
+
     static b2BodyId* ToBody(lua_State* L, int index)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
@@ -442,6 +449,32 @@ namespace dmGameSystem
         {
             PushShapeInfo(L, shapes[i], i + 1);
             lua_rawseti(L, -2, i + 1);
+        }
+        return 1;
+    }
+
+    static int Body_GetJoints(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+
+        const int joint_count = b2Body_GetJointCount(*body);
+        dmArray<b2JointId> joints;
+        joints.SetCapacity(joint_count);
+        joints.SetSize(joint_count);
+        b2Body_GetJoints(*body, joints.Begin(), joint_count);
+
+        lua_newtable(L);
+        int joint_index = 1;
+        for (int i = 0; i < joint_count; ++i)
+        {
+            if (IsJointTracked(joints[i]))
+            {
+                PushJoint(L, joints[i], collection);
+                lua_rawseti(L, -2, joint_index);
+                ++joint_index;
+            }
         }
         return 1;
     }
@@ -820,6 +853,7 @@ namespace dmGameSystem
         {"reset_mass_data", Body_ResetMassData},
         {"get_angle", Body_GetAngle},
         {"get_shapes", Body_GetShapes},
+        {"get_joints", Body_GetJoints},
         {"destroy_shape", Body_DestroyShape},
 
         {"get_linear_velocity", Body_GetLinearVelocity},
@@ -903,6 +937,7 @@ namespace dmGameSystem
 
         lua_setfield(L, -2, "body");
 
+        ScriptBox2DInitializeJoint(L);
         ScriptBox2DInitializeShape(L);
     }
 
@@ -914,6 +949,7 @@ namespace dmGameSystem
     void ScriptBox2DFinalizeBody()
     {
         TYPE_HASH_BODY = 0;
+        ScriptBox2DFinalizeJoint();
     }
 }
 
@@ -925,6 +961,7 @@ namespace dmGameSystem
  * @name b2d.body
  * @namespace b2d.body
  * @language Lua
+ * @version 3
  */
 
 /*# Box2D world
@@ -1290,10 +1327,10 @@ namespace dmGameSystem
  * @return shapes [type: table] a table of functional shape entries
  */
 
-/** Get the list of all joints attached to this body.
- * @name b2d.body.get_joint_list
+/*# Get the joints attached to this body.
+ * @name b2d.body.get_joints
  * @param body [type: b2Body] body
- * @return edge [type: b2JointEdge] the first joint
+ * @return joints [type: table] array of `b2Joint` handles created by `b2d.joint`
  */
 
 /** Get the list of all contacts attached to this body.
