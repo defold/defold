@@ -300,7 +300,7 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
 
     if Options.options.with_metal and platform_supports_feature(platform, 'metal', {}):
-        graphics_libs += ['GRAPHICS_METAL']
+        graphics_libs += ['GRAPHICS_METAL', 'METAL']
         graphics_lib_symbols.append('GraphicsAdapterMetal')
 
     if platform in ('arm64-nx64'):
@@ -2220,6 +2220,8 @@ def detect(conf):
         #conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_METAL']  = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+    elif TargetOS.IOS == target_os:
+        conf.env['FRAMEWORK_METAL']  = ['Metal', 'IOSurface', 'QuartzCore']
 
     # ***********************************************************
     # Vulkan
