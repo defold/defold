@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -46,11 +47,12 @@ import java.util.zip.ZipFile;
 /// values and keep mount/reload policy outside this class.
 public final class Library {
     private static final Logger logger = Logger.getLogger(Library.class.getName());
-    private static final int FETCHES_PER_HOST = 4;
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofMillis(2000))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private static final int FETCHES_PER_HOST = 3;
+    private static final long DEFAULT_TIMEOUT_MILLIS = 15000;
+    private static final String CONNECT_TIMEOUT_PROPERTY = "defold.library.connectTimeoutMillis";
+    private static final String HOST_PROBE_TIMEOUT_PROPERTY = "defold.library.hostProbeTimeoutMillis";
+    private static final long HOST_PROBE_TIMEOUT_MILLIS = timeoutProperty(HOST_PROBE_TIMEOUT_PROPERTY);
+    private static final HttpClient HTTP_CLIENT = httpClient(timeoutProperty(CONNECT_TIMEOUT_PROPERTY));
 
     private Library() {
     }
@@ -134,7 +136,7 @@ public final class Library {
                 }
                 var results = new ArrayList<Result>(uniqueUris.size());
                 for (var uri : uniqueUris) {
-                    results.add(new Result(uri, cachedByUri.get(uri).result().archive(), new Problem.FetchFailed()));
+                    results.add(new Result(uri, cachedByUri.get(uri).result().archive(), fetchProblem(e)));
                 }
                 return results;
             } finally {
@@ -143,23 +145,47 @@ public final class Library {
         }
     }
 
+    private static HttpClient httpClient(long connectTimeoutMillis) {
+        return HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(connectTimeoutMillis))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+    }
+
+    private static long timeoutProperty(String propertyName) {
+        var value = System.getProperty(propertyName);
+        if (value == null || value.isBlank()) {
+            return DEFAULT_TIMEOUT_MILLIS;
+        }
+        try {
+            var timeoutMillis = Long.parseLong(value);
+            if (timeoutMillis > 0) {
+                return timeoutMillis;
+            }
+        } catch (NumberFormatException e) {
+            // Fall through to warning and default.
+        }
+        logger.warning("Invalid " + propertyName + " value '" + value + "', using " + DEFAULT_TIMEOUT_MILLIS + " milliseconds");
+        return DEFAULT_TIMEOUT_MILLIS;
+    }
+
     /// Helper function to parse and validate project dependency ZIP
     ///
     /// @param archivePath path to dependency ZIP file
     public static Archive readArchive(Path archivePath) throws IOException {
         var inspection = inspectArchive(archivePath);
         if (inspection.problem() != null) {
-            throw new IOException("Failed to inspect archive " + archivePath + ": " + inspection.problem());
+            throw new IOException("Failed to inspect archive " + archivePath + ": " + problemMessage(inspection.problem()));
         }
         return inspection.archive();
     }
 
     private static void hostProbeTask(URI host, List<Future<Result>> downloadTasks, ExecutorService executor) {
         try {
-            var request = HttpRequest.newBuilder(host).method("HEAD", HttpRequest.BodyPublishers.noBody()).timeout(Duration.ofSeconds(5)).build();
-            // Unfortunately, 5 second timeout on an HTTP request does not mean that send will abort after
-            // 5 seconds, so we separately do a hard timeout
-            executor.submit(() -> HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding())).get(5, TimeUnit.SECONDS);
+            var request = HttpRequest.newBuilder(host).method("HEAD", HttpRequest.BodyPublishers.noBody()).timeout(Duration.ofMillis(HOST_PROBE_TIMEOUT_MILLIS)).build();
+            // Unfortunately, a timeout on an HTTP request does not mean that send will abort after
+            // that duration, so we separately do a hard timeout.
+            executor.submit(() -> HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding())).get(HOST_PROBE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException | TimeoutException e) {
@@ -209,7 +235,7 @@ public final class Library {
                         return cachedResult.result();
                     }
                     if (code >= 400) {
-                        return new Result(uri, cachedArchive, new Problem.FetchFailed());
+                        return new Result(uri, cachedArchive, new Problem.FailedHTTPRequest(code));
                     }
                     // Validate and inspect the downloaded archive before replacing the
                     // installed copy in the shared cache.
@@ -234,7 +260,7 @@ public final class Library {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            return new Result(uri, cachedResult.result().archive(), new Problem.FetchFailed());
+            return new Result(uri, cachedResult.result().archive(), fetchProblem(e));
         }
     }
 
@@ -438,6 +464,26 @@ public final class Library {
         return found ? result : 0;
     }
 
+    private static Problem fetchProblem(Throwable e) {
+        var cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
+        if (cause instanceof HttpConnectTimeoutException) {
+            return new Problem.HttpConnectTimeout();
+        }
+        return new Problem.FetchFailed();
+    }
+
+    private static String problemMessage(Problem problem) {
+        return switch (problem) {
+            case Problem.Missing _ -> "missing";
+            case Problem.FetchFailed _ -> "fetch failed";
+            case Problem.FailedHTTPRequest(var status) -> "fetch failed: HTTP " + status;
+            case Problem.HttpConnectTimeout _ -> "fetch failed: HTTP connect timed out";
+            case Problem.InvalidArchive _ -> "invalid archive";
+            case Problem.DefoldMinVersion(var required) -> "requires Defold " + required + " or newer";
+            case Problem.InstallFailed _ -> "install failed";
+        };
+    }
+
     private record TaggedPath(Path path, String tag) {
     }
 
@@ -471,13 +517,23 @@ public final class Library {
     }
 
     /// Structured dependency problem.
-    public sealed interface Problem permits Problem.Missing, Problem.FetchFailed, Problem.InvalidArchive, Problem.DefoldMinVersion, Problem.InstallFailed {
+    public sealed interface Problem permits Problem.Missing, Problem.FetchFailed, Problem.FailedHTTPRequest, Problem.HttpConnectTimeout, Problem.InvalidArchive, Problem.DefoldMinVersion, Problem.InstallFailed {
         /// No usable cached archive is currently available for the dependency.
         record Missing() implements Problem {
         }
 
         /// Refreshing the dependency failed during transport or HTTP fetch.
         record FetchFailed() implements Problem {
+        }
+
+        /// The dependency server returned an unsuccessful HTTP status.
+        ///
+        /// @param status HTTP response status code
+        record FailedHTTPRequest(int status) implements Problem {
+        }
+
+        /// Refreshing the dependency failed before establishing an HTTP connection.
+        record HttpConnectTimeout() implements Problem {
         }
 
         /// The archive was present but unusable, for example due to invalid zip contents or missing required project metadata.

@@ -877,5 +877,4 @@
                {:summary "Stream console output, use with, e.g., `curl -N`"
                 :responses
                 {"200"
-                 {:description "Chunked text stream; stays open indefinitely"
-                  :content {"text/plain" {:schema {:type "string"}}}}}}})}}))
+                 {:description "Chunked text stream; stays open indefinitely"}}}})}}))

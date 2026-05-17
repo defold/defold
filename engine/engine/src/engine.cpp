@@ -21,7 +21,6 @@
 #include <sys/stat.h>
 
 #include <stdio.h>
-#include <algorithm>
 
 #include <crash/crash.h>
 #include <dlib/buffer.h>
@@ -29,12 +28,14 @@
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/http_client.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memprofile.h>
 #include <dlib/path.h>
 #include <dlib/profile.h>
 #include <dlib/socket.h>
+#include <dlib/sslsocket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
@@ -72,8 +73,6 @@
     #include "engine_web.h"
 #endif
 
-#include <dlib/http_client.h>
-#include <dlib/sslsocket.h>
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -1238,13 +1237,6 @@ namespace dmEngine
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         }
 
-        int32_t liveupdate_enable = dmConfigFile::GetInt(engine->m_Config, "liveupdate.enabled", 1);
-        int32_t liveupdate_mount_on_start = dmConfigFile::GetInt(engine->m_Config, "liveupdate.mount_on_start", 1);
-        if (liveupdate_enable && liveupdate_mount_on_start)
-        {
-            params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE_MOUNTS_ON_START;
-        }
-
 #if !defined(DM_RELEASE)
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
         params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
@@ -1782,11 +1774,12 @@ bail:
         input_action.m_AccY = action->m_AccY;
         input_action.m_AccZ = action->m_AccZ;
 
-        input_action.m_TouchCount = 0;
+        input_action.m_Count = 0;
+
         if (!action->m_HasText && action->m_Count > 0)
         {
             uint32_t touch_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_TOUCH_COUNT);
-            input_action.m_TouchCount = touch_count;
+            input_action.m_Count = touch_count;
             for (uint32_t i = 0; i < touch_count; ++i) {
                 dmHID::Touch& a = action->m_Touch[i];
                 dmHID::Touch& ia = input_action.m_Touch[i];
@@ -1803,12 +1796,11 @@ bail:
             }
         }
 
-        input_action.m_TextCount = 0;
         input_action.m_HasText = action->m_HasText;
         if (action->m_HasText && action->m_Count > 0)
         {
             uint32_t text_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_CHAR_COUNT);
-            input_action.m_TextCount = text_count;
+            input_action.m_Count = text_count;
             for (uint32_t i = 0; i < text_count; ++i) {
                 input_action.m_Text[i] = action->m_Text[i];
             }
@@ -1821,6 +1813,11 @@ bail:
         input_action.m_GamepadConnected = action->m_GamepadConnected;
         input_action.m_GamepadPacket = action->m_GamepadPacket;
         input_action.m_HasGamepadPacket = action->m_HasGamepadPacket;
+
+        if (input_action.m_GamepadConnected)
+        {
+            memcpy(&input_action.m_GamepadGuid, &action->m_GamepadGuid, sizeof(input_action.m_GamepadGuid));
+        }
 
         input_action.m_UserID = action->m_UserID;
 

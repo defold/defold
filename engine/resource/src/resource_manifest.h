@@ -55,7 +55,7 @@ namespace dmResource
     dmResource::Result  LoadManifest(const char* path, dmResource::HManifest* out);
     dmResource::Result  LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::HManifest* out);
 
-    // If it has excluded entries, we have built the game using the liveupdate setting
+    // If it was built with excluded resources, we have built the game using the liveupdate setting
     bool                HasManifestExcludedEntries(dmResource::HManifest manifest);
 
     dmResource::Result  WriteManifest(const char* path, dmResource::HManifest manifest);
@@ -63,15 +63,6 @@ namespace dmResource
     // Gets the dependencies of a resource.
     // Note: Only returns the dependency path urls. It doesn't recurse.
     dmResource::Result  GetDependencies(dmResource::HManifest manifest, const dmhash_t url_hash, dmArray<dmhash_t>& dependencies);
-
-    /*#
-     * Get the url hash given a hex digest (the actual filename)
-     * @name GetUrlHashFromHexDigest
-     * @param manifest [type: dmResource::HManifest] The manifest
-     * @param digest_hash [type: dmhash_t] The dmHashBuffer64() of the actual hash digest
-     * @param url_path [type: dmhash_t] The url path, or 0 if not exists
-     */
-    dmhash_t GetUrlHashFromHexDigest(dmResource::HManifest manifest, dmhash_t digest_hash);
 
     /*#
      * Find resource entry within the manifest

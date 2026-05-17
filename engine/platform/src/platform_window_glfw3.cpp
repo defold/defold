@@ -295,7 +295,7 @@ namespace dmPlatform
         glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
-        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, params.m_HighDPI ? GLFW_TRUE : GLFW_FALSE);
 
         WindowResult res = WINDOW_RESULT_WINDOW_OPEN_ERROR;
 
@@ -578,9 +578,14 @@ namespace dmPlatform
         return false;
     }
 
-    const char* GetJoystickDeviceName(HWindow window, uint32_t gamepad_index)
+    const char* GetJoystickDeviceName(HWindow window, uint32_t joystick_index)
     {
-        return glfwGetJoystickName((int) gamepad_index);
+        return glfwGetJoystickName((int) joystick_index);
+    }
+
+    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
+    {
+        return glfwGetJoystickGUID((int) joystick_index);
     }
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)

@@ -1,0 +1,47 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Setup OS
+description: Setup OS
+
+inputs:
+  packages:
+    description: Space-separated list of additional packages to install
+    required: false
+    default: ''
+  sudo:
+    required: false
+    default: 'sudo'
+
+runs:
+  using: composite
+  steps:
+    - name: Detect OS
+      shell: bash
+      run: |
+        if (which yum > /dev/null); then
+           echo PKG="yum" >> $GITHUB_ENV
+        elif (which brew > /dev/null); then
+           echo PKG="brew" >> $GITHUB_ENV
+        elif (which apt > /dev/null); then
+           echo PKG="apt" >> $GITHUB_ENV
+        fi
+    - name: Setup via yum
+      if: ${{ env.PKG == 'yum' }}
+      uses: ./.github/actions/setup-yum
+      with:
+        packages: ${{ inputs.packages }}
+        sudo: ${{ inputs.sudo }}
+    - name: Setup via apt
+      if: ${{ env.PKG == 'apt' }}
+      uses: ./.github/actions/setup-apt
+      with:
+        packages: ${{ inputs.packages }}
+        sudo: ${{ inputs.sudo }}
+    - name: Setup via brew
+      if: ${{ env.PKG == 'brew' }}
+      uses: ./.github/actions/setup-brew
+      with:
+        packages: ${{ inputs.packages }}
+        sudo: ${{ inputs.sudo }}

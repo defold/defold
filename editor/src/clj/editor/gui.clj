@@ -1249,11 +1249,11 @@
   (output scene-renderable g/Any (g/constantly nil))
   (output scene-outline-renderable g/Any (g/constantly nil))
   (output color+alpha types/Color (g/fnk [color alpha] (assoc color 3 alpha)))
-  (output scene g/Any :cached (g/fnk [_node-id id aabb transform scene-children scene-renderable scene-outline-renderable scene-updatable]
+  (output scene g/Any :cached (g/fnk [_node-id id aabb pose scene-children scene-renderable scene-outline-renderable scene-updatable]
                                      (cond-> {:node-id _node-id
                                               :node-outline-key id
                                               :aabb aabb
-                                              :transform transform
+                                              :pose pose
                                               :renderable scene-renderable}
 
                                        scene-outline-renderable
@@ -2462,7 +2462,7 @@
                        (if (some? source-scene)
                          (:aabb source-scene)
                          geom/empty-bounding-box)))
-  (output scene g/Any :cached (g/fnk [_node-id aabb transform source-scene scene-children color+alpha inherit-alpha visible enabled]
+  (output scene g/Any :cached (g/fnk [_node-id aabb pose source-scene scene-children color+alpha inherit-alpha visible enabled]
                                 (let [scene (if source-scene
                                               (if-some [updatable (some-> source-scene :updatable (assoc :node-id _node-id))]
                                                 (scene/map-scene #(assoc % :updatable updatable) source-scene)
@@ -2473,7 +2473,7 @@
                                       (assoc
                                         :node-id _node-id
                                         :aabb aabb
-                                        :transform transform
+                                        :pose pose
                                         :visible-self? (and visible enabled)
                                         :visible-children? enabled)
                                       (update :children coll/into-vector scene-children)))))

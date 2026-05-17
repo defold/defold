@@ -181,6 +181,7 @@
     // Uniform buffer objects
     PFNGLBINDBUFFERBASEPROC          glBindBufferBase          = NULL;
     PFNGLBUFFERDATAPROC              glBufferData              = NULL;
+    PFNGLGETINTEGERI_VPROC           glGetIntegeri_v           = NULL;
     PFNGLGETUNIFORMBLOCKINDEXPROC    glGetUniformBlockIndex    = NULL;
     PFNGLGETACTIVEUNIFORMBLOCKIVPROC glGetActiveUniformBlockiv = NULL;
     PFNGLGETACTIVEUNIFORMSIVPROC     glGetActiveUniformsiv     = NULL;
@@ -315,7 +316,6 @@ static void OpenGLClearGLError()
 }
 
 #define CLEAR_GL_ERROR { if(g_Context->m_BaseContext.m_VerifyGraphicsCalls) OpenGLClearGLError(); }
-
 
 static void LogFrameBufferError(GLenum status)
 {
@@ -480,6 +480,24 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
     OpenGLContext* g_Context = 0x0;
+
+    static inline GLint OpenGLGetInteger(GLenum pname)
+    {
+        GLint v = 0;
+        glGetIntegerv(pname, &v);
+        CLEAR_GL_ERROR;
+        return v;
+    }
+
+#if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+    static inline GLint OpenGLGetInteger(GLenum pname, GLuint index)
+    {
+        GLint v = 0;
+        glGetIntegeri_v(pname, index, &v);
+        CLEAR_GL_ERROR;
+        return v;
+    }
+#endif
 
     static HOpenglID AddNewGLHandle(OpenGLContext* context, GLuint handle)
     {
@@ -1387,6 +1405,7 @@ static void LogFrameBufferError(GLenum status)
 
         GET_PROC_ADDRESS(glBindBufferBase, "glBindBufferBase", PFNGLBINDBUFFERBASEPROC);
         GET_PROC_ADDRESS(glBufferData, "glBufferData", PFNGLBUFFERDATAPROC);
+        GET_PROC_ADDRESS(glGetIntegeri_v, "glGetIntegeri_v", PFNGLGETINTEGERI_VPROC);
         GET_PROC_ADDRESS(glGetUniformBlockIndex, "glGetUniformBlockIndex", PFNGLGETUNIFORMBLOCKINDEXPROC);
         GET_PROC_ADDRESS(glGetActiveUniformBlockiv, "glGetActiveUniformBlockiv", PFNGLGETACTIVEUNIFORMBLOCKIVPROC);
         GET_PROC_ADDRESS(glGetActiveUniformsiv, "glGetActiveUniformsiv", PFNGLGETACTIVEUNIFORMSIVPROC);
@@ -1560,27 +1579,27 @@ static void LogFrameBufferError(GLenum status)
         if (OpenGLIsExtensionSupported(_context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_pvrtc"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
 
         if (OpenGLIsExtensionSupported(_context, "GL_OES_compressed_ETC1_RGB8_texture") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_etc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_etc1"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
         if (OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_s3tc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_s3tc"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1; // DXT1
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_BC1; // DXT1
             // We'll use BC3 for this
-            //context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC2; // DXT3
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3; // DXT5
+            //context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC2; // DXT3
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC3; // DXT5
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
@@ -1588,8 +1607,8 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(_context, "EXT_texture_compression_rgtc"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R_BC4;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG_BC5;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_bptc.txt
@@ -1597,13 +1616,13 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_bptc") ||
             OpenGLIsExtensionSupported(_context, "EXT_texture_compression_bptc") )
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC7;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
         if (OpenGLIsExtensionSupported(_context, "GL_ARB_ES3_compatibility"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ETC2;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
@@ -1619,14 +1638,14 @@ static void LogFrameBufferError(GLenum status)
         // Check if we're using a recent enough OpenGL version
         if (context->m_IsGles3Version)
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R16F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG32F;
 
             context->m_InstancingSupport = 1;
 
@@ -1641,15 +1660,15 @@ static void LogFrameBufferError(GLenum status)
             // https://registry.khronos.org/OpenGL/extensions/EXT/EXT_color_buffer_half_float.txt
             if (OpenGLIsExtensionSupported(_context, "EXT_color_buffer_half_float"))
             {
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB16F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA16F;
             }
 
             // https://registry.khronos.org/webgl/extensions/WEBGL_color_buffer_float/
             if (OpenGLIsExtensionSupported(_context, "WEBGL_color_buffer_float"))
             {
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB32F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
             }
 
             // https://registry.khronos.org/webgl/extensions/ANGLE_instanced_arrays/
@@ -1707,7 +1726,7 @@ static void LogFrameBufferError(GLenum status)
                 {
                     switch (pCompressedFormats[i])
                     {
-                        #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_BaseContext.m_TextureFormatSupport |= 1 << _NAME2; break;
+                        #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_BaseContext.m_TextureFormatSupport |= 1ULL << _NAME2; break;
                         CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC, TEXTURE_FORMAT_RGBA_ETC2);
                         CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC, TEXTURE_FORMAT_R_ETC2);
                         CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC, TEXTURE_FORMAT_RG_ETC2);
@@ -1772,7 +1791,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (OpenGLIsExtensionSupported(_context, "GL_OES_compressed_ETC1_RGB8_texture"))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         }
 
         if (OpenGLIsExtensionSupported(_context, "GL_EXT_texture_filter_anisotropic"))
@@ -1850,6 +1869,99 @@ static void LogFrameBufferError(GLenum status)
                  OpenGLIsExtensionSupported(_context, "EXT_blend_minmax"))
         {
             context->m_BlendEquationMinMaxSupport = 1;
+        }
+
+        // Populate the shared GraphicsContextLimits from runtime GL queries.
+        // Defaults below describe unsupported or unavailable limits for older GL/GLES profiles.
+        {
+            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+            memset(&limits, 0, sizeof(limits));
+
+            limits.m_MaxTextureSize2D     = (uint32_t) gl_max_texture_size;
+            limits.m_MaxFramebufferWidth  = (uint32_t) gl_max_texture_size;
+            limits.m_MaxFramebufferHeight = (uint32_t) gl_max_texture_size;
+            limits.m_MaxColorAttachments  = 1;
+
+            // GL_MAX_TEXTURE_IMAGE_UNITS is the closest match for both
+            // "samplers per stage" and "sampled textures per stage" in GL —
+            // there's no separate count for samplers vs. sampled textures
+            // until ARB_separate_shader_objects-era APIs.
+            limits.m_MaxSamplersPerStage = (uint32_t) OpenGLGetInteger(GL_MAX_TEXTURE_IMAGE_UNITS);
+            limits.m_MaxTexturesPerStage = limits.m_MaxSamplersPerStage;
+            limits.m_MaxVertexAttributes = (uint32_t) OpenGLGetInteger(GL_MAX_VERTEX_ATTRIBS);
+            limits.m_MaxVertexBuffers    = limits.m_MaxVertexAttributes;
+
+        #ifdef GL_MAX_3D_TEXTURE_SIZE
+            if (context->m_3DTextureSupport)
+            {
+                limits.m_MaxTextureSize3D = (uint32_t) OpenGLGetInteger(GL_MAX_3D_TEXTURE_SIZE);
+            }
+        #endif
+
+        #ifdef GL_MAX_CUBE_MAP_TEXTURE_SIZE
+            limits.m_MaxTextureSizeCube = (uint32_t) OpenGLGetInteger(GL_MAX_CUBE_MAP_TEXTURE_SIZE);
+        #endif
+
+        #ifdef GL_MAX_ARRAY_TEXTURE_LAYERS
+            if (context->m_TextureArraySupport)
+            {
+                limits.m_MaxTextureArrayLayers = (uint32_t) OpenGLGetInteger(GL_MAX_ARRAY_TEXTURE_LAYERS);
+            }
+        #endif
+
+        #ifdef GL_MAX_VIEWPORT_DIMS
+            {
+                GLint dims[2] = { 0, 0 };
+                glGetIntegerv(GL_MAX_VIEWPORT_DIMS, dims); CLEAR_GL_ERROR;
+                limits.m_MaxFramebufferWidth  = (uint32_t) dims[0];
+                limits.m_MaxFramebufferHeight = (uint32_t) dims[1];
+            }
+        #endif
+
+        #ifdef GL_MAX_COLOR_ATTACHMENTS
+            limits.m_MaxColorAttachments = (uint32_t) OpenGLGetInteger(GL_MAX_COLOR_ATTACHMENTS);
+        #endif
+
+            // GL has no separate "max vertex buffer bindings" before
+            // GL 4.3 (GL_MAX_VERTEX_ATTRIB_BINDINGS); fall back to attrib count.
+        #ifdef GL_MAX_VERTEX_ATTRIB_BINDINGS
+            limits.m_MaxVertexBuffers = (uint32_t) OpenGLGetInteger(GL_MAX_VERTEX_ATTRIB_BINDINGS);
+        #endif
+
+        #if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+            if (context->m_ComputeSupport)
+            {
+                limits.m_MaxComputeWorkgroupSizeX = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0);
+                limits.m_MaxComputeWorkgroupSizeY = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1);
+                limits.m_MaxComputeWorkgroupSizeZ = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2);
+
+                limits.m_MaxComputeWorkgroupInvocations = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS);
+                limits.m_MaxComputeSharedMemorySize = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE);
+            }
+        #endif
+
+        #ifdef GL_MAX_UNIFORM_BLOCK_SIZE
+            limits.m_MaxUniformBufferRange = (uint64_t) OpenGLGetInteger(GL_MAX_UNIFORM_BLOCK_SIZE);
+        #endif
+
+        #ifdef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
+            if (context->m_ComputeSupport)
+            {
+                // GL_MAX_SHADER_STORAGE_BLOCK_SIZE is reported as a signed GLint64
+                // in spec — but glGetIntegerv truncates. Drivers commonly clamp
+                // anyway; revisit with glGetInteger64v if the truncation hurts.
+                limits.m_MaxStorageBufferRange = (uint64_t)(uint32_t) OpenGLGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
+            }
+        #endif
+        }
+
+        // Adapter API version
+        {
+            GLint gl_major = 0, gl_minor = 0;
+            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major); CLEAR_GL_ERROR;
+            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor); CLEAR_GL_ERROR;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) gl_major;
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) gl_minor;
         }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)
@@ -3118,17 +3230,35 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static inline char* GetBaseUniformName(char* str, uint32_t len)
+    static inline char* GetBaseUniformName(char* str, uint32_t len, bool strip_namespace)
     {
         char* ptr = str;
-        for (int i = len - 1; i >= 0; i--)
+        char* write = ptr;
+        for (uint32_t i = 0; i < len && ptr[i]; ++i)
         {
-            // For arrays, OpenGL returns the name as `name[0]`
             if (ptr[i] == '[')
             {
-                ptr[i] = 0;
+                while (i < len && ptr[i] && ptr[i] != ']')
+                {
+                    ++i;
+                }
             }
-            else if (ptr[i] == '.')
+            else
+            {
+                *write++ = ptr[i];
+            }
+        }
+        *write = 0;
+
+        if (!strip_namespace)
+        {
+            return ptr;
+        }
+
+        uint32_t normalized_len = strlen(ptr);
+        for (int i = (int) normalized_len - 1; i >= 0; i--)
+        {
+            if (ptr[i] == '.')
             {
                 return &ptr[i+1];
             }
@@ -3479,7 +3609,7 @@ static void LogFrameBufferError(GLenum status)
                 uniform_location = (HUniformLocation) glGetUniformLocation(program_handle, uniform_name_buffer);
             }
 
-            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
+            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length, uniform_block_index == -1);
             uniform_name_length = strlen(uniform_name);
 
             // These are temporary strings, we need copies of them.
@@ -4554,7 +4684,7 @@ static void LogFrameBufferError(GLenum status)
     static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
+        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext _context)

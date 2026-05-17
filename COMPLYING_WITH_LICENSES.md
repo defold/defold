@@ -65,5 +65,6 @@ The following third party software has licenses which does not require inclusion
     * Bullet Physics - Erwin Coumans
     * GLFW - Marcus Geelnard, Camilla Löwy
     * bindgen (Sokol) - Andre Weissflog
+    * SDL - Sam Lantinga (slouken@libsdl.org)
 
 NOTE: The Zlib license encourages attribution but does not require inclusion of the license.

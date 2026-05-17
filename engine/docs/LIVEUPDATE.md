@@ -22,7 +22,6 @@ The engine can read content from multiple sources:
 * `archive` - Used for the base game archive (`.dmanifest`, `.arci`, `.arcd`)
 * `zip` - Used to read content from regular .zip files (e.g. .obb on Android)
 * `http` - Used to read files over http when the engine is attached to the editor.
-* `mutable` - Used for live update when downloading individual files. Same formats as `archive`
 
 ### Mounts
 
@@ -34,7 +33,6 @@ At engine start, we create the mounts:
 ```
     Create "_base" mount from project URI
     Create "_builtin" archive using embedded connect project
-    Create user defined mounts from "liveupdate.mounts"
 ```
 
 These mounts are held by an instance of `dmResourceMounts::HContext` from `resource_mounts.h`.
@@ -52,8 +50,6 @@ It will in turn loop over each mount, to see if the mount contains the resource 
     return result.NOT_FOUND
 ```
 
-Note: The api also supports writing files, which is needed for the `mutable` provider type.
-
 ## Liveupdate library
 
 [Source](https://github.com/defold/defold/tree/dev/engine/liveupdate/src)
@@ -65,47 +61,29 @@ Separate from the resource system, we have a library called `liveupdate`. It con
 Currently, `bob.jar` (`ArchiveBuilder.java`/`ZipPublisher.java`) is responsible for generating the liveupdate content.
 It produces a .zip file with the content, as well as the base game archive.
 
-The developer may provide this excluded content to the game any way they wish, either on a per file basis, or as a full .zip file.
-They handle the download (usually using our http.request() api), and subsequently call our scripting api to store the resource or archive.
+The developer may provide this excluded content to the game any way they wish as a mounted archive.
+They handle the download (usually using our http.request() api), and subsequently call our scripting api to add the mount.
 
 The .zip file contains a `.dmanifest` file which contains metadata about the resources.
 Most notably, it contains some dependencies between resources, in order for the developer to determine if more liveupdate content needs to be downloaded.
 
 ### User defined mounts
 
-The scripting api consists of three main functions: `liveupdate.add_mount()`/`liveupdate.remove_mount()`/`liveupdate.get_mounts()`
-When the developer calls to add/remove a mount, we store a file on disc `liveupdate.mounts`
+The mount scripting api consists of three main functions: `liveupdate.add_mount()`/`liveupdate.remove_mount()`/`liveupdate.get_mounts()`
+Mounts are active for the current session only. Applications that need mounts after restart must add them again.
 
-#### liveupdate.mounts
+Mount names are accepted as strings or hashes by `liveupdate.add_mount()` and `liveupdate.remove_mount()`, and stored internally as hashes. The reserved base mount names `_base` and `_builtin` cannot be added or removed from script. The `name` field returned by `liveupdate.get_mounts()` is a hash, and the `liveupdate.add_mount()` callback receives `(self, name, uri, result)`, where `name` is the mount name hash.
 
-The user defined mounts are stored in `liveupdate.mounts`.
-It is a CSV file, and is located in the project_id folder, which is the SHA1 hash of the game setting `project.title`.
+The api also exposes `liveupdate.is_built_with_excluded_files()`, which reports whether the bundled manifest was produced with excluded resources. This is a build metadata check, not a check for currently mounted or downloaded content.
 
-### Missing resources
+### Resources
 
 Before a collection proxy is loaded, it may be that some content is missing.
-The legacy single-resource liveupdate flow can query the resource system using [collectionproxy.missing_resources()](https://defold.com/ref/stable/collectionproxy/#collectionproxy.missing_resources:collectionproxy), but that API is deprecated.
-
 For archive/mount-based liveupdate flows, the normal approach is to mount the relevant archive before loading. If the developer needs to inspect the full excluded resource set for a collection proxy, they can use [collectionproxy.get_resources()](https://defold.com/ref/stable/collectionproxy/#collectionproxy.get_resources:collectionproxy).
 
 Using this list, the developer will determine which content to download and add to the resource system.
 
 The list of dependencies is stored in the `.dmanifest` of each mount (if it has one).
-
-### Legacy support
-
-The `liveupdate` library also still handle legacy mounts and associated files on disc.
-If the library detects such formats, certain files will be removed, and the archive will be automatically mounted using our mount system.
-
-We encourage users to use the new api, using .zip files as it is less complex and easier to reason about.
-
-#### Mutable archive
-
-We consider the single-file download feature to be a legacy feature.
-Mainly because it is heavy maintenance code wise using the current file format, and it is hard to maintain.
-
-We may consider moving it into a loose file system (more or less a `file` provider) which would make it easier for the user to add/remove content.
-It would present other challenges with respect to max number of files in a folder (different on each OS).
 
 ## Debugging
 

@@ -18,9 +18,12 @@
 #include <map>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include "../dlib/endian.hpp"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 #include "../dlib/time.h"
+
+extern "C" int dmEndianCTest(void);
 
 class dlib : public jc_test_base_class
 {
@@ -118,6 +121,37 @@ TEST_F(dlib, ReverseHashSafeDeprecated)
         ASSERT_STREQ("<unknown>", dmHashReverseSafe64(h64));
         ASSERT_STREQ("<unknown>", dmHashReverseSafe32(h32));
     }
+}
+
+TEST_F(dlib, Endian)
+{
+    ASSERT_EQ(0, dmEndianCTest());
+
+    ASSERT_EQ((uint16_t)0x1234U, EndianToHost16(EndianToNetwork16((uint16_t)0x1234U)));
+    ASSERT_EQ((uint32_t)0x12345678U, EndianToHost32(EndianToNetwork32((uint32_t)0x12345678U)));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, EndianToHost64(EndianToNetwork64((uint64_t)0x123456789abcdef0ULL)));
+
+    ASSERT_EQ((uint16_t)0x1234U, dmEndian::ToHost(dmEndian::ToNetwork((uint16_t)0x1234U)));
+    ASSERT_EQ((uint32_t)0x12345678U, dmEndian::ToHost(dmEndian::ToNetwork((uint32_t)0x12345678U)));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, dmEndian::ToHost(dmEndian::ToNetwork((uint64_t)0x123456789abcdef0ULL)));
+
+#if DM_ENDIAN == DM_ENDIAN_LITTLE
+    ASSERT_EQ((uint16_t)0x3412U, EndianToNetwork16((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x78563412U, EndianToNetwork32((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0xf0debc9a78563412ULL, EndianToNetwork64((uint64_t)0x123456789abcdef0ULL));
+
+    ASSERT_EQ((uint16_t)0x3412U, dmEndian::ToNetwork((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x78563412U, dmEndian::ToNetwork((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0xf0debc9a78563412ULL, dmEndian::ToNetwork((uint64_t)0x123456789abcdef0ULL));
+#elif DM_ENDIAN == DM_ENDIAN_BIG
+    ASSERT_EQ((uint16_t)0x1234U, EndianToNetwork16((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x12345678U, EndianToNetwork32((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, EndianToNetwork64((uint64_t)0x123456789abcdef0ULL));
+
+    ASSERT_EQ((uint16_t)0x1234U, dmEndian::ToNetwork((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x12345678U, dmEndian::ToNetwork((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, dmEndian::ToNetwork((uint64_t)0x123456789abcdef0ULL));
+#endif
 }
 
 

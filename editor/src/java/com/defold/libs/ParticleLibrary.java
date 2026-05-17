@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import com.sun.jna.Callback;
 import com.sun.jna.Native;
+import com.sun.jna.NativeLibrary;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.FloatByReference;
@@ -40,9 +41,9 @@ public class ParticleLibrary {
     static {
         try {
             ResourceUnpacker.unpackResources();
-            Native.register("particle_shared");
+            Native.register(ParticleLibrary.class, NativeLibrary.getInstance(ResourceUnpacker.getPreloadedLibraryPath("particle_shared").toString()));
         } catch (Exception e) {
-            logger.error("Failed to extract/register particle_shared", e);
+            logger.error("Failed to register bundled particle_shared", e);
         }
     }
 
@@ -90,7 +91,7 @@ public class ParticleLibrary {
 
     public static native void Particle_Update(Pointer context, float dt, FetchResourcesCallback callback);
 
-    public static native int Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitterIndex, VertexAttributeInfos attributeInfos, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize);
+    public static native int Particle_GenerateVertexData(Pointer context, Pointer instance, int emitterIndex, VertexAttributeInfos attributeInfos, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize);
 
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 

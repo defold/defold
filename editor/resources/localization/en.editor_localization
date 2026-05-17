@@ -345,11 +345,18 @@ notification.fetch-libraries.action.fetch = Fetch Libraries
 notification.fetch-libraries.action.open-game-project = Open game.project
 notification.fetch-libraries.problem.missing = missing
 notification.fetch-libraries.problem.fetch-failed = failed to fetch
+notification.fetch-libraries.problem.failed-http-request = failed to fetch (HTTP {status})
+notification.fetch-libraries.problem.http-connect-timeout = failed to fetch (connection timed out)
 notification.fetch-libraries.problem.invalid-archive = not a valid Defold archive
 notification.fetch-libraries.problem.defold-min-version = requires Defold {required} or newer (current Defold version is {current}). Update Defold or check older extension versions for compatibility.
 notification.fetch-libraries.problem.install-failed = failed to install
 notification.fetch-libraries.problem.unknown = unknown problem — {problem}
 notification.fetch-libraries.dependency-problem = {uri}: {problem}
+
+# Open custom editor notifications
+
+notification.open-custom-editor-failed.error = Could not run external editor "{editor}".\n\nUnderlying error from the OS:\n{error}
+notification.open-custom-editor-failed.action.open-preferences = Open Preferences…
 
 # Settings notifications
 
@@ -1112,6 +1119,8 @@ property.appmanifest.graphics = Graphics
 property.appmanifest.graphics.tooltip = Vulkan supports desktop and mobile platforms only
 property.appmanifest.graphics-osx = Graphics (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan is the default renderer for macOS
+property.appmanifest.graphics-android = Graphics (Android)
+property.appmanifest.graphics-android.tooltip = OpenGL+Vulkan is the default for Android
 property.appmanifest.graphics-web = Graphics (HTML5)
 property.appmanifest.graphics-web.tooltip = WebGPU support is in BETA (web platforms)
 property.appmanifest.use-font-layout = Use full text layout system
@@ -2046,12 +2055,8 @@ form.label.project.liveupdate = Live Update
 form.help.project.liveupdate = Live Update settings
 form.label.project.liveupdate.enabled = Enabled
 form.help.project.liveupdate.enabled = Enables the use of live update
-form.label.project.liveupdate.exclude_entries_from_main_manifest = Strip Live Update Entries from Main Manifest
-form.help.project.liveupdate.exclude_entries_from_main_manifest = When enabled, liveupdate-only resources are omitted from the packaged game.dmanifest. The published liveupdate.game.dmanifest remains complete.
 form.label.project.liveupdate.settings = Settings
 form.help.project.liveupdate.settings = Live Update settings resource
-form.label.project.liveupdate.mount_on_start = Mount on Start
-form.help.project.liveupdate.mount_on_start = Enables auto-mount of previously mounted resources when the application starts
 
 form.label.project.native_extension = Native Extension
 form.help.project.native_extension = Settings for native extensions
@@ -2309,10 +2314,12 @@ error.resource-is-a-broken-symlink = Symlink "{resource}" refers to missing path
 error.resource-not-loaded = The file "{resource}" could not be loaded.
 error.resource-not-loaded-with-error = The file "{resource}" could not be loaded: {error}
 error.resource-assignment-not-of-type = {property} "{resource}" is not of type {type}.
+error.no-file-extension = no file extension
 error.material-not-defined-in-mesh = "{material}" is not defined in the Mesh. Use the "Clear Override" command from the label's context menu to remove the property.
 error.material-expects-paged-atlas = The Material expects a paged Atlas, but the selected {property} is not paged.
 error.material-does-not-support-paged-atlases = The Material does not support paged Atlases, but the selected {property} is paged.
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}.
+error.model-unsupported-file-format = {property} "{resource}" has unsupported format {format}. Defold supports only {supported_formats} files for {property}.
 error.model-load-failed = The file "{file}" failed to load:\n{error}
 error.animation-not-found = "{animation}" could not be found in "{property}".
 error.buffer-syntax-error = Syntax error in buffer file.
