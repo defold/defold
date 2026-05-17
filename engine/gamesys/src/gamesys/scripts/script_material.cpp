@@ -493,138 +493,6 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int SetMaterialVertexAttribute(lua_State* L, MaterialResource* material_res, dmhash_t name_hash, int args_index)
-    {
-        args_index = args_index < 0 ? lua_gettop(L) + args_index + 1 : args_index;
-        dmRender::MaterialProgramAttributeInfo info = {};
-        if (!dmRender::GetMaterialProgramAttributeInfo(material_res->m_Material, name_hash, info))
-        {
-            return luaL_error(L, "Material attribute '%s' not found", dmHashReverseSafe64(name_hash));
-        }
-
-        dmGraphics::VertexAttribute attribute = {};
-        attribute.m_NameHash        = info.m_Attribute->m_NameHash;
-        attribute.m_DataType        = info.m_Attribute->m_DataType;
-        attribute.m_VectorType      = info.m_Attribute->m_VectorType;
-        attribute.m_StepFunction    = info.m_Attribute->m_StepFunction;
-        attribute.m_CoordinateSpace = info.m_Attribute->m_CoordinateSpace;
-        attribute.m_SemanticType    = info.m_Attribute->m_SemanticType;
-        attribute.m_ElementCount    = info.m_Attribute->m_ElementCount;
-        attribute.m_Normalize       = info.m_Attribute->m_Normalize;
-
-        uint8_t values_bytes[sizeof(dmVMath::Matrix4)] = {};
-        uint32_t values_size = 0;
-        float values_float[16] = {};
-
-        luaL_checktype(L, args_index, LUA_TTABLE);
-        lua_pushvalue(L, args_index);
-
-        // parse value
-        {
-            lua_getfield(L, -1, "value");
-            if (!lua_isnil(L, -1))
-            {
-                if (dmScript::IsVector4(L, -1))
-                {
-                    dmVMath::Vector4* v4 = dmScript::CheckVector4(L, -1);
-                    values_size = sizeof(dmVMath::Vector4);
-                    memcpy(values_float, v4, values_size);
-                }
-                else if (dmScript::IsVector3(L, -1))
-                {
-                    dmVMath::Vector3* v3 = dmScript::CheckVector3(L, -1);
-                    values_size = sizeof(dmVMath::Vector3);
-                    memcpy(values_float, v3, values_size);
-                }
-                else if (dmScript::IsMatrix4(L, -1))
-                {
-                    dmVMath::Matrix4* m4 = dmScript::CheckMatrix4(L, -1);
-                    values_size = sizeof(dmVMath::Matrix4);
-                    memcpy(values_float, m4, values_size);
-                }
-                else if (lua_istable(L, -1))
-                {
-                    uint32_t value_count = lua_objlen(L, -1);
-                    if (value_count > sizeof(values_float) / sizeof(values_float[0]))
-                    {
-                        return luaL_error(L, "Too many values in vertex attribute '%s'", dmHashReverseSafe64(name_hash));
-                    }
-                    for (uint32_t i = 0; i < value_count; ++i)
-                    {
-                        lua_rawgeti(L, -1, i + 1);
-                        values_float[i] = luaL_checknumber(L, -1);
-                        lua_pop(L, 1);
-                    }
-                    values_size = value_count * sizeof(float);
-                }
-                else
-                {
-                    values_float[0] = luaL_checknumber(L, -1);
-                    values_size = sizeof(float);
-                }
-            }
-            lua_pop(L, 1);
-        }
-
-        // parse normalize
-        {
-            lua_getfield(L, -1, "normalize");
-            if (!lua_isnil(L, -1))
-            {
-                attribute.m_Normalize = lua_toboolean(L, -1);
-            }
-            lua_pop(L, 1);
-        }
-
-        // parse data_type
-        {
-            lua_getfield(L, -1, "data_type");
-            if (!lua_isnil(L, -1))
-            {
-                attribute.m_DataType = (dmGraphics::VertexAttribute::DataType) lua_tointeger(L, -1);
-            }
-            lua_pop(L, 1);
-        }
-
-        // parse coordinate_space
-        {
-            lua_getfield(L, -1, "coordinate_space");
-            if (!lua_isnil(L, -1))
-            {
-                attribute.m_CoordinateSpace = (dmGraphics::CoordinateSpace) lua_tointeger(L, -1);
-            }
-            lua_pop(L, 1);
-        }
-
-        // parse semantic_type
-        {
-            lua_getfield(L, -1, "semantic_type");
-            if (!lua_isnil(L, -1))
-            {
-                attribute.m_SemanticType = (dmGraphics::VertexAttribute::SemanticType) lua_tointeger(L, -1);
-            }
-            lua_pop(L, 1);
-        }
-
-        lua_pop(L, 1); // args table
-
-        if (values_size > 0)
-        {
-            uint32_t bytes_per_element = dmGraphics::DataTypeToByteWidth(attribute.m_DataType);
-            for (int i = 0; i < attribute.m_ElementCount; ++i)
-            {
-                FloatToVertexAttributeDataType(values_float[i], attribute.m_DataType, values_bytes + i * bytes_per_element);
-            }
-
-            attribute.m_Values.m_BinaryValues.m_Data = values_bytes;
-            attribute.m_Values.m_BinaryValues.m_Count = bytes_per_element * attribute.m_ElementCount;
-        }
-
-        dmRender::SetMaterialProgramAttributes(material_res->m_Material, &attribute, 1);
-
-        return 0;
-    }
-
     static int Material_SetVertexAttributes(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -647,7 +515,128 @@ namespace dmGameSystem
                 name_hash = dmScript::CheckHashOrString(L, -2);
             }
 
-            SetMaterialVertexAttribute(L, material_res, name_hash, args_index);
+            dmRender::MaterialProgramAttributeInfo info = {};
+            if (!dmRender::GetMaterialProgramAttributeInfo(material_res->m_Material, name_hash, info))
+            {
+                return luaL_error(L, "Material attribute '%s' not found", dmHashReverseSafe64(name_hash));
+            }
+
+            dmGraphics::VertexAttribute attribute = {};
+            attribute.m_NameHash        = info.m_Attribute->m_NameHash;
+            attribute.m_DataType        = info.m_Attribute->m_DataType;
+            attribute.m_VectorType      = info.m_Attribute->m_VectorType;
+            attribute.m_StepFunction    = info.m_Attribute->m_StepFunction;
+            attribute.m_CoordinateSpace = info.m_Attribute->m_CoordinateSpace;
+            attribute.m_SemanticType    = info.m_Attribute->m_SemanticType;
+            attribute.m_ElementCount    = info.m_Attribute->m_ElementCount;
+            attribute.m_Normalize       = info.m_Attribute->m_Normalize;
+
+            uint8_t values_bytes[sizeof(dmVMath::Matrix4)] = {};
+            uint32_t values_size = 0;
+            float values_float[16] = {};
+
+            luaL_checktype(L, args_index, LUA_TTABLE);
+
+            // parse value
+            {
+                lua_getfield(L, args_index, "value");
+                if (!lua_isnil(L, -1))
+                {
+                    if (dmScript::IsVector4(L, -1))
+                    {
+                        dmVMath::Vector4* v4 = dmScript::CheckVector4(L, -1);
+                        values_size = sizeof(dmVMath::Vector4);
+                        memcpy(values_float, v4, values_size);
+                    }
+                    else if (dmScript::IsVector3(L, -1))
+                    {
+                        dmVMath::Vector3* v3 = dmScript::CheckVector3(L, -1);
+                        values_size = sizeof(dmVMath::Vector3);
+                        memcpy(values_float, v3, values_size);
+                    }
+                    else if (dmScript::IsMatrix4(L, -1))
+                    {
+                        dmVMath::Matrix4* m4 = dmScript::CheckMatrix4(L, -1);
+                        values_size = sizeof(dmVMath::Matrix4);
+                        memcpy(values_float, m4, values_size);
+                    }
+                    else if (lua_istable(L, -1))
+                    {
+                        uint32_t value_count = lua_objlen(L, -1);
+                        if (value_count > sizeof(values_float) / sizeof(values_float[0]))
+                        {
+                            return luaL_error(L, "Too many values in vertex attribute '%s'", dmHashReverseSafe64(name_hash));
+                        }
+                        for (uint32_t i = 0; i < value_count; ++i)
+                        {
+                            lua_rawgeti(L, -1, i + 1);
+                            values_float[i] = luaL_checknumber(L, -1);
+                            lua_pop(L, 1);
+                        }
+                        values_size = value_count * sizeof(float);
+                    }
+                    else
+                    {
+                        values_float[0] = luaL_checknumber(L, -1);
+                        values_size = sizeof(float);
+                    }
+                }
+                lua_pop(L, 1);
+            }
+
+            // parse normalize
+            {
+                lua_getfield(L, args_index, "normalize");
+                if (!lua_isnil(L, -1))
+                {
+                    attribute.m_Normalize = lua_toboolean(L, -1);
+                }
+                lua_pop(L, 1);
+            }
+
+            // parse data_type
+            {
+                lua_getfield(L, args_index, "data_type");
+                if (!lua_isnil(L, -1))
+                {
+                    attribute.m_DataType = (dmGraphics::VertexAttribute::DataType) lua_tointeger(L, -1);
+                }
+                lua_pop(L, 1);
+            }
+
+            // parse coordinate_space
+            {
+                lua_getfield(L, args_index, "coordinate_space");
+                if (!lua_isnil(L, -1))
+                {
+                    attribute.m_CoordinateSpace = (dmGraphics::CoordinateSpace) lua_tointeger(L, -1);
+                }
+                lua_pop(L, 1);
+            }
+
+            // parse semantic_type
+            {
+                lua_getfield(L, args_index, "semantic_type");
+                if (!lua_isnil(L, -1))
+                {
+                    attribute.m_SemanticType = (dmGraphics::VertexAttribute::SemanticType) lua_tointeger(L, -1);
+                }
+                lua_pop(L, 1);
+            }
+
+            if (values_size > 0)
+            {
+                uint32_t bytes_per_element = dmGraphics::DataTypeToByteWidth(attribute.m_DataType);
+                for (int i = 0; i < attribute.m_ElementCount; ++i)
+                {
+                    FloatToVertexAttributeDataType(values_float[i], attribute.m_DataType, values_bytes + i * bytes_per_element);
+                }
+
+                attribute.m_Values.m_BinaryValues.m_Data = values_bytes;
+                attribute.m_Values.m_BinaryValues.m_Count = bytes_per_element * attribute.m_ElementCount;
+            }
+
+            dmRender::SetMaterialProgramAttributes(material_res->m_Material, &attribute, 1);
             lua_pop(L, 1);
         }
         return 0;
