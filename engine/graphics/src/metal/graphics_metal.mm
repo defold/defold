@@ -71,6 +71,30 @@ namespace dmGraphics
         uint32_t m_Padding[2]; // metal will pad this struct to 32 bytes
     };
 
+    MetalContext::MetalContext(const ContextParams& params)
+    {
+        memset(this, 0, sizeof(*this));
+
+        m_BaseContext.m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_BaseContext.m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
+        m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+        m_BaseContext.m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_BaseContext.m_Width                   = params.m_Width;
+        m_BaseContext.m_Height                  = params.m_Height;
+        m_BaseContext.m_Window                  = params.m_Window;
+        m_SwapInterval                          = params.m_SwapInterval;
+        m_JobContext                            = params.m_JobContext;
+
+        assert(dmPlatform::GetWindowStateParam(m_BaseContext.m_Window, WINDOW_STATE_OPENED));
+
+        if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
+            m_BaseContext.m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
+        if (m_BaseContext.m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
+            m_BaseContext.m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+
+        DM_STATIC_ASSERT(sizeof(m_BaseContext.m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+    }
+
     static void ResetRenderEncoderStateCache(MetalContext* context)
     {
         context->m_CurrentPipeline = 0;
@@ -160,30 +184,6 @@ namespace dmGraphics
             context->m_ComputeUsedResources[index] = resource;
             context->m_ComputeUsedResourceUsage[index] = usage;
         }
-    }
-
-    MetalContext::MetalContext(const ContextParams& params)
-    {
-        memset(this, 0, sizeof(*this));
-
-        m_BaseContext.m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-        m_BaseContext.m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
-        m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-        m_BaseContext.m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-        m_BaseContext.m_Width                   = params.m_Width;
-        m_BaseContext.m_Height                  = params.m_Height;
-        m_BaseContext.m_Window                  = params.m_Window;
-        m_SwapInterval                          = params.m_SwapInterval;
-        m_JobContext                            = params.m_JobContext;
-
-        assert(dmPlatform::GetWindowStateParam(m_BaseContext.m_Window, WINDOW_STATE_OPENED));
-
-        if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
-            m_BaseContext.m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
-        if (m_BaseContext.m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
-            m_BaseContext.m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
-
-        DM_STATIC_ASSERT(sizeof(m_BaseContext.m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
     static inline MTL::LoadAction MetalLoadAction(AttachmentOp op)
@@ -500,7 +500,6 @@ namespace dmGraphics
         if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))  // A8+ class
         {
             context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGB_ETC1);
-            context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGBA_ETC2);
         }
 
         // ASTC support
@@ -512,7 +511,10 @@ namespace dmGraphics
 
         // Common uncompressed formats
         TextureFormat base_formats[] = {
+            TEXTURE_FORMAT_LUMINANCE,
+            TEXTURE_FORMAT_LUMINANCE_ALPHA,
             TEXTURE_FORMAT_RGBA,
+            TEXTURE_FORMAT_RGB_16BPP,
             TEXTURE_FORMAT_RGBA16F,
             TEXTURE_FORMAT_RGBA32F,
             TEXTURE_FORMAT_R16F,
@@ -520,6 +522,7 @@ namespace dmGraphics
             TEXTURE_FORMAT_RG16F,
             TEXTURE_FORMAT_RG32F,
             TEXTURE_FORMAT_RGBA32UI,
+            TEXTURE_FORMAT_BGRA8U,
             TEXTURE_FORMAT_R32UI,
         };
 
@@ -535,6 +538,13 @@ namespace dmGraphics
         // Render-target creation scripts rely on these being available from the graphics namespace.
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_DEPTH;
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_STENCIL;
+
+#if defined(DM_PLATFORM_MACOS)
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_BC1;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC3;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R_BC4;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG_BC5;
+#endif
     }
 
     static MTL::Texture* CreateMSAATexture(MetalContext* ctx, uint32_t width, uint32_t height, MTL::PixelFormat fmt, uint32_t sampleCount)
@@ -823,6 +833,49 @@ namespace dmGraphics
         uint32_t window_width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
         uint32_t window_height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
 
+        context->m_MainScissor = {0, 0, window_width, window_height};
+        context->m_ScissorChanged = true;
+        context->m_PolygonOffsetFactor = 0.0f;
+        context->m_PolygonOffsetUnits  = 0.0f;
+        context->m_PolygonOffsetChanged = true;
+
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_3D_TEXTURES;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX;
+        if (context->m_ASTCArrayTextureSupport)
+        {
+            context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES;
+        }
+
+        context->m_BaseContext.m_AdapterVersionMajor = 2;
+        context->m_BaseContext.m_AdapterVersionMinor = 2;
+
+        GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+        const uint32_t max_texture_size = (context->m_Device->supportsFamily(MTL::GPUFamilyApple5) ||
+            context->m_Device->supportsFamily(MTL::GPUFamilyMac1)) ? 16384 : 8192;
+        const MTL::Size max_threads_per_threadgroup = context->m_Device->maxThreadsPerThreadgroup();
+        limits.m_MaxTextureSize2D               = max_texture_size;
+        limits.m_MaxTextureSize3D               = 2048;
+        limits.m_MaxTextureSizeCube             = max_texture_size;
+        limits.m_MaxTextureArrayLayers          = 2048;
+        limits.m_MaxFramebufferWidth            = max_texture_size;
+        limits.m_MaxFramebufferHeight           = max_texture_size;
+        limits.m_MaxColorAttachments            = MAX_BUFFER_COLOR_ATTACHMENTS;
+        limits.m_MaxSamplersPerStage            = DM_MAX_TEXTURE_UNITS;
+        limits.m_MaxTexturesPerStage            = DM_MAX_TEXTURE_UNITS;
+        limits.m_MaxVertexAttributes            = 31;
+        limits.m_MaxVertexBuffers               = MAX_VERTEX_BUFFERS;
+        limits.m_MaxComputeWorkgroupSizeX       = (uint32_t) max_threads_per_threadgroup.width;
+        limits.m_MaxComputeWorkgroupSizeY       = (uint32_t) max_threads_per_threadgroup.height;
+        limits.m_MaxComputeWorkgroupSizeZ       = (uint32_t) max_threads_per_threadgroup.depth;
+        limits.m_MaxComputeWorkgroupInvocations = (uint32_t) max_threads_per_threadgroup.width;
+        limits.m_MaxComputeSharedMemorySize     = (uint32_t) context->m_Device->maxThreadgroupMemoryLength();
+        limits.m_MaxUniformBufferRange          = 64 * 1024;
+        limits.m_MaxStorageBufferRange          = 0;
+
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
         {
@@ -884,6 +937,13 @@ namespace dmGraphics
         context->m_DefaultTexture2D = MetalNewTextureInternal(default_texture_creation_params);
         MetalSetTextureInternal(context, context->m_DefaultTexture2D, default_texture_params);
 
+        default_texture_creation_params.m_Type  = TEXTURE_TYPE_3D;
+        default_texture_creation_params.m_Depth = 1;
+        context->m_DefaultTexture3D = MetalNewTextureInternal(default_texture_creation_params);
+        MetalSetTextureInternal(context, context->m_DefaultTexture3D, default_texture_params);
+
+        default_texture_creation_params.m_Type  = TEXTURE_TYPE_2D;
+        default_texture_creation_params.m_Depth = 1;
         default_texture_params.m_Format = TEXTURE_FORMAT_RGBA32UI;
         context->m_DefaultTexture2D32UI = MetalNewTextureInternal(default_texture_creation_params);
         MetalSetTextureInternal(context, context->m_DefaultTexture2D32UI, default_texture_params);
@@ -1196,7 +1256,9 @@ namespace dmGraphics
         context->m_RenderTargetBound = 1;
         ResetRenderEncoderStateCache(context);
         context->m_ViewportChanged = 1;
+        context->m_ScissorChanged = 1;
         context->m_CullFaceChanged = 1;
+        context->m_PolygonOffsetChanged = 1;
         if (is_main_rt)
         {
             context->m_MainRTBegunThisFrame = 1;
@@ -2058,8 +2120,8 @@ namespace dmGraphics
                 colorAttachment->setSourceRGBBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendSrcFactor));
                 colorAttachment->setDestinationRGBBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendDstFactor));
                 colorAttachment->setRgbBlendOperation(GetMetalBlendOperation((BlendEquation) pipeline_state.m_BlendEquationColor));
-                colorAttachment->setSourceAlphaBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendSrcFactor));
-                colorAttachment->setDestinationAlphaBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendDstFactor));
+                colorAttachment->setSourceAlphaBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendSrcFactorAlpha));
+                colorAttachment->setDestinationAlphaBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendDstFactorAlpha));
                 colorAttachment->setAlphaBlendOperation(GetMetalBlendOperation((BlendEquation) pipeline_state.m_BlendEquationAlpha));
             }
         }
@@ -2255,6 +2317,7 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:
             case ShaderDesc::SHADER_TYPE_SAMPLER:
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return context->m_DefaultTexture2D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D:       return context->m_DefaultTexture3D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return context->m_DefaultTexture2DArray;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return context->m_DefaultTextureCubeMap;
             case ShaderDesc::SHADER_TYPE_UTEXTURE2D:      return context->m_DefaultTexture2D32UI;
@@ -2540,6 +2603,22 @@ namespace dmGraphics
             context->m_ViewportChanged = 0;
         }
 
+        if (context->m_ScissorChanged)
+        {
+            MTL::ScissorRect scissor = context->m_MainScissor;
+            if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                const uint32_t rt_height = current_rt->m_ColorTextureParams[0].m_Height;
+                scissor.y = rt_height > scissor.y + scissor.height ? rt_height - scissor.y - scissor.height : 0;
+            }
+            const uint32_t rt_width = current_rt->m_ColorTextureParams[0].m_Width;
+            const uint32_t rt_height = current_rt->m_ColorTextureParams[0].m_Height;
+            scissor.width = scissor.x < rt_width ? dmMath::Min((uint32_t)scissor.width, rt_width - (uint32_t)scissor.x) : 0;
+            scissor.height = scissor.y < rt_height ? dmMath::Min((uint32_t)scissor.height, rt_height - (uint32_t)scissor.y) : 0;
+            context->m_ScissorChanged = 0;
+            encoder->setScissorRect(scissor);
+        }
+
         MTL::CullMode cull_mode = MTL::CullModeNone;
         PipelineState pipeline_state_cull = pipeline_state_draw;
 
@@ -2569,9 +2648,17 @@ namespace dmGraphics
 
         if (context->m_CullFaceChanged)
         {
+            const MTL::Winding winding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CW ?
+                MTL::WindingClockwise : MTL::WindingCounterClockwise;
             encoder->setCullMode(cull_mode);
-            encoder->setFrontFacingWinding(MTL::WindingCounterClockwise);
+            encoder->setFrontFacingWinding(winding);
             context->m_CullFaceChanged = 0;
+        }
+
+        if (context->m_PolygonOffsetChanged)
+        {
+            encoder->setDepthBias(context->m_PolygonOffsetUnits, context->m_PolygonOffsetFactor, 0.0f);
+            context->m_PolygonOffsetChanged = 0;
         }
 
         CommitUniforms(context, encoder, &frame.m_ConstantScratchBuffer, &frame.m_ArgumentBufferPool, context->m_CurrentProgram, UNIFORM_BUFFER_ALIGNMENT, false);
@@ -3095,8 +3182,13 @@ namespace dmGraphics
 
     static void MetalSetScissor(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
-        //MetalContext* context = (MetalContext*)_context;
-        // TODO
+        MetalContext* context = (MetalContext*)_context;
+        assert(context);
+        context->m_MainScissor.x      = (NS::UInteger) dmMath::Max(0, x);
+        context->m_MainScissor.y      = (NS::UInteger) dmMath::Max(0, y);
+        context->m_MainScissor.width  = (NS::UInteger) dmMath::Max(0, width);
+        context->m_MainScissor.height = (NS::UInteger) dmMath::Max(0, height);
+        context->m_ScissorChanged     = true;
     }
 
     static void MetalSetStencilMask(HContext _context, uint32_t mask)
@@ -3170,12 +3262,19 @@ namespace dmGraphics
 
     static void MetalSetFaceWinding(HContext _context, FaceWinding face_winding)
     {
-
+        MetalContext* context = (MetalContext*)_context;
+        assert(context);
+        context->m_PipelineState.m_FaceWinding = face_winding;
+        context->m_CullFaceChanged = true;
     }
 
     static void MetalSetPolygonOffset(HContext _context, float factor, float units)
     {
-
+        MetalContext* context = (MetalContext*)_context;
+        assert(context);
+        context->m_PolygonOffsetFactor = factor;
+        context->m_PolygonOffsetUnits  = units;
+        context->m_PolygonOffsetChanged = true;
     }
 
     static HRenderTarget MetalNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
@@ -3550,11 +3649,121 @@ namespace dmGraphics
         return (value + align - 1) & ~(align - 1);
     }
 
+    static inline uint32_t DivCeil(uint32_t value, uint32_t divisor)
+    {
+        return (value + divisor - 1) / divisor;
+    }
+
+    static bool MetalIsBlockCompressed(TextureFormat format)
+    {
+        return IsTextureFormatCompressed(format) || IsTextureFormatASTC(format);
+    }
+
+    static uint32_t MetalCompressedBlockWidth(TextureFormat format)
+    {
+        switch (format)
+        {
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1: return 8;
+            case TEXTURE_FORMAT_RGB_ETC1:
+            case TEXTURE_FORMAT_RGBA_ETC2:
+            case TEXTURE_FORMAT_RGB_BC1:
+            case TEXTURE_FORMAT_RGBA_BC3:
+            case TEXTURE_FORMAT_R_BC4:
+            case TEXTURE_FORMAT_RG_BC5:
+            case TEXTURE_FORMAT_RGBA_BC7:
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:     return 4;
+            case TEXTURE_FORMAT_RGBA_ASTC_5X4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X5:     return 5;
+            case TEXTURE_FORMAT_RGBA_ASTC_6X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X6:     return 6;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X8:     return 8;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X10:   return 10;
+            case TEXTURE_FORMAT_RGBA_ASTC_12X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X12:   return 12;
+            default:                               return 1;
+        }
+    }
+
+    static uint32_t MetalCompressedBlockHeight(TextureFormat format)
+    {
+        switch (format)
+        {
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGB_ETC1:
+            case TEXTURE_FORMAT_RGBA_ETC2:
+            case TEXTURE_FORMAT_RGB_BC1:
+            case TEXTURE_FORMAT_RGBA_BC3:
+            case TEXTURE_FORMAT_R_BC4:
+            case TEXTURE_FORMAT_RG_BC5:
+            case TEXTURE_FORMAT_RGBA_BC7:
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X4:     return 4;
+            case TEXTURE_FORMAT_RGBA_ASTC_5X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X5:    return 5;
+            case TEXTURE_FORMAT_RGBA_ASTC_6X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X6:    return 6;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X8:    return 8;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X10:   return 10;
+            case TEXTURE_FORMAT_RGBA_ASTC_12X12:   return 12;
+            default:                               return 1;
+        }
+    }
+
+    static uint32_t MetalCompressedBlockByteSize(TextureFormat format)
+    {
+        switch (format)
+        {
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGB_ETC1:
+            case TEXTURE_FORMAT_RGB_BC1:
+            case TEXTURE_FORMAT_R_BC4:             return 8;
+            case TEXTURE_FORMAT_RGBA_ETC2:
+            case TEXTURE_FORMAT_RGBA_BC3:
+            case TEXTURE_FORMAT_RG_BC5:
+            case TEXTURE_FORMAT_RGBA_BC7:
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X12:   return 16;
+            default:                               return 0;
+        }
+    }
+
     // Metal version of "GetCopyableFootprints" behavior for one mip level.
     // It computes rows, rowSize (unpacked), paddedRowPitch and sliceSize for each slice.
     struct MetalPlacedSubresource
     {
         uint32_t rows;
+        uint32_t depth;
         uint64_t rowSize;         // unpadded bytes per row
         uint64_t paddedRowPitch;  // bytesPerRow used for copyFromBuffer (aligned to 256)
         uint64_t sliceSize;       // bytes per image (paddedRowPitch * rows)
@@ -3572,11 +3781,13 @@ namespace dmGraphics
         MTL::Device* device = context->m_Device;
 
         const uint32_t target_mip = params.m_MipMap;
-        const uint32_t layerCount = dmMath::Max((uint32_t)texture->m_LayerCount, (uint32_t)params.m_LayerCount);
+        const bool is_3d_texture = IsTextureType3D(texture->m_Base.m_Type);
+        const uint32_t layerCount = is_3d_texture ? 1 : dmMath::Max((uint32_t)texture->m_LayerCount, (uint32_t)params.m_LayerCount);
 
         // Base dims (full-size level 0)
         const uint32_t baseWidth  = texture->m_Base.m_Width;
         const uint32_t baseHeight = texture->m_Base.m_Height;
+        const uint32_t baseDepth  = dmMath::Max(1U, (uint32_t)texture->m_Base.m_Depth);
 
         // Compute mip dims for the target mip
         auto MipDim = [] (uint32_t base, uint32_t mip) -> uint32_t {
@@ -3585,21 +3796,43 @@ namespace dmGraphics
         };
         const uint32_t mipWidth  = MipDim(baseWidth, target_mip);
         const uint32_t mipHeight = MipDim(baseHeight, target_mip);
+        const uint32_t mipDepth  = MipDim(baseDepth, target_mip);
 
         // Copy rectangle size — use params.m_Width/Height if set (subupdate), otherwise full mip size
         const uint32_t copyWidth  = params.m_Width ? params.m_Width : mipWidth;
         const uint32_t copyHeight = params.m_Height ? params.m_Height : mipHeight;
+        const uint32_t copyDepth  = is_3d_texture ? (params.m_Depth ? params.m_Depth : mipDepth) : 1;
 
-        // Bytes per texel in source format
-        const uint32_t bpp_src_bits = GetTextureFormatBitsPerPixel(format_src);
-        const uint32_t bytesPerTexel = bpp_src_bits / 8;
-        const uint64_t unpaddedRowSize = (uint64_t)copyWidth * bytesPerTexel;
-        const uint64_t unpaddedSliceSize = unpaddedRowSize * (uint64_t)copyHeight;
+        const bool is_block_compressed = MetalIsBlockCompressed(format_src);
+        uint64_t unpaddedRowSize = 0;
+        uint32_t rows = copyHeight;
+
+        if (is_block_compressed)
+        {
+            const uint32_t block_width = MetalCompressedBlockWidth(format_src);
+            const uint32_t block_height = MetalCompressedBlockHeight(format_src);
+            const uint32_t block_byte_size = MetalCompressedBlockByteSize(format_src);
+            if (!block_byte_size)
+            {
+                dmLogError("MetalCopyToTexture: unsupported compressed texture format %s", GetTextureFormatLiteral(format_src));
+                return;
+            }
+            unpaddedRowSize = (uint64_t)DivCeil(copyWidth, block_width) * block_byte_size;
+            rows = DivCeil(copyHeight, block_height);
+        }
+        else
+        {
+            const uint32_t bpp_src_bits = GetTextureFormatBitsPerPixel(format_src);
+            const uint32_t bytesPerTexel = dmMath::Max(1U, DivCeil(bpp_src_bits, 8));
+            unpaddedRowSize = (uint64_t)copyWidth * bytesPerTexel;
+        }
+
+        const uint64_t unpaddedSliceSize = unpaddedRowSize * (uint64_t)rows;
 
         // Align row pitch to 256 bytes for Metal copyFromBuffer() — required on many GPUs
         const uint32_t rowAlignment = 256u;
         const uint64_t paddedRowPitch = (uint64_t)AlignTo((uint32_t)unpaddedRowSize, rowAlignment);
-        const uint64_t paddedSliceSize = paddedRowPitch * (uint64_t)copyHeight;
+        const uint64_t paddedSliceSize = paddedRowPitch * (uint64_t)rows;
 
         // Build per-slice placed footprints (for this helper we use same footprint for each slice)
         dmArray<MetalPlacedSubresource> placed;
@@ -3610,12 +3843,13 @@ namespace dmGraphics
         for (uint32_t i = 0; i < layerCount; ++i)
         {
             MetalPlacedSubresource& p = placed[i];
-            p.rows = copyHeight;
+            p.rows = rows;
+            p.depth = copyDepth;
             p.rowSize = unpaddedRowSize;
             p.paddedRowPitch = paddedRowPitch;
             p.sliceSize = paddedSliceSize;
             p.offset = accumOffset;
-            accumOffset += p.sliceSize;
+            accumOffset += p.sliceSize * p.depth;
         }
 
         // Create one contiguous upload buffer (like DX12 upload heap)
@@ -3633,7 +3867,7 @@ namespace dmGraphics
 
         // Source layout assumption: pixels holds `layerCount` slices contiguous for this mip,
         // each slice being exactly (copyWidth * copyHeight * bytesPerTexel) bytes (unpadded).
-        const uint64_t srcSliceStride = unpaddedSliceSize;
+        const uint64_t srcSliceStride = params.m_DataSize && layerCount > 0 ? params.m_DataSize / layerCount : unpaddedSliceSize * copyDepth;
 
         for (uint32_t slice = 0; slice < layerCount; ++slice)
         {
@@ -3641,15 +3875,20 @@ namespace dmGraphics
             const uint8_t* srcSlice = srcBase + (uint64_t)slice * srcSliceStride;
 
             // copy row by row into padded rows
-            for (uint32_t y = 0; y < placed[slice].rows; ++y)
+            for (uint32_t z = 0; z < placed[slice].depth; ++z)
             {
-                const uint8_t* srcRow = srcSlice + (uint64_t)y * unpaddedRowSize;
-                uint8_t* dstRow = dstSlice + (uint64_t)y * placed[slice].paddedRowPitch;
-                memcpy(dstRow, srcRow, (size_t)unpaddedRowSize);
-
-                if (placed[slice].paddedRowPitch > placed[slice].rowSize)
+                uint8_t* dstImage = dstSlice + (uint64_t)z * placed[slice].sliceSize;
+                const uint8_t* srcImage = srcSlice + (uint64_t)z * unpaddedSliceSize;
+                for (uint32_t y = 0; y < placed[slice].rows; ++y)
                 {
-                    memset(dstRow + placed[slice].rowSize, 255, (size_t)(placed[slice].paddedRowPitch - placed[slice].rowSize));
+                    const uint8_t* srcRow = srcImage + (uint64_t)y * unpaddedRowSize;
+                    uint8_t* dstRow = dstImage + (uint64_t)y * placed[slice].paddedRowPitch;
+                    memcpy(dstRow, srcRow, (size_t)unpaddedRowSize);
+
+                    if (placed[slice].paddedRowPitch > placed[slice].rowSize)
+                    {
+                        memset(dstRow + placed[slice].rowSize, 255, (size_t)(placed[slice].paddedRowPitch - placed[slice].rowSize));
+                    }
                 }
             }
         }
@@ -3670,13 +3909,13 @@ namespace dmGraphics
             const MetalPlacedSubresource& p = placed[slice];
 
             // destination slice (array index or cube face index)
-            NSUInteger destSlice = (NSUInteger)(params.m_Slice + slice);
+            NSUInteger destSlice = is_3d_texture ? 0 : (NSUInteger)(params.m_Slice + slice);
 
             // destination origin (subupdate offsets)
             MTL::Origin destOrigin = { (NSUInteger)params.m_X, (NSUInteger)params.m_Y, (NSUInteger)params.m_Z };
 
             // destination size
-            MTL::Size copySize = { (NSUInteger)copyWidth, (NSUInteger)copyHeight, 1 };
+            MTL::Size copySize = { (NSUInteger)copyWidth, (NSUInteger)copyHeight, (NSUInteger)copyDepth };
 
             NS::AutoreleasePool* blit_pool = NS::AutoreleasePool::alloc()->init();
             MTL::BlitCommandEncoder* blit = cmdBuf->blitCommandEncoder();
@@ -3871,7 +4110,8 @@ namespace dmGraphics
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
             uint32_t tex_layer_count = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
-            uint32_t pixel_count = params.m_Width * params.m_Height * tex_layer_count;
+            uint32_t tex_depth = IsTextureType3D(texture->m_Base.m_Type) ? dmMath::Max(1U, (uint32_t)params.m_Depth) : 1;
+            uint32_t pixel_count = params.m_Width * params.m_Height * tex_depth * tex_layer_count;
             data_new = new uint8_t[pixel_count * 4];
             RepackRGBToRGBA(pixel_count, (uint8_t*) tex_data_ptr, data_new);
             tex_data_ptr = data_new;
@@ -4274,16 +4514,156 @@ namespace dmGraphics
 
     static void MetalReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
+        MetalContext* context = (MetalContext*) _context;
+        assert(context);
 
+        const uint32_t bytes_per_pixel = 4;
+        const uint32_t dst_row_size = width * bytes_per_pixel;
+        if (!buffer || buffer_size < dst_row_size * height)
+        {
+            dmLogError("MetalReadPixels: destination buffer is too small.");
+            return;
+        }
+
+        const HRenderTarget render_target = context->m_CurrentRenderTarget;
+        const bool was_rendering = context->m_RenderTargetBound != 0;
+        if (was_rendering)
+        {
+            EndRenderPass(context);
+        }
+
+        MTL::Texture* source_texture = 0;
+        uint32_t source_height = 0;
+        bool source_is_backbuffer = false;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+            if (!rt || !rt->m_TextureColor[0])
+            {
+                return;
+            }
+
+            MetalTexture* color = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[0]);
+            if (!color || !color->m_Texture)
+            {
+                return;
+            }
+
+            source_texture = color->m_Texture;
+            source_texture->retain();
+            source_height = rt->m_ColorTextureParams[0].m_Height;
+            source_is_backbuffer = rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID;
+        }
+
+        const uint32_t src_row_size = AlignTo(dst_row_size, 256);
+        const uint32_t readback_size = src_row_size * height;
+        MTL::Buffer* readback_buffer = context->m_Device->newBuffer(readback_size, MTL::ResourceStorageModeShared);
+        if (!readback_buffer)
+        {
+            source_texture->release();
+            return;
+        }
+
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+        MTL::CommandBuffer* command_buffer = frame.m_CommandBuffer;
+        const bool used_frame_command_buffer = command_buffer != 0;
+
+        if (!command_buffer)
+        {
+            NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+            command_buffer = context->m_CommandQueue->commandBuffer();
+            if (command_buffer)
+            {
+                command_buffer->retain();
+            }
+            pool->release();
+        }
+
+        if (command_buffer)
+        {
+            const uint32_t source_x = (uint32_t) dmMath::Max(0, x);
+            const uint32_t requested_y = (uint32_t) dmMath::Max(0, y);
+            const uint32_t source_y = source_is_backbuffer && source_height > requested_y + height ? source_height - requested_y - height : requested_y;
+            MTL::BlitCommandEncoder* blit = command_buffer->blitCommandEncoder();
+            if (!blit)
+            {
+                readback_buffer->release();
+                source_texture->release();
+                return;
+            }
+            blit->copyFromTexture(
+                source_texture,
+                0,
+                0,
+                MTL::Origin::Make((NSUInteger)source_x, (NSUInteger)source_y, 0),
+                MTL::Size::Make(width, height, 1),
+                readback_buffer,
+                0,
+                src_row_size,
+                readback_size);
+            blit->endEncoding();
+
+            command_buffer->commit();
+            command_buffer->waitUntilCompleted();
+
+            uint8_t* dst = (uint8_t*) buffer;
+            const uint8_t* src = (const uint8_t*) readback_buffer->contents();
+            for (uint32_t row = 0; row < height; ++row)
+            {
+                memcpy(dst + row * dst_row_size, src + row * src_row_size, dst_row_size);
+            }
+
+            if (used_frame_command_buffer)
+            {
+                command_buffer->release();
+                NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+                frame.m_CommandBuffer = context->m_CommandQueue->commandBuffer();
+                if (frame.m_CommandBuffer)
+                {
+                    frame.m_CommandBuffer->retain();
+                }
+                pool->release();
+                ResetRenderEncoderStateCache(context);
+            }
+            else
+            {
+                command_buffer->release();
+            }
+        }
+
+        readback_buffer->release();
+        source_texture->release();
+
+        if (was_rendering && frame.m_CommandBuffer)
+        {
+            BeginRenderPass(context, render_target);
+        }
     }
 
     static void MetalRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
-
+        while (is_running(user_data))
+        {
+            step_method(user_data);
+        }
     }
 
     static HandleResult MetalGetTextureHandle(HTexture texture, void** out_handle)
     {
+        if (!out_handle || !texture || !g_MetalContext)
+        {
+            return HANDLE_RESULT_ERROR;
+        }
+
+        *out_handle = 0x0;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_MetalContext->m_BaseContext.m_AssetHandleContainerMutex);
+        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(g_MetalContext->m_BaseContext.m_AssetHandleContainer, texture);
+        if (!tex || !tex->m_Texture)
+        {
+            return HANDLE_RESULT_ERROR;
+        }
+
+        *out_handle = tex->m_Texture;
         return HANDLE_RESULT_OK;
     }
 
@@ -4304,7 +4684,13 @@ namespace dmGraphics
 
     static bool MetalIsContextFeatureSupported(HContext _context, ContextFeature feature)
     {
-        return true;
+        MetalContext* context = (MetalContext*) _context;
+        assert(context);
+        if (feature >= MAX_CONTEXT_FEATURE_COUNT)
+        {
+            return false;
+        }
+        return (context->m_ContextFeatures & (1 << feature)) != 0;
     }
 
     static PipelineState MetalGetPipelineState(HContext _context)

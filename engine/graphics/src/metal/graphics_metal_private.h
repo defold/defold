@@ -302,11 +302,15 @@ namespace dmGraphics
         HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         VertexDeclaration                  m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
         MetalViewport                      m_MainViewport;
+        MTL::ScissorRect                   m_MainScissor;
         HRenderTarget                      m_MainRenderTarget;
         MTL::Texture*                      m_MainDepthStencilTexture;
         MetalClearData                     m_ClearData;
         dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
         uint32_t                           m_SwapInterval;
+        uint32_t                           m_ContextFeatures;
+        float                              m_PolygonOffsetFactor;
+        float                              m_PolygonOffsetUnits;
 
         // Async process resources
         HJobContext                        m_JobContext;
@@ -337,6 +341,7 @@ namespace dmGraphics
         uint16_t                           m_ComputeUsedResourceCount;
 
         MetalTexture*                      m_DefaultTexture2D;
+        MetalTexture*                      m_DefaultTexture3D;
         MetalTexture*                      m_DefaultTexture2DArray;
         MetalTexture*                      m_DefaultTextureCubeMap;
         MetalTexture*                      m_DefaultTexture2D32UI;
@@ -348,7 +353,9 @@ namespace dmGraphics
         uint32_t                           m_RenderTargetBound       : 1;
         uint32_t                           m_MainRTBegunThisFrame    : 1;
         uint32_t                           m_ViewportChanged         : 1;
+        uint32_t                           m_ScissorChanged          : 1;
         uint32_t                           m_CullFaceChanged         : 1;
+        uint32_t                           m_PolygonOffsetChanged    : 1;
         uint32_t                           m_FrameBegun              : 1;
         uint32_t                           m_ASTCSupport             : 1;
         // See OpenGL backend: separate flag for ASTC array textures
