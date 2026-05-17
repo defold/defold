@@ -1758,7 +1758,71 @@ class Configuration(object):
     def _cmake_top_build_dir(self, platform):
         return join(self.defold_root, 'engine', 'build', platform)
 
-    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False):
+    def _cmake_configure_state(self, builddir, cmake_configure_args):
+        defines = {}
+        for arg in cmake_configure_args:
+            if not arg.startswith('-D'):
+                continue
+            key_value = arg[2:]
+            if '=' not in key_value:
+                continue
+            key, value = key_value.split('=', 1)
+            key = key.split(':', 1)[0]
+            defines[key] = value
+
+        return {
+            'args': cmake_configure_args,
+            'builddir': normpath(builddir),
+            'defold_root': normpath(self.defold_root),
+            'dynamo_home': normpath(self.dynamo_home),
+            'defines': defines
+        }
+
+    def _cmake_configure_state_matches(self, current, previous, allow_compatible_configure):
+        """
+        Returns True when the existing CMake build directory was configured with
+        the same effective inputs.
+
+        The compatibility mode exists for same-platform builds where the host
+        tool pass runs before the full engine pass. A previous "all" configure
+        is valid for a later "host" request because the full build graph already
+        contains the host targets. The opposite direction is intentionally not
+        accepted, since a host-only build graph may be missing engine targets.
+        """
+        if not previous:
+            return False
+        if current == previous:
+            return True
+        if not allow_compatible_configure:
+            return False
+
+        if current.get('builddir') != previous.get('builddir'):
+            return False
+        if current.get('defold_root') != previous.get('defold_root'):
+            return False
+        if current.get('dynamo_home') != previous.get('dynamo_home'):
+            return False
+
+        current_defines = dict(current.get('defines', {}))
+        previous_defines = dict(previous.get('defines', {}))
+        current_lib_set = current_defines.pop('DEFOLD_ENGINE_LIB_SET', None)
+        previous_lib_set = previous_defines.pop('DEFOLD_ENGINE_LIB_SET', None)
+        current_build_tests = current_defines.pop('BUILD_TESTS', None)
+        previous_build_tests = previous_defines.pop('BUILD_TESTS', None)
+
+        if current_defines != previous_defines:
+            return False
+        if current_lib_set != 'host' or previous_lib_set != 'all':
+            return False
+        if current_build_tests != 'OFF':
+            return False
+
+        # A build tree configured with tests has every non-test target needed by
+        # the host pass. A tree configured without tests is also sufficient for
+        # the host pass.
+        return previous_build_tests in ('ON', 'OFF')
+
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False):
         platform = self._cmake_target_platform(platform)
         builddir = self._cmake_top_build_dir(platform)
 
@@ -1777,7 +1841,6 @@ class Configuration(object):
         test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
-        self._log(f"CMake settings for {name}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={'ON' if test else 'OFF'}")
         self._log(f"CMake lib set for {name}: {lib_set}")
 
         trace = '' #'--trace-expand'
@@ -1799,7 +1862,24 @@ class Configuration(object):
             f'-DDEFOLD_ENGINE_LIB_SET={lib_set}'
         ]
         cmake_configure_args += self._cmake_feature_defines()
-        run.env_command(self._form_env(), cmake_configure_args, cwd = self.defold_root)
+        cmake_configure_state = self._cmake_configure_state(builddir, cmake_configure_args)
+        cmake_configure_state_path = join(builddir, '.defold_cmake_configure.json')
+        previous_cmake_configure_state = None
+        if os.path.exists(cmake_configure_state_path):
+            try:
+                with open(cmake_configure_state_path, 'r') as f:
+                    previous_cmake_configure_state = json.load(f)
+            except Exception:
+                pass
+
+        cmake_cache = join(builddir, 'CMakeCache.txt')
+        skip_configure = os.path.exists(cmake_cache) and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, allow_compatible_configure)
+        if skip_configure:
+            self._log(f'Skipping CMake configure {name}; configure state is unchanged')
+        else:
+            run.env_command(self._form_env(), cmake_configure_args, cwd = self.defold_root)
+            with open(cmake_configure_state_path, 'w') as f:
+                json.dump(cmake_configure_state, f, indent = 2, sort_keys = True)
 
         self.build_tracker.end_command(log_cmd_config)
 
@@ -1873,11 +1953,6 @@ class Configuration(object):
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
 
-        sha1 = self._git_sha1()
-        self._run_bob_copy_script()
-        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.copy_local_bob_artefacts()
-
         env = self._form_env()
 
         gradle = self.get_gradle_wrapper()
@@ -1887,8 +1962,7 @@ class Configuration(object):
 
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
-        # Clean and build the project
-        s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
+        s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
         	print (s)
         self.build_tracker.end_component('bob_light', self.host)
@@ -1919,7 +1993,7 @@ class Configuration(object):
                 self._build_engine_lib(args, lib, host, skip_tests = host_lib_skip_tests)
         elif not self.skip_bob_light:
             self.build_tracker.start_component('cmake_host_libs', host)
-            self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True)
+            self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
             self.build_tracker.end_component('cmake_host_libs', host)
         else:
             self._log('Skipping cmake_host_libs since bob-light is disabled')
