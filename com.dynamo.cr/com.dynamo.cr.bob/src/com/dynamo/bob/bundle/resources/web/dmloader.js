@@ -1308,9 +1308,17 @@ Module['onRuntimeInitialized'] = function() {
     Module.runApp("canvas");
 };
 
-Module["isWASMPthreadSupported"] = {{DEFOLD_HAS_WASM_PTHREAD_ENGINE}} 
-    && ((typeof window === 'undefined') || window.isSecureContext && window.crossOriginIsolated)
-    && typeof SharedArrayBuffer !== 'undefined';
+// Pthread variant requires SharedArrayBuffer + crossOriginIsolated, but
+// some hosts that satisfy both still can't construct Workers (e.g. a
+// WebView wrapper serving the bundle from a custom URL scheme, where
+// Chromium's separate Worker origin check rejects `new Worker(...)`).
+// Let those hosts opt out by pre-setting `Module.isWASMPthreadSupported
+// = false` before dmloader.js executes; otherwise run the normal probe.
+if (Module["isWASMPthreadSupported"] !== false) {
+    Module["isWASMPthreadSupported"] = {{DEFOLD_HAS_WASM_PTHREAD_ENGINE}}
+        && ((typeof window === 'undefined') || window.isSecureContext && window.crossOriginIsolated)
+        && typeof SharedArrayBuffer !== 'undefined';
+}
 
 Module["locateFile"] = function(path, scriptDirectory)
 {
