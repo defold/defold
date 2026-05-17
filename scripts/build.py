@@ -1712,7 +1712,7 @@ class Configuration(object):
 
     def _cmake_feature_defines(self):
         defines = []
-        handled = set()
+        feature_flags = dict((feature, 'OFF') for feature in _CMAKE_FEATURE_FLAG_MAP.values())
         feature_lists = {}
         index = 0
         while index < len(self.waf_options):
@@ -1736,18 +1736,18 @@ class Configuration(object):
                         feature_lists[_CMAKE_FEATURE_LIST_OPTIONS[feature_option]].append(feature_name)
                 index += 1
                 continue
-            if option in handled:
-                index += 1
-                continue
-            handled.add(option)
             feature = _CMAKE_FEATURE_FLAG_MAP.get(option)
             if feature:
-                defines.append(f"-D{feature}=ON")
+                feature_flags[feature] = 'ON'
             else:
                 self._log(f"Warning: CMake build currently ignores '{option}'")
             index += 1
+        for feature, value in sorted(feature_flags.items()):
+            defines.append(f"-D{feature}:BOOL={value}")
+        for option in _CMAKE_FEATURE_LIST_OPTIONS.values():
+            feature_lists.setdefault(option, [])
         for option, features in feature_lists.items():
-            defines.append(f"-D{option}={';'.join(features)}")
+            defines.append(f"-D{option}:STRING={';'.join(features)}")
         return defines
 
     def _cmake_target_platform(self, platform):
