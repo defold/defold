@@ -73,6 +73,22 @@ namespace dmGameSystem
         dmArray<dmVMath::Vector4> m_ScratchValues;
     } g_MaterialModule;
 
+    static bool VertexAttributeVectorTypeFromValueCount(uint32_t value_count, dmGraphics::VertexAttribute::VectorType fallback, dmGraphics::VertexAttribute::VectorType* vector_type)
+    {
+        switch (value_count)
+        {
+            case 1:  *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR; return true;
+            case 2:  *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;   return true;
+            case 3:  *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;   return true;
+            case 4:
+                *vector_type = fallback == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2 ? fallback : dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+                return true;
+            case 9:  *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3;   return true;
+            case 16: *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;   return true;
+            default: return false;
+        }
+    }
+
     static inline MaterialResource* CheckMaterialResource(lua_State* L, int index)
     {
         dmhash_t path_hash = dmScript::CheckHashOrString(L, index);
@@ -530,7 +546,7 @@ namespace dmGameSystem
             attribute.m_Normalize       = info.m_Attribute->m_Normalize;
 
             uint8_t values_bytes[sizeof(dmVMath::Matrix4)] = {};
-            uint32_t values_size = 0;
+            uint32_t value_count = 0;
             float values_float[16] = {};
 
             luaL_checktype(L, args_index, LUA_TTABLE);
@@ -543,24 +559,32 @@ namespace dmGameSystem
                     if (dmScript::IsVector4(L, -1))
                     {
                         dmVMath::Vector4* v4 = dmScript::CheckVector4(L, -1);
-                        values_size = sizeof(dmVMath::Vector4);
-                        memcpy(values_float, v4, values_size);
+                        value_count = 4;
+                        values_float[0] = v4->getX();
+                        values_float[1] = v4->getY();
+                        values_float[2] = v4->getZ();
+                        values_float[3] = v4->getW();
+                        attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
                     }
                     else if (dmScript::IsVector3(L, -1))
                     {
                         dmVMath::Vector3* v3 = dmScript::CheckVector3(L, -1);
-                        values_size = sizeof(dmVMath::Vector3);
-                        memcpy(values_float, v3, values_size);
+                        value_count = 3;
+                        values_float[0] = v3->getX();
+                        values_float[1] = v3->getY();
+                        values_float[2] = v3->getZ();
+                        attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
                     }
                     else if (dmScript::IsMatrix4(L, -1))
                     {
                         dmVMath::Matrix4* m4 = dmScript::CheckMatrix4(L, -1);
-                        values_size = sizeof(dmVMath::Matrix4);
-                        memcpy(values_float, m4, values_size);
+                        value_count = 16;
+                        memcpy(values_float, m4, sizeof(dmVMath::Matrix4));
+                        attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
                     }
                     else if (lua_istable(L, -1))
                     {
-                        uint32_t value_count = lua_objlen(L, -1);
+                        value_count = lua_objlen(L, -1);
                         if (value_count > sizeof(values_float) / sizeof(values_float[0]))
                         {
                             return luaL_error(L, "Too many values in vertex attribute '%s'", dmHashReverseSafe64(name_hash));
@@ -571,12 +595,16 @@ namespace dmGameSystem
                             values_float[i] = luaL_checknumber(L, -1);
                             lua_pop(L, 1);
                         }
-                        values_size = value_count * sizeof(float);
+                        if (!VertexAttributeVectorTypeFromValueCount(value_count, attribute.m_VectorType, &attribute.m_VectorType))
+                        {
+                            return luaL_error(L, "Unsupported number of values in vertex attribute '%s'", dmHashReverseSafe64(name_hash));
+                        }
                     }
                     else
                     {
                         values_float[0] = luaL_checknumber(L, -1);
-                        values_size = sizeof(float);
+                        value_count = 1;
+                        attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
                     }
                 }
                 lua_pop(L, 1);
@@ -622,16 +650,18 @@ namespace dmGameSystem
                 lua_pop(L, 1);
             }
 
-            if (values_size > 0)
+            if (value_count > 0)
             {
+                attribute.m_ElementCount = value_count;
+
                 uint32_t bytes_per_element = dmGraphics::DataTypeToByteWidth(attribute.m_DataType);
-                for (int i = 0; i < attribute.m_ElementCount; ++i)
+                for (uint32_t i = 0; i < value_count; ++i)
                 {
                     FloatToVertexAttributeDataType(values_float[i], attribute.m_DataType, values_bytes + i * bytes_per_element);
                 }
 
                 attribute.m_Values.m_BinaryValues.m_Data = values_bytes;
-                attribute.m_Values.m_BinaryValues.m_Count = bytes_per_element * attribute.m_ElementCount;
+                attribute.m_Values.m_BinaryValues.m_Count = bytes_per_element * value_count;
             }
 
             dmRender::SetMaterialProgramAttributes(material_res->m_Material, &attribute, 1);
