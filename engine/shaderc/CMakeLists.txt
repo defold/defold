@@ -114,11 +114,11 @@ if(SHADERC_IS_DESKTOP)
 
   add_subdirectory(src/standalone)
 
-  install(TARGETS shaderc shaderc_shared
+  defold_install_targets(TARGETS shaderc shaderc_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION lib/${TARGET_PLATFORM})
-  install(TARGETS shaderc_standalone
+  defold_install_targets(TARGETS shaderc_standalone
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})
   install(FILES "${SHADERC_JAR}" DESTINATION share/java)
 

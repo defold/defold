@@ -28,7 +28,7 @@ defold_target_link_libraries(font_skribidi "${TARGET_PLATFORM}"
   unibreak
   skribidi)
 
-install(TARGETS font font_skribidi
+defold_install_targets(TARGETS font font_skribidi
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

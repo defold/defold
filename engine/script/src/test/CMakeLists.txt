@@ -12,16 +12,31 @@ set(SCRIPT_TEST_PROTO "${SCRIPT_TEST_ROOT}/test_ddf.proto")
 set(SCRIPT_TEST_PROTO_CC "${SCRIPT_TEST_GEN_DIR}/test_ddf.cpp")
 set(SCRIPT_TEST_PROTO_H "${SCRIPT_TEST_GEN_DIR}/test_ddf.h")
 set(SCRIPT_TEST_PROTO_PY "${CMAKE_CURRENT_BINARY_DIR}/python/test_ddf_pb2.py")
+set(SCRIPT_TEST_PUBLIC_INCLUDE_DIR "${DEFOLD_BUILD_INCLUDE_DIR}")
+
+file(MAKE_DIRECTORY "${SCRIPT_TEST_PUBLIC_INCLUDE_DIR}/script")
+configure_file("${SCRIPT_TEST_ROOT}/test_script.h" "${SCRIPT_TEST_PUBLIC_INCLUDE_DIR}/script/test_script.h" COPYONLY)
 
 defold_protoc_gen_cpp("${SCRIPT_TEST_PROTO_CC}" "${SCRIPT_TEST_PROTO}" INCLUDES "${SCRIPT_TEST_ROOT}" "${SCRIPT_SRC_DIR}" "${DEFOLD_SDK_ROOT}/share/proto")
 defold_protoc_gen_py("${SCRIPT_TEST_PROTO_PY}" "${SCRIPT_TEST_PROTO}" INCLUDES "${SCRIPT_TEST_ROOT}" "${SCRIPT_SRC_DIR}" "${DEFOLD_SDK_ROOT}/share/proto")
 add_custom_target(script_test_proto_py DEPENDS "${SCRIPT_TEST_PROTO_PY}")
 
-add_custom_target(script_test_lua_data
-  COMMAND "${CMAKE_COMMAND}" -E make_directory "${SCRIPT_TEST_RUNTIME_BUILD_DIR}"
-  COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SCRIPT_TEST_ROOT}/scripts" "${SCRIPT_TEST_RUNTIME_BUILD_DIR}/scripts"
-  DEPENDS ${SCRIPT_TEST_ROOT}/scripts/test_types.lua
-  VERBATIM)
+file(GLOB SCRIPT_TEST_LUA_SOURCES CONFIGURE_DEPENDS "${SCRIPT_TEST_ROOT}/scripts/*.lua")
+set(SCRIPT_TEST_LUAC_OUTPUTS)
+foreach(_script_lua IN LISTS SCRIPT_TEST_LUA_SOURCES)
+  get_filename_component(_script_lua_name "${_script_lua}" NAME_WE)
+  set(_script_luac "${SCRIPT_TEST_RUNTIME_BUILD_DIR}/scripts/${_script_lua_name}.luac")
+  add_custom_command(
+    OUTPUT "${_script_luac}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${SCRIPT_TEST_RUNTIME_BUILD_DIR}/scripts"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_script_lua}" "${_script_luac}"
+    DEPENDS "${_script_lua}"
+    VERBATIM
+    COMMENT "Copying script test data ${_script_lua_name}.luac")
+  list(APPEND SCRIPT_TEST_LUAC_OUTPUTS "${_script_luac}")
+endforeach()
+
+add_custom_target(script_test_lua_data DEPENDS ${SCRIPT_TEST_LUAC_OUTPUTS})
 
 defold_add_library(test_ddf_proto STATIC "${SCRIPT_TEST_PROTO_CC}")
 target_include_directories(test_ddf_proto PUBLIC
@@ -35,13 +50,14 @@ defold_add_library(test_script STATIC
   "${SCRIPT_TEST_ROOT}/test_script_private.cpp")
 target_include_directories(test_script PUBLIC
   "${SCRIPT_TEST_ROOT}"
-  "${SCRIPT_SRC_DIR}")
+  "${SCRIPT_SRC_DIR}"
+  "${SCRIPT_TEST_PUBLIC_INCLUDE_DIR}")
 defold_target_link_libraries(test_script "${TARGET_PLATFORM}" dlib lua script)
 
-install(TARGETS test_script
-        ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
-        LIBRARY DESTINATION lib/${TARGET_PLATFORM}
-        RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+defold_install_targets(TARGETS test_script
+                       ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
+                       LIBRARY DESTINATION lib/${TARGET_PLATFORM}
+                       RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 set(SCRIPT_TEST_EXPORTS ResourceProviderFile GraphicsAdapterNull)
 
@@ -75,6 +91,7 @@ function(script_configure_test target)
     find_package(Threads REQUIRED)
     target_link_libraries(${target} PRIVATE Threads::Threads dl)
   endif()
+  add_dependencies(${target} script_test_lua_data)
   defold_register_test_target(${target} OFF "${SCRIPT_ROOT}"
     STAGE_FILES
       "build/src/test/scripts" "build/src/test/scripts")

@@ -96,6 +96,12 @@ function(gameobject_build_test_data out_target dir)
       --stamp "${_stamp}"
       --platform "${TARGET_PLATFORM}"
       --javac "${Java_JAVAC_EXECUTABLE}"
+      --protoc "${DEFOLD_PROTOC_EXECUTABLE}"
+      --gameobject-proto "${GAMEOBJECT_PROTO_ROOT}/gameobject/gameobject_ddf.proto"
+      --proto-include "${GAMEOBJECT_PROTO_ROOT}"
+      --proto-include "${GAMEOBJECT_ROOT}/../ddf/src"
+      --proto-include "${DEFOLD_SDK_ROOT}/share/proto"
+      --proto-include "${DEFOLD_SDK_ROOT}/ext/include"
     DEPENDS "${GAMEOBJECT_TEST_ROOT}/build_test_data.py" "${_inputs_file}" ${_folder_sources}
     WORKING_DIRECTORY "${GAMEOBJECT_TEST_ROOT}"
     COMMENT "Building gameobject test data folder ${dir}"
@@ -117,7 +123,7 @@ function(gameobject_add_test dir)
 
   set(_test_dir "${GAMEOBJECT_TEST_ROOT}/${dir}")
   set(_runtime_dir "${GAMEOBJECT_TEST_RUNTIME_DIR}/${dir}")
-  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/src/gameobject/test/${dir}")
+  file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gameobject/test/${dir}")
   file(GLOB _dir_files CONFIGURE_DEPENDS "${_test_dir}/*")
 
   set(_cpp)
@@ -204,11 +210,15 @@ function(gameobject_add_test dir)
     "${GAMEOBJECT_TEST_ROOT}"
     "${GAMEOBJECT_TEST_ROOT}/.."
     "${GAMEOBJECT_PROTO_ROOT}"
-    "${CMAKE_BINARY_DIR}/src/gameobject/test/${dir}"
-    "${CMAKE_BINARY_DIR}/src/gameobject"
-    "${CMAKE_BINARY_DIR}/src/proto"
-    "${CMAKE_BINARY_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/${dir}"
+    "${CMAKE_CURRENT_BINARY_DIR}/gameobject/test/${dir}"
+    "${DEFOLD_GAMEOBJECT_BINARY_DIR}/src/gameobject"
+    "${DEFOLD_GAMEOBJECT_BINARY_DIR}/src/proto"
+    "${DEFOLD_GAMEOBJECT_BINARY_DIR}"
     "${CMAKE_CURRENT_BINARY_DIR}")
+  if(TARGET gameobject_proto_headers)
+    add_dependencies(${_target} gameobject_proto_headers)
+  endif()
   defold_target_link_libraries(${_target} "${TARGET_PLATFORM}"
     testmain
     ddf

@@ -81,7 +81,7 @@ defold_add_library(crashext STATIC
   "${CRASH_FILE_SOURCE}")
 crash_configure_target(crashext)
 
-install(TARGETS crashext crashext_null
+defold_install_targets(TARGETS crashext crashext_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
@@ -110,7 +110,7 @@ if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
   if(TARGET_PLATFORM MATCHES "linux")
     target_link_libraries(crashtool${_crashtool_suffix} PRIVATE dl)
   endif()
-  install(TARGETS crashtool${_crashtool_suffix}
+  defold_install_targets(TARGETS crashtool${_crashtool_suffix}
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 endif()
 

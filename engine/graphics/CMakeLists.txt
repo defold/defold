@@ -85,13 +85,13 @@ defold_add_library(graphics_null STATIC ${GRAPHICS_NULL_ALL_SOURCES})
 graphics_common_setup(graphics_null)
 target_include_directories(graphics_null PUBLIC "${GRAPHICS_SRC_DIR}/null")
 target_compile_definitions(graphics_null PUBLIC DM_GRAPHICS_NULL)
-defold_target_link_libraries(graphics_null "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image)
+defold_target_link_libraries(graphics_null "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform_null)
 
 defold_add_library(graphics_null_noasan STATIC ${GRAPHICS_NULL_ALL_SOURCES})
 graphics_common_setup(graphics_null_noasan)
 target_include_directories(graphics_null_noasan PUBLIC "${GRAPHICS_SRC_DIR}/null")
 target_compile_definitions(graphics_null_noasan PUBLIC DM_GRAPHICS_NULL)
-defold_target_link_libraries(graphics_null_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image_noasan)
+defold_target_link_libraries(graphics_null_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image_noasan platform_null)
 
 set(GRAPHICS_INSTALL_TARGETS graphics_proto graphics_proto_noasan graphics_null graphics_null_noasan)
 
@@ -123,7 +123,7 @@ if(GRAPHICS_PLATFORM_SUPPORTS_OPENGL)
     target_include_directories(graphics PUBLIC "${GRAPHICS_SRC_DIR}/opengl/win32")
   endif()
   target_compile_definitions(graphics PUBLIC DM_GRAPHICS_USE_OPENGL)
-  defold_target_link_libraries(graphics "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image)
+  defold_target_link_libraries(graphics "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform)
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics)
 endif()
 
@@ -132,7 +132,7 @@ if(GRAPHICS_PLATFORM_SUPPORTS_OPENGLES)
   graphics_common_setup(graphics_opengles)
   target_include_directories(graphics_opengles PUBLIC "${GRAPHICS_SRC_DIR}/opengl")
   target_compile_definitions(graphics_opengles PUBLIC DM_GRAPHICS_USE_OPENGLES DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
-  defold_target_link_libraries(graphics_opengles "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image)
+  defold_target_link_libraries(graphics_opengles "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform)
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics_opengles)
 endif()
 
@@ -183,7 +183,11 @@ if(GRAPHICS_PLATFORM_SUPPORTS_VULKAN)
   if(WITH_VULKAN_VALIDATION)
     target_compile_definitions(graphics_vulkan PUBLIC DM_VULKAN_VALIDATION=1)
   endif()
-  defold_target_link_libraries(graphics_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image)
+  if(TARGET platform_vulkan)
+    defold_target_link_libraries(graphics_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform_vulkan)
+  else()
+    defold_target_link_libraries(graphics_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform)
+  endif()
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics_vulkan)
 endif()
 
@@ -194,7 +198,7 @@ if(GRAPHICS_PLATFORM_SUPPORTS_DX12)
   target_include_directories(graphics_dx12 PUBLIC
     "${GRAPHICS_SRC_DIR}/dx12"
     "${DEFOLD_EXT_INCLUDE_DIR}/directx")
-  defold_target_link_libraries(graphics_dx12 "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image)
+  defold_target_link_libraries(graphics_dx12 "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform)
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics_dx12)
 endif()
 
@@ -210,7 +214,7 @@ defold_target_link_libraries(graphics_transcoder_basisu "${TARGET_PLATFORM}" SCO
 
 list(APPEND GRAPHICS_INSTALL_TARGETS graphics_transcoder_null graphics_transcoder_basisu)
 
-install(TARGETS ${GRAPHICS_INSTALL_TARGETS}
+defold_install_targets(TARGETS ${GRAPHICS_INSTALL_TARGETS}
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

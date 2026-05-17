@@ -22,6 +22,7 @@ set(PARTICLE_BPROTO "${PARTICLE_GEN_DIR}/particle_ddf.bproto")
 defold_protoc_gen_cpp("${PARTICLE_PROTO_CC}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
 defold_protoc_gen_py("${PARTICLE_PROTO_PY}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
 defold_protoc_gen_bproto("${PARTICLE_BPROTO}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
+add_custom_target(particle_proto_headers DEPENDS "${PARTICLE_PROTO_CC}" "${PARTICLE_PROTO_H}")
 add_custom_target(particle_proto_py DEPENDS "${PARTICLE_PROTO_PY}" "${PARTICLE_PROTO_PY_INIT}")
 add_custom_target(particle_bproto DEPENDS "${PARTICLE_BPROTO}")
 
@@ -33,8 +34,11 @@ target_include_directories(particle PUBLIC
   "${PARTICLE_PROTO_ROOT}"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(particle PRIVATE "DLIB_LOG_DOMAIN=\"PARTICLE\"")
-add_dependencies(particle particle_proto_py particle_bproto)
-defold_target_link_libraries(particle "${TARGET_PLATFORM}" ddf dlib)
+add_dependencies(particle particle_proto_headers particle_proto_py particle_bproto)
+if(TARGET graphics_proto)
+  add_dependencies(particle graphics_proto_header)
+endif()
+defold_target_link_libraries(particle "${TARGET_PLATFORM}" ddf dlib $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
   defold_add_library(particle_shared SHARED
@@ -45,7 +49,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
     "${PARTICLE_PROTO_ROOT}"
     "${CMAKE_CURRENT_BINARY_DIR}")
   target_compile_definitions(particle_shared PRIVATE "DLIB_LOG_DOMAIN=\"PARTICLE\"")
-  add_dependencies(particle_shared particle_proto_py particle_bproto)
+  add_dependencies(particle_shared particle_proto_headers particle_proto_py particle_bproto)
   defold_target_link_libraries(particle_shared "${TARGET_PLATFORM}"
     ddf_noasan
     dlib_noasan
@@ -56,13 +60,13 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
     graphics_proto_noasan)
 endif()
 
-install(TARGETS particle
+defold_install_targets(TARGETS particle
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 if(TARGET particle_shared)
-  install(TARGETS particle_shared
+  defold_install_targets(TARGETS particle_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})

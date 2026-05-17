@@ -145,6 +145,7 @@ def build_builtins(args):
         "--platform",
         args.platform,
         "--variant=debug",
+        "--use-vanilla-lua",
         "--build-input-file",
         build_inputs.name,
         "clean",

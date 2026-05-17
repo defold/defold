@@ -27,7 +27,7 @@ if(JNI_IS_DESKTOP)
   target_include_directories(jni_noasan PUBLIC "${JNI_SRC_DIR}" ${JNI_INCLUDE_DIRS})
   target_compile_definitions(jni_noasan PUBLIC VALGRIND)
 
-  install(TARGETS jni jni_noasan
+  defold_install_targets(TARGETS jni jni_noasan
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION lib/${TARGET_PLATFORM})

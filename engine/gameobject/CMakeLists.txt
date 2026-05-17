@@ -54,7 +54,7 @@ defold_target_link_libraries(gameobject "${TARGET_PLATFORM}" SCOPE PUBLIC
   extension
   rig)
 
-install(TARGETS gameobject
+defold_install_targets(TARGETS gameobject
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

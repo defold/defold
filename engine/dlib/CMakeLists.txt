@@ -307,7 +307,9 @@ target_compile_definitions(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_DEFINES})
 
 defold_add_library(dlib STATIC ${DLIB_SOURCES})
 target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
-target_compile_definitions(dlib PUBLIC VALGRIND "DLIB_LOG_DOMAIN=\"DLIB\"" ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES})
+target_compile_definitions(dlib
+  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 target_link_libraries(dlib PUBLIC zip mbedtls)
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
   foreach(_fw IN ITEMS CFNetwork Security)
@@ -317,7 +319,9 @@ endif()
 
 defold_add_library(dlib_noasan STATIC ${DLIB_SOURCES})
 target_include_directories(dlib_noasan PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
-target_compile_definitions(dlib_noasan PUBLIC VALGRIND "DLIB_LOG_DOMAIN=\"DLIB\"" ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES})
+target_compile_definitions(dlib_noasan
+  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 target_link_libraries(dlib_noasan PUBLIC zip_noasan mbedtls_noasan)
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
   foreach(_fw IN ITEMS CFNetwork Security)
@@ -360,7 +364,9 @@ target_compile_definitions(profile_noasan PUBLIC ${DLIB_EXTRA_DEFINES})
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
   defold_add_library(dlib_shared SHARED ${DLIB_SOURCES})
   target_include_directories(dlib_shared PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
-  target_compile_definitions(dlib_shared PUBLIC VALGRIND "DLIB_LOG_DOMAIN=\"DLIB\"" ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES})
+  target_compile_definitions(dlib_shared
+    PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
+    PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
   target_link_libraries(dlib_shared PRIVATE profile_null_noasan mbedtls_noasan zip_noasan)
   defold_target_link_socket(dlib_shared "${TARGET_PLATFORM}" PRIVATE)
   if(TARGET_PLATFORM MATCHES "macos$")
@@ -423,7 +429,7 @@ if(TARGET basis_encoder)
   list(APPEND DLIB_INSTALL_TARGETS basis_encoder basis_encoder_noasan)
 endif()
 
-install(TARGETS ${DLIB_INSTALL_TARGETS}
+defold_install_targets(TARGETS ${DLIB_INSTALL_TARGETS}
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

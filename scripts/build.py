@@ -421,8 +421,6 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-CMAKE_SUPPORT = ['testmain', 'dlib', 'jni', 'texc', 'modelc', 'shaderc', 'ddf', 'platform', 'font', 'graphics', 'particle', 'lua', 'hid', 'input', 'physics', 'resource', 'extension', 'script', 'render', 'rig', 'gameobject', 'gui', 'sound', 'liveupdate', 'crash', 'gamesys', 'tools', 'record', 'profiler', 'engine', 'sdk']
-
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 
 def get_host_platform():
@@ -737,9 +735,10 @@ class Configuration(object):
     def distclean(self):
         self._remove_tree(self.dynamo_home)
 
-        for lib in ENGINE_LIBS:
-            builddir = join(self.defold_root, 'engine/%s/build' % lib)
+        for builddir in glob(join(self.defold_root, 'engine/*/build')):
             self._remove_tree(builddir)
+        self._remove_tree(join(self.defold_root, 'build', 'cmake'))
+        self._remove_tree(join(self.defold_root, 'engine', 'build'))
 
         # remove engine test dir specifically
         self._remove_tree(join(self.defold_root, 'engine/engine/src/test/build'))
@@ -1059,7 +1058,7 @@ class Configuration(object):
         self._log('Testing compiler for platform %s' % (target_platform))
         cwd = join(self.defold_root, 'engine/sdk/test/toolchain')
         plf_args = ['--platform=%s' % target_platform]
-        run.env_command(self._form_env(), args + plf_args + self.waf_options, cwd = cwd)
+        run.env_command(self._form_env(), args + plf_args + self._waf_forward_options(), cwd = cwd)
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -1670,19 +1669,25 @@ class Configuration(object):
     def gen_sdk_source(self):
         print("Generating source!")
         cmd = self.get_python() + [os.path.normpath(join(self.defold_root, './scripts/dmsdk/gen_sdk.py'))]
-        for lib in ENGINE_LIBS:
-            cwd = 'engine/%s' % lib
-            info = join(self.defold_root, 'engine/%s/sdk_gen.json' % lib)
-            if os.path.exists(info):
-                self._gen_sdk_source_lib(lib, cmd, join(self.defold_root, cwd), info)
+        for info in sorted(glob(join(self.defold_root, 'engine/*/sdk_gen.json'))):
+            cwd = dirname(info)
+            lib = basename(cwd)
+            self._gen_sdk_source_lib(lib, cmd, cwd, info)
 
 # <- Gen source files
 # ------------------------------------------------------------
 
-    def _build_engine_cmd_waf(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
+    def _build_engine_with_waf(self):
+        return '--with-waf' in self.waf_options
+
+    def _waf_forward_options(self):
+        return [option for option in self.waf_options if option != '--with-waf']
+
+    def _build_engine_cmd_waf(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix, incremental = None):
         prefix = prefix and prefix or self.dynamo_home
+        incremental = self.incremental if incremental is None else incremental
         commands = "build install"
-        if not self.incremental:
+        if not incremental:
             commands = "distclean configure " + commands
         return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
 
@@ -1693,7 +1698,7 @@ class Configuration(object):
             skip_build_tests.append('--skip-build-tests')
         cwd = join(self.defold_root, '%s/%s' % (directory, lib))
         plf_args = ['--platform=%s' % platform]
-        run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
+        run.env_command(self._form_env(), args + plf_args + self._waf_forward_options() + skip_build_tests, cwd = cwd)
 
     def _find_cmake_build_type(self, options):
         for x in options:
@@ -1745,97 +1750,103 @@ class Configuration(object):
             defines.append(f"-D{option}={';'.join(features)}")
         return defines
 
-    def _build_engine_lib_cmake(self, lib, platform, skip_tests, directory):
-        libdir = join(directory, lib)
-        builddir = join(libdir, 'build')
+    def _cmake_target_platform(self, platform):
+        if platform == 'win32':
+            return 'x86-win32'
+        return platform
+
+    def _cmake_top_build_dir(self, platform):
+        return join(self.defold_root, 'engine', 'build', platform)
+
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False):
+        platform = self._cmake_target_platform(platform)
+        builddir = self._cmake_top_build_dir(platform)
 
         build_type = self._find_cmake_build_type(self.waf_options)
         can_run_tests = self._can_run_tests()
         build_tests = (not skip_tests) and can_run_tests and '--skip-build-tests' not in self.waf_options
         supports_tests = build_tests
 
-        if not self.incremental:
-            self._remove_tree(builddir) # distclean
+        # Keep CMake build directories persistent so repeated builds can be
+        # handled by Ninja's dependency graph instead of forcing a rebuild.
 
         if not os.path.exists(builddir):
             os.makedirs(builddir)
-
-        env = self._form_env()
 
         is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
         test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
-        install = 'install'
-        self._log(f"CMake settings for {lib}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={'ON' if test else 'OFF'}")
+        self._log(f"CMake settings for {name}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={'ON' if test else 'OFF'}")
+        self._log(f"CMake lib set for {name}: {lib_set}")
 
         trace = '' #'--trace-expand'
 
         # ***************************************************************************************
         # generate the build script
-        log_cmd_config = f'CMake configure {lib}'
+        log_cmd_config = f'CMake configure {name}'
         self.build_tracker.start_command(log_cmd_config)
 
         run_tests = 'ON' if test else 'OFF'
-        self._log(f'CMake settings for {lib}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={run_tests}')
-        cmake_configure_args = f"cmake -S . -B build -GNinja {trace} -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS={cmake_build_tests}".split()
+        self._log(f'CMake settings for {name}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={run_tests}')
+        cmake_configure_args = ['cmake', '-S', self.defold_root, '-B', builddir, '-GNinja']
+        if trace:
+            cmake_configure_args.append(trace)
+        cmake_configure_args += [
+            f'-DCMAKE_BUILD_TYPE={build_type}',
+            f'-DTARGET_PLATFORM={platform}',
+            f'-DBUILD_TESTS={cmake_build_tests}',
+            f'-DDEFOLD_ENGINE_LIB_SET={lib_set}'
+        ]
         cmake_configure_args += self._cmake_feature_defines()
-        run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
+        run.env_command(self._form_env(), cmake_configure_args, cwd = self.defold_root)
 
         self.build_tracker.end_command(log_cmd_config)
 
         # ***************************************************************************************
         # execute the build
-        log_cmd_build = f'Ninja build {lib} {build_test}'
+        log_cmd_build = f'CMake build {name} {build_test}'
         self.build_tracker.start_command(log_cmd_build)
 
-        ninja_build_args = ['ninja']
-        if is_verbose:
-            ninja_build_args.append('-v')
-        ninja_build_args.append('all')
+        cmake_build_args = ['cmake', '--build', builddir, '--target', 'all']
         if build_test:
-            ninja_build_args.append(build_test)
-        run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
+            cmake_build_args.append(build_test)
+        if is_verbose:
+            cmake_build_args.append('--verbose')
+        run.env_command(self._form_env(), cmake_build_args, cwd = self.defold_root)
 
         self.build_tracker.end_command(log_cmd_build)
 
         # Keep install as a separate phase. CMake's install target depends on
         # 'all', but not on our custom 'build_tests' aggregate. Some installed
         # test-side artifacts can otherwise race the install step.
-        log_cmd_install = f'Ninja install {lib}'
+        log_cmd_install = f'CMake install {name}'
         self.build_tracker.start_command(log_cmd_install)
 
-        ninja_install_args = ['ninja']
+        cmake_install_args = ['cmake', '--build', builddir, '--target', 'install']
         if is_verbose:
-            ninja_install_args.append('-v')
-        ninja_install_args.append(install)
-        run.env_command(self._form_env(), ninja_install_args, cwd = builddir)
+            cmake_install_args.append('--verbose')
+        run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
 
         self.build_tracker.end_command(log_cmd_install)
 
         # ***************************************************************************************
         # run the build
         if test:
-            log_cmd_tests = f'Ninja run_tests {lib}'
+            log_cmd_tests = f'CMake run_tests {name}'
             self.build_tracker.start_command(log_cmd_tests)
 
-            ninja_build_args = ['ninja']
+            cmake_test_args = ['cmake', '--build', builddir, '--target', 'run_tests']
             if is_verbose:
-                ninja_build_args.append('-v')
-            ninja_build_args.append('run_tests')
-            run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
+                cmake_test_args.append('--verbose')
+            run.env_command(self._form_env(), cmake_test_args, cwd = self.defold_root)
 
             self.build_tracker.end_command(log_cmd_tests)
 
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
         self.build_tracker.start_component(lib, platform)
-        if lib in CMAKE_SUPPORT:
-            if platform == 'win32':
-                platform = 'x86-win32'
-            self._build_engine_lib_cmake(lib, platform, skip_tests, directory)
-        else:
-            self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
+        self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
 
         self.build_tracker.end_component(lib, platform)
 
@@ -1890,30 +1901,45 @@ class Configuration(object):
         os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
         self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
 
-        cmd = self._build_engine_cmd_waf(**self._get_build_flags())
-        args = cmd.split()
         host = self.host
+        target_platform = self.target_platform
+        with_waf = self._build_engine_with_waf()
+        cmake_incremental = not with_waf
+        cmd = self._build_engine_cmd_waf(**self._get_build_flags(), incremental = self.incremental or cmake_incremental)
+        args = cmd.split()
+        if with_waf:
+            self._log('Building engine libs with Waf fallback (--with-waf)')
+        else:
+            self._log('Building engine libs with top-level CMake (incremental by default)')
 
         # Make sure we build these for the host platform for the toolchain (bob light)
-        host_lib_skip_tests = host != self.target_platform
-        for lib in HOST_LIBS:
-            self._build_engine_lib(args, lib, host, skip_tests = host_lib_skip_tests)
+        if with_waf:
+            host_lib_skip_tests = host != target_platform
+            for lib in HOST_LIBS:
+                self._build_engine_lib(args, lib, host, skip_tests = host_lib_skip_tests)
+        elif not self.skip_bob_light:
+            self.build_tracker.start_component('cmake_host_libs', host)
+            self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True)
+            self.build_tracker.end_component('cmake_host_libs', host)
+        else:
+            self._log('Skipping cmake_host_libs since bob-light is disabled')
+
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()
-        # Target libs to build
 
-        engine_libs = list(ENGINE_LIBS)
-        for lib in engine_libs:
-
-            # No need to rebuild a library if it has already been built
-            if host == self.target_platform:
-                if lib in HOST_LIBS:
+        if with_waf:
+            for lib in ENGINE_LIBS:
+                if host == target_platform and lib in HOST_LIBS:
                     continue
-
-            if not build_private.is_library_supported(target_platform, lib):
-                continue
-            self._build_engine_lib(args, lib, target_platform)
+                if not build_private.is_library_supported(target_platform, lib):
+                    continue
+                self._build_engine_lib(args, lib, target_platform)
+        else:
+            reuse_builddir = host == target_platform
+            self.build_tracker.start_component('cmake_engine_libs', target_platform)
+            self._build_engine_libs_cmake('engine_libs', 'all', target_platform, reuse_builddir = reuse_builddir)
+            self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         self._build_engine_lib(args, 'extender', target_platform, directory = 'share')
         if not self.skip_docs:
@@ -2159,7 +2185,7 @@ class Configuration(object):
             commands = "distclean configure " + commands
         cmd = '%s %s/ext/bin/waf configure --prefix=%s %s %s' % (python_cmd, self.dynamo_home, self.dynamo_home, skip_tests, commands)
         run.env_command(self._form_env(), [python_cmd, './scripts/bundle.py', 'docs', '--docs-dir', cwd], cwd = join(self.defold_root, 'editor'))
-        run.env_command(self._form_env(), cmd.split() + self.waf_options, cwd = cwd)
+        run.env_command(self._form_env(), cmd.split() + self._waf_forward_options(), cwd = cwd)
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
@@ -3029,6 +3055,7 @@ Multiple commands can be specified
 
 CMake shorthand defaults from build.py shell: CMAKE_GENERATOR=Ninja, omitted --platform uses the host platform, CMAKE_BUILD_TYPE=RelWithDebInfo, and BUILD_TESTS=ON.
 Use -- --opt-level=0 for Debug, -- --skip-build-tests to skip building tests, or --skip-tests to skip running tests.
+Use --with-waf to build engine libs through the Waf fallback path during the CMake transition.
 
 To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
 '''
@@ -3066,7 +3093,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
     parser.add_option('--incremental', dest='incremental',
                       action = 'store_true',
                       default = False,
-                      help = 'skip reconfigure/distclean when building the engine. Default is false')
+                      help = 'skip reconfigure/distclean when building with Waf. Top-level CMake build_engine is incremental by default')
 
     parser.add_option('--skip-builtins', dest='skip_builtins',
                       action = 'store_true',
@@ -3186,12 +3213,19 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       default = False,
                       help = 'Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
+    parser.add_option('--with-waf', dest='with_waf',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Build engine libs with the Waf fallback path instead of the top-level CMake path')
+
     options, all_args = parser.parse_args()
 
     args = list(filter(lambda x: x[:2] != '--', all_args))
     waf_options = list(filter(lambda x: x[:2] == '--', all_args))
     if options.size_analyze:
         waf_options.append('--size-analyze')
+    if options.with_waf:
+        waf_options.append('--with-waf')
 
     if len(args) == 0:
         parser.error('No command specified')

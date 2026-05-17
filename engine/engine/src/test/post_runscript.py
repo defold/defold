@@ -14,6 +14,7 @@
 
 import sys, os, http.client
 sys.path.append(os.path.join(os.environ['DYNAMO_HOME'], 'lib', 'python', 'gameobject'))
+sys.path.append(os.path.join(os.environ['DYNAMO_HOME'], 'lib', 'python', 'engine'))
 sys.path.append(os.path.join('build', 'proto', 'engine'))
 import engine_ddf_pb2, lua_ddf_pb2
 

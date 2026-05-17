@@ -103,6 +103,45 @@ def replace_tree(src, dst):
     shutil.copytree(src, dst)
 
 
+def strip_zero_component_type_counts(root, protoc, gameobject_proto, proto_includes):
+    if not protoc or not gameobject_proto:
+        return
+
+    component_type_block = re.compile(r"component_types\s*\{[^{}]*\}\s*", re.MULTILINE)
+    include_args = []
+    for include in proto_includes:
+        include_args.extend(["-I", str(include)])
+
+    for collection in root.rglob("*.collectionc"):
+        data = collection.read_bytes()
+        decode_cmd = [
+            protoc,
+            "--decode=dmGameObjectDDF.CollectionDesc",
+            *include_args,
+            str(gameobject_proto),
+        ]
+        decoded = subprocess.check_output(decode_cmd, input=data).decode("utf-8")
+
+        def replace_block(match):
+            block = match.group(0)
+            if re.search(r"\bmax_count:\s*0\b", block):
+                return ""
+            return block
+
+        stripped = component_type_block.sub(replace_block, decoded)
+        if stripped == decoded:
+            continue
+
+        encode_cmd = [
+            protoc,
+            "--encode=dmGameObjectDDF.CollectionDesc",
+            *include_args,
+            str(gameobject_proto),
+        ]
+        encoded = subprocess.check_output(encode_cmd, input=stripped.encode("utf-8"))
+        collection.write_bytes(encoded)
+
+
 def remove_custom_outputs(path):
     if not path.exists():
         return
@@ -252,6 +291,9 @@ def main():
     parser.add_argument("--stamp", required=True)
     parser.add_argument("--platform", default=None)
     parser.add_argument("--javac", default="javac")
+    parser.add_argument("--protoc", default=None)
+    parser.add_argument("--gameobject-proto", default=None)
+    parser.add_argument("--proto-include", action="append", default=[])
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
@@ -301,6 +343,7 @@ def main():
         placeholder_output = src / rel_path
         if placeholder_output.exists():
             placeholder_output.unlink()
+    strip_zero_component_type_counts(src, args.protoc, args.gameobject_proto, args.proto_include)
     remove_custom_outputs(src)
     dst = output_root / folder
     replace_tree(src, dst)

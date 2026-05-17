@@ -80,7 +80,7 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   install(FILES "${PROFILER_SRC_DIR}/js/library_profile.js" DESTINATION "lib/${TARGET_PLATFORM}/js")
 endif()
 
-install(TARGETS ${PROFILER_INSTALL_TARGETS}
+defold_install_targets(TARGETS ${PROFILER_INSTALL_TARGETS}
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

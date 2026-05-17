@@ -9,6 +9,12 @@ set(PROFILER_SRC_DIR "${PROFILER_ROOT}/src")
 
 defold_add_executable(test_profilerext_null "${PROFILER_TEST_ROOT}/test_profilerext_null.cpp")
 target_include_directories(test_profilerext_null PRIVATE "${PROFILER_SRC_DIR}")
+if(TARGET script)
+  target_link_libraries(test_profilerext_null PRIVATE script)
+endif()
+if(TARGET graphics_proto_header)
+  add_dependencies(test_profilerext_null graphics_proto_header)
+endif()
 defold_target_link_libraries(test_profilerext_null "${TARGET_PLATFORM}"
   testmain
   dlib

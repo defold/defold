@@ -72,7 +72,7 @@ physics_configure_library(physics_3d)
 defold_target_link_libraries(physics_3d "${TARGET_PLATFORM}" dlib)
 defold_target_link_bullet3d(physics_3d "${TARGET_PLATFORM}" SCOPE PUBLIC)
 
-install(TARGETS physics physics_null physics_2d physics_2d_defold physics_3d
+defold_install_targets(TARGETS physics physics_null physics_2d physics_2d_defold physics_3d
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

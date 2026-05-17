@@ -76,20 +76,20 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   endif()
 endif()
 
-install(TARGETS lua
+defold_install_targets(TARGETS lua
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 if(TARGET lua_bin)
-  install(TARGETS lua_bin
+  defold_install_targets(TARGETS lua_bin
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 endif()
 
 if(TARGET luac)
-  install(TARGETS luac
+  defold_install_targets(TARGETS luac
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})

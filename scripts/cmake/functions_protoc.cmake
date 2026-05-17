@@ -1,5 +1,17 @@
 defold_log("functions_protoc.cmake:")
 
+function(_defold_protoc_append_default_includes OUT_VAR)
+    set(_inc_dirs ${${OUT_VAR}})
+    if(DEFOLD_PROTO_SOURCE_INCLUDE_DIRS)
+        list(APPEND _inc_dirs ${DEFOLD_PROTO_SOURCE_INCLUDE_DIRS})
+    endif()
+    if(DEFOLD_SDK_ROOT)
+        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
+    endif()
+    list(REMOVE_DUPLICATES _inc_dirs)
+    set(${OUT_VAR} ${_inc_dirs} PARENT_SCOPE)
+endfunction()
+
 # Generate C++ sources from a .proto file using protoc with the Defold DDF plugin.
 #
 # Usage:
@@ -43,10 +55,7 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
     if(DPC_INCLUDES)
         list(APPEND _inc_dirs ${DPC_INCLUDES})
     endif()
-    if(DEFOLD_SDK_ROOT)
-        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
-    endif()
-    list(REMOVE_DUPLICATES _inc_dirs)
+    _defold_protoc_append_default_includes(_inc_dirs)
 
     set(_inc_flags)
     foreach(_inc IN LISTS _inc_dirs)
@@ -55,14 +64,31 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
 
     file(MAKE_DIRECTORY "${_out_dir}")
 
-    # Resolve DDF plugin path
-    if(NOT DEFOLD_SDK_ROOT)
-        message(FATAL_ERROR "defold_protoc_gen_cpp: DEFOLD_SDK_ROOT must be set to locate ddfc_cxx plugin")
-    endif()
-    if(HOST_PLATFORM_IS_WINDOWS)
-        set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx.bat")
+    # Resolve DDF plugin path. In a top-level configure, ddf may be present
+    # before its install step has populated DEFOLD_SDK_ROOT/bin.
+    set(_ddf_plugin_path "")
+    set(_ddf_plugin_pythonpath "")
+    set(_ddf_plugin_deps)
+    if(DEFINED DEFOLD_DDFC_CXX_EXECUTABLE AND EXISTS "${DEFOLD_DDFC_CXX_EXECUTABLE}")
+        set(_ddf_plugin_path "${DEFOLD_DDFC_CXX_EXECUTABLE}")
+        if(DEFINED DEFOLD_DDFC_CXX_PYTHONPATH)
+            set(_ddf_plugin_pythonpath "${DEFOLD_DDFC_CXX_PYTHONPATH}")
+        endif()
+        if(TARGET ddf_plugin_py)
+            list(APPEND _ddf_plugin_deps ddf_plugin_py)
+        endif()
+        if(TARGET ddf_proto_py)
+            list(APPEND _ddf_plugin_deps ddf_proto_py)
+        endif()
     else()
-        set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx")
+        if(NOT DEFOLD_SDK_ROOT)
+            message(FATAL_ERROR "defold_protoc_gen_cpp: DEFOLD_SDK_ROOT must be set to locate ddfc_cxx plugin")
+        endif()
+        if(HOST_PLATFORM_IS_WINDOWS)
+            set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx.bat")
+        else()
+            set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx")
+        endif()
     endif()
     if(NOT EXISTS "${_ddf_plugin_path}")
         message(FATAL_ERROR "defold_protoc_gen_cpp: ddf plugin not found at ${_ddf_plugin_path}. Check DEFOLD_SDK_ROOT.")
@@ -81,13 +107,23 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
         set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
     endif()
 
-    add_custom_command(
-        OUTPUT "${_out_cc}" "${_out_h}"
-        COMMAND ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
-        DEPENDS "${_src_abs}"
-        VERBATIM
-        COMMENT "Generating DDF C++ from ${SRC_PROTO}"
-    )
+    if(_ddf_plugin_pythonpath)
+        add_custom_command(
+            OUTPUT "${_out_cc}" "${_out_h}"
+            COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${_ddf_plugin_pythonpath}" ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            DEPENDS "${_src_abs}" "${_ddf_plugin_path}" ${_ddf_plugin_deps}
+            VERBATIM
+            COMMENT "Generating DDF C++ from ${SRC_PROTO}"
+        )
+    else()
+        add_custom_command(
+            OUTPUT "${_out_cc}" "${_out_h}"
+            COMMAND ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            DEPENDS "${_src_abs}" "${_ddf_plugin_path}" ${_ddf_plugin_deps}
+            VERBATIM
+            COMMENT "Generating DDF C++ from ${SRC_PROTO}"
+        )
+    endif()
 
     # Mark generated
     set_source_files_properties("${_out_cc}" "${_out_h}" PROPERTIES GENERATED TRUE)
@@ -136,10 +172,7 @@ function(defold_protoc_gen_protobuf_cpp OUT_CC SRC_PROTO)
     if(DPBCPP_INCLUDES)
         list(APPEND _inc_dirs ${DPBCPP_INCLUDES})
     endif()
-    if(DEFOLD_SDK_ROOT)
-        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
-    endif()
-    list(REMOVE_DUPLICATES _inc_dirs)
+    _defold_protoc_append_default_includes(_inc_dirs)
 
     set(_inc_flags)
     foreach(_inc IN LISTS _inc_dirs)
@@ -203,10 +236,7 @@ function(defold_protoc_gen_bproto OUT_BPROTO SRC_PROTO)
     if(DPB_INCLUDES)
         list(APPEND _inc_dirs ${DPB_INCLUDES})
     endif()
-    if(DEFOLD_SDK_ROOT)
-        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
-    endif()
-    list(REMOVE_DUPLICATES _inc_dirs)
+    _defold_protoc_append_default_includes(_inc_dirs)
 
     set(_inc_flags)
     foreach(_inc IN LISTS _inc_dirs)
@@ -267,10 +297,7 @@ function(defold_protoc_encode OUT_FILE SRC_FILE SCHEMA_PROTO MESSAGE_NAME)
     if(DPE_INCLUDES)
         list(APPEND _inc_dirs ${DPE_INCLUDES})
     endif()
-    if(DEFOLD_SDK_ROOT)
-        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
-    endif()
-    list(REMOVE_DUPLICATES _inc_dirs)
+    _defold_protoc_append_default_includes(_inc_dirs)
     # Normalize include paths using REALPATH (removes . and .., resolves symlinks)
     set(_norm_inc_dirs)
     foreach(_d IN LISTS _inc_dirs)
@@ -365,10 +392,7 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     if(NOT DPP_PYTHON_ROOT AND DPP_INCLUDES)
         list(APPEND _inc_dirs ${DPP_INCLUDES})
     endif()
-    if(DEFOLD_SDK_ROOT)
-        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
-    endif()
-    list(REMOVE_DUPLICATES _inc_dirs)
+    _defold_protoc_append_default_includes(_inc_dirs)
 
     set(_inc_flags)
     foreach(_inc IN LISTS _inc_dirs)

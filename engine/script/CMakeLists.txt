@@ -39,6 +39,7 @@ foreach(_proto IN LISTS SCRIPT_PROTO_FILES)
   list(APPEND SCRIPT_BPROTO "${_bproto}")
 endforeach()
 set(SCRIPT_PROTO_PY_INIT "${SCRIPT_PROTO_PY_DIR}/__init__.py")
+add_custom_target(script_proto_headers DEPENDS ${SCRIPT_PROTO_CC} ${SCRIPT_PROTO_HEADERS})
 add_custom_target(script_proto_py ALL DEPENDS ${SCRIPT_PROTO_PY} "${SCRIPT_PROTO_PY_INIT}")
 add_custom_target(script_bproto ALL DEPENDS ${SCRIPT_BPROTO})
 
@@ -88,7 +89,10 @@ target_include_directories(script PUBLIC
 target_compile_definitions(script PRIVATE
   "DLIB_LOG_DOMAIN=\"SCRIPT\""
   "LUASOCKET_API=")
-add_dependencies(script script_proto_py script_bproto)
+add_dependencies(script script_proto_headers script_proto_py script_bproto)
+if(TARGET graphics_proto)
+  add_dependencies(script graphics_proto_header)
+endif()
 defold_target_link_libraries(script "${TARGET_PLATFORM}" SCOPE PUBLIC
   lua
   ddf
@@ -96,10 +100,11 @@ defold_target_link_libraries(script "${TARGET_PLATFORM}" SCOPE PUBLIC
   zip
   mbedtls
   resource
-  extension)
+  extension
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 defold_target_link_socket(script "${TARGET_PLATFORM}" PUBLIC)
 
-install(TARGETS script
+defold_install_targets(TARGETS script
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

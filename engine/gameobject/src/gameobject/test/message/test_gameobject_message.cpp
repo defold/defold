@@ -28,7 +28,7 @@
 #include "../gameobject_private.h"
 #include "gameobject/test/message/test_gameobject_message_ddf.h"
 
-#include "../../../proto/gameobject/gameobject_ddf.h"
+#include <gameobject/gameobject_ddf.h>
 
 #include <dmsdk/resource/resource.h>
 

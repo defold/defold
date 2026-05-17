@@ -22,7 +22,7 @@ target_include_directories(testmain PUBLIC
   "${TESTMAIN_INCLUDE_DIR}"
   "${TESTMAIN_SRC_DIR}/common")
 
-install(TARGETS testmain
+defold_install_targets(TARGETS testmain
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

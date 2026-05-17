@@ -1,8 +1,26 @@
 #!/usr/bin/env python3
 
 import argparse
+import glob
 import os
 import sys
+
+
+def append_unique(paths, path):
+    path = os.path.abspath(path)
+    if path not in paths:
+        paths.append(path)
+
+
+def get_dmsdk_source_include_dirs():
+    defold_home = os.environ.get("DEFOLD_HOME")
+    if not defold_home:
+        return []
+
+    include_dirs = []
+    for dmsdk_dir in sorted(glob.glob(os.path.join(defold_home, "engine", "*", "src", "dmsdk"))):
+        append_unique(include_dirs, os.path.dirname(dmsdk_dir))
+    return include_dirs
 
 
 def main():
@@ -21,11 +39,17 @@ def main():
 
     import gen_java
 
+    includes = []
+    for path in args.include:
+        append_unique(includes, path)
+    for path in get_dmsdk_source_include_dirs():
+        append_unique(includes, path)
+
     gen_java.generate(
         header_path=os.path.abspath(args.header),
         namespace=args.namespace,
         package_name=args.package,
-        includes=[os.path.abspath(path) for path in args.include],
+        includes=includes,
         java_outdir=os.path.abspath(args.java_outdir),
         jni_outdir=os.path.abspath(args.jni_outdir))
 

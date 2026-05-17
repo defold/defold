@@ -82,7 +82,7 @@ if(MODELC_IS_DESKTOP)
     COMMENT "Packaging modelimporter.jar")
   add_custom_target(modelimporter_jar ALL DEPENDS "${MODELC_JAR}")
 
-  install(TARGETS model modelc_shared
+  defold_install_targets(TARGETS model modelc_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION lib/${TARGET_PLATFORM})

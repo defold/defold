@@ -17,9 +17,21 @@ set(DDF_PLUGIN_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python")
 set(DDF_MAJOR_VERSION 1)
 set(DDF_MINOR_VERSION 0)
 
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/config.h"
+string(CONCAT _ddf_config_h
   "#define DDF_MAJOR_VERSION ${DDF_MAJOR_VERSION}\n"
   "#define DDF_MINOR_VERSION ${DDF_MINOR_VERSION}\n")
+set(_ddf_config_h_path "${CMAKE_CURRENT_BINARY_DIR}/config.h")
+if(EXISTS "${_ddf_config_h_path}")
+  file(READ "${_ddf_config_h_path}" _ddf_config_h_existing)
+else()
+  set(_ddf_config_h_existing "")
+endif()
+if(NOT _ddf_config_h_existing STREQUAL _ddf_config_h)
+  file(WRITE "${_ddf_config_h_path}" "${_ddf_config_h}")
+endif()
+unset(_ddf_config_h_existing)
+unset(_ddf_config_h_path)
+unset(_ddf_config_h)
 
 set(DDF_PROTO_FILES
   "${DDF_PROTO_DIR}/ddf_extensions.proto"
@@ -105,6 +117,13 @@ if(DEFINED ENV{PYTHONPATH} AND NOT "$ENV{PYTHONPATH}" STREQUAL "")
 endif()
 cmake_path(CONVERT "${_ddf_python_path_entries}" TO_NATIVE_PATH_LIST DDF_PROTOC_PLUGIN_PYTHONPATH)
 
+if(HOST_PLATFORM_IS_WINDOWS)
+  set(DEFOLD_DDFC_CXX_EXECUTABLE "${DDF_SRC_DIR}/ddfc_cxx.bat" CACHE FILEPATH "Path to Defold DDF C++ protoc plugin" FORCE)
+else()
+  set(DEFOLD_DDFC_CXX_EXECUTABLE "${DDF_SRC_DIR}/ddfc_cxx" CACHE FILEPATH "Path to Defold DDF C++ protoc plugin" FORCE)
+endif()
+set(DEFOLD_DDFC_CXX_PYTHONPATH "${DDF_PROTOC_PLUGIN_PYTHONPATH}" CACHE STRING "Python path for Defold DDF C++ protoc plugin" FORCE)
+
 set(DDF_PLUGIN_PROTO_SRC "${DEFOLD_EXT_INCLUDE_DIR}/google/protobuf/compiler/plugin.proto")
 set(DDF_PLUGIN_PROTO "${DDF_PLUGIN_GEN_DIR}/plugin.proto")
 set(DDF_PLUGIN_PY "${DDF_PLUGIN_PY_DIR}/plugin_pb2.py")
@@ -170,7 +189,7 @@ target_include_directories(ddf_noasan PUBLIC
 target_compile_definitions(ddf_noasan PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
 add_dependencies(ddf_noasan ddf_proto_py ddf_plugin_py)
 
-install(TARGETS ddf ddf_noasan
+defold_install_targets(TARGETS ddf ddf_noasan
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

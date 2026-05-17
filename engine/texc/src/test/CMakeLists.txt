@@ -10,6 +10,5 @@ defold_target_link_libraries(test_texc "${TARGET_PLATFORM}"
   image
   profile_null
   basis_encoder
-  basis_transcoder
   astcenc)
 defold_register_test_target(test_texc ON "${TEXC_ROOT}")

@@ -58,7 +58,7 @@ if(TOOLS_IS_DESKTOP)
       find_package(Threads REQUIRED)
       target_link_libraries(gdc PRIVATE Threads::Threads dl)
     endif()
-    install(TARGETS gdc RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+    defold_install_targets(TARGETS gdc RUNTIME DESTINATION bin/${TARGET_PLATFORM})
   endif()
 
   set(TOOLS_LAUNCHER_SOURCES
@@ -93,7 +93,7 @@ if(TOOLS_IS_DESKTOP)
     platform_null
     basis_encoder)
 
-  install(TARGETS launcher launcherutil texconvert
+  defold_install_targets(TARGETS launcher launcherutil texconvert
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})
@@ -116,7 +116,7 @@ if(TOOLS_IS_DESKTOP)
     defold_target_link_libraries(mouse_capture_shared "${TARGET_PLATFORM}" dlib_noasan)
     defold_target_link_socket(mouse_capture_shared "${TARGET_PLATFORM}" PRIVATE)
     target_link_libraries(mouse_capture_shared PRIVATE ${TOOLS_MOUSE_CAPTURE_LIBS})
-    install(TARGETS mouse_capture_shared
+    defold_install_targets(TARGETS mouse_capture_shared
             LIBRARY DESTINATION lib/${TARGET_PLATFORM}
             RUNTIME DESTINATION bin/${TARGET_PLATFORM})
   endif()

@@ -12,12 +12,33 @@ set(SDK_GENERATED_TEST_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${SDK_EXTRA_INCLUDE_DIR}")
 file(MAKE_DIRECTORY "${SDK_GENERATED_TEST_DIR}")
 
+function(sdk_write_if_different path content)
+  if(EXISTS "${path}")
+    file(READ "${path}" _sdk_existing_content)
+    if(_sdk_existing_content STREQUAL content)
+      return()
+    endif()
+  endif()
+  file(WRITE "${path}" "${content}")
+endfunction()
+
 function(sdk_apply_header_test_settings target)
   set_property(TARGET ${target} PROPERTY LINK_LIBRARIES "")
   target_include_directories(${target} PRIVATE
     "${SDK_INSTALLED_INCLUDE_DIR}"
     "${SDK_SRC_DIR}"
     "${SDK_EXTRA_INCLUDE_DIR}"
+    "${DEFOLD_HOME}/engine/ddf/src"
+    "${DEFOLD_DDF_BINARY_DIR}"
+    "${DEFOLD_GAMEOBJECT_BINARY_DIR}"
+    "${DEFOLD_GAMEOBJECT_BINARY_DIR}/src/proto"
+    "${DEFOLD_GAMESYS_BINARY_DIR}"
+    "${DEFOLD_GRAPHICS_BINARY_DIR}"
+    "${DEFOLD_INPUT_BINARY_DIR}"
+    "${DEFOLD_PARTICLE_BINARY_DIR}"
+    "${DEFOLD_RENDER_BINARY_DIR}"
+    "${DEFOLD_RIG_BINARY_DIR}"
+    "${DEFOLD_SCRIPT_BINARY_DIR}"
     "${DEFOLD_EXT_INCLUDE_DIR}"
     "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
   target_compile_definitions(${target} PRIVATE
@@ -52,6 +73,20 @@ function(sdk_apply_header_test_settings target)
   elseif(TARGET_PLATFORM MATCHES "win32")
     target_compile_definitions(${target} PRIVATE DM_PLATFORM_WINDOWS WIN32 _WIN32 DM_HOSTFS=\"\")
   endif()
+  foreach(_sdk_header_dependency IN ITEMS
+      gameobject_proto_headers
+      gamesys_proto_headers
+      gamesys_model_proto_headers
+      graphics_proto_header
+      input_proto_headers
+      particle_proto_headers
+      render_proto_headers
+      rig_proto_headers
+      script_proto_headers)
+    if(TARGET ${_sdk_header_dependency})
+      add_dependencies(${target} ${_sdk_header_dependency})
+    endif()
+  endforeach()
   set_target_properties(${target} PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endfunction()
 
@@ -153,13 +188,13 @@ foreach(_sdk_header IN LISTS _sdk_header_candidates)
   set(_sdk_include_path "dmsdk/${_sdk_header}")
   set(_sdk_cpp_source "${SDK_GENERATED_TEST_DIR}/test_include_${_sdk_header_id}.cpp")
   string(REPLACE "{custom_include}" "${_sdk_include_path}" _sdk_cpp_content "${_sdk_include_cpp_template}")
-  file(WRITE "${_sdk_cpp_source}" "${_sdk_cpp_content}")
+  sdk_write_if_different("${_sdk_cpp_source}" "${_sdk_cpp_content}")
   list(APPEND _sdk_include_cpp_sources "${_sdk_cpp_source}")
 
   if(_sdk_header_name IN_LIST _sdk_c_includes)
     set(_sdk_c_source "${SDK_GENERATED_TEST_DIR}/test_include_${_sdk_header_id}.c")
     string(REPLACE "{custom_include}" "${_sdk_include_path}" _sdk_c_content "${_sdk_include_c_template}")
-    file(WRITE "${_sdk_c_source}" "${_sdk_c_content}")
+    sdk_write_if_different("${_sdk_c_source}" "${_sdk_c_content}")
     list(APPEND _sdk_include_c_sources "${_sdk_c_source}")
   endif()
 endforeach()

@@ -75,7 +75,7 @@ defold_target_link_libraries(resource "${TARGET_PLATFORM}" SCOPE PUBLIC
   mbedtls)
 defold_target_link_socket(resource "${TARGET_PLATFORM}" PUBLIC)
 
-install(TARGETS resource
+defold_install_targets(TARGETS resource
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

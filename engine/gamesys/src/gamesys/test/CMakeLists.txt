@@ -9,6 +9,7 @@ set(GS_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_ROOT  "${CMAKE_CURRENT_LIST_DIR}/..")
 set(GS_PROTO_DIR "${GS_SRC_ROOT}/../../proto/gamesys")
 get_filename_component(GS_TEST_RUN_DIR "${GS_TEST_ROOT}/../../.." ABSOLUTE)
+set(GS_TEST_RUNTIME_DIR "${GS_TEST_RUN_DIR}/build/src/gamesys/test")
 
 # When included from engine/gamesys, the 'gamesys' target is already defined.
 # If configured standalone, callers must provide/link appropriate libs.
@@ -35,7 +36,7 @@ endfunction()
 
 # ---------------------------------------------------------------------------
 # Test content setup
-# Build the test content tree next to the test binaries for runtime access.
+# Build the runtime test content tree in the same location Waf uses.
 # ---------------------------------------------------------------------------
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
@@ -70,7 +71,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
       --root "${GS_TEST_ROOT}"
       --folder "${_folder}"
       --inputs "${_inputs_file}"
-      --output-root "${CMAKE_CURRENT_BINARY_DIR}"
+      --output-root "${GS_TEST_RUNTIME_DIR}"
       --stamp "${_stamp}"
       --platform "${TARGET_PLATFORM}"
     DEPENDS "${GS_TEST_ROOT}/build_test_data.py" "${_inputs_file}" ${_folder_sources}
@@ -180,7 +181,9 @@ function(gamesys_configure_common_test target)
   defold_target_link_socket(${target} ${TARGET_PLATFORM})
   defold_target_link_graphics(${target} ${TARGET_PLATFORM})
   defold_target_link_app(${target} ${TARGET_PLATFORM})
-  defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}")
+  defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}"
+    STAGE_FILES
+      "build/src/gamesys/test" "build/src/gamesys/test")
 
   defold_target_link_libraries_web(${target} ${TARGET_PLATFORM} SCOPE PRIVATE
     library_sys.js library_script.js library_render.js)
@@ -236,6 +239,8 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   defold_target_link_socket(test_gamesys_http ${TARGET_PLATFORM})
   defold_target_link_graphics(test_gamesys_http ${TARGET_PLATFORM})
   defold_target_link_app(test_gamesys_http ${TARGET_PLATFORM})
-  defold_register_test_target(test_gamesys_http FALSE)
+  defold_register_test_target(test_gamesys_http FALSE "${GS_TEST_RUN_DIR}"
+    STAGE_FILES
+      "build/src/gamesys/test" "build/src/gamesys/test")
   defold_register_test_with_server(test_gamesys_http ${TARGET_PLATFORM} PORT 9001 WORKDIR "${GS_TEST_RUN_DIR}")
 endif()

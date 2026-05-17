@@ -54,7 +54,9 @@ file(GLOB_RECURSE ENGINE_CONTENT_SOURCES CONFIGURE_DEPENDS
   "${ENGINE_CONTENT_DIR}/materials/*"
   "${ENGINE_CONTENT_DIR}/profiler.html")
 
+set(ENGINE_BUILTINS_WORK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/content-work")
 set(ENGINE_BUILTINS_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/content")
+set(ENGINE_BUILTINS_COMPILED_DIR "${ENGINE_BUILTINS_WORK_ROOT}/build/default/builtins")
 set(ENGINE_BUILTINS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/content/builtins.stamp")
 add_custom_command(
   OUTPUT
@@ -64,7 +66,7 @@ add_custom_command(
     "${ENGINE_BUILTINS_STAMP}"
   COMMAND "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
     --source-root "${ENGINE_CONTENT_DIR}"
-    --work-root "${CMAKE_CURRENT_BINARY_DIR}/content-work"
+    --work-root "${ENGINE_BUILTINS_WORK_ROOT}"
     --output-root "${ENGINE_BUILTINS_OUTPUT_DIR}"
     --stamp "${ENGINE_BUILTINS_STAMP}"
     --bob-light "${ENGINE_BOB_LIGHT}"
@@ -140,6 +142,18 @@ endif()
 
 defold_add_library(engine_service STATIC ${ENGINE_SERVICE_SOURCES} "${ENGINE_PROFILER_EMBED_CPP}")
 target_include_directories(engine_service PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
+foreach(_engine_service_dependency IN ITEMS
+    gamesys_proto_headers
+    graphics_proto_header
+    input_proto_headers
+    particle_proto_headers
+    render_proto_headers
+    script_proto_headers)
+  if(TARGET ${_engine_service_dependency})
+    add_dependencies(engine_service ${_engine_service_dependency})
+  endif()
+endforeach()
+target_link_libraries(engine_service PUBLIC gameobject gamesys gui)
 
 defold_add_library(engine_service_null STATIC "${ENGINE_SRC_DIR}/engine_service_null.cpp")
 target_include_directories(engine_service_null PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
@@ -176,10 +190,31 @@ target_include_directories(engine PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
+  "${DEFOLD_HOME}/engine/record/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(engine PRIVATE ${ENGINE_DEFINES})
 add_dependencies(engine engine_builtins)
-defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC lua)
+foreach(_engine_dependency IN ITEMS
+    gamesys_proto_headers
+    gameobject_proto_headers
+    graphics_proto_header
+    input_proto_headers
+    particle_proto_headers
+    render_proto_headers
+    script_proto_headers)
+  if(TARGET ${_engine_dependency})
+    add_dependencies(engine ${_engine_dependency})
+  endif()
+endforeach()
+defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC
+  gameobject
+  gamesys
+  gui
+  input
+  lua
+  particle
+  render
+  script)
 target_link_libraries(engine PUBLIC engine_service)
 
 defold_add_library(engine_release STATIC ${ENGINE_COMMON_SOURCES} "${ENGINE_DDF_CPP}")
@@ -187,9 +222,30 @@ target_include_directories(engine_release PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
+  "${DEFOLD_HOME}/engine/record/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(engine_release PRIVATE DM_RELEASE=1 ${ENGINE_DEFINES})
-defold_target_link_libraries(engine_release "${TARGET_PLATFORM}" SCOPE PUBLIC lua)
+foreach(_engine_dependency IN ITEMS
+    gamesys_proto_headers
+    gameobject_proto_headers
+    graphics_proto_header
+    input_proto_headers
+    particle_proto_headers
+    render_proto_headers
+    script_proto_headers)
+  if(TARGET ${_engine_dependency})
+    add_dependencies(engine_release ${_engine_dependency})
+  endif()
+endforeach()
+defold_target_link_libraries(engine_release "${TARGET_PLATFORM}" SCOPE PUBLIC
+  gameobject
+  gamesys
+  gui
+  input
+  lua
+  particle
+  render
+  script)
 target_link_libraries(engine_release PUBLIC engine_service_null)
 
 defold_feature_enabled(box2dv3 ENGINE_WITH_BOX2DV3)
@@ -362,12 +418,12 @@ defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADL
 defold_add_executable(dmengine_headless "${ENGINE_MAIN_CPP}" "${ENGINE_HEADLESS_EXPORTS}")
 engine_configure_executable(dmengine_headless headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
 
-install(TARGETS engine engine_release engine_service engine_service_null
+defold_install_targets(TARGETS engine engine_release engine_service engine_service_null
   ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
   LIBRARY DESTINATION lib/${TARGET_PLATFORM}
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
-install(TARGETS dmengine dmengine_release dmengine_headless
+defold_install_targets(TARGETS dmengine dmengine_release dmengine_headless
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 install(FILES "${ENGINE_SRC_DIR}/engine.h" DESTINATION include/engine)

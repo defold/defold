@@ -29,7 +29,9 @@
 
 extern "C" void dmExportedSymbols();
 
+#ifndef CONTENT_ROOT
 #define CONTENT_ROOT "src/test/build/default"
+#endif
 #define MAKE_PATH(_VAR, _NAME)  dmTestUtil::MakeHostPathf(_VAR, sizeof(_VAR), "%s%s", CONTENT_ROOT, _NAME)
 
 typedef void (*PreRun)(dmEngine::HEngine engine, void* context);

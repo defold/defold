@@ -56,7 +56,7 @@ if(TEXC_IS_DESKTOP)
 
   defold_add_library(texc STATIC ${TEXC_CORE_SOURCES})
   target_include_directories(texc PUBLIC "${TEXC_SRC_DIR}")
-  defold_target_link_libraries(texc "${TARGET_PLATFORM}" SCOPE PUBLIC dlib zip mbedtls basis_encoder basis_transcoder astcenc)
+  defold_target_link_libraries(texc "${TARGET_PLATFORM}" SCOPE PUBLIC dlib zip mbedtls basis_encoder astcenc)
 
   add_library(texc_shared SHARED
     ${TEXC_CORE_SOURCES}
@@ -70,7 +70,6 @@ if(TEXC_IS_DESKTOP)
     profile_null_noasan
     jni_noasan
     basis_encoder_noasan
-    basis_transcoder
     astcenc)
   defold_target_link_app(texc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
 
@@ -88,7 +87,7 @@ if(TEXC_IS_DESKTOP)
     COMMENT "Packaging texturecompiler.jar")
   add_custom_target(texturecompiler_jar ALL DEPENDS "${TEXC_JAR}")
 
-  install(TARGETS texc texc_shared
+  defold_install_targets(TARGETS texc texc_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION lib/${TARGET_PLATFORM})

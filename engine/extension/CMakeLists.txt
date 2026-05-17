@@ -28,7 +28,7 @@ defold_target_link_libraries(extension "${TARGET_PLATFORM}" SCOPE PUBLIC
   image
   mbedtls)
 
-install(TARGETS extension
+defold_install_targets(TARGETS extension
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

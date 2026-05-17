@@ -32,7 +32,7 @@ target_include_directories(liveupdate_null PUBLIC "${LIVEUPDATE_SRC_DIR}")
 target_compile_definitions(liveupdate_null PRIVATE "DLIB_LOG_DOMAIN=\"LIVEUPDATE\"")
 defold_target_link_libraries(liveupdate_null "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
 
-install(TARGETS liveupdate liveupdate_null
+defold_install_targets(TARGETS liveupdate liveupdate_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

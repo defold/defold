@@ -22,6 +22,7 @@ set(RIG_BPROTO "${RIG_GEN_DIR}/rig_ddf.bproto")
 defold_protoc_gen_cpp("${RIG_PROTO_CC}" "${RIG_PROTO}" INCLUDES "${RIG_PROTO_ROOT}")
 defold_protoc_gen_py("${RIG_PROTO_PY}" "${RIG_PROTO}" INCLUDES "${RIG_PROTO_ROOT}")
 defold_protoc_gen_bproto("${RIG_BPROTO}" "${RIG_PROTO}" INCLUDES "${RIG_PROTO_ROOT}")
+add_custom_target(rig_proto_headers DEPENDS "${RIG_PROTO_CC}" "${RIG_PROTO_H}")
 add_custom_target(rig_proto_py ALL DEPENDS "${RIG_PROTO_PY}" "${RIG_PROTO_PY_INIT}")
 add_custom_target(rig_bproto ALL DEPENDS "${RIG_BPROTO}")
 
@@ -32,7 +33,10 @@ function(rig_configure_target target)
     "${RIG_PROTO_ROOT}"
     "${CMAKE_CURRENT_BINARY_DIR}")
   target_compile_definitions(${target} PRIVATE "DLIB_LOG_DOMAIN=\"RIG\"")
-  add_dependencies(${target} rig_proto_py rig_bproto)
+  add_dependencies(${target} rig_proto_headers rig_proto_py rig_bproto)
+  if(TARGET graphics_proto)
+    add_dependencies(${target} graphics_proto_header)
+  endif()
 endfunction()
 
 defold_add_library(rig STATIC
@@ -41,7 +45,8 @@ defold_add_library(rig STATIC
 rig_configure_target(rig)
 defold_target_link_libraries(rig "${TARGET_PLATFORM}" SCOPE PUBLIC
   ddf
-  dlib)
+  dlib
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 defold_target_link_socket(rig "${TARGET_PLATFORM}" PUBLIC)
 
 defold_add_library(rig_null STATIC
@@ -50,7 +55,8 @@ defold_add_library(rig_null STATIC
 rig_configure_target(rig_null)
 defold_target_link_libraries(rig_null "${TARGET_PLATFORM}" SCOPE PUBLIC
   ddf
-  dlib)
+  dlib
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 defold_target_link_socket(rig_null "${TARGET_PLATFORM}" PUBLIC)
 
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
@@ -69,12 +75,12 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x8
   defold_target_link_socket(rig_shared "${TARGET_PLATFORM}" PRIVATE)
 endif()
 
-install(TARGETS rig rig_null
+defold_install_targets(TARGETS rig rig_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 if(TARGET rig_shared)
-  install(TARGETS rig_shared
+  defold_install_targets(TARGETS rig_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})

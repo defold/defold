@@ -75,9 +75,19 @@ target_include_directories(render_font_default PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(render_font_default PRIVATE "DLIB_LOG_DOMAIN=\"RENDER\"")
 add_dependencies(render_font_default render_proto_headers render_proto_py render_bproto)
-defold_target_link_libraries(render_font_default "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib)
+if(TARGET graphics_proto)
+  add_dependencies(render_font_default graphics_proto_header)
+endif()
+if(TARGET script_proto_headers)
+  add_dependencies(render_font_default script_proto_headers)
+endif()
+defold_target_link_libraries(render_font_default "${TARGET_PLATFORM}" SCOPE PUBLIC
+  ddf
+  dlib
+  script
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
-install(TARGETS render render_font_default
+defold_install_targets(TARGETS render render_font_default
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

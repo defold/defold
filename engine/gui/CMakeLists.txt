@@ -10,19 +10,41 @@ add_compile_definitions(DLIB_LOG_DOMAIN="GUI")
 set(GUI_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GUI_SRC_DIR "${GUI_ROOT}/src")
 
+function(gui_configure_target target)
+  target_include_directories(${target} PUBLIC "${GUI_SRC_DIR}")
+  target_compile_definitions(${target} PRIVATE "DLIB_LOG_DOMAIN=\"GUI\"")
+  foreach(_gui_dependency IN ITEMS
+      graphics_proto_header
+      particle_proto_headers
+      rig_proto_headers
+      script_proto_headers
+      render_proto_headers)
+    if(TARGET ${_gui_dependency})
+      add_dependencies(${target} ${_gui_dependency})
+    endif()
+  endforeach()
+  defold_target_link_libraries(${target} "${TARGET_PLATFORM}" SCOPE PUBLIC
+    ddf
+    dlib
+    font
+    hid
+    lua
+    particle
+    render
+    rig
+    script
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+endfunction()
+
 defold_add_library(gui STATIC
   "${GUI_SRC_DIR}/gui.cpp"
   "${GUI_SRC_DIR}/gui_script.cpp")
-target_include_directories(gui PUBLIC "${GUI_SRC_DIR}")
-target_compile_definitions(gui PRIVATE "DLIB_LOG_DOMAIN=\"GUI\"")
-defold_target_link_libraries(gui "${TARGET_PLATFORM}" SCOPE PUBLIC lua)
+gui_configure_target(gui)
 
 defold_add_library(gui_null STATIC "${GUI_SRC_DIR}/gui_null.cpp")
-target_include_directories(gui_null PUBLIC "${GUI_SRC_DIR}")
-target_compile_definitions(gui_null PRIVATE "DLIB_LOG_DOMAIN=\"GUI\"")
-defold_target_link_libraries(gui_null "${TARGET_PLATFORM}" SCOPE PUBLIC lua)
+gui_configure_target(gui_null)
 
-install(TARGETS gui gui_null
+defold_install_targets(TARGETS gui gui_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

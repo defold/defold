@@ -43,7 +43,7 @@ else()
 endif()
 
 defold_add_library(hid STATIC ${hid_SOURCES})
-target_compile_definitions(hid PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
+target_compile_definitions(hid PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
 
 target_include_directories(hid PUBLIC
     "${HID_SRC_DIR}"
@@ -64,7 +64,7 @@ target_include_directories(hid_null PUBLIC
     "${HID_SRC_DIR}/external"
     "${HID_SRC_DIR}/default/src"
 )
-target_compile_definitions(hid_null PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
+target_compile_definitions(hid_null PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
 
 
 # ===================== Tests =====================
@@ -149,7 +149,7 @@ endif()
 # ===================== Install =====================
 
 # Install static libraries to lib/<target-platform>
-install(TARGETS hid hid_null
+defold_install_targets(TARGETS hid hid_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM}

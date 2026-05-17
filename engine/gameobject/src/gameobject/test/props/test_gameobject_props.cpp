@@ -24,7 +24,7 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "../gameobject_script.h"
-#include "../proto/gameobject/gameobject_ddf.h"
+#include <gameobject/gameobject_ddf.h>
 #include "../gameobject_props.h"
 #include "../gameobject_props_lua.h"
 
