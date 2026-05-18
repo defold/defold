@@ -1041,9 +1041,11 @@ namespace dmGameSystem
                 // If the buffer resource was changed, we might need to recreate the vertex declaration.
                 if (!prev_custom_buffer_resource || (component->m_BufferResource != prev_buffer_resource)) {
 
+                    const dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
+
                     // Perhaps figure our a way to avoid recreating the same vertex declarations all the time? (If if it's worth it?)
                     dmGraphics::HVertexDeclaration new_vert_decl;
-                    bool r = dmGameSystem::BuildVertexDeclaration(component->m_BufferResource, &new_vert_decl);
+                    bool r = dmGameSystem::BuildVertexDeclaration(material, component->m_BufferResource, &new_vert_decl);
                     if (!r) {
                         dmLogError("Error while building vertex declaration from new resource.");
                         return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
