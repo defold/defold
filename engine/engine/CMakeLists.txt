@@ -43,6 +43,17 @@ defold_protoc_gen_py("${CMAKE_CURRENT_BINARY_DIR}/proto/engine/engine_ddf_pb2.py
 add_custom_target(engine_proto_py ALL
   DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/proto/engine/engine_ddf_pb2.py")
 
+defold_add_library(engine_ddf_generated OBJECT "${ENGINE_DDF_CPP}")
+target_include_directories(engine_ddf_generated PUBLIC
+  "${ENGINE_SRC_DIR}"
+  "${ENGINE_ROOT}"
+  "${ENGINE_PROTO_DIR}"
+  "${DEFOLD_HOME}/engine/record/src"
+  "${DEFOLD_GAMEOBJECT_BINARY_DIR}/src/proto"
+  "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(engine_ddf_generated PUBLIC gameobject)
+add_dependencies(engine_ddf_generated gameobject_proto_headers)
+
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
 
@@ -184,7 +195,7 @@ endif()
 defold_add_library(engine STATIC
   ${ENGINE_COMMON_SOURCES}
   "${ENGINE_SRC_DIR}/physics_debug_render.cpp"
-  "${ENGINE_DDF_CPP}"
+  $<TARGET_OBJECTS:engine_ddf_generated>
   ${ENGINE_EMBED_CPP})
 target_include_directories(engine PUBLIC
   "${ENGINE_SRC_DIR}"
@@ -194,6 +205,7 @@ target_include_directories(engine PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(engine PRIVATE ${ENGINE_DEFINES})
 add_dependencies(engine engine_builtins)
+add_dependencies(engine engine_ddf_generated)
 foreach(_engine_dependency IN ITEMS
     gamesys_proto_headers
     gameobject_proto_headers
@@ -217,7 +229,7 @@ defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC
   script)
 target_link_libraries(engine PUBLIC engine_service)
 
-defold_add_library(engine_release STATIC ${ENGINE_COMMON_SOURCES} "${ENGINE_DDF_CPP}")
+defold_add_library(engine_release STATIC ${ENGINE_COMMON_SOURCES} $<TARGET_OBJECTS:engine_ddf_generated>)
 target_include_directories(engine_release PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
@@ -225,6 +237,7 @@ target_include_directories(engine_release PUBLIC
   "${DEFOLD_HOME}/engine/record/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(engine_release PRIVATE DM_RELEASE=1 ${ENGINE_DEFINES})
+add_dependencies(engine_release engine_ddf_generated)
 foreach(_engine_dependency IN ITEMS
     gamesys_proto_headers
     gameobject_proto_headers

@@ -77,12 +77,19 @@ if(SHADERC_IS_DESKTOP)
     spirv-cross-reflect
     ${SHADERC_EXTRA_LIBS})
 
+  add_library(shaderc_bindings OBJECT "${SHADERC_GENERATED_CPP}")
+  target_include_directories(shaderc_bindings PRIVATE "${SHADERC_SRC_DIR}" "${SHADERC_SRC_DIR}/shader" "${SHADERC_JNI_DIR}" ${SHADERC_EXTRA_INCLUDES} ${JNI_INCLUDE_DIRS})
+  target_compile_definitions(shaderc_bindings PRIVATE ${SHADERC_DEFINES})
+  target_link_libraries(shaderc_bindings PRIVATE jni_noasan)
+  set_target_properties(shaderc_bindings PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
   add_library(shaderc_shared SHARED
     ${SHADERC_CORE_SOURCES}
     "${SHADERC_SRC_DIR}/shaderc_jni.cpp"
-    "${SHADERC_GENERATED_CPP}")
+    $<TARGET_OBJECTS:shaderc_bindings>)
   target_include_directories(shaderc_shared PRIVATE "${SHADERC_SRC_DIR}" "${SHADERC_SRC_DIR}/shader" "${SHADERC_JNI_DIR}" ${SHADERC_EXTRA_INCLUDES} ${JNI_INCLUDE_DIRS})
   target_compile_definitions(shaderc_shared PRIVATE ${SHADERC_DEFINES})
+  add_dependencies(shaderc_shared shaderc_bindings)
   defold_target_link_libraries(shaderc_shared "${TARGET_PLATFORM}"
     dlib_noasan
     zip_noasan
@@ -108,9 +115,10 @@ if(SHADERC_IS_DESKTOP)
             "${SHADERC_GENERATED_JAVA}"
             "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
     COMMAND "${Java_JAR_EXECUTABLE}" cf "${SHADERC_JAR}" -C "${SHADERC_CLASSES_DIR}" .
-    DEPENDS "${SHADERC_GENERATED_JAVA}" "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
+    DEPENDS shaderc_bindings "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
     COMMENT "Packaging shaderc.jar")
   add_custom_target(shaderc_jar ALL DEPENDS "${SHADERC_JAR}")
+  add_dependencies(shaderc_jar shaderc_bindings)
 
   add_subdirectory(src/standalone)
 

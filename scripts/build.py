@@ -662,6 +662,7 @@ class Configuration(object):
             f'-DCMAKE_BUILD_TYPE={build_type}',
             f'-DBUILD_TESTS={build_tests}'
         ]
+        cmake_cmd += self._cmake_feature_defines()
         if generator:
             cmake_cmd += ['-G', generator]
         if arch_args:
@@ -1991,12 +1992,10 @@ class Configuration(object):
             host_lib_skip_tests = host != target_platform
             for lib in HOST_LIBS:
                 self._build_engine_lib(args, lib, host, skip_tests = host_lib_skip_tests)
-        elif not self.skip_bob_light:
+        else:
             self.build_tracker.start_component('cmake_host_libs', host)
             self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
             self.build_tracker.end_component('cmake_host_libs', host)
-        else:
-            self._log('Skipping cmake_host_libs since bob-light is disabled')
 
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build

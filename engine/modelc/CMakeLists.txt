@@ -55,11 +55,17 @@ if(MODELC_IS_DESKTOP)
   target_include_directories(model PUBLIC "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model")
   defold_target_link_libraries(model "${TARGET_PLATFORM}" SCOPE PUBLIC dlib zip mbedtls profile)
 
+  add_library(modelc_bindings OBJECT "${MODELC_GENERATED_CPP}")
+  target_include_directories(modelc_bindings PRIVATE "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model" "${MODELC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
+  target_link_libraries(modelc_bindings PRIVATE jni_noasan)
+  set_target_properties(modelc_bindings PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
   add_library(modelc_shared SHARED
     ${MODELC_CORE_SOURCES}
     "${MODELC_SRC_DIR}/modelimporter_jni.cpp"
-    "${MODELC_GENERATED_CPP}")
+    $<TARGET_OBJECTS:modelc_bindings>)
   target_include_directories(modelc_shared PRIVATE "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model" "${MODELC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
+  add_dependencies(modelc_shared modelc_bindings)
   defold_target_link_libraries(modelc_shared "${TARGET_PLATFORM}"
     dlib_noasan
     zip_noasan
@@ -78,9 +84,10 @@ if(MODELC_IS_DESKTOP)
             "${MODELC_GENERATED_JAVA}"
             "${MODELC_SRC_DIR}/java/com/dynamo/bob/pipeline/ModelImporterJni.java"
     COMMAND "${Java_JAR_EXECUTABLE}" cf "${MODELC_JAR}" -C "${MODELC_CLASSES_DIR}" .
-    DEPENDS "${MODELC_GENERATED_JAVA}" "${MODELC_SRC_DIR}/java/com/dynamo/bob/pipeline/ModelImporterJni.java"
+    DEPENDS modelc_bindings "${MODELC_SRC_DIR}/java/com/dynamo/bob/pipeline/ModelImporterJni.java"
     COMMENT "Packaging modelimporter.jar")
   add_custom_target(modelimporter_jar ALL DEPENDS "${MODELC_JAR}")
+  add_dependencies(modelimporter_jar modelc_bindings)
 
   defold_install_targets(TARGETS model modelc_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
