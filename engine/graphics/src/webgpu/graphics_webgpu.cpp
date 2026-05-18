@@ -3400,35 +3400,6 @@ static void WebGPUSetRenderTarget(HContext _context, HRenderTarget _rt, uint32_t
     context->m_CurrentRenderTarget = rt ? rt : context->m_MainRenderTarget;
 }
 
-static HTexture WebGPUGetRenderTargetTexture(HContext context, HRenderTarget _rt, BufferType buffer_type)
-{
-    TRACE_CALL;
-    WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, _rt);
-    if (IsColorBufferType(buffer_type))
-        return rt->m_Base.m_TextureColor[GetBufferTypeIndex(buffer_type)];
-    if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        return rt->m_Base.m_TextureDepthStencil;
-    return NULL;
-}
-
-static void WebGPUGetRenderTargetSize(HContext context, HRenderTarget _rt, BufferType buffer_type, uint32_t& width, uint32_t& height)
-{
-    TRACE_CALL;
-    WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, _rt);
-    TextureParams* params  = 0;
-    if (IsColorBufferType(buffer_type))
-    {
-        params = &rt->m_Base.m_ColorTextureParams[GetBufferTypeIndex(buffer_type)];
-    }
-    else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
-    {
-        params = &rt->m_Base.m_DepthStencilTextureParams;
-    }
-
-    width  = params ? params->m_Width : rt->m_Width;
-    height = params ? params->m_Height : rt->m_Height;
-}
-
 static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
 {
     TRACE_CALL;

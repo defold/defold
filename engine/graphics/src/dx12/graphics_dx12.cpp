@@ -3114,45 +3114,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         BeginRenderPass(context, render_target != 0x0 ? render_target : context->m_MainRenderTarget);
     }
 
-    static HTexture DX12GetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
-    {
-        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, render_target);
-
-        if (IsColorBufferType(buffer_type))
-        {
-            return rt->m_Base.m_TextureColor[GetBufferTypeIndex(buffer_type)];
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            return rt->m_Base.m_TextureDepthStencil;
-        }
-        return 0;
-    }
-
-    static void DX12GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
-    {
-        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, render_target);
-        TextureParams* params = 0;
-
-        if (IsColorBufferType(buffer_type))
-        {
-            uint32_t i = GetBufferTypeIndex(buffer_type);
-            assert(i < MAX_BUFFER_COLOR_ATTACHMENTS);
-            params = &rt->m_Base.m_ColorTextureParams[i];
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            params = &rt->m_Base.m_DepthStencilTextureParams;
-        }
-        else
-        {
-            assert(0);
-        }
-
-        width  = params->m_Width;
-        height = params->m_Height;
-    }
-
     static void DX12SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         dmLogOnceError("%s: Not implemented", __FUNCTION__);
