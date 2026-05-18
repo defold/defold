@@ -246,10 +246,13 @@
      :plane plane}))
 
 (g/defnk produce-merged-options
-  [prefs camera]
+  [prefs camera options]
   (cond-> (if prefs (prefs/get prefs [:scene :grid]) {})
           :always
           (assoc :auto-scale true)
+
+          options
+          (merge options)
 
           (c/mode-2d? camera)
           (assoc :active-plane :z)))
@@ -259,6 +262,7 @@
 
   (input camera Camera)
 
+  (output options g/Any (g/constantly nil))
   (output merged-options g/Any produce-merged-options)
   (output grids g/Any :cached produce-grids)
   (output renderable pass/RenderData :cached produce-renderable))
@@ -271,10 +275,11 @@
 (defn show-settings! [^Parent owner app-view prefs keymap localization]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
+        ignored-keys (set (keys (g/node-value grid :options)))
         value-changed-fn (fn [k v]
                            (prefs/set! prefs [:scene :grid k] v)
                            (invalidate-grids! app-view))
-        descriptors
+        all-descriptors
         [{:type :reset-all
           :on-reset (fn [swap-state]
                       (prefs/reset-path! prefs [:scene :grid])
@@ -294,5 +299,6 @@
           :on-value-changed (partial value-changed-fn :opacity)
           :slider-value->string (fn [^double v]
                                   (str (Math/round (* v 100)) "%"))}]
+        descriptors (filterv #(not (contains? ignored-keys (:key %))) all-descriptors)
         initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
     (settings-popup/show! owner keymap localization initial-state 240 descriptors)))

@@ -846,17 +846,6 @@
   (swap! global-state update :registry dissoc id)
   nil)
 
-(defn default-value-at
-  "Returns the default value at a prefs path, recursively constructing
-   defaults for :object types from their properties."
-  [prefs path]
-  (let [s (schema prefs path)]
-    (if (and (= :object (:type s)) (not (contains? s :default)))
-      (coll/into-> (:properties s) {}
-                   (map (fn [[prop-key _]]
-                          [prop-key (default-value-at prefs (conj path prop-key))])))
-      (default-value s))))
-
 (defn global
   "Return a Defold-specific user-level prefs
 
