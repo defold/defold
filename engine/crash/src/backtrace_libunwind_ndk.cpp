@@ -29,6 +29,7 @@ namespace dmCrash
     static bool g_CrashDumpEnabled = true;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
+    static struct sigaction             g_OldSignal[SIGNAL_MAX];
 
     struct unwind_data {
       uint32_t offset_extra;
@@ -104,6 +105,24 @@ namespace dmCrash
         sigaction(signum, &sa, NULL);
     }
 
+    static void ChainSignal(const int signum, siginfo_t* const si, void *const sc)
+    {
+        if (signum < 0 || signum >= SIGNAL_MAX)
+        {
+            return;
+        }
+
+        struct sigaction* old_signal = &g_OldSignal[signum];
+        if ((old_signal->sa_flags & SA_SIGINFO) && old_signal->sa_sigaction)
+        {
+            old_signal->sa_sigaction(signum, si, sc);
+        }
+        else if (old_signal->sa_handler != SIG_DFL && old_signal->sa_handler != SIG_IGN && old_signal->sa_handler)
+        {
+            old_signal->sa_handler(signum);
+        }
+    }
+
     static void Handler(const int signo, siginfo_t* const si, void *const sc)
     {
         if (!g_CrashDumpEnabled)
@@ -136,6 +155,8 @@ namespace dmCrash
         dLib::SetDebugMode(true);
         dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
         dLib::SetDebugMode(is_debug_mode);
+
+        ChainSignal(signo, si, sc);
     }
 
     void WriteDump()
@@ -154,7 +175,7 @@ namespace dmCrash
         sa.sa_sigaction = Handler;
         sa.sa_flags = SA_SIGINFO;
         
-        sigaction(signum, &sa, NULL);
+        sigaction(signum, &sa, &g_OldSignal[signum]);
     }
 
     void SetCrashFilename(const char*)
