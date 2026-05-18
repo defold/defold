@@ -925,16 +925,152 @@ var Progress = {
     }
 };
 
-// Capture host opt-out before dmloader's `var Module = {...}` below
-// replaces the global. Embedding hosts that can't construct same-origin
-// Workers (e.g. a WebView wrapper serving the bundle from a custom URL
-// scheme) pre-set `Module.isWASMPthreadSupported = false` on the page
-// to force the single-threaded WASM; without this capture the
-// assignment that follows would discard the host-set property and the
-// guard at the probe site below would never see the opt-out.
-var DEFOLD_HOST_NO_PTHREAD = (typeof Module !== "undefined")
-    && Module
-    && Module.isWASMPthreadSupported === false;
+// --- WebView-host opt-outs ----------------------------------------------
+// Capture host-set properties before dmloader's `var Module = {...}`
+// below replaces the global. Embedding hosts (typically WebView
+// wrappers that serve the bundle from a custom URL scheme) pre-set
+// these on Module on the page *before* `<script src="dmloader.js">` so
+// dmloader can fine-tune behaviour without rewriting the bundle on
+// serve. Without capture, the assignment that follows would discard
+// the host-set properties before any guard could see them.
+//
+//   Module.isWASMPthreadSupported  === false      // force single-threaded WASM
+//   Module.isWebGL2Supported       === false      // downgrade webgl2 -> webgl
+//   Module.webGLContextAttributes  = {...}        // override GL context attrs
+//   Module.webGLExtensionFilter    = (n) => bool  // strip GL extension names
+//   Module.showButtonStrip         === false      // hide canvas footer chrome
+//   Module.autoReloadOnWebGLContextRestore === true // reload on context restored
+//
+// Default behaviour is byte-identical when nothing is pre-set — each
+// capture below yields undefined / null / false and the matching apply
+// block skips. Concrete motivation in #12397.
+var _DEFOLD_HOST = (typeof Module !== "undefined" && Module) || null;
+
+var DEFOLD_HOST_NO_PTHREAD = _DEFOLD_HOST
+    && _DEFOLD_HOST.isWASMPthreadSupported === false;
+
+var DEFOLD_HOST_NO_WEBGL2 = _DEFOLD_HOST
+    && _DEFOLD_HOST.isWebGL2Supported === false;
+
+var DEFOLD_HOST_GL_CTX_ATTRS = (_DEFOLD_HOST
+    && _DEFOLD_HOST.webGLContextAttributes) || null;
+
+var DEFOLD_HOST_GL_EXT_FILTER = (_DEFOLD_HOST
+    && typeof _DEFOLD_HOST.webGLExtensionFilter === "function")
+        ? _DEFOLD_HOST.webGLExtensionFilter : null;
+
+var DEFOLD_HOST_NO_BUTTON_STRIP = _DEFOLD_HOST
+    && _DEFOLD_HOST.showButtonStrip === false;
+
+var DEFOLD_HOST_WEBGL_RELOAD = _DEFOLD_HOST
+    && _DEFOLD_HOST.autoReloadOnWebGLContextRestore === true;
+
+// Apply the non-pthread opt-outs immediately. They patch prototypes /
+// inject DOM only and don't reference Module, so they're safe before
+// the redefinition. pthread is consumed further down at the probe
+// site because the final value has to end up as a property on the
+// post-redefinition Module object.
+(function applyDefoldHostOptOuts() {
+    // WebGL2 downgrade + context-attrs override. Some embedded GLES
+    // drivers report WebGL2 support but trip inside Defold's VAO /
+    // instancing init; returning a WebGL1 context lets the engine
+    // fall back to its WebGL1 GL initializer. Host-supplied attrs
+    // (e.g. preserveDrawingBuffer:true to survive a flaky compositor)
+    // are merged into both the downgraded path and the pass-through.
+    if ((DEFOLD_HOST_NO_WEBGL2 || DEFOLD_HOST_GL_CTX_ATTRS)
+            && typeof HTMLCanvasElement !== "undefined") {
+        var _origGetContext = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+            var mergedAttrs = DEFOLD_HOST_GL_CTX_ATTRS
+                ? Object.assign({}, attrs || {}, DEFOLD_HOST_GL_CTX_ATTRS)
+                : attrs;
+            if (DEFOLD_HOST_NO_WEBGL2
+                    && (type === "webgl2" || type === "experimental-webgl2")) {
+                return _origGetContext.call(this, "webgl", mergedAttrs)
+                    || _origGetContext.call(this, "experimental-webgl", mergedAttrs);
+            }
+            return _origGetContext.call(this, type, mergedAttrs);
+        };
+    }
+
+    // Extension filter. Hosts whose underlying GLES driver falsely
+    // advertises compressed-texture / float-texture / depth-texture
+    // extensions pass a (name) => boolean callback returning true
+    // for names that should be stripped from getSupportedExtensions
+    // and made null from getExtension.
+    if (DEFOLD_HOST_GL_EXT_FILTER) {
+        var _wrapExt = function (proto) {
+            if (!proto) return;
+            var _sup = proto.getSupportedExtensions;
+            if (_sup) {
+                proto.getSupportedExtensions = function () {
+                    var exts = _sup.call(this) || [];
+                    return exts.filter(function (e) {
+                        return !DEFOLD_HOST_GL_EXT_FILTER(e);
+                    });
+                };
+            }
+            var _get = proto.getExtension;
+            if (_get) {
+                proto.getExtension = function (name) {
+                    if (DEFOLD_HOST_GL_EXT_FILTER(name)) return null;
+                    return _get.call(this, name);
+                };
+            }
+        };
+        if (typeof WebGLRenderingContext  !== "undefined") _wrapExt(WebGLRenderingContext.prototype);
+        if (typeof WebGL2RenderingContext !== "undefined") _wrapExt(WebGL2RenderingContext.prototype);
+    }
+
+    // Hide the engine_template footer button strip. The stock
+    // template emits <div class="buttons-background"> for the
+    // Fullscreen / Made-with-Defold links; suppressing the inner
+    // anchors via game.project leaves a 42 px white bar behind.
+    // Hosts that want a true-fullscreen canvas opt out here.
+    if (DEFOLD_HOST_NO_BUTTON_STRIP && typeof document !== "undefined") {
+        var _injectNoButtonStripCSS = function () {
+            if (!document.head) return;
+            var style = document.createElement("style");
+            style.setAttribute("data-defold", "no-button-strip");
+            style.textContent = ".buttons-background { display: none !important; }";
+            document.head.appendChild(style);
+        };
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", _injectNoButtonStripCSS);
+        } else {
+            _injectNoButtonStripCSS();
+        }
+    }
+
+    // WebGL context-loss recovery. WebView hosts can drop the WebGL
+    // backbuffer when the host pauses / re-attaches the view; the
+    // engine renderer has no recovery path so frames render black.
+    // preventDefault() on lost asks the browser to restore; on the
+    // restored event we reload the page so the engine boots cleanly.
+    // The player lands on the title and can resume from autosave.
+    if (DEFOLD_HOST_WEBGL_RELOAD && typeof document !== "undefined") {
+        var _attachWebGLLossHandlers = function () {
+            var canvas = document.getElementById("canvas");
+            if (!canvas) {
+                setTimeout(_attachWebGLLossHandlers, 100);
+                return;
+            }
+            canvas.addEventListener("webglcontextlost", function (e) {
+                e.preventDefault();
+            }, false);
+            canvas.addEventListener("webglcontextrestored", function () {
+                if (typeof window !== "undefined" && window.location && window.location.reload) {
+                    window.location.reload();
+                }
+            }, false);
+        };
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", _attachWebGLLossHandlers);
+        } else {
+            _attachWebGLLossHandlers();
+        }
+    }
+})();
 
 /* ********************************************************************* */
 /* Module is Emscripten namespace                                        */
