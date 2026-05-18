@@ -65,10 +65,23 @@ namespace dmDDF
         }
     }
 
-    InternalRegisterDescriptor::InternalRegisterDescriptor(Descriptor* descriptor)
+    static void RegisterDescriptor(Descriptor* descriptor)
     {
         descriptor->m_NextDescriptor = g_FirstDescriptor;
         g_FirstDescriptor = descriptor;
+    }
+
+    InternalRegisterDescriptor::InternalRegisterDescriptor(Descriptor* descriptor)
+    {
+        RegisterDescriptor(descriptor);
+    }
+
+    InternalRegisterDescriptor::InternalRegisterDescriptor(Descriptor** descriptors, uint32_t count)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            RegisterDescriptor(descriptors[i]);
+        }
     }
 
 

@@ -1016,7 +1016,7 @@ bail:
             attachment_depth.format         = depthStencilAttachment->m_Format;
             attachment_depth.samples        = vk_sample_flags;
             attachment_depth.loadOp         = depthStencilAttachment->m_LoadOp;
-            attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_depth.storeOp        = depthStencilAttachment->m_StoreOp;
             // Keep depth and stencil load ops in sync for packed depth/stencil attachments so
             // the render-pass CLEAR fast path actually clears stencil too.
             attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
@@ -1167,6 +1167,11 @@ bail:
         VK_CULL_MODE_FRONT_AND_BACK
     };
 
+    static const VkFrontFace g_vk_face_windings[] = {
+        VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        VK_FRONT_FACE_CLOCKWISE
+    };
+
     static const VkBlendFactor g_vk_blend_factors[] = {
         VK_BLEND_FACTOR_ZERO,
         VK_BLEND_FACTOR_ONE,
@@ -1299,7 +1304,7 @@ bail:
         vk_rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
         vk_rasterizer.lineWidth               = 1.0f;
         vk_rasterizer.cullMode                = vk_cull_mode;
-        vk_rasterizer.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        vk_rasterizer.frontFace               = g_vk_face_windings[pipelineState.m_FaceWinding];
         vk_rasterizer.depthBiasEnable         = VK_FALSE;
         vk_rasterizer.depthBiasConstantFactor = 0.0f;
         vk_rasterizer.depthBiasClamp          = 0.0f;
@@ -1599,6 +1604,7 @@ bail:
     QueueFamily GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface)
     {
         assert(device);
+        assert(vkGetPhysicalDeviceSurfaceSupportKHR && "Vulkan function table not initialized for current instance");
 
         QueueFamily qf;
 
@@ -1615,7 +1621,11 @@ bail:
         for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
         {
             QueueFamily candidate;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            VkResult present_support_res = vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            if (present_support_res != VK_SUCCESS)
+            {
+                continue;
+            }
             VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
 
             if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)

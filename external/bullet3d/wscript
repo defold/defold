@@ -68,7 +68,8 @@ def build(bld):
                            target = 'LinearMath')
     linear_math.install_path = None
 
-    linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
+    if 'win32' not in bld.env.PLATFORM:
+        linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
 
     if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
         bld.env.STLIB_ST         = 'lib%s.lib'
@@ -92,11 +93,22 @@ def build(bld):
                   target='%s-%s.tar.gz' % (name, bld.env.PLATFORM),
                   always=True)
 
+        bld.add_group()
+
+        pkg = bld(rule=create_package,
+                  cwd=output_dir,
+                  target='%s-common.tar.gz' % name,
+                  always=True)
+
 def create_package(self):
     target = self.outputs[0].abspath()
     name = self.outputs[0].name
-    args = ['tar', 'zcvf', os.path.normpath(target)]
-    args.extend(os.listdir(self.cwd))
+
+    dirs = os.listdir(self.cwd)
+    if target.find("-common") > 0:
+        dirs = ['include']
+
+    args = ['tar', 'zcvf', os.path.normpath(target)] + dirs
     run.command(args, cwd=self.cwd)
     print("Wrote", target)
 
@@ -106,7 +118,8 @@ def create_package(self):
     shutil.copy2(source, target)
     print("Installed to", target)
 
-    shutil.rmtree(self.cwd)
+    if self.outputs[0].name.find("-common") > 0:
+        shutil.rmtree(self.cwd)
 
 def package(self):
     pass

@@ -814,27 +814,29 @@ class Configuration(object):
         waf_path = make_package_path(self.defold_root, 'common', waf_package)
         self._extract_tgz(waf_path, self.ext)
 
-    def _install_python_packages(self, packages, whl_patterns):
+    def _install_python_packages(self, packages):
         target = join(self.ext, 'lib', 'python')
+        wheelhouse = join(self.defold_root, 'packages', 'python')
         self._mkdirs(target)
 
         if packages:
-            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', target] + packages)
-
-        for pattern in whl_patterns:
-            for whl in sorted(glob(join(self.defold_root, 'packages', pattern))):
-                self._log('Installing %s' % basename(whl))
-                run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', target, whl])
+            run.env_command(self._form_env(), self.get_python() + [
+                '-m', 'pip',
+                '-q', '-q',
+                'install',
+                '--no-index',
+                '--find-links', wheelhouse,
+                '--only-binary', ':all:',
+                '--upgrade',
+                '-t', target,
+            ] + packages)
 
     def install_release_dependencies(self):
         print("Installing release python dependencies")
         self._install_python_packages(
-            ['requests'],
             [
-                'boto3-*.whl',
-                'botocore-*.whl',
-                's3transfer-*.whl',
-                'urllib3-*.whl',
+                'boto3==1.36.3',
+                'requests==2.34.2',
             ])
 
     def install_ext(self):
@@ -907,7 +909,16 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        self._install_python_packages(['requests', 'pyaml', 'rangehttpserver', 'pystache'], ['*.whl'])
+        self._install_python_packages([
+            'Markdown==3.3.7',
+            'Pygments==2.12.0',
+            'boto3==1.36.3',
+            'protobuf==3.20.1',
+            'PyYAML==6.0.3',
+            'pystache==0.6.8',
+            'rangehttpserver==1.4.0',
+            'requests==2.34.2',
+        ])
 
         print("Installing javascripts")
         for n in 'web-pre.js'.split():

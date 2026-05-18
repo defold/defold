@@ -34,6 +34,7 @@
 #include "android_log.h"
 #include "android_jni.h"
 #include "android_util.h"
+#include "android_window_backend.h"
 
 #include <android/sensor.h>
 
@@ -428,17 +429,27 @@ void computeIconifiedState()
     // Between RESUME and INIT_WINDOW, the application could attempt to perform
     // operations without a current GL context.
     //
-    // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
-    // Iconified unless opened, resumed (not paused)
+    // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states.
+    // For OpenGL, we can key this off the EGL surface. For NO_API backends (e.g. Vulkan),
+    // there is no EGL surface, so use the native app window instead.
+    int has_renderable_window = 0;
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        has_renderable_window = _glfwWinAndroid.app != NULL && _glfwWinAndroid.app->window != NULL;
+    }
+    else
+    {
+        has_renderable_window = _glfwWinAndroid.surface != EGL_NO_SURFACE;
+    }
 
     // A good detailed overview over the recommended app flow is found here:
     // https://developer.download.nvidia.com/assets/mobile/docs/android_lifecycle_app_note.pdf
-    _glfwWin.iconified = !(g_AppResumed && _glfwWinAndroid.surface != EGL_NO_SURFACE);
+    _glfwWin.iconified = !(g_AppResumed && has_renderable_window);
 
-    LOGV("iconified: %s    (resume: %s, surface: %s)",
+    LOGV("iconified: %s    (resume: %s, window: %s)",
         _glfwWin.iconified?"YES":"no",
         g_AppResumed?"YES":"no",
-        (_glfwWinAndroid.surface != EGL_NO_SURFACE )?"YES":"no");
+        has_renderable_window?"YES":"no");
 }
 
 GLFWAPI int32_t glfwAndroidWindowOpened()
@@ -448,21 +459,7 @@ GLFWAPI int32_t glfwAndroidWindowOpened()
 
 GLFWAPI int32_t glfwAndroidVerifySurface()
 {
-    // Although it's the wrong place to do a eglSwapbuffers, we're already handling a bad state from the last opengl error
-    // Verifying the state of the surface is worth it.
-    if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
-    {
-        EGLint error = eglGetError();
-        int32_t result = _glfwAndroidVerifySurfaceError(error);
-        if (!result)
-        {
-            destroy_gl_surface(&_glfwWinAndroid);
-            _glfwWinAndroid.should_recreate_surface = 1;
-            _glfwWin.iconified = 1;
-            return result;
-        }
-    }
-    return 1; // surface is ok
+    return _glfwAndroidPlatformVerifySurface();
 }
 
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {

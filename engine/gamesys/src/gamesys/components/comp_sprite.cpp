@@ -152,6 +152,11 @@ namespace dmGameSystem
         uint16_t                    m_AnimationID; // index into array
         uint16_t                    m_DynamicVertexAttributeIndex;
         uint16_t                    m_ComponentIndex;
+        //------------------- cached values related to vertex/index buffer allocation----------
+        uint16_t                    m_VertexCount;
+        uint16_t                    m_IndexCount;
+        uint16_t                    m_VertexStride;
+        //-------------------------------------------------------------------------------------
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_DoTick : 1;
         uint16_t                    m_FlipHorizontal : 1;
@@ -737,6 +742,9 @@ namespace dmGameSystem
 
         dmMessage::ResetURL(&component->m_Listener);
 
+        component->m_VertexCount = 0;
+        component->m_VertexStride = 1;
+        component->m_IndexCount = 0;
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_FunctionRef = 0;
@@ -860,6 +868,33 @@ namespace dmGameSystem
         {
             *out_x_pivot = geometry->m_PivotX;
             *out_y_pivot = geometry->m_PivotY;
+        }
+    }
+
+    static inline void UpdateVertexMetricsCache(SpriteComponent* component, const AnimationData* anim_data, dmRender::HRenderContext render_context)
+    {
+        dmRender::HMaterial material           = GetRenderMaterial(render_context, component);
+        dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
+        component->m_VertexStride              = dmGraphics::GetVertexDeclarationStride(vx_decl);
+        uint8_t textures_num                   = component->m_NumTextures;
+
+        if (textures_num == 0 || anim_data->m_CanUseQuads)
+        {
+            if (component->m_UseSlice9)
+            {
+                component->m_VertexCount   = SPRITE_VERTEX_COUNT_SLICE9;
+                component->m_IndexCount    = SPRITE_INDEX_COUNT_SLICE9;
+            }
+            else
+            {
+                component->m_VertexCount   = SPRITE_VERTEX_COUNT_LEGACY;
+                component->m_IndexCount    = SPRITE_INDEX_COUNT_LEGACY;
+            }
+        }
+        else
+        {
+            component->m_VertexCount = anim_data->m_VertexCount;
+            component->m_IndexCount = anim_data->m_IndicesCount;
         }
     }
 
@@ -1990,9 +2025,6 @@ namespace dmGameSystem
 
         UpdateAnimationDataCache(world);
 
-        uint32_t num_vertices    = 0;
-        uint32_t num_indices     = 0;
-        uint32_t vertex_memsize  = 0;
         dmArray<SpriteComponent>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
 
@@ -2019,41 +2051,13 @@ namespace dmGameSystem
                 AnimationReHash(component);
             }
 
-            dmRender::HMaterial material           = GetRenderMaterial(render_context, component);
-            dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
-            uint32_t vertex_stride                 = dmGraphics::GetVertexDeclarationStride(vx_decl);
-            uint8_t textures_num                   = component->m_NumTextures;
-
-            // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
-            vertex_memsize += vertex_stride - vertex_memsize % vertex_stride;
-
             // Get the correct animation frames, and other meta data
             AnimationData* anim_data = GetOrCreateAnimationData(world, component);
             // update cached pivot
             if (is_component_changed)
             {
                 GetPivot(anim_data, &component->m_PivotX, &component->m_PivotY);
-            }
-            if (textures_num == 0 || anim_data->m_CanUseQuads)
-            {
-                if (component->m_UseSlice9)
-                {
-                    num_vertices   += SPRITE_VERTEX_COUNT_SLICE9;
-                    num_indices    += SPRITE_INDEX_COUNT_SLICE9;
-                    vertex_memsize += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
-                }
-                else
-                {
-                    num_vertices   += SPRITE_VERTEX_COUNT_LEGACY;
-                    num_indices    += SPRITE_INDEX_COUNT_LEGACY;
-                    vertex_memsize += SPRITE_VERTEX_COUNT_LEGACY * vertex_stride;
-                }
-            }
-            else
-            {
-                num_vertices += anim_data->m_VertexCount;
-                num_indices += anim_data->m_IndicesCount;
-                vertex_memsize += anim_data->m_VertexCount * vertex_stride;
+                UpdateVertexMetricsCache(component, anim_data, render_context);
             }
 
             // TODO: check when we need send messages
@@ -2062,19 +2066,11 @@ namespace dmGameSystem
             PostMessages(component);
         }
 
-        // In case if CompSpriteUpdate will be called several times before CompSpriteRender - assign flag with "bit or"
-        // to save flag state from previous update until ReallocBuffers will be called
-        world->m_ReallocBuffers   |= vertex_memsize > world->m_VertexMemorySize || num_indices > world->m_IndexCount;
-        world->m_VertexCount      = num_vertices;
-        world->m_IndexCount       = num_indices;
-        world->m_VertexMemorySize = vertex_memsize;
-
         dmRender::TrimBuffer(render_context, world->m_VertexBuffer);
         dmRender::RewindBuffer(render_context, world->m_VertexBuffer);
 
         dmRender::TrimBuffer(render_context, world->m_IndexBuffer);
         dmRender::RewindBuffer(render_context, world->m_IndexBuffer);
-
         world->m_DispatchCount = 0;
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -2091,6 +2087,10 @@ namespace dmGameSystem
         {
             return dmGameObject::UPDATE_RESULT_OK;
         }
+
+        uint32_t num_vertices    = 0;
+        uint32_t num_indices     = 0;
+        uint32_t vertex_memsize  = 0;
 
         bool sub_pixels = sprite_context->m_Subpixels;
 
@@ -2112,7 +2112,22 @@ namespace dmGameSystem
             world->m_CullingInfo[i].m_Position[1] = world_pos.getY();
             world->m_CullingInfo[i].m_Position[2] = world_pos.getZ();
             world->m_CullingInfo[i].m_Radius = radius_sq;
+
+            // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
+            vertex_memsize += component->m_VertexStride - vertex_memsize % component->m_VertexStride;
+
+            num_vertices += component->m_VertexCount;
+            num_indices += component->m_IndexCount;
+            vertex_memsize += component->m_VertexCount * component->m_VertexStride;
         }
+
+        // In case if CompSpriteUpdate will be called several times before CompSpriteRender - assign flag with "bit or"
+        // to save flag state from previous update until ReallocBuffers will be called
+        world->m_ReallocBuffers   |= vertex_memsize > world->m_VertexMemorySize || num_indices > world->m_IndexCount;
+        world->m_VertexCount      = num_vertices;
+        world->m_IndexCount       = num_indices;
+        world->m_VertexMemorySize = vertex_memsize;
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
