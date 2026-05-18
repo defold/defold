@@ -609,74 +609,58 @@
            (run! deref))
       (is (= (* thread-count inc-count-per-thread) (prefs/get p [:counter]))))))
 
-(deftest incorporate-updated-storage-test
-  (testing "no pending events: updated-storage merged into storage"
-    (is (= {:storage {"a.edn" {:x 1}
-                      "b.edn" {:y 2}}}
-           (#'prefs/incorporate-updated-storage
-             {:storage {"a.edn" {:x 0}}}
-             {"a.edn" {:x 1}
-              "b.edn" {:y 2}}))))
+(deftest incorporates-updated-storage-test
+  (with-schemas {::race {:type :object
+                         :properties {:x {:type :integer :default 0}
+                                      :y {:type :integer :default 0}
+                                      :z {:type :integer :default 0}}}}
+    (testing "pending event adds a new key"
+      (let [file (fs/create-temp-file! "race" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::race])
+            real-read-config! @#'prefs/read-config!]
+        (prefs/set! p [:x] 1)
+        (with-redefs [prefs/read-config!
+                      (fn [path]
+                        (real-read-config! path)
+                        (prefs/set! p [:y] 2))]
+          (prefs/sync!))
+        (is (= {:x 1} (edn/read-string (slurp file))))
+        (is (= 1 (prefs/get p [:x])))
+        (is (= 2 (prefs/get p [:y])))
+        (prefs/sync!)
+        (is (= {:x 1 :y 2} (edn/read-string (slurp file))))))
 
-  (testing "no pending events: storage entries not in updated-storage are preserved"
-    (is (= {:storage {"a.edn" {:x 1}
-                      "b.edn" {:y 2}}}
-           (#'prefs/incorporate-updated-storage
-             {:storage {"b.edn" {:y 2}}}
-             {"a.edn" {:x 1}}))))
+    (testing "pending event wins over written storage"
+      (let [file (fs/create-temp-file! "event-wins" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::race])
+            real-read-config! @#'prefs/read-config!]
+        (prefs/set! p [:x] 1)
+        (with-redefs [prefs/read-config!
+                      (fn [path]
+                        (real-read-config! path)
+                        (prefs/set! p [:x] 99))]
+          (prefs/sync!))
+        (is (= {:x 1} (edn/read-string (slurp file))))
+        (is (= 99 (prefs/get p [:x])))
+        (prefs/sync!)
+        (is (= {:x 99} (edn/read-string (slurp file))))))
 
-  (testing "pending event with normal value: event wins over written storage"
-    (is (= {:events {"a.edn" {[:x] 99}}
-            :storage {"a.edn" {:x 99}}}
-           (#'prefs/incorporate-updated-storage
-             {:events {"a.edn" {[:x] 99}}
-              :storage {"a.edn" {:x 0}}}
-             {"a.edn" {:x 1}}))))
-
-  (testing "pending ::not-found event: path dissoc'd from merged storage"
-    (is (= {:events {"a.edn" {[:x] ::prefs/not-found}}
-            :storage {"a.edn" {:y 2}}}
-           (#'prefs/incorporate-updated-storage
-             {:events {"a.edn" {[:x] ::prefs/not-found}}
-              :storage {}}
-             {"a.edn" {:x 1 :y 2}}))))
-
-  (testing "pending ::not-found event on non-map cfg: cfg unchanged"
-    (is (= {:events {"a.edn" {[:x] ::prefs/not-found}}
-            :storage {"a.edn" 42}}
-           (#'prefs/incorporate-updated-storage
-             {:events {"a.edn" {[:x] ::prefs/not-found}}
-              :storage {}}
-             {"a.edn" 42}))))
-
-  (testing "pending event for file not in updated-storage: applied to empty map"
-    (is (= {:events {"b.edn" {[:y] 7}}
-            :storage {"a.edn" {:x 1}
-                      "b.edn" {:y 7}}}
-           (#'prefs/incorporate-updated-storage
-             {:events {"b.edn" {[:y] 7}}
-              :storage {}}
-             {"a.edn" {:x 1}}))))
-
-  (testing "multiple paths within one file: all re-applied"
-    (is (= {:events {"a.edn" {[:x] 10 [:y] 20 [:z] ::prefs/not-found}}
-            :storage {"a.edn" {:x 10 :y 20}}}
-           (#'prefs/incorporate-updated-storage
-             {:events {"a.edn" {[:x] 10 [:y] 20 [:z] ::prefs/not-found}}
-              :storage {}}
-             {"a.edn" {:x 1 :y 2 :z 3}}))))
-
-  (testing "multiple files: events applied to their own cfg only"
-    (is (= {:events {"a.edn" {[:x] 10}
-                     "b.edn" {[:y] 20}}
-            :storage {"a.edn" {:x 10}
-                      "b.edn" {:y 20}}}
-           (#'prefs/incorporate-updated-storage
-             {:events {"a.edn" {[:x] 10}
-                       "b.edn" {[:y] 20}}
-              :storage {}}
-             {"a.edn" {:x 1}
-              "b.edn" {:y 2}})))))
+    (testing "pending reset event: path removed from merged storage"
+      (let [file (fs/create-temp-file! "reset" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::race])
+            real-read-config! @#'prefs/read-config!]
+        (prefs/set! p [:x] 1)
+        (prefs/set! p [:y] 2)
+        (with-redefs [prefs/read-config!
+                      (fn [path]
+                        (real-read-config! path)
+                        (prefs/reset-path! p [:x]))]
+          (prefs/sync!))
+        (is (= 0 (prefs/get p [:x])))
+        (is (= 2 (prefs/get p [:y])))))))
 
 (deftest reset-path-test
   (with-schemas {::reset-path
@@ -899,3 +883,36 @@
       (prefs/reset-path! p [:opacity])
       (prefs/sync!)
       (is (= {} (edn/read-string (slurp file)))))))
+
+(deftest reset-path-root-non-object-schema-test
+  (testing "string root schema"
+    (with-schemas {::root-string {:type :string :default "default"}}
+      (let [file (fs/create-temp-file! "root-string" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::root-string])]
+        (prefs/set! p [] "custom")
+        (prefs/sync!)
+        (is (= "custom" (edn/read-string (slurp file))))
+
+        (prefs/reset-path! p [])
+
+        (is (= "default" (prefs/get p [])))
+        (is (not (prefs/set? p [])))
+        (prefs/sync!)
+        (is (not= "custom" (edn/read-string (slurp file)))))))
+
+  (testing "password root schema"
+    (with-schemas {::root-password {:type :password :default "default"}}
+      (let [file (fs/create-temp-file! "root-password" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::root-password])]
+        (prefs/set! p [] "custom")
+        (prefs/sync!)
+        (is (= "custom" (prefs/get p [])))
+
+        (prefs/reset-path! p [])
+
+        (is (= "default" (prefs/get p [])))
+        (is (not (prefs/set? p [])))
+        (prefs/sync!)
+        (is (not= "custom" (prefs/get p [])))))))
