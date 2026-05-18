@@ -2066,23 +2066,39 @@ class Configuration(object):
         else:
             platforms = get_target_platforms()
 
-        sdk_merge.build_combined_sdk_tree(
-            netloc=u.netloc,
-            base_prefix=base_prefix,
-            platforms=platforms,
-            extract_dir=tempdir,
-            canonical_platform='x86_64-linux')
+        zipmerge_path = shutil.which('zipmerge')
+        if zipmerge_path:
+            print("Using zipmerge to merge platform SDK archives:", zipmerge_path)
+            treepath = os.path.join(tempdir, 'defoldsdk')
+            sdkpath = treepath + '.zip'
+            sdk_merge.build_combined_sdk_zip(
+                netloc=u.netloc,
+                base_prefix=base_prefix,
+                platforms=platforms,
+                output_zip_path=sdkpath,
+                zipmerge_path=zipmerge_path,
+                canonical_platform='x86_64-linux')
+        else:
+            print("zipmerge not found; using Python platform SDK archive merge")
 
-        # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
-        # and set the flags explicitly
-        for root, _, files in os.walk(tempdir):
-            for f in files:
-                p = os.path.join(root, f)
-                if '/bin/' in p:
-                    os.chmod(p, 0o755)
+            sdk_merge.build_combined_sdk_tree(
+                netloc=u.netloc,
+                base_prefix=base_prefix,
+                platforms=platforms,
+                extract_dir=tempdir,
+                canonical_platform='x86_64-linux')
 
-        treepath = os.path.join(tempdir, 'defoldsdk')
-        sdkpath = self._ziptree(treepath, directory=tempdir)
+            # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
+            # and set the flags explicitly
+            for root, _, files in os.walk(tempdir):
+                for f in files:
+                    p = os.path.join(root, f)
+                    if '/bin/' in p:
+                        os.chmod(p, 0o755)
+
+            treepath = os.path.join(tempdir, 'defoldsdk')
+            sdkpath = self._ziptree(treepath, directory=tempdir)
+
         print ("Packaged defold sdk from", tempdir, "to", sdkpath)
 
         sdkurl = join(sha1, 'engine').replace('\\', '/')
@@ -2095,6 +2111,7 @@ class Configuration(object):
         print("Upload platform sdks mappings")
         self.upload_to_archive(join(self.defold_root, "share", "platform.sdks.json"), '%s/platform.sdks.json' % sdkurl)
 
+        self.wait_uploads()
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)
 

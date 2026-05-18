@@ -33,6 +33,7 @@ import datetime
 import fnmatch
 import urllib
 import urllib.parse
+import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
@@ -349,13 +350,55 @@ def invoke_lein(args, jdk_path=None, **kwargs):
     jdk_path = jdk_path or os.environ['JAVA_HOME']
     return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True, **kwargs)
 
+def invoke_zip_parallel(args, jdk_path=None):
+    return invoke_lein(['with-profile', 'zip-parallel', 'run', '-m', 'editor.zip-parallel'] + args, jdk_path=jdk_path)
+
+def read_merged_project_value(profile, key, jdk_path=None):
+    """Print a value from the Leiningen project after profile merging.
+
+    Leiningen does not provide a small built-in task for printing an arbitrary
+    merged project key. `update-in` applies the function before running the
+    following task, so using `clojure.core/prn` lets us capture the value while
+    `version` gives Leiningen a cheap task to run afterwards.
+    """
+    return invoke_lein(['with-profile', profile, 'update-in', key, 'clojure.core/prn', '--', 'version'], jdk_path=jdk_path)
+
+def parse_lein_string(value):
+    for line in value.splitlines():
+        line = line.strip()
+        if line.startswith('"'):
+            return json.loads(line)
+    raise Exception("Unable to parse Leiningen string from output:\n%s" % value)
+
+def parse_lein_regexes(value):
+    for line in value.splitlines():
+        regexes = re.findall(r'#"([^"]*)"', line)
+        if regexes:
+            return regexes
+    raise Exception("Unable to parse Leiningen regexes from output:\n%s" % value)
+
 def write_docs(docs_dir, jdk_path=None):
-    invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
+    temp_dir = tempfile.mkdtemp()
+    try:
+        invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', temp_dir], jdk_path)
+        source = path.join(temp_dir, 'editor.apidoc')
+        target = path.join(docs_dir, 'editor.apidoc')
+        with open(source, 'rb') as f:
+            source_bytes = f.read()
+        target_bytes = None
+        if path.isfile(target):
+            with open(target, 'rb') as f:
+                target_bytes = f.read()
+        if source_bytes != target_bytes:
+            os.makedirs(docs_dir, exist_ok=True)
+            shutil.copyfile(source, target)
+    finally:
+        shutil.rmtree(temp_dir)
 
 def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
 
-def remove_platform_files_from_archive(platform, jar):
+def remove_platform_files_from_archive(platform, jar, jdk=None):
     start_time = time.perf_counter()
     zin = zipfile.ZipFile(jar, 'r')
     files = zin.namelist()
@@ -413,38 +456,71 @@ def remove_platform_files_from_archive(platform, jar):
     # a Python-rewritten jar, and keeping that ZIP layout stable avoids changing
     # macOS signing/notarization inputs while moving most filtering to uberjar.
     scan_time = time.perf_counter() - start_time
-    if files_to_remove:
-        log("Warning: removing %d platform-specific files from %s after %.3fs scan" %
-            (len(files_to_remove), jar, scan_time))
-    else:
-        log("Rewriting %s after %.3fs scan; no platform-specific files to remove" %
+    if not files_to_remove:
+        zin.close()
+        log("No platform-specific files to remove from %s after %.3fs scan; keeping existing jar" %
             (jar, scan_time))
+        return
+
+    log("Warning: removing %d platform-specific files from %s after %.3fs scan" %
+        (len(files_to_remove), jar, scan_time))
     rewrite_start_time = time.perf_counter()
     newjar = jar + "_new"
-    zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
-    for file in zin.infolist():
-        if file.filename not in files_to_remove:
-            zout.writestr(file, zin.read(file))
-    zout.close()
     zin.close()
+    if os.path.exists(newjar):
+        os.remove(newjar)
+    removals_file = jar + "_remove"
+    with open(removals_file, 'w') as f:
+        for file in sorted(files_to_remove):
+            f.write(file + "\n")
+    try:
+        invoke_zip_parallel(['filter-jar', jar, newjar, removals_file], jdk_path=jdk)
+    except BaseException:
+        if os.path.exists(newjar):
+            os.remove(newjar)
+        raise
+    finally:
+        if os.path.exists(removals_file):
+            os.remove(removals_file)
 
     # switch to jar without removed files
     os.remove(jar)
     os.rename(newjar, jar)
     rewrite_time = time.perf_counter() - rewrite_start_time
-    if files_to_remove:
-        log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
-            (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
-    else:
-        log("Rewrote %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
-            (jar, time.perf_counter() - start_time, scan_time, rewrite_time))
+    log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
+        (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
+
+
+def create_standalone_editor_jar(jdk, platform):
+    """Build the platform-specific standalone editor jar.
+
+    This replaces the old `lein zip-parallel uberjar` task. Since the parallel
+    zip code now runs as a normal Clojure namespace instead of a Leiningen task,
+    the Python build coordinates the few pieces the task previously handled:
+    build the project jar, read merged `project.clj` settings, resolve
+    dependency jars, and pass them to the zip writer.
+    """
+    profile = 'release,%s,uberjar' % platform
+    log("Creating uberjar for platform %s..." % platform)
+    jar_output = invoke_lein(['with-profile', profile, 'jar'], jdk_path=jdk)
+    jar_output_match = re.search(r'Created (.*\.jar)', jar_output)
+    if not jar_output_match:
+        raise Exception("Unable to determine editor jar from Leiningen output:\n%s" % jar_output)
+    project_jar = jar_output_match.group(1)
+    standalone_jar = path.join('target', parse_lein_string(read_merged_project_value(profile, ':uberjar-name', jdk)))
+    exclusions = parse_lein_regexes(read_merged_project_value(profile, ':uberjar-exclusions', jdk))
+    exclusions_file = 'target/parallel-uberjar-exclusions.edn'
+    with open(exclusions_file, 'w') as f:
+        json.dump(exclusions, f)
+    classpath = invoke_lein(['with-profile', 'release,%s' % platform, 'classpath'], jdk_path=jdk)
+    jars = [project_jar] + [jar_path for jar_path in classpath.split(os.pathsep) if jar_path.endswith('.jar')]
+    invoke_zip_parallel(['create-standalone-jar', standalone_jar, exclusions_file] + jars, jdk_path=jdk)
+    return standalone_jar
 
 
 def create_bundle(jdk, platform, options):
     mkdirs('target/editor')
-    log("Creating uberjar for platform %s..." % platform)
-    invoke_lein(['with-profile', 'release,%s' % platform, 'uberjar'], jdk_path=jdk)
-    jar_file = 'target/editor-%s-standalone.jar' % platform
+    jar_file = create_standalone_editor_jar(jdk, platform)
     log("Creating bundle for platform %s..." % platform)
     rmtree('tmp')
     tmp_dir = "tmp"
@@ -494,7 +570,7 @@ def create_bundle(jdk, platform, options):
     shutil.copy(jar_file, defold_jar)
 
     # strip tools and libs for the platforms we're not currently bundling
-    remove_platform_files_from_archive(platform, defold_jar)
+    remove_platform_files_from_archive(platform, defold_jar, jdk)
 
     # copy editor executable (the launcher)
     launcher = launcher_path(options, platform, get_exe_suffix(platform))
