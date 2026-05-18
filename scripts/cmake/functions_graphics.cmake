@@ -94,11 +94,8 @@ function(defold_target_link_graphics target platform)
     string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")
 
     # Optional feature toggles affecting mappings
-    set(_WITH_WAGYU OFF)
+    defold_feature_enabled(wagyu _WITH_WAGYU)
     set(_WITH_VULKAN_VALIDATION OFF)
-    if(DEFINED WITH_WAGYU AND WITH_WAGYU)
-        set(_WITH_WAGYU ON)
-    endif()
     if(DEFINED WITH_VULKAN_VALIDATION AND WITH_VULKAN_VALIDATION)
         set(_WITH_VULKAN_VALIDATION ON)
     endif()

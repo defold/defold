@@ -73,17 +73,17 @@ platforms:
       linkFlags: []
   x86-win32:
     context:
-      excludeLibs: [libphysics, libbox2d_defold, libscript_box2d_defold]
+      excludeLibs: [physics, libbox2d_defold, script_box2d_defold]
       excludeSymbols: []
       symbols: []
-      libs: [libphysics_2d.lib, libbox2d.lib, libscript_box2d.lib, libphysics_3d.lib]
+      libs: [physics_2d.lib, libbox2d.lib, script_box2d.lib, physics_3d.lib]
       linkFlags: []
   x86_64-win32:
     context:
-      excludeLibs: [libphysics, libbox2d_defold, libscript_box2d_defold]
+      excludeLibs: [physics, libbox2d_defold, script_box2d_defold]
       excludeSymbols: []
       symbols: []
-      libs: [libphysics_2d.lib, libbox2d.lib, libscript_box2d.lib, libphysics_3d.lib]
+      libs: [physics_2d.lib, libbox2d.lib, script_box2d.lib, physics_3d.lib]
       linkFlags: []
   wasm-web:
     context:

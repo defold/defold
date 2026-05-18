@@ -141,6 +141,7 @@ def build_bob_command(bob_light, inputs, stage_root, bob_output, platform):
         bob_output.as_posix(),
         "--build-input-file",
         str(inputs),
+        "--use-vanilla-lua",
     ]
     if platform:
         cmd.extend(["--platform", platform])

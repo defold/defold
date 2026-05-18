@@ -21,16 +21,20 @@ add_custom_target(input_proto_py DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/python/inp
 defold_protoc_gen_cpp("${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.pb.cc"
                           "${CMAKE_CURRENT_SOURCE_DIR}/proto/input/input_ddf.proto"
                           INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
+add_custom_target(input_proto_headers
+    DEPENDS
+        "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.pb.cc"
+        "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.h")
 
 add_library(input STATIC
     "${INPUT_SRC_DIR}/input.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.pb.cc"
 )
-target_compile_definitions(input PUBLIC "DLIB_LOG_DOMAIN=\"INPUT\"")
+target_compile_definitions(input PRIVATE "DLIB_LOG_DOMAIN=\"INPUT\"")
 
 target_include_directories(input PUBLIC ${INPUT_SRC_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 # just to make sure the extra dependency is actually built
-add_dependencies(input input_proto_py)
+add_dependencies(input input_proto_headers input_proto_py)
 
 # Add GLFW3-specific compile define when applicable
 defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")
@@ -46,7 +50,7 @@ endif()
 
 # ===================== Install =====================
 
-install(TARGETS input
+defold_install_targets(TARGETS input
     ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
     LIBRARY DESTINATION lib/${TARGET_PLATFORM}
     RUNTIME DESTINATION bin/${TARGET_PLATFORM}

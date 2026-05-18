@@ -38,8 +38,8 @@ endif()
 # Provide the C++ standard via target-level usage requirements
 target_compile_features(defold_sdk INTERFACE cxx_std_11)
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")

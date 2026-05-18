@@ -147,6 +147,10 @@ list(APPEND CMAKE_PROJECT_TOP_LEVEL_INCLUDES "${DEFOLD_CMAKE_DIR}/defold_post_pr
 defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
 defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
 
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+endif()
+
 # Align try_compile configuration with active build configuration
 if(CMAKE_CONFIGURATION_TYPES)
   if(NOT CMAKE_TRY_COMPILE_CONFIGURATION)
@@ -179,6 +183,14 @@ include(features)
 # platform specific includes, lib paths, defines etc...
 include(platform)
 
+if(CMAKE_CONFIGURATION_TYPES)
+  set(_DEFOLD_BUILD_TYPE_DISPLAY "multi-config")
+else()
+  set(_DEFOLD_BUILD_TYPE_DISPLAY "${CMAKE_BUILD_TYPE}")
+endif()
+message(STATUS "Defold CMake settings: CMAKE_GENERATOR=${CMAKE_GENERATOR}, TARGET_PLATFORM=${TARGET_PLATFORM}, CMAKE_BUILD_TYPE=${_DEFOLD_BUILD_TYPE_DISPLAY}, BUILD_TESTS=${BUILD_TESTS}")
+unset(_DEFOLD_BUILD_TYPE_DISPLAY)
+
 # Prefer colored diagnostics from compilers that support it
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
@@ -191,6 +203,24 @@ set(DEFOLD_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/include")
 set(DEFOLD_EXT_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include")
 set(DEFOLD_EXT_PLATFORM_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include/${TARGET_PLATFORM}")
 set(DEFOLD_DMSDK_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/sdk/include")
+set(DEFOLD_BUILD_INCLUDE_DIR "${CMAKE_BINARY_DIR}/include")
+
+file(GLOB_RECURSE _DEFOLD_ENGINE_SOURCE_HEADERS CONFIGURE_DEPENDS
+  "${DEFOLD_HOME}/engine/*/src/*.h"
+  "${DEFOLD_HOME}/engine/*/src/*.hpp")
+foreach(_DEFOLD_ENGINE_SOURCE_HEADER IN LISTS _DEFOLD_ENGINE_SOURCE_HEADERS)
+  file(RELATIVE_PATH _DEFOLD_ENGINE_SOURCE_HEADER_REL "${DEFOLD_HOME}/engine" "${_DEFOLD_ENGINE_SOURCE_HEADER}")
+  string(REGEX MATCH "^([^/]+)/src/(.+)$" _DEFOLD_ENGINE_SOURCE_HEADER_MATCH "${_DEFOLD_ENGINE_SOURCE_HEADER_REL}")
+  if(_DEFOLD_ENGINE_SOURCE_HEADER_MATCH)
+    set(_DEFOLD_ENGINE_SOURCE_HEADER_OUT "${DEFOLD_BUILD_INCLUDE_DIR}/${CMAKE_MATCH_1}/${CMAKE_MATCH_2}")
+    configure_file("${_DEFOLD_ENGINE_SOURCE_HEADER}" "${_DEFOLD_ENGINE_SOURCE_HEADER_OUT}" COPYONLY)
+  endif()
+  string(REGEX MATCH "^([^/]+)/src/dmsdk/(.+)$" _DEFOLD_DMSDK_SOURCE_HEADER_MATCH "${_DEFOLD_ENGINE_SOURCE_HEADER_REL}")
+  if(_DEFOLD_DMSDK_SOURCE_HEADER_MATCH)
+    set(_DEFOLD_DMSDK_SOURCE_HEADER_OUT "${DEFOLD_BUILD_INCLUDE_DIR}/dmsdk/${CMAKE_MATCH_2}")
+    configure_file("${_DEFOLD_ENGINE_SOURCE_HEADER}" "${_DEFOLD_DMSDK_SOURCE_HEADER_OUT}" COPYONLY)
+  endif()
+endforeach()
 
 file(GLOB _DEFOLD_DMSDK_DIRS CONFIGURE_DEPENDS "${DEFOLD_HOME}/engine/*/src/dmsdk")
 set(DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS)
@@ -199,6 +229,17 @@ foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
   list(APPEND DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS "${_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR}")
 endforeach()
 list(REMOVE_DUPLICATES DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS)
+
+file(GLOB _DEFOLD_PROTO_SOURCE_ROOTS CONFIGURE_DEPENDS
+  "${DEFOLD_HOME}/engine/*/src"
+  "${DEFOLD_HOME}/engine/*/proto")
+set(DEFOLD_PROTO_SOURCE_INCLUDE_DIRS)
+foreach(_DEFOLD_PROTO_SOURCE_ROOT IN LISTS _DEFOLD_PROTO_SOURCE_ROOTS)
+  if(IS_DIRECTORY "${_DEFOLD_PROTO_SOURCE_ROOT}")
+    list(APPEND DEFOLD_PROTO_SOURCE_INCLUDE_DIRS "${_DEFOLD_PROTO_SOURCE_ROOT}")
+  endif()
+endforeach()
+list(REMOVE_DUPLICATES DEFOLD_PROTO_SOURCE_INCLUDE_DIRS)
 
 set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
 set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
@@ -218,15 +259,42 @@ endif()
 # Attach SDK include/lib search paths to defold_sdk INTERFACE
 # Core include dirs (non-system)
 target_include_directories(defold_sdk INTERFACE
-  "${DEFOLD_INCLUDE_DIR}"
-  "${DEFOLD_DMSDK_INCLUDE_DIR}"
-  ${DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS})
+  "$<BUILD_INTERFACE:${DEFOLD_BUILD_INCLUDE_DIR}>"
+  "$<BUILD_INTERFACE:${DEFOLD_INCLUDE_DIR}>"
+  "$<BUILD_INTERFACE:${DEFOLD_DMSDK_INCLUDE_DIR}>"
+  "$<INSTALL_INTERFACE:include>"
+  "$<INSTALL_INTERFACE:sdk/include>")
+foreach(_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR IN LISTS DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS)
+  target_include_directories(defold_sdk INTERFACE
+    "$<BUILD_INTERFACE:${_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR}>")
+endforeach()
 # External/platform include dirs as SYSTEM to reduce warnings
 target_include_directories(defold_sdk SYSTEM INTERFACE
-  "${DEFOLD_EXT_INCLUDE_DIR}"
-  ${_DEFOLD_PLATFORM_INCLUDE_DIRS})
+  "$<BUILD_INTERFACE:${DEFOLD_EXT_INCLUDE_DIR}>"
+  "$<INSTALL_INTERFACE:ext/include>")
+foreach(_DEFOLD_PLATFORM_INCLUDE_DIR IN LISTS _DEFOLD_PLATFORM_INCLUDE_DIRS)
+  target_include_directories(defold_sdk SYSTEM INTERFACE
+    "$<BUILD_INTERFACE:${_DEFOLD_PLATFORM_INCLUDE_DIR}>")
+endforeach()
+target_include_directories(defold_sdk SYSTEM INTERFACE
+  "$<INSTALL_INTERFACE:ext/include/${TARGET_PLATFORM}>")
+if(TARGET_PLATFORM STREQUAL "x86-win32")
+  target_include_directories(defold_sdk SYSTEM INTERFACE
+    "$<INSTALL_INTERFACE:ext/include/win32>")
+endif()
 # Library search directories
-target_link_directories(defold_sdk INTERFACE ${_DEFOLD_PLATFORM_LIB_DIRS})
+foreach(_DEFOLD_PLATFORM_LIB_DIR IN LISTS _DEFOLD_PLATFORM_LIB_DIRS)
+  target_link_directories(defold_sdk INTERFACE
+    "$<BUILD_INTERFACE:${_DEFOLD_PLATFORM_LIB_DIR}>")
+endforeach()
+target_link_directories(defold_sdk INTERFACE
+  "$<INSTALL_INTERFACE:lib/${TARGET_PLATFORM}>"
+  "$<INSTALL_INTERFACE:ext/lib/${TARGET_PLATFORM}>")
+if(TARGET_PLATFORM STREQUAL "x86-win32")
+  target_link_directories(defold_sdk INTERFACE
+    "$<INSTALL_INTERFACE:lib/win32>"
+    "$<INSTALL_INTERFACE:ext/lib/win32>")
+endif()
 
 # Enable IPO/LTO when supported
 include(CheckIPOSupported)
@@ -252,9 +320,18 @@ defold_log("Install prefix set to DEFOLD_SDK_ROOT: ${CMAKE_INSTALL_PREFIX}")
 # CMake libraries may be built before every Waf library has populated its
 # dmsdk compatibility headers. Mirror Waf's dmsdk_add_files convention here.
 foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
-  install(DIRECTORY "${_DEFOLD_DMSDK_DIR}/"
-          DESTINATION sdk/include/dmsdk
-          FILES_MATCHING
-          PATTERN "*.h"
-          PATTERN "*.hpp")
+  file(GLOB_RECURSE _DEFOLD_DMSDK_HEADERS CONFIGURE_DEPENDS
+       RELATIVE "${_DEFOLD_DMSDK_DIR}"
+       "${_DEFOLD_DMSDK_DIR}/*.h"
+       "${_DEFOLD_DMSDK_DIR}/*.hpp")
+  foreach(_DEFOLD_DMSDK_HEADER IN LISTS _DEFOLD_DMSDK_HEADERS)
+    get_filename_component(_DEFOLD_DMSDK_HEADER_DIR "${_DEFOLD_DMSDK_HEADER}" DIRECTORY)
+    if(_DEFOLD_DMSDK_HEADER_DIR)
+      install(FILES "${_DEFOLD_DMSDK_DIR}/${_DEFOLD_DMSDK_HEADER}"
+              DESTINATION "sdk/include/dmsdk/${_DEFOLD_DMSDK_HEADER_DIR}")
+    else()
+      install(FILES "${_DEFOLD_DMSDK_DIR}/${_DEFOLD_DMSDK_HEADER}"
+              DESTINATION sdk/include/dmsdk)
+    endif()
+  endforeach()
 endforeach()

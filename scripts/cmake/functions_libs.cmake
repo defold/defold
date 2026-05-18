@@ -1,5 +1,98 @@
 defold_log("functions_libs.cmake:")
 
+set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
+  basis_encoder
+  basis_encoder_noasan
+  basis_transcoder
+  crashext
+  crashext_null
+  decoder_ogg
+  decoder_opus
+  decoder_wav
+  ddf
+  ddf_noasan
+  dlib
+  dlib_noasan
+  engine
+  engine_release
+  engine_service
+  engine_service_null
+  extension
+  font
+  font_skribidi
+  gameobject
+  gamesys
+  gamesys_model
+  gamesys_model_null
+  gamesys_rig
+  gamesys_rig_null
+  graphics
+  graphics_dx12
+  graphics_null
+  graphics_null_noasan
+  graphics_opengles
+  graphics_proto
+  graphics_proto_noasan
+  graphics_transcoder_basisu
+  graphics_transcoder_null
+  graphics_vulkan
+  graphics_webgpu
+  graphics_webgpu_wagyu
+  gui
+  gui_null
+  hid
+  hid_null
+  image
+  image_noasan
+  image_null
+  image_null_noasan
+  input
+  jni
+  jni_noasan
+  launcherutil
+  liveupdate
+  liveupdate_null
+  lua
+  mbedtls
+  mbedtls_noasan
+  model
+  particle
+  physics
+  physics_2d
+  physics_2d_defold
+  physics_3d
+  physics_null
+  platform
+  platform_null
+  platform_vulkan
+  profile
+  profile_noasan
+  profile_null
+  profile_null_noasan
+  profiler_js
+  profiler_remotery
+  profilerext
+  profilerext_null
+  record
+  record_null
+  render
+  render_font_default
+  resource
+  rig
+  rig_null
+  script
+  script_box2d
+  script_box2d_defold
+  shaderc
+  sound
+  sound_nosimd
+  sound_null
+  sound_openal
+  testmain
+  texc
+  zip
+  zip_noasan)
+
 # defold_target_link_libraries
 # Link libraries to a target with platform-aware name adjustments.
 #
@@ -9,9 +102,9 @@ defold_log("functions_libs.cmake:")
 #
 # Behavior:
 # - For Windows platforms (…-win32), each library name in <libs> is prefixed
-#   with "lib" unless it already starts with "lib", is an absolute path,
-#   is a generator expression (starts with "$<"), is a linker flag (starts with "-"),
-#   or already ends with ".lib".
+#   with "lib" unless it is an existing CMake target, already starts with
+#   "lib", is an absolute path, is a generator expression (starts with "$<"),
+#   is a linker flag (starts with "-"), or already ends with ".lib".
 # - Exceptions (these already follow Windows naming): hid, hid_null, input,
 #   platform, platform_null, platform_vulkan.
 # - Other platforms link the names as-is.
@@ -39,11 +132,12 @@ function(defold_target_link_libraries target platform)
   if(_PLAT_OS STREQUAL "win32")
     foreach(_lib IN LISTS _LIBS)
       set(_mapped "${_lib}")
-      # Exceptions: these libs follow Windows naming (no implicit "lib" prefix)
       set(_is_exception OFF)
-      if(_lib STREQUAL "hid" OR _lib STREQUAL "hid_null"
-         OR _lib STREQUAL "input"
-         OR _lib STREQUAL "platform" OR _lib STREQUAL "platform_null" OR _lib STREQUAL "platform_vulkan")
+      if(_lib IN_LIST DEFOLD_EXACT_WINDOWS_STATIC_LIBS)
+        set(_is_exception ON)
+      endif()
+
+      if(TARGET "${_lib}")
         set(_is_exception ON)
       endif()
 
@@ -73,6 +167,134 @@ function(defold_target_link_libraries target platform)
       endforeach()
     endif()
   endif()
+endfunction()
+
+# Installs targets using normal CMake semantics, except for static libraries on
+# Apple platforms. CMake's generated install script runs ranlib after installing
+# TYPE STATIC_LIBRARY there, which mutates the installed archive and makes the
+# next install copy it again even when the target did not change.
+function(defold_install_targets)
+  set(_targets)
+  set(_archive_dest)
+  set(_library_dest)
+  set(_runtime_dest)
+  set(_index 0)
+  set(_mode)
+
+  while(_index LESS ARGC)
+    list(GET ARGV ${_index} _arg)
+    if(_arg STREQUAL "TARGETS")
+      set(_mode TARGETS)
+    elseif(_arg STREQUAL "ARCHIVE" OR _arg STREQUAL "LIBRARY" OR _arg STREQUAL "RUNTIME")
+      set(_mode "${_arg}")
+      math(EXPR _index "${_index} + 1")
+      if(NOT _index LESS ARGC)
+        message(FATAL_ERROR "defold_install_targets: ${_mode} requires DESTINATION")
+      endif()
+      list(GET ARGV ${_index} _destination_keyword)
+      if(NOT _destination_keyword STREQUAL "DESTINATION")
+        message(FATAL_ERROR "defold_install_targets: ${_mode} requires DESTINATION")
+      endif()
+      math(EXPR _index "${_index} + 1")
+      if(NOT _index LESS ARGC)
+        message(FATAL_ERROR "defold_install_targets: ${_mode} DESTINATION requires a path")
+      endif()
+      list(GET ARGV ${_index} _destination)
+      if(_mode STREQUAL "ARCHIVE")
+        set(_archive_dest "${_destination}")
+      elseif(_mode STREQUAL "LIBRARY")
+        set(_library_dest "${_destination}")
+      elseif(_mode STREQUAL "RUNTIME")
+        set(_runtime_dest "${_destination}")
+      endif()
+    elseif(_mode STREQUAL "TARGETS")
+      list(APPEND _targets "${_arg}")
+    else()
+      message(FATAL_ERROR "defold_install_targets: expected TARGETS before ${_arg}")
+    endif()
+    math(EXPR _index "${_index} + 1")
+  endwhile()
+
+  if(NOT _targets)
+    message(FATAL_ERROR "defold_install_targets: no targets specified")
+  endif()
+
+  foreach(_target IN LISTS _targets)
+    get_target_property(_target_type ${_target} TYPE)
+    if(_target_type STREQUAL "STATIC_LIBRARY" AND TARGET_PLATFORM MATCHES "macos|ios")
+      if(NOT _archive_dest)
+        message(FATAL_ERROR "defold_install_targets: static target ${_target} requires ARCHIVE DESTINATION")
+      endif()
+      install(FILES "$<TARGET_FILE:${_target}>" DESTINATION "${_archive_dest}")
+    elseif(_target_type STREQUAL "SHARED_LIBRARY" AND TARGET_PLATFORM MATCHES "macos|ios")
+      if(NOT _library_dest)
+        message(FATAL_ERROR "defold_install_targets: shared target ${_target} requires LIBRARY DESTINATION")
+      endif()
+      set_target_properties(${_target} PROPERTIES
+        BUILD_WITH_INSTALL_NAME_DIR TRUE
+        INSTALL_NAME_DIR "")
+      install(PROGRAMS "$<TARGET_FILE:${_target}>" DESTINATION "${_library_dest}")
+    else()
+      set(_install_args TARGETS ${_target})
+      if(_archive_dest)
+        list(APPEND _install_args ARCHIVE DESTINATION "${_archive_dest}")
+      endif()
+      if(_library_dest)
+        list(APPEND _install_args LIBRARY DESTINATION "${_library_dest}")
+      endif()
+      if(_runtime_dest)
+        list(APPEND _install_args RUNTIME DESTINATION "${_runtime_dest}")
+      endif()
+      install(${_install_args})
+    endif()
+  endforeach()
+endfunction()
+
+function(defold_get_box2d_library out_var)
+  defold_feature_enabled(box2dv3 _with_box2dv3)
+  defold_feature_enabled(simd _with_simd)
+  if(_with_box2dv3 AND NOT _with_simd)
+    set(_box2d_lib box2d_nosimd)
+  else()
+    set(_box2d_lib box2d)
+  endif()
+  set(${out_var} ${_box2d_lib} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_physics_libraries out_var)
+  defold_feature_disabled(physics _physics_disabled)
+  defold_feature_enabled(box2dv3 _with_box2dv3)
+
+  if(_physics_disabled)
+    set(_physics_libs physics_null)
+  elseif(_with_box2dv3)
+    defold_get_box2d_library(_box2d_lib)
+    set(_physics_libs physics_2d BulletDynamics BulletCollision LinearMath ${_box2d_lib})
+  else()
+    set(_physics_libs physics BulletDynamics BulletCollision LinearMath box2d_defold)
+  endif()
+
+  set(${out_var} ${_physics_libs} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_font_libraries out_var)
+  defold_feature_enabled(font_layout _with_font_layout)
+  if(_with_font_layout)
+    set(_font_libs font_skribidi harfbuzz sheenbidi unibreak skribidi)
+  else()
+    set(_font_libs font)
+  endif()
+  set(${out_var} ${_font_libs} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_gamesys_libraries out_var)
+  defold_feature_enabled(box2dv3 _with_box2dv3)
+  if(_with_box2dv3)
+    set(_gamesys_libs gamesys gamesys_model gamesys_rig script_box2d)
+  else()
+    set(_gamesys_libs gamesys gamesys_model gamesys_rig script_box2d_defold)
+  endif()
+  set(${out_var} ${_gamesys_libs} PARENT_SCOPE)
 endfunction()
 
 # Attach a local include folder to a target and add headers to the IDE tree.

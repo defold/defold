@@ -12,13 +12,18 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import sys
-sys.path = ['../script/build/src/script'] + sys.path
+import os, sys
+sys.path = [
+    os.path.join(os.environ.get('DYNAMO_HOME', '../../tmp/dynamo_home'), 'lib', 'python', 'script'),
+    '../script/build/src/script'
+] + sys.path
 import sys_ddf_pb2, http.client
 
 m = sys_ddf_pb2.Reboot()
 m.arg1 = '--config=dmengine.unload_builtins=0'
-m.arg2 = 'src/test/build/default/game.projectc'
+m.arg2 = 'build/src/test/build/default/game.projectc'
+if not os.path.exists(m.arg2):
+    m.arg2 = 'src/test/build/default/game.projectc'
 
 conn = http.client.HTTPConnection("localhost", int(sys.argv[1]))
 conn.request("POST", "/post/@system/reboot", m.SerializeToString())

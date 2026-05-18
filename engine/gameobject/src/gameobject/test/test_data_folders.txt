@@ -1,0 +1,15 @@
+# Top-level gameobject test data folders built by bob-light.
+anim
+bones
+collection
+component
+delete
+factory
+hierarchy
+id
+input
+message
+props
+reload
+script
+spawn_delete

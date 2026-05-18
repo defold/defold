@@ -1,5 +1,17 @@
 defold_log("functions_protoc.cmake:")
 
+function(_defold_protoc_append_default_includes OUT_VAR)
+    set(_inc_dirs ${${OUT_VAR}})
+    if(DEFOLD_PROTO_SOURCE_INCLUDE_DIRS)
+        list(APPEND _inc_dirs ${DEFOLD_PROTO_SOURCE_INCLUDE_DIRS})
+    endif()
+    if(DEFOLD_SDK_ROOT)
+        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
+    endif()
+    list(REMOVE_DUPLICATES _inc_dirs)
+    set(${OUT_VAR} ${_inc_dirs} PARENT_SCOPE)
+endfunction()
+
 # Generate C++ sources from a .proto file using protoc with the Defold DDF plugin.
 #
 # Usage:
@@ -43,10 +55,7 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
     if(DPC_INCLUDES)
         list(APPEND _inc_dirs ${DPC_INCLUDES})
     endif()
-    if(DEFOLD_SDK_ROOT)
-        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
-    endif()
-    list(REMOVE_DUPLICATES _inc_dirs)
+    _defold_protoc_append_default_includes(_inc_dirs)
 
     set(_inc_flags)
     foreach(_inc IN LISTS _inc_dirs)
@@ -55,14 +64,31 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
 
     file(MAKE_DIRECTORY "${_out_dir}")
 
-    # Resolve DDF plugin path
-    if(NOT DEFOLD_SDK_ROOT)
-        message(FATAL_ERROR "defold_protoc_gen_cpp: DEFOLD_SDK_ROOT must be set to locate ddfc_cxx plugin")
-    endif()
-    if(HOST_PLATFORM_IS_WINDOWS)
-        set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx.bat")
+    # Resolve DDF plugin path. In a top-level configure, ddf may be present
+    # before its install step has populated DEFOLD_SDK_ROOT/bin.
+    set(_ddf_plugin_path "")
+    set(_ddf_plugin_pythonpath "")
+    set(_ddf_plugin_deps)
+    if(DEFINED DEFOLD_DDFC_CXX_EXECUTABLE AND EXISTS "${DEFOLD_DDFC_CXX_EXECUTABLE}")
+        set(_ddf_plugin_path "${DEFOLD_DDFC_CXX_EXECUTABLE}")
+        if(DEFINED DEFOLD_DDFC_CXX_PYTHONPATH)
+            set(_ddf_plugin_pythonpath "${DEFOLD_DDFC_CXX_PYTHONPATH}")
+        endif()
+        if(TARGET ddf_plugin_py)
+            list(APPEND _ddf_plugin_deps ddf_plugin_py)
+        endif()
+        if(TARGET ddf_proto_py)
+            list(APPEND _ddf_plugin_deps ddf_proto_py)
+        endif()
     else()
-        set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx")
+        if(NOT DEFOLD_SDK_ROOT)
+            message(FATAL_ERROR "defold_protoc_gen_cpp: DEFOLD_SDK_ROOT must be set to locate ddfc_cxx plugin")
+        endif()
+        if(HOST_PLATFORM_IS_WINDOWS)
+            set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx.bat")
+        else()
+            set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx")
+        endif()
     endif()
     if(NOT EXISTS "${_ddf_plugin_path}")
         message(FATAL_ERROR "defold_protoc_gen_cpp: ddf plugin not found at ${_ddf_plugin_path}. Check DEFOLD_SDK_ROOT.")
@@ -81,13 +107,23 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
         set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
     endif()
 
-    add_custom_command(
-        OUTPUT "${_out_cc}" "${_out_h}"
-        COMMAND ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
-        DEPENDS "${_src_abs}"
-        VERBATIM
-        COMMENT "Generating DDF C++ from ${SRC_PROTO}"
-    )
+    if(_ddf_plugin_pythonpath)
+        add_custom_command(
+            OUTPUT "${_out_cc}" "${_out_h}"
+            COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${_ddf_plugin_pythonpath}" ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            DEPENDS "${_src_abs}" "${_ddf_plugin_path}" ${_ddf_plugin_deps}
+            VERBATIM
+            COMMENT "Generating DDF C++ from ${SRC_PROTO}"
+        )
+    else()
+        add_custom_command(
+            OUTPUT "${_out_cc}" "${_out_h}"
+            COMMAND ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            DEPENDS "${_src_abs}" "${_ddf_plugin_path}" ${_ddf_plugin_deps}
+            VERBATIM
+            COMMENT "Generating DDF C++ from ${SRC_PROTO}"
+        )
+    endif()
 
     # Mark generated
     set_source_files_properties("${_out_cc}" "${_out_h}" PROPERTIES GENERATED TRUE)
@@ -104,6 +140,125 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
         set_source_files_properties("${OUT_CPP}" PROPERTIES GENERATED TRUE)
     endif()
 
+endfunction()
+
+######################################################################
+# Generate regular protobuf C++ sources from a .proto file.
+#
+# Usage:
+#   defold_protoc_gen_protobuf_cpp(
+#     "${CMAKE_CURRENT_BINARY_DIR}/test/test_ddf_proto.pb.cc"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_ddf_proto.proto"
+#     INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/src")
+function(defold_protoc_gen_protobuf_cpp OUT_CC SRC_PROTO)
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs INCLUDES)
+    cmake_parse_arguments(DPBCPP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if(NOT OUT_CC OR NOT SRC_PROTO)
+        message(FATAL_ERROR "defold_protoc_gen_protobuf_cpp: require OUT_CC and SRC_PROTO")
+    endif()
+
+    get_filename_component(_out_dir "${OUT_CC}" DIRECTORY)
+    get_filename_component(_src_abs "${SRC_PROTO}" ABSOLUTE)
+    get_filename_component(_src_name_we "${SRC_PROTO}" NAME_WE)
+    get_filename_component(_src_dir "${_src_abs}" DIRECTORY)
+
+    set(_out_cc "${_out_dir}/${_src_name_we}.pb.cc")
+    set(_out_h "${_out_dir}/${_src_name_we}.pb.h")
+
+    set(_inc_dirs ${_src_dir})
+    if(DPBCPP_INCLUDES)
+        list(APPEND _inc_dirs ${DPBCPP_INCLUDES})
+    endif()
+    _defold_protoc_append_default_includes(_inc_dirs)
+
+    set(_inc_flags)
+    foreach(_inc IN LISTS _inc_dirs)
+        list(APPEND _inc_flags -I "${_inc}")
+    endforeach()
+
+    file(MAKE_DIRECTORY "${_out_dir}")
+
+    set(_PROTOC_BIN protoc)
+    if(DEFINED DEFOLD_PROTOC_EXECUTABLE AND EXISTS "${DEFOLD_PROTOC_EXECUTABLE}")
+        set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
+    endif()
+
+    add_custom_command(
+        OUTPUT "${_out_cc}" "${_out_h}"
+        COMMAND ${_PROTOC_BIN} --cpp_out=${_out_dir} ${_inc_flags} "${_src_abs}"
+        DEPENDS "${_src_abs}"
+        VERBATIM
+        COMMENT "Generating protobuf C++ from ${SRC_PROTO}"
+    )
+
+    set_source_files_properties("${_out_cc}" "${_out_h}" PROPERTIES GENERATED TRUE)
+
+    if(NOT "${OUT_CC}" STREQUAL "${_out_cc}")
+        add_custom_command(
+            OUTPUT "${OUT_CC}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_out_cc}" "${OUT_CC}"
+            DEPENDS "${_out_cc}"
+            VERBATIM
+            COMMENT "Copying ${_out_cc} to ${OUT_CC}"
+        )
+        set_source_files_properties("${OUT_CC}" PROPERTIES GENERATED TRUE)
+    endif()
+endfunction()
+
+######################################################################
+# Generate a binary proto descriptor set.
+#
+# Usage:
+#   defold_protoc_gen_bproto(
+#     "${CMAKE_CURRENT_BINARY_DIR}/particle/particle_ddf.bproto"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/proto/particle/particle_ddf.proto"
+#     INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/proto"
+#   )
+function(defold_protoc_gen_bproto OUT_BPROTO SRC_PROTO)
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs INCLUDES)
+    cmake_parse_arguments(DPB "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if(NOT OUT_BPROTO OR NOT SRC_PROTO)
+        message(FATAL_ERROR "defold_protoc_gen_bproto: require OUT_BPROTO and SRC_PROTO")
+    endif()
+
+    get_filename_component(_src_abs "${SRC_PROTO}" ABSOLUTE)
+    get_filename_component(_out_abs "${OUT_BPROTO}" ABSOLUTE)
+    get_filename_component(_out_dir "${_out_abs}" DIRECTORY)
+    get_filename_component(_src_dir "${_src_abs}" DIRECTORY)
+
+    set(_inc_dirs ${_src_dir})
+    if(DPB_INCLUDES)
+        list(APPEND _inc_dirs ${DPB_INCLUDES})
+    endif()
+    _defold_protoc_append_default_includes(_inc_dirs)
+
+    set(_inc_flags)
+    foreach(_inc IN LISTS _inc_dirs)
+        list(APPEND _inc_flags -I "${_inc}")
+    endforeach()
+
+    file(MAKE_DIRECTORY "${_out_dir}")
+
+    set(_PROTOC_BIN protoc)
+    if(DEFINED DEFOLD_PROTOC_EXECUTABLE AND EXISTS "${DEFOLD_PROTOC_EXECUTABLE}")
+        set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
+    endif()
+
+    add_custom_command(
+        OUTPUT "${_out_abs}"
+        COMMAND ${_PROTOC_BIN} -o "${_out_abs}" ${_inc_flags} "${_src_abs}"
+        DEPENDS "${_src_abs}"
+        VERBATIM
+        COMMENT "Generating binary proto descriptor ${OUT_BPROTO}"
+    )
+
+    set_source_files_properties("${_out_abs}" PROPERTIES GENERATED TRUE)
 endfunction()
 
 ######################################################################
@@ -142,10 +297,7 @@ function(defold_protoc_encode OUT_FILE SRC_FILE SCHEMA_PROTO MESSAGE_NAME)
     if(DPE_INCLUDES)
         list(APPEND _inc_dirs ${DPE_INCLUDES})
     endif()
-    if(DEFOLD_SDK_ROOT)
-        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
-    endif()
-    list(REMOVE_DUPLICATES _inc_dirs)
+    _defold_protoc_append_default_includes(_inc_dirs)
     # Normalize include paths using REALPATH (removes . and .., resolves symlinks)
     set(_norm_inc_dirs)
     foreach(_d IN LISTS _inc_dirs)
@@ -209,7 +361,7 @@ endfunction()
 
 function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     set(options)
-    set(oneValueArgs)
+    set(oneValueArgs PYTHON_ROOT)
     set(multiValueArgs INCLUDES)
     cmake_parse_arguments(DPP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -221,19 +373,26 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     get_filename_component(_src_abs "${SRC_PROTO}" ABSOLUTE)
     get_filename_component(_src_name_we "${SRC_PROTO}" NAME_WE)
 
-    set(_gen_py "${_out_dir}/${_src_name_we}_pb2.py")
+    if(DPP_PYTHON_ROOT)
+        set(_python_out_dir "${DPP_PYTHON_ROOT}")
+        set(_gen_py "${OUT_PY}")
+    else()
+        set(_python_out_dir "${_out_dir}")
+        set(_gen_py "${_out_dir}/${_src_name_we}_pb2.py")
+    endif()
     set(_init_py "${_out_dir}/__init__.py")
 
     # Build include flags: user-specified + SDK defaults + proto's parent dir
     get_filename_component(_src_dir "${_src_abs}" DIRECTORY)
-    set(_inc_dirs ${_src_dir})
-    if(DPP_INCLUDES)
+    set(_inc_dirs)
+    if(DPP_PYTHON_ROOT AND DPP_INCLUDES)
         list(APPEND _inc_dirs ${DPP_INCLUDES})
     endif()
-    if(DEFOLD_SDK_ROOT)
-        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
+    list(APPEND _inc_dirs ${_src_dir})
+    if(NOT DPP_PYTHON_ROOT AND DPP_INCLUDES)
+        list(APPEND _inc_dirs ${DPP_INCLUDES})
     endif()
-    list(REMOVE_DUPLICATES _inc_dirs)
+    _defold_protoc_append_default_includes(_inc_dirs)
 
     set(_inc_flags)
     foreach(_inc IN LISTS _inc_dirs)
@@ -264,7 +423,7 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     if(_produce_init)
         add_custom_command(
             OUTPUT "${_gen_py}" "${_init_py}"
-            COMMAND ${_PROTOC_BIN} --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            COMMAND ${_PROTOC_BIN} --python_out=${_python_out_dir} ${_inc_flags} ${_src_abs}
             COMMAND ${CMAKE_COMMAND} -E touch "${_init_py}"
             DEPENDS "${_src_abs}"
             VERBATIM
@@ -274,7 +433,7 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     else()
         add_custom_command(
             OUTPUT "${_gen_py}"
-            COMMAND ${_PROTOC_BIN} --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            COMMAND ${_PROTOC_BIN} --python_out=${_python_out_dir} ${_inc_flags} ${_src_abs}
             DEPENDS "${_src_abs}"
             VERBATIM
             COMMENT "Generating Python from ${SRC_PROTO}"

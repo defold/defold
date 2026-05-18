@@ -14,7 +14,6 @@ set(GS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_DIR "${GS_ROOT}/src/gamesys")
 set(GS_DMSDK_SRC_DIR "${GS_ROOT}/src")
 set(GS_PROTO_DIR "${GS_ROOT}/proto/gamesys")
-set(GS_BUILD_DIR "${GS_ROOT}/build")
 
 # ========= Protobuf (DDF) =========
 # Mirror wscript: include all proto files under proto/gamesys except model_ddf.proto
@@ -36,6 +35,7 @@ foreach(_pf IN LISTS GS_PROTO_FILES)
   list(APPEND GS_PROTO_CC "${_out_cc}")
   list(APPEND GS_PROTO_HEADERS "${_out_h}")
 endforeach()
+add_custom_target(gamesys_proto_headers DEPENDS ${GS_PROTO_HEADERS})
 
 # Generate Python protobuf modules required by content tooling
 set(GS_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto/gamesys")
@@ -127,12 +127,37 @@ target_include_directories(gamesys PUBLIC
     "${GS_ROOT}/src"
     "${GS_ROOT}/proto"
     "${CMAKE_CURRENT_BINARY_DIR}")
+foreach(_gamesys_dependency IN ITEMS
+    gamesys_proto_headers
+    graphics_proto_header
+    input_proto_headers
+    particle_proto_headers
+    render_proto_headers
+    script_proto_headers)
+  if(TARGET ${_gamesys_dependency})
+    add_dependencies(gamesys ${_gamesys_dependency})
+  endif()
+endforeach()
+defold_target_link_libraries(gamesys "${TARGET_PLATFORM}" SCOPE PUBLIC
+    ddf
+    dlib
+    font
+    gameobject
+    gui
+    input
+    particle
+    render
+    resource
+    script
+    sound
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
 # ========= gamesys_model =========
 set(GS_MODEL_PROTO "${GS_PROTO_DIR}/model_ddf.proto")
 set(GS_MODEL_CC "${CMAKE_CURRENT_BINARY_DIR}/gamesys/model_ddf.pb.cc")
 set(GS_MODEL_HEADER "${CMAKE_CURRENT_BINARY_DIR}/gamesys/model_ddf.h")
 defold_protoc_gen_cpp("${GS_MODEL_CC}" "${GS_MODEL_PROTO}" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
+add_custom_target(gamesys_model_proto_headers DEPENDS "${GS_MODEL_HEADER}")
 
 defold_add_library(gamesys_model STATIC
     "${GS_SRC_DIR}/resources/res_model.cpp"
@@ -140,18 +165,62 @@ defold_add_library(gamesys_model STATIC
     "${GS_SRC_DIR}/scripts/script_model.cpp"
     "${GS_MODEL_CC}")
 target_include_directories(gamesys_model PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}" "${GS_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}")
+foreach(_gamesys_model_dependency IN ITEMS
+    gameobject_proto_headers
+    gamesys_proto_headers
+    gamesys_model_proto_headers
+    graphics_proto_header
+    input_proto_headers
+    particle_proto_headers
+    render_proto_headers
+    rig_proto_headers
+    script_proto_headers)
+  if(TARGET ${_gamesys_model_dependency})
+    add_dependencies(gamesys_model ${_gamesys_model_dependency})
+  endif()
+endforeach()
+defold_target_link_libraries(gamesys_model "${TARGET_PLATFORM}" SCOPE PUBLIC
+    gameobject
+    gui
+    input
+    particle
+    render
+    rig
+    script
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
 defold_add_library(gamesys_model_null STATIC
     "${GS_SRC_DIR}/resources/res_model_null.cpp"
     "${GS_SRC_DIR}/components/comp_model_null.cpp")
 target_include_directories(gamesys_model_null PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}")
+if(TARGET graphics_proto_header)
+    add_dependencies(gamesys_model_null graphics_proto_header)
+endif()
+if(TARGET script_proto_headers)
+    add_dependencies(gamesys_model_null script_proto_headers)
+endif()
+if(TARGET render_proto_headers)
+    add_dependencies(gamesys_model_null render_proto_headers)
+endif()
+defold_target_link_libraries(gamesys_model_null "${TARGET_PLATFORM}" SCOPE PUBLIC
+    gameobject
+    render
+    script
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
 # ========= gamesys_rig =========
 defold_add_library(gamesys_rig STATIC "${GS_SRC_DIR}/resources/res_rig_scene.cpp")
 target_include_directories(gamesys_rig PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}")
+defold_target_link_libraries(gamesys_rig "${TARGET_PLATFORM}" SCOPE PUBLIC rig)
 
 defold_add_library(gamesys_rig_null STATIC "${GS_SRC_DIR}/resources/res_rig_scene_null.cpp")
 target_include_directories(gamesys_rig_null PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}")
+if(TARGET graphics_proto_header)
+    add_dependencies(gamesys_rig_null graphics_proto_header)
+endif()
+defold_target_link_libraries(gamesys_rig_null "${TARGET_PLATFORM}" SCOPE PUBLIC
+    rig
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
 # ========= script_box2d =========
 defold_add_library(script_box2d STATIC
@@ -164,8 +233,26 @@ target_include_directories(script_box2d PUBLIC
     "${GS_SRC_DIR}"
     "${GS_DMSDK_SRC_DIR}"
     "${DEFOLD_EXT_INCLUDE_DIR}/box2d"
-    "${GS_BUILD_DIR}")
-
+    "${CMAKE_CURRENT_BINARY_DIR}")
+add_dependencies(script_box2d gamesys_proto_headers)
+if(TARGET graphics_proto_header)
+    add_dependencies(script_box2d graphics_proto_header)
+endif()
+if(TARGET script_proto_headers)
+    add_dependencies(script_box2d script_proto_headers)
+endif()
+if(TARGET particle_proto_headers)
+    add_dependencies(script_box2d particle_proto_headers)
+endif()
+if(TARGET input_proto_headers)
+    add_dependencies(script_box2d input_proto_headers)
+endif()
+defold_target_link_libraries(script_box2d "${TARGET_PLATFORM}" SCOPE PUBLIC
+    gameobject
+    gui
+    input
+    script
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
 
 defold_add_library(script_box2d_defold STATIC
@@ -178,7 +265,26 @@ target_include_directories(script_box2d_defold PUBLIC
     "${GS_SRC_DIR}"
     "${GS_DMSDK_SRC_DIR}"
     "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold"
-    "${GS_BUILD_DIR}")
+    "${CMAKE_CURRENT_BINARY_DIR}")
+add_dependencies(script_box2d_defold gamesys_proto_headers)
+if(TARGET graphics_proto_header)
+    add_dependencies(script_box2d_defold graphics_proto_header)
+endif()
+if(TARGET script_proto_headers)
+    add_dependencies(script_box2d_defold script_proto_headers)
+endif()
+if(TARGET particle_proto_headers)
+    add_dependencies(script_box2d_defold particle_proto_headers)
+endif()
+if(TARGET input_proto_headers)
+    add_dependencies(script_box2d_defold input_proto_headers)
+endif()
+defold_target_link_libraries(script_box2d_defold "${TARGET_PLATFORM}" SCOPE PUBLIC
+    gameobject
+    gui
+    input
+    script
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
 # ========= Android Java (optional) =========
 if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
@@ -197,7 +303,7 @@ if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
 endif()
 
 # ========= Install =========
-install(TARGETS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold
+defold_install_targets(TARGETS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
