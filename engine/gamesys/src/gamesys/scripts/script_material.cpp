@@ -657,7 +657,7 @@ namespace dmGameSystem
                 uint32_t bytes_per_element = dmGraphics::DataTypeToByteWidth(attribute.m_DataType);
                 for (uint32_t i = 0; i < value_count; ++i)
                 {
-                    FloatToVertexAttributeDataType(values_float[i], attribute.m_DataType, values_bytes + i * bytes_per_element);
+                    dmGraphics::WriteVertexAttributeFromFloat(values_bytes + i * bytes_per_element, values_float[i], attribute.m_DataType);
                 }
 
                 attribute.m_Values.m_BinaryValues.m_Data = values_bytes;

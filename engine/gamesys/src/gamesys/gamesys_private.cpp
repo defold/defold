@@ -413,35 +413,6 @@ namespace dmGameSystem
         }
     }
 
-    void FloatToVertexAttributeDataType(float value, dmGraphics::VertexAttribute::DataType data_type, uint8_t* value_write_ptr)
-    {
-        switch (data_type)
-        {
-            case dmGraphics::VertexAttribute::TYPE_BYTE:
-                *((int8_t*) value_write_ptr) = (int8_t) dmMath::Clamp(value, -128.0f, 127.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
-                *value_write_ptr = (uint8_t) dmMath::Clamp(value, 0.0f, 255.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_SHORT:
-                *((int16_t*) value_write_ptr) = (int16_t) dmMath::Clamp(value, -32768.0f, 32767.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
-                *((uint16_t*) value_write_ptr) = (uint16_t) dmMath::Clamp(value, 0.0f, 65535.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_INT:
-                *((int32_t*) value_write_ptr) = (int32_t) dmMath::Clamp(value, -2147483648.0f, 2147483647.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
-                *((uint32_t*) value_write_ptr) = (uint32_t) dmMath::Clamp(value, 0.0f, 4294967295.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_FLOAT:
-                *((float*) value_write_ptr) = value;
-                break;
-            default:break;
-        }
-    }
-
     void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)
     {
         dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
@@ -468,7 +439,7 @@ namespace dmGameSystem
         {
             for (uint32_t i = 0; i < attribute->m_ElementCount; ++i)
             {
-                WriteVertexAttributeFromFloat(value_ptr + bytes_per_element * i, values[i], attribute->m_DataType);
+                dmGraphics::WriteVertexAttributeFromFloat(value_ptr + bytes_per_element * i, values[i], attribute->m_DataType);
             }
         }
     }
