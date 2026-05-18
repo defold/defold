@@ -44,6 +44,9 @@ endif()
 
 defold_add_library(hid STATIC ${hid_SOURCES})
 target_compile_definitions(hid PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
+if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
+    target_link_libraries(hid PUBLIC "-framework GameController")
+endif()
 
 target_include_directories(hid PUBLIC
     "${HID_SRC_DIR}"

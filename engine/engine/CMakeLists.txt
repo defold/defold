@@ -45,9 +45,6 @@ add_custom_target(engine_proto_py ALL
 
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
-if(NOT EXISTS "${ENGINE_BOB_LIGHT}")
-  message(FATAL_ERROR "bob-light.jar not found: ${ENGINE_BOB_LIGHT}")
-endif()
 
 file(GLOB_RECURSE ENGINE_CONTENT_SOURCES CONFIGURE_DEPENDS
   "${ENGINE_CONTENT_DIR}/builtins/*"
@@ -80,6 +77,9 @@ add_custom_target(engine_builtins
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arci"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest")
+if(TARGET bob_light)
+  add_dependencies(engine_builtins bob_light)
+endif()
 
 set(ENGINE_DEBUG_SPC "${CMAKE_CURRENT_BINARY_DIR}/content/materials/debug.spc")
 add_custom_command(
@@ -266,7 +266,7 @@ if(WITH_OPUS)
 endif()
 
 set(ENGINE_EXTRA_LIBS crashext liveupdate ${ENGINE_FONT_LIBS})
-if(NOT TARGET_PLATFORM MATCHES "macos")
+if(TARGET_PLATFORM MATCHES "android")
   list(APPEND ENGINE_EXTRA_LIBS unwind)
 endif()
 if(TARGET_PLATFORM MATCHES "android")
@@ -472,6 +472,9 @@ if(BUILD_TESTS)
     COMMENT "Packaging bob-engine.jar"
     VERBATIM)
   add_custom_target(engine_bob_engine_jar ALL DEPENDS "${ENGINE_BOB_ENGINE_JAR}")
+  if(TARGET bob_light)
+    add_dependencies(engine_bob_engine_jar bob_light)
+  endif()
   install(FILES "${ENGINE_BOB_ENGINE_JAR}" DESTINATION share/java)
   add_subdirectory(src/test)
 endif()
