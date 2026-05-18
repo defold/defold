@@ -296,18 +296,18 @@ namespace dmGraphics
     // binding combinations per program per frame to stay cached, which is
     // critical for 3D scenes where the same shader is used with many
     // different texture/UBO combinations.
-    const static uint8_t DM_DESCRIPTOR_CACHE_SIZE = 8;
+    const static uint16_t DM_DESCRIPTOR_CACHE_SIZE = 128;
 
     struct DescriptorSetCache
     {
         DescriptorSetCacheEntry m_Entries[DM_DESCRIPTOR_CACHE_SIZE];
-        uint8_t                 m_WriteIndex; // next slot to overwrite on miss
+        uint16_t                m_WriteIndex; // next slot to overwrite on miss
 
         // Returns the cached descriptor sets if binding_signature matches
         // an entry with the current allocator generation, or null on miss.
         VkDescriptorSet* Find(uint64_t binding_signature, uint32_t allocator_generation, uint32_t descriptor_set_count)
         {
-            for (uint8_t i = 0; i < DM_DESCRIPTOR_CACHE_SIZE; ++i)
+            for (uint16_t i = 0; i < DM_DESCRIPTOR_CACHE_SIZE; ++i)
             {
                 DescriptorSetCacheEntry& e = m_Entries[i];
                 if (e.m_Valid &&
@@ -348,7 +348,9 @@ namespace dmGraphics
         {
             VkDescriptorSetLayout m_DescriptorSetLayouts[MAX_SET_COUNT];
             VkPipelineLayout      m_PipelineLayout;
+            VkPushConstantRange   m_PushConstantRanges[16];
             uint8_t               m_DescriptorSetLayoutsCount;
+            uint8_t               m_PushConstantRangeCount;
             uint8_t               m_LastUsedFrame;
         };
 
@@ -364,6 +366,7 @@ namespace dmGraphics
 
         uint32_t       m_UniformDataSizeAligned;
         uint16_t       m_UniformBufferCount;
+        uint16_t       m_PushConstantBufferCount;
         uint16_t       m_StorageBufferCount;
         uint16_t       m_TextureSamplerCount;
         uint16_t       m_TotalResourcesCount;
