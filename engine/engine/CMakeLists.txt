@@ -364,8 +364,15 @@ function(engine_configure_executable target variant engine_lib engine_service_li
       hid_null
       platform_null
       sound_null)
+    if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
+    endif()
   else()
-    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record vpx hid ${ENGINE_SOUND_LIBS})
+    if(TARGET record)
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record vpx hid ${ENGINE_SOUND_LIBS})
+    else()
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record_null hid ${ENGINE_SOUND_LIBS})
+    endif()
     defold_target_link_platform(${target} "${TARGET_PLATFORM}")
     defold_target_link_graphics(${target} "${TARGET_PLATFORM}")
   endif()

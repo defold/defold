@@ -2017,7 +2017,7 @@ class Configuration(object):
 
         self._build_engine_lib(args, 'extender', target_platform, directory = 'share')
         if not self.skip_docs:
-            self.build_docs()
+            self.build_docs(incremental = True)
         if not self.skip_builtins:
             self.build_builtins()
         if self.generate_compile_commands:
@@ -2249,13 +2249,15 @@ class Configuration(object):
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)
 
-    def build_docs(self):
+    def build_docs(self, incremental = None):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
         python_cmd = ' '.join(self.get_python())
         commands = 'build install'
-        if not self.incremental:
+        if incremental is None:
+            incremental = self.incremental
+        if not incremental:
             commands = "distclean configure " + commands
         cmd = '%s %s/ext/bin/waf configure --prefix=%s %s %s' % (python_cmd, self.dynamo_home, self.dynamo_home, skip_tests, commands)
         run.env_command(self._form_env(), [python_cmd, './scripts/bundle.py', 'docs', '--docs-dir', cwd], cwd = join(self.defold_root, 'editor'))
