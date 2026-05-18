@@ -867,9 +867,9 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
 #else
     WGPUDepthStencilState depthstencil_desc = {};
 #endif
-    if (context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil)
+    if (context->m_CurrentRenderPass.m_Target->m_Base.m_TextureDepthStencil)
     {
-        WebGPUTexture* texture              = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil);
+        WebGPUTexture* texture              = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_Base.m_TextureDepthStencil);
         if(texture->m_TextureView) {
             depthstencil_desc.format            = texture->m_Format;
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -948,20 +948,20 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
         blend_state.alpha.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactorAlpha];
         blend_state.alpha.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactorAlpha];
         WGPUColorTargetState targets_desc[MAX_BUFFER_COLOR_ATTACHMENTS];
-        for (int a = 0; a < context->m_CurrentRenderPass.m_Target->m_ColorBufferCount; ++a)
+        for (int a = 0; a < context->m_CurrentRenderPass.m_Target->m_Base.m_ColorAttachmentCount; ++a)
         {
 #if defined(DM_GRAPHICS_WEBGPU2)
             targets_desc[a]        = WGPU_COLOR_TARGET_STATE_INIT;
 #else
             targets_desc[a]        = {};
 #endif
-            WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureColor[a]);
+            WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_Base.m_TextureColor[a]);
             targets_desc[a].format = texture->m_Format;
             if (context->m_CurrentPipelineState.m_BlendEnabled)
                 targets_desc[a].blend = &blend_state;
             targets_desc[a].writeMask = write_mask;
         }
-        fragment_desc.targetCount = context->m_CurrentRenderPass.m_Target->m_ColorBufferCount;
+        fragment_desc.targetCount = context->m_CurrentRenderPass.m_Target->m_Base.m_ColorAttachmentCount;
         fragment_desc.targets     = targets_desc;
         desc.fragment             = &fragment_desc;
     }
@@ -999,7 +999,7 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
             context->m_MainRenderTarget->m_Multisample = 1;
         else if (context->m_MainRenderTarget->m_Multisample != 1)
             context->m_MainRenderTarget->m_Multisample = 4; // only 1 and 4 are supported
-        context->m_MainRenderTarget->m_ColorBufferCount       = 1;
+        context->m_MainRenderTarget->m_Base.m_ColorAttachmentCount       = 1;
         context->m_MainRenderTarget->m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
         context->m_MainRenderTarget->m_ColorBufferLoadOps[0]  = ATTACHMENT_OP_LOAD;
     }
@@ -1008,11 +1008,11 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
     // colorbuffer
     if (context->m_MainRenderTarget->m_Multisample == 1)
     {
-        WebGPUTexture* textureColor = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureColor[0]);
+        WebGPUTexture* textureColor = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureColor[0]);
         if (!textureColor)
         {
             textureColor                                   = new WebGPUTexture();
-            context->m_MainRenderTarget->m_TextureColor[0] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, textureColor, ASSET_TYPE_TEXTURE);
+            context->m_MainRenderTarget->m_Base.m_TextureColor[0] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, textureColor, ASSET_TYPE_TEXTURE);
         }
         textureColor->m_Base.m_Width  = (uint16_t) dmMath::Min(width, 0xFFFFu);
         textureColor->m_Base.m_Height = (uint16_t) dmMath::Min(height, 0xFFFFu);
@@ -1020,11 +1020,11 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
     }
     else
     {
-        WebGPUTexture* textureColor = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureColor[0]);
+        WebGPUTexture* textureColor = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureColor[0]);
         if (textureColor)
         {
             delete textureColor;
-            context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget->m_TextureColor[0]);
+            context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget->m_Base.m_TextureColor[0]);
         }
         {
             TextureCreationParams params;
@@ -1032,7 +1032,7 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
             params.m_Height        = 0;
             params.m_UsageHintBits = 0;
             textureColor           = WebGPUNewTextureInternal(params);
-            context->m_MainRenderTarget->m_TextureColor[0] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, textureColor, ASSET_TYPE_TEXTURE);
+            context->m_MainRenderTarget->m_Base.m_TextureColor[0] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, textureColor, ASSET_TYPE_TEXTURE);
         }
 
         WebGPUTexture* textureResolve = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureResolve[0]);
@@ -1046,11 +1046,11 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         textureResolve->m_Format = context->m_Format;
     }
     // depthstencil
-    WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureDepthStencil);
+    WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureDepthStencil);
     if (textureDepthStencil)
     {
         delete textureDepthStencil;
-        context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget->m_TextureDepthStencil);
+        context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget->m_Base.m_TextureDepthStencil);
     }
     {
         TextureCreationParams params;
@@ -1058,7 +1058,7 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         params.m_Height        = 0;
         params.m_UsageHintBits = 0;
         textureDepthStencil    = WebGPUNewTextureInternal(params);
-        context->m_MainRenderTarget->m_TextureDepthStencil = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, textureDepthStencil, ASSET_TYPE_TEXTURE);
+        context->m_MainRenderTarget->m_Base.m_TextureDepthStencil = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, textureDepthStencil, ASSET_TYPE_TEXTURE);
     }
 }
 
@@ -1654,7 +1654,7 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float
 
     // color
     WGPURenderPassColorAttachment colorAttachments[MAX_BUFFER_COLOR_ATTACHMENTS];
-    for (int i = 0; i < context->m_CurrentRenderPass.m_Target->m_ColorBufferCount; ++i)
+    for (int i = 0; i < context->m_CurrentRenderPass.m_Target->m_Base.m_ColorAttachmentCount; ++i)
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
         colorAttachments[i]            = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
@@ -1663,7 +1663,7 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float
 #endif
         colorAttachments[i].depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
         {
-            WebGPUTexture* texture   = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureColor[i]);
+            WebGPUTexture* texture   = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_Base.m_TextureColor[i]);
             colorAttachments[i].view = texture->m_TextureView;
         }
         if (context->m_CurrentRenderPass.m_Target->m_TextureResolve[i])
@@ -1710,7 +1710,7 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float
         }
     }
     desc.colorAttachments     = colorAttachments;
-    desc.colorAttachmentCount = context->m_CurrentRenderPass.m_Target->m_ColorBufferCount;
+    desc.colorAttachmentCount = context->m_CurrentRenderPass.m_Target->m_Base.m_ColorAttachmentCount;
 
     // depth/stencil
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -1718,9 +1718,9 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float
 #else
     WGPURenderPassDepthStencilAttachment dsAttachment = {};
 #endif
-    if (context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil)
+    if (context->m_CurrentRenderPass.m_Target->m_Base.m_TextureDepthStencil)
     {
-        WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil);
+        WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_Base.m_TextureDepthStencil);
         if(texture->m_TextureView) {
             dsAttachment.view                  = texture->m_TextureView;
             dsAttachment.depthStoreOp          = WGPUStoreOp_Store;
@@ -1773,9 +1773,9 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clear_col
         wgpuRenderPassEncoderSetScissorRect(context->m_CurrentRenderPass.m_Encoder, context->m_CurrentRenderPass.m_Target->m_Scissor[0], context->m_CurrentRenderPass.m_Target->m_Scissor[1], context->m_CurrentRenderPass.m_Target->m_Scissor[2], context->m_CurrentRenderPass.m_Target->m_Scissor[3]);
         context->m_ViewportChanged = 0;
     }
-    if (context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil)
+    if (context->m_CurrentRenderPass.m_Target->m_Base.m_TextureDepthStencil)
     {
-        WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil);
+        WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_Base.m_TextureDepthStencil);
         if(texture->m_TextureView)
             wgpuRenderPassEncoderSetStencilReference(context->m_CurrentRenderPass.m_Encoder, context->m_CurrentPipelineState.m_StencilReference);
     }
@@ -1801,7 +1801,7 @@ static void WebGPUBeginFrame(HContext _context)
         const uint32_t window_height = GetWindowHeight(_context);
         if (!context->m_MainRenderTarget || window_width != context->m_BaseContext.m_Width || window_height != context->m_BaseContext.m_Height) // (re)create
             WebGPUConfigure(context, window_width, window_height);
-        WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureDepthStencil);
+        WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureDepthStencil);
 #if defined(DM_GRAPHICS_WEBGPU2)
         WGPUSurfaceTexture surfaceColorTexture = WGPU_SURFACE_TEXTURE_INIT;
 #else
@@ -1828,7 +1828,7 @@ static void WebGPUBeginFrame(HContext _context)
         }
 
         if (context->m_MainRenderTarget->m_Multisample == 1) {
-            WebGPUTexture* textureColor = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureColor[0]);
+            WebGPUTexture* textureColor = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureColor[0]);
             textureColor->m_Texture     = currentColorTexture;
             textureColor->m_TextureView = currentColorTextureView;
             textureColor->m_Base.m_Width       = (uint16_t) dmMath::Min(currentWidth, 0xFFFFu);
@@ -1856,7 +1856,7 @@ static void WebGPUBeginFrame(HContext _context)
             }
 #endif
         } else {
-            WebGPUTexture* textureColor = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureColor[0]);
+            WebGPUTexture* textureColor = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureColor[0]);
             if(textureColor->m_Base.m_Width != currentWidth || textureColor->m_Base.m_Height != currentHeight) {
                 if(textureColor->m_Texture) {
                     wgpuTextureRelease(textureColor->m_Texture);
@@ -1905,7 +1905,7 @@ static void WebGPUFlip(HContext _context)
         {
             WebGPUTexture* texture;
             if (context->m_MainRenderTarget->m_Multisample == 1)
-                texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureColor[0]);
+                texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureColor[0]);
             else
                 texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureResolve[0]);
             if (texture->m_Texture)
@@ -1920,8 +1920,8 @@ static void WebGPUFlip(HContext _context)
             }
         }
 #if defined(DM_GRAPHICS_WEBGPU_WAGYU_USE_DEPTHSTENCIL)
-        if(context->m_MainRenderTarget->m_TextureDepthStencil) {
-            WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureDepthStencil);
+        if(context->m_MainRenderTarget->m_Base.m_TextureDepthStencil) {
+            WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureDepthStencil);
             if (texture->m_Texture)
             {
                 wgpuTextureRelease(texture->m_Texture);
@@ -3293,6 +3293,10 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     WebGPURenderTarget* rt = new WebGPURenderTarget();
     rt->m_Multisample      = 1;
     rt->m_Width = rt->m_Height = 0;
+    memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+    rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
+    rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
+    rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ? params.m_DepthBufferParams : params.m_StencilBufferParams;
 
     // colors
     const BufferType color_buffer_flags[] = {
@@ -3306,14 +3310,14 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         const BufferType buffer_type = color_buffer_flags[i];
         if (buffer_type_flags & buffer_type)
         {
-            rt->m_ColorBufferLoadOps[rt->m_ColorBufferCount]  = params.m_ColorBufferLoadOps[i];
-            rt->m_ColorBufferStoreOps[rt->m_ColorBufferCount] = params.m_ColorBufferStoreOps[i];
-            memcpy(rt->m_ColorBufferClearValue + rt->m_ColorBufferCount, params.m_ColorBufferClearValue + i, sizeof(params.m_ColorBufferClearValue[i]));
+            rt->m_ColorBufferLoadOps[rt->m_Base.m_ColorAttachmentCount]  = params.m_ColorBufferLoadOps[i];
+            rt->m_ColorBufferStoreOps[rt->m_Base.m_ColorAttachmentCount] = params.m_ColorBufferStoreOps[i];
+            memcpy(rt->m_ColorBufferClearValue + rt->m_Base.m_ColorAttachmentCount, params.m_ColorBufferClearValue + i, sizeof(params.m_ColorBufferClearValue[i]));
             {
                 WebGPUTexture* texture    = WebGPUNewTextureInternal(params.m_ColorBufferCreationParams[i]);
-                texture->m_Base.m_Format = params.m_ColorBufferParams[i].m_Format;
-                WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(params.m_ColorBufferParams[i].m_Format), 1, 1, g_rendertarget_usage);
-                rt->m_TextureColor[rt->m_ColorBufferCount] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
+                texture->m_Base.m_Format = rt->m_Base.m_ColorTextureParams[i].m_Format;
+                WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(rt->m_Base.m_ColorTextureParams[i].m_Format), 1, 1, g_rendertarget_usage);
+                rt->m_Base.m_TextureColor[rt->m_Base.m_ColorAttachmentCount] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
                 if (!rt->m_Width)
                 {
                     rt->m_Width  = texture->m_Base.m_Width;
@@ -3321,7 +3325,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
                 }
                 assert(rt->m_Width == texture->m_Base.m_Width && rt->m_Height == texture->m_Base.m_Height);
             }
-            ++rt->m_ColorBufferCount;
+            ++rt->m_Base.m_ColorAttachmentCount;
         }
     }
 
@@ -3334,7 +3338,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         if (has_depth)
         {
             texture                   = WebGPUNewTextureInternal(params.m_DepthBufferCreationParams);
-            texture->m_Base.m_Format = params.m_DepthBufferParams.m_Format;
+            texture->m_Base.m_Format = rt->m_Base.m_DepthStencilTextureParams.m_Format;
             if (has_stencil)
                 format = WGPUTextureFormat_Depth24PlusStencil8;
             else
@@ -3343,12 +3347,12 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         else if (has_stencil)
         {
             texture                   = WebGPUNewTextureInternal(params.m_StencilBufferCreationParams);
-            texture->m_Base.m_Format = params.m_StencilBufferParams.m_Format;
+            texture->m_Base.m_Format = rt->m_Base.m_DepthStencilTextureParams.m_Format;
             format                    = WGPUTextureFormat_Stencil8;
         }
         assert(texture);
         WebGPURealizeTexture(texture, format, 1, 1, WGPUTextureUsage_RenderAttachment);
-        rt->m_TextureDepthStencil = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
+        rt->m_Base.m_TextureDepthStencil = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
         if (!rt->m_Width)
         {
             rt->m_Width  = texture->m_Base.m_Width;
@@ -3365,15 +3369,15 @@ static void WebGPUDestroyRenderTarget(WebGPURenderTarget *rt)
 {
     TRACE_CALL;
     HContext context = (HContext)g_WebGPUContext;
-    for (size_t i = 0; i < rt->m_ColorBufferCount; ++i)
+    for (size_t i = 0; i < rt->m_Base.m_ColorAttachmentCount; ++i)
     {
-        if (rt->m_TextureColor[i])
-            WebGPUDeleteTexture(context, rt->m_TextureColor[i]);
+        if (rt->m_Base.m_TextureColor[i])
+            WebGPUDeleteTexture(context, rt->m_Base.m_TextureColor[i]);
         if (rt->m_TextureResolve[i])
             WebGPUDeleteTexture(context, rt->m_TextureResolve[i]);
     }
-    if (rt->m_TextureDepthStencil)
-        WebGPUDeleteTexture(context, rt->m_TextureDepthStencil);
+    if (rt->m_Base.m_TextureDepthStencil)
+        WebGPUDeleteTexture(context, rt->m_Base.m_TextureDepthStencil);
     delete rt;
 }
 
@@ -3401,9 +3405,9 @@ static HTexture WebGPUGetRenderTargetTexture(HContext context, HRenderTarget _rt
     TRACE_CALL;
     WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, _rt);
     if (IsColorBufferType(buffer_type))
-        return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
+        return rt->m_Base.m_TextureColor[GetBufferTypeIndex(buffer_type)];
     if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        return rt->m_TextureDepthStencil;
+        return rt->m_Base.m_TextureDepthStencil;
     return NULL;
 }
 
@@ -3411,8 +3415,18 @@ static void WebGPUGetRenderTargetSize(HContext context, HRenderTarget _rt, Buffe
 {
     TRACE_CALL;
     WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, _rt);
-    width                  = rt->m_Width;
-    height                 = rt->m_Height;
+    TextureParams* params  = 0;
+    if (IsColorBufferType(buffer_type))
+    {
+        params = &rt->m_Base.m_ColorTextureParams[GetBufferTypeIndex(buffer_type)];
+    }
+    else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
+    {
+        params = &rt->m_Base.m_DepthStencilTextureParams;
+    }
+
+    width  = params ? params->m_Width : rt->m_Width;
+    height = params ? params->m_Height : rt->m_Height;
 }
 
 static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
@@ -3768,7 +3782,7 @@ HTexture dmGraphics::WebGPUGetActiveSwapChainTexture(HContext _context)
 {
     WebGPUContext* context = (WebGPUContext*) _context;
     if (context->m_MainRenderTarget->m_Multisample == 1)
-        return context->m_MainRenderTarget->m_TextureColor[0];
+        return context->m_MainRenderTarget->m_Base.m_TextureColor[0];
     else
         return context->m_MainRenderTarget->m_TextureResolve[0];
 }
