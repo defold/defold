@@ -40,11 +40,25 @@ public class MouseCapture {
 
     public static native void MouseCapture_WarpCursor(int x, int y);
 
+    public static native boolean MouseCapture_GetCursorPos(CursorPos cursorPos);
+
     public static native Pointer MouseCapture_StartCapture(int saveCursorX, int saveCursorY);
 
     public static native void MouseCapture_StopCapture(Pointer context);
 
     public static native boolean MouseCapture_PollDelta(Pointer context, MouseDelta delta);
+
+    public static class CursorPos extends Structure {
+        public CursorPos() {}
+        
+        public int x;
+        public int y;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("x", "y");
+        }
+    }
 
     public static class MouseDelta extends Structure {
         public MouseDelta() {}

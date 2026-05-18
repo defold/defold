@@ -39,6 +39,20 @@ namespace dmMouseCapture
         CGAssociateMouseAndMouseCursorPosition(YES);
     }
 
+    bool GetCursorPos(CursorPos* cursor_pos)
+    {
+        if (!cursor_pos)
+            return false;
+
+        CGEventRef event = CGEventCreate(NULL);
+        if (!event)
+            return NO;
+        CGPoint p = CGEventGetLocation(event);
+        CFRelease(event);
+        *cursor_pos = { (int)p.x, (int)p.y };
+        return YES;
+    }
+
     HContext StartCapture(int save_cursor_x, int save_cursor_y)
     {
         Context* context = new Context();
@@ -46,6 +60,7 @@ namespace dmMouseCapture
         context->m_AccDx = 0.0;
         context->m_AccDy = 0.0;
 
+        CGWarpMouseCursorPosition(CGPointMake(save_cursor_x, save_cursor_y));
         CGAssociateMouseAndMouseCursorPosition(NO);
 
         context->m_LocalMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:kMotionMask

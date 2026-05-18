@@ -40,6 +40,27 @@ namespace dmMouseCapture
         XFlush(display);
     }
 
+    bool GetCursorPos(CursorPos* cursor_pos)
+    {
+        if (!cursor_pos)
+            return false;
+
+        static Display* display = XOpenDisplay(NULL);
+        if (!display)
+            return false;
+        Window root = DefaultRootWindow(display);
+        Window child;
+        int rx, ry, wx, wy;
+        unsigned int mask;
+        bool result = XQueryPointer(display, root, &root, &child, &rx, &ry, &wx, &wy, &mask);
+        if (result)
+        {
+            *cursor_pos = { rx, ry };
+        }
+        XFlush(display);
+        return result;
+    }
+
     HContext StartCapture(int save_cursor_x, int save_cursor_y)
     {
         Display* display = XOpenDisplay(NULL);

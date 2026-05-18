@@ -14,8 +14,7 @@
 
 (ns editor.input
   (:require [editor.os :as os])
-  (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta]
-           [java.awt MouseInfo]
+  (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta MouseCapture$CursorPos]
            [javafx.event EventType]
            [javafx.scene.input DragEvent InputEvent KeyCode KeyEvent MouseEvent MouseButton ScrollEvent TransferMode]))
 
@@ -59,17 +58,19 @@
     (reset! mouse-capture-context nil)
     true))
 
+(def ^:private cached-cursor-pos (atom (MouseCapture$CursorPos.)))
 (def ^:private cached-delta (atom (MouseCapture$MouseDelta.)))
 
 (defn poll-mouse-delta ^MouseCapture$MouseDelta []
   (when-let [context @mouse-capture-context]
-    (let [delta @cached-delta]
-      (when (MouseCapture/MouseCapture_PollDelta context delta)
-        @cached-delta))))
+    (when (MouseCapture/MouseCapture_PollDelta context @cached-delta)
+      @cached-delta)))
 
 (defn get-cursor-pos []
-  (let [point (.getLocation (MouseInfo/getPointerInfo))]
-    [(.getX point) (.getY point)]))
+  (if (MouseCapture/MouseCapture_GetCursorPos @cached-cursor-pos)
+    (let [cursor-pos ^MouseCapture$CursorPos @cached-cursor-pos]
+      [(.x cursor-pos) (.y cursor-pos)])
+    [0 0]))
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))
