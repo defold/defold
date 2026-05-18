@@ -87,6 +87,19 @@ namespace dmSound
         FSoundDataGetData   m_GetData;
     };
 
+#if DM_SOUND_WASM_SUPPORT_THREADS
+    enum CommandType
+    {
+        COMMAND_STOP
+    };
+
+    struct Command
+    {
+        CommandType     m_Type;
+        HSoundInstance  m_Instance;
+    };
+#endif
+
     struct SoundData
     {
         dmhash_t            m_NameHash;
@@ -142,6 +155,7 @@ namespace dmSound
 #if DM_SOUND_WASM_SUPPORT_THREADS
         dmConditionVariable::HConditionVariable m_CondVar;
         dmThread::Thread        m_Thread;
+        dmArray<Command>        m_CommandQueue;
 #endif
         int32_atomic_t          m_IsRunning;
         int32_atomic_t          m_Status;
@@ -502,6 +516,7 @@ namespace dmSound
 #if DM_SOUND_WASM_SUPPORT_THREADS
         sound->m_Thread = 0;
         sound->m_CondVar = 0;
+        sound->m_CommandQueue.SetCapacity(64);
 
         if (params->m_UseThread) {
             dmLogInfo("sound updates on worker thread");
@@ -600,6 +615,8 @@ namespace dmSound
         float extra_percent = 1.05f;
         return ceilf(f_frame_count * extra_percent) * 32;
     }
+
+    static void StopInternal(SoundSystem* sound, HSoundInstance sound_instance);
 
     static inline const char* GetSoundName(SoundSystem* sound, SoundInstance* instance)
     {
@@ -810,19 +827,9 @@ namespace dmSound
         if (IsPlaying(sound_instance))
         {
             dmLogError("Deleting playing sound instance (%s)", GetSoundName(sound, sound_instance));
-            Stop(sound_instance);
-            uint32_t last = sound->m_InstancesActive.Size() - 1;
-            for (uint32_t i = 0; i < last; ++i) {
-                if (sound->m_InstancesActive[i] == sound_instance->m_Index) {
-                    if (i < last) {
-                        // swap to end of array so we can pop
-                        sound->m_InstancesActive.EraseSwap(i);
-                    }
-                    sound->m_InstancesActive.Pop();
-                    sound_instance->m_SoundDataIndex = 0xffff;
-                    break;
-                }
-            }
+            // Must stop synchronously here; queuing would cause use-after-free
+            // since the instance is destroyed immediately below
+            StopInternal(sound, sound_instance);
         }
 
         uint16_t index = sound_instance->m_Index;
@@ -1167,12 +1174,10 @@ namespace dmSound
         sound->m_InstancesActive.Pop();
     }
 
-    Result Stop(HSoundInstance sound_instance)
+    static void StopInternal(SoundSystem* sound, HSoundInstance sound_instance)
     {
-        SoundSystem* sound = g_SoundSystem;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
         sound_instance->m_Playing = 0;
-        dmSoundCodec::Reset(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder);
+        dmSoundCodec::Reset(sound->m_CodecContext, sound_instance->m_Decoder);
         if (sound_instance->m_SourceIndex != 0xffff) {
             ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];
             alSourceStop(source);
@@ -1189,6 +1194,31 @@ namespace dmSound
                 }
             }
         }
+    }
+
+    Result Stop(HSoundInstance sound_instance)
+    {
+        SoundSystem* sound = g_SoundSystem;
+
+#if DM_SOUND_WASM_SUPPORT_THREADS
+        if (sound->m_Thread != 0) {
+            // Queue the stop command for execution on the audio thread
+            // to avoid cross-thread OpenAL calls which can crash
+            DM_MUTEX_SCOPED_LOCK(sound->m_Mutex);
+            if (sound->m_CommandQueue.Remaining() == 0) {
+                dmLogError("Sound command queue full (%u), stop command dropped", sound->m_CommandQueue.Capacity());
+                return RESULT_OUT_OF_INSTANCES;
+            }
+            Command cmd;
+            cmd.m_Type = COMMAND_STOP;
+            cmd.m_Instance = sound_instance;
+            sound->m_CommandQueue.Push(cmd);
+            return RESULT_OK;
+        }
+#endif
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
+        StopInternal(sound, sound_instance);
         return RESULT_OK;
     }
 
@@ -1273,6 +1303,19 @@ namespace dmSound
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
 
+#if DM_SOUND_WASM_SUPPORT_THREADS
+        // Process queued commands from other threads
+        for (uint32_t cmd_idx = 0; cmd_idx < sound->m_CommandQueue.Size(); ++cmd_idx)
+        {
+            Command& cmd = sound->m_CommandQueue[cmd_idx];
+            if (cmd.m_Type == COMMAND_STOP)
+            {
+                StopInternal(sound, cmd.m_Instance);
+            }
+        }
+        sound->m_CommandQueue.SetSize(0);
+#endif
+
         // feed buffers for active streams
         uint16_t i = 0;
         while (i < sound->m_InstancesActive.Size()) {
@@ -1334,8 +1377,8 @@ namespace dmSound
                 // wait until we're finished playing and get through all queued buffers
                 ++i;
             } else {
-                // finished playing; reclaim source
-                Stop(&instance);
+                // Already on the sound thread with mutex held; call StopInternal directly
+                StopInternal(sound, &instance);
             }
         }
 
