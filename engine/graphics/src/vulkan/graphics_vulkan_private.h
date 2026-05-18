@@ -154,9 +154,9 @@ namespace dmGraphics
         bool             m_DepthStencilAttachment;
     };
 
-    struct RenderTarget
+    struct VulkanRenderTarget
     {
-    	RenderTarget(const uint32_t rtId);
+        VulkanRenderTarget(const uint32_t rtId);
 
         struct VulkanHandle
         {
@@ -177,6 +177,7 @@ namespace dmGraphics
             uint8_t       m_LastUsedFrame;
         };
 
+        RenderTarget   m_Base;
         VulkanHandle   m_Handle;
 
         AttachmentOp   m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
@@ -186,18 +187,12 @@ namespace dmGraphics
         uint32_t       m_StencilAttachmentClearValue;
 
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
-        TextureParams  m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
-        TextureParams  m_DepthStencilTextureParams;
         SubPass*       m_SubPasses;
-        HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture       m_TextureDepthStencil;
 
         VkExtent2D     m_Extent;
         VkRect2D       m_Scissor;
 
-        const uint16_t m_Id;
         uint32_t       m_Destroyed            : 1;
-        uint32_t       m_IsBound              : 1;
         // Set by VulkanClear when the pass has not yet been begun and all color attachments
         // are being cleared. Consumed by the next BeginRenderPass which picks the CLEAR
         // variant render pass and uses m_ColorAttachmentClearValue as load-op clear colors.
@@ -205,7 +200,6 @@ namespace dmGraphics
         // Set alongside m_HasPendingClearColor when depth/stencil is also pending a clear.
         // BeginRenderPass picks m_RenderPassClearColorDepth and uses m_DepthAttachmentClearValue.
         uint32_t       m_HasPendingClearDepth : 1;
-        uint32_t       m_ColorAttachmentCount : 7;
         uint32_t       m_SubPassCount         : 8;
         uint32_t       m_SubPassIndex         : 8;
 
@@ -393,7 +387,7 @@ namespace dmGraphics
             DeviceBuffer::VulkanHandle        m_DeviceBuffer;
             VulkanTexture::VulkanHandle       m_Texture;
             VulkanProgram::VulkanHandle       m_Program;
-            RenderTarget::VulkanHandle        m_RenderTarget;
+            VulkanRenderTarget::VulkanHandle        m_RenderTarget;
             VulkanCommandBuffer::VulkanHandle m_CommandBuffer;
         };
         VulkanResourceType m_ResourceType;
@@ -571,7 +565,7 @@ namespace dmGraphics
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut);
-    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, RenderTarget* render_target, Pipeline* pipelineOut);
+    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, VulkanRenderTarget* render_target, Pipeline* pipelineOut);
     VkResult CreateComputePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VulkanProgram* program, Pipeline* pipelineOut);
 
     // Destroy functions
@@ -587,7 +581,7 @@ namespace dmGraphics
     void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
     void DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
     void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle);
-    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle);
+    void DestroyRenderTarget(VkDevice vk_device, VulkanRenderTarget::VulkanHandle* handle);
 
     // Get functions
     uint32_t              GetPhysicalDeviceCount(VkInstance vkInstance);

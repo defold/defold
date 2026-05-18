@@ -43,6 +43,26 @@ namespace dmGraphics
         int32_atomic_t m_DataState; // mip bits for upload pending; mutable so const Texture* can pass &m_DataState to atomics
     };
 
+    // Shared render target metadata embedded as m_Base in each backend render target struct.
+    // Each adapter keeps RenderTarget as the first non-vtable member so the asset pointer aliases m_Base and
+    // GetAssetFromContainer<RenderTarget>(container, handle) is valid alongside GetAssetFromContainer<BackendRenderTarget>(...).
+    struct RenderTarget
+    {
+        TextureParams m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams m_DepthBufferParams;
+        TextureParams m_StencilBufferParams;
+        TextureParams m_DepthStencilTextureParams;
+
+        HTexture      m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture      m_TextureDepth;
+        HTexture      m_TextureStencil;
+        HTexture      m_TextureDepthStencil;
+
+        uint16_t      m_Id;
+        uint8_t       m_ColorAttachmentCount;
+        uint8_t       m_IsBound;
+    };
+
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
