@@ -349,6 +349,33 @@ def invoke_lein(args, jdk_path=None, **kwargs):
     jdk_path = jdk_path or os.environ['JAVA_HOME']
     return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True, **kwargs)
 
+def invoke_zip_parallel(args, jdk_path=None):
+    return invoke_lein(['with-profile', 'zip-parallel', 'run', '-m', 'editor.zip-parallel'] + args, jdk_path=jdk_path)
+
+def read_merged_project_value(profile, key, jdk_path=None):
+    """Print a value from the Leiningen project after profile merging.
+
+    Leiningen does not provide a small built-in task for printing an arbitrary
+    merged project key. `update-in` applies the function before running the
+    following task, so using `clojure.core/prn` lets us capture the value while
+    `version` gives Leiningen a cheap task to run afterwards.
+    """
+    return invoke_lein(['with-profile', profile, 'update-in', key, 'clojure.core/prn', '--', 'version'], jdk_path=jdk_path)
+
+def parse_lein_string(value):
+    for line in value.splitlines():
+        line = line.strip()
+        if line.startswith('"'):
+            return json.loads(line)
+    raise Exception("Unable to parse Leiningen string from output:\n%s" % value)
+
+def parse_lein_regexes(value):
+    for line in value.splitlines():
+        regexes = re.findall(r'#"([^"]*)"', line)
+        if regexes:
+            return regexes
+    raise Exception("Unable to parse Leiningen regexes from output:\n%s" % value)
+
 def write_docs(docs_dir, jdk_path=None):
     invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
 
@@ -431,7 +458,7 @@ def remove_platform_files_from_archive(platform, jar, jdk=None):
         for file in sorted(files_to_remove):
             f.write(file + "\n")
     try:
-        invoke_lein(['zip-parallel', 'filter-jar', jar, newjar, removals_file], jdk_path=jdk)
+        invoke_zip_parallel(['filter-jar', jar, newjar, removals_file], jdk_path=jdk)
     except BaseException:
         if os.path.exists(newjar):
             os.remove(newjar)
@@ -448,11 +475,36 @@ def remove_platform_files_from_archive(platform, jar, jdk=None):
         (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
 
 
+def create_standalone_editor_jar(jdk, platform):
+    """Build the platform-specific standalone editor jar.
+
+    This replaces the old `lein zip-parallel uberjar` task. Since the parallel
+    zip code now runs as a normal Clojure namespace instead of a Leiningen task,
+    the Python build coordinates the few pieces the task previously handled:
+    build the project jar, read merged `project.clj` settings, resolve
+    dependency jars, and pass them to the zip writer.
+    """
+    profile = 'release,%s,uberjar' % platform
+    log("Creating uberjar for platform %s..." % platform)
+    jar_output = invoke_lein(['with-profile', profile, 'jar'], jdk_path=jdk)
+    jar_output_match = re.search(r'Created (.*\.jar)', jar_output)
+    if not jar_output_match:
+        raise Exception("Unable to determine editor jar from Leiningen output:\n%s" % jar_output)
+    project_jar = jar_output_match.group(1)
+    standalone_jar = path.join('target', parse_lein_string(read_merged_project_value(profile, ':uberjar-name', jdk)))
+    exclusions = parse_lein_regexes(read_merged_project_value(profile, ':uberjar-exclusions', jdk))
+    exclusions_file = 'target/parallel-uberjar-exclusions.edn'
+    with open(exclusions_file, 'w') as f:
+        json.dump(exclusions, f)
+    classpath = invoke_lein(['with-profile', 'release,%s' % platform, 'classpath'], jdk_path=jdk)
+    jars = [project_jar] + [jar_path for jar_path in classpath.split(os.pathsep) if jar_path.endswith('.jar')]
+    invoke_zip_parallel(['create-standalone-jar', standalone_jar, exclusions_file] + jars, jdk_path=jdk)
+    return standalone_jar
+
+
 def create_bundle(jdk, platform, options):
     mkdirs('target/editor')
-    log("Creating uberjar for platform %s..." % platform)
-    invoke_lein(['with-profile', 'release,%s' % platform, 'zip-parallel', 'uberjar'], jdk_path=jdk)
-    jar_file = 'target/editor-%s-standalone.jar' % platform
+    jar_file = create_standalone_editor_jar(jdk, platform)
     log("Creating bundle for platform %s..." % platform)
     rmtree('tmp')
     tmp_dir = "tmp"
