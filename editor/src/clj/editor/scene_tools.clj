@@ -236,6 +236,13 @@
     (vtx-add [90.0 0.0 0.0] (vtx-scale [14.0 6.0 6.0] (gen-cone sub-divs)))
     (vtx-add [15.0 0.0 0.0] (vtx-scale [85.0 1.0 1.0] (gen-line)))))
 
+(defn move-arrow-vertex-groups
+  "Returns a sequence of `[gl-mode vertices]` for the translation-tool arrow along +X (3D cone
+  head + line shaft). Same mesh as used for move-x / move-y / move-z manipulators."
+  ([] (move-arrow-vertex-groups 10))
+  ([^double sub-divs]
+   (gen-arrow sub-divs)))
+
 (defn- gen-vertex-buffer [vertices vtx-count]
   (let [vbuf  (->pos-vtx vtx-count)]
     (doseq [vertex vertices]

@@ -20,8 +20,16 @@ namespace dmRender
     static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
     static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
 
-    static void CommitLightInstance(HRenderContext render_context, LightInstance* instance);
+    static void CommitLightInstance(HRenderContext render_context, const LightInstance* instance, dmVMath::Point3 position, dmVMath::Vector3 direction, float scale);
     static void CommitLightCount(HRenderContext render_context);
+    static void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light);
+    static bool LightSTD140Equals(const LightSTD140& a, const LightSTD140& b);
+    static bool EnsureLightUniformBuffer(HRenderContext render_context);
+
+    static inline dmVMath::Vector3 GetLightForwardDirection()
+    {
+        return dmVMath::Vector3(0.0f, 0.0f, -1.0f);
+    }
 
     ////////////////////////////////
     // Light prototype
@@ -30,7 +38,6 @@ namespace dmRender
     LightPrototypeParams::LightPrototypeParams()
     : m_Type(LIGHT_TYPE_POINT)
     , m_Color(1.0f, 1.0f, 1.0f, 1.0f)
-    , m_Direction(0.0f, 0.0f, -1.0f)
     , m_Intensity(1.0f)
     , m_Range(10.0f)
     , m_InnerConeAngle(0.0f)
@@ -40,19 +47,29 @@ namespace dmRender
 
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params)
     {
+        if (render_context->m_LightPrototypes.Full())
+        {
+            render_context->m_LightPrototypes.Allocate(32);
+        }
+
         LightPrototype* lp = new LightPrototype;
-        SetLightPrototype(render_context, lp, params);
-        return lp;
+        HLightPrototype handle = render_context->m_LightPrototypes.Put(lp);
+        SetLightPrototype(render_context, handle, params);
+        return handle;
     }
 
     void SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params)
     {
-        LightPrototype* lp = (LightPrototype*) light_prototype;
+        LightPrototype* lp = render_context->m_LightPrototypes.Get(light_prototype);
+        if (!lp)
+        {
+            return;
+        }
+
         memset(lp, 0, sizeof(LightPrototype));
         lp->m_Type = params.m_Type;
         lp->m_Color = params.m_Color;
         lp->m_Intensity = params.m_Intensity;
-        lp->m_Direction = params.m_Direction;
         lp->m_Range = params.m_Range;
         lp->m_InnerConeAngle = params.m_InnerConeAngle;
         lp->m_OuterConeAngle = params.m_OuterConeAngle;
@@ -60,7 +77,17 @@ namespace dmRender
 
     void DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype)
     {
-        delete light_prototype;
+        LightPrototype* lp = render_context->m_LightPrototypes.Get(light_prototype);
+        if (lp)
+        {
+            render_context->m_LightPrototypes.Release(light_prototype);
+            delete lp;
+        }
+    }
+
+    const LightPrototype* GetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype)
+    {
+        return render_context->m_LightPrototypes.Get(light_prototype);
     }
 
     ////////////////////////////////
@@ -69,71 +96,78 @@ namespace dmRender
 
     HLightInstance NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype)
     {
-        // Reached max count.
-        if (render_context->m_RenderLightsIndices.Remaining() == 0)
+        if (!render_context->m_LightPrototypes.Get(light_prototype))
         {
             return 0;
         }
 
-        if (render_context->m_RenderLights.Full())
+        // Reached max count.
+        if (render_context->m_RenderLightsIndices.Size() >= render_context->m_MaxLightCount || render_context->m_RenderLightsIndices.Remaining() == 0)
         {
-            render_context->m_RenderLights.Allocate(32);
+            return 0;
         }
 
-        LightInstance* light_instance      = new LightInstance;
-        light_instance->m_Position         = dmVMath::Point3(0.0f, 0.0f, 0.0f);
-        light_instance->m_Direction        = light_prototype->m_Direction;
+        uint16_t light_buffer_index = render_context->m_RenderLightsIndices.Pop();
+        LightInstance* light_instance = &render_context->m_RenderLights[light_buffer_index];
         light_instance->m_LightPrototype   = light_prototype;
-        light_instance->m_LightBufferIndex = render_context->m_RenderLightsIndices.Pop();
+        light_instance->m_LightBufferIndex = light_buffer_index;
+        light_instance->m_Version++;
+        if (light_instance->m_Version == 0 || light_instance->m_Version == 0xFFFF)
+        {
+            light_instance->m_Version = 1;
+        }
 
         if (light_instance->m_LightBufferIndex >= render_context->m_LightBufferScratch.Size())
         {
             render_context->m_LightBufferScratch.SetSize(light_instance->m_LightBufferIndex+1);
         }
 
-        CommitLightInstance(render_context, light_instance);
+        CommitLightInstance(render_context, light_instance, dmVMath::Point3(0.0f, 0.0f, 0.0f), GetLightForwardDirection(), 1.0f);
         CommitLightCount(render_context);
 
-        return render_context->m_RenderLights.Put(light_instance);
+        return light_instance->m_Version << 16 | light_buffer_index;
     }
 
     void DeleteLightInstance(HRenderContext render_context, HLightInstance instance)
     {
-        LightInstance* light_instance = render_context->m_RenderLights.Get(instance);
+        uint16_t light_buffer_index = instance & 0xFFFF;
+        LightInstance* light_instance = light_buffer_index < render_context->m_RenderLights.Size() ? &render_context->m_RenderLights[light_buffer_index] : 0;
         if (light_instance)
         {
+            if (light_instance->m_LightPrototype == 0 || light_instance->m_Version != (instance >> 16))
+            {
+                return;
+            }
             render_context->m_RenderLightsIndices.Push(light_instance->m_LightBufferIndex);
-            render_context->m_RenderLights.Release(instance);
-            delete light_instance;
+            light_instance->m_LightPrototype = 0;
             CommitLightCount(render_context);
         }
     }
 
-    static inline bool Vector3Equals(const dmVMath::Vector3& a, const dmVMath::Vector3& b)
+    void SetLightInstance(HRenderContext render_context, HLightInstance instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale)
     {
-        const float eps = 1e-4f;
-        dmVMath::Vector3 diff = a - b;
-        float dist2 = dmVMath::LengthSqr(diff);
-        return dist2 <= eps * eps;
-    }
-
-    void SetLightInstance(HRenderContext render_context, HLightInstance instance, dmVMath::Point3 position, dmVMath::Quat rotation)
-    {
-        LightInstance* light_instance = render_context->m_RenderLights.Get(instance);
-        if (!light_instance)
+        uint16_t light_buffer_index = instance & 0xFFFF;
+        LightInstance* light_instance = light_buffer_index < render_context->m_RenderLights.Size() ? &render_context->m_RenderLights[light_buffer_index] : 0;
+        if (!light_instance || light_instance->m_LightPrototype == 0 || light_instance->m_Version != (instance >> 16))
         {
             return;
         }
 
-        dmVMath::Vector3 direction = dmVMath::Rotate(rotation, light_instance->m_LightPrototype->m_Direction);
-        bool needs_commit = !Vector3Equals(dmVMath::Vector3(position), dmVMath::Vector3(light_instance->m_Position)) || !Vector3Equals(direction, light_instance->m_Direction);
+        dmVMath::Vector3 direction = dmVMath::Rotate(rotation, GetLightForwardDirection());
+        float clamped_scale = dmMath::Max(0.0f, scale);
+        const LightPrototype* prototype = render_context->m_LightPrototypes.Get(light_instance->m_LightPrototype);
+        if (!prototype)
+        {
+            return;
+        }
 
-        light_instance->m_Position = position;
-        light_instance->m_Direction = direction;
+        LightSTD140 updated_light;
+        FillLightInstanceSTD140(prototype, position, direction, clamped_scale, &updated_light);
+        bool needs_commit = !LightSTD140Equals(updated_light, render_context->m_LightBufferScratch[light_instance->m_LightBufferIndex]);
 
         if (needs_commit)
         {
-            CommitLightInstance(render_context, light_instance);
+            CommitLightInstance(render_context, light_instance, position, direction, clamped_scale);
         }
     }
 
@@ -228,13 +262,10 @@ namespace dmRender
         render_context->m_LightBufferDataWriteStart = light_buffer_members[1].m_Offset;
     }
 
-    static inline void CommitLightInstance(HRenderContext render_context, LightInstance* instance)
+    static inline void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light)
     {
-        const LightPrototype* prototype = instance->m_LightPrototype;
-
-        LightSTD140& light_std140 = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
-        light_std140.m_Position = dmVMath::Vector4(instance->m_Position);
-        light_std140.m_Color    = prototype->m_Color;
+        out_light->m_Position = dmVMath::Vector4(position);
+        out_light->m_Color    = prototype->m_Color;
 
         dmVMath::Vector3 direction(0.0f, 0.0f, 0.0f);
         float range      = 0.0f;
@@ -244,14 +275,14 @@ namespace dmRender
         switch (prototype->m_Type)
         {
         case LIGHT_TYPE_DIRECTIONAL:
-            direction = instance->m_Direction;
+            direction = world_direction;
             break;
         case LIGHT_TYPE_POINT:
-            range = prototype->m_Range;
+            range = prototype->m_Range * scale;
             break;
         case LIGHT_TYPE_SPOT:
-            direction  = instance->m_Direction;
-            range      = prototype->m_Range;
+            direction  = world_direction;
+            range      = prototype->m_Range * scale;
             inner_cone = prototype->m_InnerConeAngle;
             outer_cone = prototype->m_OuterConeAngle;
             break;
@@ -260,8 +291,36 @@ namespace dmRender
             break;
         }
 
-        light_std140.m_DirectionRange = dmVMath::Vector4(direction, range);
-        light_std140.m_Params = dmVMath::Vector4((float) prototype->m_Type, prototype->m_Intensity, inner_cone, outer_cone);
+        out_light->m_DirectionRange = dmVMath::Vector4(direction, range);
+        out_light->m_Params = dmVMath::Vector4((float) prototype->m_Type, prototype->m_Intensity, inner_cone, outer_cone);
+    }
+
+    static inline bool Vector4Equals(const dmVMath::Vector4& a, const dmVMath::Vector4& b)
+    {
+        const float eps = 1e-4f;
+        dmVMath::Vector4 diff = a - b;
+        float dist2 = dmVMath::LengthSqr(diff);
+        return dist2 <= eps * eps;
+    }
+
+    static inline bool LightSTD140Equals(const LightSTD140& a, const LightSTD140& b)
+    {
+        return Vector4Equals(a.m_Position, b.m_Position)
+            && Vector4Equals(a.m_Color, b.m_Color)
+            && Vector4Equals(a.m_DirectionRange, b.m_DirectionRange)
+            && Vector4Equals(a.m_Params, b.m_Params);
+    }
+
+    static inline void CommitLightInstance(HRenderContext render_context, const LightInstance* instance, dmVMath::Point3 position, dmVMath::Vector3 direction, float scale)
+    {
+        const LightPrototype* prototype = render_context->m_LightPrototypes.Get(instance->m_LightPrototype);
+        if (!prototype)
+        {
+            return;
+        }
+
+        LightSTD140& light_std140 = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
+        FillLightInstanceSTD140(prototype, position, direction, scale, &light_std140);
 
         // Mark dirty range
         render_context->m_LightBufferDirtyStart = dmMath::Min(render_context->m_LightBufferDirtyStart, (uint32_t) instance->m_LightBufferIndex);
@@ -273,31 +332,61 @@ namespace dmRender
         render_context->m_LightBufferDirtyCount = 1;
     }
 
+    static uint32_t CompactLightBufferScratch(HRenderContext render_context)
+    {
+        uint32_t active_light_count = render_context->m_RenderLightsIndices.Size();
+        render_context->m_LightBufferUploadScratch.SetSize(0);
+
+        if (active_light_count == 0)
+        {
+            return 0;
+        }
+
+        if (render_context->m_LightBufferUploadScratch.Capacity() < active_light_count)
+        {
+            render_context->m_LightBufferUploadScratch.SetCapacity(active_light_count);
+        }
+
+        uint32_t render_light_count = render_context->m_RenderLights.Size();
+        for (uint32_t i = 0; i < render_light_count; ++i)
+        {
+            const LightInstance* instance = &render_context->m_RenderLights[i];
+            if (instance->m_LightPrototype != 0)
+            {
+                render_context->m_LightBufferUploadScratch.Push(render_context->m_LightBufferScratch[instance->m_LightBufferIndex]);
+            }
+        }
+
+        return render_context->m_LightBufferUploadScratch.Size();
+    }
+
     static void WriteLightInstanceData(HRenderContext render_context)
     {
+        uint32_t active_light_count = CompactLightBufferScratch(render_context);
+
         // The light count has changed, we need to write that separately
         if (render_context->m_LightBufferDirtyCount)
         {
             // ... but only if it is actually different from last write.
-            float count = (float) render_context->m_RenderLightsIndices.Size();
-            if (count != render_context->m_LightBufferLastWrittenCount)
+            if (active_light_count != render_context->m_LightBufferLastWrittenCount)
             {
-                dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, 0, sizeof(float), &count);
+                dmVMath::Vector4 count((float) active_light_count, 0.0f, 0.0f, 0.0f);
+                dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, 0, sizeof(count), &count);
             }
-            render_context->m_LightBufferLastWrittenCount = count;
+            render_context->m_LightBufferLastWrittenCount = active_light_count;
         }
 
-        // Write the light data from the scratch buffer
-        if (render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart)
+        // Write compacted light data from the scratch buffer. The shader loops
+        // over [0..lights_count), while light buffer indices may be reused.
+        bool light_data_dirty = render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart;
+        if (active_light_count > 0 && (light_data_dirty || render_context->m_LightBufferDirtyCount))
         {
-            // Convert indices to byte offsets
-            uint32_t write_light_data_start = render_context->m_LightBufferDataWriteStart;
-            uint32_t write_start            = write_light_data_start + render_context->m_LightBufferDirtyStart * sizeof(LightSTD140);
-            uint32_t write_end              = write_light_data_start + render_context->m_LightBufferDirtyEnd * sizeof(LightSTD140);
-            uint32_t write_size             = write_end - write_start;
-            LightSTD140* write_ptr_start    = &render_context->m_LightBufferScratch[render_context->m_LightBufferDirtyStart];
-
-            dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, write_start, write_size, (void*) write_ptr_start);
+            uint32_t write_size = active_light_count * sizeof(LightSTD140);
+            dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
+                                         render_context->m_LightUniformBuffer,
+                                         render_context->m_LightBufferDataWriteStart,
+                                         write_size,
+                                         render_context->m_LightBufferUploadScratch.Begin());
         }
 
         // Reset all dirty flags
@@ -309,6 +398,26 @@ namespace dmRender
     static inline bool IsLightBufferDirty(HRenderContext render_context)
     {
         return render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart || render_context->m_LightBufferDirtyCount;
+    }
+
+    static bool EnsureLightUniformBuffer(HRenderContext render_context)
+    {
+        if (render_context->m_LightUniformBuffer)
+        {
+            return true;
+        }
+
+        GenerateUniformBuffer(render_context, (int) render_context->m_MaxLightCount);
+        if (!render_context->m_LightUniformBuffer)
+        {
+            return false;
+        }
+
+        // The GPU buffer is created lazily, so it needs a full initial upload.
+        render_context->m_LightBufferDirtyStart = 0;
+        render_context->m_LightBufferDirtyEnd   = render_context->m_LightBufferScratch.Size();
+        render_context->m_LightBufferDirtyCount = 1;
+        return true;
     }
 
     void SetLightBufferCount(HRenderContext render_context, uint32_t max_lights)
@@ -333,9 +442,26 @@ namespace dmRender
         {
             render_context->m_RenderLightsIndices.SetCapacity(max_lights);
         }
+        render_context->m_RenderLightsIndices.Clear();
+
+        uint32_t old_light_count = render_context->m_RenderLights.Size();
+        if (render_context->m_RenderLights.Capacity() < max_lights)
+        {
+            render_context->m_RenderLights.SetCapacity(max_lights);
+        }
+        render_context->m_RenderLights.SetSize(max_lights);
+        for (uint32_t i = old_light_count; i < max_lights; ++i)
+        {
+            LightInstance* instance = &render_context->m_RenderLights[i];
+            instance->m_LightPrototype = 0;
+            instance->m_LightBufferIndex = (uint16_t) i;
+            instance->m_Version = 0;
+        }
+
         render_context->m_LightBufferScratch.SetCapacity(max_lights);
         render_context->m_LightBufferScratch.SetSize(0);
-        GenerateUniformBuffer(render_context, (int) max_lights);
+        render_context->m_LightBufferUploadScratch.SetSize(0);
+        render_context->m_LightBufferUploadScratch.SetCapacity(0);
     }
 
     void FinalizeLightData(HRenderContext render_context)
@@ -343,6 +469,17 @@ namespace dmRender
         if (render_context->m_LightUniformBuffer)
         {
             dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
+        }
+
+        uint32_t prototype_capacity = render_context->m_LightPrototypes.Capacity();
+        for (uint32_t i = 0; i < prototype_capacity; ++i)
+        {
+            LightPrototype* prototype = render_context->m_LightPrototypes.GetByIndex(i);
+            if (prototype)
+            {
+                render_context->m_LightPrototypes.Release(render_context->m_LightPrototypes.IndexToHandle(i));
+                delete prototype;
+            }
         }
     }
 
@@ -404,6 +541,11 @@ namespace dmRender
 
     static void ApplyLightBufferForBinding(HRenderContext render_context, uint16_t light_buffer_set, uint16_t light_buffer_binding)
     {
+        if (!EnsureLightUniformBuffer(render_context))
+        {
+            return;
+        }
+
         if (IsLightBufferDirty(render_context))
         {
             WriteLightInstanceData(render_context);

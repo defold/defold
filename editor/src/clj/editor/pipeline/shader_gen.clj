@@ -19,7 +19,7 @@
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.bob CompileExceptionError]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceType Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
            [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]))
 
@@ -151,6 +151,25 @@
   (pos? (bit-and (.-stageFlags shader-resource)
                  vertex-shader-stage-flag)))
 
+(def ^:private preview-light-type-name "Light")
+
+(defn- preview-light-capacity
+  "Returns the array size of the Light UBO as reported by the SPIR-V reflector.
+  The Light UBO is identified by having a type named \"Light\" in the types list
+  and a matching UBO resource.  Returns 0 when the shader does not declare a
+  preview-light buffer."
+  ^long [^SPIRVReflector spirv-reflector]
+  (if-let [_ (some (fn [^Shaderc$ResourceTypeInfo t]
+                     (and t (= preview-light-type-name (.-name t))))
+                   (.getTypes spirv-reflector))]
+    (long
+      (or (some (fn [^Shaderc$ShaderResource ubo]
+                  (when (= preview-light-type-name (.-name ubo))
+                    (.-arraySize ^Shaderc$ResourceType (.-type ubo))))
+                (.getUBOs spirv-reflector))
+          0))
+    0))
+
 (defn transpile-shader-source
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
@@ -183,6 +202,7 @@
         array-sampler-names (vec (.arraySamplers glsl-compile-result))
         spirv-reflector (.reflector glsl-compile-result)
         resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
+        preview-light-capacity (preview-light-capacity spirv-reflector)
 
         attribute-reflection-infos
         (coll/into-> (.getInputs spirv-reflector) []
@@ -193,6 +213,7 @@
      :max-page-count ^long max-page-count
      :transpiled-shader-source transpiled-shader-source
      :resource-binding-namespaces resource-binding-namespaces
+     :preview-light-capacity preview-light-capacity
      :array-sampler-names array-sampler-names
      :attribute-reflection-infos attribute-reflection-infos}))
 
@@ -258,11 +279,15 @@
 
         location+attribute-name-pairs
         (mapv (coll/pair-fn :location :name)
-              attribute-reflection-infos)]
+              attribute-reflection-infos)
+
+        preview-light-capacity
+        (reduce max 0 (map :preview-light-capacity augmented-shader-infos))]
 
     {:array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
      :attribute-reflection-infos attribute-reflection-infos
      :location+attribute-name-pairs location+attribute-name-pairs
      :max-page-count max-page-count
      :shader-type+source-pairs shader-type+source-pairs
+     :preview-light-capacity preview-light-capacity
      :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str}))

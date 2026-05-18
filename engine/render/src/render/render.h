@@ -61,7 +61,7 @@ namespace dmRender
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
-    typedef struct LightPrototype*          HLightPrototype;
+    typedef HOpaqueHandle                   HLightPrototype;
     typedef HOpaqueHandle                   HLightInstance;
 
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
@@ -213,7 +213,6 @@ namespace dmRender
 
         LightType        m_Type;
         dmVMath::Vector4 m_Color;
-        dmVMath::Vector3 m_Direction;
         float            m_Intensity;
         float            m_Range;
         float            m_InnerConeAngle;
@@ -495,7 +494,7 @@ namespace dmRender
     void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
-    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation);
+    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)

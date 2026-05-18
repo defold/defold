@@ -40,6 +40,7 @@
            {:label "GUI Particle Effects" :tag :gui-particlefx}
            {:label "GUI Spine Scenes" :tag :gui-spine}
            {:label "GUI Text" :tag :gui-text}
+           {:label "Lights" :tag :light}
            {:label "Models" :tag :model}
            {:label "Particle Effects" :tag :particlefx}
            {:label "Skeletons" :tag :skeleton}

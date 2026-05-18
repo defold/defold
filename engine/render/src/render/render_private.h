@@ -282,7 +282,6 @@ namespace dmRender
     struct LightPrototype
     {
         dmVMath::Vector4 m_Color;
-        dmVMath::Vector3 m_Direction;
         LightType        m_Type;
         float            m_Intensity;
         float            m_Range;
@@ -292,11 +291,12 @@ namespace dmRender
 
     struct LightInstance
     {
-        dmVMath::Point3       m_Position;
-        dmVMath::Vector3      m_Direction;
-        const LightPrototype* m_LightPrototype;
-        uint16_t              m_LightBufferIndex;
+        HLightPrototype m_LightPrototype;
+        uint16_t        m_LightBufferIndex;
+        uint16_t        m_Version;
     };
+
+    const LightPrototype* GetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
 
     // CPU-mapped representation of a light in STD140 layout
     struct LightSTD140
@@ -331,11 +331,12 @@ namespace dmRender
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
         HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
-        dmOpaqueHandleContainer<LightInstance> m_RenderLights;
+        dmOpaqueHandleContainer<LightPrototype> m_LightPrototypes;
+        dmArray<LightInstance>                  m_RenderLights;
         dmIndexPool16                          m_RenderLightsIndices;
 
         dmArray<LightSTD140>                   m_LightBufferScratch;
-        dmGraphics::UniformBufferLayout        m_LightBufferLayout;
+        dmArray<LightSTD140>                   m_LightBufferUploadScratch;
         dmGraphics::HUniformBuffer             m_LightUniformBuffer;
 
         HFontMap                    m_SystemFontMap;

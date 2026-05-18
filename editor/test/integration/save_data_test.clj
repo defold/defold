@@ -505,6 +505,41 @@
    {:default
     {"skeleton" :deprecated}} ; Non-default depth/stencil format not supported yet.
 
+   ;; Light component data uses dmStructDDF.Value for struct fields; in practice only
+   ;; struct / number / list variants appear. Other oneof branches are never written.
+   'dmStructDDF.Value
+   {[["point_light" "data"]
+     ["directional_light" "data"]
+     ["spot_light" "data"]]
+    {"null" :unused
+     "bool" :unused
+     "number" :unused
+     "string" :unused
+     "list" :unused}
+    [["point_light" "data" "struct" "fields" "value"]
+     ["directional_light" "data" "struct" "fields" "value"]
+     ["spot_light" "data" "struct" "fields" "value"]]
+    {"null" :unused
+     "bool" :unused
+     "string" :unused
+     "struct" :unused}
+    [["point_light" "data" "struct" "fields" "value" "list" "values"]
+     ["directional_light" "data" "struct" "fields" "value" "list" "values"]
+     ["spot_light" "data" "struct" "fields" "value" "list" "values"]]
+    {"null" :unused
+     "bool" :unused
+     "string" :unused
+     "struct" :unused
+     "list" :unused}
+    [["point_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["directional_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["spot_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]]
+    {"null" :unused
+     "bool" :unused
+     "string" :unused
+     "struct" :unused
+     "list" :unused}}
+
    'dmRiveDDF.RiveModelDesc
    {:default
     {"auto_play" :unimplemented ; Not currently implemented in the editor or runtime.

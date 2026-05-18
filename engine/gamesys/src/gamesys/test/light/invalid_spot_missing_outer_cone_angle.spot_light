@@ -1,5 +1,3 @@
-tags: "light"
-tags: "spot_light"
 data {
   struct {
     fields {

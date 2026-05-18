@@ -22,6 +22,7 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
+            [editor.light :as light]
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
@@ -712,6 +713,35 @@
           (is (.endsWith (.getPrototype inst) go-ext)))))
     (let [content (get content-by-source "/game.project")]
       (is (some? (re-find #"/main/main\.collectionc" (String. content "UTF-8")))))))
+
+(deftest light-resource-types-build-to-source-specific-lightc-extension
+  (with-loaded-project project-path
+    (doseq [[ext expected] {"point_light" {:label "Point Light"
+                                           :build-ext "point_light.lightc"}
+                            "directional_light" {:label "Directional Light"
+                                                 :build-ext "directional_light.lightc"}
+                            "spot_light" {:label "Spot Light"
+                                          :build-ext "spot_light.lightc"}}]
+      (let [resource-type (workspace/get-resource-type workspace ext)]
+        (is (= (:build-ext expected) (:build-ext resource-type)))
+        (is (= (:label expected) (test-util/localization (:label resource-type))))))))
+
+(deftest compiled-light-data-includes-runtime-type-tags
+  (doseq [[light-type expected-tag] [[:point "point_light"]
+                                    [:directional "directional_light"]
+                                    [:spot "spot_light"]]]
+    (let [pb-map (#'light/build-data-desc light-type [1.0 1.0 1.0 1.0] 1.0 10.0 0.0 45.0)
+          content (:content (#'light/build-light nil nil {:light-type light-type
+                                                          :pb-map pb-map}))
+          desc (protobuf/bytes->map-with-defaults DataProto$Data content)
+          fields (get-in desc [:data :struct :fields])]
+      (is (= ["light" expected-tag] (:tags desc)))
+      (is (not (contains? fields "direction")))
+      (when (= :spot light-type)
+        (is (= 0.0 (get-in fields ["inner_cone_angle" :number])))
+        (is (< (Math/abs (- (Math/toRadians 45.0)
+                            (double (get-in fields ["outer_cone_angle" :number]))))
+               1e-6))))))
 
 (deftest build-game-project-with-error
   (with-loaded-project project-path

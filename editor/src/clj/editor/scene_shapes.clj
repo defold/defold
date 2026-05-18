@@ -242,6 +242,77 @@
              (->pos-vtx (* 6 (count capsule-quads)) :static)
              capsule-quads))})
 
+(def ^:private light-cone-segments 24)
+
+(defn light-cone-lines
+  "Spot light wireframe in unit cone space (apex at origin, base at z=-1, outer radius 1).
+  `inner-radius-ratio` is inner_base_radius / outer_base_radius on that plane
+  (= tan(inner_half) / tan(outer_half)). Omit inner circle when out of (0,1) or ~equal to outer."
+  [^double inner-radius-ratio]
+  (let [n light-cone-segments
+        ring (fn [^double rscale]
+               (vec (for [k (range n)]
+                      (let [phi (* 2.0 Math/PI (/ (double k) n))]
+                        [(* rscale (Math/cos phi)) (* rscale (Math/sin phi)) -1.0]))))
+        outer-ring (ring 1.0)
+        outer-circle (for [k (range n)] [(outer-ring k) (outer-ring (mod (inc k) n))])
+        inner-circle (when (and (> inner-radius-ratio 1e-4)
+                                (< inner-radius-ratio 0.999))
+                       (let [ir (ring inner-radius-ratio)]
+                         (for [k (range n)] [(ir k) (ir (mod (inc k) n))])))
+        ;; Silhouette: apex to outer base along ±X and ±Y (perpendicular pairs)
+        silhouette [[0.0 0.0 0.0] [1.0 0.0 -1.0]
+                    [0.0 0.0 0.0] [-1.0 0.0 -1.0]
+                    [0.0 0.0 0.0] [0.0 1.0 -1.0]
+                    [0.0 0.0 0.0] [0.0 -1.0 -1.0]]
+        ;; Axis through the cone, slightly past the base
+        axis [[0.0 0.0 0.0] [0.0 0.0 -1.08]]
+        pair-pairs (vec (concat outer-circle
+                                (or inner-circle [])
+                                (partition 2 silhouette)
+                                (partition 2 axis)))]
+    {:primitive-type GL2/GL_LINES
+     :vbuf (vtx/flip!
+             (reduce
+               (fn [vbuf [a b]]
+                 (let [[ax ay az] a
+                       [bx by bz] b]
+                   (-> vbuf
+                       (pos-vtx-put! ax ay az 0.0)
+                       (pos-vtx-put! bx by bz 0.0))))
+               (->pos-vtx (* 2 (count pair-pairs)) :static)
+               pair-pairs))}))
+
+(defn light-cone-triangles
+  "Closed outer spotlight cone in unit space (apex at origin, base at z=-1 with
+  radius 1). Same convention as [[light-cone-lines]]; use with identical
+  `point_scale` when rendering."
+  []
+  (let [n light-cone-segments
+        side-tris (vec (for [k (range n)]
+                         (let [t0 (* 2.0 Math/PI (/ (double k) n))
+                               t1 (* 2.0 Math/PI (/ (double (mod (inc k) n)) n))]
+                           [[0.0 0.0 0.0]
+                            [(Math/cos t0) (Math/sin t0) -1.0]
+                            [(Math/cos t1) (Math/sin t1) -1.0]])))
+        cap-tris (vec (for [k (range n)]
+                        (let [t0 (* 2.0 Math/PI (/ (double k) n))
+                              t1 (* 2.0 Math/PI (/ (double (mod (inc k) n)) n))]
+                          [[0.0 0.0 -1.0]
+                           [(Math/cos t0) (Math/sin t0) -1.0]
+                           [(Math/cos t1) (Math/sin t1) -1.0]])))
+        all-tris (into side-tris cap-tris)
+        vert-count (* 3 3 (count all-tris))]
+    {:primitive-type GL2/GL_TRIANGLES
+     :vbuf (vtx/flip!
+             (reduce (fn [vbuf tri]
+                       (reduce (fn [vbuf [x y z]]
+                                 (pos-vtx-put! vbuf x y z 0.0))
+                               vbuf
+                               tri))
+                     (->pos-vtx vert-count :static)
+                     all-tris))}))
+
 (def ^:private shape-alpha 0.1)
 
 (def ^:private selected-shape-alpha 0.3)
@@ -287,7 +358,7 @@
                   (scene-picking/renderable-picking-id-uniform renderable)
 
                   (= :self-selected selected)
-                  (colors/alpha color selected-shape-alpha)
+                  (colors/alpha color (or (:preview-fill-alpha user-data) selected-shape-alpha))
 
                   (= :parent-selected selected)
                   (colors/alpha color parent-selected-shape-alpha)
