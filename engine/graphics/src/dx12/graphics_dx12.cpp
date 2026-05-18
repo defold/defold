@@ -2979,6 +2979,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 color_attachment_count++;
             }
         }
+
         rt->m_Base.m_ColorAttachmentCount = color_attachment_count;
 
         uint8_t has_depth         = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;

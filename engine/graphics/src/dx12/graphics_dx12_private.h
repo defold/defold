@@ -158,6 +158,7 @@ namespace dmGraphics
 
         DXGI_FORMAT           m_Format;
         DXGI_SAMPLE_DESC      m_SampleDesc;
+
     };
 
     struct DX12DescriptorPool
