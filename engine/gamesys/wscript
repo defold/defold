@@ -8,7 +8,6 @@ blddir = 'build'
 
 import sys, os, re, socket, time
 import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
-from waf_dynamo import platform_supports_feature
 import waflib.Options
 import TestContext
 from build_constants import TargetOS

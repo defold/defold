@@ -379,6 +379,25 @@ namespace dmRender
         return GetProgramSamplerUnit(material->m_Samplers, name_hash);
     }
 
+    HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
+    {
+        if (unit < material->m_Samplers.Size())
+        {
+            return &material->m_Samplers[unit];
+        }
+        return 0;
+    }
+
+    bool GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash)
+    {
+        if (index < material->m_Constants.Size())
+        {
+             *out_name_hash = GetConstantName(material->m_Constants[index].m_Constant);
+            return true;
+        }
+        return false;
+    }
+
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)
     {
         return material->m_Program;
@@ -400,6 +419,11 @@ namespace dmRender
             }
         }
         return INVALID_MATERIAL_ATTRIBUTE_INDEX;
+    }
+
+    uint32_t GetMaterialConstantCount(HMaterial material)
+    {
+        return material->m_Constants.Size();
     }
 
     void SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type)

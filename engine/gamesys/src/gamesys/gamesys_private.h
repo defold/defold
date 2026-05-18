@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_PRIVER_H
-#define DM_GAMESYS_PRIVER_H
+#ifndef DM_GAMESYS_PRIVATE_H
+#define DM_GAMESYS_PRIVATE_H
 
 #include <dlib/message.h>
 #include <dlib/object_pool.h>
@@ -139,6 +139,7 @@ namespace dmGameSystem
     typedef dmObjectPool<DynamicAttributeInfo> DynamicAttributePool;
     typedef bool (*CompGetMaterialAttributeCallback)(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute);
 
+    void    VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out);
     int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
     void    FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos);
     void    FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos, dmGraphics::CoordinateSpace default_coordinate_space);
@@ -156,6 +157,17 @@ namespace dmGameSystem
 
     // Return a temporary vertex attribute infos buffer
     dmGraphics::VertexAttributeInfos* GetScratchVertexAttributeInfos(uint32_t stream_count);
+
+    // Script resource helpers (Maybe these should be in a "gamesys_script.h" file?)
+    int   ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash);
+    void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
+    void  PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path);
+    void  PushSampler(lua_State* L, dmRender::HSampler sampler);
+    void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);
+    void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr);
+    void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttributeInfo* attribute, const uint8_t* value_ptr);
+    void  GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
+    void  GetConstantValuesFromLua(lua_State* L, dmRenderDDF::MaterialDesc::ConstantType* type, dmArray<dmVMath::Vector4>* scratch_values);
 
     // gamesys_resource.cpp
     struct CreateTextureResourceParams
@@ -209,4 +221,4 @@ namespace dmGameSystem
 
 }
 
-#endif // DM_GAMESYS_PRIVER_H
+#endif // DM_GAMESYS_PRIVATE_H

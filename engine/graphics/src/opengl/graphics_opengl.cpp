@@ -489,7 +489,7 @@ static void LogFrameBufferError(GLenum status)
         return v;
     }
 
-#if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+#if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
     static inline GLint OpenGLGetInteger(GLenum pname, GLuint index)
     {
         GLint v = 0;
@@ -1153,6 +1153,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
             case CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES:    return context->m_ASTCArrayTextureSupport;
             case CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX: return context->m_BlendEquationMinMaxSupport;
+            case MAX_CONTEXT_FEATURE_COUNT:
             case CONTEXT_FEATURE_VSYNC:
                 break;
         }
@@ -1839,7 +1840,7 @@ static void LogFrameBufferError(GLenum status)
         CLEAR_GL_ERROR;
 #endif
 
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
         int32_t version_major = 0, version_minor = 0;
         glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &version_major);
         glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &version_minor);
@@ -1928,7 +1929,7 @@ static void LogFrameBufferError(GLenum status)
             limits.m_MaxVertexBuffers = (uint32_t) OpenGLGetInteger(GL_MAX_VERTEX_ATTRIB_BINDINGS);
         #endif
 
-        #if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+        #if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
             if (context->m_ComputeSupport)
             {
                 limits.m_MaxComputeWorkgroupSizeX = (uint32_t) OpenGLGetInteger(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0);
@@ -2769,7 +2770,7 @@ static void LogFrameBufferError(GLenum status)
     #undef ANDROID_ES2_BACKWARDS_COMPAT
     }
 
-#ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+#ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
     static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
     {
         uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
@@ -2793,7 +2794,7 @@ static void LogFrameBufferError(GLenum status)
 
     static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
     {
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
         if (!context->m_ComputeSupport)
             return false;
 
@@ -3093,7 +3094,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
     {
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+    #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_ComputeSupport)
         {
@@ -3727,9 +3728,9 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
+#ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
     static bool SetupComputeProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* shader)
     {
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         IncreaseModificationVersion(context);
 
         GLuint p = glCreateProgram();
@@ -3754,11 +3755,8 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLBuildUniforms(context, program, &shader, 1);
         return true;
-    #else
-        dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
-        return false;
-    #endif
     }
+#endif
 
     static void DeleteShader(OpenGLContext* context, OpenGLShader* shader)
     {
@@ -3789,7 +3787,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (ddf_cp)
         {
-        #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+        #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
             OpenGLShader* compute_shader = CreateShader(_context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, error_buffer, error_buffer_size);
             if (!SetupComputeProgram(context, program, compute_shader))
             {
