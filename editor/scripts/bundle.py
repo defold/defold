@@ -33,6 +33,7 @@ import datetime
 import fnmatch
 import urllib
 import urllib.parse
+import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
@@ -377,7 +378,22 @@ def parse_lein_regexes(value):
     raise Exception("Unable to parse Leiningen regexes from output:\n%s" % value)
 
 def write_docs(docs_dir, jdk_path=None):
-    invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
+    temp_dir = tempfile.mkdtemp()
+    try:
+        invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', temp_dir], jdk_path)
+        source = path.join(temp_dir, 'editor.apidoc')
+        target = path.join(docs_dir, 'editor.apidoc')
+        with open(source, 'rb') as f:
+            source_bytes = f.read()
+        target_bytes = None
+        if path.isfile(target):
+            with open(target, 'rb') as f:
+                target_bytes = f.read()
+        if source_bytes != target_bytes:
+            os.makedirs(docs_dir, exist_ok=True)
+            shutil.copyfile(source, target)
+    finally:
+        shutil.rmtree(temp_dir)
 
 def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
