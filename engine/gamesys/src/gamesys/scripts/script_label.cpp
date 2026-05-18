@@ -280,6 +280,16 @@ static int SetText(lua_State* L)
 
     (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
+    dmMessage::URL receiver;
+    dmMessage::URL sender;
+    dmScript::GetURL(L, &sender);
+    dmScript::ResolveURL(L, 1, &receiver, &sender);
+    // issue-8555: check that the url is targeting a specific component and not only a path
+    if (receiver.m_Fragment == 0)
+    {
+        return DM_LUA_ERROR("Expected url to specify a component, not only a path!");
+    }
+
     size_t text_len = 0;
     const char* text = luaL_checklstring(L, 2, &text_len);
     if (!text)
