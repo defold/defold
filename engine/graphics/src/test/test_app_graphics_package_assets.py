@@ -73,10 +73,10 @@ def to_spirv(buffer_name, file_path, profile):
 
     return output
 
-def to_glsl(buffer_name, file_path):
-    buf = get_file_contents(file_path)
-    output = "const unsigned char %s[] = {%s};" % (buffer_name, ",".join(buf))
-    return output
+def to_plaintext(buffer_name, file_path):
+	buf = get_file_contents(file_path)
+	output = "const unsigned char %s[] = {%s};" % (buffer_name, ",".join(buf))
+	return output
 
 def write_header(header_path, assets):
     asset_lines = "\n".join(assets)
@@ -88,11 +88,13 @@ def write_header(header_path, assets):
 if __name__ == '__main__':
     write_header(
         "test_app_graphics_assets.h",
-        [to_glsl("glsl_vertex_program", "test_app_graphics.vs"),
-         to_glsl("glsl_fragment_program", "test_app_graphics.fs"),
-         to_glsl("glsl_compute_program", "test_app_graphics.cp"),
-         to_glsl("glsl_fragment_program_ssbo", "test_app_graphics_ssbo.fs"),
-         to_glsl("glsl_fragment_program_ubo", "test_app_graphics_ubo.fs"),
+        [to_plaintext("glsl_vertex_program", "test_app_graphics.vs"),
+         to_plaintext("glsl_fragment_program", "test_app_graphics.fs"),
+         to_plaintext("glsl_compute_program", "test_app_graphics.cp"),
+         to_plaintext("glsl_fragment_program_ssbo", "test_app_graphics_ssbo.fs"),
+         to_plaintext("glsl_fragment_program_ubo", "test_app_graphics_ubo.fs"),
+         to_plaintext("msl_vertex_program", "test_app_graphics.vs.msl"),
+         to_plaintext("msl_fragment_program", "test_app_graphics.fs.msl"),
          to_spirv("spirv_vertex_program", "test_app_graphics.vs", "vert"),
          to_spirv("spirv_fragment_program", "test_app_graphics.fs", "frag"),
          to_spirv("spirv_compute_program", "test_app_graphics.cp", "comp"),

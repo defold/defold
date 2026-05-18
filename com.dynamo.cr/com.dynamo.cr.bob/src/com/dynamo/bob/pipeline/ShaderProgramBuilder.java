@@ -554,6 +554,26 @@ public class ShaderProgramBuilder extends Builder {
             }
         }
 
+        if (result.mSLResourceMappings != null) {
+            for (Shaderc.MSLResourceMapping mapping : result.mSLResourceMappings) {
+                ShaderDesc.MSLResourceMapping.Builder mslResourceMappingBuilder = ShaderDesc.MSLResourceMapping.newBuilder();
+                mslResourceMappingBuilder.setNameHash(mapping.nameHash);
+                mslResourceMappingBuilder.setBinding(mapping.shaderResourceBinding);
+                mslResourceMappingBuilder.setSet(mapping.shaderResourceSet);
+                mslResourceMappingBuilder.setMslIndex(mapping.metalResourceIndex);
+                builder.addMslResourceMapping(mslResourceMappingBuilder);
+            }
+        }
+
+        if (result.workGroupSizeX != 0 || result.workGroupSizeY != 0 || result.workGroupSizeZ != 0) {
+
+            ShaderDesc.WorkGroupSize.Builder workGroupSizeBuilder = ShaderDesc.WorkGroupSize.newBuilder();
+            workGroupSizeBuilder.setX(result.workGroupSizeX);
+            workGroupSizeBuilder.setY(result.workGroupSizeY);
+            workGroupSizeBuilder.setZ(result.workGroupSizeZ);
+            builder.setWorkGroupSize(workGroupSizeBuilder);
+        }
+
         return builder;
     }
 

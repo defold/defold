@@ -440,6 +440,21 @@ message ShaderDesc
         optional uint32 set       = 3;
     }
 
+    message MSLResourceMapping
+    {
+        optional uint64 name_hash = 1;
+        optional uint32 binding   = 2;
+        optional uint32 set       = 3;
+        optional uint32 msl_index = 4;
+    }
+
+    message WorkGroupSize
+    {
+        optional uint32 x = 1;
+        optional uint32 y = 2;
+        optional uint32 z = 3;
+    }
+
     message Shader
     {
         required bytes               source                 = 1;
@@ -447,6 +462,8 @@ message ShaderDesc
         required Language            language               = 3;
         optional bool                variant_texture_array  = 4 [default = false];
         repeated HLSLResourceMapping hlsl_resource_mapping  = 5;
+        repeated MSLResourceMapping  msl_resource_mapping   = 6;
+        optional WorkGroupSize       work_group_size        = 7;
     }
 
     repeated Shader shaders              = 1;

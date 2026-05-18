@@ -1177,6 +1177,8 @@ namespace dmGraphics
         // RGB isn't supported in Vulkan as a texture format, but we still need to supply it to the engine
         // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_DEPTH;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_STENCIL;
 
         // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)

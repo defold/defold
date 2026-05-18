@@ -606,6 +606,7 @@ namespace dmGraphics
      * @member ADAPTER_FAMILY_VENDOR    Vendor-specific backend. A placeholder for proprietary or experimental APIs tied to a particular GPU vendor.
      * @member ADAPTER_FAMILY_WEBGPU    WebGPU backend. Modern web graphics API designed as the successor to WebGL
      * @member ADAPTER_FAMILY_DIRECTX   DirectX backend. Microsoft’s graphics API used on Windows and Xbox
+     * @member ADAPTER_FAMILY_METAL     Metal backend. Apples graphics API used on OSX and iOS
      */
     enum AdapterFamily
     {
@@ -617,6 +618,7 @@ namespace dmGraphics
         ADAPTER_FAMILY_VENDOR   = 5,
         ADAPTER_FAMILY_WEBGPU   = 6,
         ADAPTER_FAMILY_DIRECTX  = 7,
+        ADAPTER_FAMILY_METAL    = 8,
     };
 
     /*#

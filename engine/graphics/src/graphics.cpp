@@ -125,6 +125,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_VENDOR;
         if (dmStrCaseCmp("dx12", adapter_name) == 0)
             return ADAPTER_FAMILY_DIRECTX;
+        if (dmStrCaseCmp("metal", adapter_name) == 0)
+            return ADAPTER_FAMILY_METAL;
         assert(0 && "Adapter type not supported?");
         return ADAPTER_FAMILY_NONE;
     }
@@ -143,6 +145,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_METAL);
             default:break;
         }
         return "<unknown dmGraphics::AdapterFamily>";
