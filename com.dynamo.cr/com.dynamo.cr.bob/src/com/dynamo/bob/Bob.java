@@ -494,6 +494,7 @@ public class Bob {
                 // debug options
                 opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip"),
                 opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders"),
+                opt(null, "debug-spirv-opt", ONE, "Set SPIR-V optimizer mode: skip, -O, -Os, or -Oconfig=<file>"),
                 opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders"),
                 opt(null, "debug-output-hlsl", ONE, "Force build HLSL shaders"),
                 opt(null, "debug-output-msl", ONE, "Force build Metal shaders"),

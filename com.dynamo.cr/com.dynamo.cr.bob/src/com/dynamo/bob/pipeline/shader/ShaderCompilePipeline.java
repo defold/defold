@@ -40,6 +40,7 @@ public class ShaderCompilePipeline {
     public static class Options {
         public boolean splitTextureSamplers;
         public ArrayList<String> defines = new ArrayList<>();
+        public String spirvOptMode = "";
         public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
     }
@@ -205,12 +206,31 @@ public class ShaderCompilePipeline {
         checkResult(resourcePath, result);
     }
 
-    private void generateSPIRvOptimized(String resourcePath, String pathFileInSpv, String pathFileOutSpvOpt) throws IOException, CompileExceptionError{
+    private List<String> getSPIRvOptArgs() throws CompileExceptionError {
+        String mode = this.options.spirvOptMode;
+        if (mode == null || mode.isBlank()) {
+            return List.of("-O");
+        }
+
+        mode = mode.trim();
+        if (mode.equals("skip") || mode.equals("-O") || mode.equals("-Os") || mode.startsWith("-Oconfig=")) {
+            return List.of(mode);
+        }
+
+        throw new CompileExceptionError(String.format(
+            "Invalid --debug-spirv-opt value '%s'. Use skip, -O, -Os, or -Oconfig=<file>.", mode));
+    }
+
+    private void generateSPIRvOptimized(String resourcePath, String pathFileInSpv, String pathFileOutSpvOpt, List<String> optArgs) throws IOException, CompileExceptionError{
         // Run optimization pass on the result
-        Result result = Exec.execResult(spirvOptExe,
-            "-O",
-            pathFileInSpv,
-            "-o", pathFileOutSpvOpt);
+        ArrayList<String> args = new ArrayList<>();
+        args.add(spirvOptExe);
+        args.addAll(optArgs);
+        args.add(pathFileInSpv);
+        args.add("-o");
+        args.add(pathFileOutSpvOpt);
+
+        Result result = Exec.execResult(args.toArray(new String[0]));
         checkResult(resourcePath, result);
     }
 
@@ -290,10 +310,14 @@ public class ShaderCompilePipeline {
             FileUtil.deleteOnExit(fileOutSpv);
             generateSPIRv(module.desc.resourcePath, module.desc.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
 
-            // Generate an optimized version of the final .spv file
-            File fileOutSpvOpt = File.createTempFile(this.pipelineName, ".optimized.spv");
-            FileUtil.deleteOnExit(fileOutSpvOpt);
-            generateSPIRvOptimized(module.desc.resourcePath, fileOutSpv.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
+            List<String> spirvOptArgs = getSPIRvOptArgs();
+            File fileOutSpvOpt = fileOutSpv;
+            if (!spirvOptArgs.contains("skip")) {
+                // Generate an optimized version of the final .spv file
+                fileOutSpvOpt = File.createTempFile(this.pipelineName, ".optimized.spv");
+                FileUtil.deleteOnExit(fileOutSpvOpt);
+                generateSPIRvOptimized(module.desc.resourcePath, fileOutSpv.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath(), spirvOptArgs);
+            }
 
             module.spirvFile = fileOutSpvOpt;
             module.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(module.desc.type), FileUtils.readFileToByteArray(fileOutSpvOpt));
