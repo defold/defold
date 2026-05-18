@@ -44,6 +44,7 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.GuiCustomTypeRegistry;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
@@ -418,6 +419,8 @@ public class Project {
                         pluginClasses.add((Class<? extends IPlugin>) klass);
                     }
                 }
+
+                GuiCustomTypeRegistry.register(klass);
                 TimeProfiler.stop();
             } catch (Exception e) {
                 throw new RuntimeException(e);

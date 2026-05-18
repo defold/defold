@@ -21,22 +21,56 @@ import org.junit.Test;
 import org.junit.Assert;
 
 import com.dynamo.gamesys.proto.Gui;
+import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
+import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.util.MurmurHash;
 
 public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private static final float EPSILON = 0.00001f;
     private ClassLoaderScanner scanner = null;
 
+    @GuiCustomNode(type = "Spine")
+    private static class TestSpineGuiNode implements IGuiCustomNode {
+        public static void registerProperties(IGuiCustomType type) {
+            type.addProperty("spine_scene", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_RESOURCE);
+            type.addProperty("spine_default_animation", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("spine_skin", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("spine_create_bones", false, PropertyType.TYPE_BOOLEAN, IGuiCustomType.EDIT_TYPE_DEFAULT);
+        }
+
+        public static void migrateProperties(Map<String, Object> properties) {
+            properties.remove("spine_node_child");
+        }
+    }
+
+    @GuiCustomNode(type = "Typed")
+    private static class TestTypedGuiNode implements IGuiCustomNode {
+        public static void registerProperties(IGuiCustomType type) {
+            type.addProperty("number", 1.5f, PropertyType.TYPE_NUMBER, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("boolean", true, PropertyType.TYPE_BOOLEAN, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("hash", "hash_value", PropertyType.TYPE_HASH, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("string", "text", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("vector3", Vector3.newBuilder().setX(1.0f).setY(2.0f).setZ(3.0f).build(), PropertyType.TYPE_VECTOR3, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("vector4", Vector4.newBuilder().setX(4.0f).setY(5.0f).setZ(6.0f).setW(7.0f).build(), PropertyType.TYPE_VECTOR4, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("quat", Quat.newBuilder().setX(8.0f).setY(9.0f).setZ(10.0f).setW(11.0f).build(), PropertyType.TYPE_QUAT, IGuiCustomType.EDIT_TYPE_DEFAULT);
+        }
+    }
 
     public GuiBuilderTest() throws IOException {
         this.scanner = new ClassLoaderScanner(this.getClass().getClassLoader());
         registerProtoBuilderNames();
+        GuiCustomTypeRegistry.register(TestSpineGuiNode.class);
+        GuiCustomTypeRegistry.register(TestTypedGuiNode.class);
     }
 
     private boolean nodeExists(Gui.SceneDesc scene, String nodeId)
@@ -111,6 +145,40 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         src.append("  parent: \""+parent+"\"\n");
         src.append("  text: \""+text+"\"\n");
         src.append("}\n");
+    }
+
+    private void addSpineResource(StringBuilder src, String name) {
+        src.append("\nresources {\n");
+        src.append("  name: \""+name+"\"\n");
+        src.append("  path: \"/assets/"+name+".gui\"\n");
+        src.append("}\n");
+        addFile("/assets/"+name+".gui", createGui().toString());
+    }
+
+    private static void startSpineCustomNode(StringBuilder src, String id) {
+        startCustomNode(src, id, "Spine");
+    }
+
+    private static void startCustomNode(StringBuilder src, String id, String typeName) {
+        src.append("\nnodes {\n");
+        src.append("  type: TYPE_CUSTOM\n");
+        src.append("  custom_type: "+Integer.toUnsignedLong(MurmurHash.hash32(typeName))+"\n");
+        src.append("  custom_type_name: \""+typeName+"\"\n");
+        src.append("  id: \""+id+"\"\n");
+    }
+
+    private static void startLegacySpineNode(StringBuilder src, String id) {
+        src.append("\nnodes {\n");
+        src.append("  type: TYPE_SPINE\n");
+        src.append("  id: \""+id+"\"\n");
+    }
+
+    private static void addLegacySpineProperties(StringBuilder src) {
+        src.append("  spine_scene: \"spineboy\"\n");
+        src.append("  spine_default_animation: \"walk\"\n");
+        src.append("  spine_skin: \"default\"\n");
+        src.append("  spine_node_child: true\n");
+        src.append("  spine_create_bones: true\n");
     }
 
     private static void addTemplateNode(StringBuilder src, String id, String parent, String template, String[] extraProperties) {
@@ -209,9 +277,157 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         return null;
     }
 
+    private static Gui.Property findCustomProperty(NodeDesc node, String propertyName) {
+        long propertyNameHash = MurmurHash.hash64(propertyName);
+        for (Gui.Property property : node.getCustomPropertiesList()) {
+            if (property.hasIdHash() && property.getIdHash() == propertyNameHash) {
+                return property;
+            }
+        }
+        return null;
+    }
+
     @Test
     public void test() throws Exception {
         // Kept empty as a future working template
+    }
+
+    @Test
+    public void testSpineCustomNodePropertiesAreMigrated() throws Exception {
+        StringBuilder src = createGui();
+        addSpineResource(src, "spineboy");
+        startSpineCustomNode(src, "spine");
+        addLegacySpineProperties(src);
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc node = findNode(gui, "", "spine");
+
+        Assert.assertEquals(NodeDesc.Type.TYPE_CUSTOM, node.getType());
+        Assert.assertEquals(405028931, node.getCustomType());
+        Assert.assertFalse(node.hasCustomTypeName());
+        Assert.assertFalse(node.hasSpineScene());
+        Assert.assertFalse(node.hasSpineDefaultAnimation());
+        Assert.assertFalse(node.hasSpineSkin());
+        Assert.assertFalse(node.hasSpineNodeChild());
+        Assert.assertFalse(node.hasSpineCreateBones());
+        Assert.assertEquals(4, node.getCustomPropertiesCount());
+
+        Gui.Property spineScene = findCustomProperty(node, "spine_scene");
+        Gui.Property defaultAnimation = findCustomProperty(node, "spine_default_animation");
+        Gui.Property spineSkin = findCustomProperty(node, "spine_skin");
+        Gui.Property spineCreateBones = findCustomProperty(node, "spine_create_bones");
+        Assert.assertNotNull(spineScene);
+        Assert.assertNotNull(defaultAnimation);
+        Assert.assertNotNull(spineSkin);
+        Assert.assertNotNull(spineCreateBones);
+        Assert.assertFalse(spineScene.hasId());
+        Assert.assertEquals(Gui.Property.PropertyType.TYPE_STRING, spineScene.getType());
+        Assert.assertEquals(Gui.Property.PropertyType.TYPE_BOOLEAN, spineCreateBones.getType());
+        Assert.assertEquals("spineboy", spineScene.getStringValue());
+        Assert.assertEquals("walk", defaultAnimation.getStringValue());
+        Assert.assertEquals("default", spineSkin.getStringValue());
+        Assert.assertTrue(spineCreateBones.getBoolean());
+    }
+
+    @Test
+    public void testLegacySpineNodeBecomesCustomSpineNode() throws Exception {
+        StringBuilder src = createGui();
+        addSpineResource(src, "spineboy");
+        startLegacySpineNode(src, "spine");
+        addLegacySpineProperties(src);
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc node = findNode(gui, "", "spine");
+
+        Assert.assertEquals(NodeDesc.Type.TYPE_CUSTOM, node.getType());
+        Assert.assertEquals(405028931, node.getCustomType());
+        Assert.assertEquals("spineboy", findCustomProperty(node, "spine_scene").getStringValue());
+    }
+
+    @Test
+    public void testExistingCustomPropertiesWinOverMigratedValues() throws Exception {
+        StringBuilder src = createGui();
+        addSpineResource(src, "spineboy");
+        startSpineCustomNode(src, "spine");
+        addLegacySpineProperties(src);
+        src.append("  custom_properties {\n");
+        src.append("    id: \"spine_default_animation\"\n");
+        src.append("    type: TYPE_STRING\n");
+        src.append("    string_value: \"existing\"\n");
+        src.append("  }\n");
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc node = findNode(gui, "", "spine");
+
+        Assert.assertEquals(4, node.getCustomPropertiesCount());
+        Gui.Property property = findCustomProperty(node, "spine_default_animation");
+        Assert.assertNotNull(property);
+        Assert.assertFalse(property.hasId());
+        Assert.assertEquals("existing", property.getStringValue());
+    }
+
+    @Test(expected = CompileExceptionError.class)
+    public void testCustomResourcePropertyIsValidated() throws Exception {
+        StringBuilder src = createGui();
+        startSpineCustomNode(src, "spine");
+        src.append("  spine_scene: \"missing\"\n");
+        finishNode(src);
+
+        buildGui(src, "/test.gui");
+    }
+
+    @Test
+    public void testLayoutSpineOverridesAreMigrated() throws Exception {
+        StringBuilder src = createGui();
+        addSpineResource(src, "spineboy");
+        startSpineCustomNode(src, "spine");
+        addLegacySpineProperties(src);
+        finishNode(src);
+
+        startLayout(src, "Landscape");
+        src.append("  nodes {\n");
+        src.append("    type: TYPE_CUSTOM\n");
+        src.append("    custom_type: 405028931\n");
+        src.append("    id: \"spine\"\n");
+        src.append("    overridden_fields: "+NodeDesc.SPINE_DEFAULT_ANIMATION_FIELD_NUMBER+"\n");
+        src.append("    spine_default_animation: \"jump\"\n");
+        src.append("  }\n");
+        finishLayout(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc node = findNode(gui, "Landscape", "spine");
+
+        Assert.assertFalse(node.hasSpineDefaultAnimation());
+        Assert.assertEquals("jump", findCustomProperty(node, "spine_default_animation").getStringValue());
+    }
+
+    @Test
+    public void testCustomPropertyDefaultsUseRegisteredTypes() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "typed", "Typed");
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc node = findNode(gui, "", "typed");
+
+        Assert.assertEquals(7, node.getCustomPropertiesCount());
+        Assert.assertEquals(PropertyType.TYPE_NUMBER, findCustomProperty(node, "number").getType());
+        Assert.assertEquals(1.5f, findCustomProperty(node, "number").getNumber(), EPSILON);
+        Assert.assertEquals(PropertyType.TYPE_BOOLEAN, findCustomProperty(node, "boolean").getType());
+        Assert.assertTrue(findCustomProperty(node, "boolean").getBoolean());
+        Assert.assertEquals(PropertyType.TYPE_HASH, findCustomProperty(node, "hash").getType());
+        Assert.assertEquals(MurmurHash.hash64("hash_value"), findCustomProperty(node, "hash").getHash());
+        Assert.assertEquals(PropertyType.TYPE_STRING, findCustomProperty(node, "string").getType());
+        Assert.assertEquals("text", findCustomProperty(node, "string").getStringValue());
+        Assert.assertEquals(PropertyType.TYPE_VECTOR3, findCustomProperty(node, "vector3").getType());
+        Assert.assertEquals(3.0f, findCustomProperty(node, "vector3").getVector3().getZ(), EPSILON);
+        Assert.assertEquals(PropertyType.TYPE_VECTOR4, findCustomProperty(node, "vector4").getType());
+        Assert.assertEquals(7.0f, findCustomProperty(node, "vector4").getVector4().getW(), EPSILON);
+        Assert.assertEquals(PropertyType.TYPE_QUAT, findCustomProperty(node, "quat").getType());
+        Assert.assertEquals(11.0f, findCustomProperty(node, "quat").getQuat().getW(), EPSILON);
     }
 
     // https://github.com/defold/defold/issues/6151

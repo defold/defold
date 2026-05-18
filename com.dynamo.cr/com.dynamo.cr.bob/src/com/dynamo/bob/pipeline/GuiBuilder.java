@@ -37,6 +37,10 @@ import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.gamesys.proto.Gui.Property;
+import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
+import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
@@ -202,6 +206,21 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             nodeResources.add(n.getSpineScene());
         }
 
+        if (n.getType() == Type.TYPE_CUSTOM) {
+            GuiCustomTypeRegistry.Type customType = GuiCustomTypeRegistry.getByHash(n.getCustomType());
+            if (customType != null) {
+                for (Property property : n.getCustomPropertiesList()) {
+                    GuiCustomTypeRegistry.Property propertyDefinition = property.hasId() && !property.getId().isEmpty()
+                            ? customType.getProperty(property.getId())
+                            : customType.getProperty(property.getIdHash());
+
+                    if (propertyDefinition != null && propertyDefinition.isResource() && property.hasStringValue() && !property.getStringValue().isEmpty()) {
+                        nodeResources.add(property.getStringValue());
+                    }
+                }
+            }
+        }
+
         for (String resource : nodeResources) {
             if (!resourceNames.contains(resource)) {
                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_MISSING_RESOURCE, resource));
@@ -278,6 +297,164 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         return targetBuilder;
     }
 
+    private static long hashPropertyName(String name) {
+        return MurmurHash.hash64(name);
+    }
+
+    private static Property.Builder buildCustomProperty(String name, Object value, PropertyType propertyType) {
+        Property.Builder propertyBuilder = Property.newBuilder();
+        propertyBuilder.setIdHash(hashPropertyName(name));
+        propertyBuilder.setType(propertyType);
+
+        switch (propertyType) {
+        case TYPE_BOOLEAN:
+            if (!(value instanceof Boolean)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a boolean default value");
+            }
+            propertyBuilder.setBoolean((Boolean) value);
+            break;
+        case TYPE_NUMBER:
+            if (!(value instanceof Number)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a numeric default value");
+            }
+            propertyBuilder.setNumber(((Number) value).floatValue());
+            break;
+        case TYPE_HASH:
+            if (value instanceof Number) {
+                propertyBuilder.setHash(((Number) value).longValue());
+            } else {
+                propertyBuilder.setHash(hashPropertyName(value == null ? "" : value.toString()));
+            }
+            break;
+        case TYPE_STRING:
+            propertyBuilder.setStringValue(value == null ? "" : value.toString());
+            break;
+        case TYPE_VECTOR3:
+            if (!(value instanceof Vector3)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a Vector3 default value");
+            }
+            propertyBuilder.setVector3((Vector3) value);
+            break;
+        case TYPE_VECTOR4:
+            if (!(value instanceof Vector4)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a Vector4 default value");
+            }
+            propertyBuilder.setVector4((Vector4) value);
+            break;
+        case TYPE_QUAT:
+            if (!(value instanceof Quat)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a Quat default value");
+            }
+            propertyBuilder.setQuat((Quat) value);
+            break;
+        default:
+            throw new IllegalArgumentException("Unsupported custom gui property type '" + propertyType + "' for property '" + name + "'");
+        }
+
+        return propertyBuilder;
+    }
+
+    private static Property canonicalizeCustomProperty(Property property) {
+        Property.Builder propertyBuilder = property.toBuilder();
+
+        if (property.hasId() && !property.getId().isEmpty()) {
+            propertyBuilder.setIdHash(hashPropertyName(property.getId()));
+        }
+
+        propertyBuilder.clearId();
+        return propertyBuilder.build();
+    }
+
+    private static void putLegacySpineProperties(NodeDesc node, Map<String, Object> properties) {
+        if (node.hasSpineScene()) {
+            properties.put("spine_scene", node.getSpineScene());
+        }
+        if (node.hasSpineDefaultAnimation()) {
+            properties.put("spine_default_animation", node.getSpineDefaultAnimation());
+        }
+        if (node.hasSpineSkin()) {
+            properties.put("spine_skin", node.getSpineSkin());
+        }
+        if (node.hasSpineNodeChild()) {
+            properties.put("spine_node_child", node.getSpineNodeChild());
+        }
+        if (node.hasSpineCreateBones()) {
+            properties.put("spine_create_bones", node.getSpineCreateBones());
+        }
+    }
+
+    private static NodeDesc migrateCustomNode(NodeDesc node) {
+        GuiCustomTypeRegistry.Type customType = null;
+
+        if (node.getType() == Type.TYPE_SPINE) {
+            customType = GuiCustomTypeRegistry.getByName("Spine");
+        } else if (node.getType() == Type.TYPE_CUSTOM) {
+            customType = GuiCustomTypeRegistry.getByHash(node.getCustomType());
+        }
+
+        if (customType == null) {
+            return node;
+        }
+
+        Map<String, Object> migratedProperties = new LinkedHashMap<String, Object>();
+        putLegacySpineProperties(node, migratedProperties);
+        customType.migrateProperties(migratedProperties);
+
+        Set<Long> existingPropertyHashes = new HashSet<Long>();
+        List<Property> customProperties = new ArrayList<Property>(node.getCustomPropertiesCount() + customType.getProperties().size());
+        for (Property property : node.getCustomPropertiesList()) {
+            Property canonicalProperty = canonicalizeCustomProperty(property);
+            if (canonicalProperty.hasIdHash()) {
+                existingPropertyHashes.add(canonicalProperty.getIdHash());
+            }
+            customProperties.add(canonicalProperty);
+        }
+
+        for (GuiCustomTypeRegistry.Property property : customType.getProperties()) {
+            long propertyNameHash = property.getNameHash();
+            if (existingPropertyHashes.contains(propertyNameHash)) {
+                continue;
+            }
+
+            Object value = migratedProperties.containsKey(property.getName()) ? migratedProperties.get(property.getName()) : property.getDefaultValue();
+            customProperties.add(buildCustomProperty(property.getName(), value, property.getPropertyType()).build());
+            existingPropertyHashes.add(propertyNameHash);
+        }
+
+        NodeDesc.Builder builder = node.toBuilder();
+        builder.setType(Type.TYPE_CUSTOM);
+        builder.setCustomType(customType.getNameHash());
+        builder.clearCustomTypeName();
+        builder.clearCustomProperties();
+        builder.addAllCustomProperties(customProperties);
+        builder.clearSpineScene();
+        builder.clearSpineDefaultAnimation();
+        builder.clearSpineSkin();
+        builder.clearSpineNodeChild();
+        builder.clearSpineCreateBones();
+        return builder.build();
+    }
+
+    private static NodeDesc clearEditorOnlyCustomNodeFields(NodeDesc node) {
+        if (!node.hasCustomTypeName()) {
+            return node;
+        }
+
+        return node.toBuilder().clearCustomTypeName().build();
+    }
+
+    private static void clearEditorOnlyCustomNodeFields(SceneDesc.Builder sceneBuilder) {
+        for (int i = 0, len = sceneBuilder.getNodesCount(); i < len; ++i) {
+            sceneBuilder.setNodes(i, clearEditorOnlyCustomNodeFields(sceneBuilder.getNodes(i)));
+        }
+
+        for (LayoutDesc.Builder layoutBuilder : sceneBuilder.getLayoutsBuilderList()) {
+            for (int i = 0, len = layoutBuilder.getNodesCount(); i < len; ++i) {
+                layoutBuilder.setNodes(i, clearEditorOnlyCustomNodeFields(layoutBuilder.getNodes(i)));
+            }
+        }
+    }
+
     private static void ApplyLayoutOverrides(NodeDesc.Builder builder, HashMap<String, NodeDesc> nodeMapDefault, HashMap<String, NodeDesc> nodeMap) {
         NodeDesc parentSceneNode = (nodeMap == null) ? null : nodeMap.get(builder.getId());
         if((parentSceneNode == null) && (nodeMapDefault != null)) {
@@ -316,7 +493,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             if (layoutNodes != null) {
                 ApplyLayoutOverrides(b, layoutNodes, parentSceneNodeMap.get(layout));
             }
-            newNodes.add(b.build());
+            newNodes.add(migrateCustomNode(b.build()));
         }
         return newNodes;
     }
@@ -470,13 +647,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 continue;
             }
 
-            // backwards compatibility
-            if(node.getType() == Type.TYPE_SPINE) {
-                NodeDesc.Builder newNode = node.toBuilder();
-                newNode.setType(Type.TYPE_CUSTOM);
-                newNode.setCustomType(MurmurHash.hash32("Spine"));
-                node = newNode.build();
-            }
+            node = migrateCustomNode(node);
 
             // add current scene nodes
             newScene.get("").add(node);
@@ -484,6 +655,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             for(String layout : layouts) {
                 NodeDesc n = nodeMap.get(layout).get(node.getId());
                 if(n != null) {
+                    n = migrateCustomNode(n);
                     validateNodeResources(n, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
                     newScene.get(layout).add(n);
                 }
@@ -622,6 +794,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         sceneBuilder.clearResources();
         sceneBuilder.addAllResources(newResourcesList);
+
+        clearEditorOnlyCustomNodeFields(sceneBuilder);
 
         return sceneBuilder;
     }

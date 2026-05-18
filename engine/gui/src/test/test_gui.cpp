@@ -15,6 +15,7 @@
 #include <map>
 #include <string>
 #include <stdlib.h>
+#include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <testmain/testmain.h>
@@ -5555,6 +5556,184 @@ TEST_F(dmGuiTest, SetGetScreenPositionAdjustDisabledScaledParent)
     Point3 local_from_after = dmGui::ScreenToLocalPosition(m_Scene, child, Point3(after_set.getXYZ()));
     ASSERT_NEAR(local_after.getX(), local_from_after.getX(), EPSILON);
     ASSERT_NEAR(local_after.getY(), local_from_after.getY(), EPSILON);
+}
+
+TEST_F(dmGuiTest, CustomProperties)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
+
+    dmGui::CustomPropertyDesc properties[7] = {};
+    properties[0].m_Key = dmHashString64("string");
+    properties[0].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
+    properties[0].m_Property.m_String = strdup("hello");
+    properties[1].m_Key = dmHashString64("number");
+    properties[1].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_NUMBER;
+    properties[1].m_Property.m_Number = 13.0f;
+    properties[2].m_Key = dmHashString64("boolean");
+    properties[2].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN;
+    properties[2].m_Property.m_Boolean = true;
+    properties[3].m_Key = dmHashString64("hash");
+    properties[3].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_HASH;
+    properties[3].m_Property.m_Hash = dmHashString64("hash-value");
+    properties[4].m_Key = dmHashString64("vector3");
+    properties[4].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3;
+    properties[4].m_Property.m_Vector3 = Vector3(1, 2, 3);
+    properties[5].m_Key = dmHashString64("vector4");
+    properties[5].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_VECTOR4;
+    properties[5].m_Property.m_Vector4 = Vector4(4, 5, 6, 7);
+    properties[6].m_Key = dmHashString64("quat");
+    properties[6].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_QUAT;
+    properties[6].m_Property.m_Quat = Quat(0, 0, 0, 1);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperties(m_Scene, node, properties, 7));
+
+    dmGui::CustomProperty property = {};
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(13.0f, property.m_Number, EPSILON);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_TRUE(property.m_Boolean);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("hash"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_HASH, property.m_Type);
+    ASSERT_EQ(dmHashString64("hash-value"), property.m_Hash);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("hello", property.m_String);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_NEAR(1.0f, property.m_Vector3.getX(), EPSILON);
+    ASSERT_NEAR(2.0f, property.m_Vector3.getY(), EPSILON);
+    ASSERT_NEAR(3.0f, property.m_Vector3.getZ(), EPSILON);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("vector4"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR4, property.m_Type);
+    ASSERT_NEAR(4.0f, property.m_Vector4.getX(), EPSILON);
+    ASSERT_NEAR(5.0f, property.m_Vector4.getY(), EPSILON);
+    ASSERT_NEAR(6.0f, property.m_Vector4.getZ(), EPSILON);
+    ASSERT_NEAR(7.0f, property.m_Vector4.getW(), EPSILON);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("quat"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_QUAT, property.m_Type);
+    ASSERT_NEAR(0.0f, property.m_Quat.getX(), EPSILON);
+    ASSERT_NEAR(0.0f, property.m_Quat.getY(), EPSILON);
+    ASSERT_NEAR(0.0f, property.m_Quat.getZ(), EPSILON);
+    ASSERT_NEAR(1.0f, property.m_Quat.getW(), EPSILON);
+
+    ASSERT_EQ(dmGui::RESULT_RESOURCE_NOT_FOUND, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("missing"), &property));
+
+    dmGui::CustomProperty wrong_type = {};
+    wrong_type.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN;
+    wrong_type.m_Boolean = false;
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("number"), &wrong_type));
+
+    dmGui::CustomProperty new_number = {};
+    new_number.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_NUMBER;
+    new_number.m_Number = 42.0f;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("number"), &new_number));
+
+    dmGui::CustomProperty new_boolean = {};
+    new_boolean.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN;
+    new_boolean.m_Boolean = false;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("boolean"), &new_boolean));
+
+    dmGui::CustomProperty new_hash = {};
+    new_hash.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_HASH;
+    new_hash.m_Hash = dmHashString64("new-hash-value");
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("hash"), &new_hash));
+
+    char* string_value = strdup("runtime");
+    dmGui::CustomProperty new_string = {};
+    new_string.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
+    new_string.m_String = string_value;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &new_string));
+
+    dmGui::CustomProperty new_vector3 = {};
+    new_vector3.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3;
+    new_vector3.m_Vector3 = Vector3(8, 9, 10);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("vector3"), &new_vector3));
+
+    dmGui::CustomProperty new_vector4 = {};
+    new_vector4.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_VECTOR4;
+    new_vector4.m_Vector4 = Vector4(11, 12, 13, 14);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("vector4"), &new_vector4));
+
+    dmGui::CustomProperty new_quat = {};
+    new_quat.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_QUAT;
+    new_quat.m_Quat = Quat(0.25f, 0.5f, 0.75f, 1.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("quat"), &new_quat));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("number"), &property));
+    ASSERT_NEAR(42.0f, property.m_Number, EPSILON);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("boolean"), &property));
+    ASSERT_FALSE(property.m_Boolean);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("hash"), &property));
+    ASSERT_EQ(dmHashString64("new-hash-value"), property.m_Hash);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &property));
+    ASSERT_EQ((const char*) string_value, property.m_String);
+    ASSERT_STREQ("runtime", property.m_String);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("vector3"), &property));
+    ASSERT_NEAR(8.0f, property.m_Vector3.getX(), EPSILON);
+    ASSERT_NEAR(9.0f, property.m_Vector3.getY(), EPSILON);
+    ASSERT_NEAR(10.0f, property.m_Vector3.getZ(), EPSILON);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("vector4"), &property));
+    ASSERT_NEAR(11.0f, property.m_Vector4.getX(), EPSILON);
+    ASSERT_NEAR(12.0f, property.m_Vector4.getY(), EPSILON);
+    ASSERT_NEAR(13.0f, property.m_Vector4.getZ(), EPSILON);
+    ASSERT_NEAR(14.0f, property.m_Vector4.getW(), EPSILON);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("quat"), &property));
+    ASSERT_NEAR(0.25f, property.m_Quat.getX(), EPSILON);
+    ASSERT_NEAR(0.5f, property.m_Quat.getY(), EPSILON);
+    ASSERT_NEAR(0.75f, property.m_Quat.getZ(), EPSILON);
+    ASSERT_NEAR(1.0f, property.m_Quat.getW(), EPSILON);
+}
+
+TEST_F(dmGuiTest, CloneNodeCustomProperties)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
+
+    dmGui::CustomPropertyDesc properties[2] = {};
+    properties[0].m_Key = dmHashString64("string");
+    properties[0].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
+    properties[0].m_Property.m_String = strdup("clone");
+    properties[1].m_Key = dmHashString64("number");
+    properties[1].m_Property.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_NUMBER;
+    properties[1].m_Property.m_Number = 1.0f;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperties(m_Scene, node, properties, 2));
+
+    dmGui::HNode clone = dmGui::INVALID_HANDLE;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::CloneNode(m_Scene, node, &clone));
+
+    dmGui::CustomProperty property = {};
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, clone, dmHashString64("string"), &property));
+    ASSERT_STREQ("clone", property.m_String);
+
+    dmGui::CustomProperty new_string = {};
+    new_string.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
+    new_string.m_String = strdup("changed");
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &new_string));
+
+    dmGui::CustomProperty new_number = {};
+    new_number.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_NUMBER;
+    new_number.m_Number = 7.0f;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("number"), &new_number));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, clone, dmHashString64("string"), &property));
+    ASSERT_STREQ("clone", property.m_String);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, clone, dmHashString64("number"), &property));
+    ASSERT_NEAR(1.0f, property.m_Number, EPSILON);
 }
 
 TEST_F(dmGuiTest, ZeroMaxDynamicTextures)

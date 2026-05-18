@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/script/script.h>
 
 
@@ -179,6 +180,48 @@ namespace dmGui
     };
 
     /*#
+     * @name CustomPropertyType
+     * @type enum
+     * @member CUSTOM_PROPERTY_TYPE_NUMBER
+     * @member CUSTOM_PROPERTY_TYPE_BOOLEAN
+     * @member CUSTOM_PROPERTY_TYPE_HASH
+     * @member CUSTOM_PROPERTY_TYPE_STRING
+     * @member CUSTOM_PROPERTY_TYPE_VECTOR3
+     * @member CUSTOM_PROPERTY_TYPE_VECTOR4
+     * @member CUSTOM_PROPERTY_TYPE_QUAT
+     */
+    enum CustomPropertyType
+    {
+        CUSTOM_PROPERTY_TYPE_NUMBER  = 0,
+        CUSTOM_PROPERTY_TYPE_BOOLEAN = 1,
+        CUSTOM_PROPERTY_TYPE_HASH    = 2,
+        CUSTOM_PROPERTY_TYPE_STRING  = 3,
+        CUSTOM_PROPERTY_TYPE_VECTOR3 = 5,
+        CUSTOM_PROPERTY_TYPE_VECTOR4 = 6,
+        CUSTOM_PROPERTY_TYPE_QUAT    = 7,
+    };
+
+    /*#
+     * Custom GUI node property value.
+     * String values are owned by the GUI scene after they are passed to a
+     * successful SetNodeCustomProperty() call, and will be released with free().
+     * @name CustomProperty
+     * @type struct
+     * @member m_Type [type:dmGui::CustomPropertyType] the value type
+     */
+    struct CustomProperty
+    {
+        CustomPropertyType m_Type;
+        float              m_Number;
+        bool               m_Boolean;
+        dmhash_t           m_Hash;
+        const char*        m_String;
+        dmVMath::Vector3   m_Vector3;
+        dmVMath::Vector4   m_Vector4;
+        dmVMath::Quat      m_Quat;
+    };
+
+    /*#
      * @name NewNode
      * @param scene [type:dmGui::HScene] the gui scene
      * @param position [type:dmVMath::Point3] the position
@@ -324,6 +367,32 @@ namespace dmGui
      * @param value [type: dmVMath::Vector4]
      */
     void SetNodeProperty(HScene scene, HNode node, Property property, const dmVMath::Vector4& value);
+
+    /*#
+     * Get a custom property from a GUI node.
+     * String values returned in the output property are owned by the GUI scene
+     * and must not be freed by the caller.
+     * @name GetNodeCustomProperty
+     * @param scene [type: dmGui::HScene] scene
+     * @param node [type: dmGui::HNode] node
+     * @param key [type: dmhash_t] property name hash
+     * @param prop [type: dmGui::CustomProperty*] output property
+     * @return result [type: dmGui::Result] RESULT_OK on success
+     */
+    Result GetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, CustomProperty* prop);
+
+    /*#
+     * Set a custom property on a GUI node.
+     * String values are owned by the GUI scene after a successful call and will
+     * be released with free().
+     * @name SetNodeCustomProperty
+     * @param scene [type: dmGui::HScene] scene
+     * @param node [type: dmGui::HNode] node
+     * @param key [type: dmhash_t] property name hash
+     * @param prop [type: const dmGui::CustomProperty*] property value
+     * @return result [type: dmGui::Result] RESULT_OK on success
+     */
+    Result SetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, const CustomProperty* prop);
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here

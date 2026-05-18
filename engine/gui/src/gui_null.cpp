@@ -499,6 +499,21 @@ namespace dmGui
     {
     }
 
+    Result SetNodeCustomProperties(HScene scene, HNode node, const CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        return RESULT_OK;
+    }
+
+    Result GetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, CustomProperty* prop)
+    {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    Result SetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, const CustomProperty* prop)
+    {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
     void SetNodeResetPoint(HScene scene, HNode node)
     {
     }

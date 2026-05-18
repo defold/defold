@@ -199,7 +199,10 @@ def print_object(printer, msg):
     for descriptor in msg.DESCRIPTOR.fields:
         value = getattr(msg, descriptor.name)
 
-        if not descriptor.label == descriptor.LABEL_REPEATED:
+        if descriptor.label == descriptor.LABEL_REPEATED:
+            if len(value) == 0:
+                continue
+        else:
             if not msg.HasField(descriptor.name):
                 continue
 

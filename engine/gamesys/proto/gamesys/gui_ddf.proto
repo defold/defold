@@ -15,6 +15,35 @@ option java_outer_classname = "Gui";
  * @language Lua
  */
 
+message Property
+{
+    enum PropertyType
+    {
+        TYPE_NUMBER     = 0 [(displayName) = "Number"];
+        TYPE_BOOLEAN    = 1 [(displayName) = "Boolean"];
+        TYPE_HASH       = 2 [(displayName) = "Hash"];
+        TYPE_STRING     = 3 [(displayName) = "String"];
+        TYPE_VECTOR3    = 5 [(displayName) = "Vector3"];
+        TYPE_VECTOR4    = 6 [(displayName) = "Vector4"];
+        TYPE_QUAT       = 7 [(displayName) = "Quat"];
+    }
+
+    optional string id          = 1; // for the editor
+    optional uint64 id_hash     = 2; // for runtime
+    required PropertyType type  = 3;
+
+    oneof value
+    {
+        float          number       = 4;
+        bool           boolean      = 5;
+        uint64         hash         = 6;
+        string         string_value = 7;
+        dmMath.Vector3 vector3      = 8;
+        dmMath.Vector4 vector4      = 9;
+        dmMath.Quat    quat         = 10;
+    }
+}
+
 message NodeDesc
 {
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -162,6 +191,8 @@ message NodeDesc
     // Controls whether GUI bone nodes are created for Spine nodes.
     optional bool   spine_create_bones      = 48 [default = false];
 
+    optional string    custom_type_name  = 49;
+    repeated Property  custom_properties = 50;
 }
 
 message SceneDesc
