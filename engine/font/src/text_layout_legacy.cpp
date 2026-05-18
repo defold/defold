@@ -177,7 +177,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
         }
         trailing_space_width += g.m_Advance;
     }
-    float extent_last = last.m_LeftBearing + last.m_Width;
+    float extent_last = last.m_Width;
     float width = last.m_X - row_start_x + extent_last + trailing_space_width;
     return width;
 }
@@ -272,7 +272,8 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
             g.m_Advance = font_glyph.m_Advance * scale;
             g.m_LeftBearing = font_glyph.m_LeftBearing * scale;
 
-            x += g.m_Advance + tracking;
+            x += g.m_Advance;
+            x += tracking;
         }
 
         layout->m_Glyphs[i] = g;
