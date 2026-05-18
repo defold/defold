@@ -2909,7 +2909,7 @@ class Configuration(object):
         # See /etc/profile for further details
         is_mingw = os.environ.get('MSYSTEM', '') in ('MINGW64',)
         if is_mingw:
-            env['ORIGINAL_PATH'] = os.environ['PATH']
+            env['ORIGINAL_PATH'] = env['PATH']
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
