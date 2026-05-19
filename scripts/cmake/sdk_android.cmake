@@ -177,6 +177,10 @@ else(TARGET_PLATFORM MATCHES "armv7-android")
     set(ANDROID_NATIVE_API_LEVEL ${SDK_VERSION_ANDROID_ARMV7_API_LEVEL} CACHE STRING "Android API Level" FORCE)
     # Use the canonical Clang triplet for 32-bit ARM
     set(ANDROID_TOOLCHAIN "armv7a-linux-androideabi${ANDROID_NATIVE_API_LEVEL}-clang" CACHE STRING "Android Toolchain" FORCE)
+    # Match the Waf build. The Android CMake toolchain defaults armeabi-v7a to Thumb mode,
+    # but Defold's armv7 flags have historically built ARM mode code.
+    set(ANDROID_ARM_MODE "arm" CACHE STRING "Android ARM instruction mode" FORCE)
+    set(CMAKE_ANDROID_ARM_MODE TRUE CACHE BOOL "Use ARM mode for armeabi-v7a" FORCE)
 
 endif()
 
