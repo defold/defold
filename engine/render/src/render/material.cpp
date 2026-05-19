@@ -228,6 +228,14 @@ namespace dmRender
         info.m_ValuePtr         = &m->m_MaterialAttributeValues[material_attribute.m_ValueIndex];
     }
 
+    static void UpdateVertexAttributeValuePointers(Material* m)
+    {
+        for (uint32_t i = 0; i < m->m_VertexAttributeInfos.Size(); ++i)
+        {
+            m->m_VertexAttributeInfos[i].m_ValuePtr = &m->m_MaterialAttributeValues[m->m_MaterialAttributes[i].m_ValueIndex];
+        }
+    }
+
     static void CreateAttributes(dmGraphics::HContext graphics_context, Material* m)
     {
         uint32_t num_program_attributes  = dmGraphics::GetAttributeCount(m->m_Program);
@@ -266,10 +274,7 @@ namespace dmRender
         memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
 
         // Set value pointers now that the buffer is allocated
-        for (int i = 0; i < num_program_attributes; ++i)
-        {
-            m->m_VertexAttributeInfos[i].m_ValuePtr = &m->m_MaterialAttributeValues[m->m_MaterialAttributes[i].m_ValueIndex];
-        }
+        UpdateVertexAttributeValuePointers(m);
     }
 
     void CreateConstants(dmGraphics::HContext graphics_context, HMaterial material)
@@ -579,6 +584,7 @@ namespace dmRender
 
         material->m_MaterialAttributeValues.SetCapacity(value_byte_size);
         material->m_MaterialAttributeValues.SetSize(value_byte_size);
+        UpdateVertexAttributeValuePointers(material);
 
         const uint32_t name_buffer_size = 128;
         char name_buffer[name_buffer_size];
