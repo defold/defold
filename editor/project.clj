@@ -239,6 +239,13 @@
                               :java-source-paths ^:replace []
                               :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
                                                        [org.antlr/antlr4 "4.9.1"]]}
+                      :zip-parallel {:prep-tasks ^:replace []
+                                     :source-paths ^:replace ["src/zip_parallel"]
+                                     :java-source-paths ^:replace []
+                                     :resource-paths ^:replace []
+                                     :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
+                                                              [commons-io/commons-io "2.4"]
+                                                              [org.apache.commons/commons-compress "1.18"]]}
                       :uberjar {:prep-tasks  ^:replace []
                                 :aot          :all
                                 :auto-clean   false
