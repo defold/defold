@@ -314,6 +314,7 @@ target_compile_definitions(dlib
   PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 target_link_libraries(dlib PUBLIC zip mbedtls)
+defold_target_link_socket(dlib "${TARGET_PLATFORM}" SCOPE PUBLIC)
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
   foreach(_fw IN ITEMS CFNetwork Security)
     target_link_options(dlib PUBLIC "-Wl,-framework,${_fw}")
@@ -326,6 +327,7 @@ target_compile_definitions(dlib_noasan
   PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 target_link_libraries(dlib_noasan PUBLIC zip_noasan mbedtls_noasan)
+defold_target_link_socket(dlib_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC)
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
   foreach(_fw IN ITEMS CFNetwork Security)
     target_link_options(dlib_noasan PUBLIC "-Wl,-framework,${_fw}")
