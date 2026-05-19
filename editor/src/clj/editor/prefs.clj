@@ -452,27 +452,28 @@
         (safe-assoc-in (if is-map (m k) {}) (subvec p 1) v)))))
 
 (defn- incorporate-updated-storage [{:keys [events storage] :as current-state} updated-storage]
-  (assoc current-state
-         :storage (if events
-                    ;; new events might have appeared while we were busy with file IO.
-                    ;; in this case, we reapply the events to the merged storage since
-                    ;; these events might change configs that were reloaded
-                    (reduce-kv
-                      (fn [acc file-path path->val]
-                        (let [new-cfg (reduce-kv
-                                        (fn [c path val]
-                                          (cond
-                                            (and (identical? ::not-found val) (coll/empty? path)) ::not-found
-                                            (identical? ::not-found val) (if (map? c) (util/dissoc-in c path) c)
-                                            :else (safe-assoc-in c path val)))
-                                        (or (clojure.core/get acc file-path) {})
-                                        path->val)]
-                          (if (identical? ::not-found new-cfg)
-                            (dissoc acc file-path)
-                            (assoc acc file-path new-cfg))))
-                      updated-storage
-                      events)
-                    updated-storage)))
+  (let [merged-storage (conj storage updated-storage)]
+    (assoc current-state
+      :storage (if events
+                 ;; new events might have appeared while we were busy with file IO.
+                 ;; in this case, we reapply the events to the merged storage since
+                 ;; these events might change configs that were reloaded
+                 (reduce-kv
+                   (fn [acc file-path path->val]
+                     (let [new-cfg (reduce-kv
+                                     (fn [c path val]
+                                       (cond
+                                         (and (identical? ::not-found val) (coll/empty? path)) ::not-found
+                                         (identical? ::not-found val) (if (map? c) (util/dissoc-in c path) c)
+                                         :else (safe-assoc-in c path val)))
+                                     (or (clojure.core/get acc file-path) {})
+                                     path->val)]
+                       (if (identical? ::not-found new-cfg)
+                         (dissoc acc file-path)
+                         (assoc acc file-path new-cfg))))
+                   merged-storage
+                   events)
+                 merged-storage))))
 
 (defonce io-lock (Object.))
 
@@ -1022,6 +1023,4 @@
 
 (comment
   (swap! global-state assoc-in [:registry :default] (resolve-schema default-schema))
-  (swap! global-state assoc :storage {} :events {})
-  @global-state
   :-)

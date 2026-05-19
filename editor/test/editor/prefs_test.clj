@@ -748,6 +748,8 @@
         (prefs/reset-path! p [:size])
         (prefs/set! p [:size :x] 99.0)
         (is (prefs/set? p [:size]))
+        (is (not (prefs/set? p [:size :y])))
+        (is (= 99.0 (prefs/get p [:size :x])))
         (prefs/sync!)
         (let [stored (edn/read-string (slurp file))]
           (is (= {:x 99.0} (get stored :size)))))
