@@ -22,6 +22,14 @@ defold_embed_to_header(
   OUTPUT_CPP "${GUI_TEST_BUG352_CPP}"
   SYMBOL "BUG352_LUA")
 
+defold_add_library(gui_test_generated OBJECT
+  "${GUI_TEST_PROTO_CC}"
+  "${GUI_TEST_BUG352_CPP}")
+target_include_directories(gui_test_generated PRIVATE
+  "${GUI_TEST_ROOT}"
+  "${GUI_SRC_DIR}"
+  "${GUI_TEST_GEN_DIR}")
+
 set(GUI_TEST_PARTICLE_PROTO "${DEFOLD_HOME}/engine/particle/proto/particle/particle_ddf.proto")
 set(GUI_TEST_PARTICLEFX_OUTPUTS)
 foreach(_particlefx IN ITEMS once.particlefx once_three_emitters.particlefx)
@@ -86,8 +94,8 @@ endfunction()
 
 defold_add_executable(test_gui
   "${GUI_TEST_ROOT}/test_gui.cpp"
-  "${GUI_TEST_PROTO_CC}"
-  "${GUI_TEST_BUG352_CPP}")
+  $<TARGET_OBJECTS:gui_test_generated>)
+add_dependencies(test_gui gui_test_generated)
 gui_configure_test(test_gui gui ON)
 
 defold_add_executable(test_gui_script "${GUI_TEST_ROOT}/test_gui_script.cpp")
@@ -98,8 +106,8 @@ gui_configure_test(test_gui_clipping gui ON)
 
 defold_add_executable(test_gui_null
   "${GUI_TEST_ROOT}/test_gui.cpp"
-  "${GUI_TEST_PROTO_CC}"
-  "${GUI_TEST_BUG352_CPP}")
+  $<TARGET_OBJECTS:gui_test_generated>)
+add_dependencies(test_gui_null gui_test_generated)
 gui_configure_test(test_gui_null gui_null OFF)
 
 defold_add_executable(test_gui_script_null "${GUI_TEST_ROOT}/test_gui_script.cpp")

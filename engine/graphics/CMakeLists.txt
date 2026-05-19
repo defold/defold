@@ -22,9 +22,17 @@ set(GRAPHICS_BPROTO "${GRAPHICS_GEN_DIR}/graphics_ddf.bproto")
 defold_protoc_gen_cpp("${GRAPHICS_PROTO_CC}" "${GRAPHICS_PROTO}" INCLUDES "${GRAPHICS_PROTO_ROOT}")
 defold_protoc_gen_py("${GRAPHICS_PROTO_PY}" "${GRAPHICS_PROTO}" PYTHON_ROOT "${CMAKE_CURRENT_BINARY_DIR}/python" INCLUDES "${GRAPHICS_PROTO_ROOT}")
 defold_protoc_gen_bproto("${GRAPHICS_BPROTO}" "${GRAPHICS_PROTO}" INCLUDES "${GRAPHICS_PROTO_ROOT}")
-add_custom_target(graphics_proto_header DEPENDS "${GRAPHICS_PROTO_CC}" "${GRAPHICS_PROTO_H}")
 add_custom_target(graphics_proto_py ALL DEPENDS "${GRAPHICS_PROTO_PY}" "${GRAPHICS_PROTO_PY_INIT}")
 add_custom_target(graphics_bproto ALL DEPENDS "${GRAPHICS_BPROTO}")
+
+defold_add_library(graphics_proto_generated OBJECT "${GRAPHICS_PROTO_CC}")
+target_include_directories(graphics_proto_generated PUBLIC
+  "${GRAPHICS_SRC_DIR}"
+  "${GRAPHICS_PROTO_ROOT}"
+  "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_definitions(graphics_proto_generated PRIVATE "DLIB_LOG_DOMAIN=\"GRAPHICS\"")
+add_custom_target(graphics_proto_header)
+add_dependencies(graphics_proto_header graphics_proto_generated)
 
 function(graphics_target_os out_var)
   if(TARGET_PLATFORM MATCHES "win32$")
@@ -63,10 +71,11 @@ function(graphics_common_setup target)
     "${GRAPHICS_PROTO_ROOT}"
     "${CMAKE_CURRENT_BINARY_DIR}")
   target_compile_definitions(${target} PRIVATE "DLIB_LOG_DOMAIN=\"GRAPHICS\"")
-  add_dependencies(${target} graphics_proto_py graphics_bproto)
+  add_dependencies(${target} graphics_proto_generated graphics_proto_py graphics_bproto)
 endfunction()
 
-set(GRAPHICS_PROTO_SOURCES "${GRAPHICS_SRC_DIR}/graphics_proto.cpp" "${GRAPHICS_PROTO_CC}")
+set(GRAPHICS_PROTO_OBJECTS $<TARGET_OBJECTS:graphics_proto_generated>)
+set(GRAPHICS_PROTO_SOURCES "${GRAPHICS_SRC_DIR}/graphics_proto.cpp" ${GRAPHICS_PROTO_OBJECTS})
 
 defold_add_library(graphics_proto STATIC ${GRAPHICS_PROTO_SOURCES})
 graphics_common_setup(graphics_proto)
@@ -78,7 +87,7 @@ defold_target_link_libraries(graphics_proto_noasan "${TARGET_PLATFORM}" SCOPE PU
 
 file(GLOB GRAPHICS_CORE_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/*.cpp")
 file(GLOB GRAPHICS_NULL_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/null/*.cpp")
-set(GRAPHICS_NULL_ALL_SOURCES ${GRAPHICS_CORE_SOURCES} ${GRAPHICS_NULL_SOURCES} "${GRAPHICS_PROTO_CC}")
+set(GRAPHICS_NULL_ALL_SOURCES ${GRAPHICS_CORE_SOURCES} ${GRAPHICS_NULL_SOURCES} ${GRAPHICS_PROTO_OBJECTS})
 list(FILTER GRAPHICS_NULL_ALL_SOURCES EXCLUDE REGEX "/graphics_glfw_wrappers\\.cpp$")
 
 defold_add_library(graphics_null STATIC ${GRAPHICS_NULL_ALL_SOURCES})
@@ -116,7 +125,7 @@ endif()
 
 file(GLOB GRAPHICS_OPENGL_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/*.cpp" "${GRAPHICS_SRC_DIR}/opengl/*.cpp")
 if(GRAPHICS_PLATFORM_SUPPORTS_OPENGL)
-  defold_add_library(graphics STATIC ${GRAPHICS_OPENGL_SOURCES} "${GRAPHICS_PROTO_CC}")
+  defold_add_library(graphics STATIC ${GRAPHICS_OPENGL_SOURCES} ${GRAPHICS_PROTO_OBJECTS})
   graphics_common_setup(graphics)
   target_include_directories(graphics PUBLIC "${GRAPHICS_SRC_DIR}/opengl")
   if(TARGET_PLATFORM MATCHES "win32$")
@@ -128,7 +137,7 @@ if(GRAPHICS_PLATFORM_SUPPORTS_OPENGL)
 endif()
 
 if(GRAPHICS_PLATFORM_SUPPORTS_OPENGLES)
-  defold_add_library(graphics_opengles STATIC ${GRAPHICS_OPENGL_SOURCES} "${GRAPHICS_PROTO_CC}")
+  defold_add_library(graphics_opengles STATIC ${GRAPHICS_OPENGL_SOURCES} ${GRAPHICS_PROTO_OBJECTS})
   graphics_common_setup(graphics_opengles)
   target_include_directories(graphics_opengles PUBLIC "${GRAPHICS_SRC_DIR}/opengl")
   target_compile_definitions(graphics_opengles PUBLIC DM_GRAPHICS_USE_OPENGLES DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
@@ -144,7 +153,7 @@ if(GRAPHICS_PLATFORM_SUPPORTS_WEBGPU)
     else()
       set(_webgpu_define DM_GRAPHICS_WEBGPU)
     endif()
-    defold_add_library(${_webgpu_target} STATIC ${GRAPHICS_WEBGPU_SOURCES} "${GRAPHICS_PROTO_CC}")
+    defold_add_library(${_webgpu_target} STATIC ${GRAPHICS_WEBGPU_SOURCES} ${GRAPHICS_PROTO_OBJECTS})
     graphics_common_setup(${_webgpu_target})
     target_include_directories(${_webgpu_target} PUBLIC "${GRAPHICS_SRC_DIR}/webgpu")
     target_compile_definitions(${_webgpu_target} PUBLIC ${_webgpu_define})
@@ -177,7 +186,7 @@ if(GRAPHICS_PLATFORM_SUPPORTS_VULKAN)
     list(FILTER GRAPHICS_VULKAN_SOURCES EXCLUDE REGEX "/graphics_glfw_wrappers\\.cpp$")
   endif()
 
-  defold_add_library(graphics_vulkan STATIC ${GRAPHICS_VULKAN_SOURCES} "${GRAPHICS_PROTO_CC}")
+  defold_add_library(graphics_vulkan STATIC ${GRAPHICS_VULKAN_SOURCES} ${GRAPHICS_PROTO_OBJECTS})
   graphics_common_setup(graphics_vulkan)
   target_include_directories(graphics_vulkan PUBLIC "${GRAPHICS_SRC_DIR}/vulkan")
   if(WITH_VULKAN_VALIDATION)
@@ -193,7 +202,7 @@ endif()
 
 if(GRAPHICS_PLATFORM_SUPPORTS_DX12)
   file(GLOB GRAPHICS_DX12_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/*.cpp" "${GRAPHICS_SRC_DIR}/dx12/*.cpp")
-  defold_add_library(graphics_dx12 STATIC ${GRAPHICS_DX12_SOURCES} "${GRAPHICS_PROTO_CC}")
+  defold_add_library(graphics_dx12 STATIC ${GRAPHICS_DX12_SOURCES} ${GRAPHICS_PROTO_OBJECTS})
   graphics_common_setup(graphics_dx12)
   target_include_directories(graphics_dx12 PUBLIC
     "${GRAPHICS_SRC_DIR}/dx12"

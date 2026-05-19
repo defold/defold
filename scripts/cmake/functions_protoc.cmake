@@ -110,7 +110,7 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
     if(_ddf_plugin_pythonpath)
         add_custom_command(
             OUTPUT "${_out_cc}" "${_out_h}"
-            COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${_ddf_plugin_pythonpath}" ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            COMMAND ${CMAKE_COMMAND} -E env "DYNAMO_HOME=${DEFOLD_SDK_ROOT}" "PYTHONPATH=${_ddf_plugin_pythonpath}" ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
             DEPENDS "${_src_abs}" "${_ddf_plugin_path}" ${_ddf_plugin_deps}
             VERBATIM
             COMMENT "Generating DDF C++ from ${SRC_PROTO}"
@@ -118,7 +118,7 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
     else()
         add_custom_command(
             OUTPUT "${_out_cc}" "${_out_h}"
-            COMMAND ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
+            COMMAND ${CMAKE_COMMAND} -E env "DYNAMO_HOME=${DEFOLD_SDK_ROOT}" ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
             DEPENDS "${_src_abs}" "${_ddf_plugin_path}" ${_ddf_plugin_deps}
             VERBATIM
             COMMENT "Generating DDF C++ from ${SRC_PROTO}"

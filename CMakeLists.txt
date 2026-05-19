@@ -13,6 +13,22 @@ project(defold_libraries LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 # Load full Defold CMake (platform flags, interface target, etc.)
 include("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/defold.cmake")
 
+set(DEFOLD_BOB_DIR "${CMAKE_CURRENT_LIST_DIR}/com.dynamo.cr/com.dynamo.cr.bob")
+set(DEFOLD_BOB_LIGHT_JAR "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar" CACHE FILEPATH "Path to generated bob-light.jar" FORCE)
+if(CMAKE_HOST_WIN32)
+  set(DEFOLD_GRADLEW "${DEFOLD_BOB_DIR}/gradlew.bat")
+else()
+  set(DEFOLD_GRADLEW "${DEFOLD_BOB_DIR}/gradlew")
+endif()
+get_filename_component(_DEFOLD_JAVA_BIN_DIR "${Java_JAVA_EXECUTABLE}" DIRECTORY)
+get_filename_component(DEFOLD_JAVA_HOME "${_DEFOLD_JAVA_BIN_DIR}/.." ABSOLUTE)
+unset(_DEFOLD_JAVA_BIN_DIR)
+
+add_custom_target(bob_light DEPENDS "${DEFOLD_BOB_LIGHT_JAR}")
+if(TARGET build_tests)
+  add_dependencies(build_tests bob_light)
+endif()
+
 # Engine libs.
 set(DEFOLD_ENGINE_LIBS
   testmain
@@ -75,6 +91,39 @@ endforeach()
 unset(_DEFOLD_ENGINE_LIB)
 unset(_DEFOLD_ENGINE_LIB_BINARY_DIR)
 unset(_DEFOLD_ENGINE_LIB_UPPER)
+
+set(_DEFOLD_BOB_LIGHT_DEPENDS
+  "${DEFOLD_BOB_DIR}/build.gradle"
+  "${DEFOLD_GRADLEW}")
+set(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
+foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared)
+  if(TARGET ${_DEFOLD_BOB_LIGHT_LIB})
+    list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS ${_DEFOLD_BOB_LIGHT_LIB})
+    list(APPEND _DEFOLD_BOB_LIGHT_COPY_COMMANDS
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "$<TARGET_FILE:${_DEFOLD_BOB_LIGHT_LIB}>"
+        "${DEFOLD_LIB_DIR}/$<TARGET_FILE_NAME:${_DEFOLD_BOB_LIGHT_LIB}>")
+  endif()
+endforeach()
+
+add_custom_command(
+  OUTPUT "${DEFOLD_BOB_LIGHT_JAR}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_LIB_DIR}"
+  ${_DEFOLD_BOB_LIGHT_COPY_COMMANDS}
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java"
+  COMMAND "${CMAKE_COMMAND}" -E env
+    "DEFOLD_HOME=${DEFOLD_HOME}"
+    "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+    "JAVA_HOME=${DEFOLD_JAVA_HOME}"
+    "GRADLE_OPTS=-Dorg.gradle.parallel=true --sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED"
+    "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed installBobLight
+  WORKING_DIRECTORY "${DEFOLD_BOB_DIR}"
+  DEPENDS ${_DEFOLD_BOB_LIGHT_DEPENDS}
+  COMMENT "Building bob-light.jar"
+  VERBATIM)
+unset(_DEFOLD_BOB_LIGHT_DEPENDS)
+unset(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
+unset(_DEFOLD_BOB_LIGHT_LIB)
 
 # ===================== CMake package export =====================
 # Export defold_sdk so external projects can find_package(Defold)

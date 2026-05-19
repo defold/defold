@@ -36,6 +36,9 @@ def main():
 
     gen_java_dir = os.path.dirname(os.path.abspath(args.gen_java))
     sys.path.insert(0, gen_java_dir)
+    defold_home = os.environ.get("DEFOLD_HOME")
+    if defold_home:
+        append_unique(sys.path, os.path.join(defold_home, "build_tools"))
 
     import gen_java
 

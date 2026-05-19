@@ -30,6 +30,10 @@ add_custom_command(
     "${JNI_TEST_DIR}/testapi.h"
   COMMENT "Generating Java/JNI bindings for testapi.h")
 
+add_library(test_jni_bindings OBJECT "${JNI_TEST_GENERATED_CPP}")
+target_include_directories(test_jni_bindings PRIVATE "${JNI_TEST_DIR}" "${JNI_SRC_DIR}" "${JNI_TEST_JNI_DIR}" ${JNI_INCLUDE_DIRS})
+set_target_properties(test_jni_bindings PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 defold_add_executable(test_jni
   "${JNI_TEST_DIR}/test_jni.cpp")
 target_include_directories(test_jni PRIVATE "${JNI_TEST_DIR}" "${JNI_SRC_DIR}" "${JNI_TEST_JNI_DIR}" ${JNI_INCLUDE_DIRS})
@@ -41,8 +45,9 @@ defold_register_test_target(test_jni ON "${JNI_ROOT}")
 
 add_library(test_jni_shared SHARED
   "${JNI_TEST_DIR}/testapi.cpp"
-  "${JNI_TEST_GENERATED_CPP}")
+  $<TARGET_OBJECTS:test_jni_bindings>)
 target_include_directories(test_jni_shared PRIVATE "${JNI_TEST_DIR}" "${JNI_SRC_DIR}" "${JNI_TEST_JNI_DIR}" ${JNI_INCLUDE_DIRS})
+add_dependencies(test_jni_shared test_jni_bindings)
 defold_target_link_libraries(test_jni_shared "${TARGET_PLATFORM}" jni_noasan dlib_noasan zip_noasan mbedtls_noasan profile_null_noasan)
 if(TARGET_PLATFORM MATCHES "win32$")
   target_link_libraries(test_jni_shared PRIVATE dbghelp.lib)
@@ -64,7 +69,8 @@ add_custom_command(
           "${JNI_TEST_GENERATED_JAVA}"
           "${JNI_TEST_DIR}/java/com/dynamo/bob/pipeline/JniTest.java"
   COMMAND "${Java_JAR_EXECUTABLE}" cfe "${JNI_TEST_JAR}" com.dynamo.bob.pipeline.JniTest -C "${JNI_TEST_CLASSES_DIR}" .
-  DEPENDS "${JNI_TEST_GENERATED_JAVA}" "${JNI_TEST_DIR}/java/com/dynamo/bob/pipeline/JniTest.java"
+  DEPENDS test_jni_bindings "${JNI_TEST_DIR}/java/com/dynamo/bob/pipeline/JniTest.java"
   COMMENT "Packaging test_jni.jar")
 add_custom_target(test_jni_jar DEPENDS "${JNI_TEST_JAR}")
+add_dependencies(test_jni_jar test_jni_bindings)
 add_dependencies(build_tests test_jni_jar)
