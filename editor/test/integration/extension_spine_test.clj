@@ -14,6 +14,7 @@
 
 (ns integration.extension-spine-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
@@ -27,7 +28,7 @@
             [integration.test-util :as test-util]
             local-extensions
             [support.test-support :as test-support]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.diff :as diff]))
 
 (set! *warn-on-reflection* true)
@@ -63,6 +64,12 @@
                     (pair proj-path diff-lines)))))
         save-data-content-by-proj-path-after))
 
+(defn- custom-property [node-desc id value-key]
+  (coll/some (fn [property]
+               (when (= id (:id property))
+                 (value-key property)))
+             (:custom-properties node-desc)))
+
 (deftest registered-resource-types-test
   (test-util/with-loaded-project project-path
     (is (= #{} (test-util/protobuf-resource-exts-that-read-defaults workspace)))))
@@ -75,6 +82,30 @@
     (is (= #{"/assets/spineboy/spineboy.spinescene"} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/main/spineboy.spinemodel")
     (is (= #{"/assets/spineboy/spineboy.spinescene" "/main/spineboy.spinemodel"} (test-util/dirty-proj-paths project)))))
+
+(deftest legacy-spine-gui-not-dirty-after-load-test
+  (test-support/with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world migration-project-path)]
+      (let [game-project-file (io/as-file (workspace/find-resource workspace "/game.project"))]
+        (test-support/spit-until-new-mtime
+          game-project-file
+          (str (slurp game-project-file)
+               "dependencies#0 = " extension-spine-url "\n"))
+        (test-util/fetch-libraries! workspace))
+      (let [project (test-util/setup-project! workspace)]
+        (test-util/clear-cached-save-data! project)
+        (let [dirty-save-data (project/dirty-save-data project)
+              dirty-proj-paths (into (sorted-set)
+                                     (map (comp resource/proj-path :resource))
+                                     dirty-save-data)]
+          (is (= #{} dirty-proj-paths)
+              (str "Legacy Spine migration should not dirty resources on load.\n"
+                   (->> dirty-save-data
+                        (map (fn [save-data]
+                               (str (resource/proj-path (:resource save-data))
+                                    "\n"
+                                    (test-util/save-data-diff-message save-data))))
+                        (string/join "\n")))))))))
 
 (deftest spinescene-outputs-test
   (test-util/with-loaded-project project-path
@@ -403,8 +434,8 @@
                     (is (not (contains? spine-gui-node :alpha)))
                     (is (not (contains? spine-gui-node :template-node-child)))
                     (is (= :size-mode-auto (:size-mode spine-gui-node)))
-                    (is (= "spineboy" (:spine-scene spine-gui-node)))
-                    (is (= "walk" (:spine-default-animation spine-gui-node)))
+                    (is (= "spineboy" (custom-property spine-gui-node "spine_scene" :string-value)))
+                    (is (= "walk" (custom-property spine-gui-node "spine_default_animation" :string-value)))
                     (is (not (contains? spine-gui-node :spine-skin)))
                     (is (empty? (:overridden-fields spine-gui-node)))))
 
@@ -452,10 +483,26 @@
         (gui-test/with-visible-layout! gui-scene "Portrait"
           (test-util/prop! spine-node :spine-default-animation "jump")))
 
-      (testing "After overriding a property, the override NodeDesc includes all properties from the default layout."
+      (testing "After overriding a property, the runtime override NodeDesc includes the effective custom properties."
         (let [built-scene-desc (built-scene-desc gui-scene)
-              built-node-desc (get-in built-scene-desc [:nodes 0])
               built-layout-desc (get-in built-scene-desc [:layouts 0])
               built-node-desc-for-layout (get-in built-layout-desc [:nodes 0])]
-          (is (= (assoc built-node-desc :spine-default-animation "jump")
+          (is (= {:type :type-custom
+                  :inherit-alpha true
+                  :size-mode :size-mode-auto
+                  :custom-properties [{:id "spine_create_bones"
+                                       :type :type-boolean
+                                       :boolean false}
+                                      {:id "spine_default_animation"
+                                       :type :type-string
+                                       :string-value "jump"}
+                                      {:id "spine_scene"
+                                       :type :type-string
+                                       :string-value "spineboy"}
+                                      {:id "spine_skin"
+                                       :type :type-string
+                                       :string-value ""}]
+                  :id "spineboy"
+                  :position [200.0 0.0 0.0 0.0]
+                  :custom-type 405028931}
                  built-node-desc-for-layout)))))))

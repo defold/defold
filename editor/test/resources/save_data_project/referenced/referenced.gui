@@ -344,13 +344,25 @@ nodes {
   clipping_inverted: true
   alpha: 0.9
   size_mode: SIZE_MODE_AUTO
-  spine_scene: "first_spinescene"
-  spine_default_animation: "first_animation"
-  spine_skin: "first_skin"
   custom_type: 405028931
   enabled: false
   visible: false
   material: "first_material"
+  custom_properties {
+    id: "spine_default_animation"
+    type: TYPE_STRING
+    string_value: "first_animation"
+  }
+  custom_properties {
+    id: "spine_scene"
+    type: TYPE_STRING
+    string_value: "first_spinescene"
+  }
+  custom_properties {
+    id: "spine_skin"
+    type: TYPE_STRING
+    string_value: "first_skin"
+  }
 }
 nodes {
   position {

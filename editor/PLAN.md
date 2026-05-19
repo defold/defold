@@ -132,17 +132,31 @@ JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' 
 - Store layout overrides sparsely under `:layout->prop->override layout :custom-properties`, with only overridden custom property ids present.
 - Merge effective custom property values by id from defaults, loaded project values, original-node overrides, current-node overrides, and current-layout overrides.
 - Load default and layout `custom_properties` entries into the value map.
-- Save default nodes with all custom property entries.
+- Save node and layout custom properties sparsely: omit default-valued custom properties from project files so load/sanitize migrations do not dirty resources.
 - Save layout nodes with only overridden custom property entries. `:custom-properties` should contribute one symbolic overridden field entry even when several custom ids are overridden.
 - Deduplicate `:overridden-fields` after custom property expansion.
 - Update GUI resource rename handling to rewrite matching values inside the `:custom-properties` map, including layout overrides.
-- Preserve unknown custom property ids when round-tripping. For known ids, fail fast with a useful load error if the protobuf value type disagrees with registered metadata.
+- Drop unknown custom property ids during load sanitization and save. For known ids, fail fast with a useful load error if the protobuf value type disagrees with registered metadata.
 - Migrate legacy Spine fields into `:custom-properties`: `spine_scene`, `spine_default_animation`, `spine_skin`, `spine_create_bones`; drop `spine_node_child`.
 - Add editor tests for load/save, sparse layout overrides, override field deduplication, resource renames, unknown-id round-tripping, and Spine legacy field migration.
 
+Part 2 implementation notes:
+- Implemented using protobuf enum keywords for `:protobuf-type`, e.g. `:type-string`, `:type-boolean`, `:type-number`, `:type-hash`, `:type-vector3`, `:type-vector4`, and `:type-quat`.
+- Unknown-id round-tripping is no longer a goal; unknown entries are dropped instead.
+- Spine legacy migration is hardcoded in `extension-spine` and remains non-extensible compatibility code.
+- Current editor tests cover sparse node saves, sparse layout overrides, default omission, resource renames, dropped unknown ids, dirty-on-load behavior for legacy Spine data, and legacy Spine field migration.
+
 ## 3. Expose custom properties in editor tools.
 
-- Add virtual custom property entries to the GUI node `:_properties` output so they appear in the Properties panel and edit `:custom-properties`.
+- Add virtual custom property entries to the GUI node `:_properties` output so they appear in the Properties panel as flat layout properties keyed by custom property id, not legacy extension graph properties.
+- Keep the graph storage property nested as `:custom-properties {id value}`, but expand it early into flat virtual property keys for layout-facing maps such as `prop->value` and `layout->prop->value`.
+- Custom property edits and clears must route by custom property id: default-layout edits update the nested `:custom-properties` graph property, while named-layout edits write flat custom property id keys directly under `:layout->prop->override layout`.
+- Save/build must collapse flat custom property id keys back into protobuf `custom_properties`; layout saves must include every overridden custom property id entry, even when its value equals the custom property default.
+- Add a regression test for default-valued custom property layout overrides. The Part 2 nested representation can lose `{"Landscape" {:custom-properties {:some_id default-value}}}` because `custom_properties` is only one protobuf overridden field and sparse serialization can omit the per-id entry; Part 3's flat per-id override keys must round-trip this case and save the overridden id explicitly.
+- Reject custom property ids that collide with real layout property keys during custom GUI node type registration.
+- After virtual custom property editing works by id, remove the generic `:prop-key` custom-property metadata and save-time prop-key migration helpers such as `move-custom-property-prop-keys-to-custom-properties`; layout serialization should no longer translate editor graph property keys like `:spine-scene` into custom property ids like `:spine_scene`.
+- Revisit the custom-property-aware layout serialization helpers such as `prop-entry->pb-field-entry-for-type` and `prop->pb-field-entries-for-type`; after save/build collapse flat custom id keys explicitly, either rename them to describe layout property serialization clearly or inline/simplify them if they no longer carry meaningful logic.
+- Revisit the hidden `:custom-properties` edit type. It currently has a dummy `g/Any` edit type because existing layout/editor-script helpers assume every layout property has one; after virtual custom property editing is implemented, remove or replace this dummy storage-property edit type as part of the new custom-property edit path.
 - Extend editor script property lister/getter/setter/resetter for GUI nodes to include these virtual custom properties.
 - Include virtual custom properties in template override transfer so GUI template workflows can copy and clear individual custom property overrides.
 - Add editor tests for Properties panel metadata, editor script lister/getter/setter/resetter access, and template override transfer for individual custom property ids.
@@ -150,11 +164,11 @@ JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' 
 ## 4. Save readable custom GUI data from the editor.
 
 - Save project files with readable `custom_type_name`.
-- Save custom properties with string `id` and readable project values.
+- Save custom properties with string `id` and readable project values. (The string `id` storage part is already covered by Part 2.)
 - Accept old files with numeric `custom_type`; migrate known Spine hash to `custom_type_name` `"Spine"` on save.
 - Fail fast if both `custom_type_name` and `custom_type` are present but disagree.
-- Update `save_data_test` classification for `custom_type_name` and `custom_properties`.
-- Update `save_data_test` Spine GUI fixtures to the new project-file format.
+- Update `save_data_test` classification for `custom_type_name` and `custom_properties`. (`custom_properties` coverage is already partly covered by Part 2.)
+- Update `save_data_test` Spine GUI fixtures to the new project-file format. (The `custom_properties` fixture migration is already partly covered by Part 2; `custom_type_name` remains pending.)
 - Add editor save tests for loading/saving readable `custom_type_name` without numeric `custom_type`, old numeric Spine custom type migration, mismatched `custom_type_name`/`custom_type` rejection, and readable source output.
 - Update the fake custom GUI node/resource kind test, or add a sibling test, to use `custom_type_name` once project-file loading from `custom_type_name` is implemented.
 
@@ -165,7 +179,7 @@ JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' 
 - Convert each custom property string `id` to `id_hash` using `murmur/hash64`.
 - Clear string `id` from runtime/build output.
 - Convert custom properties with `:protobuf-type :hash` from readable project strings to hashed runtime values.
-- Sort `custom_properties` deterministically in editor build output.
+- Sort `custom_properties` deterministically in editor build output. (Editor save/build paths already sort by string `id`; id/hash conversion remains pending.)
 - Add editor build tests for `custom_type_name` removal, `id -> id_hash` conversion, hash-valued custom properties, and deterministic property order.
 
 ## 6. Match the same build behavior in Bob and extension-spine.

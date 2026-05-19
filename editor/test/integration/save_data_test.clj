@@ -213,6 +213,19 @@
     {"data_type" :allowed-default
      "long_values" :unused}}
 
+   'dmGuiDDF.Property
+   {:default
+    {"hash" :unused
+     "id_hash" :runtime-only
+     "number" :unused
+     "quat" :unused
+     "vector3" :unused
+     "vector4" :unused}
+
+    [["gui" "layouts" "nodes" "[TYPE_CUSTOM]" "custom_properties"]]
+    {"boolean" :unused
+     "string_value" :unused}}
+
    'dmGuiDDF.NodeDesc
    {:default
     {"custom_properties" :unimplemented
@@ -253,6 +266,7 @@
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
     {"custom_type" :non-overridable
+     "custom_properties" :non-editable
      "font" :unused
      "innerRadius" :unused
      "line_break" :unused
@@ -267,6 +281,10 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :deprecated
+     "spine_default_animation" :deprecated
+     "spine_scene" :deprecated
+     "spine_skin" :deprecated
      "spine_node_child" :deprecated ; This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
      "template" :unused
      "template_node_child" :unused

@@ -131,7 +131,29 @@
          :display-name "Test Custom"
          :custom-type-name "TestCustom"
          :icon "icons/32/Icons_40-GUI-Box-node.png"
-         :defaults gui/shape-base-node-defaults})
+         :defaults gui/shape-base-node-defaults
+         :custom-properties [{:id :test_hash
+                              :type g/Any
+                              :protobuf-type :type-hash
+                              :default 0}
+                             {:id :test_number
+                              :type g/Num
+                              :default 1.0}
+                             {:id :test_quat
+                              :type g/Any
+                              :protobuf-type :type-quat
+                              :default [0.0 0.0 0.0 1.0]}
+                             {:id :test_resource
+                              :type g/Str
+                              :resource-kind :test-gui-resource}
+                             {:id :test_vector3
+                              :type g/Any
+                              :protobuf-type :type-vector3
+                              :default [0.0 0.0 0.0]}
+                             {:id :test_vector4
+                              :type g/Any
+                              :protobuf-type :type-vector4
+                              :default [0.0 0.0 0.0 0.0]}]})
       (gui/register-node-tree-attachment-node-type workspace TestCustomGuiNode)
       (gui/register-gui-resource-kind
         workspace
@@ -161,6 +183,9 @@
 (deftest custom-gui-extension-registration
   (test-util/with-scratch-project "test/resources/empty_project"
     (let [custom-type (murmur/hash32 "TestCustom")
+          test-quat [(float 0.0) (float 0.0) (float 0.707) (float 0.707)]
+          test-vector3 [(float 1.0) (float 2.0) (float 3.0)]
+          test-vector4 [(float 4.0) (float 5.0) (float 6.0) (float 7.0)]
           source-resources [{:name "beta" :path "/beta.testguiresource"}
                             {:name "alpha" :path "/alpha.testguiresource"}]]
       (register-test-gui-extensions workspace)
@@ -181,6 +206,27 @@
                            {:resources source-resources
                             :nodes [{:type :type-custom
                                      :custom-type custom-type
+                                     :custom-properties [{:id "unknown"
+                                                          :type :type-string
+                                                          :string-value "kept"}
+                                                         {:id "test_hash"
+                                                          :type :type-hash
+                                                          :hash 123}
+                                                         {:id "test_resource"
+                                                          :type :type-string
+                                                          :string-value "alpha"}
+                                                         {:id "test_number"
+                                                          :type :type-number
+                                                          :number 42.0}
+                                                         {:id "test_quat"
+                                                          :type :type-quat
+                                                          :quat test-quat}
+                                                         {:id "test_vector3"
+                                                          :type :type-vector3
+                                                          :vector3 test-vector3}
+                                                         {:id "test_vector4"
+                                                          :type :type-vector4
+                                                          :vector4 test-vector4}]
                                      :id "custom"}]})]
         (workspace/resource-sync! workspace)
         (let [gui-scene (test-util/resource-node project gui-resource)
@@ -189,14 +235,40 @@
               resource-outline (g/node-value resources-node :node-outline)
               save-value (g/node-value gui-scene :save-value)]
           (is (g/node-instance? TestCustomGuiNode custom-node))
+          (is (= {:test_hash 123
+                  :test_number 42.0
+                  :test_quat test-quat
+                  :test_resource "alpha"
+                  :test_vector3 test-vector3
+                  :test_vector4 test-vector4}
+                 (g/node-value custom-node :custom-properties)))
           (is (= ["beta" "alpha"]
                  (mapv :node-outline-key (:children resource-outline))))
           (is (= source-resources (:resources save-value)))
-          (is (= [{:type :type-custom
-                   :custom-type custom-type
-                   :id "custom"}]
-                 (mapv #(select-keys % [:type :custom-type :id])
-                       (:nodes save-value)))))))))
+          (let [saved-node (first (:nodes save-value))]
+            (is (= {:type :type-custom
+                    :custom-type custom-type
+                    :id "custom"}
+                   (select-keys saved-node [:type :custom-type :id])))
+            (is (= [{:id "test_hash"
+                     :type :type-hash
+                     :hash 123}
+                    {:id "test_number"
+                     :type :type-number
+                     :number 42.0}
+                    {:id "test_quat"
+                     :type :type-quat
+                     :quat test-quat}
+                    {:id "test_resource"
+                     :type :type-string
+                     :string-value "alpha"}
+                    {:id "test_vector3"
+                     :type :type-vector3
+                     :vector3 test-vector3}
+                    {:id "test_vector4"
+                     :type :type-vector4
+                     :vector4 test-vector4}]
+                   (:custom-properties saved-node)))))))))
 
 (deftest gui-scene-generation
   (test-util/with-loaded-project
@@ -1212,6 +1284,19 @@
                         overridden-pb-field (get node-desc overridden-pb-field (protobuf/default Gui$NodeDesc overridden-pb-field)))))
                   (select-keys node-desc [:parent])
                   (:overridden-fields node-desc)))))))
+
+(defn- saved-node-desc-custom-property-value [node-desc custom-property-id value-field]
+  (coll/some
+    (fn [custom-property]
+      (when (= custom-property-id (:id custom-property))
+        (value-field custom-property)))
+    (:custom-properties node-desc)))
+
+(defn- saved-node-desc-resource-field-values [node-desc]
+  (let [spine-scene (saved-node-desc-custom-property-value node-desc "spine_scene" :string-value)]
+    (cond-> (select-keys node-desc [:font :layer :material :particlefx :texture])
+            spine-scene
+            (assoc :spine-scene spine-scene))))
 
 (defn has-successor?
   ([source-id+source-label target-id+target-label]
@@ -2536,9 +2621,7 @@
                 (make-layout->node->field->value
                   scene-desc
                   (fn node-desc-fn [node-desc _is-override-node-desc]
-                    (-> node-desc
-                        (select-keys [:font :layer :material :particlefx :spine-scene :texture])
-                        (coll/not-empty))))))]
+                    (coll/not-empty (saved-node-desc-resource-field-values node-desc))))))]
 
         (testing "Before renaming resources."
           (testing "Referenced scene."
@@ -2886,9 +2969,7 @@
                 (make-layout->node->field->value
                   scene-desc
                   (fn node-desc-fn [node-desc _is-override-node-desc]
-                    (-> node-desc
-                        (select-keys [:font :layer :material :particlefx :spine-scene :texture])
-                        (coll/not-empty))))))]
+                    (coll/not-empty (saved-node-desc-resource-field-values node-desc))))))]
 
         (testing "Before renaming resources."
           (testing "Referenced scene."
