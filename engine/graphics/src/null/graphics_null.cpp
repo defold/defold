@@ -1230,8 +1230,8 @@ namespace dmGraphics
 
     static HRenderTarget NullNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        NullContext* context      = (NullContext*) _context;
-        NullRenderTarget* rt          = new NullRenderTarget();
+        NullContext* context = (NullContext*) _context;
+        NullRenderTarget* rt = new NullRenderTarget();
 
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,

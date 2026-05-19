@@ -82,8 +82,8 @@ namespace dmGraphics
 
     struct NullRenderTarget
     {
-        RenderTarget    m_Base;
-        FrameBuffer     m_FrameBuffer;
+        RenderTarget m_Base;
+        FrameBuffer  m_FrameBuffer;
     };
 
     struct NullShaderModule

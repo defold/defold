@@ -151,14 +151,11 @@ namespace dmGraphics
     struct DX12RenderTarget
     {
         RenderTarget          m_Base;
-
         ID3D12Resource*       m_Resource;
         ID3D12DescriptorHeap* m_ColorAttachmentDescriptorHeap;
         ID3D12DescriptorHeap* m_DepthStencilDescriptorHeap;
-
         DXGI_FORMAT           m_Format;
         DXGI_SAMPLE_DESC      m_SampleDesc;
-
     };
 
     struct DX12DescriptorPool

@@ -52,12 +52,10 @@ namespace dmGraphics
         TextureParams m_DepthBufferParams;
         TextureParams m_StencilBufferParams;
         TextureParams m_DepthStencilTextureParams;
-
         HTexture      m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture      m_TextureDepth;
         HTexture      m_TextureStencil;
         HTexture      m_TextureDepthStencil;
-
         uint16_t      m_Id;
         uint8_t       m_ColorAttachmentCount;
         uint8_t       m_IsBound;

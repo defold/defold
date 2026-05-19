@@ -568,11 +568,11 @@ namespace dmGraphics
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         assert(rt == 0x0);
 
-        rt               = new DX12RenderTarget();
-        rt->m_Base.m_Id         = DM_RENDERTARGET_BACKBUFFER_ID;
+        rt = new DX12RenderTarget();
+        rt->m_Base.m_Id                   = DM_RENDERTARGET_BACKBUFFER_ID;
         rt->m_Base.m_ColorAttachmentCount = 1;
-        rt->m_Format     = DX12GetBackBufferFormat();
-        rt->m_SampleDesc = sample_desc;
+        rt->m_Format                      = DX12GetBackBufferFormat();
+        rt->m_SampleDesc                  = sample_desc;
 
         context->m_MainRenderTarget    = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;

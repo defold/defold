@@ -179,19 +179,15 @@ namespace dmGraphics
 
         RenderTarget   m_Base;
         VulkanHandle   m_Handle;
-
         AttachmentOp   m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp   m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float          m_ColorAttachmentClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
         float          m_DepthAttachmentClearValue;
         uint32_t       m_StencilAttachmentClearValue;
-
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
         SubPass*       m_SubPasses;
-
         VkExtent2D     m_Extent;
         VkRect2D       m_Scissor;
-
         uint32_t       m_Destroyed            : 1;
         // Set by VulkanClear when the pass has not yet been begun and all color attachments
         // are being cleared. Consumed by the next BeginRenderPass which picks the CLEAR
