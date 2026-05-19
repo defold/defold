@@ -452,26 +452,27 @@
         (safe-assoc-in (if is-map (m k) {}) (subvec p 1) v)))))
 
 (defn- incorporate-updated-storage [{:keys [events storage] :as current-state} updated-storage]
-  (let [merged-storage (conj storage updated-storage)]
-    (assoc current-state
-      :storage (if events
-                 ;; new events might have appeared while we were busy with file IO.
-                 ;; in this case, we reapply the events to the merged storage since
-                 ;; these events might change configs that were reloaded
-                 (reduce-kv
-                   (fn [acc file-path path->val]
-                     (update acc file-path
-                             (fn [cfg]
-                               (reduce-kv
-                                 (fn [c path val]
-                                   (if (identical? ::not-found val)
-                                     (if (map? c) (util/dissoc-in c path) c)
-                                     (safe-assoc-in c path val)))
-                                 (or cfg {})
-                                 path->val))))
-                   merged-storage
-                   events)
-                 merged-storage))))
+  (assoc current-state
+         :storage (if events
+                    ;; new events might have appeared while we were busy with file IO.
+                    ;; in this case, we reapply the events to the merged storage since
+                    ;; these events might change configs that were reloaded
+                    (reduce-kv
+                      (fn [acc file-path path->val]
+                        (let [new-cfg (reduce-kv
+                                        (fn [c path val]
+                                          (cond
+                                            (and (identical? ::not-found val) (coll/empty? path)) ::not-found
+                                            (identical? ::not-found val) (if (map? c) (util/dissoc-in c path) c)
+                                            :else (safe-assoc-in c path val)))
+                                        (or (clojure.core/get acc file-path) {})
+                                        path->val)]
+                          (if (identical? ::not-found new-cfg)
+                            (dissoc acc file-path)
+                            (assoc acc file-path new-cfg))))
+                      updated-storage
+                      events)
+                    updated-storage)))
 
 (defonce io-lock (Object.))
 
@@ -488,12 +489,16 @@
                                config (reduce-kv
                                         (fn [cfg path val]
                                           (cond
+                                            (and (identical? ::not-found val) (coll/empty? path)) ::not-found
                                             (identical? ::not-found val) (if (map? cfg) (util/dissoc-in cfg path) cfg)
                                             :else (safe-assoc-in cfg path val)))
                                         base
                                         path->val)]
-                           (write-config! file-path config)
-                           (assoc acc file-path config)))
+                           (if (identical? ::not-found config)
+                             (do (fs/delete-file! (io/file file-path) {:fail :silently})
+                                 (dissoc acc file-path))
+                             (do (write-config! file-path config)
+                                 (assoc acc file-path config)))))
                        storage
                        events))))]
       (swap! global-state incorporate-updated-storage updated-storage)))
@@ -811,14 +816,19 @@
              (let [schema (combined-schema-at-path registry prefs path)
                    events (->> (reset-value-events scopes schema path)
                                (e/filter (fn [[file-path config-path _]]
-                                           (let [file-storage (clojure.core/get storage file-path)]
-                                             (and (map? file-storage)
-                                                  (not (identical? ::not-found
-                                                                   (get-in file-storage config-path ::not-found))))))))]
+                                           (let [file-storage (clojure.core/get storage file-path ::not-found)]
+                                             (if (coll/empty? config-path)
+                                               (not (identical? ::not-found file-storage))
+                                               (and (map? file-storage)
+                                                    (not (identical? ::not-found
+                                                                     (get-in file-storage config-path ::not-found)))))))))]
                (reduce
                  (fn [acc [file-path config-path _ :as event]]
                    (-> acc
-                       (update-in [:storage file-path] util/dissoc-in config-path)
+                       (update :storage (fn [s]
+                                          (if (coll/empty? config-path)
+                                            (dissoc s file-path)
+                                            (update s file-path util/dissoc-in  config-path))))
                        (assoc-in [:events file-path config-path] ::not-found)))
                  m
                  events))))
@@ -1012,4 +1022,6 @@
 
 (comment
   (swap! global-state assoc-in [:registry :default] (resolve-schema default-schema))
+  (swap! global-state assoc :storage {} :events {})
+  @global-state
   :-)

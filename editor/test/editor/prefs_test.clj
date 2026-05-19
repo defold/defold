@@ -899,7 +899,7 @@
         (is (= "default" (prefs/get p [])))
         (is (not (prefs/set? p [])))
         (prefs/sync!)
-        (is (not= "custom" (edn/read-string (slurp file)))))))
+        (is (not (.exists file))))))
 
   (testing "password root schema"
     (with-schemas {::root-password {:type :password :default "default"}}
@@ -915,4 +915,5 @@
         (is (= "default" (prefs/get p [])))
         (is (not (prefs/set? p [])))
         (prefs/sync!)
-        (is (not= "custom" (prefs/get p [])))))))
+        (is (not= "custom" (prefs/get p [])))
+        (is (not (.exists file)))))))
