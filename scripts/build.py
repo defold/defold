@@ -2672,7 +2672,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk-25+36'
+        jdk = 'jdk-%s' % sdk.VERSION_EDITOR_JDK
         host = get_host_platform()
         if 'win32' in host:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
