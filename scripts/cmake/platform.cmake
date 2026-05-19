@@ -70,6 +70,10 @@ target_compile_definitions(defold_sdk INTERFACE
     GOOGLE_PROTOBUF_NO_RTTI
     DM_USE_CMAKE)
 
+if(DEFINED ENV{GITHUB_WORKFLOW})
+    target_compile_definitions(defold_sdk INTERFACE GITHUB_CI JC_TEST_USE_COLORS=1)
+endif()
+
 if (TARGET_PLATFORM MATCHES "^arm64|^x86_64")
     target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_64BIT)
 else()
