@@ -15,7 +15,6 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
-import java.util.List;
 import java.io.File;
 import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
@@ -24,44 +23,53 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 @BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc", paramsForSignature = {"sound-stream-enabled"})
 public class OggBuilder extends CopyBuilder{
+    private static Logger logger = Logger.getLogger(OggBuilder.class.getName());
     private static String oggzValidateExePath;
+    private static boolean missingOggzValidateWarningShown;
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        oggzValidateExePath = Bob.getHostExeOnce("oggz-validate", oggzValidateExePath);
+        oggzValidateExePath = Bob.getOptionalHostExeOnce("oggz-validate", oggzValidateExePath);
         return super.create(input);
     }
 
     @Override
     public void build(Task task) throws IOException, CompileExceptionError {
         super.build(task);
-        File tmpOggFile = null;
-        try {
-            tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
-            BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpOggFile));
-            try {
-                os.write(task.firstInput().getContent());
-            } finally {
-                os.close();
+        if (oggzValidateExePath == null) {
+            if (!missingOggzValidateWarningShown) {
+                logger.warning("oggz-validate not found for host platform, skipping Ogg validation.");
+                missingOggzValidateWarningShown = true;
             }
-        } catch (IOException exc) {
-            throw new CompileExceptionError(task.firstInput(), 0,
-                    String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
-        }
-        Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
+        } else {
+            File tmpOggFile = null;
+            try {
+                tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
+                BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpOggFile));
+                try {
+                    os.write(task.firstInput().getContent());
+                } finally {
+                    os.close();
+                }
+            } catch (IOException exc) {
+                throw new CompileExceptionError(task.firstInput(), 0,
+                        String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
+            }
+            Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
-        if (result.ret != 0) {
-            throw new CompileExceptionError(task.firstInput(), 0,
-                    String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
+            if (result.ret != 0) {
+                throw new CompileExceptionError(task.firstInput(), 0,
+                        String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
+            }
         }
 
         boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)

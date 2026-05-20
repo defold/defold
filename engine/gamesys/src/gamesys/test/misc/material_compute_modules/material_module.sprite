@@ -1,4 +1,4 @@
-tile_set: "/tile/valid.tileset"
+tile_set: "/misc/tile_valid.tileset"
 default_animation: "anim"
 material: "/misc/material_compute_modules/material_module.material"
 size {
