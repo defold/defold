@@ -95,9 +95,6 @@ target_include_directories(decoder_wav PUBLIC "${SOUND_SRC_DIR}")
 
 defold_add_library(decoder_ogg STATIC ${SOUND_DECODER_OGG_SOURCES})
 target_include_directories(decoder_ogg PUBLIC "${SOUND_SRC_DIR}")
-if(NOT TARGET_PLATFORM MATCHES "^(arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
-  defold_target_link_libraries(decoder_ogg "${TARGET_PLATFORM}" SCOPE PUBLIC tremolo)
-endif()
 
 defold_add_library(decoder_opus STATIC "${SOUND_SRC_DIR}/decoders/decoder_opus.cpp")
 target_include_directories(decoder_opus PUBLIC "${SOUND_SRC_DIR}")

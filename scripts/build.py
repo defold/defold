@@ -748,6 +748,33 @@ class Configuration(object):
         self._create_common_dirs()
         self._log('distclean done.')
 
+    def _clean_cmake_builddir(self, builddir):
+        cmake_cache = join(builddir, 'CMakeCache.txt')
+        if os.path.exists(cmake_cache):
+            run.env_command(self._form_env(), ['cmake', '--build', builddir, '--target', 'clean'], cwd = self.defold_root)
+        elif os.path.exists(builddir):
+            self._log('Skipping CMake clean for %s; no CMakeCache.txt found' % builddir)
+
+    def clean(self):
+        """
+        Remove generated engine build outputs without removing installed SDK
+        packages, bob.jar, or built documentation artifacts.
+        """
+        cmake_platforms = []
+        for platform in [self.host, self.target_platform]:
+            cmake_platform = self._cmake_target_platform(platform)
+            if cmake_platform not in cmake_platforms:
+                cmake_platforms.append(cmake_platform)
+
+        for platform in cmake_platforms:
+            self._clean_cmake_builddir(self._cmake_top_build_dir(platform))
+
+        for builddir in glob(join(self.defold_root, 'engine/*/build')):
+            self._remove_tree(builddir)
+
+        self._remove_tree(join(self.defold_root, 'engine/engine/src/test/build'))
+        self._log('clean done.')
+
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
         self._mkdirs(path)
@@ -1692,14 +1719,20 @@ class Configuration(object):
             commands = "distclean configure " + commands
         return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
 
+    def _has_waf_configure_state(self, cwd):
+        return os.path.exists(join(cwd, 'build', 'c4che', '_cache.py'))
+
     def _build_engine_lib_waf(self, args, lib, platform, skip_tests, directory):
         skip_build_tests = []
         if skip_tests and '--skip-build-tests' not in self.waf_options:
             skip_build_tests.append('--skip-tests')
             skip_build_tests.append('--skip-build-tests')
         cwd = join(self.defold_root, '%s/%s' % (directory, lib))
+        waf_args = list(args)
+        if not self._has_waf_configure_state(cwd) and 'configure' not in waf_args and 'build' in waf_args:
+            waf_args.insert(waf_args.index('build'), 'configure')
         plf_args = ['--platform=%s' % platform]
-        run.env_command(self._form_env(), args + plf_args + self._waf_forward_options() + skip_build_tests, cwd = cwd)
+        run.env_command(self._form_env(), waf_args + plf_args + self._waf_forward_options() + skip_build_tests, cwd = cwd)
 
     def _find_cmake_build_type(self, options):
         for x in options:
@@ -3102,6 +3135,7 @@ if __name__ == '__main__':
 
 Commands:
 distclean        - Removes the DYNAMO_HOME folder
+clean            - Remove generated engine build outputs without removing DYNAMO_HOME
 install_ext      - Install external packages
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
