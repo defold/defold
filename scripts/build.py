@@ -749,11 +749,7 @@ class Configuration(object):
         self._log('distclean done.')
 
     def _clean_cmake_builddir(self, builddir):
-        cmake_cache = join(builddir, 'CMakeCache.txt')
-        if os.path.exists(cmake_cache):
-            run.env_command(self._form_env(), ['cmake', '--build', builddir, '--target', 'clean'], cwd = self.defold_root)
-        elif os.path.exists(builddir):
-            self._log('Skipping CMake clean for %s; no CMakeCache.txt found' % builddir)
+        self._remove_tree(builddir)
 
     def clean(self):
         """
