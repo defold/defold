@@ -220,6 +220,18 @@ namespace dmRender
         float            m_OuterConeAngle;
     };
 
+    struct SamplerInfo
+    {
+        dmhash_t                     m_NameHash;
+        dmGraphics::TextureType      m_TextureType;
+        dmGraphics::HUniformLocation m_Location;
+        dmGraphics::TextureWrap      m_UWrap;
+        dmGraphics::TextureWrap      m_VWrap;
+        dmGraphics::TextureFilter    m_MinFilter;
+        dmGraphics::TextureFilter    m_MagFilter;
+        float                        m_MaxAnisotropy;
+    };
+
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
@@ -355,6 +367,7 @@ namespace dmRender
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
     Result                          SetConstantValuesRef(HConstant constant, dmVMath::Vector4* values, uint32_t num_values);
+    bool                            GetSamplerInfo(HSampler sampler, SamplerInfo* info);
 
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);
@@ -375,6 +388,8 @@ namespace dmRender
     HSampler                        GetComputeProgramSampler(HComputeProgram program, uint32_t unit);
     HRenderContext                  GetProgramRenderContext(HComputeProgram program);
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
+    uint32_t                        GetComputeProgramConstantCount(HComputeProgram program);
+    bool                            GetComputeProgramConstantNameHash(HComputeProgram program, uint32_t index, dmhash_t* out_name_hash);
     void                            SetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
     void                            SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
@@ -396,7 +411,9 @@ namespace dmRender
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     dmGraphics::HUniformLocation    GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
-
+    uint32_t                        GetMaterialConstantCount(HMaterial material);
+    bool                            GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash);
+    bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 

@@ -1455,8 +1455,8 @@ namespace dmGraphics
 
         // Create a Vulkan pipeline cache so the driver can reuse compiled
         // shader/pipeline state across pipeline creation calls within
-        // the same session. Passing an empty initialData for now — disk
-        // serialization can be added later for cross-session warm starts.
+        // the same session. Passing an empty initialData for now.
+        // Disk serialization can be added later for cross-session warm starts.
         {
             VkPipelineCacheCreateInfo vk_pipeline_cache_info;
             memset(&vk_pipeline_cache_info, 0, sizeof(vk_pipeline_cache_info));
@@ -4880,7 +4880,6 @@ bail:
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
         context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
-
         if (context->m_VkPipelineCache != VK_NULL_HANDLE)
         {
             vkDestroyPipelineCache(vk_device, context->m_VkPipelineCache, 0);

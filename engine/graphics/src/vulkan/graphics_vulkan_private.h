@@ -436,7 +436,7 @@ namespace dmGraphics
         dmArray<VkImageView>  m_ImageViews;
         dmArray<VkSemaphore>  m_RenderFinishedSemaphores;
         VulkanTexture*        m_ResolveTexture;
-        const VkSurfaceKHR    m_Surface;
+        VkSurfaceKHR          m_Surface;
         const QueueFamily     m_QueueFamily;
         VkSurfaceFormatKHR    m_SurfaceFormat;
         VkSwapchainKHR        m_SwapChain;
@@ -522,6 +522,11 @@ namespace dmGraphics
 
         uint32_t                        m_WindowWidth;
         uint32_t                        m_WindowHeight;
+#if ANDROID
+        void*                           m_AndroidVulkanWindow;
+        uint32_t                        m_AndroidVulkanWindowWidth;
+        uint32_t                        m_AndroidVulkanWindowHeight;
+#endif
         uint32_t                        m_SwapInterval;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;

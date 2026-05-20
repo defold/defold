@@ -129,7 +129,7 @@ var LibrarySoundDevice =
         }
 
         if (device != null) {
-            shared.audioCtx.onstatechanged = function() {
+            shared.audioCtx.onstatechange = function() {
                 if (device._isContextRunning()) {
                     device.timeInSuspendedState = Date.now() / 1000;
                 } else {

@@ -52,6 +52,63 @@
 #define GL_CONTEXT_PROFILE_MASK           0x9126
 #endif
 
+#if defined(DMGLFW_NO_GL)
+
+void _glfwParseGLVersion( int *major, int *minor, int *rev )
+{
+    *major = 0;
+    *minor = 0;
+    *rev = 0;
+}
+
+int _glfwStringInExtensionString( const char *string,
+                                  const GLubyte *extensions )
+{
+    return GL_FALSE;
+}
+
+void _glfwRefreshContextParams( void )
+{
+    _glfwWin.glMajor = 0;
+    _glfwWin.glMinor = 0;
+    _glfwWin.glRevision = 0;
+    _glfwWin.glProfile = 0;
+    _glfwWin.glForward = GL_FALSE;
+}
+
+GLFWAPI int GLFWAPIENTRY glfwExtensionSupported( const char *extension )
+{
+    return GL_FALSE;
+}
+
+GLFWAPI void * GLFWAPIENTRY glfwGetProcAddress( const char *procname )
+{
+    return NULL;
+}
+
+GLFWAPI void GLFWAPIENTRY glfwGetGLVersion( int *major, int *minor, int *rev )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return;
+    }
+
+    if( major != NULL )
+    {
+        *major = 0;
+    }
+    if( minor != NULL )
+    {
+        *minor = 0;
+    }
+    if( rev != NULL )
+    {
+        *rev = 0;
+    }
+}
+
+#else
+
 static void _ClearGLError()
 {
     GLint err = glGetError();
@@ -310,3 +367,4 @@ GLFWAPI void GLFWAPIENTRY glfwGetGLVersion( int *major, int *minor, int *rev )
     }
 }
 
+#endif

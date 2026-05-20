@@ -113,8 +113,12 @@ def build(bld):
                         'ResourceTypeWav',
                         'GraphicsAdapterNull',
                         'ScriptImageExt',
+                        'ScriptMaterialExt',
                         'ScriptFont',
                         'ScriptHttp']
+
+    if platform_supports_feature(bld.env.PLATFORM, 'compute', None):
+        exported_symbols.append('ScriptComputeExt')
 
     embed_source = _read_embed_sources(bld)
 

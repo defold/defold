@@ -13,7 +13,13 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlfcn.h>
+#include <android_native_app_glue.h>
+#include <dmsdk/dlib/android.h>
+#include <platform/platform_window_android.h>
+
 #include "../graphics_vulkan_defines.h"
+#include "../graphics_vulkan_private.h"
+#include "graphics_vulkan_android.h"
 
 // Loader functions
 PFN_vkCreateInstance vkCreateInstance;
@@ -141,7 +147,101 @@ PFN_vkGetFenceStatus vkGetFenceStatus;
 namespace dmGraphics
 {
     void* g_lib_vulkan = 0;
-    uint8_t g_functions_loaded = 0;
+
+    VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    {
+        PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR = (PFN_vkCreateAndroidSurfaceKHR)
+            vkGetInstanceProcAddr(vkInstance, "vkCreateAndroidSurfaceKHR");
+
+        if (!vkCreateAndroidSurfaceKHR)
+        {
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
+        }
+
+        struct android_app* app = dmAndroid::GetAndroidApp();
+        assert(app);
+
+        VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
+        vk_surface_create_info.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+        vk_surface_create_info.window = app->window;
+
+        return vkCreateAndroidSurfaceKHR(vkInstance, &vk_surface_create_info, 0, vkSurfaceOut);
+    }
+
+    void SyncAndroidVulkanWindowSize(VulkanContext* context)
+    {
+        uint32_t width  = context->m_SwapChain->m_ImageExtent.width;
+        uint32_t height = context->m_SwapChain->m_ImageExtent.height;
+
+        context->m_WindowWidth          = width;
+        context->m_WindowHeight         = height;
+        context->m_BaseContext.m_Width  = width;
+        context->m_BaseContext.m_Height = height;
+
+        if (dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window) != width ||
+            dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window) != height)
+        {
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
+        }
+
+        context->m_AndroidVulkanWindowWidth  = width;
+        context->m_AndroidVulkanWindowHeight = height;
+    }
+
+    VkResult RecreateAndroidWindowSurface(void* ctx)
+    {
+        VulkanContext* context = (VulkanContext*) ctx;
+
+        if (context->m_WindowSurface != VK_NULL_HANDLE)
+        {
+            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
+            context->m_WindowSurface = VK_NULL_HANDLE;
+        }
+
+        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI));
+        if (res == VK_SUCCESS)
+        {
+            android_app* app = dmAndroid::GetAndroidApp();
+            context->m_AndroidVulkanWindow = (void*) (app ? app->window : 0);
+            context->m_SwapChain->m_Surface = context->m_WindowSurface;
+        }
+        return res;
+    }
+
+    void AndroidVulkanBeginFrame(VulkanContext* context)
+    {
+        dmPlatform::AndroidBeginFrame(context->m_BaseContext.m_Window);
+    }
+
+    bool AndroidVulkanHandleWindowSurfaceChange(VulkanContext* context, uint32_t window_width, uint32_t window_height)
+    {
+        android_app* app = dmAndroid::GetAndroidApp();
+        ANativeWindow* native_window = app ? app->window : 0;
+        ANativeWindow* context_native_window = (ANativeWindow*) context->m_AndroidVulkanWindow;
+        if (native_window && (native_window != context_native_window ||
+            window_width != context->m_AndroidVulkanWindowWidth ||
+            window_height != context->m_AndroidVulkanWindowHeight))
+        {
+            context->m_WindowWidth  = window_width;
+            context->m_WindowHeight = window_height;
+            SwapChainChanged(context,
+                &context->m_WindowWidth,
+                &context->m_WindowHeight,
+                native_window != context_native_window ? RecreateAndroidWindowSurface : 0,
+                context);
+            SyncAndroidVulkanWindowSize(context);
+            return true;
+        }
+
+        return false;
+    }
+
+    void AndroidVulkanInitializeContext(VulkanContext* context)
+    {
+        android_app* app = dmAndroid::GetAndroidApp();
+        context->m_AndroidVulkanWindow = (void*) (app ? app->window : 0);
+        SyncAndroidVulkanWindowSize(context);
+    }
 
     bool LoadVulkanLibrary()
     {
@@ -169,11 +269,6 @@ namespace dmGraphics
 
     void LoadVulkanFunctions(VkInstance vk_instance)
     {
-        if (g_functions_loaded)
-        {
-            return;
-        }
-
         vkCreateDevice = (PFN_vkCreateDevice) vkGetInstanceProcAddr(vk_instance, "vkCreateDevice");
         vkEnumeratePhysicalDevices = (PFN_vkEnumeratePhysicalDevices) vkGetInstanceProcAddr(vk_instance, "vkEnumeratePhysicalDevices");
         vkGetPhysicalDeviceProperties = (PFN_vkGetPhysicalDeviceProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceProperties");
@@ -288,6 +383,5 @@ namespace dmGraphics
         vkResetDescriptorPool = (PFN_vkResetDescriptorPool) vkGetInstanceProcAddr(vk_instance, "vkResetDescriptorPool");
         vkCmdCopyImageToBuffer = (PFN_vkCmdCopyImageToBuffer) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyImageToBuffer");
         vkGetFenceStatus = (PFN_vkGetFenceStatus) vkGetInstanceProcAddr(vk_instance, "vkGetFenceStatus");
-        g_functions_loaded = 1;
     }
 }
