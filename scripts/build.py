@@ -885,7 +885,8 @@ class Configuration(object):
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
 
-        self.install_waf()
+        if self._build_engine_with_waf():
+            self.install_waf()
 
         print("Installing common packages")
         for p in PACKAGES_ALL:
@@ -2047,7 +2048,8 @@ class Configuration(object):
             self._build_engine_libs_cmake('engine_libs', 'all', target_platform, reuse_builddir = reuse_builddir)
             self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
-        self._build_engine_lib(args, 'extender', target_platform, directory = 'share')
+        if with_waf:
+            self._build_engine_lib(args, 'extender', target_platform, directory = 'share')
         if not self.skip_docs:
             self.build_docs(incremental = True)
         if not self.skip_builtins:
@@ -3164,7 +3166,7 @@ Multiple commands can be specified
 
 CMake shorthand defaults from build.py shell: CMAKE_GENERATOR=Ninja, omitted --platform uses the host platform, CMAKE_BUILD_TYPE=RelWithDebInfo, and BUILD_TESTS=ON.
 Use -- --opt-level=0 for Debug, -- --skip-build-tests to skip building tests, or --skip-tests to skip running tests.
-Use --with-waf to build engine libs through the Waf fallback path during the CMake transition.
+Use --with-waf to build engine libs through the Waf fallback path and include Waf in install_ext during the CMake transition.
 
 To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
 '''

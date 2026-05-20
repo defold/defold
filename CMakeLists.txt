@@ -92,6 +92,10 @@ unset(_DEFOLD_ENGINE_LIB)
 unset(_DEFOLD_ENGINE_LIB_BINARY_DIR)
 unset(_DEFOLD_ENGINE_LIB_UPPER)
 
+if(DEFOLD_ENGINE_LIB_SET STREQUAL "all")
+  add_subdirectory("share/extender" "${CMAKE_CURRENT_BINARY_DIR}/share/extender")
+endif()
+
 set(_DEFOLD_BOB_LIGHT_DEPENDS
   "${DEFOLD_BOB_DIR}/build.gradle"
   "${DEFOLD_GRADLEW}")
