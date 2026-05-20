@@ -12,15 +12,14 @@ def ignored_source_file(path):
     return path.name == ".DS_Store" or path.name.startswith(".prebuilt_")
 
 
-def copy_immediate_files(src, dst):
+def ignore_source_tree(dir, names):
+    return [name for name in names if name == "build" or ignored_source_file(Path(name))]
+
+
+def copy_source_tree(src, dst):
     if dst.exists():
         shutil.rmtree(dst)
-    dst.mkdir(parents=True, exist_ok=True)
-
-    for child in src.iterdir():
-        if child.is_dir() or ignored_source_file(child):
-            continue
-        shutil.copy2(child, dst / child.name)
+    shutil.copytree(src, dst, ignore=ignore_source_tree)
 
 
 def replace_tree(src, dst):
@@ -39,6 +38,12 @@ def copy_immediate_outputs(src, dst):
     for child in src.iterdir():
         if child.is_file():
             shutil.copy2(child, dst / child.name)
+
+
+def copy_optional_output_tree(src, dst, folder):
+    source_folder = src / folder
+    if source_folder.exists():
+        shutil.copytree(source_folder, dst / folder, dirs_exist_ok=True)
 
 
 def copy_raw_outputs(stage_root, output_root, build_inputs):
@@ -60,6 +65,12 @@ def copy_optional_project_file(src, dst):
     project_file = src / "game.project"
     if project_file.exists():
         shutil.copy2(project_file, dst / project_file.name)
+
+
+def copy_optional_shared_folder(root, dst, folder):
+    src = root / folder
+    if src.exists():
+        copy_source_tree(src, dst / folder)
 
 
 def copy_file_once(src, dst):
@@ -141,6 +152,8 @@ def build_bob_command(bob_light, inputs, stage_root, bob_output, platform):
         bob_output.as_posix(),
         "--build-input-file",
         str(inputs),
+        "--debug-output-spirv",
+        "true",
     ]
     if platform:
         cmd.extend(["--platform", platform])
@@ -173,8 +186,9 @@ def main():
     stage_folder = stage_root / folder
     if stage_root.exists():
         shutil.rmtree(stage_root)
-    copy_immediate_files(root / folder, stage_folder)
+    copy_source_tree(root / folder, stage_folder)
     copy_optional_project_file(root / folder, stage_root)
+    copy_optional_shared_folder(root, stage_root, "lua")
 
     bob_output = Path("build") / "bob-test-data"
     bob_output_abs = stage_root / bob_output
@@ -207,6 +221,7 @@ def main():
     src = bob_output_abs / folder
     dst = output_root / folder
     replace_tree(src, dst)
+    copy_optional_output_tree(bob_output_abs, output_root, "lua")
     copy_immediate_outputs(bob_output_abs, output_root)
     copy_raw_outputs(stage_root, output_root, build_inputs)
 

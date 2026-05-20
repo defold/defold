@@ -50,6 +50,14 @@ if(NOT _GS_TEST_DATA_FOLDERS)
   message(FATAL_ERROR "No gamesys test data folders listed in ${_GS_TEST_DATA_FOLDERS_FILE}")
 endif()
 
+set(_GS_SHARED_TEST_SOURCES)
+foreach(_shared_dir IN ITEMS lua)
+  if(EXISTS "${GS_TEST_ROOT}/${_shared_dir}")
+    file(GLOB_RECURSE _shared_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GS_TEST_ROOT}/${_shared_dir}/*")
+    list(APPEND _GS_SHARED_TEST_SOURCES ${_shared_sources})
+  endif()
+endforeach()
+
 set(gamesys_content_outputs)
 foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   set(_inputs_file "${GS_TEST_ROOT}/${_folder}/build.inputs")
@@ -57,7 +65,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     message(FATAL_ERROR "Missing gamesys test data input list: ${_inputs_file}")
   endif()
 
-  file(GLOB _folder_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GS_TEST_ROOT}/${_folder}/*")
+  file(GLOB_RECURSE _folder_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GS_TEST_ROOT}/${_folder}/*")
   list(FILTER _folder_sources EXCLUDE REGEX "/build/")
   list(FILTER _folder_sources EXCLUDE REGEX "\\.prebuilt_")
   list(FILTER _folder_sources EXCLUDE REGEX "\\.DS_Store$")
@@ -73,7 +81,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
       --output-root "${CMAKE_CURRENT_BINARY_DIR}"
       --stamp "${_stamp}"
       --platform "${TARGET_PLATFORM}"
-    DEPENDS "${GS_TEST_ROOT}/build_test_data.py" "${_inputs_file}" ${_folder_sources}
+    DEPENDS "${GS_TEST_ROOT}/build_test_data.py" "${_inputs_file}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES}
     WORKING_DIRECTORY "${GS_TEST_ROOT}"
     COMMENT "Building gamesys test data folder ${_folder}"
     VERBATIM)
@@ -148,6 +156,7 @@ set(_COMMON_EXPORTED
   ResourceTypeWav
   GraphicsAdapterNull
   ScriptImageExt
+  ScriptMaterialExt
   ScriptFont
   ScriptHttp)
 
