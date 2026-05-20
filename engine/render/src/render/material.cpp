@@ -228,6 +228,14 @@ namespace dmRender
         info.m_ValuePtr         = &m->m_MaterialAttributeValues[material_attribute.m_ValueIndex];
     }
 
+    static void UpdateVertexAttributeValuePointers(Material* m)
+    {
+        for (uint32_t i = 0; i < m->m_VertexAttributeInfos.Size(); ++i)
+        {
+            m->m_VertexAttributeInfos[i].m_ValuePtr = &m->m_MaterialAttributeValues[m->m_MaterialAttributes[i].m_ValueIndex];
+        }
+    }
+
     static void CreateAttributes(dmGraphics::HContext graphics_context, Material* m)
     {
         uint32_t num_program_attributes  = dmGraphics::GetAttributeCount(m->m_Program);
@@ -266,10 +274,7 @@ namespace dmRender
         memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
 
         // Set value pointers now that the buffer is allocated
-        for (int i = 0; i < num_program_attributes; ++i)
-        {
-            m->m_VertexAttributeInfos[i].m_ValuePtr = &m->m_MaterialAttributeValues[m->m_MaterialAttributes[i].m_ValueIndex];
-        }
+        UpdateVertexAttributeValuePointers(m);
     }
 
     void CreateConstants(dmGraphics::HContext graphics_context, HMaterial material)
@@ -361,8 +366,7 @@ namespace dmRender
             const HConstant constant                     = material_constant.m_Constant;
             dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
-            dmGraphics::ShaderDesc::Language language    = dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material));
-            SetProgramConstant(render_context, graphics_context, render_object->m_WorldTransform, render_object->m_TextureTransform, language, type, program, location, constant);
+            SetProgramConstant(render_context, graphics_context, render_object->m_WorldTransform, render_object->m_TextureTransform, type, location, constant);
         }
     }
 
@@ -378,6 +382,25 @@ namespace dmRender
     uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)
     {
         return GetProgramSamplerUnit(material->m_Samplers, name_hash);
+    }
+
+    HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
+    {
+        if (unit < material->m_Samplers.Size())
+        {
+            return &material->m_Samplers[unit];
+        }
+        return 0;
+    }
+
+    bool GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash)
+    {
+        if (index < material->m_Constants.Size())
+        {
+             *out_name_hash = GetConstantName(material->m_Constants[index].m_Constant);
+            return true;
+        }
+        return false;
     }
 
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)
@@ -401,6 +424,11 @@ namespace dmRender
             }
         }
         return INVALID_MATERIAL_ATTRIBUTE_INDEX;
+    }
+
+    uint32_t GetMaterialConstantCount(HMaterial material)
+    {
+        return material->m_Constants.Size();
     }
 
     void SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type)
@@ -556,6 +584,7 @@ namespace dmRender
 
         material->m_MaterialAttributeValues.SetCapacity(value_byte_size);
         material->m_MaterialAttributeValues.SetSize(value_byte_size);
+        UpdateVertexAttributeValuePointers(material);
 
         const uint32_t name_buffer_size = 128;
         char name_buffer[name_buffer_size];

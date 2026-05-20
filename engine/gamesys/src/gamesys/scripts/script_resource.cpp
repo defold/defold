@@ -260,8 +260,10 @@ struct SetTextureAsyncRequest
     TextureResource*           m_TextureResource;
     uint8_t*                   m_RawData;
     dmBuffer::HBuffer          m_Buffer;
+    dmGraphics::HTexture       m_Texture;
     int32_t                    m_BufferRef;
     HOpaqueHandle              m_Handle;
+    uint8_t                    m_Completed : 1;
 };
 
 struct ResourceModule
@@ -270,44 +272,6 @@ struct ResourceModule
     dmGraphics::HContext                            m_GraphicsContext;
     dmOpaqueHandleContainer<SetTextureAsyncRequest> m_LoadRequests;
 } g_ResourceModule;
-
-static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
-{
-    char msg[256];
-    const char* format = 0;
-    switch(result)
-    {
-    case dmResource::RESULT_RESOURCE_NOT_FOUND: format = "The resource was not found (%d): %llu, %s"; break;
-    case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation (%d): %llu, %s"; break;
-    default:                                    format = "The resource was not updated (%d): %llu, %s"; break;
-    }
-    dmSnPrintf(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
-    return luaL_error(L, "%s", msg);
-}
-
-static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
-{
-    HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
-    if (!rd) {
-        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
-        return 0;
-    }
-
-    HResourceType expected_resource_type;
-    dmResource::Result r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
-    HResourceType resource_type = dmResource::GetType(rd);
-    if (resource_type != expected_resource_type) {
-        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
-        return 0;
-    }
-
-    return dmResource::GetResource(rd);
-}
 
 static dmhash_t GetCanonicalPathHash(const char* path)
 {
@@ -688,13 +652,20 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     return 0;
 }
 
-static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data)
+static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
 {
-    SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
-
-    // Swap out the texture
+    // Swap out the texture when the resource callback is dispatched so that
+    // create_texture_async keeps a consistent Lua-facing async boundary.
     dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_TextureResource->m_Texture);
-    request->m_TextureResource->m_Texture = texture;
+    request->m_TextureResource->m_Texture        = request->m_Texture;
+    request->m_TextureResource->m_OriginalWidth  = dmGraphics::GetOriginalTextureWidth(g_ResourceModule.m_GraphicsContext, request->m_Texture);
+    request->m_TextureResource->m_OriginalHeight = dmGraphics::GetOriginalTextureHeight(g_ResourceModule.m_GraphicsContext, request->m_Texture);
+
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, request->m_PathHash);
+    if (rd)
+    {
+        dmResource::SetResourceSize(rd, dmGraphics::GetTextureResourceSize(g_ResourceModule.m_GraphicsContext, request->m_Texture));
+    }
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
     {
@@ -733,6 +704,14 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
 
     g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
     delete request;
+}
+
+static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data)
+{
+    SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
+
+    request->m_Texture   = texture;
+    request->m_Completed = 1;
 }
 
 /*# create a texture
@@ -1188,8 +1167,10 @@ static int CreateTextureAsync(lua_State* L)
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
     request->m_Buffer            = create_params.m_Buffer;
+    request->m_Texture           = 0;
     request->m_PathHash          = create_params.m_PathHash;
     request->m_RawData           = raw_data;
+    request->m_Completed         = 0;
 
     dmGraphics::TextureParams texture_params;
     texture_params.m_Width  = create_params.m_Width;
@@ -1237,6 +1218,10 @@ static int CreateTextureAsync(lua_State* L)
 
     // Execute the upload, the upload buffer should now be locked by this request
     dmGraphics::SetTextureAsync(g_ResourceModule.m_GraphicsContext, texture_dst, texture_params, HandleRequestCompleted, request);
+    if (!request->m_Completed && dmGraphics::GetTextureStatusFlags(g_ResourceModule.m_GraphicsContext, texture_dst) == dmGraphics::TEXTURE_STATUS_OK)
+    {
+        HandleRequestCompleted(texture_dst, request);
+    }
 
     dmScript::PushHash(L, create_params.m_PathHash);
     lua_pushnumber(L, request_handle);
@@ -1651,52 +1636,6 @@ static int SetTexture(lua_State* L)
  * end
  * ```
  */
-
-static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
-{
-    uint32_t texture_width               = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint32_t texture_height              = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint32_t texture_depth               = dmGraphics::GetTextureDepth(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(g_ResourceModule.m_GraphicsContext, texture_handle);
-    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint8_t  page_count                  = dmGraphics::GetTexturePageCount(texture_handle);
-
-    lua_pushnumber(L, texture_handle);
-    lua_setfield(L, -2, "handle");
-
-    lua_pushinteger(L, texture_width);
-    lua_setfield(L, -2, "width");
-
-    lua_pushinteger(L, texture_height);
-    lua_setfield(L, -2, "height");
-
-    lua_pushinteger(L, texture_mipmaps);
-    lua_setfield(L, -2, "mipmaps");
-
-    lua_pushinteger(L, texture_type);
-    lua_setfield(L, -2, "type");
-
-    lua_pushinteger(L, texture_flags);
-    lua_setfield(L, -2, "flags");
-
-    lua_pushinteger(L, page_count);
-    lua_setfield(L, -2, "page_count");
-
-    // JG: We use depth to indicate the sides of a cube map, but the actual texture depth is 1,
-    //     since it's not a 3D texture. This is a technicality that should't matter for now at least.
-    if (texture_type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
-    {
-        lua_pushinteger(L, 6);
-        lua_setfield(L, -2, "depth");
-    }
-    else
-    {
-        lua_pushinteger(L, texture_depth);
-        lua_setfield(L, -2, "depth");
-    }
-}
-
 static int GetTextureInfo(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -1728,7 +1667,7 @@ static int GetTextureInfo(lua_State* L)
     }
 
     lua_newtable(L);
-    PushTextureInfo(L, texture_handle);
+    PushTextureInfo(L, g_ResourceModule.m_GraphicsContext, texture_handle, 0);
 
     assert((top + 1) == lua_gettop(L));
     return 1;
@@ -1864,7 +1803,7 @@ static int GetRenderTargetInfo(lua_State* L)
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
             lua_newtable(L);
 
-            PushTextureInfo(L, t);
+            PushTextureInfo(L, g_ResourceModule.m_GraphicsContext, t, 0);
 
             lua_pushinteger(L, buffer_type);
             lua_setfield(L, -2, "buffer_type");
@@ -3155,7 +3094,7 @@ void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
  * : [type:buffer] the buffer to bind to this resource
  *
  * * `transfer_ownership`
- * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object (default true)
+ * : [type:boolean] optional flag to determine whether or not the resource should take over ownership of the buffer object (default true)
  *
  * @return path [type:hash] Returns the buffer resource path
  *
@@ -3384,7 +3323,7 @@ static int GetBuffer(lua_State* L)
  * @param [table] [type:table] A table containing info about how to set the buffer. Supported entries:
  *
  * * `transfer_ownership`
- * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object (default false)
+ * : [type:boolean] optional flag to determine whether or not the resource should take over ownership of the buffer object (default false)
  *
  * @examples
  * How to set the data from a buffer
@@ -3735,6 +3674,21 @@ void ScriptResourceRegister(const ScriptLibContext& context)
     LuaInit(context.m_LuaState, context.m_GraphicsContext);
     g_ResourceModule.m_Factory         = context.m_Factory;
     g_ResourceModule.m_GraphicsContext = context.m_GraphicsContext;
+}
+
+void ScriptResourceUpdate(const ScriptLibContext& context)
+{
+    (void)context;
+
+    uint32_t request_count = g_ResourceModule.m_LoadRequests.Capacity();
+    for (uint32_t i = 0; i < request_count; ++i)
+    {
+        SetTextureAsyncRequest* request = g_ResourceModule.m_LoadRequests.GetByIndex(i);
+        if (request && request->m_Completed)
+        {
+            DispatchCompletedRequest(request);
+        }
+    }
 }
 
 void ScriptResourceFinalize(const ScriptLibContext& context)

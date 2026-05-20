@@ -3,7 +3,7 @@
 import os, re, sys
 from waflib import Options
 from waflib.TaskGen import feature, after
-from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private, platform_supports_feature, feature_enabled
+from waf_dynamo import dmsdk_add_files, find_feature_files, remove_source_files, remove_flag, is_platform_private, platform_supports_feature, feature_enabled
 from BuildUtility import BuildUtilityException, create_build_utility
 
 def options(opt):
@@ -66,7 +66,8 @@ def build(bld):
         # on windows due to compile error in RNG_custom_init()
         # when CONFIG_WIN32_USE_CRYPTO_LIB is set (missing entropy_pool, see top of file)
 
-    platform = build_util.get_target_os()
+    target_os = build_util.get_target_os()
+    platform = target_os
     if platform == 'win':
         platform = "win32"
 
@@ -90,69 +91,53 @@ def build(bld):
             return False
         return [x for x in sources if not matches(x.abspath(), patterns)]
 
-    # build image and SSL socket backends as separate selectable sources
-    source_files = remove_files(source_files, ['image.cpp', 'image_null.cpp',
-                                                'sslsocket_darwin.mm', 'sslsocket_mbedtls.cpp', 'sslsocket_null.cpp'])
+    # For certain "features", we select files differently, so make sure we don't glob them into the source files
+    feature_sources = []
+    feature_files = []
+    for feature_name in ['dlib/condition_variable',
+                         'dlib/crypt',
+                         'dlib/file_descriptor',
+                         'dlib/mutex',
+                         'dlib/socket',
+                         'dlib/sslsocket',
+                         'dlib/sys',
+                         'dlib/time',
+                         'dlib/thread']:
+        extra_tags = None
+        preferred_tags = None
+        if feature_name == 'dlib/crypt':
+            if use_mbedtls and target_os in ['macos', 'ios']:
+                preferred_tags = ['mbedtls']
+            else:
+                extra_tags = {'*': ['mbedtls'], 'macos': [], 'ios': []}
+        elif feature_name == 'dlib/sslsocket':
+            if use_mbedtls and target_os in ['macos', 'ios']:
+                preferred_tags = ['mbedtls']
+            else:
+                extra_tags = {'android': ['mbedtls'], 'linux': ['mbedtls'], 'win32': ['mbedtls']}
+        elif feature_name == 'dlib/sys':
+            extra_tags = {'android': ['posix'], 'linux': ['posix'], 'macos': ['posix'], 'ios': ['posix'], 'web': ['posix'],
+                          'nx64': ['posix'], 'ps4': ['posix'], 'ps5': ['posix']}
+        selected_files, all_files = find_feature_files(bld, feature_name, bld.env.PLATFORM, extra_tags, preferred_tags)
+        feature_sources += selected_files
+        feature_files += all_files
 
-    if 'arm64-nx64' in bld.env.PLATFORM:
-        source_files = remove_files(source_files, ['condition_variable.cpp',
-                                                    'mutex_posix.cpp',
-                                                    'mutex_empty.cpp',
-                                                    'sys_posix.cpp',
-                                                    'socket_posix.cpp',
-                                                    'time.cpp'])
+    source_files = bld.path.ant_glob(source_dirs)
+    source_files = remove_source_files(source_files, feature_files)
+    source_files += feature_sources
 
-    if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
-        source_files = remove_files(source_files, ['condition_variable.cpp',
-                                                    'file_descriptor_posix.cpp',
-                                                    'mutex_posix.cpp',
-                                                    'mutex_empty.cpp',
-                                                    'socket_posix.cpp',
-                                                    'thread_posix.cpp',
-                                                    'sys_posix.cpp'])
+    platform_source_files = []
+    if platform_source_dirs:
+        platform_source_files = bld.path.ant_glob(platform_source_dirs)
 
-    if bld.env.PLATFORM in ('x86_64-win32', 'win32', 'x86_64-xbone'):
-        source_files = remove_files(source_files, ['time_posix.cpp'])
-        source_files = remove_files(source_files, ['thread_posix.cpp'])
-        source_files = remove_files(source_files, ['mutex_posix.cpp'])
-        source_files = remove_files(source_files, ['mutex_empty.cpp'])
-        source_files = remove_files(source_files, ['sys_posix.cpp'])
-    else:
-        source_files = remove_files(source_files, ['thread_win32.cpp'])
-        source_files = remove_files(source_files, ['mutex_win32.cpp'])
-        source_files = remove_files(source_files, ['sys_win32.cpp'])
-        if bld.env.PLATFORM == 'wasm-web':
-            source_files = remove_files(source_files, ['mutex_posix.cpp'])
-        else:
-            source_files = remove_files(source_files, ['mutex_empty.cpp'])
+    # build image backends as separate selectable sources
+    source_files = remove_files(source_files, ['image.cpp', 'image_null.cpp'])
 
-    target_os = build_util.get_target_os()
-
-    if target_os in ['macos', 'ios']:
-        source_files = remove_files(source_files, ['time_posix.cpp'])
-
-    crypt_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios']
     sslsocket_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios', 'web']
-
-    crypt_files = ['crypt.cpp']
-    if crypt_uses_mbedtls:
-        crypt_files.append('crypt_mbedtls.cpp')
-    elif target_os in ['macos', 'ios']:
-        crypt_files.append('crypt_darwin.mm')
-    crypt_source_files = bld.path.ant_glob(['dlib/crypt/%s' % file for file in crypt_files])
 
     if 'web' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'configfile_http.cpp'])
         extra_defines.append('DM_NO_HTTP_CACHE')
-
-    sslsocket_files = []
-    if sslsocket_uses_mbedtls:
-        sslsocket_files.append('sslsocket_mbedtls.cpp')
-    elif target_os in ['macos', 'ios']:
-        sslsocket_files.append('sslsocket_darwin.mm')
-    sslsocket_source_files = []
-    if sslsocket_files:
-        sslsocket_source_files = bld.path.ant_glob(['dlib/%s' % file for file in sslsocket_files])
 
     mbedtls_public_includes = ['.', './mbedtls/defold', './mbedtls', './mbedtls/include', './mbedtls/tf-psa-crypto/include', './mbedtls/tf-psa-crypto/drivers/builtin/include']
 
@@ -185,7 +170,7 @@ def build(bld):
         mbedtls_defines += ['DM_MBEDTLS_ERROR_C']
 
     dlib = bld.stlib(features = 'c cxx',
-                     source   = source_files + platform_source_files + crypt_source_files + sslsocket_source_files,
+                     source   = source_files + platform_source_files,
                      includes = mbedtls_public_includes,
                      target   = 'dlib',
                      use      = ['zip'],
@@ -194,7 +179,7 @@ def build(bld):
     # remove all null implementations
     dlib.source = remove_files(dlib.source, ['_null.cpp'])
     if 'web' in bld.env.PLATFORM:
-        dlib.source += bld.path.ant_glob(['dlib/http_cache_null.cpp', 'dlib/sslsocket_null.cpp', 'dlib/configfile_http_null.cpp'])
+        dlib.source += bld.path.ant_glob(['dlib/http_cache_null.cpp', 'dlib/configfile_http_null.cpp'])
 
     if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
@@ -355,6 +340,8 @@ def build(bld):
 
         if target_os == 'macos':
             dlib_shared.env.append_value('LINKFLAGS', ['-framework', 'CFNetwork', '-framework', 'Security'])
+        elif platform == 'win32':
+            dlib_shared.env.append_value('LINKFLAGS', bld.env['LINKFLAGS_DLIB'])
 
         if 'win32' not in bld.env['PLATFORM']:
             dlib_memprofile = bld(features = 'c cxx cshlib',
@@ -448,14 +435,14 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
-    bld.install_files('${PREFIX}/include/dlib/crypt', 'dlib/crypt/crypt.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dalloca.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/double_linked_list.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian_posix.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.hpp')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
@@ -473,8 +460,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mdns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_posix.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_empty.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/opaque_handle_container.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
@@ -526,14 +511,8 @@ def build(bld):
     if platform == 'ps5':
         platforms.append('ps4')
 
-    # is this a private platform?
-    if is_platform_private(bld.env.PLATFORM):
-        bld.install_files('${PREFIX}/include/dlib', 'dlib/endian_vendor.h')
-        bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_vendor.h')
-
     for p in platforms:
         platform_include_dir = 'dlib/%s' % p
-        check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/endian.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/mutex.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/spinlocktypes.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/memory.h')

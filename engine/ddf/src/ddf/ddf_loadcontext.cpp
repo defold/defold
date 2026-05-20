@@ -174,6 +174,9 @@ namespace dmDDF
         {
             m_DynamicOffsets.OffsetCapacity(32);
         }
+
+        // Dynamic submessages must keep the same alignment as regular message allocations.
+        m_DynamicTypeMemoryTotal = DM_ALIGN(m_DynamicTypeMemoryTotal, 16);
         m_DynamicOffsets.Push(m_DynamicTypeMemoryTotal);
 
         m_DynamicTypeMemoryTotal += message_size;

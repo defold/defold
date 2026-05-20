@@ -85,6 +85,52 @@ public class AndroidTools {
         return "aapt2";
     }
 
+    private static String getAapt2BundletoolPlatformName(Platform hostPlatform) throws IOException {
+        if (hostPlatform == Platform.X86_64Win32)
+            return "windows";
+        if (hostPlatform == Platform.X86_64Linux)
+            return "linux";
+        if (hostPlatform == Platform.X86_64MacOS || hostPlatform == Platform.Arm64MacOS)
+            return "macos";
+        throw new IOException("aapt2 is not available for host platform " + hostPlatform.getPair());
+    }
+
+    private static String getAapt2Path() throws IOException {
+        Platform hostPlatform = Platform.getHostPlatform();
+        RuntimeException missingPackedAapt2 = null;
+        try {
+            return Bob.getExe(hostPlatform, "aapt2");
+        } catch (RuntimeException e) {
+            missingPackedAapt2 = e;
+        }
+
+        String aapt2Name = getAapt2Name();
+        String bundletoolPlatformName;
+        try {
+            bundletoolPlatformName = getAapt2BundletoolPlatformName(hostPlatform);
+        } catch (IOException e) {
+            e.addSuppressed(missingPackedAapt2);
+            throw e;
+        }
+        String bundletoolEntry = bundletoolPlatformName + "/" + aapt2Name;
+        File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
+        File aapt2File = new File(bundletool.getParent(), aapt2Name);
+        if (!aapt2File.exists())
+        {
+            try {
+                ToolsHelper.extractFile(bundletool, bundletoolEntry, aapt2File);
+                aapt2File.setExecutable(true);
+            } catch (Exception e) {
+                IOException ioe = new IOException(String.format(
+                    "Failed to prepare aapt2 for host platform '%s'. Missing packed tool '/libexec/%s/%s' and failed to extract '%s' from '%s' to '%s'.",
+                    hostPlatform.getPair(), hostPlatform.getPair(), aapt2Name, bundletoolEntry, bundletool.getAbsolutePath(), aapt2File.getAbsolutePath()), e);
+                ioe.addSuppressed(missingPackedAapt2);
+                throw ioe;
+            }
+        }
+        return aapt2File.getAbsolutePath();
+    }
+
     private static synchronized void init() {
         TimeProfiler.start("Init Android");
         if (!initialized)
@@ -113,37 +159,10 @@ public class AndroidTools {
                     Bob.atomicCopy(classesDex, f, false);
                 }
 
-                Platform hostPlatform = Platform.getHostPlatform();
-                String aapt2 = Bob.getExe(hostPlatform, "aapt2");
-                if (aapt2 == null) {
-                    // Make sure it's extracted once
-                    File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
-
-                    // Find the file to extract from the bundletool
-                    {
-                        String platformName = "macos";
-                        String suffix = "";
-                        if (hostPlatform == Platform.X86_64Win32)
-                        {
-                            platformName = "windows";
-                            suffix = ".exe";
-                        }
-                        else if (hostPlatform == Platform.X86_64Linux)
-                        {
-                            platformName = "linux";
-                        }
-
-                        File aapt2File = new File(bundletool.getParent(), getAapt2Name());
-                        if (!aapt2File.exists())
-                        {
-                            ToolsHelper.extractFile(bundletool, platformName + "/" + getAapt2Name(), aapt2File);
-                            aapt2File.setExecutable(true);
-                        }
-                    }
-                }
+                getAapt2Path();
 
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Failed to initialize Android tools for host platform " + Platform.getHostPlatform().getPair(), e);
             }
             initialized = true;
         }
@@ -176,10 +195,7 @@ public class AndroidTools {
     public static Result aapt2(List<String> aapt2args) throws IOException {
         init();
 
-        String aapt2 = Bob.getExe(Platform.getHostPlatform(), "aapt2");
-        if (aapt2 == null) {
-            aapt2 = Bob.getLibExecPath(getAapt2Name());
-        }
+        String aapt2 = getAapt2Path();
 
         List<String> args = new ArrayList<>();
         args.add(aapt2);

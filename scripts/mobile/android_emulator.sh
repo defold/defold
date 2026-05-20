@@ -15,6 +15,7 @@ To list installed avd's:
 
 Options:
   --avd NAME            Android Virtual Device name. Required.
+  --list-avds           Print installed Android Virtual Device names and exit.
   --gpu MODE            GPU emulation mode passed to the emulator. Default: auto
   --output DIR          Output directory for emulator logs. Default: build/render-tests/android
   --emulator-arg ARG    Extra argument passed to the emulator binary. Repeatable.
@@ -24,6 +25,7 @@ EOF
 }
 
 AVD_NAME=""
+LIST_AVDS=0
 GPU_MODE="auto"
 OUTPUT_DIR="build/render-tests/android"
 EMULATOR_ARGS=()
@@ -34,6 +36,10 @@ while [[ $# -gt 0 ]]; do
         --avd)
             AVD_NAME="${2:-}"
             shift 2
+            ;;
+        --list-avds)
+            LIST_AVDS=1
+            shift
             ;;
         --gpu)
             GPU_MODE="${2:-}"
@@ -70,12 +76,6 @@ fi
 
 if [[ -z "${GPU_MODE}" ]]; then
     echo "--gpu requires a mode, for example auto, host, or software" >&2
-    exit 1
-fi
-
-ADB_BIN="${ADB_BIN:-adb}"
-if ! command -v "${ADB_BIN}" >/dev/null 2>&1; then
-    echo "adb not found on PATH" >&2
     exit 1
 fi
 
@@ -181,6 +181,21 @@ if [[ -z "${EMULATOR_BIN}" ]]; then
 fi
 
 AVAILABLE_AVDS_TEXT="$(list_avds)"
+if [[ "${LIST_AVDS}" -eq 1 ]]; then
+    if [[ -n "${AVAILABLE_AVDS_TEXT}" ]]; then
+        printf '%s\n' "${AVAILABLE_AVDS_TEXT}"
+        exit 0
+    fi
+
+    echo "No AVDs were found. Create one in Android Studio or with avdmanager." >&2
+    exit 1
+fi
+
+if [[ -z "${AVD_NAME}" ]]; then
+    usage
+    exit 1
+fi
+
 if ! printf '%s\n' "${AVAILABLE_AVDS_TEXT}" | grep -Fxq -- "${AVD_NAME}"; then
     echo "Unknown AVD name: ${AVD_NAME}" >&2
     if [[ -n "${AVAILABLE_AVDS_TEXT}" ]]; then
@@ -189,6 +204,12 @@ if ! printf '%s\n' "${AVAILABLE_AVDS_TEXT}" | grep -Fxq -- "${AVD_NAME}"; then
         echo "No AVDs were found. Create one in Android Studio or with avdmanager." >&2
     fi
     echo "Use --avd with one of the names above." >&2
+    exit 1
+fi
+
+ADB_BIN="${ADB_BIN:-adb}"
+if ! command -v "${ADB_BIN}" >/dev/null 2>&1; then
+    echo "adb not found on PATH" >&2
     exit 1
 fi
 

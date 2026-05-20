@@ -19,6 +19,8 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include <dlib/configfile.h>
 #include <resource/resource.h>
 #include "crash.h"
@@ -84,8 +86,8 @@ protected:
 
 bool RunFile(lua_State* L, const char* filename)
 {
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
+    char path[DMPATH_MAX_PATH];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), MOUNTFS PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));

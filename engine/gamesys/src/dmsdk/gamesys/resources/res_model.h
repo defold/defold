@@ -81,6 +81,7 @@ namespace dmGameSystem
         uint32_t                     m_AttributeCount;
         MaterialTextureInfo*         m_Textures;
         uint32_t                     m_TexturesCount;
+        int32_t                      m_SortOrder; // MeshSet material index used for resource load sorting
     };
 
     struct ModelResource

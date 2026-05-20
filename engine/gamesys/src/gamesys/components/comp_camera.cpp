@@ -58,13 +58,14 @@ namespace dmGameSystem
         dmArray<CameraComponent*> m_CameraStack;
     };
 
-    static const dmhash_t CAMERA_PROP_FOV               = dmHashString64("fov");
-    static const dmhash_t CAMERA_PROP_NEAR_Z            = dmHashString64("near_z");
-    static const dmhash_t CAMERA_PROP_FAR_Z             = dmHashString64("far_z");
-    static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_ZOOM = dmHashString64("orthographic_zoom");
-    static const dmhash_t CAMERA_PROP_PROJECTION        = dmHashString64("projection");
-    static const dmhash_t CAMERA_PROP_VIEW              = dmHashString64("view");
-    static const dmhash_t CAMERA_PROP_ASPECT_RATIO      = dmHashString64("aspect_ratio");
+    static const dmhash_t CAMERA_PROP_FOV                    = dmHashString64("fov");
+    static const dmhash_t CAMERA_PROP_NEAR_Z                 = dmHashString64("near_z");
+    static const dmhash_t CAMERA_PROP_FAR_Z                  = dmHashString64("far_z");
+    static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_ZOOM      = dmHashString64("orthographic_zoom");
+    static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_AUTO_ZOOM = dmHashString64("orthographic_auto_zoom");
+    static const dmhash_t CAMERA_PROP_PROJECTION             = dmHashString64("projection");
+    static const dmhash_t CAMERA_PROP_VIEW                   = dmHashString64("view");
+    static const dmhash_t CAMERA_PROP_ASPECT_RATIO           = dmHashString64("aspect_ratio");
 
 
     static void CompCameraUpdateViewProjection(CameraComponent* camera, dmRender::RenderContext* render_context)
@@ -354,6 +355,12 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(camera_data.m_OrthographicZoom);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if (CAMERA_PROP_ORTHOGRAPHIC_AUTO_ZOOM == get_property)
+        {
+            float auto_zoom = dmRender::GetRenderCameraOrthographicAutoZoom(render_context, camera->m_RenderCamera);
+            out_value.m_Variant = dmGameObject::PropertyVar(auto_zoom);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
         else if (CAMERA_PROP_PROJECTION == get_property)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(camera->m_Projection);
@@ -401,6 +408,10 @@ namespace dmGameSystem
         }
         else if (CAMERA_PROP_ORTHOGRAPHIC_ZOOM == set_property)
         {
+            if (!(params.m_Value.m_Number > 0.0f))
+            {
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
             camera_data.m_OrthographicZoom = params.m_Value.m_Number;
             dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -413,6 +424,7 @@ namespace dmGameSystem
         }
         else if (CAMERA_PROP_PROJECTION   == set_property ||
                  CAMERA_PROP_VIEW         == set_property ||
+                 CAMERA_PROP_ORTHOGRAPHIC_AUTO_ZOOM == set_property ||
                  CAMERA_PROP_ASPECT_RATIO == set_property)
         {
             return dmGameObject::PROPERTY_RESULT_READ_ONLY;

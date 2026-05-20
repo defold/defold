@@ -7,8 +7,7 @@ from waflib.TaskGen import extension
 from waf_dynamo import platform_supports_feature
 
 def configure(conf):
-    if platform_supports_feature(conf.env.PLATFORM, 'compute', None):
-        conf.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
+    pass
 
 def build(bld):
     dirs = ['animationset/*',
@@ -82,8 +81,12 @@ def build(bld):
                         'ResourceTypeWav',
                         'GraphicsAdapterNull',
                         'ScriptImageExt',
+                        'ScriptMaterialExt',
                         'ScriptFont',
                         'ScriptHttp']
+
+    if platform_supports_feature(bld.env.PLATFORM, 'compute', None):
+        exported_symbols.append('ScriptComputeExt')
 
     embed_source = ['resource/booster_on_sfx.wav', 'resource/layer_guitar_a.ogg']
 

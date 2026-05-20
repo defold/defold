@@ -28,6 +28,7 @@
             [editor.math :as math]
             [editor.model-loader :as model-loader]
             [editor.model-util :as model-util]
+            [editor.pose :as pose]
             [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -482,9 +483,13 @@
         local-transform (math/clj->mat4 translation rotation scale)
         bone-transform (get bone-id->world-transform (:bone-id model))
         model-transform (if (some? bone-transform)
-                          (doto (Matrix4d. bone-transform)
+                          (doto (Matrix4d. ^Matrix4d bone-transform)
                             (.mul ^Matrix4d local-transform))
                           local-transform)
+        local-pose (pose/make translation rotation scale)
+        model-pose (if (some? bone-transform)
+                     (pose/from-matrix model-transform)
+                     local-pose)
 
         renderable-meshes
         (coll/into-> (:meshes model) []
@@ -499,8 +504,8 @@
                          geom/aabb-union
                          geom/null-aabb
                          renderable-meshes)]
-        {:transform model-transform
-         :transform-without-skeleton local-transform
+        {:pose model-pose
+         :pose-without-skeleton local-pose
          :aabb model-aabb
          :renderable-meshes renderable-meshes}))))
 
@@ -514,8 +519,8 @@
 
     (g/precluding-errors renderable-models
       (let [mesh-set-aabb (transduce
-                            (map (fn [{:keys [aabb transform]}]
-                                   (geom/aabb-transform aabb transform)))
+                            (map (fn [{:keys [aabb pose]}]
+                                   (geom/aabb-transform aabb (pose/matrix pose))))
                             geom/aabb-union
                             geom/null-aabb
                             renderable-models)]
@@ -571,11 +576,11 @@
      :renderable renderable}))
 
 (defn- make-model-scene [scene-node-id renderable-model]
-  (let [{:keys [transform transform-without-skeleton aabb renderable-meshes]} renderable-model
+  (let [{:keys [pose pose-without-skeleton aabb renderable-meshes]} renderable-model
         mesh-scenes (mapv #(make-mesh-scene scene-node-id %)
                           renderable-meshes)]
-    {:transform transform
-     :transform-without-skeleton transform-without-skeleton
+    {:pose pose
+     :pose-without-skeleton pose-without-skeleton
      :aabb aabb
      :children mesh-scenes}))
 
@@ -655,8 +660,8 @@
             (fn [child-scenes]
               (mapv (fn [child-scene]
                       (cond-> child-scene
-                        (:transform-without-skeleton child-scene)
-                        (assoc :transform (:transform-without-skeleton child-scene))))
+                        (:pose-without-skeleton child-scene)
+                        (assoc :pose (:pose-without-skeleton child-scene))))
                     child-scenes)))))
 
 (defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?]

@@ -60,6 +60,7 @@
             [internal.system :as is]
             [internal.util :as util]
             [lambdaisland.deep-diff2 :as deep-diff]
+            [local-extensions :as local-extensions]
             [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
@@ -122,11 +123,11 @@
 ;; These extensions register additional protobuf resource types that we want to
 ;; cover in our tests.
 (def sanctioned-extension-urls
-  (mapv #(System/getProperty %)
-        ["defold.extension.rive.url"
-         "defold.extension.simpledata.url"
-         "defold.extension.spine.url"
-         "defold.extension.texturepacker.url"]))
+  (mapv local-extensions/inject-jvm-properties
+        ["{{defold.extension.rive.url}}"
+         "{{defold.extension.simpledata.url}}"
+         "{{defold.extension.spine.url}}"
+         "{{defold.extension.texturepacker.url}}"]))
 
 (defn number-type-preserving? [a b]
   (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))

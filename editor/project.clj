@@ -12,11 +12,28 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
+(defn- pathname
+  ^String [^java.io.File file]
+  (.replace (.getPath file) \\ \/))
+
+(defn- local-maven-repository-directory
+  ^java.io.File []
+  (let [project-directory (.getParentFile (.getCanonicalFile (java.io.File. *file*)))
+        local-maven-repository-directory (.getCanonicalFile (java.io.File. project-directory ".m2/repository"))]
+    (when-not (or (.isDirectory local-maven-repository-directory) (.mkdirs local-maven-repository-directory))
+      (throw (ex-info (format "Unable to create local Maven repository directory '%s'." local-maven-repository-directory)
+                      {:local-maven-repository-directory (str local-maven-repository-directory)})))
+    local-maven-repository-directory))
+
+(defn- local-maven-jar-file
+  ^java.io.File [^String relative-jar-path]
+  (java.io.File. (local-maven-repository-directory) relative-jar-path))
+
 (defproject defold-editor "2.0.0-SNAPSHOT"
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
 
-  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
+  :local-repo       ~(pathname (local-maven-repository-directory))
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [codox "0.9.3"]]
@@ -52,7 +69,6 @@
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
                      [com.defold.lib/bob                          "1.0"]
-                     [com.defold.lib/openmali                     "1.0"]
                      [com.defold.lib/icu4j                        "1.0"]
 
                      [metosin/reitit-core "0.8.0-alpha1"]
@@ -72,7 +88,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.6"
+                     [cljfx "1.10.8"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -145,6 +161,8 @@
 
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
+                      "-Ddefold.library.connectTimeoutMillis=2000"
+                      "-Ddefold.library.hostProbeTimeoutMillis=5000"
                       "-Dfile.encoding=UTF-8"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
@@ -221,6 +239,13 @@
                               :java-source-paths ^:replace []
                               :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
                                                        [org.antlr/antlr4 "4.9.1"]]}
+                      :zip-parallel {:prep-tasks ^:replace []
+                                     :source-paths ^:replace ["src/zip_parallel"]
+                                     :java-source-paths ^:replace []
+                                     :resource-paths ^:replace []
+                                     :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
+                                                              [commons-io/commons-io "2.4"]
+                                                              [org.apache.commons/commons-compress "1.18"]]}
                       :uberjar {:prep-tasks  ^:replace []
                                 :aot          :all
                                 :auto-clean   false
@@ -245,9 +270,7 @@
                                               [org.openjfx/javafx-web "25"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
-                             :jvm-opts [~(str "-javaagent:"
-                                           (.replace (System/getProperty "user.home") \\ \/)
-                                           "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")
+                             :jvm-opts [~(str "-javaagent:" (pathname (local-maven-jar-file "com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")))
                                         "-Ddefold.jamm=true"
                                         "--add-opens=java.base/java.util=ALL-UNNAMED"
                                         "--add-opens=java.base/java.util.function=ALL-UNNAMED"
@@ -317,16 +340,17 @@
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
-                                :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
-                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/heads/editor-plugin-test-fixes.zip"
+                                :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.2.0.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/11.0.4.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.2.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.4.1.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.5.1.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.6.0.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.7.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
                                                     "-Ddefold.dev=true"
+                                                    "-Djavafx.cachedir=.openjfx/cache"
                                                     ;"-Djogl.verbose=true"
                                                     ;"-Djogl.debug=true"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful

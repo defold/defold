@@ -21,7 +21,7 @@
 #include "../resource_verify.h"
 #include "../providers/provider_archive_private.h"
 #include <dlib/dstrings.h>
-#include <dlib/endian.h>
+#include <dlib/endian.hpp>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <testmain/testmain.h>
@@ -86,13 +86,6 @@ static const char* content[]            = {
 
 static const uint64_t liveupdate_path_hash[2] = { 0x68b7e06402ee965c, 0xe7b921ca4d761083 };
 
-static const uint8_t sorted_first_hash[20] =
-    {  0U,   1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-static const uint8_t sorted_middle_hash[20] =
-    {  70U,  250U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-static const uint8_t sorted_last_hash[20] =
-    { 226U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-
 static const uint8_t content_hash[][20] = {
     { 127U, 144U,   0U,  37U, 122U,  73U,  24U, 215U,   7U,  38U,  85U, 234U,  70U, 133U,  64U, 205U, 203U, 212U,  46U,  12U },
     { 205U,  82U, 220U, 208U,  16U, 146U, 230U, 113U, 118U,  43U,   6U,  77U,  19U,  47U, 181U, 219U, 201U,  63U,  81U, 143U },
@@ -112,31 +105,6 @@ static const uint8_t compressed_content_hash[][20] = {
     {  90U,  15U,  50U,  67U, 184U,   5U, 147U, 194U, 160U, 203U,  45U, 150U,  20U, 194U,  55U, 123U, 189U, 218U, 105U, 103U }
 };
 
-static const uint32_t ENTRY_SIZE = sizeof(dmResourceArchive::EntryData) + dmResourceArchive::MAX_HASH;
-
-static void PopulateLiveUpdateResource(dmResourceArchive::LiveUpdateResource*& resource)
-{
-    uint32_t count = strlen(content[0]);
-    resource->m_Data = (uint8_t*)content[0];
-    resource->m_Count = count;
-    resource->m_Header->m_Flags = 0;
-    resource->m_Header->m_Size = 0;
-}
-
-// Call to this should be free'd with FreeMutableIndexData(...)
-static uint32_t GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be_added)
-{
-    uint32_t index_alloc_size = RESOURCES_ARCI_SIZE + ENTRY_SIZE * num_entries_to_be_added;
-    arci_data = (void*)new uint8_t[index_alloc_size];
-    memcpy(arci_data, RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
-    return index_alloc_size;
-}
-
-static void FreeMutableIndexData(void*& arci_data)
-{
-    delete[] (uint8_t*)arci_data; // it is new[] uint8_t from the resource_archive.cpp
-}
-
 bool IsLiveUpdateResource(dmhash_t lu_path_hash)
 {
     for (uint32_t i = 0; i < (sizeof(liveupdate_path_hash) / sizeof(liveupdate_path_hash[0])); ++i)
@@ -147,215 +115,6 @@ bool IsLiveUpdateResource(dmhash_t lu_path_hash)
         }
     }
     return false;
-}
-
-TEST(dmResourceArchive, ShiftInsertResource)
-{
-    const char* resource_filename = "test_resource_liveupdate.arcd";
-    char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
-
-    FILE* resource_file = fopen(path, "wb");
-    bool success = resource_file != 0x0;
-    ASSERT_EQ(success, true);
-
-    // Resource data to insert
-    dmResourceArchive::LiveUpdateResource* resource = (dmResourceArchive::LiveUpdateResource*)malloc(sizeof(dmResourceArchive::LiveUpdateResource));
-    resource->m_Header = (dmResourceArchive::LiveUpdateResourceHeader*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader));
-    PopulateLiveUpdateResource(resource);
-
-    // Use copy since we will shift/insert data
-    dmResourceArchive::HArchiveIndex arci_copy;
-    uint32_t arci_size = GetMutableIndexData((void*&)arci_copy, 1);
-
-    // Init archive container
-    dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, arci_size, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, false, &archive);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-
-    archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
-
-    // dmResourceArchive::SetDefaultReader(archive);
-
-    uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(5U, entry_count_before);
-
-    // Insertion
-    int index = -1;
-    dmResourceArchive::GetInsertionIndex(archive, sorted_middle_hash, &index);
-    ASSERT_TRUE(index >= 0);
-    dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, arci_copy, sorted_middle_hash, 20, index, resource, 0x0);
-    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
-    uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(6U, entry_count_after);
-
-    // Find inserted entry in archive after insertion
-    dmResourceArchive::EntryData* entry;
-    result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, sizeof(sorted_middle_hash), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
-
-    int cmp = dmResource::VerifyArchiveIndex(archive);
-    ASSERT_EQ(0, cmp);
-
-    free(resource->m_Header);
-    free(resource);
-    dmResourceArchive::Delete(archive); // fclose on the FILE*
-    FreeMutableIndexData((void*&)arci_copy);
-    dmSys::Unlink(path);
-}
-
-
-TEST(dmResourceArchive, ShiftInsertResource_InsertIssue)
-{
-    const char* resource_filename = "test_resource_liveupdate.arcd";
-    char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
-
-    FILE* resource_file = fopen(path, "wb");
-    bool success = resource_file != 0x0;
-    ASSERT_EQ(success, true);
-
-    // Resource data to insert
-    dmResourceArchive::LiveUpdateResource* resource = (dmResourceArchive::LiveUpdateResource*)malloc(sizeof(dmResourceArchive::LiveUpdateResource));
-    resource->m_Header = (dmResourceArchive::LiveUpdateResourceHeader*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader));
-    PopulateLiveUpdateResource(resource);
-
-    dmResourceArchive::HArchiveIndexContainer archive = new dmResourceArchive::ArchiveIndexContainer;
-    archive->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
-    archive->m_ArchiveIndex->m_HashLength = dmEndian::ToHost(20U);
-    archive->m_IsMemMapped = true;
-    archive->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
-    archive->m_ArchiveFileIndex->m_ResourceSize = RESOURCES_ARCD_SIZE;
-    archive->m_ArchiveFileIndex->m_ResourceData = RESOURCES_ARCD;
-    archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
-    archive->m_ArchiveFileIndex->m_IsMemMapped = false;
-
-    // dmResourceArchive::SetDefaultReader(archive);
-
-    dmResourceArchive::ArchiveIndex* ai_temp = 0;
-    dmResourceArchive::NewArchiveIndexFromCopy(ai_temp, archive, 3);
-
-    delete archive->m_ArchiveIndex;
-    archive->m_ArchiveIndex = ai_temp;
-
-    uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(0U, entry_count_before);
-
-    // we got:
-    // 0: '9170a12e266ec41f5575bb8f837d0f4bb6cab03f'
-    // 1: '07f1284d530deb401da0ed142da50d5724cb04cd'
-    // 2: '3be32cfd80b4016a9ebaf1c7249396ef608c95bd'
-    const uint8_t hash1[20] = {0x07, 0xf1, 0x28, 0x4d, 0x53, 0x0d, 0xeb, 0x40, 0x1d, 0xa0, 0xed, 0x14, 0x2d, 0xa5, 0x0d, 0x57, 0x24, 0xcb, 0x04, 0xcd};
-    const uint8_t hash2[20] = {0x91, 0x70, 0xa1, 0x2e, 0x26, 0x6e, 0xc4, 0x1f, 0x55, 0x75, 0xbb, 0x8f, 0x83, 0x7d, 0x0f, 0x4b, 0xb6, 0xca, 0xb0, 0x3f};
-    const uint8_t hash3[20] = {0x3b, 0xe3, 0x2c, 0xfd, 0x80, 0xb4, 0x01, 0x6a, 0x9e, 0xba, 0xf1, 0xc7, 0x24, 0x93, 0x96, 0xef, 0x60, 0x8c, 0x95, 0xbd};
-    // but we wanted:
-    // 0: '07f1284d530deb401da0ed142da50d5724cb04cd'
-    // 1: '3be32cfd80b4016a9ebaf1c7249396ef608c95bd'
-    // 2: '9170a12e266ec41f5575bb8f837d0f4bb6cab03f'
-
-    // Insertion
-    int index = -1;
-    dmResourceArchive::GetInsertionIndex(archive, hash1, &index);
-    ASSERT_EQ(0, index);
-
-    dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash1, sizeof(hash1), index, resource, 0x0);
-    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
-
-    uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(1U, entry_count_after);
-
-    dmResourceArchive::GetInsertionIndex(archive, hash2, &index);
-    ASSERT_EQ(1, index);
-
-    insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash2, sizeof(hash2), index, resource, 0x0);
-    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
-
-    entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(2U, entry_count_after);
-
-    dmResourceArchive::GetInsertionIndex(archive, hash3, &index);
-    ASSERT_EQ(1, index);
-
-    insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash3, sizeof(hash3), index, resource, 0x0);
-    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
-
-    entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(3U, entry_count_after);
-
-    int cmp = dmResource::VerifyArchiveIndex(archive);
-    ASSERT_EQ(0, cmp);
-
-    // Find inserted entry in archive after insertion
-    dmResourceArchive::Result result;
-    dmResourceArchive::EntryData* entry;
-    result = dmResourceArchive::FindEntry(archive, hash1, sizeof(hash1), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
-    result = dmResourceArchive::FindEntry(archive, hash2, sizeof(hash2), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
-    result = dmResourceArchive::FindEntry(archive, hash3, sizeof(hash3), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
-
-    free(resource->m_Header);
-    free(resource);
-    dmResourceArchive::Delete(archive); // fclose on the FILE*
-    FreeMutableIndexData((void*&)ai_temp);
-    dmSys::Unlink(path);
-}
-
-TEST(dmResourceArchive, NewArchiveIndexFromCopy)
-{
-    uint32_t single_entry_offset = dmResourceArchive::MAX_HASH;
-
-    dmResourceArchive::HArchiveIndexContainer archive_container = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive_container);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(368U, dmResourceArchive::GetEntryDataOffset(archive_container));
-
-    // No extra allocation
-    dmResourceArchive::HArchiveIndex dst_archive = 0;
-    dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 0);
-    ASSERT_EQ(368U, dmResourceArchive::GetEntryDataOffset(dst_archive));
-    dmResourceArchive::Delete(dst_archive);
-
-    // Allocate space for 3 extra entries
-    dst_archive = 0;
-    dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 3);
-    ASSERT_EQ(368U + 3 * single_entry_offset, dmResourceArchive::GetEntryDataOffset(dst_archive));
-    dmResourceArchive::Delete(dst_archive);
-
-    dmResourceArchive::Delete(archive_container);
-}
-
-TEST(dmResourceArchive, GetInsertionIndex)
-{
-    dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
-
-    // Saving it here in for debugging purposes
-    // printf("Archive:\n");
-    // dmResourceArchive::DebugArchiveIndex(archive);
-    // printf("sorted_first_hash: "); dmResource::PrintHash(sorted_first_hash, sizeof(sorted_first_hash)); printf("\n");
-    // printf("sorted_middle_hash: "); dmResource::PrintHash(sorted_middle_hash, sizeof(sorted_middle_hash)); printf("\n");
-    // printf("sorted_last_hash: "); dmResource::PrintHash(sorted_last_hash, sizeof(sorted_last_hash)); printf("\n");
-
-    int index = -1;
-
-    dmResourceArchive::GetInsertionIndex(archive, sorted_first_hash, &index);
-    ASSERT_EQ(0, index);
-
-    dmResourceArchive::GetInsertionIndex(archive, sorted_middle_hash, &index);
-    ASSERT_EQ(2, index);
-
-    dmResourceArchive::GetInsertionIndex(archive, sorted_last_hash, &index);
-    ASSERT_EQ(5, index);
-
-    dmResourceArchive::Delete(archive);
 }
 
 TEST(dmResourceArchive, ManifestHeader)

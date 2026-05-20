@@ -28,6 +28,7 @@ def build(bld):
     profiler = bld.stlib(features = 'cxx',
                             includes = '.',
                             source = source,
+                            uselib = 'LUA',
                             target = 'profilerext')
 
     profiler = bld.stlib(features = 'cxx',

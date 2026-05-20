@@ -273,10 +273,6 @@ public class GameProjectBuilder extends Builder {
         return manifestBuilder;
     }
 
-    private boolean shouldStripLiveUpdateEntriesFromMainManifest() {
-        return project.getProjectProperties().getBooleanValue("liveupdate", "exclude_entries_from_main_manifest", true);
-    }
-
     // Used to transform an input game.project properties map to a game.projectc representation.
     // Can be used for doing build time properties' conversion.
     static public void transformGameProjectFile(BobProjectProperties properties) {
@@ -356,9 +352,7 @@ public class GameProjectBuilder extends Builder {
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
                 createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
                 byte[] fullManifestFile = manifestBuilder.buildManifest();
-                byte[] bundledManifestFile = shouldStripLiveUpdateEntriesFromMainManifest()
-                        ? manifestBuilder.buildManifest(true)
-                        : fullManifestFile;
+                byte[] bundledManifestFile = manifestBuilder.buildManifest(true);
                 this.project.setArchiveBuilder(archiveBuilder);
 
                 // Write outputs to the build system

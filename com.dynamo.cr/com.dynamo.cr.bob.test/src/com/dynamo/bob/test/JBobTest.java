@@ -19,20 +19,28 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -223,6 +231,32 @@ public class JBobTest {
         IResource testOut = fileSystem.get(ResourceUtil.minifyPath("/root/test.out")).output();
         assertThat(testOut.exists(), is(true));
         assertThat(new String(testOut.getContent()), is("test data"));
+    }
+
+    @Test
+    public void testExtractRejectsZipSlipEntries() throws Exception {
+        Path zipPath = Files.createTempFile("bob-extract-test", ".zip");
+        Path targetDir = Files.createTempDirectory("bob-extract-test");
+        Path outsideFile = targetDir.resolveSibling("escaped.txt");
+        try {
+            try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(zipPath))) {
+                zip.putNextEntry(new ZipEntry("../escaped.txt"));
+                zip.write("escaped".getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+
+            try {
+                Bob.extractToFolder(zipPath.toUri().toURL(), targetDir.toFile(), false);
+                fail("Expected IOException");
+            } catch (IOException exception) {
+                assertTrue(exception.getMessage(), exception.getMessage().contains("resolves outside"));
+            }
+            assertFalse(Files.exists(outsideFile));
+        } finally {
+            Files.deleteIfExists(zipPath);
+            Files.deleteIfExists(outsideFile);
+            FileUtils.deleteDirectory(targetDir.toFile());
+        }
     }
 
     @Test

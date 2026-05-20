@@ -132,39 +132,60 @@ namespace dmURI
         assert(src != (const char*) dst);
         assert(dst == 0 || dst_len > 0);
 
-        uint32_t dst_left = dst == 0 ? 0xFFFFFFFF : dst_len - 1; // Make room for null termination
+        uint32_t dst_left = dst == 0 ? 0 : dst_len - 1; // Make room for null termination
+        uint32_t dst_used = 0;
         const char* s = src;
         char* d = dst;
-        while (*s) {
+        while (*s)
+        {
             char c = *s;
-            if (IsUnreserved(c)) {
-                if (dst_left >= 1) {
+            if (IsUnreserved(c))
+            {
+                if (dst == 0 || dst_left >= 1)
+                {
                     if (dst)
+                    {
                         *d = c;
+                        d++;
+                        dst_left--;
+                    }
                     s++;
-                    d++;
-                    dst_left--;
-                } else {
+                    dst_used++;
+                }
+                else
+                {
                     *d = '\0';
                     return RESULT_TOO_SMALL_BUFFER;
                 }
-            } else {
-                if (dst_left >= 3) {
+            }
+            else
+            {
+                if (dst == 0 || dst_left >= 3)
+                {
                     if (dst)
+                    {
                         dmSnPrintf(d, 4, "%%%02X", c);
+                        d += 3;
+                        dst_left -= 3;
+                    }
                     s++;
-                    d += 3;
-                    dst_left -= 3;
-                } else {
+                    dst_used += 3;
+                }
+                else
+                {
                     *d = '\0';
                     return RESULT_TOO_SMALL_BUFFER;
                 }
             }
         }
         if (dst)
+        {
             *d = '\0';
+        }
         if (bytes_written)
-            *bytes_written = d - dst + 1;
+        {
+            *bytes_written = dst_used + 1;
+        }
         return RESULT_OK;
     }
 
