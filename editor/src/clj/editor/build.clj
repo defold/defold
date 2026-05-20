@@ -151,9 +151,7 @@
      (resolve-node-dependencies node project evaluation-context)))
   ([node project evaluation-context]
    (let [build-targets (g/node-value node :build-targets evaluation-context)]
-     (if (g/error-value? build-targets)
-       build-targets
-       (resolve-deps-impl build-targets project nil evaluation-context)))))
+     (resolve-deps-impl build-targets project nil evaluation-context))))
 
 (defn- throw-build-cancelled-exception! []
   (throw (ex-info "Build cancelled." {:ex-type :task-cancelled})))
