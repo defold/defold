@@ -151,6 +151,10 @@ set(_COMMON_EXPORTED
   ScriptFont
   ScriptHttp)
 
+if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
+  list(APPEND _COMMON_EXPORTED ScriptComputeExt)
+endif()
+
 set(_DEFOLD_TEST_LIBS
   testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
   particle rig gui liveupdate graphics_null profile_null platform_null hid_null
