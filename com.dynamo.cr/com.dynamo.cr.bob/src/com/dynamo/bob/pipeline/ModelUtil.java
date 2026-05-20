@@ -1077,8 +1077,8 @@ public class ModelUtil {
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
         // Preserve local transforms only for meshes that rely on the bone hierarchy at runtime.
-        // Plain rigid meshes in a skinned scene, such as the paladin cape, should keep their
-        // flattened world placement to match the authored scene preview.
+        // Other rigid meshes in a skinned scene should keep their flattened world placement
+        // to match the authored scene preview.
         boolean preserveLocalTransform = node.skin != null || model.parentBone != null;
         if (preserveLocalTransform) {
             modelBuilder.setLocal(toDDFTransform(node.local));

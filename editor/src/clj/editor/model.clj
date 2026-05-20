@@ -113,9 +113,6 @@
                            (localization/message "error.animation-not-found" {"animation" default-animation
                                                                               "property" default-animation-message}))))
 
-(g/defnk produce-animation-root-transform-warning [skeleton-resource animations-resource]
-  (model-loader/root-ancestor-transform-warning skeleton-resource animations-resource))
-
 (defn- update-build-target-vertex-attributes [pb-msg material-binding-infos]
   (let [materials+attribute-build-data (mapv (fn [material+binding-infos]
                                                (let [material (first material+binding-infos)
@@ -541,7 +538,6 @@
   (input skeleton-resource resource/Resource)
   (input skeleton-build-target g/Any)
   (input animations-resource resource/Resource)
-  (output animation-root-transform-warning g/Any :cached produce-animation-root-transform-warning)
   (input animation-set-build-target g/Any)
   (input dep-build-targets g/Any :array)
 
@@ -553,6 +549,9 @@
 
   (output bones g/Any produce-bones)
   (output animation-resources g/Any (g/fnk [animations-resource] [animations-resource]))
+  (output animation-root-transform-warning g/Any :cached
+          (g/fnk [skeleton-resource animations-resource]
+            (model-loader/root-ancestor-transform-warning skeleton-resource animations-resource)))
   (output animation-info g/Any :cached animation-set/produce-animation-info)
   (output animation-set-info g/Any :cached animation-set/produce-animation-set-info)
   (output animation-set g/Any :cached animation-set/produce-animation-set)

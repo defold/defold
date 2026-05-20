@@ -33,66 +33,6 @@
         [["model" "max_morph_target_texture_width"]
          ["model" "max_morph_target_texture_height"]]))
 
-(defn- recenter-meshes? [project-settings]
-  (boolean (get project-settings ["model" "recenter_meshes"] false)))
-
-(defn- instance-field [object field-name]
-  (clojure.lang.Reflector/getInstanceField object field-name))
-
-(defn- set-instance-field! [object field-name value]
-  (clojure.lang.Reflector/setInstanceField object field-name value))
-
-(defn- shift-translation! [translation center]
-  (set-instance-field! translation "x" (float (- (double (instance-field translation "x")) (:x center))))
-  (set-instance-field! translation "y" (float (- (double (instance-field translation "y")) (:y center))))
-  (set-instance-field! translation "z" (float (- (double (instance-field translation "z")) (:z center)))))
-
-(defn- update-center-bounds [bounds node]
-  (if (nil? (instance-field node "model"))
-    bounds
-    (let [translation (some-> node (instance-field "world") (instance-field "translation"))
-          x (double (instance-field translation "x"))
-          y (double (instance-field translation "y"))
-          z (double (instance-field translation "z"))]
-      {:min-x (min (:min-x bounds) x)
-       :min-y (min (:min-y bounds) y)
-       :min-z (min (:min-z bounds) z)
-       :max-x (max (:max-x bounds) x)
-       :max-y (max (:max-y bounds) y)
-       :max-z (max (:max-z bounds) z)
-       :valid? true})))
-
-(defn- calc-center-node [bounds node]
-  (let [bounds (update-center-bounds bounds node)]
-    (reduce calc-center-node bounds (seq (instance-field node "children")))))
-
-(defn- scene-center [scene]
-  (let [initial-bounds {:min-x Double/POSITIVE_INFINITY
-                        :min-y Double/POSITIVE_INFINITY
-                        :min-z Double/POSITIVE_INFINITY
-                        :max-x Double/NEGATIVE_INFINITY
-                        :max-y Double/NEGATIVE_INFINITY
-                        :max-z Double/NEGATIVE_INFINITY
-                        :valid? false}
-        bounds (reduce calc-center-node initial-bounds (seq (instance-field scene "rootNodes")))]
-    (if (:valid? bounds)
-      {:x (* 0.5 (+ (:min-x bounds) (:max-x bounds)))
-       :y (* 0.5 (+ (:min-y bounds) (:max-y bounds)))
-       :z (* 0.5 (+ (:min-z bounds) (:max-z bounds)))}
-      {:x 0.0 :y 0.0 :z 0.0})))
-
-(defn- shift-node! [node center]
-  (shift-translation! (some-> node (instance-field "world") (instance-field "translation")) center)
-  (run! #(shift-node! % center) (seq (instance-field node "children"))))
-
-(defn- recenter-scene! [scene]
-  (let [center (scene-center scene)]
-    (run! (fn [node]
-            (shift-node! node center)
-            (shift-translation! (some-> node (instance-field "local") (instance-field "translation")) center))
-          (seq (instance-field scene "rootNodes")))
-    scene))
-
 (defn- load-model-scene
   [resource ^InputStream stream morph-tex-w morph-tex-h project-settings]
   (let [workspace (resource/workspace resource)
@@ -102,9 +42,8 @@
         path (resource/path resource)
         options nil
         data-resolver (ModelUtil/createFileDataResolver project-directory)
-        scene (ModelUtil/loadScene stream ^String path options data-resolver)
-        _ (when (recenter-meshes? project-settings)
-            (recenter-scene! scene))
+        recenter-meshes (boolean (get project-settings ["model" "recenter_meshes"]))
+        scene (ModelUtil/loadScene stream ^String path options data-resolver recenter-meshes)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ModelUtil/getAnimationNames scene)] ; sorted on duration (largest first)
@@ -165,84 +104,6 @@
                    (localization/message "error.model-load-failed" {"file" path "error" message})
                    {:type :invalid-content :resource resource})))))
 
-(def ^:private root-ancestor-translation-epsilon 1e-4)
-(def ^:private root-ancestor-scale-epsilon 1e-4)
-(def ^:private root-ancestor-rotation-dot-epsilon 1e-6)
-
-(defn- identity-transform-data []
-  {:translation {:x 0.0 :y 0.0 :z 0.0}
-   :rotation {:x 0.0 :y 0.0 :z 0.0 :w 1.0}
-   :scale {:x 1.0 :y 1.0 :z 1.0}})
-
-(defn- transform->data [transform]
-  (let [translation (instance-field transform "translation")
-        rotation (instance-field transform "rotation")
-        scale (instance-field transform "scale")]
-    {:translation {:x (double (instance-field translation "x"))
-                   :y (double (instance-field translation "y"))
-                   :z (double (instance-field translation "z"))}
-     :rotation {:x (double (instance-field rotation "x"))
-                :y (double (instance-field rotation "y"))
-                :z (double (instance-field rotation "z"))
-                :w (double (instance-field rotation "w"))}
-     :scale {:x (double (instance-field scale "x"))
-             :y (double (instance-field scale "y"))
-             :z (double (instance-field scale "z"))}}))
-
-(defn- root-bone [bones]
-  (or (some #(when (nil? (instance-field % "parent")) %) bones)
-      (first bones)))
-
-(defn- root-bone-ancestor-info [scene]
-  (let [bones (seq (ModelUtil/loadSkeleton scene))]
-    (when-let [root-bone (and bones (root-bone bones))]
-      (let [bone-node (instance-field root-bone "node")
-            ancestor-node (some-> bone-node (instance-field "parent"))]
-        {:bone-name (instance-field root-bone "name")
-         :ancestor-node-name (or (some-> ancestor-node (instance-field "name")) "")
-         :ancestor-transform (if ancestor-node
-                               (transform->data (instance-field ancestor-node "world"))
-                               (identity-transform-data))}))))
-
-(defn- nearly-equal [a b epsilon]
-  (<= (Math/abs ^double (- (double a) (double b))) epsilon))
-
-(defn- equivalent-rotation [a b]
-  (let [dot (+ (* (:x a) (:x b))
-               (* (:y a) (:y b))
-               (* (:z a) (:z b))
-               (* (:w a) (:w b)))]
-    (<= (- 1.0 (Math/abs ^double dot)) root-ancestor-rotation-dot-epsilon)))
-
-(defn- equivalent-transform [a b]
-  (and (nearly-equal (get-in a [:translation :x]) (get-in b [:translation :x]) root-ancestor-translation-epsilon)
-       (nearly-equal (get-in a [:translation :y]) (get-in b [:translation :y]) root-ancestor-translation-epsilon)
-       (nearly-equal (get-in a [:translation :z]) (get-in b [:translation :z]) root-ancestor-translation-epsilon)
-       (nearly-equal (get-in a [:scale :x]) (get-in b [:scale :x]) root-ancestor-scale-epsilon)
-       (nearly-equal (get-in a [:scale :y]) (get-in b [:scale :y]) root-ancestor-scale-epsilon)
-       (nearly-equal (get-in a [:scale :z]) (get-in b [:scale :z]) root-ancestor-scale-epsilon)
-       (equivalent-rotation (:rotation a) (:rotation b))))
-
-(defn- format-root-ancestor-transform [transform]
-  (format "T=(%.4f, %.4f, %.4f) R=(%.4f, %.4f, %.4f, %.4f) S=(%.4f, %.4f, %.4f)"
-          (get-in transform [:translation :x]) (get-in transform [:translation :y]) (get-in transform [:translation :z])
-          (get-in transform [:rotation :x]) (get-in transform [:rotation :y]) (get-in transform [:rotation :z]) (get-in transform [:rotation :w])
-          (get-in transform [:scale :x]) (get-in transform [:scale :y]) (get-in transform [:scale :z])))
-
-(defn- make-root-ancestor-transform-warning [skeleton-scene skeleton-path animations-scene animations-path]
-  (let [skeleton-info (root-bone-ancestor-info skeleton-scene)
-        animations-info (root-bone-ancestor-info animations-scene)]
-    (when (and skeleton-info
-               animations-info
-               (not (equivalent-transform (:ancestor-transform skeleton-info)
-                                          (:ancestor-transform animations-info))))
-      (let [skeleton-ancestor-name (if (string/blank? (:ancestor-node-name skeleton-info)) "<identity>" (:ancestor-node-name skeleton-info))
-            animations-ancestor-name (if (string/blank? (:ancestor-node-name animations-info)) "<identity>" (:ancestor-node-name animations-info))]
-        (format "The skeleton '%s' and animations '%s' use different root ancestor transforms above the root bone. Skeleton root bone '%s' inherits '%s' with %s, while animation root bone '%s' inherits '%s' with %s. Combining these files may cause incorrect root rotation, scale, or translation at runtime."
-                skeleton-path animations-path
-                (:bone-name skeleton-info) skeleton-ancestor-name (format-root-ancestor-transform (:ancestor-transform skeleton-info))
-                (:bone-name animations-info) animations-ancestor-name (format-root-ancestor-transform (:ancestor-transform animations-info)))))))
-
 (defn root-ancestor-transform-warning [skeleton-resource animations-resource]
   (when (and skeleton-resource
              animations-resource
@@ -259,7 +120,7 @@
                     animations-stream (io/input-stream animations-resource)]
           (let [skeleton-scene (ModelUtil/loadScene skeleton-stream skeleton-path nil data-resolver)
                 animations-scene (ModelUtil/loadScene animations-stream animations-path nil data-resolver)]
-            (make-root-ancestor-transform-warning skeleton-scene skeleton-path animations-scene animations-path))))
+            (ModelUtil/getRootAncestorTransformWarning skeleton-scene skeleton-path animations-scene animations-path))))
       (catch Exception error
         (log/warn :message "Failed to compare model skeleton and animation root ancestor transforms"
                   :skeleton (resource/proj-path skeleton-resource)
