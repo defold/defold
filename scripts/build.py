@@ -754,7 +754,7 @@ class Configuration(object):
     def clean(self):
         """
         Remove generated engine build outputs without removing installed SDK
-        packages, bob.jar, or built documentation artifacts.
+        packages, installed jars, or built documentation artifacts.
         """
         cmake_platforms = []
         for platform in [self.host, self.target_platform]:
@@ -768,6 +768,7 @@ class Configuration(object):
         for builddir in glob(join(self.defold_root, 'engine/*/build')):
             self._remove_tree(builddir)
 
+        self._remove_tree(join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/build'))
         self._remove_tree(join(self.defold_root, 'engine/engine/src/test/build'))
         self._log('clean done.')
 
@@ -1992,22 +1993,29 @@ class Configuration(object):
 
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
+        log_cmd_build = 'Gradle build bob_light'
 
-        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        try:
+            bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
 
-        env = self._form_env()
+            env = self._form_env()
 
-        gradle = self.get_gradle_wrapper()
-        gradle_args = []
-        if self.verbose:
-            gradle_args += ['--info']
+            gradle = self.get_gradle_wrapper()
+            gradle_args = []
+            if self.verbose:
+                gradle_args += ['--info']
 
-        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
+            env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
-        s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
-        if self.verbose:
-        	print (s)
-        self.build_tracker.end_component('bob_light', self.host)
+            self.build_tracker.start_command(log_cmd_build)
+            try:
+                s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
+            finally:
+                self.build_tracker.end_command(log_cmd_build)
+            if self.verbose:
+                print (s)
+        finally:
+            self.build_tracker.end_component('bob_light', self.host)
 
     def build_engine(self):
         self.check_sdk()
@@ -2308,20 +2316,62 @@ class Configuration(object):
         print ("Removed", tempdir)
 
     def build_docs(self, incremental = None):
-        skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         self._log('Building API docs')
-        cwd = join(self.defold_root, 'engine/docs')
-        python_cmd = ' '.join(self.get_python())
-        commands = 'build install'
+        docs_dir = join(self.defold_root, 'engine/docs')
+        builddir = join(docs_dir, 'build')
+        platform = self._cmake_target_platform(self.target_platform)
+        build_type = self._find_cmake_build_type(self.waf_options)
+        docs_run_tests = 'OFF' if self.skip_tests or self.target_platform != self.host else 'ON'
+        is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
+
         if incremental is None:
-            incremental = self.incremental
+            incremental = True
         if not incremental:
-            commands = "distclean configure " + commands
-        cmd = '%s %s/ext/bin/waf configure --prefix=%s %s %s' % (python_cmd, self.dynamo_home, self.dynamo_home, skip_tests, commands)
-        run.env_command(self._form_env(), [python_cmd, './scripts/bundle.py', 'docs', '--docs-dir', cwd], cwd = join(self.defold_root, 'editor'))
-        run.env_command(self._form_env(), cmd.split() + self._waf_forward_options(), cwd = cwd)
-        with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
-            self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
+            self._clean_cmake_builddir(builddir)
+
+        self.build_tracker.start_component('build_docs', platform)
+        try:
+            log_cmd_config = 'CMake configure build_docs'
+            self.build_tracker.start_command(log_cmd_config)
+
+            cmake_configure_args = ['cmake', '-S', docs_dir, '-B', builddir, '-GNinja']
+            cmake_configure_args += [
+                f'-DCMAKE_BUILD_TYPE={build_type}',
+                f'-DTARGET_PLATFORM={platform}',
+                f'-DDEFOLD_DOCS_RUN_TESTS={docs_run_tests}'
+            ]
+            cmake_configure_state = self._cmake_configure_state(builddir, cmake_configure_args)
+            cmake_configure_state_path = join(builddir, '.defold_cmake_configure.json')
+            previous_cmake_configure_state = None
+            if os.path.exists(cmake_configure_state_path):
+                try:
+                    with open(cmake_configure_state_path, 'r') as f:
+                        previous_cmake_configure_state = json.load(f)
+                except Exception:
+                    pass
+
+            cmake_cache = join(builddir, 'CMakeCache.txt')
+            skip_configure = os.path.exists(cmake_cache) and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, False)
+            if skip_configure:
+                self._log('Skipping CMake configure build_docs; configure state is unchanged')
+            else:
+                run.env_command(self._form_env(), cmake_configure_args, cwd = self.defold_root)
+                with open(cmake_configure_state_path, 'w') as f:
+                    json.dump(cmake_configure_state, f, indent = 2, sort_keys = True)
+
+            self.build_tracker.end_command(log_cmd_config)
+
+            log_cmd_build = 'CMake build build_docs'
+            self.build_tracker.start_command(log_cmd_build)
+
+            cmake_build_args = ['cmake', '--build', builddir, '--target', 'build_docs']
+            if is_verbose:
+                cmake_build_args.append('--verbose')
+            run.env_command(self._form_env(), cmake_build_args, cwd = self.defold_root)
+
+            self.build_tracker.end_command(log_cmd_build)
+        finally:
+            self.build_tracker.end_component('build_docs', platform)
 
 
 # ------------------------------------------------------------

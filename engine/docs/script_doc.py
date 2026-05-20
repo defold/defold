@@ -681,25 +681,24 @@ def message_to_yaml_dict(message):
     return api
 
 
-def to_protobuf(s, output_file):
-    msg = parse_document(s, output_file)
+def write_protobuf(msg, output_file):
     with open(output_file, "w") as f:
         f.write(str(msg))
 
-def to_json(s, output_file):
-    msg = parse_document(s, output_file)
+
+def write_json(msg, output_file):
     dct = message_to_json_dict(msg)
     with open(output_file, "w") as f:
         json.dump(dct, f, indent = 2)
 
-def to_script_api(s, output_file):
-    msg = parse_document(s, output_file)
+
+def write_script_api(msg, output_file):
     dct = message_to_yaml_dict(msg)
     with open(output_file, "w") as f:
         yaml.dump(dct, f, default_flow_style = False)
 
 
-def to_lua_annotation(s, output_file):
+def write_lua_annotation(msg, output_file):
     def fixdoc(s):
         lines = s.splitlines(keepends = True)
         for i,line in enumerate(lines):
@@ -711,7 +710,6 @@ def to_lua_annotation(s, output_file):
             lines[i] = line
         return "---".join(lines)
 
-    msg = parse_document(s, output_file)
     if msg.info.language == "Lua":
         dct = message_to_dict(msg)
         dct["info"]["name"] = dct["info"]["name"].replace("-", "_").lower()
@@ -740,6 +738,48 @@ def to_lua_annotation(s, output_file):
         f = open(output_file, "w")
         f.close()
 
+
+def write_format(msg, target_format, output_file):
+    if target_format == 'protobuf' or target_format == 'sdoc':
+        write_protobuf(msg, output_file)
+    elif target_format == 'json':
+        write_json(msg, output_file)
+    elif target_format == 'script_api':
+        write_script_api(msg, output_file)
+    elif target_format == 'lua':
+        write_lua_annotation(msg, output_file)
+    else:
+        print ('Unknown type: %s' % target_format)
+        sys.exit(5)
+
+
+def write_formats(s, output_specs):
+    validation_file = output_specs[0][1] if output_specs else None
+    msg = parse_document(s, validation_file)
+    for target_format, output_file in output_specs:
+        write_format(msg, target_format, output_file)
+
+
+def to_protobuf(s, output_file):
+    msg = parse_document(s, output_file)
+    write_protobuf(msg, output_file)
+
+
+def to_json(s, output_file):
+    msg = parse_document(s, output_file)
+    write_json(msg, output_file)
+
+
+def to_script_api(s, output_file):
+    msg = parse_document(s, output_file)
+    write_script_api(msg, output_file)
+
+
+def to_lua_annotation(s, output_file):
+    msg = parse_document(s, output_file)
+    write_lua_annotation(msg, output_file)
+
+
 if __name__ == '__main__':
     usage = "usage: %prog [options] INFILE(s) OUTFILE"
     parser = OptionParser(usage = usage)
@@ -767,4 +807,3 @@ if __name__ == '__main__':
     else:
         print ('Unknown type: %s' % options.type)
         sys.exit(5)
-
