@@ -3,9 +3,9 @@ emitters {
   mode: PLAY_MODE_LOOP
   duration: 1.0
   space: EMISSION_SPACE_WORLD
-  tile_source: "/tile/valid.tileset"
+  tile_source: "/particlefx/tile_valid.tileset"
   animation: "anim"
-  material: "/material/valid.material"
+  material: "/particlefx/material_valid.material"
   blend_mode: BLEND_MODE_ADD
   max_particle_count: 128
   type: EMITTER_TYPE_CIRCLE
@@ -125,9 +125,9 @@ emitters {
   mode: PLAY_MODE_LOOP
   duration: 1.0
   space: EMISSION_SPACE_WORLD
-  tile_source: "/tile/valid.tileset"
+  tile_source: "/particlefx/tile_valid.tileset"
   animation: "anim"
-  material: "/material/valid.material"
+  material: "/particlefx/material_valid.material"
   blend_mode: BLEND_MODE_ADD
   max_particle_count: 128
   type: EMITTER_TYPE_SPHERE
@@ -247,9 +247,9 @@ emitters {
   mode: PLAY_MODE_LOOP
   duration: 1.0
   space: EMISSION_SPACE_WORLD
-  tile_source: "/tile/valid.tileset"
+  tile_source: "/particlefx/tile_valid.tileset"
   animation: "anim"
-  material: "/material/valid.material"
+  material: "/particlefx/material_valid.material"
   blend_mode: BLEND_MODE_ADD
   max_particle_count: 128
   type: EMITTER_TYPE_CONE
@@ -369,9 +369,9 @@ emitters {
   mode: PLAY_MODE_LOOP
   duration: 1.0
   space: EMISSION_SPACE_WORLD
-  tile_source: "/tile/valid.tileset"
+  tile_source: "/particlefx/tile_valid.tileset"
   animation: "anim"
-  material: "/material/valid.material"
+  material: "/particlefx/material_valid.material"
   blend_mode: BLEND_MODE_ADD
   max_particle_count: 128
   type: EMITTER_TYPE_BOX

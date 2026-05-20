@@ -70,6 +70,15 @@ target_compile_definitions(defold_sdk INTERFACE
     GOOGLE_PROTOBUF_NO_RTTI
     DM_USE_CMAKE)
 
+set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE ON)
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|x86_64-ios)$")
+    set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE OFF)
+endif()
+
+if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
+    target_compile_definitions(defold_sdk INTERFACE DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+endif()
+
 if (TARGET_PLATFORM MATCHES "^arm64|^x86_64")
     target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_64BIT)
 else()

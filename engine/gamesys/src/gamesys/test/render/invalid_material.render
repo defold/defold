@@ -1,5 +1,5 @@
-script: "/render_script/valid.render_script"
+script: "/render/render_script_valid.render_script"
 materials {
   name: "test_material"
-  material: "/material/missing_name.material"
+  material: "/render/material_missing_name.material"
 }
