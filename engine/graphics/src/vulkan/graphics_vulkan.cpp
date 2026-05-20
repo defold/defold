@@ -251,8 +251,8 @@ namespace dmGraphics
     static inline bool IsRenderTargetbound(VulkanContext* context, HRenderTarget rt)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        VulkanRenderTarget* current_rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
-        return current_rt ? current_rt->m_Base.m_IsBound : 0;
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
+        return current_rt ? current_rt->m_IsBound : 0;
     }
 
     static void FlushPendingRenderTargetClear(VulkanContext* context, HRenderTarget render_target)
@@ -453,15 +453,15 @@ namespace dmGraphics
     static bool EndRenderPass(VulkanContext* context)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        VulkanRenderTarget* current_rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
-        if (!current_rt->m_Base.m_IsBound)
+        if (!current_rt->m_IsBound)
         {
             return false;
         }
 
         vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
-        current_rt->m_Base.m_IsBound = 0;
+        current_rt->m_IsBound = 0;
         context->m_RenderTargetBound = 0;
         return true;
     }
@@ -475,18 +475,19 @@ namespace dmGraphics
         }
 
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        VulkanRenderTarget* current_rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* current_rt       = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         VulkanRenderTarget* rt         = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        RenderTarget* brt              = &rt->m_Base;
 
-        if (current_rt->m_Base.m_Id == rt->m_Base.m_Id &&
-            current_rt->m_Base.m_IsBound)
+        if (current_rt->m_Id == brt->m_Id &&
+            current_rt->m_IsBound)
         {
             return;
         }
 
         // If we bind a render pass without explicitly unbinding
         // the current render pass, we must first unbind it.
-        if (current_rt->m_Base.m_IsBound)
+        if (current_rt->m_IsBound)
         {
             EndRenderPass(context);
         }
@@ -495,7 +496,7 @@ namespace dmGraphics
         memset(vk_clear_values, 0, sizeof(vk_clear_values));
 
         // Clear color
-        for (int i = 0; i < rt->m_Base.m_ColorAttachmentCount; ++i)
+        for (int i = 0; i < brt->m_ColorAttachmentCount; ++i)
         {
             vk_clear_values[i].color.float32[3] = 1.0f;
             vk_clear_values[i].color.float32[0] = rt->m_ColorAttachmentClearValue[i][0];
@@ -507,7 +508,7 @@ namespace dmGraphics
         // Depth clear value: placed at attachment index m_ColorAttachmentCount (depth always
         // follows the color attachments in the render pass). Defaults to 1.0/0; overridden below
         // when a pending depth clear was recorded by VulkanClear.
-        const uint32_t depth_clear_index = rt->m_Base.m_ColorAttachmentCount;
+        const uint32_t depth_clear_index = brt->m_ColorAttachmentCount;
         vk_clear_values[depth_clear_index].depthStencil.depth   = 1.0f;
         vk_clear_values[depth_clear_index].depthStencil.stencil = 0;
         if (rt->m_HasPendingClearDepth)
@@ -548,12 +549,12 @@ namespace dmGraphics
         vk_render_pass_begin_info.renderArea.offset.x = 0;
         vk_render_pass_begin_info.renderArea.offset.y = 0;
         vk_render_pass_begin_info.renderArea.extent   = rt->m_Extent;
-        vk_render_pass_begin_info.clearValueCount     = rt->m_Base.m_ColorAttachmentCount + 1;
+        vk_render_pass_begin_info.clearValueCount     = brt->m_ColorAttachmentCount + 1;
         vk_render_pass_begin_info.pClearValues        = vk_clear_values;
 
         vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        rt->m_Base.m_IsBound          = 1;
+        brt->m_IsBound         = 1;
         rt->m_SubPassIndex     = 0;
         rt->m_Scissor.extent   = rt->m_Extent;
         rt->m_Scissor.offset.x = 0;
@@ -572,16 +573,16 @@ namespace dmGraphics
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            if (rt->m_Base.m_TextureColor[i])
+            if (brt->m_TextureColor[i])
             {
-                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
+                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColor[i]);
                 TouchResource(context, texture_color);
             }
         }
 
-        if (rt->m_Base.m_TextureDepthStencil)
+        if (brt->m_TextureDepthStencil)
         {
-            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepthStencil);
+            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureDepthStencil);
             TouchResource(context, depth_stencil_texture);
         }
     }
@@ -761,7 +762,8 @@ namespace dmGraphics
         rt->m_Handle.m_RenderPassClearColorDepth = context->m_MainRenderPass;
         rt->m_Handle.m_Framebuffer     = context->m_MainFrameBuffers[0];
         rt->m_Extent                   = context->m_SwapChain->m_ImageExtent;
-        rt->m_Base.m_ColorAttachmentCount     = 1;
+        RenderTarget* brt              = &rt->m_Base;
+        brt->m_ColorAttachmentCount    = 1;
 
         return VK_SUCCESS;
     }
@@ -4307,19 +4309,20 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        RenderTarget* brt      = &rt->m_Base;
         context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
 
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            if (rt->m_Base.m_TextureColor[i])
+            if (brt->m_TextureColor[i])
             {
-                DeleteTexture(_context, rt->m_Base.m_TextureColor[i]);
+                DeleteTexture(_context, brt->m_TextureColor[i]);
             }
         }
 
-        if (rt->m_Base.m_TextureDepthStencil)
+        if (brt->m_TextureDepthStencil)
         {
-            DeleteTexture(_context, rt->m_Base.m_TextureDepthStencil);
+            DeleteTexture(_context, brt->m_TextureDepthStencil);
         }
 
         DestroyRenderTarget(context, rt);
@@ -4360,15 +4363,16 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        RenderTarget* brt      = &rt->m_Base;
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            rt->m_Base.m_ColorTextureParams[i].m_Width = width;
-            rt->m_Base.m_ColorTextureParams[i].m_Height = height;
+            brt->m_ColorTextureParams[i].m_Width = width;
+            brt->m_ColorTextureParams[i].m_Height = height;
 
-            if (rt->m_Base.m_TextureColor[i])
+            if (brt->m_TextureColor[i])
             {
-                VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
+                VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColor[i]);
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
@@ -4398,12 +4402,12 @@ bail:
             }
         }
 
-        if (rt->m_Base.m_TextureDepthStencil)
+        if (brt->m_TextureDepthStencil)
         {
-            rt->m_Base.m_DepthStencilTextureParams.m_Width = width;
-            rt->m_Base.m_DepthStencilTextureParams.m_Height = height;
+            brt->m_DepthStencilTextureParams.m_Width = width;
+            brt->m_DepthStencilTextureParams.m_Height = height;
 
-            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepthStencil);
+            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureDepthStencil);
             DestroyResourceDeferred(context, depth_stencil_texture);
 
             // Check tiling support for this format
@@ -4430,10 +4434,10 @@ bail:
 
         DestroyRenderTarget(context, rt);
         VkResult res = CreateRenderTarget(context,
-            rt->m_Base.m_TextureColor,
+            brt->m_TextureColor,
             rt->m_ColorAttachmentBufferTypes,
-            rt->m_Base.m_ColorAttachmentCount,
-            rt->m_Base.m_TextureDepthStencil,
+            brt->m_ColorAttachmentCount,
+            brt->m_TextureDepthStencil,
             width, height,
             rt);
         CHECK_VK_ERROR(res);
@@ -5417,7 +5421,7 @@ bail:
         }
         else if (type == ASSET_TYPE_RENDER_TARGET)
         {
-            return GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
     }

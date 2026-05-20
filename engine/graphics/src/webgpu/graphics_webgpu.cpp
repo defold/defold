@@ -3659,7 +3659,7 @@ static bool WebGPUIsAssetHandleValid(HContext _context, HAssetHandle asset_handl
     if (type == ASSET_TYPE_TEXTURE)
         return GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
     if (type == ASSET_TYPE_RENDER_TARGET)
-        return GetAssetFromContainer<WebGPURenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
+        return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
     return false;
 }
 

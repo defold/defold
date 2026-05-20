@@ -569,10 +569,11 @@ namespace dmGraphics
         assert(rt == 0x0);
 
         rt = new DX12RenderTarget();
-        rt->m_Base.m_Id                   = DM_RENDERTARGET_BACKBUFFER_ID;
-        rt->m_Base.m_ColorAttachmentCount = 1;
-        rt->m_Format                      = DX12GetBackBufferFormat();
-        rt->m_SampleDesc                  = sample_desc;
+        RenderTarget* brt             = &rt->m_Base;
+        brt->m_Id                     = DM_RENDERTARGET_BACKBUFFER_ID;
+        brt->m_ColorAttachmentCount   = 1;
+        rt->m_Format                  = DX12GetBackBufferFormat();
+        rt->m_SampleDesc              = sample_desc;
 
         context->m_MainRenderTarget    = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
@@ -807,7 +808,7 @@ namespace dmGraphics
     static void DX12Clear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         DX12Context* context = (DX12Context*) _context;
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         const float r = ((float)red) / 255.0f;
         const float g = ((float)green) / 255.0f;
@@ -815,7 +816,7 @@ namespace dmGraphics
         const float a = ((float)alpha) / 255.0f;
         const float clearColor[] = { r, g, b, a };
 
-        bool has_depth_stencil_texture = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID; // || current_rt->m_Base.m_TextureDepthStencil;
+        bool has_depth_stencil_texture = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID; // || current_rt->m_TextureDepthStencil;
         bool clear_depth_stencil       = flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT);
 
         if (flags & BUFFER_TYPE_COLOR0_BIT)
@@ -851,15 +852,15 @@ namespace dmGraphics
 
     static bool EndRenderPass(DX12Context* context)
     {
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
-        if (!current_rt->m_Base.m_IsBound)
+        if (!current_rt->m_IsBound)
             return false;
 
-        if (current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
             // NOTE: We rotate the swap chain textures into the RT at the beginning of the frame
-            DX12Texture* texture_color         = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureColor[0]);
+            DX12Texture* texture_color         = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureColor[0]);
             ID3D12Resource* color              = texture_color->m_Resource;
 
             if (context->m_MSAASampleCount > 1)
@@ -887,7 +888,7 @@ namespace dmGraphics
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
             }
 
-            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureDepthStencil);
+            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
 
             // Regardless of MSAA count (no resolve needed for depth target I think?), we need to transition backbuffer DSV to COMMON
             if (texture_depth_stencil && texture_depth_stencil->m_Resource)
@@ -899,27 +900,28 @@ namespace dmGraphics
         else
         {
             // Transition custom render target's depth/stencil back to COMMON
-            if (current_rt->m_Base.m_TextureDepthStencil)
+            if (current_rt->m_TextureDepthStencil)
             {
-                DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureDepthStencil);
+                DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COMMON));
                 texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
             }
         }
 
-        current_rt->m_Base.m_IsBound = 0;
+        current_rt->m_IsBound = 0;
         return true;
     }
 
     static void BeginRenderPass(DX12Context* context, HRenderTarget render_target)
     {
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* current_rt     = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         DX12RenderTarget* rt         = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        RenderTarget* brt            = &rt->m_Base;
 
-        if (current_rt->m_Base.m_Id == rt->m_Base.m_Id && current_rt->m_Base.m_IsBound)
+        if (current_rt->m_Id == brt->m_Id && current_rt->m_IsBound)
             return;
 
-        if (current_rt->m_Base.m_IsBound)
+        if (current_rt->m_IsBound)
             EndRenderPass(context);
 
         ID3D12DescriptorHeap* rtv_heap = NULL;
@@ -927,7 +929,7 @@ namespace dmGraphics
 
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle;
 
-        if (rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        if (brt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
             num_attachments = 1;
             rtv_heap = context->m_RtvDescriptorHeap;
@@ -946,7 +948,7 @@ namespace dmGraphics
             }
             else
             {
-                DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureColor[0]);
+                DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureColor[0]);
 
                 // No MSAA: use the regular swapchain RT
                 rtv_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
@@ -965,9 +967,9 @@ namespace dmGraphics
 
             for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
             {
-                if (rt->m_Base.m_TextureColor[i])
+                if (brt->m_TextureColor[i])
                 {
-                    DX12Texture* attachment = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
+                    DX12Texture* attachment = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColor[i]);
 
                     if (attachment->m_ResourceStates[0] != D3D12_RESOURCE_STATE_RENDER_TARGET)
                     {
@@ -984,7 +986,7 @@ namespace dmGraphics
         D3D12_CPU_DESCRIPTOR_HANDLE* dsv_handle_ptr = NULL;
         CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_handle;
 
-        if (rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        if (brt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
             dsv_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
                 context->m_DsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
@@ -994,9 +996,9 @@ namespace dmGraphics
             dsv_handle_ptr = &dsv_handle;
 
             // Transition backbuffer depth to DEPTH_WRITE if not already (tracked state; first frame it's already DEPTH_WRITE from creation)
-            if (rt->m_Base.m_TextureDepthStencil)
+            if (brt->m_TextureDepthStencil)
             {
-                DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepthStencil);
+                DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureDepthStencil);
                 if (texture_depth_stencil && texture_depth_stencil->m_Resource && texture_depth_stencil->m_ResourceStates[0] != D3D12_RESOURCE_STATE_DEPTH_WRITE)
                 {
                     context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, texture_depth_stencil->m_ResourceStates[0], D3D12_RESOURCE_STATE_DEPTH_WRITE));
@@ -1009,7 +1011,7 @@ namespace dmGraphics
             dsv_handle     = CD3DX12_CPU_DESCRIPTOR_HANDLE(rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
             dsv_handle_ptr = &dsv_handle;
 
-            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepthStencil);
+            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureDepthStencil);
 
             if (texture_depth_stencil && texture_depth_stencil->m_Resource && texture_depth_stencil->m_ResourceStates[0] != D3D12_RESOURCE_STATE_DEPTH_WRITE)
             {
@@ -1024,7 +1026,7 @@ namespace dmGraphics
         // Bind render target(s) and optional depth-stencil
         context->m_CommandList->OMSetRenderTargets(1, &context->m_RtvHandle, FALSE, dsv_handle_ptr);
 
-        rt->m_Base.m_IsBound = 1;
+        brt->m_IsBound = 1;
         context->m_CurrentRenderTarget = render_target;
     }
 
@@ -1192,9 +1194,9 @@ namespace dmGraphics
         HRESULT hr = current_frame_resource.m_CommandAllocator->Reset();
         CHECK_HR_ERROR(hr);
 
-        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
-        rt->m_Base.m_TextureColor[0] = current_frame_resource.m_TextureColor;
-        rt->m_Base.m_TextureDepthStencil = current_frame_resource.m_TextureDepthStencil;
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        rt->m_TextureColor[0] = current_frame_resource.m_TextureColor;
+        rt->m_TextureDepthStencil = current_frame_resource.m_TextureDepthStencil;
 
         FlushResourcesToDestroy(current_frame_resource);
 
@@ -1242,8 +1244,8 @@ namespace dmGraphics
 
     static inline bool IsRenderTargetbound(DX12Context* context, HRenderTarget rt)
     {
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
-        return current_rt ? current_rt->m_Base.m_IsBound : 0;
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
+        return current_rt ? current_rt->m_IsBound : 0;
     }
 
     static inline uint32_t GetPitchFromMipMap(uint32_t pitch, uint8_t mipmap)
@@ -2907,12 +2909,13 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     {
         DX12Context* context = (DX12Context*) _context;
         DX12RenderTarget* rt = new DX12RenderTarget();
-        rt->m_Base.m_Id             = GetNextRenderTargetId();
+        RenderTarget* brt = &rt->m_Base;
+        brt->m_Id         = GetNextRenderTargetId();
 
-        memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
-        rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
-        rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
+        memcpy(brt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        brt->m_DepthBufferParams         = params.m_DepthBufferParams;
+        brt->m_StencilBufferParams       = params.m_StencilBufferParams;
+        brt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
 
@@ -2934,12 +2937,12 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             const BufferType buffer_type = color_buffer_flags[i];
             if (buffer_type_flags & buffer_type)
             {
-                TextureParams& color_buffer_params = rt->m_Base.m_ColorTextureParams[i];
+                TextureParams& color_buffer_params = brt->m_ColorTextureParams[i];
                 HTexture new_texture_color_handle  = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
                 DX12Texture* new_texture_color     = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_handle);
 
                 color_attachments[color_attachment_count] = new_texture_color;
-                rt->m_Base.m_TextureColor[color_attachment_count] = new_texture_color_handle;
+                brt->m_TextureColor[color_attachment_count] = new_texture_color_handle;
 
                 if (color_buffer_params.m_Format == TEXTURE_FORMAT_RGB)
                 {
@@ -2980,7 +2983,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             }
         }
 
-        rt->m_Base.m_ColorAttachmentCount = color_attachment_count;
+        brt->m_ColorAttachmentCount = color_attachment_count;
 
         uint8_t has_depth         = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
         uint8_t has_stencil       = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
@@ -3014,7 +3017,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
             HTexture texture_depth_stencil         = NewTexture(_context, stencil_depth_create_params);
             DX12Texture* texture_depth_stencil_ptr = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, texture_depth_stencil);
-            rt->m_Base.m_TextureDepthStencil       = texture_depth_stencil;
+            brt->m_TextureDepthStencil             = texture_depth_stencil;
 
             DXGI_FORMAT ds_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
@@ -3078,18 +3081,19 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         if (!rt)
             return;
 
+        RenderTarget* brt = &rt->m_Base;
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
         {
-            if (rt->m_Base.m_TextureColor[i])
+            if (brt->m_TextureColor[i])
             {
-                DX12DeleteTexture(context, rt->m_Base.m_TextureColor[i]);
-                rt->m_Base.m_TextureColor[i] = 0;
+                DX12DeleteTexture(context, brt->m_TextureColor[i]);
+                brt->m_TextureColor[i] = 0;
             }
         }
-        if (rt->m_Base.m_TextureDepthStencil)
+        if (brt->m_TextureDepthStencil)
         {
-            DX12DeleteTexture(context, rt->m_Base.m_TextureDepthStencil);
-            rt->m_Base.m_TextureDepthStencil = 0;
+            DX12DeleteTexture(context, brt->m_TextureDepthStencil);
+            brt->m_TextureDepthStencil = 0;
         }
 
         if (rt->m_ColorAttachmentDescriptorHeap)
@@ -3637,7 +3641,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         }
         else if (type == ASSET_TYPE_RENDER_TARGET)
         {
-            return GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
     }
