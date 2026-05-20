@@ -42,6 +42,8 @@ DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
+    void DestroyProgram(Program* program);
+
     static GraphicsAdapterFunctionTable MetalRegisterFunctionTable();
     static bool                         MetalIsSupported();
     static HContext                     MetalGetContext();
@@ -595,12 +597,16 @@ namespace dmGraphics
         }
     }
 
-    // TODO: implement a better sample counting
-    static uint32_t MetalGetClosestSampleCount(uint32_t requested)
+    static uint32_t MetalGetClosestSampleCount(MTL::Device* device, uint32_t requested)
     {
-        if (requested <= 1) return 1;
-        if (requested >= 4) return 4;
-        if (requested >= 2) return 2;
+        const uint32_t sample_counts[] = { 64, 32, 16, 8, 4, 2 };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(sample_counts); ++i)
+        {
+            if (requested >= sample_counts[i] && device->supportsTextureSampleCount(sample_counts[i]))
+            {
+                return sample_counts[i];
+            }
+        }
         return 1;
     }
 
@@ -705,6 +711,7 @@ namespace dmGraphics
 
         NS::Error* error  = 0;
         MTL::Library* library = context->m_Device->newLibrary(NS::String::string(full_src, NS::StringEncoding::UTF8StringEncoding), 0, &error);
+        free(full_src);
 
         if (error)
         {
@@ -739,7 +746,10 @@ namespace dmGraphics
         }
 
         const MetalClearData::ClearShader* clear_shader = GetOrCreateClearShader(context, key.m_ClearColor, key.m_ClearDepth, key.m_ClearStencil);
-        assert(clear_shader);
+        if (!clear_shader)
+        {
+            return 0;
+        }
 
         // create descriptor
         MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
@@ -806,7 +816,13 @@ namespace dmGraphics
         if (!pipeline.m_DepthStencilState)
         {
             dmLogError("Failed to create Metal depth stencil state");
+            pipeline.m_RenderPipelineState->release();
             return 0;
+        }
+
+        if (context->m_ClearData.m_PipelineCache.Full())
+        {
+            context->m_ClearData.m_PipelineCache.SetCapacity(16, context->m_ClearData.m_PipelineCache.Capacity() + 4);
         }
 
         context->m_ClearData.m_PipelineCache.Put(hash, pipeline);
@@ -825,7 +841,7 @@ namespace dmGraphics
         ResetRenderEncoderStateCache(context);
         context->m_ViewportChanged   = true;
         context->m_CullFaceChanged   = true;
-        context->m_MSAASampleCount   = MetalGetClosestSampleCount(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
+        context->m_MSAASampleCount   = MetalGetClosestSampleCount(context->m_Device, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         SetupMainRenderTarget(context);
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
@@ -1386,73 +1402,88 @@ namespace dmGraphics
         context->m_FrameBegun = 0;
     }
 
-    static void MetalClear(HContext _context, uint32_t flags,
-                           uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha,
-                           float depth, uint32_t stencil)
+    static const BufferType* MetalColorBufferBits()
     {
-        MetalContext* context = (MetalContext*) _context;
-        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
-        assert(current_rt);
-
-        // Determine which buffers to clear
-        const BufferType color_buffers[] = {
+        static const BufferType color_buffers[] = {
             BUFFER_TYPE_COLOR0_BIT,
             BUFFER_TYPE_COLOR1_BIT,
             BUFFER_TYPE_COLOR2_BIT,
             BUFFER_TYPE_COLOR3_BIT,
         };
+        return color_buffers;
+    }
 
-        const uint32_t any_color_clear_mask = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_COLOR1_BIT | BUFFER_TYPE_COLOR2_BIT | BUFFER_TYPE_COLOR3_BIT;
-        bool want_color                     = (flags & any_color_clear_mask) != 0;
-        bool want_depth                     = (flags & BUFFER_TYPE_DEPTH_BIT) != 0;
-        bool want_stencil                   = (flags & BUFFER_TYPE_STENCIL_BIT) != 0;
-        bool pass_not_bound                 = !context->m_RenderTargetBound;
-        bool rt_has_depth                   = MetalFormatHasDepth(current_rt->m_DepthStencilFormat);
-        bool rt_has_stencil                 = MetalFormatHasStencil(current_rt->m_DepthStencilFormat);
-        bool clear_ds                       = (rt_has_depth && want_depth) || (rt_has_stencil && want_stencil);
-        bool all_colors_in_flags            = current_rt->m_ColorAttachmentCount > 0;
-
-        for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+    static bool MetalClearRequestsAllColorAttachments(const MetalRenderTarget* rt, uint32_t flags)
+    {
+        const BufferType* color_buffers = MetalColorBufferBits();
+        for (uint32_t i = 0; i < rt->m_ColorAttachmentCount; ++i)
         {
             if (!(flags & color_buffers[i]))
             {
-                all_colors_in_flags = false;
-                break;
+                return false;
             }
         }
+        return rt->m_ColorAttachmentCount > 0;
+    }
 
-        if (pass_not_bound && (!want_color || all_colors_in_flags) && (want_color || clear_ds))
+    static inline void MetalClearColorToFloat(uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float out_color[4])
+    {
+        out_color[0] = (float) red   / 255.0f;
+        out_color[1] = (float) green / 255.0f;
+        out_color[2] = (float) blue  / 255.0f;
+        out_color[3] = (float) alpha / 255.0f;
+    }
+
+    static bool MetalQueueRenderPassClear(MetalRenderTarget* rt, bool clear_color, bool clear_depth, bool clear_stencil, const float color[4], float depth, uint32_t stencil)
+    {
+        if (clear_color)
         {
-            if (want_color)
+            for (uint32_t i = 0; i < rt->m_ColorAttachmentCount; ++i)
             {
-                const float r = (float) red   / 255.0f;
-                const float g = (float) green / 255.0f;
-                const float b = (float) blue  / 255.0f;
-                const float a = (float) alpha / 255.0f;
-
-                for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
-                {
-                    current_rt->m_ColorAttachmentClearValue[i][0] = r;
-                    current_rt->m_ColorAttachmentClearValue[i][1] = g;
-                    current_rt->m_ColorAttachmentClearValue[i][2] = b;
-                    current_rt->m_ColorAttachmentClearValue[i][3] = a;
-                }
-                current_rt->m_HasPendingClearColor = 1;
+                memcpy(rt->m_ColorAttachmentClearValue[i], color, sizeof(rt->m_ColorAttachmentClearValue[i]));
             }
+            rt->m_HasPendingClearColor = 1;
+        }
 
-            if (want_depth && rt_has_depth)
-            {
-                current_rt->m_DepthClearValue = depth;
-                current_rt->m_HasPendingClearDepth = 1;
-            }
+        if (clear_depth)
+        {
+            rt->m_DepthClearValue = depth;
+            rt->m_HasPendingClearDepth = 1;
+        }
 
-            if (want_stencil && rt_has_stencil)
-            {
-                current_rt->m_StencilClearValue = stencil;
-                current_rt->m_HasPendingClearStencil = 1;
-            }
+        if (clear_stencil)
+        {
+            rt->m_StencilClearValue = stencil;
+            rt->m_HasPendingClearStencil = 1;
+        }
 
-            if (want_color || want_depth || want_stencil)
+        return clear_color || clear_depth || clear_stencil;
+    }
+
+    static void MetalClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
+    {
+        DM_PROFILE(__FUNCTION__);
+
+        MetalContext* context = (MetalContext*) _context;
+        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        assert(current_rt);
+
+        const uint32_t any_color_clear_mask = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_COLOR1_BIT | BUFFER_TYPE_COLOR2_BIT | BUFFER_TYPE_COLOR3_BIT;
+        const bool want_color               = (flags & any_color_clear_mask) != 0;
+        const bool want_depth               = (flags & BUFFER_TYPE_DEPTH_BIT) != 0;
+        const bool want_stencil             = (flags & BUFFER_TYPE_STENCIL_BIT) != 0;
+        const bool rt_has_depth             = MetalFormatHasDepth(current_rt->m_DepthStencilFormat);
+        const bool rt_has_stencil           = MetalFormatHasStencil(current_rt->m_DepthStencilFormat);
+        const bool clear_depth              = rt_has_depth && want_depth;
+        const bool clear_stencil            = rt_has_stencil && want_stencil;
+        const bool all_colors_in_flags      = MetalClearRequestsAllColorAttachments(current_rt, flags);
+
+        float clear_color[4];
+        MetalClearColorToFloat(red, green, blue, alpha, clear_color);
+
+        if (!context->m_RenderTargetBound && (!want_color || all_colors_in_flags))
+        {
+            if (MetalQueueRenderPassClear(current_rt, want_color, clear_depth, clear_stencil, clear_color, depth, stencil))
             {
                 return;
             }
@@ -1470,11 +1501,12 @@ namespace dmGraphics
         key.m_ClearColor             = want_color;
         key.m_DepthStencilFormat     = current_rt->m_DepthStencilFormat;
         key.m_ColorAttachmentCount   = current_rt->m_ColorAttachmentCount;
-        key.m_ClearDepth             = want_depth && rt_has_depth;
-        key.m_ClearStencil           = want_stencil && rt_has_stencil;
+        key.m_ClearDepth             = clear_depth;
+        key.m_ClearStencil           = clear_stencil;
         key.m_ColorWriteMaskBits     = 0;
         key.m_SampleCount            = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID ? context->m_MSAASampleCount : 1;
 
+        const BufferType* color_buffers = MetalColorBufferBits();
         for (uint32_t i = 0; i < key.m_ColorAttachmentCount; ++i)
         {
             key.m_ColorFormats[i] = current_rt->m_ColorFormat[i];
@@ -1493,25 +1525,12 @@ namespace dmGraphics
         enc->setDepthStencilState(pipeline->m_DepthStencilState);
 
         ClearParams clear_params = {};
-        clear_params.m_ClearColor[0] = (float)red   / 255.0f;
-        clear_params.m_ClearColor[1] = (float)green / 255.0f;
-        clear_params.m_ClearColor[2] = (float)blue  / 255.0f;
-        clear_params.m_ClearColor[3] = (float)alpha / 255.0f;
+        memcpy(clear_params.m_ClearColor, clear_color, sizeof(clear_params.m_ClearColor));
         clear_params.m_ClearDepth    = depth;
         clear_params.m_ClearStencil  = stencil;
 
         enc->setFragmentBytes(&clear_params, sizeof(clear_params), 0);
-
-         // If writing stencil, set the stencil reference value to the desired replacement value
-        if (want_stencil)
-        {
-            enc->setStencilReferenceValue((uint32_t) stencil);
-        }
-        else
-        {
-            // If not writing stencil, reference value doesn't matter; still set to 0 to be explicit
-            enc->setStencilReferenceValue(0);
-        }
+        enc->setStencilReferenceValue(key.m_ClearStencil ? (uint32_t) stencil : 0);
 
         // Draw fullscreen triangle
         enc->setCullMode(MTL::CullModeNone);
@@ -2491,35 +2510,32 @@ namespace dmGraphics
                 }
                 else
                 {
-                    // Render encoder can bind to either vertex or fragment
+                    // SPIRV-Cross can emit argument-buffer parameters for either render
+                    // stage, so bind each descriptor set to both stages. Vertex attributes
+                    // use slots above m_MaxBinding and do not overlap these set indices.
                     UseResourceCached(context, renc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
 
-                    if (set == 0)
+                    if (context->m_CurrentVertexArgumentBuffer[set] != arg_binding.m_Buffer)
                     {
-                        if (context->m_CurrentVertexArgumentBuffer[set] != arg_binding.m_Buffer)
-                        {
-                            renc->setVertexBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
-                            context->m_CurrentVertexArgumentBuffer[set] = arg_binding.m_Buffer;
-                        }
-                        else if (context->m_CurrentVertexArgumentBufferOffset[set] != arg_binding.m_Offset)
-                        {
-                            renc->setVertexBufferOffset(arg_binding.m_Offset, set);
-                        }
-                        context->m_CurrentVertexArgumentBufferOffset[set] = arg_binding.m_Offset;
+                        renc->setVertexBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
+                        context->m_CurrentVertexArgumentBuffer[set] = arg_binding.m_Buffer;
                     }
-                    if (set == 1)
+                    else if (context->m_CurrentVertexArgumentBufferOffset[set] != arg_binding.m_Offset)
                     {
-                        if (context->m_CurrentFragmentArgumentBuffer[set] != arg_binding.m_Buffer)
-                        {
-                            renc->setFragmentBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
-                            context->m_CurrentFragmentArgumentBuffer[set] = arg_binding.m_Buffer;
-                        }
-                        else if (context->m_CurrentFragmentArgumentBufferOffset[set] != arg_binding.m_Offset)
-                        {
-                            renc->setFragmentBufferOffset(arg_binding.m_Offset, set);
-                        }
-                        context->m_CurrentFragmentArgumentBufferOffset[set] = arg_binding.m_Offset;
+                        renc->setVertexBufferOffset(arg_binding.m_Offset, set);
                     }
+                    context->m_CurrentVertexArgumentBufferOffset[set] = arg_binding.m_Offset;
+
+                    if (context->m_CurrentFragmentArgumentBuffer[set] != arg_binding.m_Buffer)
+                    {
+                        renc->setFragmentBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
+                        context->m_CurrentFragmentArgumentBuffer[set] = arg_binding.m_Buffer;
+                    }
+                    else if (context->m_CurrentFragmentArgumentBufferOffset[set] != arg_binding.m_Offset)
+                    {
+                        renc->setFragmentBufferOffset(arg_binding.m_Offset, set);
+                    }
+                    context->m_CurrentFragmentArgumentBufferOffset[set] = arg_binding.m_Offset;
                 }
             }
         }
@@ -2808,7 +2824,10 @@ namespace dmGraphics
 
         if (error)
         {
-            dmSnPrintf(error_buffer, error_buffer_size, "%s", error->localizedDescription()->utf8String());
+            if (error_buffer && error_buffer_size)
+            {
+                dmSnPrintf(error_buffer, error_buffer_size, "%s", error->localizedDescription()->utf8String());
+            }
             return 0;
         }
 
@@ -2822,6 +2841,53 @@ namespace dmGraphics
         module->m_Hash = dmHashFinal64(&shader_hash_state);
 
         return module;
+    }
+
+    static void DeleteShaderModule(MetalShaderModule* module)
+    {
+        if (!module)
+        {
+            return;
+        }
+        if (module->m_Function)
+        {
+            module->m_Function->release();
+        }
+        if (module->m_Library)
+        {
+            module->m_Library->release();
+        }
+        delete module;
+    }
+
+    static void ReleaseMetalProgramNativeResources(MetalProgram* program)
+    {
+        DeleteShaderModule(program->m_VertexModule);
+        DeleteShaderModule(program->m_FragmentModule);
+        DeleteShaderModule(program->m_ComputeModule);
+        program->m_VertexModule = 0;
+        program->m_FragmentModule = 0;
+        program->m_ComputeModule = 0;
+
+        for (uint32_t i = 0; i < MAX_SET_COUNT; ++i)
+        {
+            if (program->m_ArgumentEncoders[i])
+            {
+                program->m_ArgumentEncoders[i]->release();
+                program->m_ArgumentEncoders[i] = 0;
+            }
+            program->m_ArgumentBufferBindings[i] = {};
+        }
+
+        delete[] program->m_UniformData;
+        program->m_UniformData = 0;
+        program->m_Hash = 0;
+        program->m_UniformDataSizeAligned = 0;
+        program->m_UniformBufferCount = 0;
+        program->m_StorageBufferCount = 0;
+        program->m_TextureSamplerCount = 0;
+        memset(program->m_ResourceToMslIndex, 0, sizeof(program->m_ResourceToMslIndex));
+        memset(program->m_WorkGroupSize, 0, sizeof(program->m_WorkGroupSize));
     }
 
     static void CreateProgramResourceBindings(MetalProgram* program, ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], MetalShaderModule** shaders, ShaderDesc::Shader** ddf_shaders, uint32_t num_shaders)
@@ -2902,20 +2968,16 @@ namespace dmGraphics
         }
     }
 
-    static HProgram MetalNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static bool CreateMetalProgram(MetalContext* context, MetalProgram* program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderDesc::Shader* ddf_vp = 0x0;
         ShaderDesc::Shader* ddf_fp = 0x0;
         ShaderDesc::Shader* ddf_cp = 0x0;
 
-        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
+        if (!GetShaderProgram((HContext) context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
         {
-            return 0;
+            return false;
         }
-
-        MetalContext* context = (MetalContext*) _context;
-        MetalProgram* program = new MetalProgram;
-        memset(program, 0, sizeof(MetalProgram));
 
         CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
 
@@ -2929,13 +2991,16 @@ namespace dmGraphics
 
             if (!program->m_ComputeModule)
             {
-                DeleteProgram(_context, (HProgram) program);
-                return 0;
+                DestroyProgram(&program->m_BaseProgram);
+                ReleaseMetalProgramNativeResources(program);
+                return false;
             }
 
             program->m_WorkGroupSize[0] = ddf_cp->m_WorkGroupSize.m_X;
             program->m_WorkGroupSize[1] = ddf_cp->m_WorkGroupSize.m_Y;
             program->m_WorkGroupSize[2] = ddf_cp->m_WorkGroupSize.m_Z;
+
+            program->m_Hash = program->m_ComputeModule->m_Hash;
 
             shaders[0]     = program->m_ComputeModule;
             ddf_shaders[0] = ddf_cp;
@@ -2946,15 +3011,17 @@ namespace dmGraphics
             program->m_VertexModule = CreateShaderModule(context->m_Device, (const char*) ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, error_buffer, error_buffer_size);
             if (!program->m_VertexModule)
             {
-                DeleteProgram(_context, (HProgram) program);
-                return 0;
+                DestroyProgram(&program->m_BaseProgram);
+                ReleaseMetalProgramNativeResources(program);
+                return false;
             }
 
             program->m_FragmentModule = CreateShaderModule(context->m_Device, (const char*) ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, error_buffer, error_buffer_size);
             if (!program->m_FragmentModule)
             {
-                DeleteProgram(_context, (HProgram) program);
-                return 0;
+                DestroyProgram(&program->m_BaseProgram);
+                ReleaseMetalProgramNativeResources(program);
+                return false;
             }
 
             HashState64 program_hash;
@@ -2984,12 +3051,28 @@ namespace dmGraphics
 
         CreateArgumentBuffers(context, program);
 
+        return true;
+    }
+
+    static HProgram MetalNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    {
+        MetalContext* context = (MetalContext*) _context;
+        MetalProgram* program = new MetalProgram;
+        memset(program, 0, sizeof(MetalProgram));
+
+        if (!CreateMetalProgram(context, program, ddf, error_buffer, error_buffer_size))
+        {
+            delete program;
+            return 0;
+        }
+
         return (HProgram) program;
     }
 
     static void MetalDeleteProgram(HContext _context, HProgram _program)
     {
         MetalProgram* program = (MetalProgram*) _program;
+        ReleaseMetalProgramNativeResources(program);
         delete program;
     }
 
@@ -3017,7 +3100,18 @@ namespace dmGraphics
 
     static bool MetalReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf)
     {
-        return 0;
+        MetalContext* context = (MetalContext*) _context;
+        MetalProgram* metal_program = (MetalProgram*) program;
+
+        ReleaseMetalProgramNativeResources(metal_program);
+        memset(&metal_program->m_BaseProgram, 0, sizeof(metal_program->m_BaseProgram));
+
+        bool ok = CreateMetalProgram(context, metal_program, ddf, 0, 0);
+        if (ok)
+        {
+            context->m_CurrentPipeline = 0;
+        }
+        return ok;
     }
 
     static uint32_t MetalGetAttributeCount(HProgram prog)
@@ -4112,13 +4206,14 @@ namespace dmGraphics
 
     static void MetalUploadTextureData(MetalContext* context, MetalTexture* texture, const TextureParams& params)
     {
-        if (!texture || !params.m_Data || params.m_DataSize == 0)
+        if (!texture || !params.m_Data)
         {
             return;
         }
 
         const TextureFormat format_orig = params.m_Format;
         TextureFormat format_upload = format_orig;
+        TextureParams upload_params = params;
         const uint8_t* tex_data_ptr = (const uint8_t*) params.m_Data;
         uint8_t* data_new = 0;
 
@@ -4131,9 +4226,12 @@ namespace dmGraphics
             RepackRGBToRGBA(pixel_count, (uint8_t*) tex_data_ptr, data_new);
             tex_data_ptr = data_new;
             format_upload = TEXTURE_FORMAT_RGBA;
+            upload_params.m_DataSize = pixel_count * 4;
         }
 
-        MetalCopyToTexture(context, texture, format_upload, params, tex_data_ptr);
+        // Font glyph subupdates omit m_DataSize; MetalCopyToTexture infers row
+        // sizes from the update dimensions when the size is not provided.
+        MetalCopyToTexture(context, texture, format_upload, upload_params, tex_data_ptr);
 
         delete[] data_new;
     }
