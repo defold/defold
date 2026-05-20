@@ -764,7 +764,7 @@ namespace dmRig
             if (instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
             {
                 dmArray<BonePose>& pose = instance->m_Pose;
-                UpdatePoseTransforms(pose);
+                UpdatePoseTransforms(instance->m_Skeleton, pose);
                 CommitPoseMatrixToCache(context, instance);
             }
             return;
