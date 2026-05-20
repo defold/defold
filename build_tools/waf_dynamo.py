@@ -494,6 +494,9 @@ def default_flags(self):
     else:
         self.env.append_value('DEFINES', 'DM_PLATFORM_32BIT')
 
+    if platform_supports_feature(build_util.get_target_platform(), 'compute', None):
+        self.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
+
     if not hasattr(self, 'sdkinfo'):
         self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
 
