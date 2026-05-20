@@ -77,7 +77,7 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   target_compile_definitions(profiler_js PRIVATE "DLIB_LOG_DOMAIN=\"PROFILER\"")
   defold_target_link_libraries(profiler_js "${TARGET_PLATFORM}" SCOPE PUBLIC dlib script)
   list(APPEND PROFILER_INSTALL_TARGETS profiler_js)
-  install(FILES "${PROFILER_SRC_DIR}/js/library_profile.js" DESTINATION "lib/${TARGET_PLATFORM}/js")
+  defold_install_js_library("${PROFILER_SRC_DIR}/js/library_profile.js")
 endif()
 
 defold_install_targets(TARGETS ${PROFILER_INSTALL_TARGETS}

@@ -402,6 +402,23 @@ function(defold_target_link_libraries_web target platform)
   endforeach()
 endfunction()
 
+# Stage and install an Emscripten JS library for web platforms.
+#
+# Engine executables link before the install phase, so web JS libraries must
+# exist in DEFOLD_SDK_ROOT/lib/<platform>/js during configure/build as well as
+# after install.
+function(defold_install_js_library path)
+  if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+    return()
+  endif()
+
+  get_filename_component(_js_name "${path}" NAME)
+  set(_js_output_dir "${DEFOLD_LIB_DIR}/js")
+  file(MAKE_DIRECTORY "${_js_output_dir}")
+  configure_file("${path}" "${_js_output_dir}/${_js_name}" COPYONLY)
+  install(FILES "${path}" DESTINATION "lib/${TARGET_PLATFORM}/js")
+endfunction()
+
 # Wrapper around add_library that also groups sources by folder in IDEs.
 # Usage:
 #   defold_add_library(<name> [STATIC|SHARED|OBJECT|MODULE|INTERFACE]

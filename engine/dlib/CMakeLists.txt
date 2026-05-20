@@ -510,7 +510,7 @@ install(FILES "${DLIB_SRC_DIR}/python/dlib/__init__.py" DESTINATION lib/python/d
 install(FILES "${DLIB_CORE_DIR}/memprofile.py" DESTINATION lib/python)
 install(PROGRAMS "${DLIB_ROOT}/bin/memprofile.sh" DESTINATION bin)
 if(TARGET_PLATFORM MATCHES "web$")
-  install(FILES "${DLIB_CORE_DIR}/js/library_sys.js" DESTINATION lib/${TARGET_PLATFORM}/js)
+  defold_install_js_library("${DLIB_CORE_DIR}/js/library_sys.js")
 endif()
 
 set(DLIB_JAVA_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/java_classes")

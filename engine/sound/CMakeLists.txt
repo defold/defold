@@ -121,7 +121,7 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
 endif()
 
 if(TARGET_PLATFORM MATCHES "web$")
-  install(FILES "${SOUND_SRC_DIR}/js/library_sound.js" DESTINATION "lib/${TARGET_PLATFORM}/js")
+  defold_install_js_library("${SOUND_SRC_DIR}/js/library_sound.js")
 elseif(TARGET_PLATFORM MATCHES "^arm.*android$")
   include(tools_java)
   set(SOUND_ANDROID_CLASS_DIR "${CMAKE_CURRENT_BINARY_DIR}/java")

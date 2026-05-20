@@ -124,7 +124,7 @@ install(FILES "${SCRIPT_PROTO_PY_INIT}" ${SCRIPT_PROTO_PY} DESTINATION lib/pytho
 install(FILES "${SCRIPT_PROTO_PY_DIR}/script_doc_ddf_pb2.py" DESTINATION lib/python)
 install(FILES "${SCRIPT_ROOT}/test_script_server.py" DESTINATION lib/python)
 if(TARGET_PLATFORM MATCHES "web$")
-  install(FILES "${SCRIPT_ROOT}/lib/js/library_script.js" DESTINATION "lib/${TARGET_PLATFORM}/js")
+  defold_install_js_library("${SCRIPT_ROOT}/lib/js/library_script.js")
 endif()
 
 if(BUILD_TESTS)

@@ -111,7 +111,7 @@ install(FILES
 install(FILES ${RENDER_BPROTO} DESTINATION share/proto/render)
 install(FILES "${RENDER_PROTO_PY_INIT}" ${RENDER_PROTO_PY} DESTINATION lib/python/render)
 if(TARGET_PLATFORM MATCHES "web$")
-  install(FILES "${RENDER_SRC_DIR}/js/library_render.js" DESTINATION "lib/${TARGET_PLATFORM}/js")
+  defold_install_js_library("${RENDER_SRC_DIR}/js/library_render.js")
 endif()
 
 if(BUILD_TESTS)
