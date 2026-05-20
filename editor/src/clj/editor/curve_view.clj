@@ -686,7 +686,7 @@
                               (localization (properties/label (:property %)))
                               ""))
                selected-callback (reify Callback
-                                   (call ^ObservableValue [this item]
+                                   (call [this item]
                                      (let [hidden-curves (g/node-value node-id :hidden-curves)]
                                        (doto (SimpleBooleanProperty. (not (contains? hidden-curves (:keyword item))))
                                          (ui/observe (fn [observable old new]
