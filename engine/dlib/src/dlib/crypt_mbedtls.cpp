@@ -71,22 +71,19 @@ namespace dmCrypt
         return true;
     }
 
-    bool Base64Decode(const uint8_t* src_original, uint32_t src_len_original, uint8_t* dst, uint32_t* dst_len)
+    bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
     {
         size_t out_len = 0;
 
-        uint32_t padding_needed = (4 - (src_len_original % 4)) % 4;
+        uint32_t padding_needed = (4 - (src_len % 4)) % 4;
         uint8_t* padded_src = 0;
 
-        const uint8_t* src = src_original;
-        uint32_t src_len = src_len_original;
-
-        if (padding_needed > 0 && src_len_original > 0)
+        if (padding_needed > 0 && src_len > 0)
         {
-            src_len = src_len_original + padding_needed;
-            padded_src = new uint8_t[src_len];
-            memcpy(padded_src, src_original, src_len_original);
-            memset(padded_src + src_len_original, '=', padding_needed);
+            padded_src = new uint8_t[src_len + padding_needed];
+            memcpy(padded_src, src, src_len);
+            memset(padded_src + src_len, '=', padding_needed);
+            src_len = src_len + padding_needed;
             src = padded_src;
         }
 
