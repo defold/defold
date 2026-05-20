@@ -814,27 +814,29 @@ class Configuration(object):
         waf_path = make_package_path(self.defold_root, 'common', waf_package)
         self._extract_tgz(waf_path, self.ext)
 
-    def _install_python_packages(self, packages, whl_patterns):
+    def _install_python_packages(self, packages):
         target = join(self.ext, 'lib', 'python')
+        wheelhouse = join(self.defold_root, 'packages', 'python')
         self._mkdirs(target)
 
         if packages:
-            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', target] + packages)
-
-        for pattern in whl_patterns:
-            for whl in sorted(glob(join(self.defold_root, 'packages', pattern))):
-                self._log('Installing %s' % basename(whl))
-                run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', target, whl])
+            run.env_command(self._form_env(), self.get_python() + [
+                '-m', 'pip',
+                '-q', '-q',
+                'install',
+                '--no-index',
+                '--find-links', wheelhouse,
+                '--only-binary', ':all:',
+                '--upgrade',
+                '-t', target,
+            ] + packages)
 
     def install_release_dependencies(self):
         print("Installing release python dependencies")
         self._install_python_packages(
-            ['requests'],
             [
-                'boto3-*.whl',
-                'botocore-*.whl',
-                's3transfer-*.whl',
-                'urllib3-*.whl',
+                'boto3==1.36.3',
+                'requests==2.34.2',
             ])
 
     def install_ext(self):
@@ -907,7 +909,16 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        self._install_python_packages(['requests', 'pyaml', 'rangehttpserver', 'pystache'], ['*.whl'])
+        self._install_python_packages([
+            'Markdown==3.3.7',
+            'Pygments==2.12.0',
+            'boto3==1.36.3',
+            'protobuf==3.20.1',
+            'PyYAML==6.0.3',
+            'pystache==0.6.8',
+            'rangehttpserver==1.4.0',
+            'requests==2.34.2',
+        ])
 
         print("Installing javascripts")
         for n in 'web-pre.js'.split():
@@ -2078,23 +2089,39 @@ class Configuration(object):
         else:
             platforms = get_target_platforms()
 
-        sdk_merge.build_combined_sdk_tree(
-            netloc=u.netloc,
-            base_prefix=base_prefix,
-            platforms=platforms,
-            extract_dir=tempdir,
-            canonical_platform='x86_64-linux')
+        zipmerge_path = shutil.which('zipmerge')
+        if zipmerge_path:
+            print("Using zipmerge to merge platform SDK archives:", zipmerge_path)
+            treepath = os.path.join(tempdir, 'defoldsdk')
+            sdkpath = treepath + '.zip'
+            sdk_merge.build_combined_sdk_zip(
+                netloc=u.netloc,
+                base_prefix=base_prefix,
+                platforms=platforms,
+                output_zip_path=sdkpath,
+                zipmerge_path=zipmerge_path,
+                canonical_platform='x86_64-linux')
+        else:
+            print("zipmerge not found; using Python platform SDK archive merge")
 
-        # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
-        # and set the flags explicitly
-        for root, _, files in os.walk(tempdir):
-            for f in files:
-                p = os.path.join(root, f)
-                if '/bin/' in p:
-                    os.chmod(p, 0o755)
+            sdk_merge.build_combined_sdk_tree(
+                netloc=u.netloc,
+                base_prefix=base_prefix,
+                platforms=platforms,
+                extract_dir=tempdir,
+                canonical_platform='x86_64-linux')
 
-        treepath = os.path.join(tempdir, 'defoldsdk')
-        sdkpath = self._ziptree(treepath, directory=tempdir)
+            # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
+            # and set the flags explicitly
+            for root, _, files in os.walk(tempdir):
+                for f in files:
+                    p = os.path.join(root, f)
+                    if '/bin/' in p:
+                        os.chmod(p, 0o755)
+
+            treepath = os.path.join(tempdir, 'defoldsdk')
+            sdkpath = self._ziptree(treepath, directory=tempdir)
+
         print ("Packaged defold sdk from", tempdir, "to", sdkpath)
 
         sdkurl = join(sha1, 'engine').replace('\\', '/')
@@ -2107,6 +2134,7 @@ class Configuration(object):
         print("Upload platform sdks mappings")
         self.upload_to_archive(join(self.defold_root, "share", "platform.sdks.json"), '%s/platform.sdks.json' % sdkurl)
 
+        self.wait_uploads()
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)
 
@@ -2245,7 +2273,7 @@ class Configuration(object):
             self._log("No --save-env-path set when trying to save environment export")
             return
 
-        env = self._form_env()
+        env = self._form_env(inherit = False)
         res = ""
         for key in env:
             if bool(re.match('^[a-zA-Z0-9_]+$', key)):
@@ -2667,7 +2695,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk-25+36'
+        jdk = 'jdk-%s' % sdk.VERSION_EDITOR_JDK
         host = get_host_platform()
         if 'win32' in host:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
@@ -2889,8 +2917,8 @@ class Configuration(object):
             f()
         self.futures = []
 
-    def _form_env(self):
-        env = os.environ.copy()
+    def _form_env(self, inherit = True):
+        env = os.environ.copy() if inherit else {}
 
         host = self.host
 
@@ -2926,11 +2954,11 @@ class Configuration(object):
                                       '%s/ext/bin' % self.dynamo_home,
                                       '%s/ext/bin/%s' % (self.dynamo_home, host)])
 
-        env['PATH'] = paths + os.path.pathsep + env['PATH']
+        env['PATH'] = paths + os.path.pathsep + os.environ['PATH']
 
         # This trickery is needed for the bash to properly inherit the PATH that we've set here
         # See /etc/profile for further details
-        is_mingw = env.get('MSYSTEM', '') in ('MINGW64',)
+        is_mingw = os.environ.get('MSYSTEM', '') in ('MINGW64',)
         if is_mingw:
             env['ORIGINAL_PATH'] = env['PATH']
 
@@ -2948,8 +2976,8 @@ class Configuration(object):
 
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
-        if 'NODE_PATH' in env:
-            env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
+        if 'NODE_PATH' in os.environ:
+            env['NODE_PATH'] = xhr2_path + os.path.pathsep + os.environ['NODE_PATH']
         else:
             env['NODE_PATH'] = xhr2_path
 

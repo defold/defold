@@ -83,6 +83,9 @@ def build(bld):
 
     lib_name = bld.env.cxxstlib_PATTERN % 'dmglfw'
     bld.install_files('${PREFIX}/%s/lib/%s' % (name, bld.env.PLATFORM), 'lib/%s' % lib_name)
+    if 'android' in bld.env['PLATFORM']:
+        lib_name_vulkan = bld.env.cxxstlib_PATTERN % 'dmglfw_vulkan'
+        bld.install_files('${PREFIX}/%s/lib/%s' % (name, bld.env.PLATFORM), 'lib/%s' % lib_name_vulkan)
 
     if 'android' in bld.env['PLATFORM']:
         classpath = [bld.env.ANDROID_JAR]

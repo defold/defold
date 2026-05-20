@@ -114,7 +114,10 @@ def configure(conf):
         if waflib.Options.options.with_vulkan and architecture == 'arm64':
             conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal', '-framework', 'IOSurface'])
     elif target_os == TargetOS.ANDROID:
-        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
+        # Vulkan is loaded at runtime with dlopen("libvulkan.so").
+        if waflib.Options.options.with_opengl or not waflib.Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2'])
+        conf.env.append_value('LINKFLAGS', ['-landroid', '-Wl,-soname=libdmengine.so'])
         conf.env['STLIB_CPP_RUNTIME'] = 'c++_static'
 
     elif target_os == TargetOS.WINDOWS:
