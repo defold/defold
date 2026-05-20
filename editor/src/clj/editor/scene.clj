@@ -458,18 +458,18 @@
     (let [preview-light-hidden-renderable-tags (disj (or hidden-renderable-tags #{}) :light)
           view-matrix (c/camera-view-matrix view-camera)
           preview-light-renderables (:renderables (flatten-scene scene
-                                                                preview-overrides
-                                                                #{}
-                                                                preview-light-hidden-renderable-tags
-                                                                hidden-node-outline-key-paths
-                                                                view-matrix))]
+                                                                 preview-overrides
+                                                                 #{}
+                                                                 preview-light-hidden-renderable-tags
+                                                                 hidden-node-outline-key-paths
+                                                                 view-matrix))]
       (light/packed-lights-from-scene preview-light-renderables light-camera))))
 
 (defn- pass->render-args-with-preview-lights [^Region viewport ^Camera camera passes preview-lights]
   (into {}
         (map (fn [pass]
                [pass (assoc (pass-render-args viewport camera pass)
-                            :editor/preview-lights preview-lights)]))
+                       :editor/preview-lights preview-lights)]))
         passes))
 
 (defn- assoc-updatable-states
@@ -527,8 +527,7 @@
         (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
         (batch-render gl pass-render-args pass-renderables batch-key)))))
 
-(g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable
-                                    scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths]
+(g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths]
   (when-some [{:keys [camera clear-color display-width display-height render-width render-height]} (make-camera-inset-render-data scene-render-data)]
     (when camera-inset-drawable
       (let [camera-inset-viewport (types/->Region 0 render-width 0 render-height)

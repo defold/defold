@@ -1284,10 +1284,6 @@ property.label.tracking = Tracking
 
 # Properties: light
 
-property.light.type = Type
-property.light.type.point = Point
-property.light.type.directional = Directional
-property.light.type.spot = Spot
 property.light.color = Color
 property.light.intensity = Intensity
 property.light.range = Range

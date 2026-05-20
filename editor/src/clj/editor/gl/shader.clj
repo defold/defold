@@ -615,7 +615,8 @@ These forms should be quoted, as if they came from a macro."
      strip-resource-binding-namespace-regex-str
      preview-light-capacity)))
 
-(defn with-preview-light-capacity ^ShaderRequestData [^ShaderRequestData request-data preview-light-capacity]
+(defn with-preview-light-capacity
+  ^ShaderRequestData [^ShaderRequestData request-data preview-light-capacity]
   {:pre [(instance? ShaderRequestData request-data)
          (nat-int? preview-light-capacity)]}
   (assoc request-data :preview-light-capacity preview-light-capacity))
@@ -681,11 +682,11 @@ These forms should be quoted, as if they came from a macro."
          [(pair :shader-type-vertex vertex-shader-source)
           (pair :shader-type-fragment fragment-shader-source)]
 
-        request-data
-        (make-shader-request-data
-          shader-type+source-pairs
-          location+attribute-name-pairs
-          array-sampler-name->uniform-names
+         request-data
+         (make-shader-request-data
+           shader-type+source-pairs
+           location+attribute-name-pairs
+           array-sampler-name->uniform-names
            strip-resource-binding-namespace-regex-str)]
 
      (make-shader-lifecycle request-id request-data attribute-reflection-infos uniforms))))
@@ -758,7 +759,8 @@ These forms should be quoted, as if they came from a macro."
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)]
     (pos? (long (.-preview-light-capacity request-data)))))
 
-(defn preview-light-capacity ^long [^ShaderLifecycle shader-lifecycle]
+(defn preview-light-capacity
+  ^long [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)]
     (long (.-preview-light-capacity request-data))))
 

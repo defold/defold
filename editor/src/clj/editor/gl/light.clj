@@ -16,24 +16,27 @@
   (:require [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.math :as math]
             [editor.scene-cache :as scene-cache]
             [editor.types :as types])
   (:import [com.jogamp.opengl GL2]
-           [javax.vecmath Matrix4d Point3d Tuple3d Vector3d Vector4d]))
+           [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (def ^:const default-max-preview-lights 8)
 
-(defn- engine-light-type-index [light-type-kw]
+(defn- engine-light-type-index
+  ^double [light-type-kw]
   (case light-type-kw
     :directional 0.0
     :point 1.0
     :spot 2.0
     0.0))
 
-(defn- world-space-light-direction [^Matrix4d world-transform]
+(defn- world-space-light-direction
+  ^Vector3d [^Matrix4d world-transform]
   ;; Extract only rotation from the world transform so that scale
   ;; (including negative scale) does not affect the direction.
   ;; For direction (0,0,-1), the result is the negated third column of
@@ -43,7 +46,8 @@
                    (- (.m22 world-transform)))
     (.normalize)))
 
-(defn- preview-renderable-min-scale ^double [renderable]
+(defn- preview-renderable-min-scale
+  ^double [renderable]
   (if-some [^Vector3d ws (:world-scale renderable)]
     (min (Math/abs (.x ws))
          (Math/abs (.y ws))
@@ -52,49 +56,51 @@
 
 (defn renderable->std140-light [renderable]
   (let [light-data (get-in renderable [:user-data :editor-preview-light])
-        ^Vector3d translation (or (:world-translation renderable)
-                                     (Vector3d. 0.0 0.0 0.0))
-        ^Matrix4d transform (or (:world-transform renderable)
-                                      (doto (Matrix4d.) (.setIdentity)))
+        ^Vector3d translation (:world-translation renderable math/zero-v3)
+        ^Matrix4d transform (:world-transform renderable math/identity-mat4)
         light-type (:light-type light-data)
         light-color (:color light-data)
         light-intensity (:intensity light-data)
         light-range (double (:range light-data))
         scaled-range (max 0.01 (* light-range (preview-renderable-min-scale renderable)))
         translation-v4 (Vector4d. (.x translation) (.y translation) (.z translation) 1.0)
-        color-v4 (Vector4d. (nth light-color  0) (nth light-color  1) (nth light-color  2) (nth light-color  3))
+        color-v4 (doto (Vector4d.) (math/clj->vecmath light-color))
         type-index (engine-light-type-index light-type)]
     (case light-type
       :directional
-      (let [^Vector3d d (world-space-light-direction transform)]
+      (let [d (world-space-light-direction transform)]
         {:position translation-v4
          :color color-v4
-         :direction_range (Vector4d. (.x d) (.y d) (.z d) 0.0)
+         :direction-range (Vector4d. (.x d) (.y d) (.z d) 0.0)
          :params (Vector4d. type-index light-intensity 0.0 0.0)})
+
       :point
       {:position translation-v4
        :color color-v4
-       :direction_range (Vector4d. 0.0 0.0 0.0 scaled-range)
+       :direction-range (Vector4d. 0.0 0.0 0.0 scaled-range)
        :params (Vector4d. type-index light-intensity 0.0 0.0)}
+
       :spot
-      (let [^Vector3d d (world-space-light-direction transform)
+      (let [d (world-space-light-direction transform)
             inner-deg (:inner-cone-angle light-data)
             outer-deg (:outer-cone-angle light-data)
             inner-rad (Math/toRadians inner-deg)
             outer-rad (Math/toRadians outer-deg)]
         {:position translation-v4
          :color color-v4
-         :direction_range (Vector4d. (.x d) (.y d) (.z d) scaled-range)
+         :direction-range (Vector4d. (.x d) (.y d) (.z d) scaled-range)
          :params (Vector4d. type-index light-intensity inner-rad outer-rad)})
+
+      ;; default
       {:position translation-v4
        :color color-v4
-       :direction_range (Vector4d. 0.0 0.0 0.0 0.0)
+       :direction-range (Vector4d. 0.0 0.0 0.0 0.0)
        :params (Vector4d. type-index light-intensity 0.0 0.0)})))
 
-(defn- light-camera-distance-squared ^double [camera renderable]
-  (let [^Tuple3d camera-position (types/position camera)
-        ^Tuple3d world-translation (or (:world-translation renderable)
-                                       (Vector3d. 0.0 0.0 0.0))
+(defn- light-camera-distance-squared
+  ^double [camera renderable]
+  (let [^Point3d camera-position (types/position camera)
+        ^Vector3d world-translation (:world-translation renderable math/zero-v3)
         dx (- (.x camera-position) (.x world-translation))
         dy (- (.y camera-position) (.y world-translation))
         dz (- (.z camera-position) (.z world-translation))]
@@ -129,7 +135,7 @@
   (str "lights[" i "]." (case field
                           :position "position"
                           :color "color"
-                          :direction_range "direction_range"
+                          :direction-range "direction_range"
                           :params "params")))
 
 (def ^:private lights-count-uniform-name "lights_count")
@@ -145,7 +151,7 @@
                                               (:request-data shader-lifecycle))]
         (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
           (let [lights (take shader-light-capacity packed-lights)
-                light-count (long (count lights))
+                light-count (count lights)
                 count-v4 (Vector4d. (double light-count) 0.0 0.0 0.0)]
             (when-some [uniform-info (uniform-infos lights-count-uniform-name)]
               (shader/set-uniform-at-index gl program (:location uniform-info) count-v4))
@@ -153,7 +159,7 @@
             (when (pos? light-count)
               (doseq [^long i (range light-count)
                       :let [light (nth lights i)]
-                      field [:position :color :direction_range :params]
+                      field [:position :color :direction-range :params]
                       :let [uniform-name (gl-light-uniform-name i field)
                             uniform-value (field light)
                             uniform-info (uniform-infos uniform-name)]

@@ -140,7 +140,7 @@
   (max 0.0 (double v)))
 
 (defn- parse-data-desc [light-type light-desc]
-  ;; GameObject$Data in map format.
+  ;; DataProto$Data in map format.
   (let [fields (struct-fields light-desc)]
     {:light-type light-type
      :color (get-vec4 fields "color")
@@ -206,10 +206,10 @@
                        (Math/abs (.-y world-scale))
                        (Math/abs (.-z world-scale)))
         physics-world-transform (doto (Matrix4d.)
-                                (.setIdentity)
-                                (.setScale min-scale)
-                                (.setTranslation world-translation)
-                                (.setRotation world-rotation))]
+                                  (.setIdentity)
+                                  (.setScale min-scale)
+                                  (.setTranslation world-translation)
+                                  (.setRotation world-rotation))]
     (assoc renderable :world-transform physics-world-transform)))
 
 (defn- wrap-uniform-scale [render-fn]
@@ -476,7 +476,7 @@
         vbuf (persistent!
                (reduce (fn [vbuf ri]
                          (let [renderable (nth renderables ri)]
-                          (if (light-gizmo-selected? renderable)
+                           (if (light-gizmo-selected? renderable)
                              (let [{:keys [color range]} (:user-data renderable)
                                    [cr cg cb] (outline-rgb-for-light renderable color)
                                    ^Vector3d world-translation (:world-translation renderable)
@@ -550,21 +550,21 @@
                             (->color-vtx (* (long n) (long directional-arrow-tri-vert-count)))
                             (range n)))
         vbuf-lines (persistent!
-                      (reduce (fn [vbuf ri]
-                                (let [renderable (nth renderables ri)]
-                                  (if (light-gizmo-selected? renderable)
-                                    (let [{:keys [color]} (:user-data renderable)
-                                          [cr cg cb] (outline-rgb-for-light renderable color)
-                                          ^Vector3d p (:world-translation renderable)
-                                          d (world-dir-from-light renderable)
-                                          sf (scene-tools/scale-factor camera (:viewport render-args) p)
-                                          total-len (* (double sf) gizmo-target-pixels)]
-                                      (when (finite-positive? total-len)
-                                        (fill-directional-move-arrow-lines-only! vbuf p d cr cg cb total-len))
-                                      vbuf)
-                                    vbuf)))
-                              (->color-vtx (* (long n) (long directional-arrow-line-vert-count)))
-                              (range n)))]
+                     (reduce (fn [vbuf ri]
+                               (let [renderable (nth renderables ri)]
+                                 (if (light-gizmo-selected? renderable)
+                                   (let [{:keys [color]} (:user-data renderable)
+                                         [cr cg cb] (outline-rgb-for-light renderable color)
+                                         ^Vector3d p (:world-translation renderable)
+                                         d (world-dir-from-light renderable)
+                                         sf (scene-tools/scale-factor camera (:viewport render-args) p)
+                                         total-len (* (double sf) gizmo-target-pixels)]
+                                     (when (finite-positive? total-len)
+                                       (fill-directional-move-arrow-lines-only! vbuf p d cr cg cb total-len))
+                                     vbuf)
+                                   vbuf)))
+                             (->color-vtx (* (long n) (long directional-arrow-line-vert-count)))
+                             (range n)))]
     (when (or (pos? (count vbuf-tris))
               (pos? (count vbuf-lines)))
       (gl/gl-enable gl GL/GL_DEPTH_TEST)
@@ -613,11 +613,11 @@
 
 (defn- preview-light-user-data [light-type color intensity range inner-cone-angle outer-cone-angle]
   {:editor-preview-light {:light-type light-type
-                         :color color
-                         :intensity intensity
-                         :range range
-                         :inner-cone-angle inner-cone-angle
-                         :outer-cone-angle outer-cone-angle}})
+                          :color color
+                          :intensity intensity
+                          :range range
+                          :inner-cone-angle inner-cone-angle
+                          :outer-cone-angle outer-cone-angle}})
 
 (defn- point-light-preview-fn [visibility-aabb user-data prop-kw->override-value]
   (if-some [range-override (:range prop-kw->override-value)]
