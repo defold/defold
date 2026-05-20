@@ -258,16 +258,16 @@ endif()
 
 # Attach SDK include/lib search paths to defold_sdk INTERFACE
 # Core include dirs (non-system)
+foreach(_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR IN LISTS DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS)
+  target_include_directories(defold_sdk INTERFACE
+    "$<BUILD_INTERFACE:${_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR}>")
+endforeach()
 target_include_directories(defold_sdk INTERFACE
   "$<BUILD_INTERFACE:${DEFOLD_BUILD_INCLUDE_DIR}>"
   "$<BUILD_INTERFACE:${DEFOLD_INCLUDE_DIR}>"
   "$<BUILD_INTERFACE:${DEFOLD_DMSDK_INCLUDE_DIR}>"
   "$<INSTALL_INTERFACE:include>"
   "$<INSTALL_INTERFACE:sdk/include>")
-foreach(_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR IN LISTS DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS)
-  target_include_directories(defold_sdk INTERFACE
-    "$<BUILD_INTERFACE:${_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR}>")
-endforeach()
 # External/platform include dirs as SYSTEM to reduce warnings
 target_include_directories(defold_sdk SYSTEM INTERFACE
   "$<BUILD_INTERFACE:${DEFOLD_EXT_INCLUDE_DIR}>"
