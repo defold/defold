@@ -115,7 +115,8 @@ def build(bld):
     settings = [
         'cross_script_messaging.ini',
         'render_script.ini',
-        'camera_acquire_input_focus.ini']
+        'camera_acquire_input_focus.ini',
+        'text_input.ini']
     for setting_file in settings:
         bld.add_group()
         bld(rule = run_bob,
