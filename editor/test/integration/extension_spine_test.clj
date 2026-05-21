@@ -30,7 +30,8 @@
             local-extensions
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
-            [util.diff :as diff]))
+            [util.diff :as diff]
+            [util.murmur :as murmur]))
 
 (set! *warn-on-reflection* true)
 
@@ -516,16 +517,16 @@
           (is (= {:type :type-custom
                   :inherit-alpha true
                   :size-mode :size-mode-auto
-                  :custom-properties [{:id "spine_create_bones"
+                  :custom-properties [{:id-hash (murmur/hash64 "spine_create_bones")
                                        :type :type-boolean
                                        :boolean false}
-                                      {:id "spine_default_animation"
+                                      {:id-hash (murmur/hash64 "spine_default_animation")
                                        :type :type-string
                                        :string-value "jump"}
-                                      {:id "spine_scene"
+                                      {:id-hash (murmur/hash64 "spine_scene")
                                        :type :type-string
                                        :string-value "spineboy"}
-                                      {:id "spine_skin"
+                                      {:id-hash (murmur/hash64 "spine_skin")
                                        :type :type-string
                                        :string-value ""}]
                   :id "spineboy"

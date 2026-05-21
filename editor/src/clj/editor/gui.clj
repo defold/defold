@@ -482,7 +482,7 @@
 
 (def ^:private custom-property-pb-type->value-field
   {:type-boolean :boolean
-   :type-hash :hash
+   :type-hash :string-value
    :type-number :number
    :type-quat :quat
    :type-string :string-value
@@ -491,7 +491,7 @@
 
 (def ^:private custom-property-pb-type->default-value
   {:type-boolean false
-   :type-hash 0
+   :type-hash ""
    :type-number 0.0
    :type-quat protobuf/quat-identity
    :type-string ""
@@ -3713,6 +3713,22 @@
         (dissoc :custom-type-name))
     node-desc))
 
+(defn- custom-property->rt-custom-property [custom-property]
+  (let [hash-property (and (= :type-hash (:type custom-property))
+                           (contains? custom-property :string-value))]
+    (-> custom-property
+        (assoc :id-hash (murmur/hash64 (:id custom-property)))
+        (dissoc :id)
+        (cond-> hash-property
+          (assoc :hash (murmur/hash64 (:string-value custom-property))))
+        (cond-> hash-property
+          (dissoc :string-value)))))
+
+(defn- node-desc->rt-custom-properties [node-desc]
+  (cond-> node-desc
+          (contains? node-desc :custom-properties)
+          (update :custom-properties #(mapv custom-property->rt-custom-property %))))
+
 (defn- node-desc->rt-node-desc [node-desc gui-node-type-registry layout-name]
   {:pre [(map? node-desc) ; Gui$NodeDesc in map format.
          (string? layout-name)]}
@@ -3786,12 +3802,14 @@
                                      (pose/scale-v4 baked-pose))))))))
       (-> node-desc
           (node-desc->rt-custom-type gui-node-type-registry)
+          (node-desc->rt-custom-properties)
           (dissoc :overridden-fields :template-node-child))
       (:templates (meta node-desc)))
 
     :else
     (-> node-desc
         (node-desc->rt-custom-type gui-node-type-registry)
+        (node-desc->rt-custom-properties)
         (dissoc :overridden-fields))))
 
 (defn- make-rt-layout-desc [gui-node-type-registry layout-name decorated-node-msgs id->node-desc-for-default-layout]

@@ -135,7 +135,7 @@
          :custom-properties [{:id :test_hash
                               :type g/Any
                               :protobuf-type :type-hash
-                              :default 0}
+                              :default ""}
                              {:id :test_number
                               :type g/Num
                               :default 1.0}
@@ -186,6 +186,7 @@
           test-quat [(float 0.0) (float 0.0) (float 0.707) (float 0.707)]
           test-vector3 [(float 1.0) (float 2.0) (float 3.0)]
           test-vector4 [(float 4.0) (float 5.0) (float 6.0) (float 7.0)]
+          test-hash "hash_value"
           source-resources [{:name "beta" :path "/beta.testguiresource"}
                             {:name "alpha" :path "/alpha.testguiresource"}]]
       (register-test-gui-extensions workspace)
@@ -211,7 +212,7 @@
                                                           :string-value "kept"}
                                                          {:id "test_hash"
                                                           :type :type-hash
-                                                          :hash 123}
+                                                          :string-value test-hash}
                                                          {:id "test_resource"
                                                           :type :type-string
                                                           :string-value "alpha"}
@@ -235,7 +236,7 @@
               resource-outline (g/node-value resources-node :node-outline)
               save-value (g/node-value gui-scene :save-value)]
           (is (g/node-instance? TestCustomGuiNode custom-node))
-          (is (= {:test_hash 123
+          (is (= {:test_hash test-hash
                   :test_number 42.0
                   :test_quat test-quat
                   :test_resource "alpha"
@@ -252,7 +253,7 @@
                    (select-keys saved-node [:type :custom-type-name :id])))
             (is (= [{:id "test_hash"
                      :type :type-hash
-                     :hash 123}
+                     :string-value test-hash}
                     {:id "test_number"
                      :type :type-number
                      :number 42.0}
@@ -269,6 +270,42 @@
                      :type :type-vector4
                      :vector4 test-vector4}]
                    (:custom-properties saved-node)))))))))
+
+(deftest custom-gui-extension-build-output-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (let [custom-type (murmur/hash32 "TestCustom")
+          test-hash "hash_value"]
+      (register-test-gui-extensions workspace)
+      (let [gui-resource (test-util/make-resource!
+                           workspace
+                           "/custom_build.gui"
+                           {:nodes [{:type :type-custom
+                                     :custom-type-name "TestCustom"
+                                     :custom-properties [{:id "test_hash"
+                                                          :type :type-hash
+                                                          :string-value test-hash}
+                                                         {:id "test_number"
+                                                          :type :type-number
+                                                          :number 42.0}]
+                                     :id "custom"}]})]
+        (workspace/resource-sync! workspace)
+        (let [gui-scene (test-util/resource-node project gui-resource)
+              built-node (-> (g/valid-node-value gui-scene :build-targets)
+                             first
+                             (get-in [:user-data :pb :nodes])
+                             first)
+              built-custom-properties (:custom-properties built-node)]
+          (is (= {:type :type-custom
+                  :custom-type custom-type
+                  :id "custom"}
+                 (select-keys built-node [:type :custom-type :custom-type-name :id])))
+          (is (= [{:id-hash (murmur/hash64 "test_hash")
+                   :type :type-hash
+                   :hash (murmur/hash64 test-hash)}
+                  {:id-hash (murmur/hash64 "test_number")
+                   :type :type-number
+                   :number 42.0}]
+                 built-custom-properties)))))))
 
 (deftest custom-gui-readable-custom-type-name-test
   (test-util/with-scratch-project "test/resources/empty_project"
@@ -1370,7 +1407,7 @@
 
         (testing "Default layout edits update nested graph storage."
           (prop! custom-node :test_number 3.0)
-          (is (= {:test_hash 0
+          (is (= {:test_hash ""
                   :test_number 3.0
                   :test_quat [0.0 0.0 0.0 1.0]
                   :test_resource ""
