@@ -4797,6 +4797,8 @@
         (protobuf/assign-repeated :resources merged-resource-descs)
         (update :material fn/or default-material-proj-path))))
 
+(declare gui-resource-kind-node)
+
 (defn- drop-target-node-id+unique-name [gui-scene-node-id target-node-id-label base-name evaluation-context]
   (let [target-node-id (g/node-value gui-scene-node-id target-node-id-label evaluation-context)
         name-counts (g/node-value target-node-id :name-counts evaluation-context)
@@ -4822,11 +4824,22 @@
         (add-material gui-scene target-node resource name))
 
       ;; else
-      (g/let-ec [atlas-exts (workspace/resource-kind-extensions workspace :atlas evaluation-context)
-                 target-node+name (when-not (neg? (coll/index-of atlas-exts ext))
-                                    (drop-target-node-id+unique-name gui-scene :textures-node base-name evaluation-context))]
-        (when-some [[target-node name] target-node+name]
-          (add-texture gui-scene target-node resource name))))))
+      (g/with-auto-evaluation-context evaluation-context
+        (or
+          (when-some [[resource-kind resource-kind-info]
+                      (coll/some
+                        (fn [[resource-kind {:keys [exts] :as resource-kind-info}]]
+                          (when (some #{ext} exts)
+                            (pair resource-kind resource-kind-info)))
+                        (g/node-value gui-scene :gui-resource-kind-registry evaluation-context))]
+            (let [target-node (gui-resource-kind-node (:basis evaluation-context) gui-scene resource-kind)
+                  name-counts (g/node-value target-node :name-counts evaluation-context)
+                  name (id/gen base-name name-counts)]
+              (add-gui-resource-kind-entry gui-scene target-node resource-kind-info resource name)))
+          (let [atlas-exts (workspace/resource-kind-extensions workspace :atlas evaluation-context)]
+            (when-not (neg? (coll/index-of atlas-exts ext))
+              (let [[target-node name] (drop-target-node-id+unique-name gui-scene :textures-node base-name evaluation-context)]
+                (add-texture gui-scene target-node resource name)))))))))
 
 (defn- handle-drop
   [root-id _selection workspace _world-pos resources]
