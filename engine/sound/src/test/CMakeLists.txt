@@ -164,7 +164,7 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   target_compile_options(test_sound PRIVATE -msimd128 -msse4.2)
   target_compile_definitions(test_sound PRIVATE DM_SOUND_DSP_IMPL=WASM)
 endif()
-sound_configure_test(test_sound OFF)
+sound_configure_test(test_sound ON)
 
 set(_sound_null_export_file "${SOUND_TEST_GEN_DIR}/test_sound_null_exported_symbols.cpp")
 set(_sound_null_exports NullSoundDevice TestNullDevice)
