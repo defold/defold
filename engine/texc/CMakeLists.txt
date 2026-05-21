@@ -78,6 +78,9 @@ if(TEXC_IS_DESKTOP)
     basis_encoder_noasan
     astcenc)
   defold_target_link_app(texc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  if(TARGET_PLATFORM_OS STREQUAL "win32" AND MSVC)
+    set_source_files_properties("${TEXC_SRC_DIR}/texclibrary_jni.cpp" PROPERTIES COMPILE_OPTIONS /EHa)
+  endif()
 
   set(TEXC_JAR "${CMAKE_CURRENT_BINARY_DIR}/texturecompiler.jar")
   set(TEXC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")
