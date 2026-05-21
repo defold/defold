@@ -20,6 +20,7 @@ endif()
 # Common compile options for macOS (mirrors waf_dynamo defaults)
 target_compile_definitions(defold_sdk INTERFACE
   DM_PLATFORM_MACOS
+  DM_HOSTFS=\"\"
   GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED
   GL_SILENCE_DEPRECATION)
 

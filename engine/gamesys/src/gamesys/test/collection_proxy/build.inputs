@@ -1,0 +1,12 @@
+/collection_proxy/input_consume_no.go
+/collection_proxy/input_consume_yes.go
+/collection_proxy/set_collection_chain_level1.collection
+/collection_proxy/set_collection_chain_level2.collection
+/collection_proxy/set_collection_chain_root.go
+/collection_proxy/set_collection_cpp_cycle_level1.collection
+/collection_proxy/set_collection_cpp_cycle_level2.collection
+/collection_proxy/set_collection_cpp_cycle_level3.collection
+/collection_proxy/set_collection_single_root.go
+/collection_proxy/set_collection_single_target.collection
+/collection_proxy/test_comp.go
+/collection_proxy/valid_collection_proxy.go

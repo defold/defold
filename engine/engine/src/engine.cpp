@@ -441,6 +441,10 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        bool has_script_context = engine->m_SharedScriptContext || engine->m_GOScriptContext || engine->m_RenderScriptContext || engine->m_GuiScriptContext;
+        bool has_hid_context = engine->m_HidContext != 0;
+
+        if (has_script_context)
         {
             ScopedExtensionParams params(engine);
 
@@ -470,11 +474,14 @@ namespace dmEngine
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
-        if (engine->m_SharedScriptContext) {
+        if (engine->m_SharedScriptContext)
+        {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
             dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
-        } else {
+        }
+        else if (has_script_context)
+        {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
             dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
@@ -491,9 +498,15 @@ namespace dmEngine
 
         dmSound::Finalize();
 
-        dmInput::DeleteContext(engine->m_InputContext);
+        if (engine->m_InputContext)
+        {
+            dmInput::DeleteContext(engine->m_InputContext);
+        }
 
-        dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
+        if (engine->m_RenderContext)
+        {
+            dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
+        }
 
         if (engine->m_HidContext)
         {
@@ -568,15 +581,21 @@ namespace dmEngine
         if (engine->m_PhysicsContextBullet3D.m_Context)
             dmPhysics::DeleteContext3D(engine->m_PhysicsContextBullet3D.m_Context);
 
-        ScopedExtensionAppParams app_params(engine);
-        dmExtension::AppFinalize(app_params);
+        if (has_hid_context)
+        {
+            ScopedExtensionAppParams app_params(engine);
+            dmExtension::AppFinalize(app_params);
+        }
 
 #if !defined(DM_NO_HTTP_CACHE)
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
 #endif
 
-        dmBuffer::DeleteContext();
+        if (engine->m_Config)
+        {
+            dmBuffer::DeleteContext();
+        }
 
         if (engine->m_Config)
         {
@@ -1814,8 +1833,11 @@ bail:
         input_action.m_GamepadIndex = action->m_GamepadIndex;
         input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
         input_action.m_GamepadConnected = action->m_GamepadConnected;
-        input_action.m_GamepadPacket = action->m_GamepadPacket;
         input_action.m_HasGamepadPacket = action->m_HasGamepadPacket;
+        if (input_action.m_HasGamepadPacket)
+        {
+            input_action.m_GamepadPacket = action->m_GamepadPacket;
+        }
 
         if (input_action.m_GamepadConnected)
         {

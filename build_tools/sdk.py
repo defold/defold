@@ -38,6 +38,14 @@ DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dyna
 SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 ## **********************************************************************************************
+# Editor
+
+# If you update editor JDK version, don't forget to update it here too:
+# - /editor/bundle-resources/config at "launcher.jdk" key
+# - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
+VERSION_EDITOR_JDK="25+36"
+
+## **********************************************************************************************
 # Darwin
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/

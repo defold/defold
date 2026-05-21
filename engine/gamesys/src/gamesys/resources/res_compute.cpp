@@ -24,6 +24,7 @@ namespace dmGameSystem
     {
         dmGraphics::HProgram m_ComputeProgram;
         TextureResource*     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t             m_TextureResourcePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t             m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
@@ -46,6 +47,8 @@ namespace dmGameSystem
             dmResource::Release(factory, (void*) resources->m_ComputeProgram);
         }
         resources->m_ComputeProgram = 0;
+
+        memset(resources->m_TextureResourcePaths, 0, sizeof(resources->m_TextureResourcePaths));
 
         ReleaseTextures(factory, resources->m_Textures);
     }
@@ -73,6 +76,7 @@ namespace dmGameSystem
             if (*texture_path != 0)
             {
                 factory_e = dmResource::Get(factory, texture_path, (void**)&resources->m_Textures[i]);
+                resources->m_TextureResourcePaths[i] = dmHashString64(texture_path);
                 if ( factory_e != dmResource::RESULT_OK)
                 {
                     ReleaseResources(factory, resources);
@@ -160,8 +164,9 @@ namespace dmGameSystem
                 {
                     continue;
                 }
-                resource->m_Textures[unit]     = resources->m_Textures[i];
-                resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
+                resource->m_Textures[unit]              = resources->m_Textures[i];
+                resource->m_TextureResourcePaths[unit]  = resources->m_TextureResourcePaths[i];
+                resource->m_SamplerNames[unit]          = resources->m_SamplerNames[i];
                 resource->m_NumTextures++;
             }
         }
@@ -247,6 +252,16 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_ComputeProgram);
+
+        dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
+        for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
+        {
+            if (sampler[i].m_Texture && sampler[i].m_Texture[0] != 0)
+            {
+                dmResource::PreloadHint(params->m_HintInfo, sampler[i].m_Texture);
+            }
+        }
+
         *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }

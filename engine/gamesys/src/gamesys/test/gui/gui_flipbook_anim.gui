@@ -1,7 +1,7 @@
 script: "/gui/gui_flipbook_anim.gui_script"
 textures {
   name: "asd"
-  texture: "/tile/flipbook.tilesource"
+  texture: "/gui/tile_flipbook.tilesource"
 }
 background_color {
   x: 0.0
@@ -63,6 +63,6 @@ nodes {
   template_node_child: false
   size_mode: SIZE_MODE_AUTO
 }
-material: "/sprite/sprite.material"
+material: "/gui/sprite_sprite.material"
 adjust_reference: ADJUST_REFERENCE_PARENT
 max_nodes: 512

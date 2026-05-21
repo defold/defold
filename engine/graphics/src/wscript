@@ -73,7 +73,7 @@ def build(bld):
                 opengl_defines = ['DM_GRAPHICS_USE_OPENGLES']
 
             if platform_supports_feature(bld.env.PLATFORM, 'opengl_compute', {}):
-                opengl_defines.append('DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
+                opengl_defines.append('DM_HAVE_OPENGL_COMPUTE_SUPPORT')
 
             if bld.env.PLATFORM in ('x86_64-win32', 'win32'):
                 opengl_platform_includes = ['opengl/win32']
@@ -135,7 +135,6 @@ def build(bld):
             obj.source.append('vulkan/ios/graphics_vulkan_ios_surface.mm')
             obj.source.append('vulkan/osx/graphics_vulkan_osx.mm')
         elif bld.env.PLATFORM in ['armv7-android', 'arm64-android']:
-            obj.source.append('vulkan/android/graphics_vulkan_android_surface.cpp')
             obj.source.append('vulkan/android/graphics_vulkan_android.cpp')
 
         bld.add_group()

@@ -1,0 +1,15 @@
+/model/default.texture_profiles
+/model/dynamic_vertex_attributes.go
+/model/empty_texture.model
+/model/invalid_material.model
+/model/one_mesh_two_materials.go
+/model/pbr_properties.go
+/model/script_model.go
+/model/script_model_anim.go
+/model/script_model_anim_message.go
+/model/script_model_anim_missing.go
+/model/script_model_blend_weights.go
+/model/test_comp.go
+/model/texture_transform_model.go
+/model/valid_material.go
+/model/valid_model.go

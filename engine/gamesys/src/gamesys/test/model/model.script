@@ -12,7 +12,7 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-require "lua.test_helpers"
+require "model.lua_test_helpers"
 
 local function test_model_aabb(self)
     local res = model.get_aabb("#model")
@@ -24,8 +24,8 @@ end
 local function test_model_several_mesh(self)
     local whole_aabb = model.get_aabb("#several_mesh")
     assert_not_nil(whole_aabb)
-    assert_vec3(whole_aabb.min, vmath.vector3(-3, -4, -2))
-    assert_vec3(whole_aabb.max, vmath.vector3(2, 2, 0.99999934434891))
+    assert_vec3(whole_aabb.min, vmath.vector3(-2.5, -3, -1.5))
+    assert_vec3(whole_aabb.max, vmath.vector3(2.5, 3, 1.4999992847443))
 
     local all_aabb = model.get_mesh_aabb("#several_mesh")
     assert_not_nil(all_aabb[hash("Cone")])

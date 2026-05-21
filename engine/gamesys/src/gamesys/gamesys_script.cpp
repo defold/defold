@@ -15,6 +15,7 @@
 #include "gamesys.h"
 
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 #include <physics/physics.h>
 
 #include <gamesys/gamesys_ddf.h>
@@ -35,7 +36,6 @@
 #include "scripts/script_buffer.h"
 #include "scripts/script_sys_gamesys.h"
 #include "scripts/script_camera.h"
-
 #include "components/comp_gui.h"
 
 #include <dmsdk/gamesys/script.h>
@@ -114,6 +114,425 @@ namespace dmScript {
 
 namespace dmGameSystem
 {
+    int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
+    {
+        const char* format = 0;
+        switch(result)
+        {
+            case dmResource::RESULT_RESOURCE_NOT_FOUND:
+                format = "The resource was not found (%d): %llu, %s";
+                break;
+            case dmResource::RESULT_NOT_SUPPORTED:
+                format = "The resource type does not support this operation (%d): %llu, %s";
+                break;
+            default:
+                format = "The resource was not updated (%d): %llu, %s";
+                break;
+        }
+        return luaL_error(L, format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
+    }
+
+    void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+    {
+        if (path_hash == 0)
+        {
+            luaL_error(L, "Could not get %s type resource from zero path hash", resource_ext);
+            return 0;
+        }
+
+        HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
+        if (!rd)
+        {
+            luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
+            return 0;
+        }
+
+        HResourceType expected_resource_type;
+        dmResource::Result r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
+        if( r != dmResource::RESULT_OK )
+        {
+            ReportPathError(L, r, path_hash);
+        }
+
+        HResourceType resource_type = dmResource::GetType(rd);
+        if (resource_type != expected_resource_type)
+        {
+            luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
+            return 0;
+        }
+
+        return dmResource::GetResource(rd);
+    }
+
+    void PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path)
+    {
+        uint32_t texture_width               = dmGraphics::GetTextureWidth(graphics_context, texture_handle);
+        uint32_t texture_height              = dmGraphics::GetTextureHeight(graphics_context, texture_handle);
+        uint32_t texture_depth               = dmGraphics::GetTextureDepth(graphics_context, texture_handle);
+        uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(graphics_context, texture_handle);
+        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(graphics_context, texture_handle);
+        uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(graphics_context, texture_handle);
+        uint8_t page_count                   = dmGraphics::GetTexturePageCount(texture_handle);
+
+        if (texture_resource_path != 0)
+        {
+            dmScript::PushHash(L, texture_resource_path);
+            lua_setfield(L, -2, "path");
+        }
+
+        lua_pushnumber(L, texture_handle);
+        lua_setfield(L, -2, "handle");
+
+        lua_pushinteger(L, texture_width);
+        lua_setfield(L, -2, "width");
+
+        lua_pushinteger(L, texture_height);
+        lua_setfield(L, -2, "height");
+
+        lua_pushinteger(L, texture_depth);
+        lua_setfield(L, -2, "depth");
+
+        lua_pushinteger(L, texture_mipmaps);
+        lua_setfield(L, -2, "mipmaps");
+
+        lua_pushinteger(L, texture_type);
+        lua_setfield(L, -2, "type");
+
+        lua_pushinteger(L, texture_flags);
+        lua_setfield(L, -2, "flags");
+
+        lua_pushinteger(L, page_count);
+        lua_setfield(L, -2, "page_count");
+
+        if (texture_type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
+        {
+            lua_pushinteger(L, 6);
+            lua_setfield(L, -2, "depth");
+        }
+        else
+        {
+            lua_pushinteger(L, texture_depth);
+            lua_setfield(L, -2, "depth");
+        }
+    }
+
+    void PushSampler(lua_State* L, dmRender::HSampler sampler)
+    {
+        dmRender::SamplerInfo info = {};
+        dmRender::GetSamplerInfo(sampler, &info);
+
+        dmScript::PushHash(L, info.m_NameHash);
+        lua_setfield(L, -2, "name");
+
+        lua_pushinteger(L, (lua_Integer) info.m_TextureType);
+        lua_setfield(L, -2, "type");
+
+        lua_pushinteger(L, (lua_Integer) info.m_UWrap);
+        lua_setfield(L, -2, "u_wrap");
+
+        lua_pushinteger(L, (lua_Integer) info.m_VWrap);
+        lua_setfield(L, -2, "v_wrap");
+
+        lua_pushinteger(L, (lua_Integer) info.m_MinFilter);
+        lua_setfield(L, -2, "min_filter");
+
+        lua_pushinteger(L, (lua_Integer) info.m_MagFilter);
+        lua_setfield(L, -2, "mag_filter");
+
+        lua_pushnumber(L, (lua_Number) info.m_MaxAnisotropy);
+        lua_setfield(L, -2, "max_anisotropy");
+    }
+
+    void PushRenderConstant(lua_State* L, dmRender::HConstant constant)
+    {
+        dmhash_t name_hash = dmRender::GetConstantName(constant);
+
+        dmScript::PushHash(L, name_hash);
+        lua_setfield(L, -2, "name");
+
+        dmRenderDDF::MaterialDesc::ConstantType type = dmRender::GetConstantType(constant);
+        lua_pushinteger(L, (lua_Integer) type);
+        lua_setfield(L, -2, "type");
+
+        if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            uint32_t num_values;
+            dmVMath::Vector4* values   = dmRender::GetConstantValues(constant, &num_values);
+            dmVMath::Matrix4* matrices = (dmVMath::Matrix4*) values;
+            uint32_t num_matrices      = num_values / 4;
+
+            if (num_matrices > 1)
+            {
+                lua_newtable(L);
+                for (uint32_t i = 0; i < num_matrices; ++i)
+                {
+                    dmScript::PushMatrix4(L, matrices[i]);
+                    lua_rawseti(L, -2, i + 1);
+                }
+            }
+            else
+            {
+                dmScript::PushMatrix4(L, matrices[0]);
+            }
+
+            lua_setfield(L, -2, "value");
+        }
+        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+        {
+            uint32_t num_values;
+            dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+
+            if (num_values > 1)
+            {
+                lua_newtable(L);
+                for (uint32_t i = 0; i < num_values; ++i)
+                {
+                    dmScript::PushVector4(L, values[i]);
+                    lua_rawseti(L, -2, i + 1);
+                }
+            }
+            else
+            {
+                dmScript::PushVector4(L, values[0]);
+            }
+
+            lua_setfield(L, -2, "value");
+        }
+        // Other constant types doesn't have a value
+    }
+
+    static void PushVertexAttributeValue(lua_State* L, dmGraphics::VertexAttribute::VectorType vector_type, const float* values)
+    {
+        uint32_t element_count = dmGraphics::VectorTypeToElementCount(vector_type);
+
+        if (vector_type == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4)
+        {
+            dmVMath::Matrix4 m;
+            memcpy(&m, values, sizeof(m));
+            dmScript::PushMatrix4(L, m);
+        }
+        else if (vector_type == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2 ||
+                 vector_type == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3)
+        {
+            lua_newtable(L);
+            for (uint32_t i = 0; i < element_count; ++i)
+            {
+                lua_pushnumber(L, values[i]);
+                lua_rawseti(L, -2, i + 1);
+            }
+        }
+        else if (element_count == 4)
+        {
+            dmVMath::Vector4 v(values[0], values[1], values[2], values[3]);
+            dmScript::PushVector4(L, v);
+        }
+        else if (element_count == 3 || element_count == 2)
+        {
+            dmVMath::Vector3 v(values[0], values[1], values[2]);
+            dmScript::PushVector3(L, v);
+        }
+        else if (element_count == 1)
+        {
+            lua_pushnumber(L, values[0]);
+        }
+        else
+        {
+            // We need to catch this error because it means there are type combinations
+            // that we have added, but don't have support for here.
+            assert(false && "Not supported!");
+        }
+    }
+
+    void PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr)
+    {
+        float values[16] = {};
+        VertexAttributeToFloats(attribute, value_ptr, values);
+        PushVertexAttributeValue(L, attribute->m_VectorType, values);
+    }
+
+    void PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttributeInfo* attribute, const uint8_t* value_ptr)
+    {
+        float values[16] = {};
+        const uint8_t* read_ptr = value_ptr;
+        uint32_t byte_size = 0;
+        if (!read_ptr)
+        {
+            dmGraphics::GetAttributeValues(*attribute, &read_ptr, &byte_size);
+        }
+
+        if (read_ptr)
+        {
+            dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
+            uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
+            for (uint32_t i = 0; i < attribute->m_ElementCount; ++i)
+            {
+                values[i] = dmGraphics::VertexAttributeDataTypeToFloat(attribute->m_DataType, read_ptr + bytes_per_element * i);
+            }
+        }
+
+        PushVertexAttributeValue(L, attribute->m_VectorType, values);
+    }
+
+    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
+    {
+        // parse u_wrap
+        {
+            lua_getfield(L, -1, "u_wrap");
+            if (!lua_isnil(L, -1))
+            {
+                *u_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse v_wrap
+        {
+            lua_getfield(L, -1, "v_wrap");
+            if (!lua_isnil(L, -1))
+            {
+                *v_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse min_filter
+        {
+            lua_getfield(L, -1, "min_filter");
+            if (!lua_isnil(L, -1))
+            {
+                *min_filter = (dmGraphics::TextureFilter) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse mag_filter
+        {
+            lua_getfield(L, -1, "mag_filter");
+            if (!lua_isnil(L, -1))
+            {
+                *mag_filter = (dmGraphics::TextureFilter) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse max_anisotropy
+        {
+            lua_getfield(L, -1, "max_anisotropy");
+            if (!lua_isnil(L, -1))
+            {
+                *max_anisotropy = lua_tonumber(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+    }
+
+    static dmVMath::Vector4* FillConstantsFromLua(lua_State* L, int index, dmVMath::Vector4* v4_in)
+    {
+        if (dmScript::IsVector4(L, index))
+        {
+            dmVMath::Vector4* v4 = dmScript::CheckVector4(L, index);
+            *v4_in = *v4;
+            v4_in++;
+        }
+        else if (dmScript::IsVector3(L, index))
+        {
+            dmVMath::Vector3* v3 = dmScript::CheckVector3(L, index);
+            v4_in->setXYZ(*v3);
+            v4_in->setW(0.0f);
+            v4_in++;
+        }
+        else if (dmScript::IsMatrix4(L, index))
+        {
+            dmVMath::Matrix4* m4 = dmScript::CheckMatrix4(L, index);
+            memcpy(v4_in, m4, sizeof(dmVMath::Vector4) * 4);
+            v4_in += 4;
+        }
+        else
+        {
+            float value = luaL_checknumber(L, index);
+            *v4_in = dmVMath::Vector4(value, 0.0f, 0.0f, 0.0f);
+            v4_in++;
+        }
+        return v4_in;
+    }
+
+    void GetConstantValuesFromLua(lua_State* L, dmRenderDDF::MaterialDesc::ConstantType* type, dmArray<dmVMath::Vector4>* scratch_values)
+    {
+        // parse type
+        {
+            lua_getfield(L, -1, "type");
+            if (!lua_isnil(L, -1))
+            {
+                *type = (dmRenderDDF::MaterialDesc::ConstantType) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse value
+        {
+            lua_getfield(L, -1, "value");
+            if (!lua_isnil(L, -1))
+            {
+                if (lua_istable(L, -1))
+                {
+                    uint32_t count = 0;
+
+                    // Count number of values. We can't use lua_objlen here because a matrix types
+                    // equals four value slots, so we need to know exactly what is in the table.
+                    lua_pushvalue(L, -1);
+                    lua_pushnil(L);
+                    while (lua_next(L, -2) != 0)
+                    {
+                        if (dmScript::IsVector4(L, -1) || dmScript::IsVector3(L, -1) || lua_isnumber(L, -1))
+                        {
+                            count++;
+                        }
+                        else if (dmScript::IsMatrix4(L, -1))
+                        {
+                            count += 4;
+                        }
+                        lua_pop(L, 1);
+                    }
+                    lua_pop(L, 1);
+
+                    if (scratch_values->Capacity() < count)
+                    {
+                        scratch_values->SetCapacity(count);
+                    }
+                    scratch_values->SetSize(count);
+
+                    dmVMath::Vector4* write_ptr = scratch_values->Begin();
+
+                    lua_pushvalue(L, -1);
+                    lua_pushnil(L);
+                    while (lua_next(L, -2) != 0)
+                    {
+                        write_ptr = FillConstantsFromLua(L, -1, write_ptr);
+                        lua_pop(L, 1);
+                    }
+                    lua_pop(L, 1);
+                }
+                else
+                {
+                    uint32_t count = 1;
+                    if (dmScript::IsMatrix4(L, -1))
+                    {
+                        count = 4;
+                    }
+
+                    if (scratch_values->Capacity() < count)
+                    {
+                        scratch_values->SetCapacity(count);
+                    }
+
+                    scratch_values->SetSize(count);
+
+                    FillConstantsFromLua(L, -1, scratch_values->Begin());
+                }
+            }
+            lua_pop(L, 1);
+        }
+    }
 
     ScriptLibContext::ScriptLibContext()
     {
@@ -143,7 +562,6 @@ namespace dmGameSystem
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
         ScriptSysGameSysRegister(context);
-
         assert(top == lua_gettop(L));
         return result;
     }

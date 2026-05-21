@@ -3180,7 +3180,7 @@
                                          (future/complete! f nil))
                                      (future/fail! f (Exception. "Save failed")))))
                f))
-    :open-resource! (fn open-resource! [resource]
+    :open-resource! (fn ext-open-resource! [resource]
                       (let [f (future/make)]
                         (ui/run-later
                           (try
