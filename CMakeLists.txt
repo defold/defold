@@ -24,8 +24,11 @@ get_filename_component(_DEFOLD_JAVA_BIN_DIR "${Java_JAVA_EXECUTABLE}" DIRECTORY)
 get_filename_component(DEFOLD_JAVA_HOME "${_DEFOLD_JAVA_BIN_DIR}/.." ABSOLUTE)
 unset(_DEFOLD_JAVA_BIN_DIR)
 
-add_custom_target(bob_light DEPENDS "${DEFOLD_BOB_LIGHT_JAR}")
-if(TARGET build_tests)
+option(DEFOLD_SKIP_BOB_LIGHT "Use an existing bob-light.jar instead of building it" OFF)
+if(NOT DEFOLD_SKIP_BOB_LIGHT)
+  add_custom_target(bob_light DEPENDS "${DEFOLD_BOB_LIGHT_JAR}")
+endif()
+if(TARGET build_tests AND TARGET bob_light)
   add_dependencies(build_tests bob_light)
 endif()
 
@@ -97,7 +100,7 @@ unset(_DEFOLD_ENGINE_LIB_BINARY_DIR)
 unset(_DEFOLD_ENGINE_LIB_UPPER)
 
 if(DEFOLD_ENGINE_LIB_SET STREQUAL "all" OR DEFOLD_ENGINE_LIB_SET STREQUAL "target")
-  add_subdirectory("share/extender" "${CMAKE_CURRENT_BINARY_DIR}/share/extender")
+  add_subdirectory("share/extender" "${CMAKE_CURRENT_SOURCE_DIR}/share/extender/build/${TARGET_PLATFORM}")
 endif()
 
 set(_DEFOLD_BOB_LIGHT_DEPENDS
@@ -114,21 +117,23 @@ foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared)
   endif()
 endforeach()
 
-add_custom_command(
-  OUTPUT "${DEFOLD_BOB_LIGHT_JAR}"
-  COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_LIB_DIR}"
-  ${_DEFOLD_BOB_LIGHT_COPY_COMMANDS}
-  COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java"
-  COMMAND "${CMAKE_COMMAND}" -E env
-    "DEFOLD_HOME=${DEFOLD_HOME}"
-    "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
-    "JAVA_HOME=${DEFOLD_JAVA_HOME}"
-    "GRADLE_OPTS=-Dorg.gradle.parallel=true --sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED"
-    "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed installBobLight
-  WORKING_DIRECTORY "${DEFOLD_BOB_DIR}"
-  DEPENDS ${_DEFOLD_BOB_LIGHT_DEPENDS}
-  COMMENT "Building bob-light.jar"
-  VERBATIM)
+if(NOT DEFOLD_SKIP_BOB_LIGHT)
+  add_custom_command(
+    OUTPUT "${DEFOLD_BOB_LIGHT_JAR}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_LIB_DIR}"
+    ${_DEFOLD_BOB_LIGHT_COPY_COMMANDS}
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java"
+    COMMAND "${CMAKE_COMMAND}" -E env
+      "DEFOLD_HOME=${DEFOLD_HOME}"
+      "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+      "JAVA_HOME=${DEFOLD_JAVA_HOME}"
+      "GRADLE_OPTS=-Dorg.gradle.parallel=true --sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED"
+      "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed installBobLight
+    WORKING_DIRECTORY "${DEFOLD_BOB_DIR}"
+    DEPENDS ${_DEFOLD_BOB_LIGHT_DEPENDS}
+    COMMENT "Building bob-light.jar"
+    VERBATIM)
+endif()
 unset(_DEFOLD_BOB_LIGHT_DEPENDS)
 unset(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
 unset(_DEFOLD_BOB_LIGHT_LIB)

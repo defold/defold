@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 4.0)
 
+project(defold_extender LANGUAGES NONE)
+
+set(TARGET_PLATFORM "" CACHE STRING "Defold platform tuple")
+set(BUILD_TESTS OFF CACHE BOOL "Build tests")
+set(CMAKE_INSTALL_PREFIX "$ENV{DYNAMO_HOME}" CACHE PATH "Install prefix" FORCE)
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 set(EXTENDER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")

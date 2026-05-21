@@ -470,17 +470,26 @@ namespace dmEngine
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
-        if (engine->m_SharedScriptContext) {
+        if (engine->m_SharedScriptContext)
+        {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
             dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
-        } else {
-            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
-            dmGameSystem::FinalizeScriptLibs(script_lib_context);
-            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
-            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
-            dmGameSystem::FinalizeScriptLibs(script_lib_context);
-            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
+        }
+        else
+        {
+            if (engine->m_GOScriptContext)
+            {
+                script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
+                dmGameSystem::FinalizeScriptLibs(script_lib_context);
+                dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
+            }
+            if (engine->m_GuiScriptContext)
+            {
+                script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
+                dmGameSystem::FinalizeScriptLibs(script_lib_context);
+                dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
+            }
         }
 
         dmHttpClient::ReopenConnectionPool();
@@ -491,9 +500,11 @@ namespace dmEngine
 
         dmSound::Finalize();
 
-        dmInput::DeleteContext(engine->m_InputContext);
+        if (engine->m_InputContext)
+            dmInput::DeleteContext(engine->m_InputContext);
 
-        dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
+        if (engine->m_RenderContext)
+            dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 
         if (engine->m_HidContext)
         {

@@ -52,7 +52,9 @@ target_include_directories(engine_ddf_generated PUBLIC
   "${DEFOLD_GAMEOBJECT_BINARY_DIR}/src/proto"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_link_libraries(engine_ddf_generated PUBLIC gameobject)
-add_dependencies(engine_ddf_generated gameobject_proto_headers)
+if(TARGET gameobject_proto_headers)
+  add_dependencies(engine_ddf_generated gameobject_proto_headers)
+endif()
 
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")

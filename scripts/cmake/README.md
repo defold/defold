@@ -81,9 +81,10 @@ such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
 ## Invocation
 
-`scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`.
-It first selects the host tool libs needed by `bob-light`, then selects
-the full target lib set for the engine build.
+`scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`,
+with one CMake cache under `engine/build/<platform>`. Each engine library still
+gets its own binary directory under `engine/<lib>/build/<platform>`, so objects,
+generated files, and archives stay with the library.
 
 During the transition, `scripts/build.py --with-waf build_engine` uses the
 restored Waf lib loop instead.
@@ -108,10 +109,17 @@ panning, hover details, and search highlighting. Without a path, the script
 uses the newest `engine/**/.ninja_log`. It renders every log entry by default;
 pass `--latest` to render only the latest Ninja invocation.
 
-The top-level CMake cache lives under `engine/build/<platform>`. Each engine
-library gets its own binary directory under `engine/<lib>/build/<platform>`.
+The normal `scripts/build.py build_engine` CMake path configures one top-level
+CMake cache under `engine/build/<platform>`.
 The CMake path is incremental by default, so repeated builds should no-op at
 the Ninja target level when inputs have not changed.
+
+For example, to build and run the engine tests after `build_engine` has
+configured the `engine` library:
+
+```bash
+cmake --build engine/build/arm64-macos --target run_tests
+```
 
 Without tests:
 

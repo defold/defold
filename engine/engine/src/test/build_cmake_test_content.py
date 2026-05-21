@@ -16,14 +16,12 @@ def copytree(src, dst):
     shutil.copytree(src, dst, ignore=ignore)
 
 
-def copy_missing_tree(src, dst):
+def copy_overwrite_tree(src, dst):
     for path in src.rglob("*"):
         if not path.is_file():
             continue
         rel_path = path.relative_to(src)
         output = dst / rel_path
-        if output.exists():
-            continue
         output.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, output)
 
@@ -94,7 +92,7 @@ def main():
 
     runtime_builtins = stage_root / "build" / "default" / "builtins"
     if builtins_root.exists():
-        copy_missing_tree(builtins_root, runtime_builtins)
+        copy_overwrite_tree(builtins_root, runtime_builtins)
 
     stamp.parent.mkdir(parents=True, exist_ok=True)
     stamp.write_text("engine test content\n")

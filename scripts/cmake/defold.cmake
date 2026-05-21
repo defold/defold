@@ -244,6 +244,46 @@ list(REMOVE_DUPLICATES DEFOLD_PROTO_SOURCE_INCLUDE_DIRS)
 set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
 set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
 
+set(_DEFOLD_ENGINE_LIBS
+  testmain
+  dlib
+  jni
+  texc
+  modelc
+  shaderc
+  ddf
+  platform
+  font
+  graphics
+  particle
+  lua
+  hid
+  input
+  physics
+  resource
+  extension
+  script
+  render
+  rig
+  gameobject
+  gui
+  sound
+  liveupdate
+  crash
+  gamesys
+  tools
+  record
+  profiler
+  engine
+  sdk)
+foreach(_DEFOLD_ENGINE_LIB IN LISTS _DEFOLD_ENGINE_LIBS)
+  string(TOUPPER "${_DEFOLD_ENGINE_LIB}" _DEFOLD_ENGINE_LIB_UPPER)
+  set("DEFOLD_${_DEFOLD_ENGINE_LIB_UPPER}_BINARY_DIR" "${DEFOLD_HOME}/engine/${_DEFOLD_ENGINE_LIB}/build/${TARGET_PLATFORM}" CACHE INTERNAL "Binary directory for engine/${_DEFOLD_ENGINE_LIB}")
+endforeach()
+unset(_DEFOLD_ENGINE_LIB)
+unset(_DEFOLD_ENGINE_LIB_UPPER)
+unset(_DEFOLD_ENGINE_LIBS)
+
 # For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
 set(_DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
 set(_DEFOLD_PLATFORM_LIB_DIRS     "${DEFOLD_LIB_DIR}" "${DEFOLD_EXT_LIB_DIR}")

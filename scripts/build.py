@@ -738,6 +738,7 @@ class Configuration(object):
 
         for builddir in glob(join(self.defold_root, 'engine/*/build')):
             self._remove_tree(builddir)
+        self._remove_tree(join(self.defold_root, 'share/extender/build'))
         self._remove_tree(join(self.defold_root, 'build', 'cmake'))
         self._remove_tree(join(self.defold_root, 'engine', 'build'))
 
@@ -756,17 +757,10 @@ class Configuration(object):
         Remove generated engine build outputs without removing installed SDK
         packages, installed jars, or built documentation artifacts.
         """
-        cmake_platforms = []
-        for platform in [self.host, self.target_platform]:
-            cmake_platform = self._cmake_target_platform(platform)
-            if cmake_platform not in cmake_platforms:
-                cmake_platforms.append(cmake_platform)
-
-        for platform in cmake_platforms:
-            self._clean_cmake_builddir(self._cmake_top_build_dir(platform))
-
         for builddir in glob(join(self.defold_root, 'engine/*/build')):
             self._remove_tree(builddir)
+        self._remove_tree(join(self.defold_root, 'share/extender/build'))
+        self._remove_tree(join(self.defold_root, 'engine', 'build'))
 
         self._remove_tree(join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/build'))
         self._remove_tree(join(self.defold_root, 'engine/engine/src/test/build'))
@@ -1893,7 +1887,8 @@ class Configuration(object):
             f'-DCMAKE_BUILD_TYPE={build_type}',
             f'-DTARGET_PLATFORM={platform}',
             f'-DBUILD_TESTS={cmake_build_tests}',
-            f'-DDEFOLD_ENGINE_LIB_SET={lib_set}'
+            f'-DDEFOLD_ENGINE_LIB_SET={lib_set}',
+            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}'
         ]
         cmake_configure_args += self._cmake_feature_defines()
         cmake_configure_state = self._cmake_configure_state(builddir, cmake_configure_args)
@@ -1956,7 +1951,6 @@ class Configuration(object):
             run.env_command(self._form_env(), cmake_test_args, cwd = self.defold_root)
 
             self.build_tracker.end_command(log_cmd_tests)
-
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
         self.build_tracker.start_component(lib, platform)
