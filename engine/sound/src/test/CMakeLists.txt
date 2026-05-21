@@ -129,6 +129,13 @@ if(NOT TARGET_PLATFORM_OS STREQUAL "win32" AND
   list(APPEND SOUND_TEST_LIBS tremolo)
   set(SOUND_TEST_HAS_TREMOLO ON)
 endif()
+
+set(SOUND_RUN_TESTS ON)
+if(TARGET_PLATFORM MATCHES "linux$" AND NOT EXISTS "/dev/snd/controlC0")
+  message(STATUS "Skipping sound test run targets since no sound card was detected")
+  set(SOUND_RUN_TESTS OFF)
+endif()
+
 function(sound_configure_test target run_test)
   target_include_directories(${target} PRIVATE
     "${SOUND_SRC_DIR}"
@@ -164,7 +171,7 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   target_compile_options(test_sound PRIVATE -msimd128 -msse4.2)
   target_compile_definitions(test_sound PRIVATE DM_SOUND_DSP_IMPL=WASM)
 endif()
-sound_configure_test(test_sound ON)
+sound_configure_test(test_sound ${SOUND_RUN_TESTS})
 
 set(_sound_null_export_file "${SOUND_TEST_GEN_DIR}/test_sound_null_exported_symbols.cpp")
 set(_sound_null_exports NullSoundDevice TestNullDevice)
@@ -184,7 +191,7 @@ defold_target_link_libraries(test_sound_null "${TARGET_PLATFORM}"
   embedded_opus)
 defold_target_link_socket(test_sound_null "${TARGET_PLATFORM}" PRIVATE)
 defold_target_link_libraries_web(test_sound_null "${TARGET_PLATFORM}" library_sound.js)
-defold_register_test_target(test_sound_null ON "${SOUND_ROOT}")
+defold_register_test_target(test_sound_null ${SOUND_RUN_TESTS} "${SOUND_ROOT}")
 
 if(TARGET_PLATFORM MATCHES "linux$")
   set(_sound_openal_export_file "${SOUND_TEST_GEN_DIR}/test_sound_openal_exported_symbols.cpp")
