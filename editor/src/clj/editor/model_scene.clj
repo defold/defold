@@ -647,34 +647,26 @@
                       :shader shader
                       :textures gpu-textures))))))))
 
-(defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
-  (let [mesh-scenes (:children model-scene)]
+(defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?]
+  (let [model-scene (cond-> model-scene
+                      (and (not use-skeleton-transforms?)
+                           (:pose-without-skeleton model-scene))
+                      (assoc :pose (:pose-without-skeleton model-scene)))
+        mesh-scenes (:children model-scene)]
     (assoc (scene/claim-child-scene model-scene old-node-id new-node-id new-node-outline-key)
       :children (mapv #(augment-mesh-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
                       mesh-scenes))))
 
-(defn- select-model-transforms [scene use-skeleton-transforms?]
-  (if use-skeleton-transforms?
-    scene
-    (update scene :children
-            (fn [child-scenes]
-              (mapv (fn [child-scene]
-                      (cond-> child-scene
-                        (:pose-without-skeleton child-scene)
-                        (assoc :pose (:pose-without-skeleton child-scene))))
-                    child-scenes)))))
-
 (defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?]
   (if (g/error-value? scene)
     scene
-    (let [scene (select-model-transforms scene use-skeleton-transforms?)
-          old-node-id (:node-id scene)
+    (let [old-node-id (:node-id scene)
           model-scenes (:children scene)]
       (assoc scene
         :node-id new-node-id
         :node-outline-key new-node-outline-key
         :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
-        :children (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
+        :children (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?)
                         model-scenes)))))
 
 (defn make-material-name->material-scene-info
