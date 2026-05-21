@@ -317,6 +317,13 @@ function(defold_target_link_graphics target platform)
         endif()
     endforeach()
 
+    if(_DEFOLD_GRAPHICS_LIBS)
+        target_include_directories(${target} ${DGL_SCOPE} "${DEFOLD_GRAPHICS_BINARY_DIR}")
+        if(TARGET graphics_proto_header)
+            add_dependencies(${target} graphics_proto_header)
+        endif()
+    endif()
+
     if(_link_libs)
         target_link_libraries(${target} ${DGL_SCOPE} ${_link_libs})
     endif()
