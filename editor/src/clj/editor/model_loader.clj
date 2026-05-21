@@ -34,7 +34,7 @@
          ["model" "max_morph_target_texture_height"]]))
 
 (defn- load-model-scene
-  [resource ^InputStream stream morph-tex-w morph-tex-h project-settings]
+  [resource ^InputStream stream morph-tex-w morph-tex-h]
   (let [workspace (resource/workspace resource)
         project-directory (workspace/project-directory workspace)
         mesh-set-builder (Rig$MeshSet/newBuilder)
@@ -90,7 +90,7 @@
         (handle-gltf-validation-result resource (GLTFValidator/validateGltf (resource/abs-path resource) true))))
     ;; Then, open a new stream for actually loading the scene.
     (with-open [stream (io/input-stream resource)]
-      (load-model-scene resource stream morph-tex-w morph-tex-h project-settings))))
+      (load-model-scene resource stream morph-tex-w morph-tex-h))))
 
 (defn load-scene [node-id resource project-settings]
   (try

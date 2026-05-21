@@ -26,7 +26,6 @@
             [editor.image :as image]
             [editor.localization :as localization]
             [editor.material :as material]
-            [editor.model-loader :as model-loader]
             [editor.model-scene :as model-scene]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]

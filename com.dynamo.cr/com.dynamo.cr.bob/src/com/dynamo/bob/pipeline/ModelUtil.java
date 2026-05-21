@@ -30,11 +30,9 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
-import com.google.protobuf.TextFormat;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
@@ -148,18 +146,6 @@ public class ModelUtil {
     }
 
     public static void unloadScene(Scene scene) {
-    }
-
-    private static Modelimporter.Transform identityModelTransform() {
-        Modelimporter.Transform transform = new Modelimporter.Transform();
-        transform.translation = new Modelimporter.Vector3();
-        transform.rotation = new Modelimporter.Quat();
-        transform.scale = new Modelimporter.Vector3();
-        transform.rotation.w = 1.0f;
-        transform.scale.x = 1.0f;
-        transform.scale.y = 1.0f;
-        transform.scale.z = 1.0f;
-        return transform;
     }
 
     private static Vector3 toDDFVector3(Modelimporter.Vector3 v) {
