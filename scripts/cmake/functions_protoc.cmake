@@ -125,6 +125,8 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
     if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET dlib_shared)
         list(APPEND _ddf_plugin_env "DM_DLIB_SHARED_LIBRARY=$<TARGET_FILE:dlib_shared>")
         list(APPEND _ddf_plugin_deps dlib_shared)
+    elseif(HOST_PLATFORM_IS_WINDOWS)
+        list(APPEND _ddf_plugin_env "DM_DLIB_SHARED_LIBRARY=${DEFOLD_SDK_ROOT}/bin/${HOST_PLATFORM}/dlib_shared.dll")
     endif()
 
     add_custom_command(

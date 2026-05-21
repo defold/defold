@@ -20,6 +20,7 @@ if platform.architecture()[0] == '32bit':
     raise Exception("32 bit hosts are not supported!")
 
 machine = platform.machine() # x86_64 or arm64
+bindir = None
 if sys.platform == "darwin":
     libname = "libdlib_shared.dylib"
     libdir = "lib/%s-macos" % machine
@@ -32,6 +33,7 @@ elif sys.platform in ("linux", "linux2"): # support both python3 and python2
 elif sys.platform == "win32":
     libname = "dlib_shared.dll"
     libdir = "lib/x86_64-win32"
+    bindir = "bin/x86_64-win32"
 
 dlib = None
 override_path = os.environ.get('DM_DLIB_SHARED_LIBRARY')
@@ -48,7 +50,19 @@ except:
 
 if not dlib:
     # If not found load from default location in DYNAMO_HOME
-    dlib = ctypes.cdll.LoadLibrary(os.path.join(os.environ['DYNAMO_HOME'], libdir, libname))
+    candidates = [os.path.join(os.environ['DYNAMO_HOME'], libdir, libname)]
+    if bindir:
+        candidates.append(os.path.join(os.environ['DYNAMO_HOME'], bindir, libname))
+
+    last_error = None
+    for candidate in candidates:
+        try:
+            dlib = ctypes.cdll.LoadLibrary(candidate)
+            break
+        except OSError as e:
+            last_error = e
+    if not dlib:
+        raise last_error
 
 dlib.dmHashBuffer32.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
 dlib.dmHashBuffer32.restype = ctypes.c_uint32
