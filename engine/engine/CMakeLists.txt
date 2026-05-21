@@ -438,6 +438,12 @@ defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADL
 defold_add_executable(dmengine_headless "${ENGINE_MAIN_CPP}" "${ENGINE_HEADLESS_EXPORTS}")
 engine_configure_executable(dmengine_headless headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
 
+if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+  set_target_properties(dmengine dmengine_release dmengine_headless PROPERTIES
+    PREFIX "lib"
+    SUFFIX ".so")
+endif()
+
 defold_install_targets(TARGETS engine engine_release engine_service engine_service_null
   ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
   LIBRARY DESTINATION lib/${TARGET_PLATFORM}
