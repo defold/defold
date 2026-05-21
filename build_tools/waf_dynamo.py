@@ -2241,7 +2241,7 @@ def detect(conf):
 
     conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
     if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
-        conf.env['STLIB_DLIB'].append('mbedtls')
+        conf.env['STLIB_DLIB'].append('dmbedtls')
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
 
