@@ -446,6 +446,19 @@ defold_install_targets(TARGETS engine engine_release engine_service engine_servi
 defold_install_targets(TARGETS dmengine dmengine_release dmengine_headless
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  set(ENGINE_WEB_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+  install(CODE "
+    foreach(_name IN ITEMS dmengine dmengine_release dmengine_headless)
+      foreach(_suffix IN ITEMS .js.mem .js.symbols .js.map .wasm .wasm.map .wasm.debug.wasm)
+        set(_file \"${ENGINE_WEB_OUTPUT_DIR}/\${_name}\${_suffix}\")
+        if(EXISTS \"\${_file}\")
+          file(INSTALL DESTINATION \"\${CMAKE_INSTALL_PREFIX}/bin/${TARGET_PLATFORM}\" TYPE FILE FILES \"\${_file}\")
+        endif()
+      endforeach()
+    endforeach()")
+endif()
+
 install(FILES "${ENGINE_SRC_DIR}/engine.h" DESTINATION include/engine)
 install(FILES "${ENGINE_PROTO_DIR}/engine/engine_ddf.proto" DESTINATION share/proto/engine)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/proto/engine/engine_ddf_pb2.py" DESTINATION lib/python/engine)
