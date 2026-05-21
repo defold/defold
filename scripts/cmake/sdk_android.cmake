@@ -165,6 +165,59 @@ endif()
 
 defold_log("DEFOLD_ANDROID_JAR: ${DEFOLD_ANDROID_JAR}")
 
+set(_ANDROID_D8_CANDIDATES)
+function(_defold_android_sdk_add_d8 SDK_PATH)
+    if(NOT EXISTS "${SDK_PATH}")
+        return()
+    endif()
+
+    file(GLOB _d8_tools
+        "${SDK_PATH}/build-tools/*/d8"
+        "${SDK_PATH}/build-tools/*/d8.bat"
+        "${SDK_PATH}/build-tools/*/d8.cmd"
+        "${SDK_PATH}/build-tools/*/d8.exe"
+        "${SDK_PATH}/cmdline-tools/*/bin/d8"
+        "${SDK_PATH}/cmdline-tools/*/bin/d8.bat"
+        "${SDK_PATH}/cmdline-tools/*/bin/d8.cmd"
+        "${SDK_PATH}/cmdline-tools/*/bin/d8.exe")
+    list(APPEND _ANDROID_D8_CANDIDATES ${_d8_tools})
+    set(_ANDROID_D8_CANDIDATES "${_ANDROID_D8_CANDIDATES}" PARENT_SCOPE)
+endfunction()
+
+if(DEFINED ENV{ANDROID_SDK_ROOT})
+    _defold_android_sdk_add_d8("$ENV{ANDROID_SDK_ROOT}")
+endif()
+if(DEFINED ENV{ANDROID_HOME})
+    _defold_android_sdk_add_d8("$ENV{ANDROID_HOME}")
+endif()
+
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+    _defold_android_sdk_add_d8("$ENV{HOME}/Library/Android/sdk")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    _defold_android_sdk_add_d8("$ENV{HOME}/Android/Sdk")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+    if(DEFINED ENV{LOCALAPPDATA})
+        _defold_android_sdk_add_d8("$ENV{LOCALAPPDATA}/Android/Sdk")
+    endif()
+    if(DEFINED ENV{APPDATA})
+        _defold_android_sdk_add_d8("$ENV{APPDATA}/Android/Sdk")
+    endif()
+endif()
+
+if(_ANDROID_D8_CANDIDATES)
+    list(SORT _ANDROID_D8_CANDIDATES COMPARE NATURAL)
+    list(REVERSE _ANDROID_D8_CANDIDATES)
+    list(GET _ANDROID_D8_CANDIDATES 0 DEFOLD_ANDROID_D8)
+else()
+    find_program(DEFOLD_ANDROID_D8 NAMES d8 d8.bat d8.cmd)
+endif()
+
+if(NOT DEFOLD_ANDROID_D8)
+    message(FATAL_ERROR "sdk_android: Failed to find d8 in Android SDK build-tools")
+endif()
+set(DEFOLD_ANDROID_D8 "${DEFOLD_ANDROID_D8}" CACHE FILEPATH "Android d8 executable" FORCE)
+defold_log("DEFOLD_ANDROID_D8: ${DEFOLD_ANDROID_D8}")
+
 if(TARGET_PLATFORM MATCHES "arm64-android")
     # For arm64-android, ensure Clang uses aarch64-linux-android21 target triple
     set(ANDROID_ABI "arm64-v8a" CACHE STRING "Android ABI" FORCE)

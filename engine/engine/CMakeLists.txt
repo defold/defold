@@ -443,6 +443,29 @@ if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
   set_target_properties(dmengine dmengine_release dmengine_headless PROPERTIES
     PREFIX "lib"
     SUFFIX ".so")
+
+  install(CODE "
+    set(_dex_dir \"\${CMAKE_INSTALL_PREFIX}/share/java/classes-dex\")
+    set(_classes_dex \"\${_dex_dir}/classes.dex\")
+    set(_android_jars
+      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\")
+    foreach(_android_jar IN LISTS _android_jars)
+      if(NOT EXISTS \"\${_android_jar}\")
+        message(FATAL_ERROR \"Android dex input is missing: \${_android_jar}\")
+      endif()
+    endforeach()
+    file(REMOVE_RECURSE \"\${_dex_dir}\")
+    file(MAKE_DIRECTORY \"\${_dex_dir}\")
+    execute_process(
+      COMMAND \"${DEFOLD_ANDROID_D8}\" --lib \"${DEFOLD_ANDROID_JAR}\" --output \"\${_dex_dir}\" \${_android_jars}
+      RESULT_VARIABLE _d8_result)
+    if(NOT _d8_result EQUAL 0 OR NOT EXISTS \"\${_classes_dex}\")
+      message(FATAL_ERROR \"Failed to generate Android classes.dex\")
+    endif()
+    file(INSTALL DESTINATION \"\${CMAKE_INSTALL_PREFIX}/share/java\" TYPE FILE FILES \"\${_classes_dex}\")
+    file(REMOVE_RECURSE \"\${_dex_dir}\")")
 endif()
 
 defold_install_targets(TARGETS engine engine_release engine_service engine_service_null
