@@ -71,7 +71,18 @@ function(sdk_apply_header_test_settings target)
   elseif(TARGET_PLATFORM MATCHES "linux")
     target_compile_definitions(${target} PRIVATE DM_PLATFORM_LINUX DM_HOSTFS=\"\")
   elseif(TARGET_PLATFORM MATCHES "win32")
-    target_compile_definitions(${target} PRIVATE DM_PLATFORM_WINDOWS WIN32 _WIN32 DM_HOSTFS=\"\")
+    target_compile_definitions(${target} PRIVATE
+      DM_PLATFORM_WINDOWS
+      WIN32
+      _WIN32
+      DM_HOSTFS=\"\"
+      WINVER=0x0600
+      _WIN32_WINNT=0x0600
+      NOMINMAX
+      _CRT_SECURE_NO_WARNINGS
+      UNICODE
+      _UNICODE)
+    target_compile_options(${target} PRIVATE /FIdmsdk/dlib/safe_windows.h)
   endif()
   foreach(_sdk_header_dependency IN ITEMS
       gameobject_proto_headers
