@@ -285,7 +285,8 @@ endif()
 if(TARGET_PLATFORM MATCHES "android")
   list(APPEND ENGINE_EXTRA_LIBS c++_static)
 endif()
-if(NOT TARGET_PLATFORM MATCHES "^(arm64-nx64|win32|x86_64-win32|wasm-web|wasm_pthread-web|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
+if(NOT TARGET_PLATFORM_OS STREQUAL "win32" AND
+   NOT TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   list(APPEND ENGINE_EXTRA_LIBS tremolo)
 endif()
 
@@ -299,7 +300,7 @@ set(ENGINE_COMPONENT_SYMBOLS
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
   ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont)
-if(TARGET_PLATFORM MATCHES "^(arm64-nx64|win32|x86_64-win32|wasm-web|wasm_pthread-web)$")
+if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)
 elseif(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderTremolo)

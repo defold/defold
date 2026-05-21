@@ -123,7 +123,8 @@ set(SOUND_TEST_LIBS
   decoder_opus)
 
 set(SOUND_TEST_EXPORTS DefaultSoundDevice AudioDecoderWav AudioDecoderStbVorbis AudioDecoderOpus)
-if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|win32|x86_64-win32|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
+if(NOT TARGET_PLATFORM_OS STREQUAL "win32" AND
+   NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   list(APPEND SOUND_TEST_EXPORTS AudioDecoderTremolo)
   list(APPEND SOUND_TEST_LIBS tremolo)
   set(SOUND_TEST_HAS_TREMOLO ON)
