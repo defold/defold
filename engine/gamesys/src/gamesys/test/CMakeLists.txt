@@ -165,7 +165,7 @@ if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
 endif()
 
 set(_DEFOLD_TEST_LIBS
-  testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
+  testmain test_script dlib dmbedtls zip ddf resource gameobject extension script input
   particle rig gui liveupdate graphics_null profile_null platform_null hid_null
   physics render render_font_default font sound_null box2d_defold)
 
