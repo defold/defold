@@ -511,13 +511,11 @@
                                             [:animation-ids :animation-ids]
                                             [:animation-info :animation-infos]
                                             [:animation-set-build-target :animation-set-build-target])))
-            (dynamic error (g/fnk [_node-id animations ^:try animations-bones animation-root-transform-warning]
+            (dynamic error (g/fnk [_node-id animations ^:try animations-bones]
                              (if (g/error-value? animations-bones)
                                animations-bones
                                (or (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message)
-                                   (prop-resource-format-error _node-id :animations animations animations-message model-scene/animation-file-types)
-                                   (when animation-root-transform-warning
-                                     (g/->error _node-id :animations :warning animations animation-root-transform-warning {}))))))
+                                   (prop-resource-format-error _node-id :animations animations animations-message model-scene/animation-file-types)))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/animation-file-types}))
             (dynamic label (properties/label-dynamic :model :animations))
@@ -549,9 +547,6 @@
 
   (output bones g/Any produce-bones)
   (output animation-resources g/Any (g/fnk [animations-resource] [animations-resource]))
-  (output animation-root-transform-warning g/Any :cached
-          (g/fnk [skeleton-resource animations-resource]
-            (model-loader/root-ancestor-transform-warning skeleton-resource animations-resource)))
   (output animation-info g/Any :cached animation-set/produce-animation-info)
   (output animation-set-info g/Any :cached animation-set/produce-animation-set-info)
   (output animation-set g/Any :cached animation-set/produce-animation-set)

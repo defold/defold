@@ -69,15 +69,6 @@ import com.google.protobuf.ByteString;
 public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
-    private static final double ROOT_ANCESTOR_TRANSLATION_EPSILON = 1e-4;
-    private static final double ROOT_ANCESTOR_SCALE_EPSILON = 1e-4;
-    private static final double ROOT_ANCESTOR_ROTATION_DOT_EPSILON = 1e-6;
-
-    public static class RootBoneAncestorInfo {
-        public String boneName;
-        public String ancestorNodeName;
-        public Modelimporter.Transform ancestorTransform;
-    }
 
     /**
      * Atlas size for morph target slices (same growth rule as engine {@code ComputeMorphTextureSize}).
@@ -1141,92 +1132,6 @@ public class ModelUtil {
         }
 
         return skeleton;
-    }
-
-    private static Modelimporter.Bone getRootBone(ArrayList<Modelimporter.Bone> skeleton) {
-        for (Modelimporter.Bone bone : skeleton) {
-            if (bone.parent == null) {
-                return bone;
-            }
-        }
-        return skeleton.isEmpty() ? null : skeleton.get(0);
-    }
-
-    public static RootBoneAncestorInfo getRootBoneAncestorInfo(Scene scene) {
-        ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
-        if (skeleton.isEmpty()) {
-            return null;
-        }
-
-        Modelimporter.Bone rootBone = getRootBone(skeleton);
-        if (rootBone == null) {
-            return null;
-        }
-
-        RootBoneAncestorInfo info = new RootBoneAncestorInfo();
-        info.boneName = rootBone.name;
-        if (rootBone.node != null && rootBone.node.parent != null) {
-            info.ancestorNodeName = rootBone.node.parent.name;
-            info.ancestorTransform = rootBone.node.parent.world;
-        } else {
-            info.ancestorNodeName = "";
-            info.ancestorTransform = identityModelTransform();
-        }
-        return info;
-    }
-
-    private static boolean nearlyEqual(double a, double b, double epsilon) {
-        return Math.abs(a - b) <= epsilon;
-    }
-
-    private static boolean equivalentRotation(Modelimporter.Quat a, Modelimporter.Quat b) {
-        double dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-        return (1.0 - Math.abs(dot)) <= ROOT_ANCESTOR_ROTATION_DOT_EPSILON;
-    }
-
-    private static boolean equivalentTransforms(Modelimporter.Transform a, Modelimporter.Transform b) {
-        return nearlyEqual(a.translation.x, b.translation.x, ROOT_ANCESTOR_TRANSLATION_EPSILON)
-                && nearlyEqual(a.translation.y, b.translation.y, ROOT_ANCESTOR_TRANSLATION_EPSILON)
-                && nearlyEqual(a.translation.z, b.translation.z, ROOT_ANCESTOR_TRANSLATION_EPSILON)
-                && nearlyEqual(a.scale.x, b.scale.x, ROOT_ANCESTOR_SCALE_EPSILON)
-                && nearlyEqual(a.scale.y, b.scale.y, ROOT_ANCESTOR_SCALE_EPSILON)
-                && nearlyEqual(a.scale.z, b.scale.z, ROOT_ANCESTOR_SCALE_EPSILON)
-                && equivalentRotation(a.rotation, b.rotation);
-    }
-
-    private static String formatRootAncestorTransform(Modelimporter.Transform transform) {
-        return String.format(Locale.ROOT,
-                "T=(%.4f, %.4f, %.4f) R=(%.4f, %.4f, %.4f, %.4f) S=(%.4f, %.4f, %.4f)",
-                transform.translation.x, transform.translation.y, transform.translation.z,
-                transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w,
-                transform.scale.x, transform.scale.y, transform.scale.z);
-    }
-
-    public static String getRootAncestorTransformWarning(Scene skeletonScene, String skeletonPath, Scene animationScene, String animationPath) {
-        RootBoneAncestorInfo skeletonInfo = getRootBoneAncestorInfo(skeletonScene);
-        RootBoneAncestorInfo animationInfo = getRootBoneAncestorInfo(animationScene);
-        if (skeletonInfo == null || animationInfo == null) {
-            return null;
-        }
-
-        if (equivalentTransforms(skeletonInfo.ancestorTransform, animationInfo.ancestorTransform)) {
-            return null;
-        }
-
-        String skeletonAncestorName = skeletonInfo.ancestorNodeName == null || skeletonInfo.ancestorNodeName.isEmpty()
-                ? "<identity>"
-                : skeletonInfo.ancestorNodeName;
-        String animationAncestorName = animationInfo.ancestorNodeName == null || animationInfo.ancestorNodeName.isEmpty()
-                ? "<identity>"
-                : animationInfo.ancestorNodeName;
-
-        return String.format(Locale.ROOT,
-                "The skeleton '%s' and animations '%s' use different root ancestor transforms above the root bone. " +
-                "Skeleton root bone '%s' inherits '%s' with %s, while animation root bone '%s' inherits '%s' with %s. " +
-                "Combining these files may cause incorrect root rotation, scale, or translation at runtime.",
-                skeletonPath, animationPath,
-                skeletonInfo.boneName, skeletonAncestorName, formatRootAncestorTransform(skeletonInfo.ancestorTransform),
-                animationInfo.boneName, animationAncestorName, formatRootAncestorTransform(animationInfo.ancestorTransform));
     }
 
     public static ArrayList<Modelimporter.Bone> loadSkeleton(byte[] content, String suffix, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {

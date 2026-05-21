@@ -102,27 +102,3 @@
         (g/->error node-id nil :fatal nil
                    (localization/message "error.model-load-failed" {"file" path "error" message})
                    {:type :invalid-content :resource resource})))))
-
-(defn root-ancestor-transform-warning [skeleton-resource animations-resource]
-  (when (and skeleton-resource
-             animations-resource
-             (not= (resource/proj-path skeleton-resource) (resource/proj-path animations-resource))
-             (#{"gltf" "glb"} (string/lower-case (resource/ext skeleton-resource)))
-             (#{"gltf" "glb"} (string/lower-case (resource/ext animations-resource))))
-    (try
-      (let [workspace (resource/workspace skeleton-resource)
-            project-directory (workspace/project-directory workspace)
-            data-resolver (ModelUtil/createFileDataResolver project-directory)
-            skeleton-path (resource/proj-path skeleton-resource)
-            animations-path (resource/proj-path animations-resource)]
-        (with-open [skeleton-stream (io/input-stream skeleton-resource)
-                    animations-stream (io/input-stream animations-resource)]
-          (let [skeleton-scene (ModelUtil/loadScene skeleton-stream skeleton-path nil data-resolver)
-                animations-scene (ModelUtil/loadScene animations-stream animations-path nil data-resolver)]
-            (ModelUtil/getRootAncestorTransformWarning skeleton-scene skeleton-path animations-scene animations-path))))
-      (catch Exception error
-        (log/warn :message "Failed to compare model skeleton and animation root ancestor transforms"
-                  :skeleton (resource/proj-path skeleton-resource)
-                  :animations (resource/proj-path animations-resource)
-                  :exception error)
-        nil))))
