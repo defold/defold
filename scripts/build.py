@@ -898,7 +898,6 @@ class Configuration(object):
 
         base_platforms = self.get_base_platforms()
         target_platform = self.target_platform
-        other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
         if target_platform in ['wasm-web', 'wasm_pthread-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
@@ -909,15 +908,7 @@ class Configuration(object):
 
         installed_packages = set()
 
-        for platform in other_platforms:
-            packages = PLATFORM_PACKAGES.get(platform, [])
-            package_paths = make_package_paths(self.defold_root, platform, packages)
-            print("Installing %s packages " % platform)
-            for path in package_paths:
-                self._extract_tgz(path, self.ext)
-            installed_packages.update(package_paths)
-
-        for base_platform in self.get_base_platforms():
+        for base_platform in base_platforms:
             packages = list(PACKAGES_HOST) + build_private.get_install_host_packages(base_platform)
             packages.extend(PLATFORM_PACKAGES.get(base_platform, []))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
