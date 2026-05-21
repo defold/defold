@@ -626,8 +626,15 @@ TEST(Shaderc, HLSLMergeRootSignatures)
     ASSERT_GT(fs_res->m_HLSLRootSignature.Size(), 0u);
 
     dmShaderc::ShaderCompileResult arr[2];
-    arr[0] = *vs_res;
-    arr[1] = *fs_res;
+    uint32_t vs_root_signature_size = vs_res->m_HLSLRootSignature.Size();
+    arr[0].m_HLSLRootSignature.SetCapacity(vs_root_signature_size);
+    arr[0].m_HLSLRootSignature.SetSize(vs_root_signature_size);
+    memcpy(arr[0].m_HLSLRootSignature.Begin(), vs_res->m_HLSLRootSignature.Begin(), vs_root_signature_size);
+
+    uint32_t fs_root_signature_size = fs_res->m_HLSLRootSignature.Size();
+    arr[1].m_HLSLRootSignature.SetCapacity(fs_root_signature_size);
+    arr[1].m_HLSLRootSignature.SetSize(fs_root_signature_size);
+    memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_res->m_HLSLRootSignature.Begin(), fs_root_signature_size);
 
     dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
     ASSERT_NE((void*)0, merged);
