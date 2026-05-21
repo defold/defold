@@ -267,11 +267,20 @@ namespace dmGameSystem
         sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(MINIMUM_CACHE_CAPACITY);
         dmDoubleLinkedList::ListInit(&sprite_world->m_AnimationDataCache.m_LRU);
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
-        sprite_world->m_RenderObjectsInUse = 0;
-        sprite_world->m_VertexBuffer     = 0;
-        sprite_world->m_VertexBufferData = 0;
-        sprite_world->m_IndexBuffer      = 0;
-        sprite_world->m_IndexBufferData  = 0;
+        sprite_world->m_RenderObjectsInUse   = 0;
+        sprite_world->m_VertexBuffer         = 0;
+        sprite_world->m_VertexBufferData     = 0;
+        sprite_world->m_VertexBufferWritePtr = 0;
+        sprite_world->m_IndexBuffer          = 0;
+        sprite_world->m_VerticesWritten      = 0;
+        sprite_world->m_VertexMemorySize     = 0;
+        sprite_world->m_VertexCount          = 0;
+        sprite_world->m_IndexCount           = 0;
+        sprite_world->m_DispatchCount        = 0;
+        sprite_world->m_IndexBufferData      = 0;
+        sprite_world->m_IndexBufferWritePtr  = 0;
+        sprite_world->m_Is16BitIndex         = 0;
+        sprite_world->m_ReallocBuffers       = 1;
 
         InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool, 8);
 
