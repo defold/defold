@@ -1728,6 +1728,7 @@ After transaction (edit):
   - type: gui-node-type-text
     id: text1
     nodes: 0
+Preconfigured spine node: spine_scene idle
 Transaction: set Landscape position
   position = {10, 10, 10}, can reset = false
   Landscape:position = {20, 20, 20}, can reset = true

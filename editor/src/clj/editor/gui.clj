@@ -403,7 +403,7 @@
       (pair pb-field pb-value))
     entry))
 
-(declare base-node-type-registry get-registered-node-type-info get-registered-node-type-infos gui-node-type-registry-from-resource-types gui-resource-kind-registry-from-resource-types update-gui-resource-type-tx-data)
+(declare base-node-type-registry extension-type-name->id get-registered-node-type-info get-registered-node-type-infos gui-node-type-registry-from-resource-types gui-resource-kind-registry-from-resource-types update-gui-resource-type-tx-data)
 
 ;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -532,6 +532,24 @@
        (sort-by :id)
        vec))
 
+(defn- custom-property-id? [type-info prop-kw]
+  (contains? (:custom-property-id->info type-info) prop-kw))
+
+(defn- expand-custom-properties [prop->value]
+  (if-some [custom-properties (coll/not-empty (:custom-properties prop->value))]
+    (-> prop->value
+        (dissoc :custom-properties)
+        (coll/merge custom-properties))
+    prop->value))
+
+(defn- collapse-custom-properties [type-info prop->value include-custom-property-defaults]
+  (let [custom-property-id->info (:custom-property-id->info type-info)
+        custom-properties (select-keys prop->value (keys custom-property-id->info))
+        regular-prop->value (apply dissoc prop->value (keys custom-properties))]
+    (cond-> regular-prop->value
+            (coll/not-empty custom-properties)
+            (assoc :custom-properties (custom-properties-prop-value->pb type-info custom-properties include-custom-property-defaults)))))
+
 (defn- sanitize-custom-properties [node-desc type-info]
   (if-not (contains? node-desc :custom-properties)
     node-desc
@@ -550,31 +568,16 @@
         (dissoc node-desc :custom-properties)
         (assoc node-desc :custom-properties custom-properties)))))
 
-(defn- move-custom-property-prop-keys-to-custom-properties
-  ([type-info prop->value]
-   (move-custom-property-prop-keys-to-custom-properties type-info prop->value (set (keys prop->value))))
-  ([type-info prop->value prop-keys]
-   (let [prop-key->custom-property-id (:custom-property-prop-key->id type-info)]
-     (reduce-kv
-       (fn [prop->value prop-key custom-property-id]
-         (if (and (contains? prop-keys prop-key)
-                  (contains? prop->value prop-key))
-           (-> prop->value
-               (update :custom-properties assoc custom-property-id (prop->value prop-key))
-               (dissoc prop-key))
-           prop->value))
-       prop->value
-       prop-key->custom-property-id))))
-
-(defn- prop-entry->pb-field-entry-for-type [type-info [prop-key prop-value :as entry] include-custom-property-defaults]
+(defn- prop-entry->pb-field-entry-with-collapsed-custom-properties [prop-key prop-value entry]
   (if (= :custom-properties prop-key)
-    (when-some [custom-properties (coll/not-empty (custom-properties-prop-value->pb type-info prop-value include-custom-property-defaults))]
+    (when-some [custom-properties (coll/not-empty prop-value)]
       (pair :custom-properties custom-properties))
     (prop-entry->pb-field-entry entry)))
 
 (defn- prop->pb-field-entries-for-type [type-info include-custom-property-defaults prop->value]
-  (e/keep #(prop-entry->pb-field-entry-for-type type-info % include-custom-property-defaults)
-          prop->value))
+  (e/keep (fn [[prop-key prop-value :as entry]]
+            (prop-entry->pb-field-entry-with-collapsed-custom-properties prop-key prop-value entry))
+          (collapse-custom-properties type-info prop->value include-custom-property-defaults)))
 
 (defn- node->node-tree
   ([node]
@@ -636,12 +639,7 @@
 
 (s/def ^:private TTextureInfo {(s/optional-key :anim-data) {s/Keyword s/Any}})
 
-(s/def ^:private TGuiResourceType (s/enum :font
-                                          :layer
-                                          :material
-                                          :particlefx
-                                          :spine-scene
-                                          :texture))
+(s/def ^:private TGuiResourceType s/Keyword)
 
 (s/def ^:private TGuiResourceNames s/Any #_(s/constrained #{s/Str} sorted?))
 
@@ -651,32 +649,25 @@
 (s/def ^:private TGuiResourcePageCounts s/Any #_{s/Str (s/maybe s/Int)})
 (s/def ^:private TGuiResourceTextureInfos s/Any #_{s/Str TTextureInfo})
 (s/def ^:private TFontDatas s/Any #_{s/Str {s/Keyword s/Any}})
-(s/def ^:private TSpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (s/constrained #{s/Str} sorted?)
-                                                       :spine-skin-ids (s/constrained #{s/Str} sorted?)}})
-(s/def ^:private TSpineSceneInfos s/Any #_{s/Str {:spine-data-handle (s/maybe {s/Int s/Any})
-                                                  :spine-bones (s/maybe {s/Keyword s/Any})
-                                                  :spine-scene-scene (s/maybe {s/Keyword s/Any})
-                                                  :spine-scene-pb (s/maybe {s/Keyword s/Any})}})
 (s/def ^:private TParticleFXInfos s/Any #_{s/Str {:particlefx-scene (s/maybe {s/Keyword s/Any})}})
 (s/def ^:private TTrivialGuiSceneInfo {(s/optional-key :id-prefix) s/Str
                                        (s/optional-key :current-layout) s/Str
                                        (s/optional-key :layout-names) TGuiResourceNames})
 (s/def ^:private TBasicGuiSceneInfo {(s/optional-key :font-names) TGuiResourceNames
+                                     (s/optional-key :gui-resource-kind-basic-info) {s/Keyword s/Any}
                                      (s/optional-key :gui-resource-kind-names) {s/Keyword TGuiResourceNames}
                                      (s/required-key :layer->index) TNameIndices
                                      (s/optional-key :layer-names) TGuiResourceNames
                                      (s/optional-key :material-infos) TGuiResourceMaterialInfos
                                      (s/optional-key :particlefx-resource-names) TGuiResourceNames
-                                     (s/optional-key :spine-scene-element-ids) TSpineSceneElementIds
-                                     (s/optional-key :spine-scene-names) TGuiResourceNames
                                      (s/optional-key :texture-page-counts) TGuiResourcePageCounts
                                      (s/optional-key :exclude-gles-sm100) s/Any
                                      (s/optional-key :texture-resource-names) TGuiResourceNames})
 (s/def ^:private TCostlyGuiSceneInfo {(s/optional-key :font-datas) TFontDatas
+                                      (s/optional-key :gui-resource-kind-costly-info) {s/Keyword s/Any}
                                       (s/optional-key :font-shaders) TGuiResourceShaders
                                       (s/optional-key :material-shaders) TGuiResourceShaders
                                       (s/optional-key :particlefx-infos) TParticleFXInfos
-                                      (s/optional-key :spine-scene-infos) TSpineSceneInfos
                                       (s/optional-key :texture-gpu-textures) TGuiResourceTextures
                                       (s/optional-key :texture-infos) TGuiResourceTextureInfos})
 
@@ -691,8 +682,6 @@
 (g/deftype ^:private GuiResourcePageCounts TGuiResourcePageCounts)
 (g/deftype ^:private GuiResourceTextureInfos TGuiResourceTextureInfos)
 (g/deftype ^:private FontDatas TFontDatas)
-(g/deftype ^:private SpineSceneElementIds TSpineSceneElementIds)
-(g/deftype ^:private SpineSceneInfos TSpineSceneInfos)
 (g/deftype ^:private ParticleFXInfos TParticleFXInfos)
 (g/deftype ^:private GuiResourceTypeNames {TGuiResourceType TGuiResourceNames})
 
@@ -806,50 +795,40 @@
               (when (= gui-resource-type resource-kind)
                 custom-property-info))))))
 
-(defn- rename-custom-gui-resource-references-in-properties [rename-fn custom-property-infos prop->value old-name new-name custom-properties]
+(defn- rename-custom-gui-resource-references-in-properties [rename-fn custom-property-infos old-name new-name custom-properties]
   (reduce
-    (fn [custom-properties {:keys [id prop-key]}]
-      (let [old-value (get custom-properties id ::not-found)
-            prop-value (if prop-key
-                         (prop->value prop-key ::not-found)
-                         ::not-found)]
+    (fn [custom-properties {:keys [id]}]
+      (let [old-value (get custom-properties id ::not-found)]
         (case old-value
           ::not-found custom-properties
-          (if (and (not= ::not-found prop-value)
-                   (not= old-value prop-value))
-            custom-properties
-            (let [new-value (rename-fn old-value old-name new-name)]
-              (cond-> custom-properties
-                      (not= old-value new-value)
-                      (assoc id new-value)))))))
+          (let [new-value (rename-fn old-value old-name new-name)]
+            (cond-> custom-properties
+                    (not= old-value new-value)
+                    (assoc id new-value))))))
     custom-properties
     custom-property-infos))
 
 (defn- update-custom-gui-resource-reference-impl [rename-fn gui-resource-type evaluation-context node-id old-name new-name]
   (let [custom-property-infos (custom-gui-resource-property-infos evaluation-context node-id gui-resource-type)]
-    (when (seq custom-property-infos)
+    (when (coll/not-empty custom-property-infos)
       (let [basis (:basis evaluation-context)]
         (concat
           (when (g/property-value-origin? basis node-id :custom-properties)
-            (let [prop->value (coll/into-> custom-property-infos {}
-                                (keep (fn [{:keys [prop-key]}]
-                                        (when prop-key
-                                          (pair prop-key (g/node-value node-id prop-key evaluation-context))))))
-                  old-value (g/raw-property-value basis node-id :custom-properties)
-                  new-value (rename-custom-gui-resource-references-in-properties rename-fn custom-property-infos prop->value old-name new-name old-value)]
+            (let [old-value (g/raw-property-value basis node-id :custom-properties)
+                  new-value (rename-custom-gui-resource-references-in-properties rename-fn custom-property-infos old-name new-name old-value)]
               (when (not= old-value new-value)
                 (g/set-property node-id :custom-properties new-value))))
           (let [old-layout->prop->override (g/raw-property-value basis node-id :layout->prop->override)
                 new-layout->prop->override
                 (reduce-kv
                   (fn [layout->prop->override layout-name prop->override]
-                    (let [old-value (prop->override :custom-properties ::not-found)]
+                    (let [old-value (select-keys prop->override (map :id custom-property-infos))]
                       (case old-value
-                        ::not-found layout->prop->override
-                        (let [new-value (rename-custom-gui-resource-references-in-properties rename-fn custom-property-infos prop->override old-name new-name old-value)]
+                        {} layout->prop->override
+                        (let [new-value (rename-custom-gui-resource-references-in-properties rename-fn custom-property-infos old-name new-name old-value)]
                           (cond-> layout->prop->override
                                   (not= old-value new-value)
-                                  (update layout-name assoc :custom-properties new-value))))))
+                                  (update layout-name merge new-value))))))
                   old-layout->prop->override
                   old-layout->prop->override)]
             (when-not (identical? old-layout->prop->override new-layout->prop->override)
@@ -1091,11 +1070,12 @@
       node-properties
       (let [node-type (g/node-type node)
             stripped-prop-kws (node-type-deref->stripped-prop-kws @node-type)]
-        (persistent!
-          (reduce
-            dissoc!
-            (transient node-properties)
-            stripped-prop-kws))))))
+        (expand-custom-properties
+          (persistent!
+            (reduce
+              dissoc!
+              (transient node-properties)
+              stripped-prop-kws)))))))
 
 (defn- node-type-deref->layout-property-names-raw [node-type-deref]
   {:pre [(in/node-type-deref? node-type-deref)]}
@@ -1129,21 +1109,49 @@
       {}
       (let [node-type (g/node-type root-node)
             stripped-prop-kws (node-type-deref->stripped-prop-kws @node-type)]
-        (persistent!
-          (reduce dissoc! node-properties stripped-prop-kws))))))
+        (expand-custom-properties
+          (persistent!
+            (reduce dissoc! node-properties stripped-prop-kws)))))))
+
+(defn- node-custom-property-id->info [evaluation-context node-id]
+  (let [gui-node-type-registry (g/node-value node-id :gui-node-type-registry evaluation-context)
+        node (g/node-by-id (:basis evaluation-context) node-id)]
+    (if gui-node-type-registry
+      (or (:custom-property-id->info (get-registered-node-type-info gui-node-type-registry (g/node-type node)))
+          {})
+      (if (= :type-custom (g/node-value node-id :type evaluation-context))
+        (throw (IllegalStateException.
+                 (format "Unable to locate GUI node type registry for custom GUI node. (node-cls=%s)"
+                         (:k (g/node-type node)))))
+        {}))))
 
 (defn- layout-property-changes-tx-data
   "Takes changes returned by a changes-fn associated with a layout property
   and returns the transaction steps that perform those changes to the specified
   layout in the GuiNode."
-  [layout-name node-id changes]
+  [evaluation-context layout-name node-id changes]
   {:pre [(string? layout-name)]}
   (if (str/blank? layout-name)
-    (coll/into-> changes []
-      (mapcat (fn [[prop-kw value]]
-                (if (nil? value)
-                  (g/clear-property node-id prop-kw)
-                  (g/set-property node-id prop-kw value)))))
+    (let [custom-property-id->info (node-custom-property-id->info evaluation-context node-id)
+          custom-property-changes (select-keys changes (keys custom-property-id->info))
+          graph-property-changes (apply dissoc changes (keys custom-property-changes))]
+      (concat
+        (coll/into-> graph-property-changes []
+          (mapcat (fn [[prop-kw value]]
+                    (if (nil? value)
+                      (g/clear-property node-id prop-kw)
+                      (g/set-property node-id prop-kw value)))))
+        (when (coll/not-empty custom-property-changes)
+          (g/update-property
+            node-id :custom-properties
+            (fn [custom-properties]
+              (coll/not-empty
+                (reduce-kv (fn [custom-properties prop-kw value]
+                             (if (nil? value)
+                               (dissoc custom-properties prop-kw)
+                               (assoc custom-properties prop-kw value)))
+                           custom-properties
+                           custom-property-changes)))))))
     (g/update-property
       node-id :layout->prop->override
       update layout-name
@@ -1160,12 +1168,18 @@
   "Takes a sequence of prop-kws, possibly based on the return value of a
   changes-fn, and returns the transaction steps that will clear overrides for
   those properties."
-  [layout-name node-id cleared-prop-kws]
+  [evaluation-context layout-name node-id cleared-prop-kws]
   (when (coll/not-empty cleared-prop-kws)
     (if (str/blank? layout-name)
-      (coll/mapcat
-        #(g/clear-property node-id %)
-        cleared-prop-kws)
+      (let [custom-property-id->info (node-custom-property-id->info evaluation-context node-id)
+            cleared-custom-prop-kws (coll/into-> cleared-prop-kws []
+                                      (filter custom-property-id->info))
+            cleared-graph-prop-kws (coll/into-> cleared-prop-kws []
+                                    (remove custom-property-id->info))]
+        (concat
+          (coll/mapcat #(g/clear-property node-id %) cleared-graph-prop-kws)
+          (when (coll/not-empty cleared-custom-prop-kws)
+            (g/update-property node-id :custom-properties #(coll/not-empty (apply dissoc % cleared-custom-prop-kws))))))
       (g/update-property
         node-id :layout->prop->override
         update layout-name
@@ -1189,7 +1203,7 @@
   (let [changes (if (nil? changes-fn)
                   {prop-kw new-value}
                   (changes-fn evaluation-context node-id prop-kw old-value new-value))]
-    (layout-property-changes-tx-data layout-name node-id changes)))
+    (layout-property-changes-tx-data evaluation-context layout-name node-id changes)))
 
 (defn layout-property-edit-type-set-in-current-layout
   [changes-fn prop-kw evaluation-context node-id old-value new-value]
@@ -1204,7 +1218,8 @@
           [prop-kw]
           (g/with-auto-evaluation-context evaluation-context
             (keys (changes-fn evaluation-context node-id prop-kw nil nil))))]
-    (layout-property-clears-tx-data layout-name node-id cleared-prop-kws)))
+    (g/with-auto-evaluation-context evaluation-context
+      (layout-property-clears-tx-data evaluation-context layout-name node-id cleared-prop-kws))))
 
 (defn layout-property-edit-type-clear-in-current-layout
   [changes-fn node-id prop-kw]
@@ -1217,13 +1232,14 @@
             [prop-kw]
             (keys (changes-fn evaluation-context node-id prop-kw nil nil)))]
 
-      (layout-property-clears-tx-data current-layout node-id cleared-prop-kws))))
+      (layout-property-clears-tx-data evaluation-context current-layout node-id cleared-prop-kws))))
 
 (defn basic-layout-property-clear-in-current-layout
   [node-id prop-kw]
-  (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info)
-        current-layout (:current-layout trivial-gui-scene-info)]
-    (layout-property-clears-tx-data current-layout node-id [prop-kw])))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
+          current-layout (:current-layout trivial-gui-scene-info)]
+      (layout-property-clears-tx-data evaluation-context current-layout node-id [prop-kw]))))
 
 (defn- basic-layout-property-update-in-current-layout
   [evaluation-context node-id prop-kw update-fn & args]
@@ -1231,7 +1247,7 @@
         new-value (apply update-fn old-value args)
         trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
         current-layout (:current-layout trivial-gui-scene-info)]
-    (layout-property-changes-tx-data current-layout node-id {prop-kw new-value})))
+    (layout-property-changes-tx-data evaluation-context current-layout node-id {prop-kw new-value})))
 
 (defn- layout-property-set-in-specific-layout
   "Uses the changes-fn associated with each property to create a series of
@@ -1245,30 +1261,34 @@
       (assert (even? kv-count))
       (let [basis (:basis evaluation-context)
             node (g/node-by-id basis node-id)
+            custom-property-id->info (node-custom-property-id->info evaluation-context node-id)
             prop->value-delay (delay (prop->value-for-specific-layout node-id layout-name evaluation-context))
 
             changes
             (coll/into-> prop-kws-and-values {}
               (partition-all 2)
               (mapcat (fn [[prop-kw new-value]]
-                        (if-let [changes-fn (:changes-fn (g/node-property-dynamic node prop-kw :edit-type evaluation-context))]
+                        (if-let [changes-fn (when-not (custom-property-id->info prop-kw)
+                                              (:changes-fn (g/node-property-dynamic node prop-kw :edit-type evaluation-context)))]
                           (let [old-value (get @prop->value-delay prop-kw)]
                             (changes-fn evaluation-context node-id prop-kw old-value new-value))
                           {prop-kw new-value}))))]
 
         (coll/not-empty
-          (layout-property-changes-tx-data layout-name node-id changes))))))
+          (layout-property-changes-tx-data evaluation-context layout-name node-id changes))))))
 
 (defn- layout-property-clear-in-specific-layout
   [evaluation-context layout-name node-id prop-kw]
   (coll/not-empty
     (layout-property-clears-tx-data
+      evaluation-context
       layout-name node-id
-      (if-let [changes-fn (-> evaluation-context
-                              :basis
-                              (g/node-by-id node-id)
-                              (g/node-property-dynamic prop-kw :edit-type evaluation-context)
-                              :changes-fn)]
+      (if-let [changes-fn (when-not ((node-custom-property-id->info evaluation-context node-id) prop-kw)
+                            (-> evaluation-context
+                                :basis
+                                (g/node-by-id node-id)
+                                (g/node-property-dynamic prop-kw :edit-type evaluation-context)
+                                :changes-fn))]
         (keys (changes-fn evaluation-context node-id prop-kw nil nil))
         [prop-kw]))))
 
@@ -1294,6 +1314,57 @@
   (assoc edit-type
     :set-fn (fn/partial layout-property-edit-type-set-in-current-layout nil prop-kw)
     :clear-fn basic-layout-property-clear-in-current-layout))
+
+(defn- gui-resource-kind-names [basic-gui-scene-info resource-kind]
+  (case resource-kind
+    :font (:font-names basic-gui-scene-info)
+    :layer (:layer-names basic-gui-scene-info)
+    :material (coll/into-> (:material-infos basic-gui-scene-info) (sorted-set)
+                (map key)
+                (remove coll/empty?))
+    :particlefx (:particlefx-resource-names basic-gui-scene-info)
+    :texture (:texture-resource-names basic-gui-scene-info)
+    (get-in basic-gui-scene-info [:gui-resource-kind-names resource-kind])))
+
+(defn- node-fnk-value [evaluation-context node-id f]
+  (let [args (coll/into-> (:arguments (meta f)) {}
+               (map (fn [arg-label]
+                      (pair arg-label
+                            (case arg-label
+                              :_evaluation-context evaluation-context
+                              :_node-id node-id
+                              (g/node-value node-id arg-label evaluation-context))))))]
+    (f args)))
+
+(defn- custom-property-edit-type [evaluation-context node-id custom-property-info basic-gui-scene-info]
+  (let [{:keys [id type resource-kind edit-type-fnk]} custom-property-info
+        edit-type (if edit-type-fnk
+                    (node-fnk-value evaluation-context node-id edit-type-fnk)
+                    (if resource-kind
+                      (optional-gui-resource-choicebox (gui-resource-kind-names basic-gui-scene-info resource-kind))
+                      {:type type}))]
+    (wrap-layout-property-edit-type-value id (dissoc edit-type :set-fn :clear-fn :changes-fn))))
+
+(defn- custom-property-error [evaluation-context node-id custom-property-info]
+  (when-some [error-fnk (:error-fnk custom-property-info)]
+    (node-fnk-value evaluation-context node-id error-fnk)))
+
+(defn- custom-property-properties [evaluation-context node-id type-info prop->value layout-override-value basic-gui-scene-info]
+  (coll/into-> (:custom-properties type-info) {}
+    (map (fn [{:keys [id type label] :as custom-property-info}]
+           (pair id
+                 (cond-> {:node-id node-id
+                          :prop-kw id
+                          :key id
+                          :value (prop->value id)
+                          :type type
+                          :label label
+                          :edit-type (custom-property-edit-type evaluation-context node-id custom-property-info basic-gui-scene-info)
+                          :assoc-original-value? false}
+                         (contains? custom-property-info :error-fnk)
+                         (assoc :error (custom-property-error evaluation-context node-id custom-property-info))
+                         (contains? layout-override-value id)
+                         (assoc :original-value (layout-override-value id))))))))
 
 ;; SDK api
 (defmacro layout-property-edit-type
@@ -1400,7 +1471,6 @@
             (dynamic visible (g/constantly false)))
   (property custom-properties g/Any (default {})
             (dynamic visible (g/constantly false))
-            (dynamic edit-type (g/constantly {:type g/Any}))
             (value (layout-property-getter custom-properties))
             (set (layout-property-setter custom-properties)))
   (output layer-index g/Any
@@ -1533,81 +1603,92 @@
             ;; All layout-property-setters explicitly invalidate this output, so
             ;; it is safe to evaluate properties on ourselves and our override
             ;; originals here.
-            (let [current-layout (:current-layout trivial-gui-scene-info)]
-              (when (coll/not-empty current-layout)
-                (let [basis (:basis _evaluation-context)]
-                  (loop [node-id _node-id
-                         layout-names (:layout-names trivial-gui-scene-info)
-                         prop->value (get layout->prop->override current-layout)]
-                    (if-let [original-node-id (g/override-original basis node-id)]
-                      (let [trivial-gui-scene-info-for-original (g/node-value original-node-id :trivial-gui-scene-info _evaluation-context)]
-                        (if (g/error-value? trivial-gui-scene-info-for-original)
-                          trivial-gui-scene-info-for-original
+            (let [basis (:basis _evaluation-context)
+                  current-layout (:current-layout trivial-gui-scene-info)]
+              (if (coll/not-empty current-layout)
+                (loop [node-id _node-id
+                       layout-names (:layout-names trivial-gui-scene-info)
+                       prop->value (get layout->prop->override current-layout)]
+                  (if-let [original-node-id (g/override-original basis node-id)]
+                    (let [trivial-gui-scene-info-for-original (g/node-value original-node-id :trivial-gui-scene-info _evaluation-context)]
+                      (if (g/error-value? trivial-gui-scene-info-for-original)
+                        trivial-gui-scene-info-for-original
 
-                          ;; If our scene introduces the current-layout, we
-                          ;; don't need to consider any more layout overrides
-                          ;; from our override originals. Instead, anything not
-                          ;; overridden for the current-layout by this point
-                          ;; will use values from our default layout, or values
-                          ;; inherited from the default layout in our override
-                          ;; originals.
-                          (let [layout-names-for-original (:layout-names trivial-gui-scene-info-for-original)
-                                introduces-current-layout (and (contains? layout-names current-layout)
-                                                               (not (contains? layout-names-for-original current-layout)))]
-                            (if introduces-current-layout
-                              (coll/merge
-                                (make-recursive-prop->value-for-default-layout basis node-id)
-                                prop->value)
-                              (let [layout->prop->override-for-original (g/node-value original-node-id :layout->prop->override _evaluation-context)]
-                                (if (g/error-value? layout->prop->override-for-original)
-                                  layout->prop->override-for-original
-                                  (recur original-node-id
-                                         layout-names-for-original
-                                         (coll/merge
-                                           (get layout->prop->override-for-original current-layout)
-                                           prop->value))))))))
+                        ;; If our scene introduces the current-layout, we
+                        ;; don't need to consider any more layout overrides
+                        ;; from our override originals. Instead, anything not
+                        ;; overridden for the current-layout by this point
+                        ;; will use values from our default layout, or values
+                        ;; inherited from the default layout in our override
+                        ;; originals.
+                        (let [layout-names-for-original (:layout-names trivial-gui-scene-info-for-original)
+                              introduces-current-layout (and (contains? layout-names current-layout)
+                                                             (not (contains? layout-names-for-original current-layout)))]
+                          (if introduces-current-layout
+                            (coll/merge
+                              (make-recursive-prop->value-for-default-layout basis node-id)
+                              prop->value)
+                            (let [layout->prop->override-for-original (g/node-value original-node-id :layout->prop->override _evaluation-context)]
+                              (if (g/error-value? layout->prop->override-for-original)
+                                layout->prop->override-for-original
+                                (recur original-node-id
+                                       layout-names-for-original
+                                       (coll/merge
+                                         (get layout->prop->override-for-original current-layout)
+                                         prop->value))))))))
 
-                      ;; We've reached the override root. Anything not
-                      ;; overridden for the current-layout by this point will
-                      ;; use values from our default layout.
-                      (let [node (g/node-by-id basis node-id)]
-                        (coll/merge
-                          (make-prop->value-for-default-layout node)
-                          prop->value)))))))))
+                    ;; We've reached the override root. Anything not
+                    ;; overridden for the current-layout by this point will
+                    ;; use values from our default layout.
+                    (let [node (g/node-by-id basis node-id)]
+                      (coll/merge
+                        (make-prop->value-for-default-layout node)
+                        prop->value))))
+                (make-recursive-prop->value-for-default-layout basis _node-id)))))
   (output _properties g/Properties :cached
-          (g/fnk [_declared-properties layout->prop->override trivial-gui-scene-info]
+          (g/fnk [^:unsafe _evaluation-context _node-id _declared-properties prop->value layout->prop->override layout->prop->value trivial-gui-scene-info gui-node-type-registry type custom-type basic-gui-scene-info]
             ;; For layout properties, the :original-value of each property is
             ;; based on the value returned by the layout-property-getter.
             ;; However, the presence of the :original-value is based on whether
             ;; we have an override node. What we want is for the :original-value
             ;; to be present when the user should be able to clear an override
             ;; from the current layout.
-            (let [current-layout (:current-layout trivial-gui-scene-info)]
+            (let [current-layout (:current-layout trivial-gui-scene-info)
+                  prop-kw->layout-override-value (if (str/blank? current-layout)
+                                                   {}
+                                                   (layout->prop->override current-layout))
+                  prop->value (get layout->prop->value current-layout prop->value)
+                  declared-properties (if gui-node-type-registry
+                                        (let [type-info (get-registered-node-type-info gui-node-type-registry type custom-type)
+                                              virtual-custom-properties (custom-property-properties _evaluation-context _node-id type-info prop->value prop-kw->layout-override-value basic-gui-scene-info)]
+                                          (update _declared-properties :properties #(-> %
+                                                                                       (dissoc :custom-properties)
+                                                                                       (merge virtual-custom-properties))))
+                                        _declared-properties)]
               (if (str/blank? current-layout)
                 ;; We're observing the Default layout. Since the :original-value
                 ;; will reflect overrides to the Default layout in this case, we
-                ;; don't have to do anything.
-                _declared-properties
+                ;; only need to add the virtual custom properties.
+                declared-properties
 
                 ;; We're observing a non-Default layout. We need to manually
                 ;; manage the :original-value to reflect the layout property
                 ;; overrides present on this node.
-                (let [prop-kw->layout-override-value (layout->prop->override current-layout)]
-                  (update _declared-properties :properties
-                          (fn [prop-kw->prop-info]
-                            (into {}
-                                  (map
-                                    (fn [[prop-kw prop-info]]
-                                      (let [layout-override-value (get prop-kw->layout-override-value prop-kw)]
-                                        (pair prop-kw
-                                              (cond-> (assoc prop-info :assoc-original-value? false) ; Disable automatic assoc in OverrideNode.produce-value. We want to manage it ourselves.
+                (update declared-properties :properties
+                        (fn [prop-kw->prop-info]
+                          (into {}
+                                (map
+                                  (fn [[prop-kw prop-info]]
+                                    (let [layout-override-value (get prop-kw->layout-override-value prop-kw)]
+                                      (pair prop-kw
+                                            (cond-> (assoc prop-info :assoc-original-value? false) ; Disable automatic assoc in OverrideNode.produce-value. We want to manage it ourselves.
 
-                                                      (some? layout-override-value)
-                                                      (assoc :original-value layout-override-value) ; Any :original-value is fine. The key just needs to be present.
+                                                    (some? layout-override-value)
+                                                    (assoc :original-value layout-override-value) ; Any :original-value is fine. The key just needs to be present.
 
-                                                      (nil? layout-override-value)
-                                                      (dissoc :original-value))))))
-                                  prop-kw->prop-info))))))))
+                                                    (nil? layout-override-value)
+                                                    (dissoc :original-value))))))
+                                prop-kw->prop-info)))))))
   (input child-build-errors g/Any :array)
   (output build-errors-gui-node g/Any
           (g/fnk [^:unsafe _evaluation-context _node-id basic-gui-scene-info id id-counts layer]
@@ -1654,7 +1735,7 @@
   [target-node-id target-layout-name evaluation-context]
   {:pre [(string? target-layout-name)]}
   (let [layout->prop->value (g/node-value target-node-id :layout->prop->value evaluation-context)
-        prop-kw->prop-info (:properties (g/node-value target-node-id :_declared-properties evaluation-context))
+        prop-kw->prop-info (:properties (g/node-value target-node-id :_properties evaluation-context))
         prop-kw->value (get layout->prop->value target-layout-name ::not-found)]
     ;; We don't return any target properties if the layout does not exist in the
     ;; target node. Otherwise, we would have to create the layout in the target
@@ -1693,6 +1774,13 @@
                                                                                                       target-layout-name)})
                                            (localization/message "override.aspect.layout.kind")])))))))]
     (properties/transfer-overrides-plan basis override-transfer-type source-prop-infos-by-prop-kw target-infos)))
+
+(defn- default-layout-custom-property-overrides->graph-properties [evaluation-context node-id prop->override]
+  (let [custom-property-id->info (node-custom-property-id->info evaluation-context node-id)
+        custom-property-overrides (select-keys prop->override (keys custom-property-id->info))]
+    (cond-> (apply dissoc prop->override (keys custom-property-overrides))
+            (coll/not-empty custom-property-overrides)
+            (assoc :custom-properties custom-property-overrides))))
 
 (defmethod properties/pull-up-overrides-plan-alternatives ::GuiNode
   [source-node-id source-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
@@ -2510,7 +2598,9 @@
                                                (into {}
                                                      (keep (fn [[id node-id]]
                                                              (when-some [properties (coll/not-empty (properties-by-id id))]
-                                                               (pair node-id properties))))
+                                                               (pair node-id
+                                                                     (default-layout-custom-property-overrides->graph-properties
+                                                                       evaluation-context node-id properties)))))
                                                      node-ids-by-id)))))
                                        {})]
                                ;; TODO: Check if we can filter based on connection label instead of source-node-id to be able to share :traverse-fn with other overrides.
@@ -3404,6 +3494,12 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (output kind+names g/Any :cached (g/fnk [kind names]
                                       (pair kind (into (sorted-set) names))))
+  (input basic-info g/Any :array)
+  (output kind+basic-info g/Any :cached (g/fnk [kind basic-info]
+                                           (pair kind (reduce coll/merge basic-info))))
+  (input costly-info g/Any :array)
+  (output kind+costly-info g/Any :cached (g/fnk [kind costly-info]
+                                            (pair kind (reduce coll/merge costly-info))))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached
@@ -3480,13 +3576,15 @@
                  {:pre [(map? layout->prop->override)]}
                  (when-some [prop->override (coll/not-empty (layout->prop->override layout-name))]
                    (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
-                         prop->override (move-custom-property-prop-keys-to-custom-properties type-info prop->override)
                          overridden-fields
-                         (->> prop->override
-                              (keep (comp prop-key->pb-field-index key))
-                              (sort))]
+                         (cond-> (->> prop->override
+                                      (keep (comp prop-key->pb-field-index key))
+                                      (sort)
+                                      (vec))
+                                 (some #(custom-property-id? type-info %) (keys prop->override))
+                                 (conj (prop-key->pb-field-index :custom-properties)))]
                      (->> prop->override
-                          (prop->pb-field-entries-for-type type-info false)
+                          (prop->pb-field-entries-for-type type-info true)
                           (reduce
                             (fn [node-desc [pb-field pb-value]]
                               (let [default-pb-value (default-node-desc-pb-field-values pb-field)]
@@ -3665,8 +3763,7 @@
                    (assert (map? prop->value))
                    (when-some [node-desc-for-layout
                                (some->> (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
-                                              include-custom-property-defaults (some? prop->override)
-                                              prop->value (move-custom-property-prop-keys-to-custom-properties type-info prop->value (set (keys prop->override)))]
+                                              include-custom-property-defaults (some? prop->override)]
                                           (-> decorated-node-msg
                                               (dissoc :layout->prop->override :layout->prop->value)
                                               (into (prop->pb-field-entries-for-type type-info include-custom-property-defaults prop->value))
@@ -3962,12 +4059,14 @@
   (input layer-names GuiResourceNames)
   (input layer->index NameIndices)
 
-  (input spine-scene-element-ids SpineSceneElementIds :array)
-  (input spine-scene-infos SpineSceneInfos :array)
-  (input spine-scene-names g/Str :array)
-  (output spine-scene-names GuiResourceNames :cached
-          (g/fnk [spine-scene-names]
-            (into (sorted-set) spine-scene-names)))
+  (input gui-resource-kind-basic-info-entries g/Any :array)
+  (output gui-resource-kind-basic-info g/Any :cached
+          (g/fnk [gui-resource-kind-basic-info-entries]
+            (into (sorted-map) gui-resource-kind-basic-info-entries)))
+  (input gui-resource-kind-costly-info-entries g/Any :array)
+  (output gui-resource-kind-costly-info g/Any :cached
+          (g/fnk [gui-resource-kind-costly-info-entries]
+            (into (sorted-map) gui-resource-kind-costly-info-entries)))
   (input gui-resource-kind-name-entries g/Any :array)
   (output gui-resource-kind-names g/Any :cached
           (g/fnk [gui-resource-kind-name-entries]
@@ -3997,7 +4096,6 @@
                  :layer (:layer-names aux-basic-gui-scene-info)
                  :material material-names
                  :particlefx (:particlefx-resource-names aux-basic-gui-scene-info)
-                 :spine-scene (:spine-scene-names aux-basic-gui-scene-info)
                  :texture (:texture-resource-names aux-basic-gui-scene-info)}
                 (:gui-resource-kind-names aux-basic-gui-scene-info)))))
 
@@ -4064,15 +4162,14 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [font-names layer->index layer-names material-infos particlefx-resource-names spine-scene-names texture-page-counts exclude-gles-sm100 texture-resource-names spine-scene-element-ids gui-resource-kind-names]
+          (g/fnk [font-names gui-resource-kind-basic-info gui-resource-kind-names layer->index layer-names material-infos particlefx-resource-names texture-page-counts exclude-gles-sm100 texture-resource-names]
             {:font-names font-names
+             :gui-resource-kind-basic-info gui-resource-kind-basic-info
              :gui-resource-kind-names gui-resource-kind-names
              :layer->index layer->index
              :layer-names layer-names
              :material-infos material-infos
              :particlefx-resource-names particlefx-resource-names
-             :spine-scene-element-ids (reduce coll/merge spine-scene-element-ids)
-             :spine-scene-names spine-scene-names
              :texture-page-counts texture-page-counts
              :exclude-gles-sm100 exclude-gles-sm100
              :texture-resource-names texture-resource-names}))
@@ -4089,12 +4186,12 @@
               own-basic-gui-scene-info)))
   (input aux-costly-gui-scene-info CostlyGuiSceneInfo)
   (output own-costly-gui-scene-info CostlyGuiSceneInfo :cached
-          (g/fnk [font-datas font-shaders material-shader material-shaders particlefx-infos spine-scene-infos texture-gpu-textures texture-infos]
+          (g/fnk [font-datas font-shaders gui-resource-kind-costly-info material-shader material-shaders particlefx-infos texture-gpu-textures texture-infos]
             {:font-datas (reduce coll/merge font-datas)
              :font-shaders (reduce coll/merge font-shaders)
+             :gui-resource-kind-costly-info gui-resource-kind-costly-info
              :material-shaders (reduce coll/merge {"" material-shader} material-shaders)
              :particlefx-infos (reduce coll/merge particlefx-infos)
-             :spine-scene-infos (reduce coll/merge spine-scene-infos)
              :texture-gpu-textures (reduce coll/merge texture-gpu-textures)
              :texture-infos (reduce coll/merge texture-infos)}))
   (output costly-gui-scene-info CostlyGuiSceneInfo :cached
@@ -4105,10 +4202,12 @@
   (-> (g/with-auto-evaluation-context evaluation-context
         (let [node-tree (g/node-value scene :node-tree evaluation-context)
               gui-node-type-registry (g/node-value scene :gui-node-type-registry evaluation-context)
-              id (or (:id props)
-                     (id/resolve (subs (name node-type) 5)
-                                 (g/node-value node-tree :id-counts evaluation-context)))
               def-node-type (get-registered-node-type-cls gui-node-type-registry node-type custom-type)
+              id-base (or (some-> (node-types/->name def-node-type) extension-type-name->id)
+                          (subs (name node-type) 5))
+              id (or (:id props)
+                     (id/resolve id-base
+                                 (g/node-value node-tree :id-counts evaluation-context)))
               next-index (gui-attachment/next-child-index parent evaluation-context)
               node-properties (assoc props
                                 :id id
@@ -4260,12 +4359,14 @@
   (into {}
         (comp (map pb-field-index->prop-key)
               (remove non-overridable-properties)
-              (map (fn [prop-key]
-                     (let [prop-value (node-properties prop-key ::not-found)]
-                       (pair prop-key
-                             (if (= ::not-found prop-value)
-                               (node-property-defaults prop-key)
-                               prop-value))))))
+              (mapcat (fn [prop-key]
+                        (if (= :custom-properties prop-key)
+                          (coll/not-empty (:custom-properties node-properties))
+                          (let [prop-value (node-properties prop-key ::not-found)]
+                            [(pair prop-key
+                                   (if (= ::not-found prop-value)
+                                     (node-property-defaults prop-key)
+                                     prop-value))])))))
         (:overridden-fields node-properties)))
 
 (def ^:private default-material-proj-path (protobuf/default Gui$SceneDesc :material))
@@ -4428,6 +4529,8 @@
           (g/connect resources-node :node-outline self :child-outlines)
           (g/connect resources-node :add-handler-info self :handler-infos)
           (g/connect resources-node :kind+names self :gui-resource-kind-name-entries)
+          (g/connect resources-node :kind+basic-info self :gui-resource-kind-basic-info-entries)
+          (g/connect resources-node :kind+costly-info self :gui-resource-kind-costly-info-entries)
           (mapcat
             (fn [resource-node {:keys [name path]}]
               (let [resolved-resource (resolve-resource path)]
@@ -4772,7 +4875,8 @@
     ;; make the node type a branch
     (attachment/alias workspace node-type :nodes GuiNode)))
 
-(defn- gui-scene-node->gui-resource-kind-node [basis gui-scene-node resource-kind]
+;; SDK api
+(defn gui-resource-kind-node [basis gui-scene-node resource-kind]
   (coll/some
     (fn [arc]
       (let [id (gt/source-id arc)]
@@ -4781,8 +4885,21 @@
           id)))
     (g/explicit-arcs-by-target basis gui-scene-node :nodes)))
 
+;; SDK api
+(defn connect-gui-resource-kind-entry [gui-scene-node resource-kind-node entry-node]
+  (concat
+    (g/connect entry-node :_node-id resource-kind-node :nodes)
+    (g/connect entry-node :resource-kind-basic-info resource-kind-node :basic-info)
+    (g/connect entry-node :resource-kind-costly-info resource-kind-node :costly-info)
+    (g/connect entry-node :dep-build-targets gui-scene-node :dep-build-targets)
+    (g/connect entry-node :pb-msg gui-scene-node :resource-msgs)
+    (g/connect entry-node :build-errors resource-kind-node :build-errors)
+    (g/connect entry-node :node-outline resource-kind-node :child-outlines)
+    (g/connect entry-node :name resource-kind-node :names)
+    (g/connect resource-kind-node :name-counts entry-node :name-counts)))
+
 (defn- attach-gui-resource-kind-entry-to-gui-scene [{:keys [basis]} resource-kind gui-scene-node entry-node]
-  (let [resources-node (gui-scene-node->gui-resource-kind-node basis gui-scene-node resource-kind)
+  (let [resources-node (gui-resource-kind-node basis gui-scene-node resource-kind)
         attach-fn (g/raw-property-value basis resources-node :attach-fn)]
     (attach-fn gui-scene-node resources-node entry-node)))
 
@@ -4830,7 +4947,7 @@
         :add {(:node-type info) (partial g/expand-ec attach-gui-resource-kind-entry-to-gui-scene resource-kind)}
         :get (fn get-gui-resource-kind-entries [gui-scene-node {:keys [basis] :as evaluation-context}]
                (attachment/nodes-getter
-                 (gui-scene-node->gui-resource-kind-node basis gui-scene-node resource-kind)
+                 (gui-resource-kind-node basis gui-scene-node resource-kind)
                  evaluation-context))))))
 
 (node-types/register-node-type-name! BoxNode "gui-node-type-box")
@@ -5136,80 +5253,118 @@
     (subs s (inc i))
     s))
 
+(defn- ext-property-name->prop-kw [node-id property-name evaluation-context]
+  (let [{:keys [basis]} evaluation-context
+        node (g/node-by-id basis node-id)
+        node-type (g/node-type node)
+        prop-kw (keyword property-name)]
+    (or (when ((node-custom-property-id->info evaluation-context node-id) prop-kw)
+          prop-kw)
+        ((node-type->layout-property-names node-type) property-name))))
+
+(defn- node-layout-property-id? [evaluation-context node-id prop-kw]
+  (let [node (g/node-by-id (:basis evaluation-context) node-id)]
+    (contains? (set (vals (node-type->layout-property-names (g/node-type node)))) prop-kw)))
+
+(defn- ext-property-info [node-id prop-kw evaluation-context]
+  (if (node-layout-property-id? evaluation-context node-id prop-kw)
+    (let [{:keys [basis]} evaluation-context
+          node (g/node-by-id basis node-id)]
+      {:node-id node-id
+       :prop-kw prop-kw
+       :read-only? (g/node-property-dynamic node prop-kw :read-only? false evaluation-context)
+       :edit-type (g/node-property-dynamic node prop-kw :edit-type evaluation-context)})
+    (get-in (g/node-value node-id :_properties evaluation-context) [:properties prop-kw])))
+
 (ext-graph/register-property-getter!
   ::GuiNode
   (fn GuiNode-getter [node-id property evaluation-context]
-    (let [{:keys [basis]} evaluation-context
-          node (g/node-by-id basis node-id)
-          node-type (g/node-type node)
-          last-colon-index (str/last-index-of property \:)
+    (let [last-colon-index (str/last-index-of property \:)
           property-name (if last-colon-index (subs property (inc last-colon-index)) property)]
-      (when-let [prop-kw ((node-type->layout-property-names node-type) property-name)]
+      (when-let [prop-kw (ext-property-name->prop-kw node-id property-name evaluation-context)]
         (let [layout-name (if last-colon-index (subs property 0 last-colon-index) "")
-              layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)]
+              layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)
+              prop-info (ext-property-info node-id prop-kw evaluation-context)]
           (when-let [prop->value (get layout->prop->value layout-name)]
             (let [value (prop->value prop-kw)
-                  edit-type-id (properties/edit-type-id (g/node-property-dynamic node prop-kw :edit-type evaluation-context))]
+                  edit-type-id (properties/edit-type-id (:edit-type prop-info))]
               (when-let [converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
                 #(converter value))))))))
   (fn GuiNode-lister [node-id evaluation-context]
-    (let [{:keys [basis]} evaluation-context
-          node (g/node-by-id basis node-id)
-          node-type (g/node-type node)
-          property-name->prop-kw (node-type->layout-property-names node-type)
+    (let [prop-kw->prop-info (get-in (g/node-value node-id :_properties evaluation-context) [:properties])
           layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)]
       (coll/into-> layout->prop->value []
         (mapcat
           (fn [[layout-name _prop->value]]
-            (coll/into-> property-name->prop-kw :eduction
+            (coll/into-> prop-kw->prop-info :eduction
               (keep
-                (fn [[property-name prop-kw]]
-                  (when-let [edit-type-id (properties/edit-type-id (g/node-property-dynamic node prop-kw :edit-type evaluation-context))]
+                (fn [[prop-kw prop-info]]
+                  (when-let [edit-type-id (properties/edit-type-id (:edit-type prop-info))]
                     (when-let [_converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
-                      (if (empty? layout-name)
-                        property-name
-                        (str layout-name ":" property-name)))))))))))))
+                      (let [property-name (str/replace (name prop-kw) \- \_)]
+                        (if (str/blank? layout-name)
+                          property-name
+                          (str layout-name ":" property-name))))))))))))))
 
 (ext-graph/register-property-setter!
   ::GuiNode
   (fn GuiNode-setter [node-id property rt project evaluation-context]
-    (let [{:keys [basis]} evaluation-context
-          node (g/node-by-id basis node-id)
-          node-type (g/node-type node)
-          last-colon-index (str/last-index-of property \:)
+    (let [last-colon-index (str/last-index-of property \:)
           property-name (if last-colon-index (subs property (inc last-colon-index)) property)]
-      (when-let [prop-kw ((node-type->layout-property-names node-type) property-name)]
-        (when-not (g/node-property-dynamic node prop-kw :read-only? false evaluation-context)
-          (let [layout-name (if last-colon-index (subs property 0 last-colon-index) "")]
-            (when (or (= "" layout-name)
-                      (-> node-id
-                          (g/node-value :trivial-gui-scene-info evaluation-context)
-                          :layout-names
-                          (contains? layout-name)))
-              (let [edit-type (g/node-property-dynamic node prop-kw :edit-type evaluation-context)]
-                (when-let [converter (-> edit-type properties/edit-type-id ext-graph/edit-type-id->value-converter :from)]
-                  #(layout-property-set-in-specific-layout evaluation-context layout-name node-id prop-kw (converter % rt edit-type project evaluation-context)))))))))))
+      (when-let [prop-kw (ext-property-name->prop-kw node-id property-name evaluation-context)]
+        (let [prop-info (ext-property-info node-id prop-kw evaluation-context)]
+          (when-not (:read-only? prop-info)
+            (let [layout-name (if last-colon-index (subs property 0 last-colon-index) "")]
+              (when (or (str/blank? layout-name)
+                        (-> node-id
+                            (g/node-value :trivial-gui-scene-info evaluation-context)
+                            :layout-names
+                            (contains? layout-name)))
+                (let [edit-type (:edit-type prop-info)]
+                  (when-let [converter (-> edit-type properties/edit-type-id ext-graph/edit-type-id->value-converter :from)]
+                    #(layout-property-set-in-specific-layout evaluation-context layout-name node-id prop-kw (converter % rt edit-type project evaluation-context))))))))))))
 
 (ext-graph/register-property-resetter!
   ::GuiNode
   (fn GuiNode-resetter [node-id property evaluation-context]
-    (let [{:keys [basis]} evaluation-context
-          node (g/node-by-id basis node-id)
-          node-type (g/node-type node)]
-      (when-let [last-colon-index (str/last-index-of property \:)]
-        (let [property-name (subs property (inc last-colon-index))]
-          (when-let [prop-kw ((node-type->layout-property-names node-type) property-name)]
-            (let [layout-name (subs property 0 last-colon-index)
-                  layout->prop->override (g/node-value node-id :layout->prop->override evaluation-context)]
-              (when-let [prop-kw->override (layout->prop->override layout-name)]
-                (when (contains? prop-kw->override prop-kw)
-                  #(layout-property-clear-in-specific-layout evaluation-context layout-name node-id prop-kw))))))))))
+    (when-let [last-colon-index (str/last-index-of property \:)]
+      (let [property-name (subs property (inc last-colon-index))]
+        (when-let [prop-kw (ext-property-name->prop-kw node-id property-name evaluation-context)]
+          (let [layout-name (subs property 0 last-colon-index)
+                layout->prop->override (g/node-value node-id :layout->prop->override evaluation-context)]
+            (when-let [prop-kw->override (layout->prop->override layout-name)]
+              (when (contains? prop-kw->override prop-kw)
+                #(layout-property-clear-in-specific-layout evaluation-context layout-name node-id prop-kw)))))))))
+
+(defn- attachment-custom-property-value [rt project evaluation-context {:keys [type] :as custom-property-info} lua-value]
+  (let [edit-type {:type type}
+        edit-type-id (properties/edit-type-id edit-type)]
+    (if-let [converter (-> edit-type-id ext-graph/edit-type-id->value-converter :from)]
+      (converter lua-value rt edit-type project evaluation-context)
+      (throw (org.luaj.vm2.LuaError.
+               (format "Can't set custom property \"%s\" of GUI node"
+                       (name (:id custom-property-info))))))))
+
+(defn- split-custom-property-attachment [type-info rt project evaluation-context attachment]
+  (if-let [custom-property-id->info (:custom-property-id->info type-info)]
+    (reduce-kv
+      (fn [[attachment custom-properties] property lua-value]
+        (let [prop-kw (keyword property)]
+          (if-let [custom-property-info (custom-property-id->info prop-kw)]
+            (let [value (attachment-custom-property-value rt project evaluation-context custom-property-info lua-value)]
+              [(dissoc attachment property)
+               (assoc custom-properties prop-kw value)])
+            [attachment custom-properties])))
+      [attachment nil]
+      attachment)
+    [attachment nil]))
 
 (defn- init-gui-node-attachment [{:keys [basis] :as evaluation-context} rt project parent-node-id child-node-type child-node-id attachment node-id-base-name-fn]
   (let [workspace (project/workspace project evaluation-context)
         resource-types (resource/resource-types-by-type-ext basis workspace :editable)
         gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
-        {:keys [node-type custom-type custom-type-name defaults]} (get-registered-node-type-info gui-node-type-registry child-node-type)
+        {:keys [node-type custom-type custom-type-name defaults] :as type-info} (get-registered-node-type-info gui-node-type-registry child-node-type)
+        [attachment custom-properties] (split-custom-property-attachment type-info rt project evaluation-context attachment)
         node-tree-or-gui-node (if (g/node-instance? basis GuiSceneNode parent-node-id)
                                 (gui-attachment/scene-node->node-tree basis parent-node-id)
                                 parent-node-id)
@@ -5217,6 +5372,7 @@
                         :child-index (gui-attachment/next-child-index node-tree-or-gui-node evaluation-context)
                         :custom-type custom-type
                         :type node-type)
+                custom-properties (update :custom-properties merge custom-properties)
                 custom-type-name (assoc :custom-type-name custom-type-name))]
     (concat
       (apply g/set-properties child-node-id (coll/mapcat identity props))
@@ -5255,16 +5411,7 @@
     (throw (IllegalArgumentException.
              (format "Unable to derive GUI custom property protobuf type. (type=%s)" type)))))
 
-(defn- custom-property-edit-type-fnk [id type resource-kind]
-  (if resource-kind
-    (g/fnk [aux-gui-resource-type-names]
-      (wrap-layout-property-edit-type-value
-        id
-        (optional-gui-resource-choicebox (get aux-gui-resource-type-names resource-kind))))
-    (g/constantly
-      (wrap-layout-property-edit-type-value id {:type type}))))
-
-(defn- normalize-custom-property-info [{:keys [id type resource-kind] :as custom-property-info}]
+(defn- normalize-custom-property-info [{:keys [id type] :as custom-property-info}]
   (when-not (keyword? id)
     (throw (IllegalArgumentException.
              (format "GUI custom property does not specify a keyword :id. (custom-property-info=%s)" custom-property-info))))
@@ -5276,8 +5423,7 @@
                         (custom-property-pb-type type))]
     (cond-> (assoc custom-property-info :protobuf-type protobuf-type)
             (not (contains? custom-property-info :default)) (assoc :default (custom-property-pb-type-default-value protobuf-type))
-            (not (contains? custom-property-info :label)) (assoc :label (properties/keyword->name id))
-            (not (contains? custom-property-info :edit-type-fnk)) (assoc :edit-type-fnk (custom-property-edit-type-fnk id type resource-kind)))))
+            (not (contains? custom-property-info :label)) (assoc :label (properties/keyword->name id)))))
 
 (defn- normalize-node-type-info [type-info]
   (if-not (contains? type-info :custom-properties)
@@ -5285,17 +5431,21 @@
     (let [type-info (update type-info :custom-properties #(mapv normalize-custom-property-info %))
           custom-properties (:custom-properties type-info)
           custom-property-id->info (coll/pair-map-by :id custom-properties)
-          custom-property-prop-key->id (coll/into-> custom-properties {}
-                                        (keep (fn [{:keys [id prop-key]}]
-                                                (when prop-key
-                                                  (pair prop-key id)))))
+          real-layout-property-keys (set (vals (node-type->layout-property-names (:node-cls type-info))))
+          colliding-custom-property-ids (coll/not-empty
+                                          (coll/into-> (keys custom-property-id->info) []
+                                            (filter real-layout-property-keys)))
           default-custom-properties (coll/into-> custom-properties {}
                                       (map (fn [{:keys [id default]}]
                                              (pair id default))))]
+      (when colliding-custom-property-ids
+        (throw (IllegalArgumentException.
+                 (format "Plugin GUI node type %s custom property ids collide with real layout properties: %s"
+                         (:name @(:node-cls type-info))
+                         (str/join ", " (map name (sort colliding-custom-property-ids)))))))
       (-> type-info
           (assoc
-            :custom-property-id->info custom-property-id->info
-            :custom-property-prop-key->id custom-property-prop-key->id)
+            :custom-property-id->info custom-property-id->info)
           (assoc-in [:defaults :custom-properties] default-custom-properties)))))
 
 (defn- validate-node-type-info! [{:keys [custom-type custom-type-name node-cls] :as type-info}]

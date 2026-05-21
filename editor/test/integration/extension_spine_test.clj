@@ -20,6 +20,7 @@
             [editor.build-errors-view :as build-errors-view]
             [editor.defold-project :as project]
             [editor.game-project :as game-project]
+            [editor.gui :as gui]
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -29,7 +30,8 @@
             local-extensions
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
-            [util.diff :as diff]))
+            [util.diff :as diff]
+            [util.murmur :as murmur]))
 
 (set! *warn-on-reflection* true)
 
@@ -459,6 +461,28 @@
       (g/valid-node-value :build-targets)
       (get-in [0 :user-data :pb])))
 
+(defn- property-value-choices [node-id prop-kw]
+  (->> (g/node-value node-id :_properties)
+       :properties
+       prop-kw
+       :edit-type
+       :options
+       (mapv first)))
+
+(deftest new-spine-node-custom-property-edit-test
+  (test-util/with-loaded-project project-path
+    (let [gui-scene (test-util/resource-node project "/main/spineboy.gui")
+          node-tree (g/node-value gui-scene :node-tree)
+          spine-node (gui/add-gui-node! project gui-scene node-tree :type-custom (murmur/hash32 "Spine") nil)]
+      (is (= "spine" (test-util/prop spine-node :id)))
+      (test-util/prop! spine-node :spine_scene "spineboy")
+      (is (= "spineboy" (test-util/prop spine-node :spine_scene)))
+      (is (= ["spineboy"] (property-value-choices spine-node :spine_scene)))
+      (is (contains? (set (property-value-choices spine-node :spine_default_animation)) "walk"))
+      (test-util/prop! spine-node :spine_default_animation "missing")
+      (is (g/error? (test-util/prop-error spine-node :spine_default_animation)))
+      (is (= "spineboy" (custom-property (g/node-value spine-node :node-msg) "spine_scene" :string-value))))))
+
 (deftest layout-node-desc-includes-size-mode-test
   (test-util/with-loaded-project project-path
     (let [gui-scene (test-util/resource-node project "/main/spineboy.gui")]
@@ -481,7 +505,7 @@
       ;; Override the default animation on the SpineNode.
       (let [spine-node (test-util/outline-node-id gui-scene (localization/message "outline.gui.nodes") "spineboy")]
         (gui-test/with-visible-layout! gui-scene "Portrait"
-          (test-util/prop! spine-node :spine-default-animation "jump")))
+          (test-util/prop! spine-node :spine_default_animation "jump")))
 
       (testing "After overriding a property, the runtime override NodeDesc includes the effective custom properties."
         (let [built-scene-desc (built-scene-desc gui-scene)

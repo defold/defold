@@ -765,10 +765,10 @@
                 (is (some? resources-node))
                 (is (some? resource-node))
                 (is (some? shape-node))
-                (let [shape-resource-before (g/node-value shape-node shape-resource-prop-kw)]
+                (let [shape-resource-before (test-util/prop shape-node shape-resource-prop-kw)]
                   (with-open [_ (make-restore-point!)]
                     (test-util/outline-duplicate! project resources-node [0])
-                    (is (= shape-resource-before (g/node-value shape-node shape-resource-prop-kw))
+                    (is (= shape-resource-before (test-util/prop shape-node shape-resource-prop-kw))
                         "Shape should still refer to the original resource name.")
                     (is (= expected-resource-choices
                            (property-value-choices shape-node shape-resource-prop-kw))
@@ -792,7 +792,7 @@
         ["button_particlefx"
          "button_particlefx1"])
       (check!
-        "button_spinescene" gui-spine-scenes "spine" :spine-scene
+        "button_spinescene" gui-spine-scenes "spine" :spine_scene
         ["button_spinescene"
          "button_spinescene1"])
       (check!
@@ -1297,6 +1297,56 @@
     (cond-> (select-keys node-desc [:font :layer :material :particlefx :texture])
             spine-scene
             (assoc :spine-scene spine-scene))))
+
+(deftest custom-gui-virtual-custom-properties-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (register-test-gui-extensions workspace)
+    (let [custom-type (murmur/hash32 "TestCustom")
+          custom-properties-pb-field-index (gui/prop-key->pb-field-index :custom-properties)
+          gui-resource (test-util/make-resource!
+                         workspace
+                         "/custom_virtual_properties.gui"
+                         {:nodes [{:type :type-custom
+                                   :custom-type custom-type
+                                   :id "custom"
+                                   :custom-properties [{:id "test_number"
+                                                        :type :type-number
+                                                        :number 2.0}]}]
+                          :layouts [{:name "Landscape"
+                                     :nodes [{:type :type-custom
+                                              :custom-type custom-type
+                                              :id "custom"
+                                              :overridden-fields [custom-properties-pb-field-index]
+                                              :custom-properties [{:id "test_number"
+                                                                   :type :type-number
+                                                                   :number 1.0}]}]}]})]
+      (workspace/resource-sync! workspace)
+      (let [gui-scene (test-util/resource-node project gui-resource)
+            custom-node (gui-node gui-scene "custom")]
+        (testing "Properties panel exposes custom ids directly."
+          (is (= 2.0 (prop custom-node :test_number)))
+          (is (= 2.0 (:test_number (g/node-value custom-node :prop->value))))
+          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test_number))
+          (is (not (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :custom-properties))))
+
+        (testing "Default layout edits update nested graph storage."
+          (prop! custom-node :test_number 3.0)
+          (is (= {:test_hash 0
+                  :test_number 3.0
+                  :test_quat [0.0 0.0 0.0 1.0]
+                  :test_resource ""
+                  :test_vector3 [0.0 0.0 0.0]
+                  :test_vector4 [0.0 0.0 0.0 0.0]}
+                 (g/node-value custom-node :custom-properties))))
+
+        (testing "Default-valued layout overrides are saved per id."
+          (with-visible-layout! gui-scene "Landscape"
+            (prop! custom-node :test_number 1.0)
+            (is (= 1.0 (prop custom-node :test_number)))
+            (is (test-util/prop-overridden? custom-node :test_number)))
+          (let [saved-layout-node (-> (g/node-value gui-scene :save-value) :layouts first :nodes first)]
+            (is (= [custom-properties-pb-field-index] (:overridden-fields saved-layout-node)))
+            (is (= 1.0 (saved-node-desc-custom-property-value saved-layout-node "test_number" :number)))))))))
 
 (defn has-successor?
   ([source-id+source-label target-id+target-label]

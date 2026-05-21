@@ -42,10 +42,15 @@ Bob/runtime:
 - Built data should replace string ids with id hashes.
 - Runtime custom GUI node code should read custom fields only.
 
-# Running tests with local spine:
+# Using lein
+
+Note: currently, ALL lein invocation have to be prefixed with `JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine'`, e.g.:
 
 ```sh
+# running tests
 JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' lein test
+# repl
+JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' lein run -m clojure.main
 ```
 
 # Implementation
