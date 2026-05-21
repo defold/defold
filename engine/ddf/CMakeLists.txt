@@ -110,7 +110,16 @@ set(DDF_PROTO_PBCC)
 set(DDF_PROTO_PY)
 set(DDF_PROTO_PY_INIT "${DDF_PROTO_PY_DIR}/__init__.py")
 
-set(_ddf_python_path_entries "${DDF_PLUGIN_PY_DIR}" "${DDF_SRC_DIR}")
+set(_ddf_python_path_entries
+  "${DDF_PLUGIN_PY_DIR}"
+  "${DDF_SRC_DIR}"
+  "${DEFOLD_HOME}/engine/dlib/src/python")
+if(EXISTS "${DEFOLD_SDK_ROOT}/lib/python")
+  list(APPEND _ddf_python_path_entries "${DEFOLD_SDK_ROOT}/lib/python")
+endif()
+if(EXISTS "${DEFOLD_SDK_ROOT}/ext/lib/python")
+  list(APPEND _ddf_python_path_entries "${DEFOLD_SDK_ROOT}/ext/lib/python")
+endif()
 if(DEFINED ENV{PYTHONPATH} AND NOT "$ENV{PYTHONPATH}" STREQUAL "")
   file(TO_CMAKE_PATH "$ENV{PYTHONPATH}" _ddf_existing_pythonpath)
   list(APPEND _ddf_python_path_entries ${_ddf_existing_pythonpath})

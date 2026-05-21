@@ -58,7 +58,8 @@ set(ENGINE_TEST_CONTENT_SCRIPT "${ENGINE_TEST_ROOT}/build_cmake_test_content.py"
 set(ENGINE_TEST_CONTENT_SETTINGS
   "cross_script_messaging.ini"
   "render_script.ini"
-  "camera_acquire_input_focus.ini")
+  "camera_acquire_input_focus.ini"
+  "text_input.ini")
 
 set(ENGINE_TEST_CLASSPATH "${ENGINE_BOB_ENGINE_JAR}")
 if(TARGET shaderc_jar)
