@@ -33,10 +33,10 @@
            [com.sun.javafx.util Utils]
            [javafx.beans.value ChangeListener]
            [javafx.css Styleable]
-           [javafx.event Event]
+           [javafx.event ActionEvent Event]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Cursor Node Parent]
-           [javafx.scene.control ColorPicker PopupControl Skin Slider]
+           [javafx.scene.control ColorPicker PopupControl Skin Slider ToggleButton]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout StackPane]
            [javafx.scene.paint Color]
@@ -210,6 +210,10 @@
                             :style-class ["toggle-button" "plane-toggle" "spaced"]
                             :text (string/upper-case (name axis))
                             :selected (= axis (key state))
+                            :on-action (fn [^ActionEvent e]
+                                         (let [btn ^ToggleButton (.getSource e)]
+                                           (when-not (.isSelected btn)
+                                             (.setSelected btn true))))
                             :on-selected-changed (fn [selected?]
                                                    (when selected?
                                                      (swap-state assoc key axis)

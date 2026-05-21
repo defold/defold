@@ -828,8 +828,8 @@
                    (-> acc
                        (update :storage (fn [s]
                                           (if (coll/empty? config-path)
-                                            (dissoc s file-path)
-                                            (update s file-path util/dissoc-in  config-path))))
+                                            (assoc s file-path {})
+                                            (update s file-path util/dissoc-in config-path))))
                        (assoc-in [:events file-path config-path] ::not-found)))
                  m
                  events))))

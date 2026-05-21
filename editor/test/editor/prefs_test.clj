@@ -919,3 +919,22 @@
         (prefs/sync!)
         (is (not= "custom" (prefs/get p [])))
         (is (not (.exists file)))))))
+
+(deftest reset-path-root-nil-valid-schema-test
+  (with-schemas {::root-nil-valid {:type :enum :values [nil "custom"]}}
+    (let [file (fs/create-temp-file! "root-nil-valid" "test.editor_settings")
+          p (prefs/make :scopes {:global file}
+                        :schemas [::root-nil-valid])]
+      (prefs/set! p [] "custom")
+      (prefs/sync!)
+      (is (= "custom" (prefs/get p [])))
+      (is (prefs/set? p []))
+
+      (prefs/reset-path! p [])
+
+      (is (nil? (prefs/get p [])))
+      (is (not (prefs/set? p [])))
+      (prefs/sync!)
+      (is (nil? (prefs/get p [])))
+      (is (not (prefs/set? p [])))
+      (is (not (.exists file))))))

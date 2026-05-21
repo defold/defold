@@ -117,11 +117,23 @@
                 -fx-spacing: 5px;
             }
 
-            .ext-color-picker-field {
-                -fx-max-width: 85px;
-            }
+            .ext-color-picker {
+                .ext-color-picker-field {
+                    -fx-max-width: 85px;
+                }
 
-            .opacity-row {
+                &:hover {
+                    .ext-color-picker-icon {
+                        -fx-border-color: -df-component-lighter;
+                    }
+                    .ext-color-picker-field {
+                        -fx-border-color: -df-component-lighter;
+                    }
+                }
+
+                .ext-color-picker-icon {
+                    -fx-border-color: -df-component-light;
+                }
             }
 
             .compact-toggle {
