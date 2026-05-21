@@ -525,7 +525,8 @@ namespace dmScript
     int JsonToLua(lua_State* L, const char* json, size_t json_len);
 
     /*# convert a Lua table to a Json string
-     * Convert a Lua table to a Json string
+     * Convert the Lua value at stack index 1 to a Json string
+     * An options table can be provided at stack index 2.
      *
      * @name LuaToJson
      * @param L [type:lua_State*] lua state
@@ -534,6 +535,19 @@ namespace dmScript
      * @return int [type:int] <0 if it fails. >=0 if it succeeds.
      */
     int LuaToJson(lua_State* L, char** json, size_t* json_len);
+
+    /*# convert a Lua table to a Json string
+     * Convert the Lua value at the supplied stack index to a Json string
+     *
+     * @name LuaToJson
+     * @param L [type:lua_State*] lua state
+     * @param index [type:int] lua stack index of the value to encode
+     * @param options_index [type:int] lua stack index to check for an options table
+     * @param json [type:char**] [out] Pointer to char*, which will receive a newly allocated string. Use free().
+     * @param json_len [type:size_t*] length of json string
+     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
+     */
+    int LuaToJson(lua_State* L, int index, int options_index, char** json, size_t* json_len);
 
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua
