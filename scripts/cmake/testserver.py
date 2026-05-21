@@ -15,6 +15,7 @@ import sys
 import os
 import subprocess
 import configparser
+import argparse
 
 
 def write_config(path: str, ip: str, port: int) -> None:
@@ -27,18 +28,16 @@ def write_config(path: str, ip: str, port: int) -> None:
         print('Wrote test config file:', path)
 
 
-def main() -> int:
-    if len(sys.argv) < 2:
-        print('Usage: testserver.py <exe> [workdir] [ip] [port] [cfgpath] [server_dir]')
-        return 2
+def run_tests(executables, cfgpath: str) -> int:
+    for exe in executables:
+        print('Running test with shared Defold test server:', exe, flush=True)
+        rc = subprocess.call([exe, cfgpath])
+        if rc != 0:
+            return rc
+    return 0
 
-    exe = sys.argv[1]
-    workdir = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
-    ip = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else 'localhost'
-    port = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 9001
-    cfgpath = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else 'unittest.cfg'
-    server_dirs = [p for p in sys.argv[6:] if p]
 
+def run_with_server(executables, workdir, ip: str, port: int, cfgpath: str, server_dirs) -> int:
     for server_dir in reversed(server_dirs):
         sys.path.insert(0, os.path.normpath(server_dir))
 
@@ -56,7 +55,7 @@ def main() -> int:
     server = test_script_server.Server(port=port, ip=ip)
     server.start()
     try:
-        rc = subprocess.call([exe, cfgpath])
+        return run_tests(executables, cfgpath)
     finally:
         try:
             server.stop()
@@ -66,7 +65,36 @@ def main() -> int:
             os.remove(cfgpath)
         except OSError:
             pass
-    return rc
+
+
+def main_argparse() -> int:
+    parser = argparse.ArgumentParser(description='Run test executables with the Defold HTTP test server running.')
+    parser.add_argument('--workdir', default=None)
+    parser.add_argument('--ip', default='localhost')
+    parser.add_argument('--port', type=int, default=9001)
+    parser.add_argument('--config', default='unittest.cfg')
+    parser.add_argument('--server-dir', action='append', default=[])
+    parser.add_argument('executables', nargs='+')
+    args = parser.parse_args()
+    return run_with_server(args.executables, args.workdir, args.ip, args.port, args.config, args.server_dir)
+
+
+def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1].startswith('--'):
+        return main_argparse()
+
+    if len(sys.argv) < 2:
+        print('Usage: testserver.py <exe> [workdir] [ip] [port] [cfgpath] [server_dir]')
+        return 2
+
+    exe = sys.argv[1]
+    workdir = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
+    ip = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else 'localhost'
+    port = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 9001
+    cfgpath = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else 'unittest.cfg'
+    server_dirs = [p for p in sys.argv[6:] if p]
+
+    return run_with_server([exe], workdir, ip, port, cfgpath, server_dirs)
 
 
 if __name__ == '__main__':

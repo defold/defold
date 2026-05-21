@@ -60,6 +60,7 @@ defold_install_targets(TARGETS test_script
                        RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 set(SCRIPT_TEST_EXPORTS ResourceProviderFile GraphicsAdapterNull)
+set(SCRIPT_TEST_TARGETS)
 
 function(script_configure_test target)
   target_include_directories(${target} PRIVATE
@@ -95,13 +96,6 @@ function(script_configure_test target)
   defold_register_test_target(${target} OFF "${SCRIPT_ROOT}"
     STAGE_FILES
       "build/src/test/scripts" "build/src/test/scripts")
-  defold_register_test_with_server(${target} "${TARGET_PLATFORM}"
-    PORT 9001
-    WORKDIR "${SCRIPT_ROOT}"
-    CONFIG_NAME unittest.cfg)
-  if(TARGET run_${target}_server)
-    add_dependencies(run_${target}_server script_test_lua_data)
-  endif()
 endfunction()
 
 function(script_add_test target)
@@ -113,6 +107,8 @@ function(script_add_test target)
   defold_create_exported_symbols_file("${_script_export_file}" "${_script_test_exports}")
   defold_add_executable(${target} ${ARGN} "${_script_export_file}")
   script_configure_test(${target})
+  list(APPEND SCRIPT_TEST_TARGETS ${target})
+  set(SCRIPT_TEST_TARGETS "${SCRIPT_TEST_TARGETS}" PARENT_SCOPE)
 endfunction()
 
 script_add_test(test_script_ddf "${SCRIPT_TEST_ROOT}/test_script_ddf.cpp")
@@ -148,5 +144,12 @@ foreach(_table_data IN ITEMS
   list(APPEND _table_embeds "${_out_cpp}")
 endforeach()
 script_add_test(test_script_table "${SCRIPT_TEST_ROOT}/test_script_table.cpp" ${_table_embeds})
+
+defold_register_tests_with_server(script_tests "${TARGET_PLATFORM}"
+  TARGETS ${SCRIPT_TEST_TARGETS}
+  PORT 9001
+  WORKDIR "${SCRIPT_ROOT}"
+  CONFIG_NAME unittest.cfg)
+add_dependencies(run_script_tests_server script_test_lua_data)
 
 install(FILES "${SCRIPT_TEST_ROOT}/test_script.h" DESTINATION include/script)
