@@ -69,7 +69,9 @@ set(DEFOLD_HOST_LIBS
   texc
   modelc
   shaderc)
-set(DEFOLD_ENGINE_LIB_SET "all" CACHE STRING "Defold engine lib set to configure: all or host")
+set(DEFOLD_TARGET_LIBS ${DEFOLD_ENGINE_LIBS})
+list(REMOVE_ITEM DEFOLD_TARGET_LIBS jni texc modelc shaderc)
+set(DEFOLD_ENGINE_LIB_SET "all" CACHE STRING "Defold engine lib set to configure: all, host or target")
 set(DEFOLD_SELECTED_ENGINE_LIBS "" CACHE STRING "Optional semicolon or comma separated lib override")
 if(DEFOLD_SELECTED_ENGINE_LIBS)
   string(REPLACE "," ";" DEFOLD_SELECTED_ENGINE_LIBS "${DEFOLD_SELECTED_ENGINE_LIBS}")
@@ -77,6 +79,8 @@ elseif(DEFOLD_ENGINE_LIB_SET STREQUAL "all")
   set(DEFOLD_SELECTED_ENGINE_LIBS ${DEFOLD_ENGINE_LIBS})
 elseif(DEFOLD_ENGINE_LIB_SET STREQUAL "host")
   set(DEFOLD_SELECTED_ENGINE_LIBS ${DEFOLD_HOST_LIBS})
+elseif(DEFOLD_ENGINE_LIB_SET STREQUAL "target")
+  set(DEFOLD_SELECTED_ENGINE_LIBS ${DEFOLD_TARGET_LIBS})
 else()
   message(FATAL_ERROR "Unknown DEFOLD_ENGINE_LIB_SET: ${DEFOLD_ENGINE_LIB_SET}")
 endif()
@@ -92,7 +96,7 @@ unset(_DEFOLD_ENGINE_LIB)
 unset(_DEFOLD_ENGINE_LIB_BINARY_DIR)
 unset(_DEFOLD_ENGINE_LIB_UPPER)
 
-if(DEFOLD_ENGINE_LIB_SET STREQUAL "all")
+if(DEFOLD_ENGINE_LIB_SET STREQUAL "all" OR DEFOLD_ENGINE_LIB_SET STREQUAL "target")
   add_subdirectory("share/extender" "${CMAKE_CURRENT_BINARY_DIR}/share/extender")
 endif()
 

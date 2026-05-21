@@ -83,17 +83,21 @@ if(TOOLS_IS_DESKTOP)
   target_include_directories(launcherutil PUBLIC "${TOOLS_SRC_DIR}/launcher")
   defold_target_link_libraries(launcherutil "${TARGET_PLATFORM}" SCOPE PUBLIC dlib zip mbedtls)
 
-  defold_add_executable(texconvert "${TOOLS_SRC_DIR}/texconvert/main.cpp")
-  defold_target_link_libraries(texconvert "${TARGET_PLATFORM}"
-    dlib
-    zip
-    mbedtls
-    texc
-    profile_null
-    platform_null
-    basis_encoder)
+  set(TOOLS_INSTALL_TARGETS launcher launcherutil)
+  if(TARGET texc)
+    defold_add_executable(texconvert "${TOOLS_SRC_DIR}/texconvert/main.cpp")
+    defold_target_link_libraries(texconvert "${TARGET_PLATFORM}"
+      dlib
+      zip
+      mbedtls
+      texc
+      profile_null
+      platform_null
+      basis_encoder)
+    list(APPEND TOOLS_INSTALL_TARGETS texconvert)
+  endif()
 
-  defold_install_targets(TARGETS launcher launcherutil texconvert
+  defold_install_targets(TARGETS ${TOOLS_INSTALL_TARGETS}
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})

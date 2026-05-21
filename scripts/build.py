@@ -1615,7 +1615,7 @@ class Configuration(object):
             resources = self._ziptree(join(dynamo_home, 'ext', 'share', 'java', 'res'), directory = join(dynamo_home, 'ext', 'share', 'java'))
             self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
-        if self.is_desktop_target():
+        if self.is_desktop_target() and self.target_platform == self.host:
             libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
@@ -2050,8 +2050,9 @@ class Configuration(object):
                 self._build_engine_lib(args, lib, target_platform)
         else:
             reuse_builddir = host == target_platform
+            target_lib_set = 'all' if reuse_builddir else 'target'
             self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake('engine_libs', 'all', target_platform, reuse_builddir = reuse_builddir)
+            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir)
             self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if with_waf:
