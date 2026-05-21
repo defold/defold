@@ -344,7 +344,7 @@ nodes {
   clipping_inverted: true
   alpha: 0.9
   size_mode: SIZE_MODE_AUTO
-  custom_type: 405028931
+  custom_type_name: "Spine"
   enabled: false
   visible: false
   material: "first_material"

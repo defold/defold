@@ -228,8 +228,8 @@
 
    'dmGuiDDF.NodeDesc
    {:default
-    {"custom_properties" :unimplemented
-     "custom_type_name" :unimplemented
+    {"custom_properties" :unused
+     "custom_type_name" :unused
      "overridden_fields" :non-editable ; Not editable, but used to determine which fields are overridden when loading.
      "type" :non-overridable}
 
@@ -265,8 +265,9 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
-    {"custom_type" :non-overridable
+    {"custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
      "custom_properties" :non-editable
+     "custom_type_name" :non-overridable
      "font" :unused
      "innerRadius" :unused
      "line_break" :unused

@@ -437,8 +437,6 @@
 (declare GuiSceneNode GuiNode NodeTree LayoutsNode LayoutNode BoxNode PieNode
          TextNode TemplateNode ParticleFXNode)
 
-(declare get-registered-node-type-cls)
-
 (def ^:private default-node-desc-pb-field-values (protobuf/optional-field-defaults Gui$NodeDesc))
 
 (def ^:private default-pb-node-type (protobuf/default Gui$NodeDesc :type)) ; E.g. :type-box.
@@ -446,8 +444,38 @@
 (defn- node-desc->node-type-info [gui-node-type-registry node-desc]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
   (let [type (:type node-desc default-pb-node-type)
-        custom-type (:custom-type node-desc 0)]
-    (get-registered-node-type-info gui-node-type-registry type custom-type)))
+        custom-type-name (coll/not-empty (:custom-type-name node-desc))]
+    (if custom-type-name
+      (let [type-info (or (get-in gui-node-type-registry [:custom-type-name->type-info custom-type-name])
+                          (throw (IllegalStateException.
+                                   (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, custom-type-name=%s, node-type-infos=%s)"
+                                           type
+                                           custom-type-name
+                                           (keys (:custom-type-name->type-info gui-node-type-registry))))))]
+        (if (= type (:node-type type-info))
+          type-info
+          (get-registered-node-type-info gui-node-type-registry type (:custom-type node-desc 0))))
+      (get-registered-node-type-info gui-node-type-registry type (:custom-type node-desc 0)))))
+
+(defn- validate-node-desc-custom-type-name! [type-info node-desc]
+  (when-some [custom-type-name (coll/not-empty (:custom-type-name node-desc))]
+    (let [type (:type node-desc default-pb-node-type)]
+      (when-not (= type (:node-type type-info))
+        (throw (IllegalArgumentException.
+                 (format "GUI node custom_type_name '%s' belongs to node type %s, expected %s."
+                         custom-type-name (:node-type type-info) type))))
+      (when (and (contains? node-desc :custom-type)
+                 (not= (:custom-type type-info) (:custom-type node-desc)))
+        (throw (IllegalArgumentException.
+                 (format "GUI node custom_type_name '%s' resolves to custom_type %s, but the node specifies custom_type %s."
+                         custom-type-name (:custom-type type-info) (:custom-type node-desc))))))))
+
+(defn- sanitize-node-custom-type-name [node-desc type-info]
+  (if (= :type-custom (:type node-desc))
+    (-> node-desc
+        (assoc :custom-type-name (:custom-type-name type-info))
+        (dissoc :custom-type))
+    node-desc))
 
 (defn- node-desc->node-type [gui-node-type-registry node-desc]
   (:node-cls (node-desc->node-type-info gui-node-type-registry node-desc)))
@@ -787,9 +815,9 @@
 
 (defn- custom-gui-resource-property-infos [evaluation-context node-id gui-resource-type]
   (let [gui-node-type-registry (g/node-value node-id :gui-node-type-registry evaluation-context)
-        type (g/node-value node-id :type evaluation-context)
-        custom-type (g/node-value node-id :custom-type evaluation-context)
-        type-info (get-registered-node-type-info gui-node-type-registry type custom-type)]
+        type-info (get-registered-node-type-info
+                    gui-node-type-registry
+                    (g/node-type* (:basis evaluation-context) node-id))]
     (coll/into-> (:custom-properties type-info) []
       (keep (fn [{:keys [resource-kind] :as custom-property-info}]
               (when (= gui-resource-type resource-kind)
@@ -982,7 +1010,8 @@
   ;; These pb-fields will always be kept on override nodes. Other fields will be
   ;; stripped out unless their values deviate from the original node.
   [:type ; Not overridden or necessary, but improves readability in files.
-   :custom-type ; Not overridden or necessary, but improves readability in files.
+   :custom-type ; Legacy numeric custom type retained while loading old files.
+   :custom-type-name ; Not overridden or necessary, but improves readability in files.
    :id ; Possibly overridden to reflect new position in scene hierarchy, but not listed among :overridden-fields. Used to locate the original node.
    :parent ; Possibly overridden to reflect new position in scene hierarchy, but not listed among :overridden-fields. No property exists for field.
    :template-node-child ; Signals that the node is overriding a node from a template scene. No property exists for field.
@@ -999,34 +1028,34 @@
               (map pb-field-index->pb-field)
               (:overridden-fields node-desc))))
 
-(g/defnk produce-gui-base-node-msg [_this type custom-type custom-type-name custom-properties gui-node-type-registry child-index ^:raw position ^:raw rotation ^:raw scale id generated-id ^:raw color ^:raw alpha ^:raw inherit-alpha ^:raw enabled ^:raw layer parent]
+(g/defnk produce-gui-base-node-msg [_this type custom-type-name custom-properties gui-node-type-registry child-index ^:raw position ^:raw rotation ^:raw scale id generated-id ^:raw color ^:raw alpha ^:raw inherit-alpha ^:raw enabled ^:raw layer parent]
   ;; Warning: This base output or any of the base outputs that derive from it
   ;; must not be cached due to overridden-fields reliance on _this. Only the
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
   ;; fine since such an output will have explicit dependencies on all the
   ;; property values it requires.
-  (-> (protobuf/make-map-without-defaults Gui$NodeDesc
-        :custom-type custom-type
-        :custom-type-name custom-type-name
-        :custom-properties (custom-properties-prop-value->pb
-                             (get-registered-node-type-info gui-node-type-registry type custom-type)
-                             custom-properties
-                             false)
-        :template-node-child false
-        :position (protobuf/vector3->vector4-zero position)
-        :rotation (clj-quat->euler-v4 rotation)
-        :scale (protobuf/vector3->vector4-one scale)
-        :id (if (g/node-override? _this) generated-id id)
-        :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
-        :alpha alpha
-        :inherit-alpha inherit-alpha
-        :enabled enabled
-        :layer layer
-        :parent parent
-        :overridden-fields (overridden-pb-field-indices _this))
-      (assoc
-        :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
-        :child-index child-index))) ; Used to order sibling nodes in the SceneDesc.
+  (let [type-info (get-registered-node-type-info gui-node-type-registry (g/node-type _this))]
+    (-> (protobuf/make-map-without-defaults Gui$NodeDesc
+          :custom-type-name custom-type-name
+          :custom-properties (custom-properties-prop-value->pb
+                               type-info
+                               custom-properties
+                               false)
+          :template-node-child false
+          :position (protobuf/vector3->vector4-zero position)
+          :rotation (clj-quat->euler-v4 rotation)
+          :scale (protobuf/vector3->vector4-one scale)
+          :id (if (g/node-override? _this) generated-id id)
+          :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
+          :alpha alpha
+          :inherit-alpha inherit-alpha
+          :enabled enabled
+          :layer layer
+          :parent parent
+          :overridden-fields (overridden-pb-field-indices _this))
+        (assoc
+          :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
+          :child-index child-index)))) ; Used to order sibling nodes in the SceneDesc.
 
 ;; SDK api
 (defmacro layout-property-getter [prop-sym]
@@ -1403,7 +1432,6 @@
 
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0)) ; No protobuf counterpart.
   (property type g/Keyword (dynamic visible (g/constantly false))) ; Always assigned in load-fn.
-  (property custom-type g/Int (dynamic visible (g/constantly false)) (default (protobuf/default Gui$NodeDesc :custom-type)))
 
   (input trivial-gui-scene-info TrivialGuiSceneInfo)
   (output trivial-gui-scene-info TrivialGuiSceneInfo (gu/passthrough trivial-gui-scene-info))
@@ -1493,13 +1521,13 @@
                                                   (get-registered-node-type-infos gui-node-type-registry))))
 
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type custom-type own-build-errors gui-node-type-registry trivial-gui-scene-info layout->prop->override _overridden-properties]
+          (g/fnk [_this _node-id id child-index node-outline-link node-outline-children node-outline-reqs own-build-errors gui-node-type-registry trivial-gui-scene-info layout->prop->override _overridden-properties]
             (let [current-layout (:current-layout trivial-gui-scene-info)]
               (cond-> {:node-id _node-id
                        :node-outline-key id
                        :label id
                        :child-index child-index
-                       :icon (:icon (get-registered-node-type-info gui-node-type-registry type custom-type))
+                       :icon (:icon (get-registered-node-type-info gui-node-type-registry (g/node-type _this)))
                        :child-reqs node-outline-reqs
                        :copy-include-fn (fn [node]
                                           (let [node-id (g/node-id node)]
@@ -1646,7 +1674,7 @@
                         prop->value))))
                 (make-recursive-prop->value-for-default-layout basis _node-id)))))
   (output _properties g/Properties :cached
-          (g/fnk [^:unsafe _evaluation-context _node-id _declared-properties prop->value layout->prop->override layout->prop->value trivial-gui-scene-info gui-node-type-registry type custom-type basic-gui-scene-info]
+          (g/fnk [^:unsafe _evaluation-context _this _node-id _declared-properties prop->value layout->prop->override layout->prop->value trivial-gui-scene-info gui-node-type-registry basic-gui-scene-info]
             ;; For layout properties, the :original-value of each property is
             ;; based on the value returned by the layout-property-getter.
             ;; However, the presence of the :original-value is based on whether
@@ -1659,7 +1687,7 @@
                                                    (layout->prop->override current-layout))
                   prop->value (get layout->prop->value current-layout prop->value)
                   declared-properties (if gui-node-type-registry
-                                        (let [type-info (get-registered-node-type-info gui-node-type-registry type custom-type)
+                                        (let [type-info (get-registered-node-type-info gui-node-type-registry (g/node-type _this))
                                               virtual-custom-properties (custom-property-properties _evaluation-context _node-id type-info prop->value prop-kw->layout-override-value basic-gui-scene-info)]
                                           (update _declared-properties :properties #(-> %
                                                                                        (dissoc :custom-properties)
@@ -3567,6 +3595,9 @@
       clipping/setup-states
       sort-scene)))
 
+(defn- strip-custom-type [node-desc]
+  (dissoc node-desc :custom-type))
+
 (defn- make-layout-desc [gui-node-type-registry layout-name decorated-node-msgs]
   (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
     :name layout-name
@@ -3594,7 +3625,8 @@
                             (-> decorated-node-msg
                                 (dissoc :layout->prop->override :layout->prop->value)
                                 (protobuf/assign-repeated :overridden-fields overridden-fields)))
-                          (strip-unused-overridden-fields-from-node-desc)))))))))
+                          (strip-unused-overridden-fields-from-node-desc)
+                          (strip-custom-type)))))))))
 
 (g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes max-dynamic-textures layer-msgs font-msgs texture-msgs material-msgs particlefx-resource-msgs resource-msgs]
   ;; Note: Both :layouts and :nodes are omitted here. They will be added to the
@@ -3629,9 +3661,10 @@
         (coll/into-> node-msgs []
           (map #(dissoc % :layout->prop->override :layout->prop->value))
           (map (fn [node-desc]
-                 (if (:template-node-child node-desc)
-                   (strip-unused-overridden-fields-from-node-desc node-desc)
-                   (strip-redundant-size-from-node-desc node-desc)))))]
+                 (strip-custom-type
+                   (if (:template-node-child node-desc)
+                     (strip-unused-overridden-fields-from-node-desc node-desc)
+                     (strip-redundant-size-from-node-desc node-desc))))))]
 
     (protobuf/assign-repeated pb-msg
       :layouts layout-descs
@@ -3673,7 +3706,14 @@
             [(persistent! textures) (persistent! materials) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
     (assoc rt-pb-msg :textures (mapv second textures) :materials (mapv second materials) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
-(defn- node-desc->rt-node-desc [node-desc layout-name]
+(defn- node-desc->rt-custom-type [node-desc gui-node-type-registry]
+  (if (= :type-custom (:type node-desc))
+    (-> node-desc
+        (assoc :custom-type (:custom-type (node-desc->node-type-info gui-node-type-registry node-desc)))
+        (dissoc :custom-type-name))
+    node-desc))
+
+(defn- node-desc->rt-node-desc [node-desc gui-node-type-registry layout-name]
   {:pre [(map? node-desc) ; Gui$NodeDesc in map format.
          (string? layout-name)]}
   (cond
@@ -3744,11 +3784,15 @@
                                         (pose/euler-rotation-v4 baked-pose))
                             :scale (when (pose/scaled? baked-pose)
                                      (pose/scale-v4 baked-pose))))))))
-      (dissoc node-desc :overridden-fields :template-node-child)
+      (-> node-desc
+          (node-desc->rt-custom-type gui-node-type-registry)
+          (dissoc :overridden-fields :template-node-child))
       (:templates (meta node-desc)))
 
     :else
-    (dissoc node-desc :overridden-fields)))
+    (-> node-desc
+        (node-desc->rt-custom-type gui-node-type-registry)
+        (dissoc :overridden-fields))))
 
 (defn- make-rt-layout-desc [gui-node-type-registry layout-name decorated-node-msgs id->node-desc-for-default-layout]
   {:pre [(map? id->node-desc-for-default-layout)]}
@@ -3767,7 +3811,7 @@
                                           (-> decorated-node-msg
                                               (dissoc :layout->prop->override :layout->prop->value)
                                               (into (prop->pb-field-entries-for-type type-info include-custom-property-defaults prop->value))
-                                              (node-desc->rt-node-desc layout-name)))
+                                              (node-desc->rt-node-desc gui-node-type-registry layout-name)))
                                         (protobuf/clear-defaults Gui$NodeDesc))]
                      (let [id (:id node-desc-for-layout)
                            node-desc-for-default-layout (id->node-desc-for-default-layout id)]
@@ -3797,7 +3841,7 @@
                 (fn [decorated-node-msg]
                   (-> decorated-node-msg
                       (dissoc :layout->prop->override :layout->prop->value)
-                      (node-desc->rt-node-desc "")))))
+                      (node-desc->rt-node-desc gui-node-type-registry "")))))
 
             id->node-desc-for-default-layout (coll/pair-map-by :id rt-node-descs)
 
@@ -4198,13 +4242,12 @@
           (g/fnk [aux-costly-gui-scene-info own-costly-gui-scene-info]
             (coll/merge-with coll/merge aux-costly-gui-scene-info own-costly-gui-scene-info))))
 
-(defn add-gui-node-with-props! [scene parent node-type custom-type props select-fn]
+(defn add-gui-node-with-props! [scene parent node-type-info props select-fn]
   (-> (g/with-auto-evaluation-context evaluation-context
         (let [node-tree (g/node-value scene :node-tree evaluation-context)
-              gui-node-type-registry (g/node-value scene :gui-node-type-registry evaluation-context)
-              def-node-type (get-registered-node-type-cls gui-node-type-registry node-type custom-type)
+              def-node-type (:node-cls node-type-info)
               id-base (or (some-> (node-types/->name def-node-type) extension-type-name->id)
-                          (subs (name node-type) 5))
+                          (subs (name (:node-type node-type-info)) 5))
               id (or (:id props)
                      (id/resolve id-base
                                  (g/node-value node-tree :id-counts evaluation-context)))
@@ -4212,8 +4255,10 @@
               node-properties (assoc props
                                 :id id
                                 :child-index next-index
-                                :custom-type custom-type
-                                :type node-type)]
+                                :type (:node-type node-type-info))
+              node-properties (cond-> node-properties
+                                (coll/not-empty (:custom-type-name node-type-info))
+                                (assoc :custom-type-name (:custom-type-name node-type-info)))]
           (concat
             (g/operation-label (localization/message "operation.gui.add-gui-node"))
             (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type node-properties]]
@@ -4224,35 +4269,37 @@
       g/tx-nodes-added
       first))
 
-(defn add-gui-node! [project scene parent node-type custom-type select-fn]
+(defn add-gui-node! [project scene parent node-type-info select-fn]
   ;; TODO: The project argument is unused. Remove.
-  (let [gui-node-type-registry (g/node-value scene :gui-node-type-registry)
-        node-type-info (get-registered-node-type-info gui-node-type-registry node-type custom-type)
-        props (:defaults node-type-info)]
-    (add-gui-node-with-props! scene parent node-type custom-type props select-fn)))
+  (add-gui-node-with-props! scene parent node-type-info (:defaults node-type-info) select-fn))
 
-(defn add-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
-  (add-gui-node! project scene parent node-type custom-type select-fn))
+(defn- add-handler-user-data->node-type-info [user-data]
+  (dissoc user-data :handler-fn :parent :scene))
 
-(defn add-template-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
+(defn add-gui-node-handler [project {:keys [scene parent] :as user-data} select-fn]
+  (add-gui-node! project scene parent (add-handler-user-data->node-type-info user-data) select-fn))
+
+(defn add-template-gui-node-handler [project {:keys [scene parent] :as user-data} select-fn]
   (when-let [template-resources (g/with-auto-evaluation-context evaluation-context
                                   (resource-dialog/make
                                     (project/workspace project evaluation-context)
                                     project
                                     {:ext "gui"
                                      :accept-fn (fn [r] (not (contains-resource? project scene r evaluation-context)))}))]
-    (let [template-resource (first template-resources)
+    (let [node-type-info (add-handler-user-data->node-type-info user-data)
+          template-resource (first template-resources)
           template-id (resource->id template-resource)
-          gui-node-type-registry (g/node-value scene :gui-node-type-registry)
-          node-type-info (get-registered-node-type-info gui-node-type-registry node-type custom-type)
           default-props (:defaults node-type-info)
           props (assoc default-props :template {:resource template-resource :overrides {}}
                        :id template-id)]
-      (add-gui-node-with-props! scene parent node-type custom-type props select-fn))))
+      (add-gui-node-with-props! scene parent node-type-info props select-fn))))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
   {:label label :icon icon :command :edit.add-embedded-component
    :user-data (merge {:handler-fn handler-fn :scene scene :parent parent} user-data)})
+
+(defn- node-type-info->add-handler-user-data [type-info]
+  (dissoc type-info :custom-type :output-custom-type))
 
 (defn- add-handler-options [node evaluation-context]
   (let [basis (:basis evaluation-context)
@@ -4267,7 +4314,7 @@
                            (mapv (fn [info]
                                    (if-not (:deprecated info)
                                      (make-add-handler template-scene parent (:display-name info) (:icon info)
-                                                       add-gui-node-handler (into {} info))))
+                                                       add-gui-node-handler (node-type-info->add-handler-user-data info))))
                                  type-infos))
                          [])
 
@@ -4281,7 +4328,7 @@
                                                        add-template-gui-node-handler
                                                        add-gui-node-handler)]
                                      (make-add-handler scene parent (:display-name info) (:icon info)
-                                                       add-handler (into {} info)))))
+                                                       add-handler (node-type-info->add-handler-user-data info)))))
                                type-infos))
 
                        :else
@@ -4331,6 +4378,8 @@
                              node-properties)))
                        (transient node-desc)
                        node-desc))
+             (= :type-custom (:type node-desc))
+             (assoc :custom-type-name (:custom-type-name type-info))
              (and include-custom-property-defaults
                   (not (contains? node-desc :custom-properties))
                   (not (coll/empty? (:custom-properties type-info))))
@@ -4683,13 +4732,15 @@
 
 (defn- sanitize-node-fields [gui-node-type-registry node-desc]
   (let [node-type (:type node-desc default-pb-node-type)
-        custom-type (:custom-type node-desc 0)
-        node-type-info (get-registered-node-type-info gui-node-type-registry node-type custom-type)
+        node-type-info (node-desc->node-type-info gui-node-type-registry node-desc)
         node-desc (assoc node-desc :type node-type) ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
         node-desc (if-some [convert-fn (:convert-fn node-type-info)]
                     (convert-fn node-type-info node-desc)
-                    node-desc)]
+                    node-desc)
+        node-type-info (node-desc->node-type-info gui-node-type-registry node-desc)]
+    (validate-node-desc-custom-type-name! node-type-info node-desc)
     (-> node-desc
+        (sanitize-node-custom-type-name node-type-info)
         (sanitize-custom-properties node-type-info)
         (sanitize-node-color :color :alpha)
         (sanitize-node-geometry)
@@ -5158,8 +5209,6 @@
    :node-cls->type-info {}
    ;; custom type name -> non-deprecated info
    :custom-type-name->type-info {}
-   ;; graph-node-type -> custom type name
-   :node-cls->custom-type-name {}
    ;; node-desc-type keyword -> custom-type -> info
    :node-type->custom-type->type-info {}
    ;; flat list
@@ -5167,7 +5216,7 @@
 
 (defn- node-type-info-custom-type [type-info]
   (or (:custom-type type-info)
-      (some-> (:custom-type-name type-info) murmur/hash32)))
+      (murmur/hash32 (:custom-type-name type-info))))
 
 (defn- add-node-type-info [state {:keys [node-cls node-type custom-type-name deprecated] :as type-info}]
   (let [custom-type (node-type-info-custom-type type-info)
@@ -5184,8 +5233,7 @@
         (update :type-infos conj type-info)
         (cond-> (not deprecated)
           (update :node-cls->type-info assoc node-cls type-info)
-          custom-type-name (assoc-in [:custom-type-name->type-info custom-type-name] type-info)
-          custom-type-name (assoc-in [:node-cls->custom-type-name node-cls] custom-type-name)))))
+          (and (not deprecated) custom-type-name) (assoc-in [:custom-type-name->type-info custom-type-name] type-info)))))
 
 (def ^:private base-node-type-registry
   (reduce add-node-type-info empty-node-type-registry base-node-type-infos))
@@ -5363,14 +5411,13 @@
   (let [workspace (project/workspace project evaluation-context)
         resource-types (resource/resource-types-by-type-ext basis workspace :editable)
         gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
-        {:keys [node-type custom-type custom-type-name defaults] :as type-info} (get-registered-node-type-info gui-node-type-registry child-node-type)
+        {:keys [node-type custom-type-name defaults] :as type-info} (get-registered-node-type-info gui-node-type-registry child-node-type)
         [attachment custom-properties] (split-custom-property-attachment type-info rt project evaluation-context attachment)
         node-tree-or-gui-node (if (g/node-instance? basis GuiSceneNode parent-node-id)
                                 (gui-attachment/scene-node->node-tree basis parent-node-id)
                                 parent-node-id)
         props (cond-> (assoc defaults
                         :child-index (gui-attachment/next-child-index node-tree-or-gui-node evaluation-context)
-                        :custom-type custom-type
                         :type node-type)
                 custom-properties (update :custom-properties merge custom-properties)
                 custom-type-name (assoc :custom-type-name custom-type-name))]
@@ -5396,9 +5443,6 @@
 
 (defmethod ext-graph/init-attachment ::TemplateNode [evaluation-context rt project parent-node-id child-node-type child-node-id attachment]
   (init-gui-node-attachment evaluation-context rt project parent-node-id child-node-type child-node-id attachment template-node-id-base-name))
-
-(defn- get-registered-node-type-cls [gui-node-type-registry node-type custom-type]
-  (:node-cls (get-registered-node-type-info gui-node-type-registry node-type custom-type)))
 
 (defn- custom-property-pb-type [type]
   (cond
@@ -5448,11 +5492,10 @@
             :custom-property-id->info custom-property-id->info)
           (assoc-in [:defaults :custom-properties] default-custom-properties)))))
 
-(defn- validate-node-type-info! [{:keys [custom-type custom-type-name node-cls] :as type-info}]
-  (when-not (or (integer? custom-type)
-                (string? custom-type-name))
+(defn- validate-node-type-info! [{:keys [custom-type-name node-cls] :as type-info}]
+  (when-not (string? custom-type-name)
     (throw (IllegalArgumentException.
-             (format "Plugin GUI node type %s does not specify a valid custom type."
+             (format "Plugin GUI node type %s does not specify a valid custom type name."
                      (:name @node-cls)))))
   (when-some [abstract-output-labels (not-empty (g/abstract-output-labels node-cls))]
     (throw (IllegalArgumentException.

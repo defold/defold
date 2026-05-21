@@ -30,8 +30,7 @@
             local-extensions
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
-            [util.diff :as diff]
-            [util.murmur :as murmur]))
+            [util.diff :as diff]))
 
 (set! *warn-on-reflection* true)
 
@@ -421,7 +420,8 @@
                     (is (not (contains? spine-gui-node :size)))
                     (is (not (contains? spine-gui-node :color)))
                     (is (= :type-custom (:type spine-gui-node)))
-                    (is (= 405028931 (:custom-type spine-gui-node)))
+                    (is (= "Spine" (:custom-type-name spine-gui-node)))
+                    (is (not (contains? spine-gui-node :custom-type)))
                     (is (not (contains? spine-gui-node :blend-mode)))
                     (is (= "spine" (:id spine-gui-node)))
                     (is (not (contains? spine-gui-node :xanchor)))
@@ -473,7 +473,9 @@
   (test-util/with-loaded-project project-path
     (let [gui-scene (test-util/resource-node project "/main/spineboy.gui")
           node-tree (g/node-value gui-scene :node-tree)
-          spine-node (gui/add-gui-node! project gui-scene node-tree :type-custom (murmur/hash32 "Spine") nil)]
+          spine-node-type-info (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
+                                       [:gui-node-type-registry :custom-type-name->type-info "Spine"])
+          spine-node (gui/add-gui-node! project gui-scene node-tree spine-node-type-info nil)]
       (is (= "spine" (test-util/prop spine-node :id)))
       (test-util/prop! spine-node :spine_scene "spineboy")
       (is (= "spineboy" (test-util/prop spine-node :spine_scene)))

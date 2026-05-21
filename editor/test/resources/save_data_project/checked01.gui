@@ -344,7 +344,7 @@ nodes {
   clipping_inverted: true
   alpha: 0.9
   size_mode: SIZE_MODE_AUTO
-  custom_type: 405028931
+  custom_type_name: "Spine"
   enabled: false
   visible: false
   material: "first_material"
@@ -732,7 +732,7 @@ nodes {
   overridden_fields: 47
   overridden_fields: 50
   template_node_child: true
-  custom_type: 405028931
+  custom_type_name: "Spine"
   material: "second_material"
   custom_properties {
     id: "spine_create_bones"
@@ -1119,7 +1119,7 @@ layouts {
     overridden_fields: 46
     overridden_fields: 47
     overridden_fields: 50
-    custom_type: 405028931
+    custom_type_name: "Spine"
     material: "second_material"
     custom_properties {
       id: "spine_create_bones"
@@ -1503,7 +1503,7 @@ layouts {
     overridden_fields: 47
     overridden_fields: 50
     template_node_child: true
-    custom_type: 405028931
+    custom_type_name: "Spine"
     material: "second_material"
     custom_properties {
       id: "spine_create_bones"

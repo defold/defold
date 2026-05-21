@@ -194,7 +194,7 @@
                     node-type-info (get-in gui-resource-type [:gui-node-type-registry :custom-type-name->type-info "TestCustom"])
                     resource-kind-info (get-in gui-resource-type [:gui-resource-kind-registry :test-gui-resource])]]
         (is (= custom-type (:custom-type node-type-info)))
-        (is (= "TestCustom" (get-in gui-resource-type [:gui-node-type-registry :node-cls->custom-type-name TestCustomGuiNode])))
+        (is (= "TestCustom" (get-in gui-resource-type [:gui-node-type-registry :node-cls->type-info TestCustomGuiNode :custom-type-name])))
         (is (= ["testguiresource"] (:exts resource-kind-info))))
       (doseq [proj-path ["/alpha.testguiresource" "/beta.testguiresource"]]
         (let [file (test-util/file workspace proj-path)]
@@ -205,7 +205,7 @@
                            "/custom_resources.gui"
                            {:resources source-resources
                             :nodes [{:type :type-custom
-                                     :custom-type custom-type
+                                     :custom-type-name "TestCustom"
                                      :custom-properties [{:id "unknown"
                                                           :type :type-string
                                                           :string-value "kept"}
@@ -247,9 +247,9 @@
           (is (= source-resources (:resources save-value)))
           (let [saved-node (first (:nodes save-value))]
             (is (= {:type :type-custom
-                    :custom-type custom-type
+                    :custom-type-name "TestCustom"
                     :id "custom"}
-                   (select-keys saved-node [:type :custom-type :id])))
+                   (select-keys saved-node [:type :custom-type-name :id])))
             (is (= [{:id "test_hash"
                      :type :type-hash
                      :hash 123}
@@ -269,6 +269,41 @@
                      :type :type-vector4
                      :vector4 test-vector4}]
                    (:custom-properties saved-node)))))))))
+
+(deftest custom-gui-readable-custom-type-name-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (register-test-gui-extensions workspace)
+    (let [custom-type (murmur/hash32 "TestCustom")
+          gui-resource (test-util/make-resource!
+                         workspace
+                         "/old_numeric_custom_type.gui"
+                         {:nodes [{:type :type-custom
+                                   :custom-type custom-type
+                                   :id "custom"}]})]
+      (workspace/resource-sync! workspace)
+      (test-util/clear-cached-save-data! project)
+      (let [gui-scene (test-util/resource-node project gui-resource)
+            save-value (g/node-value gui-scene :save-value)
+            saved-node (first (:nodes save-value))
+            source ((:write-fn (resource/resource-type gui-resource)) save-value)]
+        (is (= #{} (test-util/dirty-proj-paths project)))
+        (is (= {:type :type-custom
+                :custom-type-name "TestCustom"
+                :id "custom"}
+               (select-keys saved-node [:type :custom-type-name :id])))
+        (is (not (contains? saved-node :custom-type)))
+        (is (str/includes? source "custom_type_name: \"TestCustom\""))
+        (is (not (str/includes? source "custom_type:")))))
+    (let [gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
+          gui-node-type-registry (:gui-node-type-registry gui-resource-type)
+          mismatched-node {:type :type-custom
+                           :custom-type-name "TestCustom"
+                           :custom-type (inc (murmur/hash32 "TestCustom"))
+                           :id "custom"}]
+      (is (thrown-with-msg?
+            IllegalArgumentException
+            #"custom_type_name 'TestCustom' resolves to custom_type"
+            (#'gui/sanitize-scene gui-node-type-registry {:nodes [mismatched-node]}))))))
 
 (deftest gui-scene-generation
   (test-util/with-loaded-project
@@ -632,12 +667,16 @@
       (use 'editor.gui :reload)
       (is (= -100.0 (get-in (g/node-value template :_properties) [:properties :template :value :overrides "box" :position 0]))))))
 
+(defn- gui-node-type-info [workspace node-cls]
+  (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
+          [:gui-node-type-registry :node-cls->type-info node-cls]))
+
 (deftest gui-template-add
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/scene.gui")
           super (test-util/resource-node project "/gui/super_scene.gui")
           parent (:node-id (test-util/outline node-id [0]))
-          new-tmpl (gui/add-gui-node! project node-id parent :type-template 0 (fn [node-ids] (app-view/select app-view node-ids)))
+          new-tmpl (gui/add-gui-node! project node-id parent (gui-node-type-info workspace gui/TemplateNode) (fn [node-ids] (app-view/select app-view node-ids)))
           super-template (gui-node super "scene")]
       (is (= new-tmpl (gui-node node-id "template")))
       (is (not (contains? (:overrides (prop super-template :template)) "template/sub_box")))
@@ -662,8 +701,8 @@
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
     (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
-(defn- run-add-gui-node! [project scene app-view parent node-type custom-type]
-  (let [user-data {:scene scene :parent parent :node-type node-type :custom-type custom-type :handler-fn gui/add-gui-node-handler}]
+(defn- run-add-gui-node! [project scene app-view parent node-type-info]
+  (let [user-data (assoc node-type-info :scene scene :parent parent :handler-fn gui/add-gui-node-handler)]
     (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
 (defn set-visible-layout! [scene layout]
@@ -709,7 +748,7 @@
       (set-visible-layout! scene "Portrait")
       (let [node-tree (g/node-value scene :node-tree)]
         (is (= #{"box"} (set (map :label (:children (test-util/outline scene [0]))))))
-        (run-add-gui-node! project scene app-view node-tree :type-box 0)
+        (run-add-gui-node! project scene app-view node-tree (gui-node-type-info workspace gui/BoxNode))
         (is (= #{"box" "box1"} (set (map :label (:children (test-util/outline scene [0]))))))))))
 
 (defn- gui-text [scene id]
@@ -1307,14 +1346,14 @@
                          workspace
                          "/custom_virtual_properties.gui"
                          {:nodes [{:type :type-custom
-                                   :custom-type custom-type
+                                   :custom-type-name "TestCustom"
                                    :id "custom"
                                    :custom-properties [{:id "test_number"
                                                         :type :type-number
                                                         :number 2.0}]}]
                           :layouts [{:name "Landscape"
                                      :nodes [{:type :type-custom
-                                              :custom-type custom-type
+                                              :custom-type-name "TestCustom"
                                               :id "custom"
                                               :overridden-fields [custom-properties-pb-field-index]
                                               :custom-properties [{:id "test_number"
@@ -1370,7 +1409,7 @@
       (let [referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
             added-text-props {:id "added" :font "font" :text "button default"}
             referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
-            referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil)]
+            referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree (gui-node-type-info workspace gui/TextNode) added-text-props nil)]
 
         ;; Override the text property on the added node for the Landscape layout in the referenced scene.
         (with-visible-layout! referenced-scene "Landscape"
@@ -2386,7 +2425,7 @@
           ;; Add a new node to the referenced scene.
           (let [referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
                 added-text-props {:id "added" :font "font" :text "button default"}]
-            (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil))
+            (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree (gui-node-type-info workspace gui/TextNode) added-text-props nil))
 
           (testing "After adding a new text node to the referenced scene."
             (testing "Referenced scene."
@@ -2564,7 +2603,7 @@
           referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
           referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
           added-text-props {:id "added" :font "font" :text "button default"}
-          referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil)
+          referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree (gui-node-type-info workspace gui/TextNode) added-text-props nil)
           referencing-scene-added-text (get (scene-gui-node-map referencing-scene) "button/added")]
 
       ;; Delete the original text node from the referenced scene in order to

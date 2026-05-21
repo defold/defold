@@ -16,7 +16,9 @@
   (:require [clojure.data :as data]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.defold-project :as project]
             [editor.gui :as gui]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.fn :as fn]))
 
@@ -28,8 +30,12 @@
                    (into {}))]
     (id->node id)))
 
+(defn- gui-node-type-info [project node-cls]
+  (get-in (get (workspace/get-resource-type-map (project/workspace project) :editable) "gui")
+          [:gui-node-type-registry :node-cls->type-info node-cls]))
+
 (defn- add-box! [project scene parent]
-  (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) :type-box 0 nil))
+  (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) (gui-node-type-info project gui/BoxNode) nil))
 
 (defn- add-clipper!
   ([project scene parent]

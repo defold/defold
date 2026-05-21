@@ -344,7 +344,7 @@ nodes {
   clipping_inverted: true
   alpha: 0.9
   size_mode: SIZE_MODE_AUTO
-  custom_type: 405028931
+  custom_type_name: "Spine"
   enabled: false
   visible: false
   material: "first_material"
@@ -747,7 +747,7 @@ layouts {
     overridden_fields: 46
     overridden_fields: 47
     overridden_fields: 50
-    custom_type: 405028931
+    custom_type_name: "Spine"
     enabled: false
     visible: false
     material: "second_material"
