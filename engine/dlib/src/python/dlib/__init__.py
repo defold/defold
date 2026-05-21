@@ -34,10 +34,15 @@ elif sys.platform == "win32":
     libdir = "lib/x86_64-win32"
 
 dlib = None
+override_path = os.environ.get('DM_DLIB_SHARED_LIBRARY')
+if override_path:
+    dlib = ctypes.cdll.LoadLibrary(override_path)
+
 try:
     # First try to load from the build directory
     # This is only used when running unit-tests. A bit budget but is works.
-    dlib = ctypes.cdll.LoadLibrary(os.path.join('build/default/src', libname))
+    if not dlib:
+        dlib = ctypes.cdll.LoadLibrary(os.path.join('build/default/src', libname))
 except:
     pass
 

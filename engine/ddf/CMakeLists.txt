@@ -75,10 +75,20 @@ function(ddf_protoc_gen_cpp OUT_CPP SRC_PROTO)
     list(APPEND _inc_flags -I "${_inc}")
   endforeach()
 
+  string(REPLACE ";" "\\;" _ddf_plugin_pythonpath_env "${DDF_PROTOC_PLUGIN_PYTHONPATH}")
+  set(_ddf_plugin_env
+    "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+    "PYTHONPATH=${_ddf_plugin_pythonpath_env}")
+  set(_ddf_plugin_deps "${_src_abs}" "${_ddf_plugin_path}" "${DDF_SRC_DIR}/ddfc.py" ${DDF_PROTOC_PLUGIN_PY_DEPS})
+  if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET dlib_shared)
+    list(APPEND _ddf_plugin_env "DM_DLIB_SHARED_LIBRARY=$<TARGET_FILE:dlib_shared>")
+    list(APPEND _ddf_plugin_deps dlib_shared)
+  endif()
+
   add_custom_command(
     OUTPUT "${OUT_CPP}" "${_out_h}"
-    COMMAND ${CMAKE_COMMAND} -E env "DYNAMO_HOME=${DEFOLD_SDK_ROOT}" "PYTHONPATH=${DDF_PROTOC_PLUGIN_PYTHONPATH}" ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} "${_src_abs}"
-    DEPENDS "${_src_abs}" "${_ddf_plugin_path}" "${DDF_SRC_DIR}/ddfc.py" ${DDF_PROTOC_PLUGIN_PY_DEPS}
+    COMMAND ${CMAKE_COMMAND} -E env ${_ddf_plugin_env} ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} "${_src_abs}"
+    DEPENDS ${_ddf_plugin_deps}
     VERBATIM
     COMMENT "Generating DDF C++ from ${SRC_PROTO}")
   set_source_files_properties("${OUT_CPP}" "${_out_h}" PROPERTIES GENERATED TRUE)

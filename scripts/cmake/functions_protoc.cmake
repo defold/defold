@@ -117,23 +117,23 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
         set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
     endif()
 
+    set(_ddf_plugin_env "DYNAMO_HOME=${DEFOLD_SDK_ROOT}")
     if(_ddf_plugin_pythonpath)
-        add_custom_command(
-            OUTPUT "${_out_cc}" "${_out_h}"
-            COMMAND ${CMAKE_COMMAND} -E env "DYNAMO_HOME=${DEFOLD_SDK_ROOT}" "PYTHONPATH=${_ddf_plugin_pythonpath}" ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
-            DEPENDS "${_src_abs}" "${_ddf_plugin_path}" ${_ddf_plugin_deps}
-            VERBATIM
-            COMMENT "Generating DDF C++ from ${SRC_PROTO}"
-        )
-    else()
-        add_custom_command(
-            OUTPUT "${_out_cc}" "${_out_h}"
-            COMMAND ${CMAKE_COMMAND} -E env "DYNAMO_HOME=${DEFOLD_SDK_ROOT}" ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
-            DEPENDS "${_src_abs}" "${_ddf_plugin_path}" ${_ddf_plugin_deps}
-            VERBATIM
-            COMMENT "Generating DDF C++ from ${SRC_PROTO}"
-        )
+        string(REPLACE ";" "\\;" _ddf_plugin_pythonpath_env "${_ddf_plugin_pythonpath}")
+        list(APPEND _ddf_plugin_env "PYTHONPATH=${_ddf_plugin_pythonpath_env}")
     endif()
+    if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET dlib_shared)
+        list(APPEND _ddf_plugin_env "DM_DLIB_SHARED_LIBRARY=$<TARGET_FILE:dlib_shared>")
+        list(APPEND _ddf_plugin_deps dlib_shared)
+    endif()
+
+    add_custom_command(
+        OUTPUT "${_out_cc}" "${_out_h}"
+        COMMAND ${CMAKE_COMMAND} -E env ${_ddf_plugin_env} ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
+        DEPENDS "${_src_abs}" "${_ddf_plugin_path}" ${_ddf_plugin_deps}
+        VERBATIM
+        COMMENT "Generating DDF C++ from ${SRC_PROTO}"
+    )
 
     # Mark generated
     set_source_files_properties("${_out_cc}" "${_out_h}" PROPERTIES GENERATED TRUE)
