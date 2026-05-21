@@ -360,6 +360,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         if (property.hasId() && !property.getId().isEmpty()) {
             propertyBuilder.setIdHash(hashPropertyName(property.getId()));
         }
+        if (property.getType() == PropertyType.TYPE_HASH && property.hasStringValue()) {
+            propertyBuilder.setHash(hashPropertyName(property.getStringValue()));
+        }
 
         propertyBuilder.clearId();
         return propertyBuilder.build();
@@ -389,7 +392,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         if (node.getType() == Type.TYPE_SPINE) {
             customType = GuiCustomTypeRegistry.getByName("Spine");
         } else if (node.getType() == Type.TYPE_CUSTOM) {
-            customType = GuiCustomTypeRegistry.getByHash(node.getCustomType());
+            if (node.hasCustomTypeName() && !node.getCustomTypeName().isEmpty()) {
+                customType = GuiCustomTypeRegistry.getByName(node.getCustomTypeName());
+            } else {
+                customType = GuiCustomTypeRegistry.getByHash(node.getCustomType());
+            }
         }
 
         if (customType == null) {

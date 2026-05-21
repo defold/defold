@@ -167,6 +167,13 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         src.append("  id: \""+id+"\"\n");
     }
 
+    private static void startCustomNodeWithTypeName(StringBuilder src, String id, String typeName) {
+        src.append("\nnodes {\n");
+        src.append("  type: TYPE_CUSTOM\n");
+        src.append("  custom_type_name: \""+typeName+"\"\n");
+        src.append("  id: \""+id+"\"\n");
+    }
+
     private static void startLegacySpineNode(StringBuilder src, String id) {
         src.append("\nnodes {\n");
         src.append("  type: TYPE_SPINE\n");
@@ -428,6 +435,45 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(7.0f, findCustomProperty(node, "vector4").getVector4().getW(), EPSILON);
         Assert.assertEquals(PropertyType.TYPE_QUAT, findCustomProperty(node, "quat").getType());
         Assert.assertEquals(11.0f, findCustomProperty(node, "quat").getQuat().getW(), EPSILON);
+    }
+
+    @Test
+    public void testCustomTypeNameResolvesCustomType() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNodeWithTypeName(src, "typed", "Typed");
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc node = findNode(gui, "", "typed");
+
+        Assert.assertEquals(NodeDesc.Type.TYPE_CUSTOM, node.getType());
+        Assert.assertEquals(MurmurHash.hash32("Typed"), node.getCustomType());
+        Assert.assertFalse(node.hasCustomTypeName());
+        Assert.assertEquals(7, node.getCustomPropertiesCount());
+        Assert.assertEquals(MurmurHash.hash64("hash_value"), findCustomProperty(node, "hash").getHash());
+    }
+
+    @Test
+    public void testHashCustomPropertyStringValueIsHashed() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "typed", "Typed");
+        src.append("  custom_properties {\n");
+        src.append("    id: \"hash\"\n");
+        src.append("    type: TYPE_HASH\n");
+        src.append("    string_value: \"readable_hash\"\n");
+        src.append("  }\n");
+        finishNode(src);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc node = findNode(gui, "", "typed");
+        Gui.Property property = findCustomProperty(node, "hash");
+
+        Assert.assertNotNull(property);
+        Assert.assertFalse(property.hasId());
+        Assert.assertEquals(PropertyType.TYPE_HASH, property.getType());
+        Assert.assertTrue(property.hasHash());
+        Assert.assertFalse(property.hasStringValue());
+        Assert.assertEquals(MurmurHash.hash64("readable_hash"), property.getHash());
     }
 
     // https://github.com/defold/defold/issues/6151
