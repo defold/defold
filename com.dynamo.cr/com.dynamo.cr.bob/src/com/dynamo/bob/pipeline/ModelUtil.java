@@ -57,7 +57,6 @@ import com.dynamo.bob.pipeline.Modelimporter.Bone;
 import com.dynamo.bob.pipeline.Modelimporter.Material;
 import com.dynamo.bob.pipeline.Modelimporter.Mesh;
 import com.dynamo.bob.pipeline.Modelimporter.MorphTarget;
-import com.dynamo.bob.pipeline.Modelimporter.Aabb;
 import com.dynamo.bob.pipeline.Modelimporter.Model;
 import com.dynamo.bob.pipeline.Modelimporter.Node;
 import com.dynamo.bob.pipeline.Modelimporter.Options;
@@ -135,10 +134,6 @@ public class ModelUtil {
     }
 
     public static Scene loadScene(byte[] content, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
-        return loadScene(content, path, options, dataResolver, false);
-    }
-
-    public static Scene loadScene(byte[] content, String path, Options options, ModelImporterJni.DataResolver dataResolver, boolean recenterMeshes) throws IOException {
         if (options == null)
             options = new Options();
 
@@ -153,17 +148,12 @@ public class ModelUtil {
             if (buffer.buffer == null || buffer.buffer.length == 0)
                 throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
         }
-        return loadInternal(scene, options, recenterMeshes);
+        return loadInternal(scene);
     }
 
     public static Scene loadScene(InputStream stream, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
         byte[] bytes = IOUtils.toByteArray(stream);
-        return loadScene(bytes, path, options, dataResolver, false);
-    }
-
-    public static Scene loadScene(InputStream stream, String path, Options options, ModelImporterJni.DataResolver dataResolver, boolean recenterMeshes) throws IOException {
-        byte[] bytes = IOUtils.toByteArray(stream);
-        return loadScene(bytes, path, options, dataResolver, recenterMeshes);
+        return loadScene(bytes, path, options, dataResolver);
     }
 
     public static void unloadScene(Scene scene) {
@@ -1102,58 +1092,7 @@ public class ModelUtil {
         }
     }
 
-    private static void calcCenterNode(Node node, Aabb aabb) {
-        if (node.model != null) {
-            // As a default, we only count nodes with models, as the user
-            // cannot currently see/use the lights or cameras etc that are present in the scene.
-            ModelImporterJni.expandAabb(aabb, node.world.translation.x, node.world.translation.y, node.world.translation.z);
-        }
-
-        for (Node child : node.children) {
-            calcCenterNode(child, aabb);
-        }
-    }
-
-    // Currently finds the center point using the world positions of each node
-    private static Modelimporter.Vector3 calcCenter(Scene scene) {
-        Aabb aabb = ModelImporterJni.newAabb();
-        for (Node root : scene.rootNodes) {
-            calcCenterNode(root, aabb);
-        }
-
-        Modelimporter.Vector3 center = new Modelimporter.Vector3();
-        center.x = center.y = center.z = 0.0f;
-        if (ModelImporterJni.aabbIsIsValid(aabb))
-            center = ModelImporterJni.aabbCalcCenter(aabb, center);
-        return center;
-    }
-
-    private static void shiftNodes(Node node, Modelimporter.Vector3 center) {
-        node.world.translation.x -= center.x;
-        node.world.translation.y -= center.y;
-        node.world.translation.z -= center.z;
-
-        for (Node child : node.children) {
-            shiftNodes(child, center);
-        }
-    }
-
-    private static void shiftNodes(Scene scene, Modelimporter.Vector3 center) {
-        for (Node node : scene.rootNodes) {
-            shiftNodes(node, center);
-
-            node.local.translation.x -= center.x;
-            node.local.translation.y -= center.y;
-            node.local.translation.z -= center.z;
-        }
-    }
-
-    private static Scene loadInternal(Scene scene, Options options, boolean recenterMeshes) {
-        if (recenterMeshes) {
-            Modelimporter.Vector3 center = calcCenter(scene);
-            shiftNodes(scene, center);
-        }
-
+    private static Scene loadInternal(Scene scene) {
         // Sort on duration. This allows us to return a list of sorted animation names
         Arrays.sort(scene.animations, new SortAnimations());
         return scene;

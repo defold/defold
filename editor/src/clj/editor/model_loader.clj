@@ -42,8 +42,7 @@
         path (resource/path resource)
         options nil
         data-resolver (ModelUtil/createFileDataResolver project-directory)
-        recenter-meshes (boolean (get project-settings ["model" "recenter_meshes"]))
-        scene (ModelUtil/loadScene stream ^String path options data-resolver recenter-meshes)
+        scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ModelUtil/getAnimationNames scene)] ; sorted on duration (largest first)
