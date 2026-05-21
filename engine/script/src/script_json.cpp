@@ -75,9 +75,14 @@ namespace dmScript
         return JsonToLuaInternal(L, json, json_len, 2, 0);
     }
 
+    int JsonToLua(lua_State* L, const char* json, size_t json_len, int options_index)
+    {
+        return JsonToLuaInternal(L, json, json_len, options_index, 0);
+    }
+
     int LuaToJson(lua_State* L, char** json, size_t* json_len)
     {
-        return LuaToJson(L, 1, 2, json, json_len);
+        return lua_cjson_encode(L, 1, 2, json, json_len);
     }
 
     int LuaToJson(lua_State* L, int index, int options_index, char** json, size_t* json_len)

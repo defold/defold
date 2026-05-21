@@ -524,6 +524,19 @@ namespace dmScript
      */
     int JsonToLua(lua_State* L, const char* json, size_t json_len);
 
+    /*# convert a Json string to a Lua table
+     * Convert a Json string to Lua table.
+     * @note Throws Lua error if it fails to parser the json
+     *
+     * @name JsonToLua
+     * @param L [type:lua_State*] lua state
+     * @param json [type:const char*] json string
+     * @param json_len [type:size_t] length of json string
+     * @param options_index [type:int] lua stack index to check for an options table
+     * @return int [type:int] 1 if it succeeds. Throws a Lua error if it fails
+     */
+    int JsonToLua(lua_State* L, const char* json, size_t json_len, int options_index);
+
     /*# convert a Lua table to a Json string
      * Convert the Lua value at stack index 1 to a Json string
      * An options table can be provided at stack index 2.
