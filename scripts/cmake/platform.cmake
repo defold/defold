@@ -93,8 +93,14 @@ endif()
 # Common flags
 
 if(MSVC_CL)
-    # Disable RTTI; don't force /EH to avoid changing exception model globally
-    target_compile_options(defold_sdk INTERFACE /GR- /W3)
+    # Match Waf: disable RTTI and C++ exception handling for engine code.
+    # CMake's MSVC defaults add /EHsc, which conflicts with SEH __try blocks
+    # that contain C++ objects requiring unwinding.
+    target_compile_options(defold_sdk INTERFACE
+        /GR-
+        /W3
+        $<$<COMPILE_LANGUAGE:CXX>:/EHs->
+        $<$<COMPILE_LANGUAGE:CXX>:/EHa->)
 else()
     # Apply per-language flags via target options
     target_compile_options(defold_sdk INTERFACE
