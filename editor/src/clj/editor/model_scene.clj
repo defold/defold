@@ -657,17 +657,32 @@
       :children (mapv #(augment-mesh-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
                       mesh-scenes))))
 
+(defn- model-scenes-aabb [model-scenes]
+  (transduce
+    (keep (fn [{:keys [aabb pose]}]
+            (when pose
+              (geom/aabb-transform aabb (pose/matrix pose)))))
+    geom/aabb-union
+    geom/null-aabb
+    model-scenes))
+
 (defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?]
   (if (g/error-value? scene)
     scene
     (let [old-node-id (:node-id scene)
-          model-scenes (:children scene)]
+          model-scenes (:children scene)
+          augmented-model-scenes (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?)
+                                       model-scenes)
+          scene-aabb (model-scenes-aabb augmented-model-scenes)
+          augmented-model-scenes (cond-> augmented-model-scenes
+                                   (seq augmented-model-scenes)
+                                   (assoc-in [0 :aabb] scene-aabb))]
       (assoc scene
+        :aabb scene-aabb
         :node-id new-node-id
         :node-outline-key new-node-outline-key
         :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
-        :children (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?)
-                        model-scenes)))))
+        :children augmented-model-scenes))))
 
 (defn make-material-name->material-scene-info
   "Given some material-scene-infos, return a material-name->material-scene-info
