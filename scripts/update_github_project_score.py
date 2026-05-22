@@ -35,138 +35,75 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-import requests
+sys.path.append(os.path.join(os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')), "build_tools"))
+import github
 
 
-GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
 FIELD_NAMES = ("Size", "Priority", "Score")
 
 
-def graphql(token: Optional[str], query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-    if token:
-        headers["Authorization"] = "Bearer %s" % token
-
-    response = requests.post(
-        GITHUB_GRAPHQL_URL,
-        json={"query": query, "variables": variables},
-        headers=headers,
-        timeout=30,
-    )
-    response.raise_for_status()
-
-    payload = response.json()
-    if payload.get("errors"):
-        messages = ", ".join(err.get("message", "unknown error") for err in payload["errors"])
-        raise RuntimeError(messages)
-    return payload["data"]
+def graphql(token, query, variables = None):
+    response = github.query(query, token, variables = variables)
+    if 'errors' in response:
+        print(response)
+        for error in response['errors']:
+            print(error['message'])
+        sys.exit(1)
+    return response["data"]
 
 
 def fetch_project(token: Optional[str], org: str, project_ref: str) -> Dict[str, Any]:
-    if project_ref.isdigit():
-        query = """
-        query($org: String!, $project_number: Int!, $after: String) {
-          organization(login: $org) {
-            projectV2(number: $project_number) {
-              id
-              title
-              fields(first: 100, after: $after) {
-                pageInfo {
-                  hasNextPage
-                  endCursor
-                }
-                nodes {
-                  __typename
-                  ... on ProjectV2FieldCommon {
-                    id
-                    name
-                  }
-                }
+    query = """
+    query($org: String!, $project_number: Int!, $after: String) {
+      organization(login: $org) {
+        projectV2(number: $project_number) {
+          id
+          title
+          fields(first: 100, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              __typename
+              ... on ProjectV2FieldCommon {
+                id
+                name
               }
             }
           }
         }
-        """
+      }
+    }
+    """
 
-        project = None
-        fields = {}
-        after = None
+    project = None
+    fields = {}
+    after = None
 
-        while True:
-            data = graphql(
-                token,
-                query,
-                {"org": org, "project_number": int(project_ref), "after": after},
-            )
-            node = ((data.get("organization") or {}).get("projectV2")) or {}
-            if project is None:
-                project = {
-                    "id": node.get("id"),
-                    "title": node.get("title"),
-                }
-
-            field_conn = node.get("fields") or {}
-            for field in field_conn.get("nodes", []):
-                field_id = field.get("id")
-                field_name = field.get("name")
-                if field_id and field_name:
-                    fields[field_name] = field_id
-
-            if not field_conn.get("pageInfo", {}).get("hasNextPage"):
-                break
-            after = field_conn["pageInfo"]["endCursor"]
-
-    else:
-        query = """
-        query($project_id: ID!, $after: String) {
-          node(id: $project_id) {
-            ... on ProjectV2 {
-              id
-              title
-              fields(first: 100, after: $after) {
-                pageInfo {
-                  hasNextPage
-                  endCursor
-                }
-                nodes {
-                  __typename
-                  ... on ProjectV2FieldCommon {
-                    id
-                    name
-                  }
-                }
-              }
+    while True:
+        data = graphql(
+            token,
+            query,
+            {"org": org, "project_number": int(project_ref), "after": after},
+        )
+        node = ((data.get("organization") or {}).get("projectV2")) or {}
+        if project is None:
+            project = {
+                "id": node.get("id"),
+                "title": node.get("title"),
             }
-          }
-        }
-        """
 
-        project = None
-        fields = {}
-        after = None
+        field_conn = node.get("fields") or {}
+        for field in field_conn.get("nodes", []):
+            field_id = field.get("id")
+            field_name = field.get("name")
+            if field_id and field_name:
+                fields[field_name] = field_id
 
-        while True:
-            data = graphql(token, query, {"project_id": project_ref, "after": after})
-            node = data.get("node") or {}
-            if project is None:
-                project = {
-                    "id": node.get("id"),
-                    "title": node.get("title"),
-                }
-
-            field_conn = node.get("fields") or {}
-            for field in field_conn.get("nodes", []):
-                field_id = field.get("id")
-                field_name = field.get("name")
-                if field_id and field_name:
-                    fields[field_name] = field_id
-
-            if not field_conn.get("pageInfo", {}).get("hasNextPage"):
-                break
-            after = field_conn["pageInfo"]["endCursor"]
+        if not field_conn.get("pageInfo", {}).get("hasNextPage"):
+            break
+        after = field_conn["pageInfo"]["endCursor"]
 
     if not project or not project.get("id"):
         raise RuntimeError("Could not load project %s" % project_ref)
@@ -303,11 +240,7 @@ def update_score(token: Optional[str], project_id: str, item_id: str, field_id: 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sync Score = Size + Priority for a GitHub Project V2.")
     parser.add_argument("--org", required=True, help="GitHub organization login")
-    parser.add_argument(
-        "--project-id",
-        required=True,
-        help="GitHub Project V2 node id or numeric project number",
-    )
+    parser.add_argument("--project-id", required=True, help="GitHub Project V2 node id or numeric project number")
     parser.add_argument("--token", help="GitHub token. Defaults to GITHUB_TOKEN or GH_TOKEN.")
     parser.add_argument("--dry-run", action="store_true", help="Print calculated updates without writing them")
     args = parser.parse_args()
