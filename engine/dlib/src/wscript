@@ -3,7 +3,8 @@
 import os, re, sys
 from waflib import Options
 from waflib.TaskGen import feature, after
-from waf_dynamo import dmsdk_add_files, find_feature_files, remove_source_files, remove_flag, is_platform_private, platform_supports_feature, feature_enabled
+from cross_build import find_feature_files
+from waf_dynamo import dmsdk_add_files, remove_source_files, remove_flag, is_platform_private, platform_supports_feature, feature_enabled
 from BuildUtility import BuildUtilityException, create_build_utility
 
 def options(opt):

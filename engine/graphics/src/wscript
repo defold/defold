@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 
 import os, sys
-from waf_dynamo import dmsdk_add_files, find_feature_files, platform_supports_feature, remove_source_files
+from cross_build import find_feature_files
+from waf_dynamo import dmsdk_add_files, platform_supports_feature, remove_source_files
 from BuildUtility import create_build_utility
 import waflib.Options
 
