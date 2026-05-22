@@ -1688,12 +1688,13 @@ static void ProxyCloseReusedDoesNotLeakPoolHandles(bool secure, int port, uint32
 struct ProxyShutdownThreadContext
 {
     int32_atomic_t m_GotIt;
+    int32_atomic_t m_Stop;
 };
 
 static void ProxyHandshakeShutdownThreadLocal(void *args)
 {
     ProxyShutdownThreadContext* ctx = (ProxyShutdownThreadContext*)args;
-    while (!dmAtomicGet32(&ctx->m_GotIt))
+    while (!dmAtomicGet32(&ctx->m_GotIt) && !dmAtomicGet32(&ctx->m_Stop))
     {
         if (dmHttpClient::GetNumPoolConnections() == 0)
         {
@@ -1704,6 +1705,9 @@ static void ProxyHandshakeShutdownThreadLocal(void *args)
         // The proxy socket is published before the CONNECT tunnel is upgraded to TLS.
         // Wait a bit so shutdown lands during the delayed SSL handshake on the test port.
         dmTime::Sleep(200 * 1000);
+
+        if (dmAtomicGet32(&ctx->m_Stop))
+            break;
 
         if (dmHttpClient::ShutdownConnectionPool() > 0) {
             dmAtomicStore32(&ctx->m_GotIt, 1);
@@ -1728,6 +1732,7 @@ static void ProxyThreadedShutdownDuringHandshake(int port)
 
     ProxyShutdownThreadContext ctx;
     ctx.m_GotIt = 0;
+    ctx.m_Stop = 0;
 
     dmHttpClient::SetOptionInt(helper.GetClient(), dmHttpClient::OPTION_REQUEST_TIMEOUT, 15 * 1000000);
 
@@ -1735,17 +1740,19 @@ static void ProxyThreadedShutdownDuringHandshake(int port)
     dmHttpClient::Result r = dmHttpClient::RESULT_OK;
     for (int i = 0; i < 3; ++i)
     {
+        dmAtomicStore32(&ctx.m_Stop, 0);
         dmThread::Thread thr = dmThread::New(&ProxyHandshakeShutdownThreadLocal, 65536, &ctx, "cts-proxy-ssl");
 
         uint64_t timestart = dmTime::GetMonotonicTime();
         r = helper.Get("/sleep/5000");
         elapsed = dmTime::GetMonotonicTime() - timestart;
 
+        dmAtomicStore32(&ctx.m_Stop, 1);
+        dmThread::Join(thr);
+
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
         ASSERT_NE(dmSocket::RESULT_OK, dmHttpClient::GetLastSocketResult(helper.GetClient()));
-
-        dmThread::Join(thr);
 
         if (dmAtomicGet32(&ctx.m_GotIt))
             break;

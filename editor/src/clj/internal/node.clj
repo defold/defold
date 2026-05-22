@@ -945,7 +945,7 @@
     (assert (or abstract? (first fn-forms))
             (format "Output %s has no production function and is not abstract" label))
     (assert (not (next fn-forms))
-            (format "Output %s seems to have something after the production function: " label (next fn-forms)))
+            (format "Output %s seems to have something after the production function: %s" label (next fn-forms)))
     {:register-type-info register-type-info
      :output
      {(keyword label)

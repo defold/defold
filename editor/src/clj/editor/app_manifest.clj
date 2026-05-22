@@ -57,7 +57,12 @@
     :wasm-web :wasm_pthread-web})
 
 (def custom-lib-names
-  {:x86-win32 {"hid" "hid"
+  {:x86-win32 {"gamesys" "gamesys"
+               "gamesys_model" "gamesys_model"
+               "gamesys_model_null" "gamesys_model_null"
+               "gamesys_rig" "gamesys_rig"
+               "gamesys_rig_null" "gamesys_rig_null"
+               "hid" "hid"
                "hid_null" "hid_null"
                "input" "input"
                "platform" "platform"
@@ -65,7 +70,12 @@
                "platform_vulkan" "platform_vulkan"
                "vpx" "vpx"
                "vulkan" "vulkan-1"}
-   :x86_64-win32 {"hid" "hid"
+   :x86_64-win32 {"gamesys" "gamesys"
+                  "gamesys_model" "gamesys_model"
+                  "gamesys_model_null" "gamesys_model_null"
+                  "gamesys_rig" "gamesys_rig"
+                  "gamesys_rig_null" "gamesys_rig_null"
+                  "hid" "hid"
                   "hid_null" "hid_null"
                   "input" "input"
                   "platform" "platform"

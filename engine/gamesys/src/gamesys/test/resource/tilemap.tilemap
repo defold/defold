@@ -1,4 +1,4 @@
-tile_set: "/tile/valid.tileset"
+tile_set: "/resource/tile_valid.tileset"
 layers
 {
     id: "layer1"
@@ -29,4 +29,4 @@ layers
         tile: 3
     }
 }
-material: "/tile/tile_map.material"
+material: "/resource/tile_tile_map.material"

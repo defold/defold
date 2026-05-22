@@ -85,11 +85,22 @@
     :out
     string/trim))
 
+(defn- env-file
+  ^File [env-name]
+  (when-let [value (System/getenv env-name)]
+    (let [file (io/file value)]
+      (when (.isFile file)
+        file))))
+
 (defn bob-artifact-file
   ^File [archive git-sha]
-  (let [f (when git-sha
-            (http-cache/download (format "https://%s/archive/%s/bob/bob.jar" archive git-sha)))]
-    (or f (io/file (dynamo-home) "share/java/bob.jar"))))
+  (if-let [file (env-file "DM_BOB_JAR")]
+    (do
+      (main/info (format "Using Bob artifact from %s" (.getAbsolutePath file)))
+      file)
+    (let [f (when git-sha
+              (http-cache/download (format "https://%s/archive/%s/bob/bob.jar" archive git-sha)))]
+      (or f (io/file (dynamo-home) "share/java/bob.jar")))))
 
 (defn local-jars
   "Install custom-built jar dependencies into the project's local Maven repository."

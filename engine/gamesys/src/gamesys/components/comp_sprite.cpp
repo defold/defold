@@ -440,6 +440,12 @@ namespace dmGameSystem
 
         if (sampler_name_hash == 0)
         {
+            if (overrides->m_Textures.Empty())
+            {
+                SpriteTexture empty = {};
+                overrides->m_Textures.SetCapacity(1);
+                overrides->m_Textures.Push(empty);
+            }
             texture_set = &overrides->m_Textures[0].m_TextureSet;
         }
         else

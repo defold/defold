@@ -4,6 +4,6 @@ components {
 }
 components {
   id: "collisionobject"
-  component: "/collision_object/valid_tilegrid.collisionobject"
+  component: "/tile/collision_object_valid_tilegrid.collisionobject"
 }
 

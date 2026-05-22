@@ -416,7 +416,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-CMAKE_SUPPORT = ['platform', 'hid', 'input']
+CMAKE_SUPPORT = ['platform', 'hid', 'input', 'gamesys']
 
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 
@@ -1719,13 +1719,14 @@ class Configuration(object):
                 self._log(f"Warning: CMake build currently ignores '{option}'")
         return defines
 
-    def _build_engine_lib_cmake(self, lib, platform, directory):
+    def _build_engine_lib_cmake(self, lib, platform, skip_tests, directory):
         libdir = join(directory, lib)
         builddir = join(libdir, 'build')
 
         build_type = self._find_cmake_build_type(self.waf_options)
-        build_tests = '--skip-build-tests' not in self.waf_options
-        supports_tests = build_tests and self._can_run_tests()
+        can_run_tests = self._can_run_tests()
+        build_tests = (not skip_tests) and can_run_tests and '--skip-build-tests' not in self.waf_options
+        supports_tests = build_tests
 
         if not self.incremental:
             self._remove_tree(builddir) # distclean
@@ -1735,12 +1736,12 @@ class Configuration(object):
 
         env = self._form_env()
 
-        is_verbose = ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
-        verbose = '-v' if is_verbose else ''
+        is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
         test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
         install = 'install'
+        self._log(f"CMake settings for {lib}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={'ON' if test else 'OFF'}")
 
         trace = '' #'--trace-expand'
 
@@ -1760,10 +1761,29 @@ class Configuration(object):
         log_cmd_build = f'Ninja build {lib} {build_test}'
         self.build_tracker.start_command(log_cmd_build)
 
-        ninja_build_args = f"ninja all {build_test} {install} {verbose}".split()
+        ninja_build_args = ['ninja']
+        if is_verbose:
+            ninja_build_args.append('-v')
+        ninja_build_args.append('all')
+        if build_test:
+            ninja_build_args.append(build_test)
         run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
 
         self.build_tracker.end_command(log_cmd_build)
+
+        # Keep install as a separate phase. CMake's install target depends on
+        # 'all', but not on our custom 'build_tests' aggregate. Some installed
+        # test-side artifacts can otherwise race the install step.
+        log_cmd_install = f'Ninja install {lib}'
+        self.build_tracker.start_command(log_cmd_install)
+
+        ninja_install_args = ['ninja']
+        if is_verbose:
+            ninja_install_args.append('-v')
+        ninja_install_args.append(install)
+        run.env_command(self._form_env(), ninja_install_args, cwd = builddir)
+
+        self.build_tracker.end_command(log_cmd_install)
 
         # ***************************************************************************************
         # run the build
@@ -1771,7 +1791,10 @@ class Configuration(object):
             log_cmd_tests = f'Ninja run_tests {lib}'
             self.build_tracker.start_command(log_cmd_tests)
 
-            ninja_build_args = f"ninja run_tests {verbose}".split()
+            ninja_build_args = ['ninja']
+            if is_verbose:
+                ninja_build_args.append('-v')
+            ninja_build_args.append('run_tests')
             run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
 
             self.build_tracker.end_command(log_cmd_tests)
@@ -1782,7 +1805,7 @@ class Configuration(object):
         if lib in CMAKE_SUPPORT:
             if platform == 'win32':
                 platform = 'x86-win32'
-            self._build_engine_lib_cmake(lib, platform, directory)
+            self._build_engine_lib_cmake(lib, platform, skip_tests, directory)
         else:
             self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
 
@@ -2066,23 +2089,39 @@ class Configuration(object):
         else:
             platforms = get_target_platforms()
 
-        sdk_merge.build_combined_sdk_tree(
-            netloc=u.netloc,
-            base_prefix=base_prefix,
-            platforms=platforms,
-            extract_dir=tempdir,
-            canonical_platform='x86_64-linux')
+        zipmerge_path = shutil.which('zipmerge')
+        if zipmerge_path:
+            print("Using zipmerge to merge platform SDK archives:", zipmerge_path)
+            treepath = os.path.join(tempdir, 'defoldsdk')
+            sdkpath = treepath + '.zip'
+            sdk_merge.build_combined_sdk_zip(
+                netloc=u.netloc,
+                base_prefix=base_prefix,
+                platforms=platforms,
+                output_zip_path=sdkpath,
+                zipmerge_path=zipmerge_path,
+                canonical_platform='x86_64-linux')
+        else:
+            print("zipmerge not found; using Python platform SDK archive merge")
 
-        # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
-        # and set the flags explicitly
-        for root, _, files in os.walk(tempdir):
-            for f in files:
-                p = os.path.join(root, f)
-                if '/bin/' in p:
-                    os.chmod(p, 0o755)
+            sdk_merge.build_combined_sdk_tree(
+                netloc=u.netloc,
+                base_prefix=base_prefix,
+                platforms=platforms,
+                extract_dir=tempdir,
+                canonical_platform='x86_64-linux')
 
-        treepath = os.path.join(tempdir, 'defoldsdk')
-        sdkpath = self._ziptree(treepath, directory=tempdir)
+            # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
+            # and set the flags explicitly
+            for root, _, files in os.walk(tempdir):
+                for f in files:
+                    p = os.path.join(root, f)
+                    if '/bin/' in p:
+                        os.chmod(p, 0o755)
+
+            treepath = os.path.join(tempdir, 'defoldsdk')
+            sdkpath = self._ziptree(treepath, directory=tempdir)
+
         print ("Packaged defold sdk from", tempdir, "to", sdkpath)
 
         sdkurl = join(sha1, 'engine').replace('\\', '/')
@@ -2095,6 +2134,7 @@ class Configuration(object):
         print("Upload platform sdks mappings")
         self.upload_to_archive(join(self.defold_root, "share", "platform.sdks.json"), '%s/platform.sdks.json' % sdkurl)
 
+        self.wait_uploads()
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)
 
@@ -2233,7 +2273,7 @@ class Configuration(object):
             self._log("No --save-env-path set when trying to save environment export")
             return
 
-        env = self._form_env()
+        env = self._form_env(inherit = False)
         res = ""
         for key in env:
             if bool(re.match('^[a-zA-Z0-9_]+$', key)):
@@ -2655,7 +2695,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk-25+36'
+        jdk = 'jdk-%s' % sdk.VERSION_EDITOR_JDK
         host = get_host_platform()
         if 'win32' in host:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
@@ -2877,8 +2917,8 @@ class Configuration(object):
             f()
         self.futures = []
 
-    def _form_env(self):
-        env = os.environ.copy()
+    def _form_env(self, inherit = True):
+        env = os.environ.copy() if inherit else {}
 
         host = self.host
 
@@ -2914,11 +2954,11 @@ class Configuration(object):
                                       '%s/ext/bin' % self.dynamo_home,
                                       '%s/ext/bin/%s' % (self.dynamo_home, host)])
 
-        env['PATH'] = paths + os.path.pathsep + env['PATH']
+        env['PATH'] = paths + os.path.pathsep + os.environ['PATH']
 
         # This trickery is needed for the bash to properly inherit the PATH that we've set here
         # See /etc/profile for further details
-        is_mingw = env.get('MSYSTEM', '') in ('MINGW64',)
+        is_mingw = os.environ.get('MSYSTEM', '') in ('MINGW64',)
         if is_mingw:
             env['ORIGINAL_PATH'] = env['PATH']
 
@@ -2936,8 +2976,8 @@ class Configuration(object):
 
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
-        if 'NODE_PATH' in env:
-            env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
+        if 'NODE_PATH' in os.environ:
+            env['NODE_PATH'] = xhr2_path + os.path.pathsep + os.environ['NODE_PATH']
         else:
             env['NODE_PATH'] = xhr2_path
 
