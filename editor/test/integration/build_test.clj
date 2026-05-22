@@ -730,7 +730,7 @@
   (doseq [[light-type expected-tag] [[:point "point_light"]
                                      [:directional "directional_light"]
                                      [:spot "spot_light"]]]
-    (let [pb-map (#'light/build-data-desc light-type [1.0 1.0 1.0 1.0] 1.0 10.0 0.0 45.0)
+    (let [pb-map (#'light/make-data-desc light-type [1.0 1.0 1.0 1.0] 1.0 10.0 0.0 45.0)
           content (:content (#'light/build-light nil nil {:light-type light-type
                                                           :pb-map pb-map}))
           desc (protobuf/bytes->map-with-defaults DataProto$Data content)

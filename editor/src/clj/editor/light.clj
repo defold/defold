@@ -38,6 +38,7 @@
             [editor.scene-tools :as scene-tools]
             [editor.shaders :as shaders]
             [editor.types :as types]
+            [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto DataProto$Data]
            [com.jogamp.opengl GL GL2]
@@ -70,6 +71,11 @@
 
 (def ^:private outline-icon "icons/64/Icons_21-Light.png")
 
+(def ^:private intensity-message (properties/label-message :light :intensity))
+(def ^:private range-message (properties/label-message :light :range))
+(def ^:private inner-cone-angle-message (properties/label-message :light :inner-cone-angle))
+(def ^:private outer-cone-angle-message (properties/label-message :light :outer-cone-angle))
+
 (defn- make-icon-gpu-texture-delay [request-id icon-resource-pathname]
   (delay
     (texture/image-texture
@@ -83,18 +89,11 @@
 (def ^:private icon-spot-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-spot-gpu-texture "icons/scene/light_spot.png"))
 (def ^:private icon-sun-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-sun-gpu-texture "icons/scene/light_sun.png"))
 
-(defn- list-field-vec4 [v]
+(defn- list-field-vec [v]
   {:list {:values (mapv (fn [x] {:number (double x)}) v)}})
 
 (defn- field-num [n]
   {:number (double n)})
-
-(defn- struct-fields [data-map]
-  (let [raw (get-in data-map [:data :struct :fields])]
-    (into {}
-          (map (fn [[k v]]
-                 [(if (keyword? k) (name k) k) v]))
-          raw)))
 
 (defn- ext->light-type [ext]
   (case ext
@@ -117,50 +116,51 @@
 (defn- ext->build-ext [ext]
   (str ext ".lightc"))
 
-(defn- get-number [fields key default]
-  (double (or (get-in fields [key :number]) default)))
+(defn- get-number
+  ^double [fields key ^double default]
+  (double (get-in fields [key :number] default)))
 
-(defn- get-vec4 [fields key]
-  (let [vals (get-in fields [key :list :values])]
-    (if (seq vals)
-      (mapv #(double (or (:number %) 0.0)) vals)
-      [1.0 1.0 1.0 1.0])))
+(defn set-vector-components [default-components replacement-components]
+  (into (empty default-components)
+        (map-indexed (fn [index default-for-index]
+                       (nth replacement-components index default-for-index)))
+        default-components))
+
+(defn- get-numbers [fields key default]
+  (let [vals (mapv :number (get-in fields [key :list :values]))]
+    (set-vector-components default vals)))
 
 (defn- clamp [v low high]
   (-> (double v)
       (max (double low))
       (min (double high))))
 
-(defn- sanitize-spot-cone-angles [inner-cone-angle outer-cone-angle]
+(defn- clamp-spot-cone-angles [inner-cone-angle outer-cone-angle]
   (let [outer-cone-angle (clamp outer-cone-angle 0.0 max-spot-cone-angle)
         inner-cone-angle (clamp inner-cone-angle 0.0 outer-cone-angle)]
     [inner-cone-angle outer-cone-angle]))
 
-(defn- non-negative [v]
-  (max 0.0 (double v)))
+(def ^:private default-color (vector-of :double 1.0 1.0 1.0 1.0))
 
-(defn- parse-data-desc [light-type light-desc]
+(defn- data-desc->properties [light-type light-desc]
   ;; DataProto$Data in map format.
-  (let [fields (struct-fields light-desc)]
+  (let [fields (get-in light-desc [:data :struct :fields])]
     {:light-type light-type
-     :color (get-vec4 fields "color")
-     :intensity (non-negative (get-number fields "intensity" 1.0))
-     :range (non-negative (get-number fields "range" 10.0))
+     :color (get-numbers fields "color" default-color)
+     :intensity (get-number fields "intensity" 1.0)
+     :range (get-number fields "range" 10.0)
      :inner-cone-angle (get-number fields "inner_cone_angle" 0.0)
      :outer-cone-angle (get-number fields "outer_cone_angle" 45.0)}))
 
-(defn- build-data-desc [light-type color intensity range inner-cone-angle outer-cone-angle]
-  (let [intensity (non-negative intensity)
-        range (non-negative range)
-        [inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
-        c4 (vec (take 4 (concat color (repeat 1.0))))
+(defn- make-data-desc [light-type color intensity range inner-cone-angle outer-cone-angle]
+  (let [color-vec (set-vector-components default-color color)
         fields (case light-type
-                 :point {"color" (list-field-vec4 c4)
+                 :point {"color" (list-field-vec color-vec)
                          "intensity" (field-num intensity)
                          "range" (field-num range)}
-                 :directional {"color" (list-field-vec4 c4)
+                 :directional {"color" (list-field-vec color-vec)
                                "intensity" (field-num intensity)}
-                 :spot {"color" (list-field-vec4 c4)
+                 :spot {"color" (list-field-vec color-vec)
                         "intensity" (field-num intensity)
                         "range" (field-num range)
                         "inner_cone_angle" (field-num inner-cone-angle)
@@ -168,29 +168,48 @@
     (protobuf/make-map-without-defaults DataProto$Data
       :data {:struct {:fields fields}})))
 
-(defn- compile-data-desc [light-type pb-map]
-  (cond-> (assoc pb-map :tags ["light" (light-type->tag light-type)])
-          (= :spot light-type)
-          (update-in [:data :struct :fields "inner_cone_angle" :number] #(Math/toRadians (double %)))
-
-          (= :spot light-type)
-          (update-in [:data :struct :fields "outer_cone_angle" :number] #(Math/toRadians (double %)))))
-
 (defn- build-light [build-resource _dep-resources user-data]
-  (let [{:keys [light-type pb-map]} user-data]
-    {:resource build-resource
-     :content (protobuf/map->bytes DataProto$Data (compile-data-desc light-type pb-map))}))
+  (let [{:keys [light-type pb-map]} user-data
 
-(g/defnk produce-build-targets [_node-id resource light-type save-value]
-  [(bt/with-content-hash
-     {:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-light
-      :user-data {:light-type light-type
-                  :pb-map save-value}})])
+        rt-pb-map
+        (cond-> (assoc pb-map :tags ["light" (light-type->tag light-type)])
+                (= :spot light-type)
+                (update-in [:data :struct :fields]
+                           (fn [fields]
+                             (-> fields
+                                 (update-in ["inner_cone_angle" :number] math/deg->rad)
+                                 (update-in ["outer_cone_angle" :number] math/deg->rad)))))]
+
+    {:resource build-resource
+     :content (protobuf/map->bytes DataProto$Data rt-pb-map)}))
+
+(defn- validate-intensity [node-id intensity]
+  (validation/prop-error :fatal node-id :intensity validation/prop-negative? intensity intensity-message))
+
+(defn- validate-range [node-id range]
+  (validation/prop-error :fatal node-id :range validation/prop-negative? range range-message))
+
+(defn- validate-inner-cone-angle [node-id inner-cone-angle]
+  (validation/prop-error :fatal node-id :inner-cone-angle validation/prop-negative? inner-cone-angle inner-cone-angle-message))
+
+(defn- validate-outer-cone-angle [node-id outer-cone-angle]
+  (validation/prop-error :fatal node-id :outer-cone-angle validation/prop-negative? outer-cone-angle outer-cone-angle-message))
+
+(g/defnk produce-build-targets [_node-id resource light-type color intensity range inner-cone-angle outer-cone-angle]
+  (g/precluding-errors
+    [(validate-intensity _node-id intensity)
+     (validate-range _node-id range)
+     (validate-inner-cone-angle _node-id inner-cone-angle)
+     (validate-outer-cone-angle _node-id outer-cone-angle)]
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-light
+        :user-data {:light-type light-type
+                    :pb-map (make-data-desc light-type color intensity range inner-cone-angle outer-cone-angle)}})]))
 
 (g/defnk produce-save-value [light-type color intensity range inner-cone-angle outer-cone-angle]
-  (build-data-desc light-type color intensity range inner-cone-angle outer-cone-angle))
+  (make-data-desc light-type color intensity range inner-cone-angle outer-cone-angle))
 
 (g/defnk produce-outline-data [_node-id]
   {:node-id _node-id
@@ -742,8 +761,7 @@
        :aabb geom/empty-bounding-box})))
 
 (g/defnk produce-form-data [_node-id light-type color intensity range inner-cone-angle outer-cone-angle]
-  (let [[inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
-        hidden-range (= :directional light-type)
+  (let [hidden-range (= :directional light-type)
         hidden-cones (not= :spot light-type)]
     {:navigation false
      :form-ops {:user-data {:node-id _node-id}
@@ -753,7 +771,7 @@
                  :fields [{:path [:color]
                            :localization-key "light.color"
                            :type :vec4
-                           :default [1.0 1.0 1.0 1.0]}
+                           :default default-color}
                           {:path [:intensity]
                            :localization-key "light.intensity"
                            :type :number
@@ -785,41 +803,52 @@
               [:inner-cone-angle] inner-cone-angle
               [:outer-cone-angle] outer-cone-angle}}))
 
-(defn- canonicalize-light-read [light-type light-desc]
-  {:pre [(map? light-desc)]}
-  (let [m (parse-data-desc light-type light-desc)]
-    (build-data-desc (:light-type m)
-                     (:color m)
-                     (:intensity m)
-                     (:range m)
-                     (:inner-cone-angle m)
-                     (:outer-cone-angle m))))
+(defn- sanitize-light [light-type light-desc]
+  {:pre [(map? light-desc)]} ; DataProto$Data in map format.
+  ;; The DataProto$Data message is able to store any generic JSON-like
+  ;; structure. Here we produce a well-formed structure for our light-type
+  ;; that is populated with sensible defaults.
+
+  ;; After :read-fn (read-map-without-defaults), normalize to the same map
+  ;; produce-save-value emits. Empty/sparse files become {} in the first step;
+  ;; without this, :source-value (disk) and :save-value (graph) disagree and
+  ;; sparse-protobuf-test / dirty checks fail. Not for migrating legacy formats.
+  (let [m (data-desc->properties light-type light-desc)]
+    (make-data-desc (:light-type m)
+                    (:color m)
+                    (:intensity m)
+                    (:range m)
+                    (:inner-cone-angle m)
+                    (:outer-cone-angle m))))
 
 (defn load-light [light-type _project self _resource light-desc]
   {:pre [(map? light-desc)]} ; DataProto$Data in map format.
-  (let [m (parse-data-desc light-type light-desc)]
+  (let [m (data-desc->properties light-type light-desc)]
     (apply g/set-properties self (apply concat m))))
 
 (g/defnode LightNode
   (inherits resource-node/ResourceNode)
 
-  (property light-type g/Keyword
-            (default :point)
+  (property light-type g/Keyword (default :point)
             (dynamic visible (g/constantly false)))
-  (property color types/Color (default [1.0 1.0 1.0 1.0])
+  (property color types/Color (default default-color)
             (dynamic label (properties/label-dynamic :light :color))
             (dynamic tooltip (properties/tooltip-dynamic :light :color)))
   (property intensity g/Num (default 1.0)
             (dynamic label (properties/label-dynamic :light :intensity))
+            (dynamic error (g/fnk [_node-id intensity] (validate-intensity _node-id intensity)))
             (dynamic edit-type (g/constantly {:type g/Num
                                               :min 0.0})))
   (property range g/Num (default 10.0)
+            (dynamic visible (g/fnk [light-type] (contains? #{:point :spot} light-type)))
             (dynamic label (properties/label-dynamic :light :range))
+            (dynamic error (g/fnk [_node-id range] (validate-range _node-id range)))
             (dynamic edit-type (g/constantly {:type g/Num
-                                              :min 0.0}))
-            (dynamic visible (g/fnk [light-type] (contains? #{:point :spot} light-type))))
+                                              :min 0.0})))
   (property inner-cone-angle g/Num (default 0.0)
+            (dynamic visible (g/fnk [light-type] (= :spot light-type)))
             (dynamic label (properties/label-dynamic :light :inner-cone-angle))
+            (dynamic error (g/fnk [_node-id inner-cone-angle] (validate-inner-cone-angle _node-id inner-cone-angle)))
             (dynamic edit-type (g/fnk [outer-cone-angle]
                                  {:type g/Num
                                   :min 0.0
@@ -827,11 +856,12 @@
             (set (fn [evaluation-context self _old-value new-value]
                    (when (some? new-value)
                      (let [outer-cone-angle (g/node-value self :outer-cone-angle evaluation-context)
-                           [inner-cone-angle _] (sanitize-spot-cone-angles new-value outer-cone-angle)]
-                       (g/set-property self :inner-cone-angle inner-cone-angle)))))
-            (dynamic visible (g/fnk [light-type] (= :spot light-type))))
+                           [inner-cone-angle _] (clamp-spot-cone-angles new-value outer-cone-angle)]
+                       (g/set-property self :inner-cone-angle inner-cone-angle))))))
   (property outer-cone-angle g/Num (default 45.0)
+            (dynamic visible (g/fnk [light-type] (= :spot light-type)))
             (dynamic label (properties/label-dynamic :light :outer-cone-angle))
+            (dynamic error (g/fnk [_node-id outer-cone-angle] (validate-outer-cone-angle _node-id outer-cone-angle)))
             (dynamic edit-type (g/fnk [inner-cone-angle]
                                  {:type g/Num
                                   :min (clamp inner-cone-angle 0.0 max-spot-cone-angle)
@@ -839,11 +869,10 @@
             (set (fn [evaluation-context self _old-value new-value]
                    (when (some? new-value)
                      (let [inner-cone-angle (g/node-value self :inner-cone-angle evaluation-context)
-                           [inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle new-value)]
+                           [inner-cone-angle outer-cone-angle] (clamp-spot-cone-angles inner-cone-angle new-value)]
                        (concat
                          (g/set-property self :inner-cone-angle inner-cone-angle)
-                         (g/set-property self :outer-cone-angle outer-cone-angle))))))
-            (dynamic visible (g/fnk [light-type] (= :spot light-type))))
+                         (g/set-property self :outer-cone-angle outer-cone-angle)))))))
 
   (display-order [:color :intensity :range :inner-cone-angle :outer-cone-angle])
 
@@ -919,13 +948,9 @@
                 :node-type LightNode
                 :ddf-type DataProto$Data
                 :load-fn (partial load-light light-type)
-                ;; After :read-fn (read-map-without-defaults), normalize to the same map
-                ;; produce-save-value emits. Empty/sparse files become {} in the first step;
-                ;; without this, :source-value (disk) and :save-value (graph) disagree and
-                ;; sparse-protobuf-test / dirty checks fail. Not for migrating legacy formats.
-                :sanitize-fn (partial canonicalize-light-read light-type)
+                :sanitize-fn (partial sanitize-light light-type)
                 :icon outline-icon
-                :icon-class :property
+                :icon-class :design
                 :category (localization/message "resource.category.components")
                 :view-types [:cljfx-form-view :text]
                 :view-opts {}
