@@ -745,7 +745,7 @@
       :allow-unloaded-use true
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
       :sanitize-fn (partial sanitize-game-object workspace)
-      :string-encode-fn (partial string-encode-game-object workspace)
+      :pb-encode-fn (partial string-encode-game-object workspace)
       :icon game-object-common/game-object-icon
       :icon-class :design
       :category (localization/message "resource.category.objects")
