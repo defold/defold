@@ -73,6 +73,17 @@ function(_defold_private_add_cmake_module_path ROOT)
   endif()
 endfunction()
 
+function(_defold_private_clear_cached_roots)
+  get_cmake_property(_cache_vars CACHE_VARIABLES)
+  foreach(_cache_var IN LISTS _cache_vars)
+    if(_cache_var MATCHES "^DEFOLD_PRIVATE_REPO_ROOT_[A-Z0-9_]+$")
+      unset(${_cache_var} CACHE)
+    endif()
+  endforeach()
+endfunction()
+
+_defold_private_clear_cached_roots()
+
 set(DEFOLD_PRIVATE_REPO_ROOTS "")
 set(_DEFOLD_PRIVATE_PLATFORMS_CONFIG "${DEFOLD_HOME}/.defold-platforms")
 
