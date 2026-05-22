@@ -155,6 +155,14 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         addFile("/assets/"+name+".gui", createGui().toString());
     }
 
+    private void addGuiResource(StringBuilder src, String name) {
+        src.append("\nresources {\n");
+        src.append("  name: \""+name+"\"\n");
+        src.append("  path: \"/assets/"+name+".gui\"\n");
+        src.append("}\n");
+        addFile("/assets/"+name+".gui", createGui().toString());
+    }
+
     private static void startSpineCustomNode(StringBuilder src, String id) {
         startCustomNode(src, id, "Spine");
     }
@@ -294,9 +302,30 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         return null;
     }
 
+    private static Gui.SceneDesc.ResourceDesc findResource(Gui.SceneDesc gui, String resourceName) {
+        for (Gui.SceneDesc.ResourceDesc resource : gui.getResourcesList()) {
+            if (resource.getName().equals(resourceName)) {
+                return resource;
+            }
+        }
+        return null;
+    }
+
     @Test
     public void test() throws Exception {
         // Kept empty as a future working template
+    }
+
+    @Test
+    public void testGenericResourcesUseRegisteredOutputExtension() throws Exception {
+        StringBuilder src = createGui();
+        addGuiResource(src, "panel");
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        Gui.SceneDesc.ResourceDesc resource = findResource(gui, "panel");
+
+        Assert.assertNotNull(resource);
+        Assert.assertEquals("/assets/panel.guic", resource.getPath());
     }
 
     @Test

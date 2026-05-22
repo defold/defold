@@ -443,23 +443,28 @@
 
 (defn- node-desc->node-type-info [gui-node-type-registry node-desc]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
-  (let [type (:type node-desc default-pb-node-type)
-        custom-type-name (coll/not-empty (:custom-type-name node-desc))]
-    (if custom-type-name
-      (let [type-info (or (get-in gui-node-type-registry [:custom-type-name->type-info custom-type-name])
-                          (throw (IllegalStateException.
-                                   (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, custom-type-name=%s, node-type-infos=%s)"
-                                           type
-                                           custom-type-name
-                                           (keys (:custom-type-name->type-info gui-node-type-registry))))))]
-        (if (= type (:node-type type-info))
-          type-info
-          (get-registered-node-type-info gui-node-type-registry type (:custom-type node-desc 0))))
-      (get-registered-node-type-info gui-node-type-registry type (:custom-type node-desc 0)))))
+  (let [type (:type node-desc default-pb-node-type)]
+    (if (= :type-custom type)
+      (if-some [custom-type-name (coll/not-empty (:custom-type-name node-desc))]
+        (or (get-in gui-node-type-registry [:custom-type-name->type-info custom-type-name])
+            (throw (IllegalStateException.
+                     (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, custom-type-name=%s, node-type-infos=%s)"
+                             type
+                             custom-type-name
+                             (keys (:custom-type-name->type-info gui-node-type-registry))))))
+        (get-registered-node-type-info
+          gui-node-type-registry
+          :type-custom
+          (:custom-type node-desc 0)))
+      (get-registered-node-type-info
+        gui-node-type-registry
+        type
+        0))))
 
 (defn- validate-node-desc-custom-type-name! [type-info node-desc]
-  (when-some [custom-type-name (coll/not-empty (:custom-type-name node-desc))]
-    (let [type (:type node-desc default-pb-node-type)]
+  (let [type (:type node-desc default-pb-node-type)]
+    (when-some [custom-type-name (when (= :type-custom type)
+                                   (coll/not-empty (:custom-type-name node-desc)))]
       (when-not (= type (:node-type type-info))
         (throw (IllegalArgumentException.
                  (format "GUI node custom_type_name '%s' belongs to node type %s, expected %s."
@@ -475,7 +480,7 @@
     (-> node-desc
         (assoc :custom-type-name (:custom-type-name type-info))
         (dissoc :custom-type))
-    node-desc))
+    (dissoc node-desc :custom-type-name :custom-type)))
 
 (defn- node-desc->node-type [gui-node-type-registry node-desc]
   (:node-cls (node-desc->node-type-info gui-node-type-registry node-desc)))
@@ -582,6 +587,8 @@
   (if-not (contains? node-desc :custom-properties)
     node-desc
     (let [id->custom-property-info (or (:custom-property-id->info type-info) {})
+          include-custom-property-defaults (contains? (set (:overridden-fields node-desc))
+                                                      (prop-key->pb-field-index :custom-properties))
           custom-properties (->> (:custom-properties node-desc)
                                  (keep
                                    (fn [{:keys [id] :as custom-property}]
@@ -589,7 +596,7 @@
                                        (custom-property-entry->pb type-info
                                                                  [(:id custom-property-info)
                                                                   (custom-property-value custom-property-info custom-property)]
-                                                                 false))))
+                                                                 include-custom-property-defaults))))
                                  (sort-by :id)
                                  vec)]
       (if (coll/empty? custom-properties)

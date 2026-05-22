@@ -173,7 +173,7 @@ Part 2 implementation notes:
 - Accept old files with numeric `custom_type`; migrate known Spine hash to `custom_type_name` `"Spine"` on save.
 - Fail fast if both `custom_type_name` and `custom_type` are present but disagree.
 - Update `save_data_test` classification for `custom_type_name` and `custom_properties`. (`custom_properties` coverage is already partly covered by Part 2.)
-- Update `save_data_test` Spine GUI fixtures to the new project-file format. (The `custom_properties` fixture migration is already partly covered by Part 2; `custom_type_name` remains pending.)
+- Update `save_data_test` Spine GUI fixtures to the new project-file format.
 - Add editor save tests for loading/saving readable `custom_type_name` without numeric `custom_type`, old numeric Spine custom type migration, mismatched `custom_type_name`/`custom_type` rejection, and readable source output.
 - Update the fake custom GUI node/resource kind test, or add a sibling test, to use `custom_type_name` once project-file loading from `custom_type_name` is implemented.
 
@@ -184,13 +184,14 @@ Part 2 implementation notes:
 - Convert each custom property string `id` to `id_hash` using `murmur/hash64`.
 - Clear string `id` from runtime/build output.
 - Convert custom properties with `:protobuf-type :hash` from readable project strings to hashed runtime values.
-- Sort `custom_properties` deterministically in editor build output. (Editor save/build paths already sort by string `id`; id/hash conversion remains pending.)
+- Sort `custom_properties` deterministically in editor build output.
 - Add editor build tests for `custom_type_name` removal, `id -> id_hash` conversion, hash-valued custom properties, and deterministic property order.
 
 ## 6. Match the same build behavior in Bob and extension-spine.
 
-- Bob resolves `custom_type_name` to `custom_type` before custom type lookup, and rejects mismatches when both are present.
-- Bob accepts project files with string `id` custom properties, emits `id_hash` for runtime, clears editor-only ids, and sorts properties deterministically.
+- Bob resolves `custom_type_name` to `custom_type` before custom type lookup. If both `custom_type_name` and `custom_type` are present, `custom_type_name` wins; mismatch rejection is not required.
+- Bob accepts project files with string `id` custom properties, emits `id_hash` for runtime, and clears editor-only ids. Deterministic custom property ordering in Bob is not required.
+- Bob builds generic `SceneDesc.resources` paths using the registered Bob resource extension mapping, not a Spine-specific `.spinescene -> .spinescenec` rewrite.
 - Bob continues accepting old Spine fields and converts them to custom properties.
 - `extension-spine` runtime reads custom properties only.
-- Add Bob tests for `custom_type_name` resolution, string `id` to `id_hash` conversion, deterministic order, and legacy Spine input.
+- Add Bob tests for `custom_type_name` resolution, string `id` to `id_hash` conversion, legacy Spine input, and generic GUI resource path extension mapping.

@@ -608,9 +608,12 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_DUPLICATE_RESOURCE,
                             f.getName()));
                 }
-                // TODO: use the plugin for this
                 resourceNames.add(f.getName());
-                newResourcesList.add(ResourceDesc.newBuilder().mergeFrom(f).setPath(ResourceUtil.minifyPathAndReplaceExt(f.getPath(), ".spinescene", ".spinescenec")).build());
+                String resourceSuffix = ResourceUtil.getSuffix(f.getPath());
+                String buildPath = resourceSuffix == null
+                        ? ResourceUtil.minifyPath(f.getPath())
+                        : ResourceUtil.minifyPathAndReplaceExt(f.getPath(), resourceSuffix, ResourceUtil.getOutputExt(resourceSuffix));
+                newResourcesList.add(ResourceDesc.newBuilder().mergeFrom(f).setPath(buildPath).build());
             }
 
             // transform scene internal resources

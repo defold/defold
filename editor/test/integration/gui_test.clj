@@ -336,11 +336,21 @@
           mismatched-node {:type :type-custom
                            :custom-type-name "TestCustom"
                            :custom-type (inc (murmur/hash32 "TestCustom"))
-                           :id "custom"}]
+                           :id "custom"}
+          boxed-node-with-stale-custom-type-name {:type :type-box
+                                                  :custom-type-name "TestCustom"
+                                                  :custom-type (murmur/hash32 "TestCustom")
+                                                  :id "box"}]
       (is (thrown-with-msg?
             IllegalArgumentException
             #"custom_type_name 'TestCustom' resolves to custom_type"
-            (#'gui/sanitize-scene gui-node-type-registry {:nodes [mismatched-node]}))))))
+            (#'gui/sanitize-scene gui-node-type-registry {:nodes [mismatched-node]})))
+      (let [sanitized-node (-> (#'gui/sanitize-scene gui-node-type-registry {:nodes [boxed-node-with-stale-custom-type-name]})
+                               :nodes
+                               first)]
+        (is (= {:type :type-box
+                :id "box"}
+               (select-keys sanitized-node [:type :custom-type-name :custom-type :id])))))))
 
 (deftest gui-scene-generation
   (test-util/with-loaded-project
@@ -1404,6 +1414,11 @@
           (is (= 2.0 (:test_number (g/node-value custom-node :prop->value))))
           (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test_number))
           (is (not (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :custom-properties))))
+
+        (testing "Default-valued layout overrides are retained on load."
+          (with-visible-layout! gui-scene "Landscape"
+            (is (= 1.0 (prop custom-node :test_number)))
+            (is (test-util/prop-overridden? custom-node :test_number))))
 
         (testing "Default layout edits update nested graph storage."
           (prop! custom-node :test_number 3.0)
