@@ -17,23 +17,18 @@
 #include <dlib/dlib.h>
 #include <signal.h>
 #include <stdio.h>
-#include <sys/syscall.h>
 #include <unwind.h>
-#include <unistd.h>
 #include <dlfcn.h>
 #include "crash.h"
 #include "crash_private.h"
+#include "backtrace_signal_posix.h"
 
 namespace dmCrash
 {
-    static const int SIGNAL_MAX = 64;
-
     static bool g_CrashDumpEnabled = true;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
     static struct sigaction             g_OldSignal[SIGNAL_MAX];
-
-    typedef void (*FSignalAction)(int, siginfo_t*, void*);
 
     static void Handler(const int signo, siginfo_t* const si, void *const sc);
 
@@ -101,94 +96,12 @@ namespace dmCrash
         return state->m_PtrCount >= AppState::PTRS_MAX ? _URC_END_OF_STACK : _URC_NO_REASON;
     }
 
-    static void ResetToDefaultHandler(const int signum)
-    {
-        if (signum <= 0 || signum >= SIGNAL_MAX)
-        {
-            return;
-        }
-
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_handler = SIG_DFL;
-        sa.sa_flags = 0;
-        sigaction(signum, &sa, NULL);
-    }
-
-    static bool ChainSignal(const int signum, siginfo_t* const si, void *const sc)
-    {
-        if (signum <= 0 || signum >= SIGNAL_MAX)
-        {
-            return false;
-        }
-
-        struct sigaction* old_signal = &g_OldSignal[signum];
-        if ((old_signal->sa_flags & SA_SIGINFO) &&
-            old_signal->sa_sigaction &&
-            old_signal->sa_sigaction != (FSignalAction)SIG_DFL &&
-            old_signal->sa_sigaction != (FSignalAction)SIG_IGN &&
-            old_signal->sa_sigaction != Handler)
-        {
-            old_signal->sa_sigaction(signum, si, sc);
-            return true;
-        }
-        else if (old_signal->sa_handler != SIG_DFL && old_signal->sa_handler != SIG_IGN && old_signal->sa_handler)
-        {
-            old_signal->sa_handler(signum);
-            return true;
-        }
-
-        return false;
-    }
-
-    static bool ShouldRaiseDefaultHandler(const int signum)
-    {
-        if (signum <= 0 || signum >= SIGNAL_MAX)
-        {
-            return false;
-        }
-
-        return g_OldSignal[signum].sa_handler != SIG_IGN;
-    }
-
-    static void RaiseDefaultHandler(const int signum, const siginfo_t* const si)
-    {
-        if (signum <= 0 || signum >= SIGNAL_MAX)
-        {
-            return;
-        }
-
-        if (si && si->si_signo == signum)
-        {
-            int result = syscall(SYS_rt_tgsigqueueinfo,
-                                 getpid(),
-                                 syscall(SYS_gettid),
-                                 signum,
-                                 si);
-            if (result == 0)
-            {
-                return;
-            }
-        }
-
-        raise(signum);
-    }
-
-    static void ChainSignalOrRaiseDefault(const int signum, siginfo_t* const si, void *const sc)
-    {
-        if (!ChainSignal(signum, si, sc) && ShouldRaiseDefaultHandler(signum))
-        {
-            RaiseDefaultHandler(signum, si);
-        }
-    }
-
     static void Handler(const int signo, siginfo_t* const si, void *const sc)
     {
         if (!g_CrashDumpEnabled)
         {
-            ResetToDefaultHandler(signo);
-            ChainSignalOrRaiseDefault(signo, si, sc);
+            ResetToDefaultSignalHandler(signo);
+            ChainSignalOrRaiseDefault(signo, si, sc, g_OldSignal, Handler);
             return;
         }
 
@@ -200,7 +113,7 @@ namespace dmCrash
         // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
-        ResetToDefaultHandler(signo);
+        ResetToDefaultSignalHandler(signo);
 
         unwind_data unwindData;
         unwindData.offset_extra = 0;
@@ -220,7 +133,7 @@ namespace dmCrash
         dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
         dLib::SetDebugMode(is_debug_mode);
 
-        ChainSignalOrRaiseDefault(signo, si, sc);
+        ChainSignalOrRaiseDefault(signo, si, sc, g_OldSignal, Handler);
     }
 
     void WriteDump()
@@ -231,28 +144,8 @@ namespace dmCrash
 
     void InstallOnSignal(int signum)
     {
-        assert(signum > 0 && signum < SIGNAL_MAX);
-        if (signum <= 0 || signum >= SIGNAL_MAX)
-        {
-            return;
-        }
-
-        struct sigaction current;
-        memset(&current, 0, sizeof(current));
-        if (sigaction(signum, NULL, &current) == 0 &&
-            (current.sa_flags & SA_SIGINFO) &&
-            current.sa_sigaction == Handler)
-        {
-            return;
-        }
-
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_sigaction = Handler;
-        sa.sa_flags = SA_SIGINFO;
-        
-        sigaction(signum, &sa, &g_OldSignal[signum]);
+        assert(IsValidSignal(signum));
+        InstallSignalHandler(signum, Handler, g_OldSignal);
     }
 
     void SetCrashFilename(const char*)
