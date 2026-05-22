@@ -48,20 +48,15 @@ def get_configured_platforms():
     return sorted(load_platforms_config().keys())
 
 
-def get_platform_roots(platform):
-    """Return private source roots for a target platform.
+def get_platform_root(platform):
+    """Return the private source root for a target platform.
 
     The optional repo-local .defold-platforms file is JSON keyed by full target
-    platform. Each platform entry may contain "root" for a single private repo
-    and/or "roots" for an ordered list of private repos.
+    platform. Each platform entry contains "root" for a single private repo.
     """
     platforms = load_platforms_config()
     platform_config = platforms.get(platform, {})
-    roots = []
-    if 'root' in platform_config:
-        roots.append(platform_config['root'])
-    roots.extend(platform_config.get('roots', []))
-    return roots
+    return platform_config.get('root', '')
 
 
 def git_sha1(repo_root, ref = None):
@@ -73,10 +68,10 @@ def git_sha1(repo_root, ref = None):
 
 
 def get_private_platform_sha1(platform):
-    roots = get_platform_roots(platform)
-    if not roots:
+    root = get_platform_root(platform)
+    if not root:
         return ''
-    return git_sha1(roots[0])
+    return git_sha1(root)
 
 
 def _path_key(path):
@@ -99,18 +94,24 @@ def _existing_dirs(paths):
 
 
 def get_private_library_paths(platform):
-    paths = []
-    for root in get_platform_roots(platform):
-        dynamo_home = os.path.join(root, 'tmp', 'dynamo_home')
-        paths += [
-            os.path.join(dynamo_home, 'lib', platform),
-            os.path.join(dynamo_home, 'ext', 'lib', platform),
-        ]
+    root = get_platform_root(platform)
+    if not root:
+        return []
+
+    dynamo_home = os.path.join(root, 'tmp', 'dynamo_home')
+    paths = [
+        os.path.join(dynamo_home, 'lib', platform),
+        os.path.join(dynamo_home, 'ext', 'lib', platform),
+    ]
     return _dedupe_paths(_existing_dirs(paths))
 
 
 def get_private_path_mirrors(platform, base_path, paths):
     repo_root = get_repo_root()
+    root = get_platform_root(platform)
+    if not root:
+        return []
+
     mirrors = []
     for path in paths:
         if hasattr(path, 'abspath'):
@@ -128,10 +129,9 @@ def get_private_path_mirrors(platform, base_path, paths):
         if relative_path == os.pardir or relative_path.startswith(os.pardir + os.sep):
             continue
 
-        for root in get_platform_roots(platform):
-            private_path = os.path.join(root, relative_path)
-            if os.path.isdir(private_path):
-                mirrors.append(private_path)
+        private_path = os.path.join(root, relative_path)
+        if os.path.isdir(private_path):
+            mirrors.append(private_path)
     return _dedupe_paths(mirrors)
 
 
@@ -211,11 +211,12 @@ def is_private_platform_file(platform, path):
     return any(tag.lower() in path for tag in get_private_platform_file_tags(platform))
 
 
-def find_platform_file(bld, platform, path, public_fallback = True, private_roots = True):
+def find_platform_file(bld, platform, path, public_fallback = True, private_root = True):
     repo_root = get_repo_root()
     base_path = os.path.relpath(bld.path.abspath(), repo_root)
-    if private_roots:
-        for root in get_platform_roots(platform):
+    if private_root:
+        root = get_platform_root(platform)
+        if root:
             absolute_path = os.path.join(root, base_path, path)
             private_path = os.path.join(base_path, path)
             if os.path.exists(absolute_path) and is_private_platform_file(platform, private_path):
@@ -245,7 +246,7 @@ def remove_source_files(sources, remove_sources):
     return [x for x in sources if source_file_path(x) not in remove_paths]
 
 
-def find_platform_files(bld, platform, path, public_fallback = True, private_roots = True):
+def find_platform_files(bld, platform, path, public_fallback = True, private_root = True):
     repo_root = get_repo_root()
     base_path = os.path.relpath(bld.path.abspath(), repo_root)
     files = []
@@ -253,8 +254,9 @@ def find_platform_files(bld, platform, path, public_fallback = True, private_roo
     if public_fallback:
         append_source_file(files, bld.path.find_node(path))
 
-    if private_roots:
-        for root in get_platform_roots(platform):
+    if private_root:
+        root = get_platform_root(platform)
+        if root:
             absolute_path = os.path.join(root, base_path, path)
             private_path = os.path.join(base_path, path)
             if os.path.exists(absolute_path) and is_private_platform_file(platform, private_path):
@@ -350,14 +352,14 @@ def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred
     * extra_tags may be a list for all platforms, or a dict where platform/target override '*'.
     * extra tag matches are appended to platform tag matches before fallback tags.
     * fallback tags and default are used only when no platform file matched.
-    * platform roots are searched before the public repo for platform tag matches.
+    * private platform root is searched before the public repo for platform tag matches.
     * missing feature files or missing selected files fail the build when required is True.
     """
     files = []
     feature_files = []
 
-    def find_file(path, public_fallback = True, private_roots = True):
-        return find_platform_file(bld, platform, path, public_fallback, private_roots)
+    def find_file(path, public_fallback = True, private_root = True):
+        return find_platform_file(bld, platform, path, public_fallback, private_root)
 
     feature_base, extension = os.path.splitext(feature_name)
     extensions = ['.cpp', '.c', '.cc', '.cxx', '.mm', '.m']

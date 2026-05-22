@@ -25,7 +25,7 @@ import build_android
 import run
 import s3
 import sdk
-from cross_build import DEFOLD_PLATFORMS_FILE, get_configured_platforms, get_platform_roots, get_platforms_config_path, load_platforms_config, save_platforms_config
+from cross_build import DEFOLD_PLATFORMS_FILE, get_configured_platforms, get_platform_root, get_platforms_config_path, load_platforms_config, save_platforms_config
 from private_hooks import call_hook, has_hook_module
 import wasm_runner
 import release_to_github
@@ -852,8 +852,9 @@ class Configuration(object):
             return [make_package_path(root, platform, package) for package in packages]
 
         def make_private_package_path(platform, package):
-            roots = list(dict.fromkeys(get_platform_roots(self.target_platform) + [self.defold_root]))
-            paths = [make_package_path(root, platform, package) for root in roots]
+            private_root = get_platform_root(self.target_platform)
+            package_roots = [root for root in [private_root, self.defold_root] if root]
+            paths = [make_package_path(root, platform, package) for root in package_roots]
             for path in paths:
                 if os.path.exists(path):
                     return path
@@ -2296,21 +2297,9 @@ class Configuration(object):
         if root == private_repo:
             return False
 
-        roots = platform_config.setdefault('roots', [])
-        if not isinstance(roots, list):
-            self.fatal("%s roots entry for %s must be a list" % (DEFOLD_PLATFORMS_FILE, platform))
-
-        if not root:
-            platform_config['root'] = private_repo
-            if 'roots' in platform_config and not roots:
-                del platform_config['roots']
-            return True
-
-        if private_repo not in roots:
-            roots.append(private_repo)
-            return True
-
-        return False
+        platform_config['root'] = private_repo
+        platform_config.pop('roots', None)
+        return True
 
     def _print_configured_platforms(self):
         platforms = load_platforms_config()
@@ -2319,9 +2308,9 @@ class Configuration(object):
 
         print("Extra cross compile platforms from %s:" % DEFOLD_PLATFORMS_FILE)
         for platform in sorted(platforms.keys()):
-            roots = get_platform_roots(platform)
-            roots_text = ', '.join(roots) if roots else '<no roots configured>'
-            print("  %s: %s" % (platform, roots_text))
+            root = get_platform_root(platform)
+            root_text = root if root else '<no root configured>'
+            print("  %s: %s" % (platform, root_text))
 
     def add_private_repo(self):
         if not self.private_repo:
@@ -2345,7 +2334,7 @@ class Configuration(object):
 
         print("Updated %s" % get_platforms_config_path())
         marker = "added" if changed else "already configured"
-        print("  %s: %s (%s)" % (platform, ', '.join(get_platform_roots(platform)), marker))
+        print("  %s: %s (%s)" % (platform, get_platform_root(platform), marker))
 
     def save_env(self):
         if not self.save_env_path:
@@ -3276,6 +3265,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         private_platform = options.target_platform or get_host_platform()
         if private_platform in get_default_target_platforms():
             parser.error("add_private_repo requires a private platform name, but this is already a default supported platform: %s" % private_platform)
+        if private_platform not in known_platforms and len(args) > 1:
+            parser.error("add_private_repo for a new private platform must be run before other commands: %s" % private_platform)
 
     if not options.target_platform or (is_add_private_repo and options.target_platform not in known_platforms):
         target_platform = get_host_platform()
@@ -3322,11 +3313,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
-    needs_dynamo_home = True
-    for cmd in args:
-        if cmd in ['shell', 'save_env', 'add_private_repo']:
-            needs_dynamo_home = False
-            break
+    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo']
+    needs_dynamo_home = any(cmd not in commands_without_dynamo_home for cmd in args)
     if needs_dynamo_home:
         for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
             if not env_var in os.environ:

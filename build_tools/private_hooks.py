@@ -6,7 +6,7 @@ import importlib.util
 import os
 import sys
 
-from cross_build import get_configured_platforms, get_platform_roots, get_repo_root
+from cross_build import get_configured_platforms, get_platform_root, get_repo_root
 
 
 def get_target_os_from_platform(platform):
@@ -38,12 +38,15 @@ def find_hook_file(hook, platform):
     if not target_os:
         return None
 
-    roots = list(get_platform_roots(platform))
+    search_roots = []
+    root = get_platform_root(platform)
+    if root:
+        search_roots.append(root)
     repo_root = get_repo_root()
-    if repo_root not in roots:
-        roots.append(repo_root)
+    if repo_root not in search_roots:
+        search_roots.append(repo_root)
 
-    for root in roots:
+    for root in search_roots:
         path = _hook_file(root, hook, target_os)
         if os.path.exists(path):
             return path
