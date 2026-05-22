@@ -33,6 +33,8 @@ namespace dmCrash
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
     static struct sigaction             g_OldSignal[SIGNAL_MAX];
 
+    typedef void (*FSignalAction)(int, siginfo_t*, void*);
+
     static void Handler(const int signo, siginfo_t* const si, void *const sc);
 
     struct unwind_data {
@@ -124,6 +126,8 @@ namespace dmCrash
         struct sigaction* old_signal = &g_OldSignal[signum];
         if ((old_signal->sa_flags & SA_SIGINFO) &&
             old_signal->sa_sigaction &&
+            old_signal->sa_sigaction != (FSignalAction)SIG_DFL &&
+            old_signal->sa_sigaction != (FSignalAction)SIG_IGN &&
             old_signal->sa_sigaction != Handler)
         {
             old_signal->sa_sigaction(signum, si, sc);
