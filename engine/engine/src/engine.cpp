@@ -441,10 +441,6 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
-        bool has_script_context = engine->m_SharedScriptContext || engine->m_GOScriptContext || engine->m_RenderScriptContext || engine->m_GuiScriptContext;
-        bool has_hid_context = engine->m_HidContext != 0;
-
-        if (has_script_context)
         {
             ScopedExtensionParams params(engine);
 
@@ -474,14 +470,11 @@ namespace dmEngine
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
-        if (engine->m_SharedScriptContext)
-        {
+        if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
             dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
-        }
-        else if (has_script_context)
-        {
+        } else {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
             dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
@@ -498,15 +491,9 @@ namespace dmEngine
 
         dmSound::Finalize();
 
-        if (engine->m_InputContext)
-        {
-            dmInput::DeleteContext(engine->m_InputContext);
-        }
+        dmInput::DeleteContext(engine->m_InputContext);
 
-        if (engine->m_RenderContext)
-        {
-            dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
-        }
+        dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 
         if (engine->m_HidContext)
         {
@@ -581,21 +568,15 @@ namespace dmEngine
         if (engine->m_PhysicsContextBullet3D.m_Context)
             dmPhysics::DeleteContext3D(engine->m_PhysicsContextBullet3D.m_Context);
 
-        if (has_hid_context)
-        {
-            ScopedExtensionAppParams app_params(engine);
-            dmExtension::AppFinalize(app_params);
-        }
+        ScopedExtensionAppParams app_params(engine);
+        dmExtension::AppFinalize(app_params);
 
 #if !defined(DM_NO_HTTP_CACHE)
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
 #endif
 
-        if (engine->m_Config)
-        {
-            dmBuffer::DeleteContext();
-        }
+        dmBuffer::DeleteContext();
 
         if (engine->m_Config)
         {
@@ -857,7 +838,7 @@ namespace dmEngine
     {
 #if defined(DM_PLATFORM_VENDOR)
         dmLogInfo("Defold Engine %s (%.7s, %.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1, dmEngineVersion::PRIVATE_VERSION_SHA1);
-#else    
+#else
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
 #endif
 
