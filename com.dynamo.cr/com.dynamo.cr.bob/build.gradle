@@ -141,14 +141,8 @@ if (targetPlatform && platformsConfigFile.exists()) {
     def platformsConfig = new JsonSlurper().parse(platformsConfigFile)
     def platformConfig = platformsConfig[targetPlatform]
     if (platformConfig instanceof Map) {
-        def privateRoots = []
         if (platformConfig.root) {
-            privateRoots << platformConfig.root.toString()
-        }
-        if (platformConfig.roots instanceof List) {
-            privateRoots.addAll(platformConfig.roots.collect { it.toString() })
-        }
-        privateRoots.each { root ->
+            def root = platformConfig.root.toString()
             def crDir = file("${root}/com.dynamo.cr")
             if (crDir.isDirectory()) {
                 crDir.eachDirMatch(~/com\.dynamo\.cr\..+/) { moduleDir ->
