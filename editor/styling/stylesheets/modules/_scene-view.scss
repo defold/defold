@@ -120,19 +120,23 @@
             .ext-color-picker {
                 .ext-color-picker-field {
                     -fx-max-width: 85px;
+                    -fx-border-color: -df-component-light;
                 }
-
+                .ext-color-picker-icon {
+                    -fx-border-color: -df-component-light;
+                }
                 &:hover {
+                    .ext-color-picker-field, .ext-color-picker-icon {
+                        -fx-border-color: -df-component-lighter;
+                    }
+                }
+                &:focus-within {
+                    .ext-color-picker-field {
+                        -fx-border-color: -df-component-lighter transparent -df-defold-orange -df-component-lighter;
+                    }
                     .ext-color-picker-icon {
                         -fx-border-color: -df-component-lighter;
                     }
-                    .ext-color-picker-field {
-                        -fx-border-color: -df-component-lighter;
-                    }
-                }
-
-                .ext-color-picker-icon {
-                    -fx-border-color: -df-component-light;
                 }
             }
 

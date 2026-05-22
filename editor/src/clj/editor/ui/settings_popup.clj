@@ -155,7 +155,6 @@
 
 (defn- make-color-row [{:keys [popup key label state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
-   :style-class "popup-color-picker"
    :children [{:fx/type fxui/label
                :text (or label "")
                :h-box/hgrow :always

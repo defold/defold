@@ -920,21 +920,84 @@
         (is (not= "custom" (prefs/get p [])))
         (is (not (.exists file)))))))
 
-(deftest reset-path-root-nil-valid-schema-test
-  (with-schemas {::root-nil-valid {:type :enum :values [nil "custom"]}}
-    (let [file (fs/create-temp-file! "root-nil-valid" "test.editor_settings")
-          p (prefs/make :scopes {:global file}
-                        :schemas [::root-nil-valid])]
-      (prefs/set! p [] "custom")
-      (prefs/sync!)
-      (is (= "custom" (prefs/get p [])))
-      (is (prefs/set? p []))
+(deftest reset-path-root-all-schema-types-test
+  (doseq [[schema-type {:keys [schema custom expected]}]
+          {:boolean {:schema {:type :boolean :default true}
+                     :custom false
+                     :expected true}
+           :string {:schema {:type :string :default "default"}
+                    :custom "custom"
+                    :expected "default"}
+           :password {:schema {:type :password :default "default"}
+                      :custom "custom"
+                      :expected "default"}
+           :locale {:schema {:type :locale :default "sv"}
+                    :custom "en"
+                    :expected "sv"}
+           :keyword {:schema {:type :keyword :default :default}
+                     :custom :custom
+                     :expected :default}
+           :integer {:schema {:type :integer :default 1}
+                     :custom 2
+                     :expected 1}
+           :number {:schema {:type :number :default 1.0}
+                    :custom 2.0
+                    :expected 1.0}
+           :one-of {:schema {:type :one-of
+                             :schemas [{:type :object-of
+                                        :key {:type :string}
+                                        :val {:type :integer}
+                                        :default {"default" 1}}
+                                       {:type :string}]}
+                    :custom "custom"
+                    :expected {"default" 1}}
+           :array {:schema {:type :array
+                            :item {:type :string}
+                            :default ["default"]}
+                   :custom ["custom"]
+                   :expected ["default"]}
+           :set {:schema {:type :set
+                          :item {:type :string}
+                          :default #{"default"}}
+                 :custom #{"custom"}
+                 :expected #{"default"}}
+           :object {:schema {:type :object
+                             :properties {:x {:type :integer :default 1}}}
+                    :custom {:x 2}
+                    :expected {:x 1}}
+           :object-of {:schema {:type :object-of
+                                :key {:type :string}
+                                :val {:type :integer}
+                                :default {"default" 1}}
+                       :custom {"custom" 2}
+                       :expected {"default" 1}}
+           :enum {:schema {:type :enum
+                           :values [{} "custom"]}
+                  :custom "custom"
+                  :expected {}}
+           :tuple {:schema {:type :tuple
+                            :items [{:type :string} {:type :integer}]
+                            :default ["default" 1]}
+                   :custom ["custom" 2]
+                   :expected ["default" 1]}}]
+    (testing (name schema-type)
+      (let [schema-id (keyword "editor.prefs-test" (str "root-" (name schema-type)))
+            file (fs/create-temp-file! (str "root-" (name schema-type)) "test.editor_settings")]
+        (prefs/register-schema! schema-id schema)
+        (try
+          (let [p (prefs/make :scopes {:global file}
+                              :schemas [schema-id])]
+            (prefs/set! p [] custom)
+            (prefs/sync!)
+            (is (= custom (prefs/get p [])))
+            (is (prefs/set? p []))
 
-      (prefs/reset-path! p [])
+            (prefs/reset-path! p [])
 
-      (is (nil? (prefs/get p [])))
-      (is (not (prefs/set? p [])))
-      (prefs/sync!)
-      (is (nil? (prefs/get p [])))
-      (is (not (prefs/set? p [])))
-      (is (not (.exists file))))))
+            (is (= expected (prefs/get p [])))
+            (is (not (prefs/set? p [])))
+            (prefs/sync!)
+            (is (= expected (prefs/get p [])))
+            (is (not (prefs/set? p []))))
+          (finally
+            (prefs/unregister-schema! schema-id)))))))
