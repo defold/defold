@@ -1462,3 +1462,49 @@ Macros currently mean no foreseeable performance gain, however."
 
               (text-util/string->text-match re-pattern)
               (assoc :value value)))))
+
+(defn ddf-struct-value->clj-value
+  [ddf-struct-value]
+  {:pre [(map? ddf-struct-value) ; DdfStruct$Value in map format.
+         (= 1 (count ddf-struct-value))]}
+  (let [[field-type field-value] (first ddf-struct-value)]
+    (case field-type
+      :null nil
+      :list (mapv ddf-struct-value->clj-value (:values field-value))
+      :struct (into {}
+                    (map (fn [[^String key value]]
+                           (pair (.intern key)
+                                 (ddf-struct-value->clj-value value))))
+                    (:fields field-value))
+      field-value)))
+
+(defn clj-value->ddf-struct-value
+  [clj-value]
+  (cond
+    (double? clj-value)
+    {:number clj-value}
+
+    (string? clj-value)
+    {:string clj-value}
+
+    (boolean? clj-value)
+    {:bool clj-value}
+
+    (nil? clj-value)
+    {:null :null-value}
+
+    (map? clj-value)
+    {:struct {:fields (into {}
+                            (map (fn [[^String key value]]
+                                   (pair (.intern key)
+                                         (clj-value->ddf-struct-value value))))
+                            clj-value)}}
+
+    (vector? clj-value)
+    {:list {:values (mapv clj-value->ddf-struct-value clj-value)}}
+
+    :else
+    (throw
+      (ex-info
+        "The clj-value cannot be represented by DdfStruct$Value."
+        {:clj-value clj-value}))))
