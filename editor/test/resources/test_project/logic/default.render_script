@@ -26,10 +26,10 @@ function update(self)
     render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))
 
     render.set_depth_mask(false)
-    render.disable_state(render.STATE_DEPTH_TEST)
-    render.enable_state(render.STATE_BLEND)
+    render.disable_state(graphics.STATE_DEPTH_TEST)
+    render.enable_state(graphics.STATE_BLEND)
     render.set_blend_func(render.BLEND_FACTOR_SRC_ALPHA, render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
-    render.disable_state(render.STATE_CULL_FACE)
+    render.disable_state(graphics.STATE_CULL_FACE)
 
     render.draw(self.sprite_pred)
 
