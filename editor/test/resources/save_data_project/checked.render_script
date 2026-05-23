@@ -51,10 +51,10 @@ function init(self)
 	self.particle_pred = render.predicate({"particle"})
 
 	self.clear_color = vmath.vector4(0, 0, 0, 0)
-	self.clear_color.x = sys.get_config("render.clear_color_red", 0)
-	self.clear_color.y = sys.get_config("render.clear_color_green", 0)
-	self.clear_color.z = sys.get_config("render.clear_color_blue", 0)
-	self.clear_color.w = sys.get_config("render.clear_color_alpha", 0)
+	self.clear_color.x = sys.get_config_number("render.clear_color_red", 0)
+	self.clear_color.y = sys.get_config_number("render.clear_color_green", 0)
+	self.clear_color.z = sys.get_config_number("render.clear_color_blue", 0)
+	self.clear_color.w = sys.get_config_number("render.clear_color_alpha", 0)
 
 	self.view = vmath.matrix4()
 
@@ -94,7 +94,7 @@ function update(self)
 	render.disable_state(graphics.STATE_DEPTH_TEST)
 	render.disable_state(graphics.STATE_STENCIL_TEST)
 	render.enable_state(graphics.STATE_BLEND)
-	render.set_blend_func(graphics.BLEND_FACTOR_BLEND_SRC_ALPHA, graphics.BLEND_FACTOR_BLEND_ONE_MINUS_SRC_ALPHA)
+	render.set_blend_func(graphics.BLEND_FACTOR_SRC_ALPHA, graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
 	render.disable_state(graphics.STATE_CULL_FACE)
 
 	render.draw(self.tile_pred, {frustum = frustum})

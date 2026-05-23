@@ -177,7 +177,7 @@ function update(self)
     render.set_projection(camera_world.proj)
 
     -- set states used for all the world predicates
-    render.set_blend_func(graphics.BLEND_FACTOR_BLEND_SRC_ALPHA, graphics.BLEND_FACTOR_BLEND_ONE_MINUS_SRC_ALPHA)
+    render.set_blend_func(graphics.BLEND_FACTOR_SRC_ALPHA, graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
     render.enable_state(graphics.STATE_DEPTH_TEST)
 
     -- render `model` predicate for default 3D material
