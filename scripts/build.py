@@ -860,6 +860,7 @@ class Configuration(object):
                 '--find-links', wheelhouse,
                 '--only-binary', ':all:',
                 '--upgrade',
+                '--no-compile',
                 '-t', target,
             ] + packages)
 
