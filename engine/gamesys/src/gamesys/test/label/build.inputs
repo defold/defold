@@ -2,3 +2,6 @@
 /label/invalid_vertexspace.label
 /label/test_comp.go
 /label/valid_label.go
+/font/dyn_glyph_bank_test_1.font
+/resource/font.font
+/resource/res_getset_prop.go

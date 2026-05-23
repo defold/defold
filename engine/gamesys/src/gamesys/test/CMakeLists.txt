@@ -38,12 +38,19 @@ endfunction()
 # Test content setup
 # Build the runtime test content tree in the same location Waf uses.
 # ---------------------------------------------------------------------------
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_package(Java REQUIRED COMPONENTS Runtime)
 
 set(_GS_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
 if(NOT EXISTS "${_GS_BOB_LIGHT}")
   message(FATAL_ERROR "bob-light.jar not found: ${_GS_BOB_LIGHT}")
 endif()
+
+set(_GS_BOB_CLASSPATH_LIST "${_GS_BOB_LIGHT}")
+set(_GS_BUILTINS_ZIP "${DEFOLD_SDK_ROOT}/share/builtins.zip")
+if(EXISTS "${_GS_BUILTINS_ZIP}")
+  list(APPEND _GS_BOB_CLASSPATH_LIST "${_GS_BUILTINS_ZIP}")
+endif()
+cmake_path(CONVERT "${_GS_BOB_CLASSPATH_LIST}" TO_NATIVE_PATH_LIST _GS_BOB_CLASSPATH)
 
 set(_GS_TEST_DATA_FOLDERS_FILE "${GS_TEST_ROOT}/test_data_folders.txt")
 gamesys_read_manifest(_GS_TEST_DATA_FOLDERS "${_GS_TEST_DATA_FOLDERS_FILE}")
@@ -59,6 +66,20 @@ foreach(_shared_dir IN ITEMS lua)
   endif()
 endforeach()
 
+file(GLOB_RECURSE _GS_ALL_TEST_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GS_TEST_ROOT}/*")
+list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "/build/")
+list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "\\.prebuilt_")
+list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "\\.DS_Store$")
+list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "/CMakeLists\\.txt$")
+list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "/wscript$")
+list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "/build_test_data\\.py$")
+list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "\\.(cpp|h)$")
+
+set(_GS_COMMON_INPUTS_FILE "${GS_TEST_ROOT}/common_build.inputs")
+if(NOT EXISTS "${_GS_COMMON_INPUTS_FILE}")
+  message(FATAL_ERROR "Missing gamesys common test data input list: ${_GS_COMMON_INPUTS_FILE}")
+endif()
+
 set(gamesys_content_outputs)
 foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   set(_inputs_file "${GS_TEST_ROOT}/${_folder}/build.inputs")
@@ -71,18 +92,30 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   list(FILTER _folder_sources EXCLUDE REGEX "\\.prebuilt_")
   list(FILTER _folder_sources EXCLUDE REGEX "\\.DS_Store$")
 
+  set(_settings_args)
+  if(EXISTS "${GS_TEST_ROOT}/${_folder}/game.project")
+    list(APPEND _settings_args --settings "${_folder}/game.project")
+  endif()
+
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
   add_custom_command(
     OUTPUT "${_stamp}"
-    COMMAND "${Python3_EXECUTABLE}" "${GS_TEST_ROOT}/build_test_data.py"
-      --bob-light "${_GS_BOB_LIGHT}"
+    COMMAND "${Java_JAVA_EXECUTABLE}"
+      --enable-native-access=ALL-UNNAMED
+      -cp "${_GS_BOB_CLASSPATH}"
+      com.dynamo.bob.Bob
       --root "${GS_TEST_ROOT}"
-      --folder "${_folder}"
-      --inputs "${_inputs_file}"
-      --output-root "${GS_TEST_RUNTIME_DIR}"
-      --stamp "${_stamp}"
+      --output "${GS_TEST_RUNTIME_DIR}/${_folder}"
+      --build-input-file "${_inputs_file}"
+      --build-input-file "${_GS_COMMON_INPUTS_FILE}"
+      --use-vanilla-lua
+      --debug-output-spirv true
       --platform "${TARGET_PLATFORM}"
-    DEPENDS "${GS_TEST_ROOT}/build_test_data.py" "${_inputs_file}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES}
+      ${_settings_args}
+      build
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
+    DEPENDS "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES}
     WORKING_DIRECTORY "${GS_TEST_ROOT}"
     COMMENT "Building gamesys test data folder ${_folder}"
     VERBATIM)

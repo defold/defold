@@ -15,3 +15,5 @@
 /sprite/texture_transform_multi.go
 /sprite/texture_transform_sprite.go
 /sprite/valid_sprite.go
+/tile/valid_tilegrid.go
+/tile/valid2.tileset

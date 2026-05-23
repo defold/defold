@@ -41,6 +41,7 @@
 
 #include <jc_test/jc_test.h>
 
+#include <string.h>
 
 static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties,
                                             const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
@@ -77,21 +78,55 @@ struct ProjectOptions {
   float m_VelocityThreshold;
 };
 
+static inline const char* GamesysContentFolderFromResourcePath(const char* path)
+{
+    static char folder[64];
+    if (!path || path[0] != '/') {
+        return "";
+    }
+
+    const char* start = path + 1;
+    const char* end = strchr(start, '/');
+    if (!end || end == start) {
+        return "";
+    }
+
+    size_t len = end - start;
+    if (len >= sizeof(folder)) {
+        len = sizeof(folder) - 1;
+    }
+    memcpy(folder, start, len);
+    folder[len] = 0;
+    return folder;
+}
+
+static inline bool GamesysHasCurrentTestParam()
+{
+    const jc_test_fixture* fixture = jc_test_get_fixture();
+    return fixture && fixture->parent != 0;
+}
+
 template<typename T>
 class CustomizableGamesysTest : public jc_test_params_class<T>
 {
 public:
     CustomizableGamesysTest() {
       memset(&m_projectOptions, 0, sizeof(m_projectOptions));
+      m_ContentFolder = "input";
     }
 
     ProjectOptions m_projectOptions;
+    virtual const char* GetContentFolder() const { return m_ContentFolder; }
 protected:
+    void SetContentFolder(const char* folder) { m_ContentFolder = folder; }
+
     void SetUp(ProjectOptions& options) {
         m_projectOptions = options;
     }
 
     void SetUp() override = 0;
+
+    const char* m_ContentFolder;
 };
 
 template<typename T>
@@ -181,6 +216,7 @@ class CollisionObject2DTest : public GamesysTest<const char*>
 {
 public:
     CollisionObject2DTest() {
+      SetContentFolder("collision_object");
       // override configuration values specified in GamesysTest()
       m_projectOptions.m_MaxCollisionCount = 32;
       m_projectOptions.m_MaxContactPointCount = 64;
@@ -197,6 +233,7 @@ class GroupAndMask2DTest : public GamesysTest<GroupAndMaskParams>
 {
 public:
     GroupAndMask2DTest() {
+      SetContentFolder("collision_object");
       // override configuration values specified in GamesysTest()
       m_projectOptions.m_MaxCollisionCount = 32;
       m_projectOptions.m_MaxContactPointCount = 64;
@@ -208,6 +245,7 @@ class GroupAndMask3DTest : public GamesysTest<GroupAndMaskParams>
 {
 public:
     GroupAndMask3DTest() {
+      SetContentFolder("collision_object");
       // override configuration values specified in GamesysTest()
       m_projectOptions.m_MaxCollisionCount = 32;
       m_projectOptions.m_MaxContactPointCount = 64;
@@ -237,6 +275,7 @@ class ResourceTest : public GamesysTest<const char*>
 {
 public:
     virtual ~ResourceTest() {}
+    const char* GetContentFolder() const override { return GamesysHasCurrentTestParam() ? GamesysContentFolderFromResourcePath(GetParam()) : m_ContentFolder; }
 };
 
 struct ResourceReloadParams
@@ -262,29 +301,35 @@ class ResourceFailTest : public GamesysTest<ResourceFailParams>
 {
 public:
     ~ResourceFailTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam().m_ValidResource); }
 };
 
 class InvalidVertexSpaceTest : public GamesysTest<const char*>
 {
 public:
     ~InvalidVertexSpaceTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam()); }
 };
 
 class ComponentTest : public ScriptBaseTest
 {
 public:
+    ComponentTest() { SetContentFolder("collision_object"); }
     ~ComponentTest() override = default;
+    const char* GetContentFolder() const override { return GamesysHasCurrentTestParam() ? GamesysContentFolderFromResourcePath(GetParam()) : m_ContentFolder; }
 };
 
 class ComponentFailTest : public GamesysTest<const char*>
 {
 public:
     ~ComponentFailTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam()); }
 };
 
 class BufferMetadataTest : public GamesysTest<const char*>
 {
 public:
+    BufferMetadataTest() { SetContentFolder("buffer"); }
     ~BufferMetadataTest() override = default;
 };
 
@@ -300,12 +345,14 @@ class FactoryTest : public GamesysTest<FactoryTestParams>
 {
 public:
     ~FactoryTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam().m_GOPath); }
 };
 
 class FactoryRecursivePrototypeTest : public GamesysTest<FactoryTestParams>
 {
 public:
     ~FactoryRecursivePrototypeTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam().m_GOPath); }
 };
 
 struct CollectionFactoryTestParams
@@ -320,23 +367,27 @@ class CollectionFactoryTest : public GamesysTest<CollectionFactoryTestParams>
 {
 public:
     ~CollectionFactoryTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam().m_GOPath); }
 };
 
 class CollectionFactoryRecursivePrototypeTest : public GamesysTest<CollectionFactoryTestParams>
 {
 public:
     ~CollectionFactoryRecursivePrototypeTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam().m_GOPath); }
 };
 
 class SpriteTest : public ScriptBaseTest
 {
 public:
+    SpriteTest() { SetContentFolder("sprite"); }
     ~SpriteTest() override = default;
 };
 
 class ParticleFxTest : public ScriptBaseTest
 {
 public:
+    ParticleFxTest() { SetContentFolder("particlefx"); }
     ~ParticleFxTest() override = default;
 };
 
@@ -344,6 +395,7 @@ public:
 class WindowTest : public GamesysTest<const char*>
 {
 public:
+    WindowTest() { SetContentFolder("window"); }
     ~WindowTest() override = default;
 };
 
@@ -357,6 +409,7 @@ class DrawCountTest : public GamesysTest<DrawCountParams>
 {
 public:
     ~DrawCountTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam().m_GOPath); }
 };
 
 struct BoxRenderParams
@@ -374,6 +427,7 @@ class BoxRenderTest : public GamesysTest<BoxRenderParams>
 {
 public:
     ~BoxRenderTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam().m_GOPath); }
 };
 
 class GamepadConnectedTest : public GamesysTest<const char*>
@@ -404,6 +458,7 @@ protected:
     }
 public:
     ~ResourcePropTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam().m_ResourcePath); }
 };
 
 class FlipbookTest : public GamesysTest<const char*>
@@ -424,18 +479,22 @@ struct CursorTestParams
 class CursorTest : public GamesysTest<CursorTestParams>
 {
 public:
+    CursorTest() { SetContentFolder("gui"); }
     ~CursorTest() override = default;
+    const char* GetContentFolder() const override { return GamesysHasCurrentTestParam() ? "sprite" : m_ContentFolder; }
 };
 
 class FontTest : public GamesysTest<const char*>
 {
 public:
+    FontTest() { SetContentFolder("font"); }
     ~FontTest() override = default;
 };
 
 class GuiTest : public ScriptBaseTest
 {
 public:
+    GuiTest() { SetContentFolder("gui"); }
     ~GuiTest() override = default;
 };
 
@@ -450,52 +509,60 @@ class ScriptComponentTest : public GamesysTest<ScriptComponentTestParams>
 {
 public:
     ~ScriptComponentTest() override = default;
+    const char* GetContentFolder() const override { return GamesysContentFolderFromResourcePath(GetParam().m_GOPath); }
 };
 
 class SoundTest : public GamesysTest<const char*>
 {
 public:
+    SoundTest() { SetContentFolder("sound"); }
     ~SoundTest() override = default;
 };
 
 class RenderConstantsTest : public GamesysTest<const char*>
 {
 public:
+    RenderConstantsTest() { SetContentFolder("material"); }
     virtual ~RenderConstantsTest() {}
 };
 
 class MaterialTest : public ScriptBaseTest
 {
 public:
+    MaterialTest() { SetContentFolder("material"); }
     ~MaterialTest() override = default;
 };
 
 class ModelTest : public ScriptBaseTest
 {
 public:
+    ModelTest() { SetContentFolder("model"); }
     ~ModelTest() override = default;
 };
 
 class MiscTests : public ScriptBaseTest
 {
 public:
+    MiscTests() { SetContentFolder("misc"); }
     virtual ~MiscTests() {}
 };
 
 class ShaderTest : public GamesysTest<const char*>
 {
 public:
+    ShaderTest() { SetContentFolder("shader"); }
     ~ShaderTest() override = default;
 };
 
 class SysTest : public ScriptBaseTest
 {
 public:
+    SysTest() { SetContentFolder("sys"); }
     ~SysTest() override = default;
 };
 
-bool CopyResource(const char* src, const char* dst);
-bool UnlinkResource(const char* name);
+bool CopyResource(const char* content_folder, const char* src, const char* dst);
+bool UnlinkResource(const char* content_folder, const char* name);
 
 template<typename T>
 void GamesysTest<T>::SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx)
@@ -528,7 +595,7 @@ void GamesysTest<T>::SetUp()
     params.m_JobThreadContext = m_JobContext;
 
     char path[1024];
-    m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gamesys/test"));
+    m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", GetContentFolder()));
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
     WindowCreateParams win_params;
@@ -825,6 +892,8 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
 
 class ScriptImageTest : public GamesysTest<const char*>
 {
+public:
+    ScriptImageTest() { SetContentFolder("image"); }
 protected:
     void SetUp() override
     {

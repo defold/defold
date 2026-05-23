@@ -2,7 +2,6 @@
 
 import os
 import subprocess
-import sys
 
 import waflib.Options
 import waflib.Task
@@ -39,30 +38,59 @@ def _absolute_node(bld, path):
 
 def _build_test_data(task):
     generator = task.generator
-    cmd = [sys.executable,
-           generator.build_script.abspath(),
-           '--bob-light', os.path.join(generator.bld.env['DYNAMO_HOME'], 'share/java/bob-light.jar'),
+    bob_light = os.path.join(generator.bld.env['DYNAMO_HOME'], 'share/java/bob-light.jar')
+    classpath = [bob_light]
+    builtins_zip = os.path.join(generator.bld.env['DYNAMO_HOME'], 'share', 'builtins.zip')
+    if os.path.exists(builtins_zip):
+        classpath.append(builtins_zip)
+
+    cmd = ['java',
+           '--enable-native-access=ALL-UNNAMED',
+           '-cp', os.pathsep.join(classpath),
+           'com.dynamo.bob.Bob',
            '--root', generator.path.abspath(),
-           '--folder', generator.test_data_folder,
-           '--inputs', generator.inputs_file.abspath(),
-           '--output-root', generator.output_root,
-           '--stamp', task.outputs[0].abspath(),
+           '--output', os.path.join(generator.output_root, generator.test_data_folder),
+           '--build-input-file', generator.inputs_file.abspath(),
+           '--build-input-file', generator.common_inputs_file.abspath(),
+           '--use-vanilla-lua',
+           '--debug-output-spirv', 'true',
            '--platform', generator.bld.env['PLATFORM']]
-    return subprocess.call(cmd)
+
+    if generator.settings_path:
+        cmd += ['--settings', generator.settings_path]
+
+    cmd.append('build')
+    result = subprocess.call(cmd, cwd = generator.path.abspath())
+    if result == 0:
+        with open(task.outputs[0].abspath(), 'w') as f:
+            f.write('ok\n')
+    return result
 
 waflib.Task.task_factory('gamesys_test_data',
                          func  = _build_test_data,
                          color = 'PINK')
 
 def _create_test_data_tasks(bld, folders):
-    build_script = bld.path.find_resource('build_test_data.py')
-    if not build_script:
-        bld.fatal('Missing gamesys test data build helper')
+    common_inputs_file = bld.path.find_resource('common_build.inputs')
+    if not common_inputs_file:
+        bld.fatal('Missing common_build.inputs for gamesys test data')
+
+    all_sources = bld.path.ant_glob('**/*', excl = [
+        'build',
+        '**/*.prebuilt_*',
+        '**/.DS_Store',
+        'CMakeLists.txt',
+        'wscript',
+        'build_test_data.py',
+        '**/*.cpp',
+        '**/*.h',
+    ])
 
     for folder in folders:
         inputs_file = bld.path.find_resource(os.path.join(folder, 'build.inputs'))
         if not inputs_file:
             bld.fatal('Missing build.inputs for gamesys test data folder %s' % folder)
+        settings_file = bld.path.find_resource(os.path.join(folder, 'game.project'))
 
         sources = bld.path.ant_glob('%s/*' % folder, excl = [
             '%s/build.inputs' % folder,
@@ -70,11 +98,14 @@ def _create_test_data_tasks(bld, folders):
             '%s/*.prebuilt_*' % folder,
             '%s/.DS_Store' % folder,
         ])
-        task_inputs = [build_script, inputs_file] + sources
+        task_inputs = [inputs_file, common_inputs_file] + sources + all_sources
+        if settings_file:
+            task_inputs.append(settings_file)
 
         task_gen = bld(name = 'gamesys_test_data_%s' % folder,
-                       build_script = build_script,
                        inputs_file = inputs_file,
+                       common_inputs_file = common_inputs_file,
+                       settings_path = os.path.join(folder, 'game.project') if settings_file else None,
                        output_root = _test_data_output_root(bld.path),
                        test_data_folder = folder)
         task = task_gen.create_task('gamesys_test_data')
