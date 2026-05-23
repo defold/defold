@@ -76,6 +76,7 @@ function(gui_configure_test target gui_lib run_test)
     ${gui_lib})
   defold_target_link_socket(${target} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_app(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(${target} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_libraries_web(${target} "${TARGET_PLATFORM}"
     library_sys.js
     library_script.js)

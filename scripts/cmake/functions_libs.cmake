@@ -90,6 +90,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   sound_openal
   testmain
   texc
+  vpx
   zip
   zip_noasan)
 
