@@ -34,6 +34,22 @@ function(gamesys_read_manifest out_var manifest)
   set(${out_var} ${_entries} PARENT_SCOPE)
 endfunction()
 
+function(gamesys_collect_raw_inputs out_var)
+  set(_raw_inputs)
+  foreach(_inputs_file IN LISTS ARGN)
+    file(STRINGS "${_inputs_file}" _input_lines)
+    foreach(_line IN LISTS _input_lines)
+      string(REGEX REPLACE "#.*$" "" _entry "${_line}")
+      string(STRIP "${_entry}" _entry)
+      if(_entry MATCHES "^/(.*\\.raw)$")
+        list(APPEND _raw_inputs "${CMAKE_MATCH_1}")
+      endif()
+    endforeach()
+  endforeach()
+  list(REMOVE_DUPLICATES _raw_inputs)
+  set(${out_var} ${_raw_inputs} PARENT_SCOPE)
+endfunction()
+
 # ---------------------------------------------------------------------------
 # Test content setup
 # Build the runtime test content tree in the same location Waf uses.
@@ -97,6 +113,17 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     list(APPEND _settings_args --settings "${_folder}/game.project")
   endif()
 
+  gamesys_collect_raw_inputs(_raw_inputs "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}")
+  set(_raw_copy_commands)
+  foreach(_raw_input IN LISTS _raw_inputs)
+    get_filename_component(_raw_output_dir "${GS_TEST_RUNTIME_DIR}/${_folder}/${_raw_input}c" DIRECTORY)
+    list(APPEND _raw_copy_commands
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_raw_output_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${GS_TEST_ROOT}/${_raw_input}"
+        "${GS_TEST_RUNTIME_DIR}/${_folder}/${_raw_input}c")
+  endforeach()
+
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
   add_custom_command(
     OUTPUT "${_stamp}"
@@ -113,6 +140,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
       --platform "${TARGET_PLATFORM}"
       ${_settings_args}
       build
+    ${_raw_copy_commands}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
     DEPENDS "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES}

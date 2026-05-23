@@ -1,4 +1,3 @@
-/sprite/default.texture_profiles
 /sprite/atlas_valid_64x64.atlas
 /sprite/cursor.go
 /sprite/flipbook_cursor.script
@@ -15,5 +14,6 @@
 /sprite/texture_transform_multi.go
 /sprite/texture_transform_sprite.go
 /sprite/valid_sprite.go
+/script/test_component.script
 /tile/valid_tilegrid.go
 /tile/valid2.tileset

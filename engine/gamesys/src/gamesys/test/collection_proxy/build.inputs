@@ -10,3 +10,4 @@
 /collection_proxy/set_collection_single_target.collection
 /collection_proxy/test_comp.go
 /collection_proxy/valid_collection_proxy.go
+/script/test_component.script

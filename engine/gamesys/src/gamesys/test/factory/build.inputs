@@ -1,4 +1,3 @@
-/factory/default.texture_profiles
 /factory/dynamic_factory_test.go
 /factory/dynamic_prototype_sprite.go
 /factory/factory_create_test.go
@@ -6,3 +5,4 @@
 /factory/factory_test.go
 /factory/test_comp.go
 /factory/valid_factory.go
+/script/test_component.script

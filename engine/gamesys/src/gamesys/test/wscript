@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import os
+import shutil
 import subprocess
 
 import waflib.Options
@@ -62,6 +63,13 @@ def _build_test_data(task):
     cmd.append('build')
     result = subprocess.call(cmd, cwd = generator.path.abspath())
     if result == 0:
+        for path in generator.raw_inputs:
+            src = os.path.join(generator.path.abspath(), path)
+            dst = os.path.join(generator.output_root, generator.test_data_folder, path + 'c')
+            if not os.path.isdir(os.path.dirname(dst)):
+                os.makedirs(os.path.dirname(dst))
+            shutil.copyfile(src, dst)
+
         with open(task.outputs[0].abspath(), 'w') as f:
             f.write('ok\n')
     return result
@@ -74,6 +82,14 @@ def _create_test_data_tasks(bld, folders):
     common_inputs_file = bld.path.find_resource('common_build.inputs')
     if not common_inputs_file:
         bld.fatal('Missing common_build.inputs for gamesys test data')
+
+    def raw_inputs_from(node):
+        raw_inputs = []
+        for line in node.read().splitlines():
+            line = line.split('#', 1)[0].strip()
+            if line.startswith('/') and line.endswith('.raw'):
+                raw_inputs.append(line[1:])
+        return raw_inputs
 
     all_sources = bld.path.ant_glob('**/*', excl = [
         'build',
@@ -107,7 +123,8 @@ def _create_test_data_tasks(bld, folders):
                        common_inputs_file = common_inputs_file,
                        settings_path = os.path.join(folder, 'game.project') if settings_file else None,
                        output_root = _test_data_output_root(bld.path),
-                       test_data_folder = folder)
+                       test_data_folder = folder,
+                       raw_inputs = sorted(set(raw_inputs_from(inputs_file) + raw_inputs_from(common_inputs_file))))
         task = task_gen.create_task('gamesys_test_data')
         task.set_inputs(task_inputs)
         task.set_outputs(_absolute_node(bld, os.path.join(task_gen.output_root, '.bob', '%s.stamp' % folder)))

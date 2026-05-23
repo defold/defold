@@ -1,3 +1,4 @@
 /camera/camera_info.go
 /camera/test_comp.go
 /camera/valid_camera.go
+/script/test_component.script
