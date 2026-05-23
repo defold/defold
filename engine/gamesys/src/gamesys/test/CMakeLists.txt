@@ -96,6 +96,20 @@ if(NOT EXISTS "${_GS_COMMON_INPUTS_FILE}")
   message(FATAL_ERROR "Missing gamesys common test data input list: ${_GS_COMMON_INPUTS_FILE}")
 endif()
 
+set(_GS_BOB_STAGE_ROOT "${GS_TEST_RUNTIME_DIR}/.bob/root")
+set(_GS_BOB_STAGE_STAMP "${CMAKE_CURRENT_BINARY_DIR}/.bob/stage.stamp")
+add_custom_command(
+  OUTPUT "${_GS_BOB_STAGE_STAMP}"
+  COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${_GS_BOB_STAGE_ROOT}"
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GS_TEST_ROOT}" "${_GS_BOB_STAGE_ROOT}"
+  COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}/build"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
+  COMMAND "${CMAKE_COMMAND}" -E touch "${_GS_BOB_STAGE_STAMP}"
+  DEPENDS ${_GS_ALL_TEST_SOURCES} "${_GS_COMMON_INPUTS_FILE}"
+  COMMENT "Staging gamesys test data for Bob"
+  VERBATIM)
+
 set(gamesys_content_outputs)
 foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   set(_inputs_file "${GS_TEST_ROOT}/${_folder}/build.inputs")
@@ -110,7 +124,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
 
   set(_settings_args)
   if(EXISTS "${GS_TEST_ROOT}/${_folder}/game.project")
-    list(APPEND _settings_args --settings "${_folder}/game.project")
+    list(APPEND _settings_args --settings "${_GS_BOB_STAGE_ROOT}/${_folder}/game.project")
   endif()
 
   gamesys_collect_raw_inputs(_raw_inputs "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}")
@@ -127,24 +141,27 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
   add_custom_command(
     OUTPUT "${_stamp}"
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}/build/${_folder}"
     COMMAND "${Java_JAVA_EXECUTABLE}"
       --enable-native-access=ALL-UNNAMED
       -cp "${_GS_BOB_CLASSPATH}"
       com.dynamo.bob.Bob
-      --root "${GS_TEST_ROOT}"
-      --output "${GS_TEST_RUNTIME_DIR}/${_folder}"
-      --build-input-file "${_inputs_file}"
-      --build-input-file "${_GS_COMMON_INPUTS_FILE}"
+      --root "${_GS_BOB_STAGE_ROOT}"
+      --output "build/${_folder}"
+      --build-input-file "${_GS_BOB_STAGE_ROOT}/${_folder}/build.inputs"
+      --build-input-file "${_GS_BOB_STAGE_ROOT}/common_build.inputs"
       --use-vanilla-lua
       --debug-output-spirv true
       --platform "${TARGET_PLATFORM}"
       ${_settings_args}
       build
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${GS_TEST_RUNTIME_DIR}/${_folder}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BOB_STAGE_ROOT}/build/${_folder}" "${GS_TEST_RUNTIME_DIR}/${_folder}"
     ${_raw_copy_commands}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
-    DEPENDS "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES}
-    WORKING_DIRECTORY "${GS_TEST_ROOT}"
+    DEPENDS "${_GS_BOB_STAGE_STAMP}" "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES}
+    WORKING_DIRECTORY "${_GS_BOB_STAGE_ROOT}"
     COMMENT "Building gamesys test data folder ${_folder}"
     VERBATIM)
   list(APPEND gamesys_content_outputs "${_stamp}")
@@ -189,6 +206,23 @@ add_custom_target(gamesys_test_embeds DEPENDS ${_EMBED_HEADERS} ${_EMBED_CPP})
 # Make a phony target to expose content build step
 add_custom_target(gamesys_test_content DEPENDS ${gamesys_content_outputs})
 add_dependencies(gamesys_test_content gamesys gamesys_test_embeds)
+
+# test_gamesys_http uses ComponentTest, whose factory root is collision_object.
+# Mirror the HTTP test collection into that root to match the resource path used
+# by the test: /http/http_request.goc.
+set(_GS_HTTP_TEST_CONTENT_STAMP "${CMAKE_CURRENT_BINARY_DIR}/.bob/http_collision_object.stamp")
+add_custom_command(
+  OUTPUT "${_GS_HTTP_TEST_CONTENT_STAMP}"
+  COMMAND "${CMAKE_COMMAND}" -E remove_directory "${GS_TEST_RUNTIME_DIR}/collision_object/http"
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${GS_TEST_RUNTIME_DIR}/http/http"
+    "${GS_TEST_RUNTIME_DIR}/collision_object/http"
+  COMMAND "${CMAKE_COMMAND}" -E touch "${_GS_HTTP_TEST_CONTENT_STAMP}"
+  DEPENDS ${gamesys_content_outputs}
+  COMMENT "Staging gamesys HTTP test data for ComponentTest"
+  VERBATIM)
+add_custom_target(gamesys_http_test_content DEPENDS "${_GS_HTTP_TEST_CONTENT_STAMP}")
+add_dependencies(gamesys_http_test_content gamesys_test_content)
 
 # ---------------------------------------------------------------------------
 # Exported symbols helper (prevents stripping by linker and ensures adapters)
@@ -302,7 +336,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   defold_create_exported_symbols_file("${_TEST3_EXPORTED_CPP}" "${_TEST3_SYMBOLS}")
 
   defold_add_executable(test_gamesys_http ${TEST_GS_HTTP_SOURCES} ${_TEST3_EXPORTED_CPP})
-  add_dependencies(test_gamesys_http gamesys_test_content)
+  add_dependencies(test_gamesys_http gamesys_http_test_content)
   target_include_directories(test_gamesys_http PRIVATE "${GS_SRC_ROOT}" "${GS_PROTO_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
   target_link_libraries(test_gamesys_http PRIVATE gamesys gamesys_rig_null gamesys_model_null)
   defold_target_link_libraries(test_gamesys_http ${TARGET_PLATFORM} ${_DEFOLD_TEST_LIBS})

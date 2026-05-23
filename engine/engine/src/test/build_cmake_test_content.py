@@ -72,8 +72,9 @@ def main():
     bob_flags = [
         "--platform=%s" % args.platform,
         "--variant=debug",
-        "--use-vanilla-lua",
     ]
+    if args.platform in ("js-web", "wasm-web", "wasm_pthread-web"):
+        bob_flags.append("--use-vanilla-lua")
 
     run(java_command(args, "com.dynamo.bob.Bob", "-root", bob_root, "clean"), engine_root)
 

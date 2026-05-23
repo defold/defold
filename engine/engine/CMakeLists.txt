@@ -354,7 +354,6 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     render
     render_font_default
     script
-    lua
     extension
     input
     particle

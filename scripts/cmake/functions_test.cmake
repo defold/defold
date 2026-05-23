@@ -278,6 +278,23 @@ function(defold_register_test_target target_name)
       endif()
       set(_run_exe "$<TARGET_FILE:${target_name}>")
       set(_run_args "")
+      if(NOT DEFINED DEFOLD_HOME)
+        get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+      endif()
+      set(_test_pythonpath_entries
+        "${DEFOLD_SDK_ROOT}/lib/python"
+        "${DEFOLD_HOME}/build_tools"
+        "${DEFOLD_SDK_ROOT}/ext/lib/python")
+      if(DEFINED ENV{PYTHONPATH} AND NOT "$ENV{PYTHONPATH}" STREQUAL "")
+        file(TO_CMAKE_PATH "$ENV{PYTHONPATH}" _test_existing_pythonpath)
+        list(APPEND _test_pythonpath_entries ${_test_existing_pythonpath})
+      endif()
+      cmake_path(CONVERT "${_test_pythonpath_entries}" TO_NATIVE_PATH_LIST _test_pythonpath)
+      set(_run_env
+        "${CMAKE_COMMAND}" "-E" "env"
+        "DEFOLD_HOME=${DEFOLD_HOME}"
+        "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+        "PYTHONPATH=${_test_pythonpath}")
       if(TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
         _defold_find_wasm_runner(_wasm_runner)
         if(NOT _wasm_runner)
@@ -310,13 +327,13 @@ function(defold_register_test_target target_name)
           COMMENT "Running ${target_name} on Android device")
       elseif(_RUN_DIR_NORM)
         add_custom_target(${_run_target}
-          COMMAND ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
+          COMMAND ${_run_env} ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
           USES_TERMINAL
           COMMENT "Running ${target_name} in ${_RUN_DIR_NORM}")
       else()
         add_custom_target(${_run_target}
-          COMMAND ${_run_exe} ${_run_args}
+          COMMAND ${_run_env} ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
           USES_TERMINAL
           COMMENT "Running ${target_name}")

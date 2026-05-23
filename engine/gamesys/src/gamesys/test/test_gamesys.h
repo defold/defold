@@ -595,7 +595,7 @@ void GamesysTest<T>::SetUp()
     params.m_JobThreadContext = m_JobContext;
 
     char path[1024];
-    m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", GetContentFolder()));
+    m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", this->GetContentFolder()));
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
     WindowCreateParams win_params;

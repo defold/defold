@@ -1851,6 +1851,42 @@ class Configuration(object):
         # the host pass.
         return previous_build_tests in ('ON', 'OFF')
 
+    def _cmake_cache_matches_configure_state(self, cmake_cache, configure_state):
+        if not os.path.exists(cmake_cache):
+            return False
+
+        cache_values = {}
+        with open(cmake_cache, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('//') or line.startswith('#') or '=' not in line:
+                    continue
+                key_type, value = line.split('=', 1)
+                key = key_type.split(':', 1)[0]
+                cache_values[key] = value
+
+        defines = configure_state.get('defines', {})
+        for key in ('CMAKE_BUILD_TYPE',
+                    'CMAKE_INSTALL_PREFIX',
+                    'TARGET_PLATFORM',
+                    'BUILD_TESTS',
+                    'DEFOLD_ENGINE_LIB_SET',
+                    'DEFOLD_SDK_ROOT',
+                    'DEFOLD_SKIP_BOB_LIGHT'):
+            expected = defines.get(key)
+            if expected is None:
+                continue
+
+            actual = cache_values.get(key)
+            if key in ('CMAKE_INSTALL_PREFIX', 'DEFOLD_SDK_ROOT'):
+                actual = normpath(actual) if actual else actual
+                expected = normpath(expected) if expected else expected
+            if actual != expected:
+                self._log(f'CMake cache mismatch for {key}: expected {expected}, got {actual}')
+                return False
+
+        return True
+
     def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False):
         platform = self._cmake_target_platform(platform)
         builddir = self._cmake_top_build_dir(platform)
@@ -1889,6 +1925,8 @@ class Configuration(object):
             f'-DTARGET_PLATFORM={platform}',
             f'-DBUILD_TESTS={cmake_build_tests}',
             f'-DDEFOLD_ENGINE_LIB_SET={lib_set}',
+            f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
+            f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
             f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}'
         ]
         cmake_configure_args += self._cmake_feature_defines()
@@ -1903,7 +1941,7 @@ class Configuration(object):
                 pass
 
         cmake_cache = join(builddir, 'CMakeCache.txt')
-        skip_configure = os.path.exists(cmake_cache) and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, allow_compatible_configure)
+        skip_configure = os.path.exists(cmake_cache) and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, allow_compatible_configure) and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)
         if skip_configure:
             self._log(f'Skipping CMake configure {name}; configure state is unchanged')
         else:
