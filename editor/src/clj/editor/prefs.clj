@@ -460,17 +460,7 @@
                  ;; these events might change configs that were reloaded
                  (reduce-kv
                    (fn [acc file-path path->val]
-                     (let [new-cfg (reduce-kv
-                                     (fn [c path val]
-                                       (cond
-                                         (and (identical? ::not-found val) (coll/empty? path)) ::not-found
-                                         (identical? ::not-found val) (if (map? c) (util/dissoc-in c path) c)
-                                         :else (safe-assoc-in c path val)))
-                                     (or (clojure.core/get acc file-path) {})
-                                     path->val)]
-                       (if (identical? ::not-found new-cfg)
-                         (dissoc acc file-path)
-                         (assoc acc file-path new-cfg))))
+                     (update acc file-path #(reduce-kv safe-assoc-in % path->val)))
                    merged-storage
                    events)
                  merged-storage))))
