@@ -98,7 +98,7 @@
   "Clear the console. Callable from a background thread."
   []
   (let [subscribers (:stream-subscribers (swap! pending-atom assoc :clear true :entries [] :index 0))]
-    (run! #(% "\n") subscribers)))
+    (run! #(% "\n\f") subscribers)))
 
 (def ^:private remote-log-pump-thread (atom nil))
 (def ^:private console-stream (atom nil))
