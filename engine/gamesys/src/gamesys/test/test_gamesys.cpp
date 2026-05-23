@@ -2985,20 +2985,37 @@ TEST_F(FontTest, DynamicGlyph)
     dmResource::Release(m_Factory, font);
 }
 
+struct DynamicFontJobCallbackState
+{
+    uint32_t m_CallbackCount;
+};
+
+static void DynamicFontJobCallback(void* ctx, int result, const char* errmsg)
+{
+    (void)result;
+    (void)errmsg;
+    DynamicFontJobCallbackState* state = (DynamicFontJobCallbackState*)ctx;
+    state->m_CallbackCount++;
+}
+
 TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobs)
 {
     const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
     dmGameSystem::FontResource* font = 0;
+    DynamicFontJobCallbackState callback_state = {0};
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
     ASSERT_NE((void*)0, font);
     ASSERT_EQ(0u, font->m_PendingJobs.Size());
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Reload pending jobs", 0, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Reload pending jobs", DynamicFontJobCallback, &callback_state));
     ASSERT_GT(font->m_PendingJobs.Size(), 0u);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_font, 0));
     ASSERT_EQ(0u, font->m_PendingJobs.Size());
+
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_EQ(0u, callback_state.m_CallbackCount);
 
     dmResource::Release(m_Factory, font);
 }

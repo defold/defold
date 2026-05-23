@@ -52,6 +52,7 @@ namespace dmGameSystem
     }
 
     static void DecRefJobResourceInfo(dmResource::HFactory factory, FontResource* resource, FontJobResourceInfo* job_info);
+    static void DestroyJobInfo(FontJobResourceInfo* job_info);
 
     FontResource::FontResource()
     {
@@ -105,6 +106,18 @@ namespace dmGameSystem
         }
     }
 
+    static bool HasPendingJob(FontResource* font, FontJobResourceInfo* job_info)
+    {
+        for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
+        {
+            if (font->m_PendingJobs[i] == job_info)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static void DeallocateJobResourceInfo(FontJobResourceInfo* job_info)
     {
         FontGenDestroyJobData(job_info->m_FontGenJobData);
@@ -113,22 +126,32 @@ namespace dmGameSystem
 
     static void CancelPendingJobs(FontResource* font)
     {
-        for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
+        while (font->m_PendingJobs.Size() > 0)
         {
-            FontJobResourceInfo* job_info = font->m_PendingJobs[i];
-            HJob hjob = job_info->m_Job;
+            FontJobResourceInfo* job_info = font->m_PendingJobs[0];
+            job_info->m_Resource = font;
+            job_info->m_Canceling = true;
+            FontGenCancelJobData(job_info->m_FontGenJobData);
 
-            JobSystemResult jr = JobSystemCancelJob(font->m_Jobs, hjob);
-            while (JOBSYSTEM_RESULT_PENDING == jr)
+            JobSystemResult jr = JobSystemCancelJob(font->m_Jobs, job_info->m_Job);
+            if (jr == JOBSYSTEM_RESULT_INVALID_HANDLE)
             {
-                dmTime::Sleep(1000);
-                jr = JobSystemCancelJob(font->m_Jobs, hjob);
+                DestroyJobInfo(job_info);
+                continue;
             }
 
-            DecRefJobResourceInfo(font->m_Factory, font, job_info);
-            DeallocateJobResourceInfo(job_info);
+            if (jr == JOBSYSTEM_RESULT_PENDING)
+            {
+                dmTime::Sleep(1000);
+            }
+
+            JobSystemUpdate(font->m_Jobs, 0);
+
+            if (HasPendingJob(font, job_info) && jr != JOBSYSTEM_RESULT_PENDING)
+            {
+                dmTime::Sleep(1000);
+            }
         }
-        font->m_PendingJobs.SetSize(0);
     }
 
     static void ReleaseResourceIter(void* ctx, const uint64_t* hash, TTFResource** presource)
@@ -165,6 +188,7 @@ namespace dmGameSystem
         job_info->m_Callback = cbk;
         job_info->m_CallbackContext = cbk_ctx;
         job_info->m_Resource = resource;
+        job_info->m_Canceling = false;
 
         HFontCollection fontcollection = ResFontGetFontCollection(resource);
         uint32_t num_fonts = FontCollectionGetFontCount(fontcollection);
@@ -212,7 +236,7 @@ namespace dmGameSystem
     static void TextCallbackJobInfo(void* cbk_ctx, int result, const char* errmsg)
     {
         FontJobResourceInfo* job_info = (FontJobResourceInfo*)cbk_ctx;
-        if (job_info->m_Callback)
+        if (!job_info->m_Canceling && job_info->m_Callback)
             job_info->m_Callback(job_info->m_CallbackContext, result, errmsg);
         DestroyJobInfo(job_info);
     }

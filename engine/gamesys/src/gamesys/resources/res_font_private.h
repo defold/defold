@@ -41,6 +41,7 @@ namespace dmGameSystem
         FontGenJobData*         m_FontGenJobData; // the job scratch data, owned by the sentinel job
         FontResource*           m_Resource;
         HJob                    m_Job;
+        bool                    m_Canceling;
 
         FPrewarmTextCallback    m_Callback;
         void*                   m_CallbackContext;

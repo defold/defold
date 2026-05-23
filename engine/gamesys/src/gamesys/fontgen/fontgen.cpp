@@ -88,6 +88,7 @@ struct FontGenJobData
     HJobContext                         m_Jobs;
     dmGameSystem::FPrewarmTextCallback  m_Callback;     // Only set for the last item in the queue
     void*                               m_CallbackCtx;  // Only set for the last item in the queue
+    bool                                m_Canceling;
 };
 
 Context* g_FontExtContext = 0;
@@ -131,6 +132,11 @@ void FontGenDestroyJobData(FontGenJobData* jobdata)
         ReleaseJobItem(&jobdata->m_Items[i]);
     }
     delete jobdata;
+}
+
+void FontGenCancelJobData(FontGenJobData* jobdata)
+{
+    jobdata->m_Canceling = true;
 }
 
 static void FontGenJobDataSetup(FontGenJobData* jobdata, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx)
@@ -303,7 +309,7 @@ static void JobPostProcessGlyph(HJobContext job_thread, HJob job, JobSystemStatu
     uint64_t tstart = dmTime::GetMonotonicTime();
 #endif
 
-    if (!item->m_Font)
+    if (job_status != JOBSYSTEM_STATUS_FINISHED || jobdata->m_Canceling || !item->m_Font)
     {
         ReleaseJobItem(item);
         return;

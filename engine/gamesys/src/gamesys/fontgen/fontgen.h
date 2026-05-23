@@ -38,6 +38,7 @@ namespace dmGameSystem
     struct FontGenJobData;
     FontGenJobData* FontGenCreateJobData(FontResource* resource, uint32_t num_glyphs);
     void            FontGenDestroyJobData(FontGenJobData* jobdata);
+    void            FontGenCancelJobData(FontGenJobData* jobdata);
 
     HJob FontGenAddGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t glyph_index, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
     HJob FontGenAddGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
