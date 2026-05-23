@@ -1,4 +1,4 @@
 components {
   id: "sprite"
-  component: "/sprite/valid.sprite"
+  component: "/collection_factory/sprite_valid.sprite"
 }

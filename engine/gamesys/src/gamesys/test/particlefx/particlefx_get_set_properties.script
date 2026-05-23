@@ -12,16 +12,16 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-require "lua.test_helpers"
-require "lua.test_resource_helpers"
+require "particlefx.lua_test_helpers"
+require "particlefx.lua_test_resource_helpers"
 
 local all_emitter_ids = {"box", "circle", "cone", "sphere"}
 
 -- material
-local test_material_path          = hash("/material/valid.materialc")
+local test_material_path          = hash("/particlefx/material_valid.materialc")
 local test_override_material_path = hash("/particlefx/particlefx_get_set_properties.materialc")
 -- image
-local test_image_path          = hash("/tile/valid.t.texturesetc")
+local test_image_path          = hash("/particlefx/tile_valid.t.texturesetc")
 local test_override_image_path = hash("/test_atlas.texturesetc")
 -- animation
 local test_animation          = hash("anim")

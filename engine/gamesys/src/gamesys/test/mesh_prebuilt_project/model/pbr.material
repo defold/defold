@@ -1,5 +1,0 @@
-name: "model"
-tags: "model"
-vertex_program: "/mesh/mesh.vp"
-fragment_program: "/model/pbr.fp"
-vertex_space: VERTEX_SPACE_LOCAL

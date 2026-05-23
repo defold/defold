@@ -80,7 +80,21 @@ namespace dmCrypt
     {
         @autoreleasepool
         {
-            NSData* data = [NSData dataWithBytes:src length:src_len];
+            uint32_t padding_needed = (4 - (src_len % 4)) % 4;
+            NSData* data = 0;
+
+            if (padding_needed > 0 && src_len > 0)
+            {
+                NSMutableData* padded_data = [NSMutableData dataWithBytes:src length:src_len];
+                const uint8_t padding[] = {'=', '=', '='};
+                [padded_data appendBytes:padding length:padding_needed];
+                data = padded_data;
+            }
+            else
+            {
+                data = [NSData dataWithBytes:src length:src_len];
+            }
+
             NSData* decoded = [[NSData alloc] initWithBase64EncodedData:data options:NSDataBase64DecodingIgnoreUnknownCharacters];
             if (decoded == nil)
             {

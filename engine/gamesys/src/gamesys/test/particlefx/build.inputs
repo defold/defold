@@ -1,0 +1,10 @@
+/particlefx/default.texture_profiles
+/particlefx/attribute_mismatch.go
+/particlefx/attribute_mismatch_mat4.material
+/particlefx/invalid_material.go
+/particlefx/invalid_vertexspace.particlefx
+/particlefx/particlefx_get_set_properties.go
+/particlefx/particlefx_get_set_properties.material
+/particlefx/particlefx_play.go
+/particlefx/test_comp.go
+/particlefx/valid_particlefx.go

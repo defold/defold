@@ -68,6 +68,7 @@ if (PLATFORM_USE_GLFW3)
     target_compile_definitions(platform_vulkan PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 endif()
 
+
 # ********************* Install *********************
 
 install(TARGETS platform platform_null
