@@ -242,6 +242,9 @@ static void CallbackCancelFinishedBeforeUpdate(HJobContext ctx, HJob job, JobSys
     dmAtomicIncrement32(&context->m_CallbackCalled);
 }
 
+// Canceling a finished job before JobSystemUpdate() flushes the done queue must
+// suppress its callback. Callers may free callback-owned state as soon as cancel
+// stops reporting PENDING.
 TEST_P(dmJobSystemTest, CancelFinishedJobBeforeUpdateSkipsCallback)
 {
     if (GetParam().m_NumThreads == 0)
@@ -339,6 +342,8 @@ static void UpdateCancelFinishedDuringCallback(void* user_data)
     }
 }
 
+// If a concurrent JobSystemUpdate() has already entered the callback, cancel
+// must still report PENDING until the callback returns.
 TEST_P(dmJobSystemTest, CancelFinishedJobDuringCallbackReportsPending)
 {
     if (GetParam().m_NumThreads == 0)
@@ -426,6 +431,8 @@ static void CallbackCancelFinishedParentBeforeUpdate(HJobContext ctx, HJob job, 
     dmAtomicIncrement32(&context->m_ParentCallbackCalled);
 }
 
+// Canceling a finished parent before update must also suppress finished child
+// callbacks that are still waiting in the done queue.
 TEST_P(dmJobSystemTest, CancelFinishedParentBeforeUpdateSkipsChildCallbacks)
 {
     if (GetParam().m_NumThreads == 0)
