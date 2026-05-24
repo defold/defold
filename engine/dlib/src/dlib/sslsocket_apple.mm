@@ -156,7 +156,20 @@ namespace dmSSLSocket
         dmSocket::Socket m_Socket;
         CFReadStreamRef  m_ReadStream;
         CFWriteStreamRef m_WriteStream;
+        CFRunLoopRef     m_RunLoop;
     };
+
+    static void UpdateScheduledStreams(CFRunLoopRef run_loop)
+    {
+        if (run_loop == CFRunLoopGetCurrent())
+        {
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.0, true);
+        }
+        else
+        {
+            CFRunLoopWakeUp(run_loop);
+        }
+    }
 
     static dmSocket::Result StreamErrorToSocketResult(CFStreamError error)
     {
@@ -319,11 +332,19 @@ namespace dmSSLSocket
         dmSocket::SetReceiveTimeout(socket, timeout);
         dmSocket::SetBlocking(socket, false);
 
+        CFRunLoopRef run_loop = CFRunLoopGetCurrent();
+        CFRetain(run_loop);
+        CFReadStreamScheduleWithRunLoop(read_stream, run_loop, kCFRunLoopDefaultMode);
+        CFWriteStreamScheduleWithRunLoop(write_stream, run_loop, kCFRunLoopDefaultMode);
+
         bool read_opened = CFReadStreamOpen(read_stream);
         bool write_opened = CFWriteStreamOpen(write_stream);
         if (!read_opened || !write_opened)
         {
             Result result = StreamErrorToSSLResult(read_opened ? CFWriteStreamGetError(write_stream) : CFReadStreamGetError(read_stream));
+            CFReadStreamUnscheduleFromRunLoop(read_stream, run_loop, kCFRunLoopDefaultMode);
+            CFWriteStreamUnscheduleFromRunLoop(write_stream, run_loop, kCFRunLoopDefaultMode);
+            CFRelease(run_loop);
             CFRelease(read_stream);
             CFRelease(write_stream);
             return result;
@@ -331,6 +352,9 @@ namespace dmSSLSocket
 
         if (!ValidatePeerCertificateChain(read_stream))
         {
+            CFReadStreamUnscheduleFromRunLoop(read_stream, run_loop, kCFRunLoopDefaultMode);
+            CFWriteStreamUnscheduleFromRunLoop(write_stream, run_loop, kCFRunLoopDefaultMode);
+            CFRelease(run_loop);
             CFReadStreamClose(read_stream);
             CFWriteStreamClose(write_stream);
             CFRelease(read_stream);
@@ -341,6 +365,9 @@ namespace dmSSLSocket
         Socket ssl_socket = (Socket)malloc(sizeof(SSLSocket));
         if (ssl_socket == 0)
         {
+            CFReadStreamUnscheduleFromRunLoop(read_stream, run_loop, kCFRunLoopDefaultMode);
+            CFWriteStreamUnscheduleFromRunLoop(write_stream, run_loop, kCFRunLoopDefaultMode);
+            CFRelease(run_loop);
             CFReadStreamClose(read_stream);
             CFWriteStreamClose(write_stream);
             CFRelease(read_stream);
@@ -352,6 +379,7 @@ namespace dmSSLSocket
         ssl_socket->m_Socket      = socket;
         ssl_socket->m_ReadStream  = read_stream;
         ssl_socket->m_WriteStream = write_stream;
+        ssl_socket->m_RunLoop     = run_loop;
         *sslsocket = ssl_socket;
         return RESULT_OK;
     }
@@ -362,10 +390,13 @@ namespace dmSSLSocket
         {
             return RESULT_OK;
         }
+        CFReadStreamUnscheduleFromRunLoop(socket->m_ReadStream, socket->m_RunLoop, kCFRunLoopDefaultMode);
+        CFWriteStreamUnscheduleFromRunLoop(socket->m_WriteStream, socket->m_RunLoop, kCFRunLoopDefaultMode);
         CFReadStreamClose(socket->m_ReadStream);
         CFWriteStreamClose(socket->m_WriteStream);
         CFRelease(socket->m_ReadStream);
         CFRelease(socket->m_WriteStream);
+        CFRelease(socket->m_RunLoop);
         free(socket);
         return RESULT_OK;
     }
@@ -379,6 +410,7 @@ namespace dmSSLSocket
 
         if (!CFWriteStreamCanAcceptBytes(socket->m_WriteStream))
         {
+            UpdateScheduledStreams(socket->m_RunLoop);
             return WriteStreamNotReadyResult(socket->m_WriteStream);
         }
 
@@ -407,6 +439,7 @@ namespace dmSSLSocket
 
         if (!CFReadStreamHasBytesAvailable(socket->m_ReadStream))
         {
+            UpdateScheduledStreams(socket->m_RunLoop);
             return ReadStreamNotReadyResult(socket->m_ReadStream);
         }
 
