@@ -265,6 +265,12 @@ static void InvokeCallback(FontGenJobData* jobdata)
     }
 }
 
+static bool ShouldSkipFontPostProcess(JobSystemStatus job_status)
+{
+    // Canceled callbacks can arrive after CancelPendingJobs has released the font job data.
+    return job_status == JOBSYSTEM_STATUS_CANCELED;
+}
+
 static int JobProcessSentinelGlyph(HJobContext job_thread, HJob hjob, void* context, void* data)
 {
     (void)job_thread;
@@ -276,8 +282,17 @@ static int JobProcessSentinelGlyph(HJobContext job_thread, HJob hjob, void* cont
 
 static void JobPostProcessSentinelGlyph(HJobContext job_thread, HJob hjob, JobSystemStatus job_status, void* context, void* data, int result)
 {
-    FontGenJobData* jobdata = (FontGenJobData*)context;
+    (void)job_thread;
+    (void)hjob;
     (void)data;
+    (void)result;
+
+    if (ShouldSkipFontPostProcess(job_status))
+    {
+        return;
+    }
+
+    FontGenJobData* jobdata = (FontGenJobData*)context;
 
 #if defined(FONTGEN_DEBUG)
     uint32_t count = jobdata->m_Items.Size();
@@ -296,6 +311,14 @@ static void JobPostProcessSentinelGlyph(HJobContext job_thread, HJob hjob, JobSy
 // Called on the main thread
 static void JobPostProcessGlyph(HJobContext job_thread, HJob job, JobSystemStatus job_status, void* context, void* data, int result)
 {
+    (void)job_thread;
+    (void)job;
+
+    if (ShouldSkipFontPostProcess(job_status))
+    {
+        return;
+    }
+
     FontGenJobData* jobdata = (FontGenJobData*)context;
     JobItem* item = (JobItem*)data;
 
