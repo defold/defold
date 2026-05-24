@@ -93,7 +93,6 @@ add_custom_command(
   COMMAND "${Python3_EXECUTABLE}" "${ENGINE_TEST_CONTENT_SCRIPT}"
     --source-root "${ENGINE_TEST_ROOT}"
     --stage-root "${ENGINE_TEST_RUNTIME_ROOT}"
-    --builtins-root "${ENGINE_BUILTINS_COMPILED_DIR}"
     --stamp "${ENGINE_TEST_CONTENT_STAMP}"
     --platform "${TARGET_PLATFORM}"
     --java "${Java_JAVA_EXECUTABLE}"
@@ -102,14 +101,13 @@ add_custom_command(
   DEPENDS
     "${ENGINE_TEST_CONTENT_SCRIPT}"
     "${ENGINE_BOB_ENGINE_JAR}"
-    "${ENGINE_BUILTINS_STAMP}"
     ${ENGINE_SHADERC_JAR}
     ${ENGINE_TEST_CONTENT_SOURCES}
   WORKING_DIRECTORY "${ENGINE_TEST_ENGINE_ROOT}"
   COMMENT "Building engine test content"
   VERBATIM)
 add_custom_target(engine_test_content DEPENDS "${ENGINE_TEST_CONTENT_STAMP}")
-add_dependencies(engine_test_content engine_bob_engine_jar engine_builtins)
+add_dependencies(engine_test_content engine_bob_engine_jar)
 if(TARGET shaderc_jar)
   add_dependencies(engine_test_content shaderc_jar)
 endif()

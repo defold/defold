@@ -104,6 +104,28 @@ def stage_raw_archive_inputs(stage_root, build_root):
     return raw_paths
 
 
+def rebuild_builtin_fonts(args, stage_root, build_root, bob_light):
+    for source in sorted((stage_root / "builtins").rglob("*.font")):
+        rel_path = source.relative_to(stage_root).with_suffix(".fontc")
+        output = build_root / rel_path
+        output.parent.mkdir(parents=True, exist_ok=True)
+        run([
+            args.java,
+            "-cp",
+            str(bob_light),
+            "com.dynamo.bob.font.Fontc",
+            str(source),
+            str(output),
+            str(stage_root),
+            "false",
+        ], stage_root)
+
+
+def remove_root_generated_font_outputs(build_root):
+    for path in build_root.glob("_generated_*.glyph_bankc"):
+        path.unlink()
+
+
 def collect_archive_inputs(build_root):
     inputs = []
     for path in sorted(build_root.rglob("*")):
@@ -154,6 +176,8 @@ def build_builtins(args):
     run(java_cmd, work_root)
 
     build_root = work_root / "build/default"
+    rebuild_builtin_fonts(args, work_root, build_root, bob_light)
+    remove_root_generated_font_outputs(build_root)
     stage_raw_archive_inputs(work_root, build_root)
 
     archive_inputs = collect_archive_inputs(build_root)

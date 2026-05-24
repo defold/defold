@@ -16,16 +16,6 @@ def copytree(src, dst):
     shutil.copytree(src, dst, ignore=ignore)
 
 
-def copy_overwrite_tree(src, dst):
-    for path in src.rglob("*"):
-        if not path.is_file():
-            continue
-        rel_path = path.relative_to(src)
-        output = dst / rel_path
-        output.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, output)
-
-
 def run(args, cwd):
     subprocess.check_call(args, cwd=str(cwd))
 
@@ -51,7 +41,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", required=True)
     parser.add_argument("--stage-root", required=True)
-    parser.add_argument("--builtins-root", required=True)
     parser.add_argument("--stamp", required=True)
     parser.add_argument("--platform", required=True)
     parser.add_argument("--java", required=True)
@@ -61,7 +50,6 @@ def main():
 
     source_root = Path(args.source_root).resolve()
     stage_root = Path(args.stage_root).resolve()
-    builtins_root = Path(args.builtins_root).resolve()
     stamp = Path(args.stamp).resolve()
     engine_root = source_root.parents[1]
     bob_root = os.path.relpath(stage_root, engine_root)
@@ -90,10 +78,6 @@ def main():
                      "-root", bob_root,
                      "build",
                      *bob_flags), engine_root)
-
-    runtime_builtins = stage_root / "build" / "default" / "builtins"
-    if builtins_root.exists():
-        copy_overwrite_tree(builtins_root, runtime_builtins)
 
     stamp.parent.mkdir(parents=True, exist_ok=True)
     stamp.write_text("engine test content\n")
