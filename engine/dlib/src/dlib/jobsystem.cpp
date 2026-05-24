@@ -330,20 +330,20 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
     if (!item)
         return JOBSYSTEM_RESULT_INVALID_HANDLE;
 
-    if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING)
+    if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING || item->m_Status == JOBSYSTEM_STATUS_CALLBACK)
     {
         return JOBSYSTEM_RESULT_PENDING;
     }
 
-    JobSystemResult result = item->m_Status == JOBSYSTEM_STATUS_FINISHED ? JOBSYSTEM_RESULT_OK : JOBSYSTEM_RESULT_CANCELED;
+    bool was_finished = item->m_Status == JOBSYSTEM_STATUS_FINISHED;
+    JobSystemResult result = was_finished ? JOBSYSTEM_RESULT_OK : JOBSYSTEM_RESULT_CANCELED;
 
     // Finished jobs can still be waiting in the done queue. Clear the callback
     // before cancellation reports complete so owners can release callback state.
     assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED || item->m_Status == JOBSYSTEM_STATUS_FINISHED);
 
-    if (item->m_Status == JOBSYSTEM_STATUS_FINISHED)
+    if (was_finished)
     {
-        item->m_Result = 0;
         item->m_Job.m_Callback = 0;
     }
 
@@ -368,7 +368,12 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
         hchild = child->m_Sibling;
     }
 
-    item->m_Status = JOBSYSTEM_STATUS_CANCELED;
+    // Preserve FINISHED so later cancel polls still report OK after any
+    // pending child callbacks drain. Only unfinished jobs become CANCELED.
+    if (!was_finished)
+    {
+        item->m_Status = JOBSYSTEM_STATUS_CANCELED;
+    }
     return result;
 }
 
@@ -589,7 +594,7 @@ static void ProcessFinishedJobs(HJobContext context, jc::RingBuffer<HJob>& items
             item = *_item;
             if (item.m_Job.m_Callback)
             {
-                _item->m_Status = JOBSYSTEM_STATUS_PROCESSING;
+                _item->m_Status = JOBSYSTEM_STATUS_CALLBACK;
             }
         }
 

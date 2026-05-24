@@ -58,6 +58,7 @@ typedef struct JobContext* HJobContext;
  * @member JOBSYSTEM_STATUS_PROCESSING 3
  * @member JOBSYSTEM_STATUS_FINISHED 4
  * @member JOBSYSTEM_STATUS_CANCELED 5
+ * @member JOBSYSTEM_STATUS_CALLBACK 6
  */
 enum JobSystemStatus
 {
@@ -67,6 +68,7 @@ enum JobSystemStatus
     JOBSYSTEM_STATUS_PROCESSING       = 3,
     JOBSYSTEM_STATUS_FINISHED         = 4,
     JOBSYSTEM_STATUS_CANCELED         = 5,
+    JOBSYSTEM_STATUS_CALLBACK         = 6,
 };
 
 /*# job result enumeration
