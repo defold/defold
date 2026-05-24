@@ -366,8 +366,7 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
     if (item->m_Status == JOBSYSTEM_STATUS_FINISHED)
     {
         item->m_SkipCallback = true;
-        CancelChildJobsInternal(ctx, item, JOBSYSTEM_RESULT_OK);
-        return JOBSYSTEM_RESULT_OK;
+        return CancelChildJobsInternal(ctx, item, JOBSYSTEM_RESULT_OK);
     }
 
     // Can only cancel queued/created items directly, but still wait on children when already canceled

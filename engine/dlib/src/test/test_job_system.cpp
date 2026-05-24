@@ -390,6 +390,159 @@ TEST_P(dmJobSystemTest, CancelFinishedJobDuringCallbackReportsPending)
     ASSERT_EQ(1, dmAtomicGet32(&context.m_CallbackFinished));
 }
 
+struct CancelFinishedParentDuringChildCallbackContext
+{
+    HJobContext    m_JobSystem;
+    int32_atomic_t m_ChildCallbackStarted;
+    int32_atomic_t m_AllowChildCallbackFinish;
+    int32_atomic_t m_ChildCallbackFinished;
+    int32_atomic_t m_ParentProcessCalled;
+    int32_atomic_t m_StopUpdateThread;
+};
+
+static int32_t ProcessCancelFinishedChildDuringParentCancel(HJobContext ctx, HJob job, void* user_context, void* user_data)
+{
+    (void)ctx;
+    (void)job;
+    (void)user_context;
+    (void)user_data;
+    return 1;
+}
+
+static void CallbackCancelFinishedChildDuringParentCancel(HJobContext ctx, HJob job, JobSystemStatus status, void* user_context, void* user_data, int32_t user_result)
+{
+    (void)ctx;
+    (void)job;
+    (void)status;
+    (void)user_data;
+    (void)user_result;
+
+    CancelFinishedParentDuringChildCallbackContext* context = (CancelFinishedParentDuringChildCallbackContext*)user_context;
+    dmAtomicIncrement32(&context->m_ChildCallbackStarted);
+
+    while (!dmAtomicGet32(&context->m_AllowChildCallbackFinish))
+    {
+        dmTime::Sleep(1000);
+    }
+
+    dmAtomicIncrement32(&context->m_ChildCallbackFinished);
+}
+
+static int32_t ProcessCancelFinishedParentDuringChildCallback(HJobContext ctx, HJob job, void* user_context, void* user_data)
+{
+    (void)ctx;
+    (void)job;
+    (void)user_data;
+
+    CancelFinishedParentDuringChildCallbackContext* context = (CancelFinishedParentDuringChildCallbackContext*)user_context;
+    dmAtomicIncrement32(&context->m_ParentProcessCalled);
+    return 1;
+}
+
+static void CallbackCancelFinishedParentDuringChildCallback(HJobContext ctx, HJob job, JobSystemStatus status, void* user_context, void* user_data, int32_t user_result)
+{
+    (void)ctx;
+    (void)job;
+    (void)status;
+    (void)user_context;
+    (void)user_data;
+    (void)user_result;
+}
+
+static void UpdateCancelFinishedParentDuringChildCallback(void* user_data)
+{
+    CancelFinishedParentDuringChildCallbackContext* context = (CancelFinishedParentDuringChildCallbackContext*)user_data;
+
+    while (!dmAtomicGet32(&context->m_ChildCallbackStarted) && !dmAtomicGet32(&context->m_StopUpdateThread))
+    {
+        JobSystemUpdate(context->m_JobSystem, 0);
+        dmTime::Sleep(1000);
+    }
+}
+
+// A finished parent can still have a child callback running. Canceling the
+// parent must keep reporting PENDING until the child callback has returned.
+TEST_P(dmJobSystemTest, CancelFinishedParentDuringChildCallbackReportsPending)
+{
+    if (GetParam().m_NumThreads == 0)
+    {
+        return;
+    }
+
+    CancelFinishedParentDuringChildCallbackContext context = {0};
+    context.m_JobSystem = m_JobSystem;
+
+    Job parent_job = {0};
+    parent_job.m_Process = ProcessCancelFinishedParentDuringChildCallback;
+    parent_job.m_Callback = CallbackCancelFinishedParentDuringChildCallback;
+    parent_job.m_Context = &context;
+
+    HJob parent_hjob = JobSystemCreateJob(m_JobSystem, &parent_job);
+    ASSERT_NE((HJob)0, parent_hjob);
+
+    Job child_job = {0};
+    child_job.m_Process = ProcessCancelFinishedChildDuringParentCancel;
+    child_job.m_Callback = CallbackCancelFinishedChildDuringParentCancel;
+    child_job.m_Context = &context;
+
+    HJob child_hjob = JobSystemCreateJob(m_JobSystem, &child_job);
+    ASSERT_NE((HJob)0, child_hjob);
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemSetParent(m_JobSystem, child_hjob, parent_hjob));
+
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, child_hjob));
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, parent_hjob));
+
+    dmThread::Thread update_thread = dmThread::New(UpdateCancelFinishedParentDuringChildCallback, 0x80000, &context, "jobupd");
+    ASSERT_NE((dmThread::Thread)0, update_thread);
+
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (dmAtomicGet32(&context.m_ChildCallbackStarted) == 0 && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+
+    if (dmAtomicGet32(&context.m_ChildCallbackStarted) == 0)
+    {
+        dmAtomicIncrement32(&context.m_StopUpdateThread);
+        dmThread::Join(update_thread);
+        ASSERT_EQ(1, dmAtomicGet32(&context.m_ChildCallbackStarted));
+    }
+
+    stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (dmAtomicGet32(&context.m_ParentProcessCalled) == 0 && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+
+    if (dmAtomicGet32(&context.m_ParentProcessCalled) == 0)
+    {
+        dmAtomicIncrement32(&context.m_AllowChildCallbackFinish);
+        dmThread::Join(update_thread);
+        ASSERT_EQ(1, dmAtomicGet32(&context.m_ParentProcessCalled));
+    }
+
+    JobSystemResult cancel_result = JOBSYSTEM_RESULT_PENDING;
+    int unexpected_cancel_result = 0;
+    stop_time = dmTime::GetMonotonicTime() + 100000;
+    while (dmTime::GetMonotonicTime() < stop_time)
+    {
+        cancel_result = JobSystemCancelJob(m_JobSystem, parent_hjob);
+        if (cancel_result != JOBSYSTEM_RESULT_PENDING || dmAtomicGet32(&context.m_ChildCallbackFinished) != 0)
+        {
+            unexpected_cancel_result = 1;
+            break;
+        }
+        dmTime::Sleep(1000);
+    }
+
+    dmAtomicIncrement32(&context.m_AllowChildCallbackFinish);
+    dmThread::Join(update_thread);
+
+    ASSERT_EQ(0, unexpected_cancel_result);
+    ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, cancel_result);
+    ASSERT_EQ(1, dmAtomicGet32(&context.m_ChildCallbackFinished));
+}
+
 struct CancelFinishedParentBeforeUpdateContext
 {
     int32_atomic_t m_ChildProcessStarted;
