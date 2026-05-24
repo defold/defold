@@ -56,6 +56,7 @@ struct JobItem
 
     JobSystemStatus m_Status;
     bool            m_SkipCallback;
+    bool            m_CallbackRunning;
 };
 
 struct JobThreadContext
@@ -358,7 +359,7 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
     if (!item)
         return JOBSYSTEM_RESULT_INVALID_HANDLE;
 
-    if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING)
+    if (item->m_CallbackRunning || item->m_Status == JOBSYSTEM_STATUS_PROCESSING)
     {
         return JOBSYSTEM_RESULT_PENDING;
     }
@@ -583,6 +584,7 @@ static void ProcessFinishedJobs(HJobContext context, jc::RingBuffer<HJob>& items
         HJob hjob = items[i];
 
         JobItem item;
+        bool run_callback = false;
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
             JobItem* _item = GetJobItem(ctx, hjob);
@@ -593,10 +595,15 @@ static void ProcessFinishedJobs(HJobContext context, jc::RingBuffer<HJob>& items
             }
 
             item = *_item;
+            run_callback = item.m_Job.m_Callback && !item.m_SkipCallback;
+            if (run_callback)
+            {
+                _item->m_CallbackRunning = true;
+            }
         }
 
         Job& job = item.m_Job;
-        if (job.m_Callback && !item.m_SkipCallback)
+        if (run_callback)
         {
             // Don't keep the lock here, as the jobs may use their own locks, and it may easily lead to a dead lock
             // (this is generally on the main thread which is less problematic, but still)
