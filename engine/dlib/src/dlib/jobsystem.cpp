@@ -55,6 +55,7 @@ struct JobItem
     int32_atomic_t  m_NumChildrenCompleted;
 
     JobSystemStatus m_Status;
+    bool            m_SkipCallback;
 };
 
 struct JobThreadContext
@@ -324,26 +325,10 @@ void* JobSystemGetData(HJobContext context, HJob hjob)
     return item->m_Job.m_Data;
 }
 
-static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
+static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob);
+
+static JobSystemResult CancelChildJobsInternal(JobThreadContext* ctx, JobItem* item, JobSystemResult result)
 {
-    JobItem* item = GetJobItem(ctx, hjob);
-    if (!item)
-        return JOBSYSTEM_RESULT_INVALID_HANDLE;
-
-    if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING)
-    {
-        return JOBSYSTEM_RESULT_PENDING;
-    }
-    if (item->m_Status == JOBSYSTEM_STATUS_FINISHED)
-    {
-        return JOBSYSTEM_RESULT_OK;
-    }
-
-    // Can only cancel queued/created items directly, but still wait on children when already canceled
-    assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED);
-
-    JobSystemResult result = JOBSYSTEM_RESULT_CANCELED;
-
     HJob hchild = item->m_FirstChild;
     while (hchild != INVALID_JOB)
     {
@@ -364,6 +349,30 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
 
         hchild = child->m_Sibling;
     }
+    return result;
+}
+
+static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
+{
+    JobItem* item = GetJobItem(ctx, hjob);
+    if (!item)
+        return JOBSYSTEM_RESULT_INVALID_HANDLE;
+
+    if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING)
+    {
+        return JOBSYSTEM_RESULT_PENDING;
+    }
+    if (item->m_Status == JOBSYSTEM_STATUS_FINISHED)
+    {
+        item->m_SkipCallback = true;
+        CancelChildJobsInternal(ctx, item, JOBSYSTEM_RESULT_OK);
+        return JOBSYSTEM_RESULT_OK;
+    }
+
+    // Can only cancel queued/created items directly, but still wait on children when already canceled
+    assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED);
+
+    JobSystemResult result = CancelChildJobsInternal(ctx, item, JOBSYSTEM_RESULT_CANCELED);
 
     item->m_Status = JOBSYSTEM_STATUS_CANCELED;
     return result;
@@ -587,7 +596,7 @@ static void ProcessFinishedJobs(HJobContext context, jc::RingBuffer<HJob>& items
         }
 
         Job& job = item.m_Job;
-        if (job.m_Callback)
+        if (job.m_Callback && !item.m_SkipCallback)
         {
             // Don't keep the lock here, as the jobs may use their own locks, and it may easily lead to a dead lock
             // (this is generally on the main thread which is less problematic, but still)
@@ -710,9 +719,9 @@ void JobSystemUpdate(HJobContext context, uint64_t time_limit)
 }
 static void DebugPrintJob(JobThreadContext* ctx, HJob hjob)
 {
+    (void)ctx;
     uint32_t generation = ToGeneration(hjob);
     uint32_t index      = ToIndex(hjob);
-    JobItem& item = ctx->m_Items.Get(index);
     printf("    job: %p  (gen: %u, idx: %u)\n", (void*)(uintptr_t)hjob, index, generation);
 }
 
