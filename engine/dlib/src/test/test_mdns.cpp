@@ -1054,6 +1054,27 @@ namespace
         return false;
     }
 
+    static void DrainMatchingQuestionsUntilQuiet(dmSocket::Socket socket, const char* qname, uint16_t qtype, uint32_t quiet_ms, uint32_t timeout_ms)
+    {
+        const uint64_t timeout_deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
+        uint64_t quiet_deadline = dmTime::GetMonotonicTime() + (uint64_t) quiet_ms * 1000ULL;
+        RawDnsPacket packet;
+
+        for (;;)
+        {
+            const uint64_t now = dmTime::GetMonotonicTime();
+            if (now >= timeout_deadline || now >= quiet_deadline)
+                break;
+
+            if (TryReceiveMatchingQuestion(socket, qname, qtype, &packet))
+            {
+                quiet_deadline = now + (uint64_t) quiet_ms * 1000ULL;
+                continue;
+            }
+            dmTime::Sleep(5 * 1000);
+        }
+    }
+
     static void PumpMdnsPair(dmMDNS::HMDNS mdns_a, dmMDNS::HMDNS mdns_b, uint32_t iterations, uint32_t sleep_us)
     {
         for (uint32_t i = 0; i < iterations; ++i)
@@ -1831,11 +1852,11 @@ TEST(MDNS, BrowserKeepsBackoffAcrossStableInterfaceRefresh)
 
     RawDnsPacket packet;
     ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
-    DrainSocket(capture.m_Socket, 100);
+    DrainMatchingQuestionsUntilQuiet(capture.m_Socket, service_type_local, DNS_TYPE_PTR, 250, 1000);
     ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
-    DrainSocket(capture.m_Socket, 100);
+    DrainMatchingQuestionsUntilQuiet(capture.m_Socket, service_type_local, DNS_TYPE_PTR, 250, 1000);
     ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4000));
-    DrainSocket(capture.m_Socket, 100);
+    DrainMatchingQuestionsUntilQuiet(capture.m_Socket, service_type_local, DNS_TYPE_PTR, 250, 1000);
 
     const bool received_query = WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2500);
     if (received_query)
