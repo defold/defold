@@ -55,8 +55,6 @@ struct JobItem
     int32_atomic_t  m_NumChildrenCompleted;
 
     JobSystemStatus m_Status;
-    bool            m_SkipCallback;
-    bool            m_CallbackRunning;
 };
 
 struct JobThreadContext
@@ -326,10 +324,29 @@ void* JobSystemGetData(HJobContext context, HJob hjob)
     return item->m_Job.m_Data;
 }
 
-static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob);
-
-static JobSystemResult CancelChildJobsInternal(JobThreadContext* ctx, JobItem* item, JobSystemResult result)
+static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
 {
+    JobItem* item = GetJobItem(ctx, hjob);
+    if (!item)
+        return JOBSYSTEM_RESULT_INVALID_HANDLE;
+
+    if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING)
+    {
+        return JOBSYSTEM_RESULT_PENDING;
+    }
+
+    JobSystemResult result = item->m_Status == JOBSYSTEM_STATUS_FINISHED ? JOBSYSTEM_RESULT_OK : JOBSYSTEM_RESULT_CANCELED;
+
+    // Finished jobs can still be waiting in the done queue. Clear the callback
+    // before cancellation reports complete so owners can release callback state.
+    assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED || item->m_Status == JOBSYSTEM_STATUS_FINISHED);
+
+    if (item->m_Status == JOBSYSTEM_STATUS_FINISHED)
+    {
+        item->m_Result = 0;
+        item->m_Job.m_Callback = 0;
+    }
+
     HJob hchild = item->m_FirstChild;
     while (hchild != INVALID_JOB)
     {
@@ -350,29 +367,6 @@ static JobSystemResult CancelChildJobsInternal(JobThreadContext* ctx, JobItem* i
 
         hchild = child->m_Sibling;
     }
-    return result;
-}
-
-static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
-{
-    JobItem* item = GetJobItem(ctx, hjob);
-    if (!item)
-        return JOBSYSTEM_RESULT_INVALID_HANDLE;
-
-    if (item->m_CallbackRunning || item->m_Status == JOBSYSTEM_STATUS_PROCESSING)
-    {
-        return JOBSYSTEM_RESULT_PENDING;
-    }
-    if (item->m_Status == JOBSYSTEM_STATUS_FINISHED)
-    {
-        item->m_SkipCallback = true;
-        return CancelChildJobsInternal(ctx, item, JOBSYSTEM_RESULT_OK);
-    }
-
-    // Can only cancel queued/created items directly, but still wait on children when already canceled
-    assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED);
-
-    JobSystemResult result = CancelChildJobsInternal(ctx, item, JOBSYSTEM_RESULT_CANCELED);
 
     item->m_Status = JOBSYSTEM_STATUS_CANCELED;
     return result;
@@ -583,7 +577,6 @@ static void ProcessFinishedJobs(HJobContext context, jc::RingBuffer<HJob>& items
         HJob hjob = items[i];
 
         JobItem item;
-        bool run_callback = false;
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
             JobItem* _item = GetJobItem(ctx, hjob);
@@ -594,15 +587,14 @@ static void ProcessFinishedJobs(HJobContext context, jc::RingBuffer<HJob>& items
             }
 
             item = *_item;
-            run_callback = item.m_Job.m_Callback && !item.m_SkipCallback;
-            if (run_callback)
+            if (item.m_Job.m_Callback)
             {
-                _item->m_CallbackRunning = true;
+                _item->m_Status = JOBSYSTEM_STATUS_PROCESSING;
             }
         }
 
         Job& job = item.m_Job;
-        if (run_callback)
+        if (job.m_Callback)
         {
             // Don't keep the lock here, as the jobs may use their own locks, and it may easily lead to a dead lock
             // (this is generally on the main thread which is less problematic, but still)
