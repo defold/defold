@@ -9,6 +9,7 @@ set(GS_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_ROOT  "${CMAKE_CURRENT_LIST_DIR}/..")
 set(GS_PROTO_DIR "${GS_SRC_ROOT}/../../proto/gamesys")
 get_filename_component(GS_TEST_RUN_DIR "${GS_TEST_ROOT}/../../.." ABSOLUTE)
+get_filename_component(GS_ENGINE_CONTENT_DIR "${GS_TEST_ROOT}/../../../../engine/content" ABSOLUTE)
 set(GS_TEST_RUNTIME_DIR "${GS_TEST_RUN_DIR}/build/src/gamesys/test")
 
 # When included from engine/gamesys, the 'gamesys' target is already defined.
@@ -96,6 +97,12 @@ if(NOT EXISTS "${_GS_COMMON_INPUTS_FILE}")
   message(FATAL_ERROR "Missing gamesys common test data input list: ${_GS_COMMON_INPUTS_FILE}")
 endif()
 
+set(_GS_BUILTINS_GRAPHICS_DIR "${GS_ENGINE_CONTENT_DIR}/builtins/graphics")
+if(NOT EXISTS "${_GS_BUILTINS_GRAPHICS_DIR}/default.texture_profiles")
+  message(FATAL_ERROR "Missing gamesys builtins graphics test dependency: ${_GS_BUILTINS_GRAPHICS_DIR}/default.texture_profiles")
+endif()
+file(GLOB_RECURSE _GS_BUILTINS_GRAPHICS_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${_GS_BUILTINS_GRAPHICS_DIR}/*")
+
 set(_GS_BOB_STAGE_ROOT "${GS_TEST_RUNTIME_DIR}/.bob/root")
 set(_GS_BOB_STAGE_STAMP "${CMAKE_CURRENT_BINARY_DIR}/.bob/stage.stamp")
 add_custom_command(
@@ -103,10 +110,12 @@ add_custom_command(
   COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${_GS_BOB_STAGE_ROOT}"
   COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GS_TEST_ROOT}" "${_GS_BOB_STAGE_ROOT}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${_GS_BOB_STAGE_ROOT}/builtins"
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_GRAPHICS_DIR}" "${_GS_BOB_STAGE_ROOT}/builtins/graphics"
   COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}/build"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
   COMMAND "${CMAKE_COMMAND}" -E touch "${_GS_BOB_STAGE_STAMP}"
-  DEPENDS ${_GS_ALL_TEST_SOURCES} "${_GS_COMMON_INPUTS_FILE}"
+  DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_COMMON_INPUTS_FILE}"
   COMMENT "Staging gamesys test data for Bob"
   VERBATIM)
 
