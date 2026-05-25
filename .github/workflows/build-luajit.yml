@@ -31,8 +31,8 @@ jobs:
           { "name": "x86_64-macos", "runner": "macOS-14", "target": "macos" },
           { "name": "arm64-ios", "runner": "macOS-14", "target": "macos" },
           { "name": "x86_64-ios", "runner": "macOS-14", "target": "macos" },
-          { "name": "win32", "runner": "windows-2025", "target": "windows" },
-          { "name": "x86_64-win32", "runner": "windows-2025", "target": "windows" },
+          { "name": "win32", "runner": "windows-2025-vs2026", "target": "windows" },
+          { "name": "x86_64-win32", "runner": "windows-2025-vs2026", "target": "windows" },
           { "name": "arm64-android", "runner": "ubuntu-22.04", "target": "android" },
           { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" }
         ]

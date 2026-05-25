@@ -43,13 +43,15 @@ end
 function on_message(self, message_id, message, sender)
 	self.message_counter = self.message_counter + 1
 	if self.message_counter == self.expected_count then
-		physics.set_listener(function(self, message_id)
-			self.total_counter = self.total_counter + 1
-			if message_id == hash("collision_event") then
-				self.listener_counter = self.listener_counter + 1
-				if self.listener_counter == self.expected_count then
-					physics.set_listener(nil)
-					self.check_next_frame = self.expected_count
+		physics.set_event_listener(function(self, events)
+			for _, event in ipairs(events) do
+				self.total_counter = self.total_counter + 1
+				if event.type == hash("collision_event") then
+					self.listener_counter = self.listener_counter + 1
+					if self.listener_counter == self.expected_count then
+						physics.set_event_listener(nil)
+						self.check_next_frame = self.expected_count
+					end
 				end
 			end
 		end)
