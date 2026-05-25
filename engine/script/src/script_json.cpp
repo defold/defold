@@ -72,7 +72,7 @@ namespace dmScript
 
     int JsonToLua(lua_State* L, const char* json, size_t json_len)
     {
-        return JsonToLuaInternal(L, json, json_len, 2, 0);
+        return JsonToLuaInternal(L, 2, json, json_len, 0);
     }
 
     int JsonToLua(lua_State* L, int options_index, const char* json, size_t json_len)
