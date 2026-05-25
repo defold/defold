@@ -52,7 +52,8 @@ target_include_directories(test_script PUBLIC
   "${SCRIPT_TEST_ROOT}"
   "${SCRIPT_SRC_DIR}"
   "${SCRIPT_TEST_PUBLIC_INCLUDE_DIR}")
-defold_target_link_libraries(test_script "${TARGET_PLATFORM}" dlib lua script)
+defold_target_link_libraries(test_script "${TARGET_PLATFORM}" dlib script)
+defold_target_link_lua(test_script "${TARGET_PLATFORM}" SCOPE PUBLIC)
 
 defold_install_targets(TARGETS test_script
                        ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
@@ -75,7 +76,6 @@ function(script_configure_test target)
     zip
     mbedtls
     profile_null
-    lua
     platform_null
     graphics_null
     image

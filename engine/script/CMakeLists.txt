@@ -94,7 +94,6 @@ if(TARGET graphics_proto)
   add_dependencies(script graphics_proto_header)
 endif()
 defold_target_link_libraries(script "${TARGET_PLATFORM}" SCOPE PUBLIC
-  lua
   ddf
   dlib
   zip
@@ -102,6 +101,7 @@ defold_target_link_libraries(script "${TARGET_PLATFORM}" SCOPE PUBLIC
   resource
   extension
   $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+defold_target_link_lua(script "${TARGET_PLATFORM}" SCOPE PUBLIC)
 defold_target_link_socket(script "${TARGET_PLATFORM}" PUBLIC)
 
 defold_install_targets(TARGETS script
