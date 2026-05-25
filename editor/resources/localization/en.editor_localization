@@ -1287,7 +1287,6 @@ property.label.tracking = Tracking
 property.light.color = Color
 property.light.intensity = Intensity
 property.light.range = Range
-property.light.direction = Direction
 property.light.inner-cone-angle = Inner Cone Angle
 property.light.outer-cone-angle = Outer Cone Angle
 
@@ -2184,7 +2183,6 @@ form.label.light.type = Type
 form.label.light.color = Color
 form.label.light.intensity = Intensity
 form.label.light.range = Range
-form.label.light.direction = Direction
 form.label.light.inner-cone-angle = Inner Cone Angle
 form.label.light.outer-cone-angle = Outer Cone Angle
 

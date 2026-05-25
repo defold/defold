@@ -730,16 +730,16 @@
                                  (min 1.0 (max 0.0 (/ (Math/tan half-inner) (Math/tan half-outer))))
                                  0.0)
             base-r (max (* h (Math/tan half-outer)) 0.02)
-            ps (float-array [(float base-r) (float base-r) (float h) 1.0])
+            point-scale (float-array [(float base-r) (float base-r) (float h) 1.0])
             max-ext (max base-r h)
             aabb (geom/mirrored-point->aabb (Point3d. max-ext max-ext max-ext))
-            vol-ud (assoc base-user-data
-                     :point-scale ps
-                     :double-sided true
-                     :geometry (scene-shapes/light-cone-triangles))
-            out-ud (assoc base-user-data
-                     :geometry (scene-shapes/light-cone-lines inner-radius-ratio)
-                     :point-scale ps)]
+            volume-user-data (assoc base-user-data
+                               :point-scale point-scale
+                               :double-sided true
+                               :geometry (scene-shapes/light-cone-triangles))
+            outline-user-data (assoc base-user-data
+                                :geometry (scene-shapes/light-cone-lines inner-radius-ratio)
+                                :point-scale point-scale)]
         {:node-id _node-id
          :aabb aabb
          :renderable {:render-fn render-spot-volume-scaled
@@ -747,7 +747,7 @@
                       :batch-key [scene-shapes/shader]
                       :tags #{:light}
                       :passes [pass/transparent pass/selection]
-                      :user-data vol-ud}
+                      :user-data volume-user-data}
          :children [{:node-id _node-id
                      :aabb aabb
                      :renderable {:render-fn render-spot-outline-scaled
@@ -755,7 +755,7 @@
                                   :batch-key [outline-shader]
                                   :tags #{:light :outline}
                                   :passes [pass/outline]
-                                  :user-data out-ud}}]})
+                                  :user-data outline-user-data}}]})
 
       {:node-id _node-id
        :aabb geom/empty-bounding-box})))
