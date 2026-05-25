@@ -34,7 +34,7 @@ jobs:
       matrix:
         platform: [win32, x86_64-win32]
 
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -248,7 +248,7 @@ jobs:
     strategy:
       matrix:
         platform: [arm64-nx64]
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 60
     steps: [
       { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
@@ -278,7 +278,7 @@ jobs:
     strategy:
       matrix:
         platform: [x86_64-ps4, x86_64-ps5]
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 60
     steps: [
       { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
@@ -579,7 +579,7 @@ jobs:
 
   build-editor-windows:
     needs: [build-bob]
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 60
     strategy:
       matrix:

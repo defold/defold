@@ -103,26 +103,26 @@ case $PLATFORM in
         cmi_setup_cc $PLATFORM
         ;;
     x86_64-win32)
-        eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_WINDOWS_MSVC_2022 VERSION_WINDOWS_SDK_10)
-        MSVC_ROOT="${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/Tools/MSVC/${VERSION_WINDOWS_MSVC_2022}"
+        eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VISUAL_STUDIO_VERSION VERSION_WINDOWS_MSVC VERSION_WINDOWS_SDK)
+        MSVC_ROOT="${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/Tools/MSVC/${VERSION_WINDOWS_MSVC}"
         WINSDK_ROOT="${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10"
         MSVC_BIN=$(to_unix_path "${MSVC_ROOT}/bin/Hostx64/x64")
-        WINSDK_BIN=$(to_unix_path "${WINSDK_ROOT}/bin/${VERSION_WINDOWS_SDK_10}/x64")
+        WINSDK_BIN=$(to_unix_path "${WINSDK_ROOT}/bin/${VERSION_WINDOWS_SDK}/x64")
         export PATH="${MSVC_BIN}:${WINSDK_BIN}:$PATH"
 
         include_paths=(
             "${MSVC_ROOT}/ATLMFC/include"
             "${MSVC_ROOT}/include"
-            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK_10}/ucrt"
-            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK_10}/shared"
-            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK_10}/um"
-            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK_10}/winrt"
+            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK}/ucrt"
+            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK}/shared"
+            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK}/um"
+            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK}/winrt"
         )
         lib_paths=(
             "${MSVC_ROOT}/ATLMFC/lib/x64"
             "${MSVC_ROOT}/lib/x64"
-            "${WINSDK_ROOT}/Lib/${VERSION_WINDOWS_SDK_10}/ucrt/x64"
-            "${WINSDK_ROOT}/Lib/${VERSION_WINDOWS_SDK_10}/um/x64"
+            "${WINSDK_ROOT}/Lib/${VERSION_WINDOWS_SDK}/ucrt/x64"
+            "${WINSDK_ROOT}/Lib/${VERSION_WINDOWS_SDK}/um/x64"
         )
 
         declare -a include_paths_win=()
