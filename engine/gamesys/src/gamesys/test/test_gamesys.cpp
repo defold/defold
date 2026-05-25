@@ -8988,7 +8988,6 @@ TEST_F(ModelTest, DynamicVertexAttributes)
     uint32_t component_type;
     dmGameObject::HComponent component;
     dmGameObject::HComponentWorld world;
-    dmGameSystem::HComponentRenderConstants render_constants;
 
     dmGameObject::Result res = dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world);
     ASSERT_EQ(dmGameObject::RESULT_OK, res);
@@ -9045,7 +9044,6 @@ TEST_F(ModelTest, MeshAttributeRenderDataPurge)
     uint32_t component_type;
     dmGameObject::HComponent component;
     dmGameObject::HComponentWorld world;
-    dmGameSystem::HComponentRenderConstants render_constants;
 
     dmGameObject::Result res = dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world);
     ASSERT_EQ(dmGameObject::RESULT_OK, res);
