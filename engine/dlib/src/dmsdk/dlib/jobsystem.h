@@ -215,7 +215,10 @@ enum JobSystemResult JobSystemPushJob(HJobContext context, HJob job);
  * @name JobSystemCancelJob
  * @param context [type:HJobContext] the job system context
  * @param job [type:HJob] the job to cancel
- * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if finished, JOBSYSTEM_RESULT_CANCELED if canceled, JOBSYSTEM_RESULT_PENDING if the job (or any child) is still in flight or running a callback, or JOBSYSTEM_RESULT_INVALID_HANDLE if the handle is invalid
+ * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if the job has finished, JOBSYSTEM_RESULT_CANCELED if the job was canceled before it ran, JOBSYSTEM_RESULT_PENDING if the job is still processing, running its callback, or waiting for an in-flight child before it can be canceled, or JOBSYSTEM_RESULT_INVALID_HANDLE if the handle is invalid
+ * @note Once the requested job has reached JOBSYSTEM_STATUS_FINISHED,
+ *       cancellation returns JOBSYSTEM_RESULT_OK without waiting for child
+ *       callbacks that may still be running or pending flush.
  * @examples
  * How to wait until a job has been cancelled or finished
  * ```c
@@ -244,7 +247,7 @@ enum JobSystemResult JobSystemCancelJob(HJobContext context, HJob job);
  * @name JobSystemCancelJobNoCallback
  * @param context [type:HJobContext] the job system context
  * @param job [type:HJob] the job to cancel
- * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if finished, JOBSYSTEM_RESULT_CANCELED if canceled, JOBSYSTEM_RESULT_PENDING if the job (or any child) is still in flight or running a callback, or JOBSYSTEM_RESULT_INVALID_HANDLE if the handle is invalid
+ * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if the job finished and callbacks that can still be suppressed have been suppressed, JOBSYSTEM_RESULT_CANCELED if the job was canceled before it ran, JOBSYSTEM_RESULT_PENDING if the job or any child is still processing or already running a callback, or JOBSYSTEM_RESULT_INVALID_HANDLE if the handle is invalid
  */
 enum JobSystemResult JobSystemCancelJobNoCallback(HJobContext context, HJob job);
 
