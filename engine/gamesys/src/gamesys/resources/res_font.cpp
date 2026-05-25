@@ -250,9 +250,13 @@ namespace dmGameSystem
     static void TextCallbackJobInfo(void* cbk_ctx, int result, const char* errmsg)
     {
         FontJobResourceInfo* job_info = (FontJobResourceInfo*)cbk_ctx;
-        if (job_info->m_Callback)
-            job_info->m_Callback(job_info->m_CallbackContext, result, errmsg);
+
+        FPrewarmTextCallback callback = job_info->m_Callback;
+        void* callback_context = job_info->m_CallbackContext;
         DestroyJobInfo(job_info);
+
+        if (callback)
+            callback(callback_context, result, errmsg);
     }
 
     static dmResource::Result ResFontPrewarmTextInternal(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx, bool callback_on_cancel)
