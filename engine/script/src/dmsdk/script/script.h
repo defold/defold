@@ -521,12 +521,12 @@ namespace dmScript
      *
      * @name JsonToLua
      * @param L [type:lua_State*] lua state
+     * @param options_index [type:int] lua stack index to check for an options table
      * @param json [type:const char*] json string
      * @param json_len [type:size_t] length of json string
-     * @param options_index [type:int] lua stack index to check for an options table
      * @return int [type:int] 1 if it succeeds. Throws a Lua error if it fails
      */
-    int JsonToLua(lua_State* L, const char* json, size_t json_len, int options_index);
+    int JsonToLua(lua_State* L, int options_index, const char* json, size_t json_len);
 
     // DEPRECATED
     int LuaToJson(lua_State* L, char** json, size_t* json_len);

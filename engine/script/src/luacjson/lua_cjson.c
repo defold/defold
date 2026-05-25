@@ -471,9 +471,9 @@ static void json_create_config(lua_State *l)
 #endif // DEFOLD
 
 // DEFOLD
-static void json_initialize_config(lua_State *l, json_config_t* cfg,
+static void json_initialize_config(lua_State *l, int options_index, json_config_t* cfg,
                                    int encode_keep_buffer, int protected_mode,
-                                   int options_index, char* errbuf, size_t errbuf_len)
+                                   char* errbuf, size_t errbuf_len)
 {
     int i;
 
@@ -979,7 +979,7 @@ int lua_cjson_encode(lua_State *l, int index, int options_index,
     strbuf_t local_encode_buf;
     strbuf_t *encode_buf;
 
-    json_initialize_config(l, &cfg, DEFAULT_ENCODE_KEEP_BUFFER, 1, options_index, 0, 0);
+    json_initialize_config(l, options_index, &cfg, DEFAULT_ENCODE_KEEP_BUFFER, 1, 0, 0);
     if (!cfg.encode_keep_buffer) {
         /* Use private buffer */
         encode_buf = &local_encode_buf;
@@ -1638,7 +1638,7 @@ int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len,
     json_parse_t json;
     json_token_t token;
 
-    json_initialize_config(l, &cfg, 0, protected_mode, options_index, errbuf, errbuf_len);
+    json_initialize_config(l, options_index, &cfg, 0, protected_mode, errbuf, errbuf_len);
     json.cfg = &cfg;
     json.data = json_string;
     json.data_end = json_string + json_len;

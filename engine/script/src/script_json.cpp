@@ -46,7 +46,7 @@ namespace dmScript
      * @language Lua
      */
 
-    static int JsonToLuaInternal(lua_State* L, const char* json, size_t json_len, int options_index, int protected_mode)
+    static int JsonToLuaInternal(lua_State* L, int options_index, const char* json, size_t json_len, int protected_mode)
     {
         int top = lua_gettop(L);
         char buffer[256] = {0};
@@ -75,9 +75,9 @@ namespace dmScript
         return JsonToLuaInternal(L, json, json_len, 2, 0);
     }
 
-    int JsonToLua(lua_State* L, const char* json, size_t json_len, int options_index)
+    int JsonToLua(lua_State* L, int options_index, const char* json, size_t json_len)
     {
-        return JsonToLuaInternal(L, json, json_len, options_index, 0);
+        return JsonToLuaInternal(L, options_index, json, json_len, 0);
     }
 
     int LuaToJson(lua_State* L, char** json, size_t* json_len)
@@ -139,7 +139,7 @@ namespace dmScript
 
         size_t json_len;
         const char* json = luaL_checklstring(L, 1, &json_len);
-        return JsonToLuaInternal(L, json, json_len, 2, 1);
+        return JsonToLuaInternal(L, 2, json, json_len, 1);
     }
 
     /*# encode a lua table to a JSON string
