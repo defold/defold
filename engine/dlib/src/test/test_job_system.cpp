@@ -84,6 +84,31 @@ public:
     int m_NumThreads;
 };
 
+static const uint64_t TEST_TIMEOUT_US = 500000;
+static const uint64_t TEST_SLEEP_US = 1000;
+
+static bool WaitForAtomicValue(int32_atomic_t* value, int expected)
+{
+    uint64_t stop_time = dmTime::GetMonotonicTime() + TEST_TIMEOUT_US;
+    while (dmAtomicGet32(value) != expected && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(TEST_SLEEP_US);
+    }
+    return dmAtomicGet32(value) == expected;
+}
+
+static JobSystemResult PollCancelUntilTerminal(HJobContext job_context, HJob hjob, bool no_callback)
+{
+    JobSystemResult result = JOBSYSTEM_RESULT_PENDING;
+    uint64_t stop_time = dmTime::GetMonotonicTime() + TEST_TIMEOUT_US;
+    while (result == JOBSYSTEM_RESULT_PENDING && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(TEST_SLEEP_US);
+        result = no_callback ? JobSystemCancelJobNoCallback(job_context, hjob) : JobSystemCancelJob(job_context, hjob);
+    }
+    return result;
+}
+
 TEST_P(dmJobSystemTest, PushJobs)
 {
     PushJob(ProcessSimple, CallbackSimple, 0, 0);
@@ -264,24 +289,13 @@ TEST_P(dmJobSystemTest, CancelFinishedJobBeforeUpdateRunsCallback)
     ASSERT_NE((HJob)0, hjob);
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, hjob));
 
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_ProcessStarted) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-    ASSERT_EQ(1, dmAtomicGet32(&context.m_ProcessStarted));
+    ASSERT_TRUE(WaitForAtomicValue(&context.m_ProcessStarted, 1));
 
     ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, JobSystemCancelJob(m_JobSystem, hjob));
 
     dmAtomicIncrement32(&context.m_AllowFinish);
 
-    JobSystemResult result = JOBSYSTEM_RESULT_PENDING;
-    stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (result == JOBSYSTEM_RESULT_PENDING && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-        result = JobSystemCancelJob(m_JobSystem, hjob);
-    }
+    JobSystemResult result = PollCancelUntilTerminal(m_JobSystem, hjob, false);
 
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, result);
     ASSERT_EQ(0, dmAtomicGet32(&context.m_CallbackCalled));
@@ -313,24 +327,13 @@ TEST_P(dmJobSystemTest, CancelFinishedJobNoCallbackBeforeUpdateSkipsCallback)
     ASSERT_NE((HJob)0, hjob);
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, hjob));
 
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_ProcessStarted) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-    ASSERT_EQ(1, dmAtomicGet32(&context.m_ProcessStarted));
+    ASSERT_TRUE(WaitForAtomicValue(&context.m_ProcessStarted, 1));
 
     ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, JobSystemCancelJobNoCallback(m_JobSystem, hjob));
 
     dmAtomicIncrement32(&context.m_AllowFinish);
 
-    JobSystemResult result = JOBSYSTEM_RESULT_PENDING;
-    stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (result == JOBSYSTEM_RESULT_PENDING && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-        result = JobSystemCancelJobNoCallback(m_JobSystem, hjob);
-    }
+    JobSystemResult result = PollCancelUntilTerminal(m_JobSystem, hjob, true);
 
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, result);
     ASSERT_EQ(0, dmAtomicGet32(&context.m_CallbackCalled));
@@ -412,13 +415,7 @@ TEST_P(dmJobSystemTest, CancelFinishedJobNoCallbackDuringCallbackReportsPending)
     dmThread::Thread update_thread = dmThread::New(UpdateCancelFinishedDuringCallback, 0x80000, &context, "jobupd");
     ASSERT_NE((dmThread::Thread)0, update_thread);
 
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_CallbackStarted) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-
-    if (dmAtomicGet32(&context.m_CallbackStarted) == 0)
+    if (!WaitForAtomicValue(&context.m_CallbackStarted, 1))
     {
         dmAtomicIncrement32(&context.m_StopUpdateThread);
         dmThread::Join(update_thread);
@@ -557,13 +554,7 @@ TEST_P(dmJobSystemTest, CancelFinishedParentDuringChildCallbackReportsOk)
     dmThread::Thread update_thread = dmThread::New(UpdateCancelFinishedParentDuringChildCallback, 0x80000, &context, "jobupd");
     ASSERT_NE((dmThread::Thread)0, update_thread);
 
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_ChildCallbackStarted) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-
-    if (dmAtomicGet32(&context.m_ChildCallbackStarted) == 0)
+    if (!WaitForAtomicValue(&context.m_ChildCallbackStarted, 1))
     {
         dmAtomicIncrement32(&context.m_StopUpdateThread);
         dmAtomicIncrement32(&context.m_AllowParentFinish);
@@ -572,13 +563,7 @@ TEST_P(dmJobSystemTest, CancelFinishedParentDuringChildCallbackReportsOk)
         ASSERT_EQ(1, dmAtomicGet32(&context.m_ChildCallbackStarted));
     }
 
-    stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_ParentProcessCalled) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-
-    if (dmAtomicGet32(&context.m_ParentProcessCalled) == 0)
+    if (!WaitForAtomicValue(&context.m_ParentProcessCalled, 1))
     {
         dmAtomicIncrement32(&context.m_AllowParentFinish);
         dmAtomicIncrement32(&context.m_AllowChildCallbackFinish);
@@ -588,13 +573,7 @@ TEST_P(dmJobSystemTest, CancelFinishedParentDuringChildCallbackReportsOk)
 
     dmAtomicIncrement32(&context.m_AllowParentFinish);
 
-    stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_ParentProcessFinished) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-
-    if (dmAtomicGet32(&context.m_ParentProcessFinished) == 0)
+    if (!WaitForAtomicValue(&context.m_ParentProcessFinished, 1))
     {
         dmAtomicIncrement32(&context.m_AllowChildCallbackFinish);
         dmThread::Join(update_thread);
@@ -685,29 +664,13 @@ TEST_P(dmJobSystemTest, CancelFinishedParentNoCallbackBeforeUpdateSkipsChildCall
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, child_hjob));
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, parent_hjob));
 
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_ChildProcessStarted) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-    ASSERT_EQ(1, dmAtomicGet32(&context.m_ChildProcessStarted));
+    ASSERT_TRUE(WaitForAtomicValue(&context.m_ChildProcessStarted, 1));
 
     dmAtomicIncrement32(&context.m_ChildAllowFinish);
 
-    stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_ParentProcessCalled) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-    ASSERT_EQ(1, dmAtomicGet32(&context.m_ParentProcessCalled));
+    ASSERT_TRUE(WaitForAtomicValue(&context.m_ParentProcessCalled, 1));
 
-    JobSystemResult result = JOBSYSTEM_RESULT_PENDING;
-    stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (result == JOBSYSTEM_RESULT_PENDING && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-        result = JobSystemCancelJobNoCallback(m_JobSystem, parent_hjob);
-    }
+    JobSystemResult result = PollCancelUntilTerminal(m_JobSystem, parent_hjob, true);
 
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, result);
     ASSERT_EQ(0, dmAtomicGet32(&context.m_ChildCallbackCalled));
@@ -797,22 +760,11 @@ TEST_P(dmJobSystemTest, CancelProcessingParentNoCallbackSkipsFinishedChildCallba
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, child_hjob));
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, parent_hjob));
 
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_ChildProcessStarted) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-    ASSERT_EQ(1, dmAtomicGet32(&context.m_ChildProcessStarted));
+    ASSERT_TRUE(WaitForAtomicValue(&context.m_ChildProcessStarted, 1));
 
     dmAtomicIncrement32(&context.m_ChildAllowFinish);
 
-    stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (dmAtomicGet32(&context.m_ParentProcessStarted) == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-    }
-
-    if (dmAtomicGet32(&context.m_ParentProcessStarted) == 0)
+    if (!WaitForAtomicValue(&context.m_ParentProcessStarted, 1))
     {
         dmAtomicIncrement32(&context.m_ParentAllowFinish);
         ASSERT_EQ(1, dmAtomicGet32(&context.m_ParentProcessStarted));
@@ -825,13 +777,7 @@ TEST_P(dmJobSystemTest, CancelProcessingParentNoCallbackSkipsFinishedChildCallba
 
     dmAtomicIncrement32(&context.m_ParentAllowFinish);
 
-    JobSystemResult result = JOBSYSTEM_RESULT_PENDING;
-    stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (result == JOBSYSTEM_RESULT_PENDING && dmTime::GetMonotonicTime() < stop_time)
-    {
-        dmTime::Sleep(1000);
-        result = JobSystemCancelJobNoCallback(m_JobSystem, parent_hjob);
-    }
+    JobSystemResult result = PollCancelUntilTerminal(m_JobSystem, parent_hjob, true);
 
     JobSystemUpdate(m_JobSystem, 0);
 

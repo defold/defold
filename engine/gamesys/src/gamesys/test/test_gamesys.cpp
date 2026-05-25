@@ -3031,6 +3031,17 @@ static void DynamicFontJobReloadCallback(void* ctx, int result, const char* errm
     }
 }
 
+static bool WaitForDynamicFontJobCallbacks(HJobContext job_context, DynamicFontJobCallbackState* state, uint32_t callback_count)
+{
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (state->m_CallbackCount < callback_count && dmTime::GetMonotonicTime() < stop_time)
+    {
+        JobSystemUpdate(job_context, 0);
+        dmTime::Sleep(1000);
+    }
+    return state->m_CallbackCount >= callback_count;
+}
+
 TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobsAndCompletesCallback)
 {
     const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
@@ -3073,13 +3084,7 @@ TEST_F(FontTest, DynamicFontPrewarmCallbackCanReloadSameFont)
     ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Callback reloads same font", DynamicFontJobReloadCallback, &callback_state));
     ASSERT_GT(font->m_PendingJobs.Size(), 0u);
 
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (callback_state.m_CallbackCount == 0 && dmTime::GetMonotonicTime() < stop_time)
-    {
-        JobSystemUpdate(m_JobContext, 0);
-        dmTime::Sleep(1000);
-    }
-
+    ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &callback_state, 1));
     ASSERT_EQ(1u, callback_state.m_CallbackCount);
     ASSERT_EQ(1, callback_state.m_Result);
     ASSERT_STREQ("", callback_state.m_ErrMsg);
