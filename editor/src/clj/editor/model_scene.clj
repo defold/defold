@@ -486,10 +486,10 @@
                           (doto (Matrix4d. ^Matrix4d bone-transform)
                             (.mul ^Matrix4d local-transform))
                           local-transform)
-        local-pose (pose/make translation rotation scale)
-        model-pose (if (some? bone-transform)
-                     (pose/from-matrix model-transform)
-                     local-pose)
+        pose-without-skeleton (pose/make translation rotation scale)
+        pose-with-skeleton (if (some? bone-transform)
+                             (pose/from-matrix model-transform)
+                             pose-without-skeleton)
 
         renderable-meshes
         (coll/into-> (:meshes model) []
@@ -504,8 +504,8 @@
                          geom/aabb-union
                          geom/null-aabb
                          renderable-meshes)]
-        {:pose model-pose
-         :pose-without-skeleton local-pose
+        {:pose-with-skeleton pose-with-skeleton
+         :pose-without-skeleton pose-without-skeleton
          :aabb model-aabb
          :renderable-meshes renderable-meshes}))))
 
@@ -519,8 +519,8 @@
 
     (g/precluding-errors renderable-models
       (let [mesh-set-aabb (transduce
-                            (map (fn [{:keys [aabb pose]}]
-                                   (geom/aabb-transform aabb (pose/matrix pose))))
+                            (map (fn [{:keys [aabb pose-with-skeleton]}]
+                                   (geom/aabb-transform aabb (pose/matrix pose-with-skeleton))))
                             geom/aabb-union
                             geom/null-aabb
                             renderable-models)]
@@ -576,10 +576,11 @@
      :renderable renderable}))
 
 (defn- make-model-scene [scene-node-id renderable-model]
-  (let [{:keys [pose pose-without-skeleton aabb renderable-meshes]} renderable-model
+  (let [{:keys [pose-with-skeleton pose-without-skeleton aabb renderable-meshes]} renderable-model
         mesh-scenes (mapv #(make-mesh-scene scene-node-id %)
                           renderable-meshes)]
-    {:pose pose
+    {:pose pose-with-skeleton
+     :pose-with-skeleton pose-with-skeleton
      :pose-without-skeleton pose-without-skeleton
      :aabb aabb
      :children mesh-scenes}))
@@ -648,10 +649,10 @@
                       :textures gpu-textures))))))))
 
 (defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?]
-  (let [model-scene (cond-> model-scene
-                      (and (not use-skeleton-transforms?)
-                           (:pose-without-skeleton model-scene))
-                      (assoc :pose (:pose-without-skeleton model-scene)))
+  (let [model-scene (assoc model-scene
+                      :pose (if use-skeleton-transforms?
+                              (:pose-with-skeleton model-scene)
+                              (:pose-without-skeleton model-scene)))
         mesh-scenes (:children model-scene)]
     (assoc (scene/claim-child-scene model-scene old-node-id new-node-id new-node-outline-key)
       :children (mapv #(augment-mesh-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
@@ -673,16 +674,17 @@
           model-scenes (:children scene)
           augmented-model-scenes (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?)
                                        model-scenes)
-          scene-aabb (model-scenes-aabb augmented-model-scenes)
+          scene-aabb (when-not use-skeleton-transforms?
+                       (model-scenes-aabb augmented-model-scenes))
           augmented-model-scenes (cond-> augmented-model-scenes
-                                   (seq augmented-model-scenes)
+                                   (and scene-aabb (seq augmented-model-scenes))
                                    (assoc-in [0 :aabb] scene-aabb))]
-      (assoc scene
-        :aabb scene-aabb
+      (cond-> (assoc scene
         :node-id new-node-id
         :node-outline-key new-node-outline-key
         :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
-        :children augmented-model-scenes))))
+        :children augmented-model-scenes)
+        scene-aabb (assoc :aabb scene-aabb)))))
 
 (defn make-material-name->material-scene-info
   "Given some material-scene-infos, return a material-name->material-scene-info
