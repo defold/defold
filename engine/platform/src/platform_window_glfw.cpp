@@ -177,6 +177,8 @@ namespace dmPlatform
 #elif defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
+#elif defined(__EMSCRIPTEN__)
+        glfwOpenWindowHint(GLFW_WEBGL_VERSION, params.m_WebGLVersionHint);
 #endif
 
         bool is_desktop = false;

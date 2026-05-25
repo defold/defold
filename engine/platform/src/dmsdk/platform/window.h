@@ -223,7 +223,7 @@ typedef struct WindowCreateParams
     uint8_t                 m_Fullscreen                : 1;
     uint8_t                 m_PrintDeviceInfo           : 1;
     uint8_t                 m_HighDPI                   : 1;
-    uint8_t                                             : 4;
+    uint8_t                 m_WebGLVersionHint          : 4;
 } WindowCreateParams;
 
 /*# initialize window parameters

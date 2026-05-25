@@ -851,7 +851,8 @@ var LibraryGLFW = {
             antialias: (GLFW.params[0x00020013] > 1), // GLFW_FSAA_SAMPLES
             depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
             stencil: (GLFW.params[0x0002000A] > 0), // GLFW_STENCIL_BITS
-            alpha: (GLFW.params[0x00020008] > 0) // GLFW_ALPHA_BITS
+            alpha: (GLFW.params[0x00020008] > 0), // GLFW_ALPHA_BITS
+            majorVersion: GLFW.params[0x0002001B] // GLFW_WEBGL_VERSION
         };
 
         // iOS < 15.2 has issues with WebGl 2.0 contexts. It's created without issues but doesn't work.
