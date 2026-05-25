@@ -57,8 +57,8 @@ typedef struct JobContext* HJobContext;
  * @member JOBSYSTEM_STATUS_QUEUED 2
  * @member JOBSYSTEM_STATUS_PROCESSING 3
  * @member JOBSYSTEM_STATUS_FINISHED 4
- * @member JOBSYSTEM_STATUS_CANCELED 5
- * @member JOBSYSTEM_STATUS_CALLBACK 6
+ * @member JOBSYSTEM_STATUS_CALLBACK 5
+ * @member JOBSYSTEM_STATUS_CANCELED 6
  */
 enum JobSystemStatus
 {
@@ -67,8 +67,8 @@ enum JobSystemStatus
     JOBSYSTEM_STATUS_QUEUED           = 2,
     JOBSYSTEM_STATUS_PROCESSING       = 3,
     JOBSYSTEM_STATUS_FINISHED         = 4,
-    JOBSYSTEM_STATUS_CANCELED         = 5,
-    JOBSYSTEM_STATUS_CALLBACK         = 6,
+    JOBSYSTEM_STATUS_CALLBACK         = 5,
+    JOBSYSTEM_STATUS_CANCELED         = 6,
 };
 
 /*# job result enumeration
@@ -223,6 +223,15 @@ enum JobSystemResult JobSystemPushJob(HJobContext context, HJob job);
  * ```
  */
 enum JobSystemResult JobSystemCancelJob(HJobContext context, HJob job);
+
+/*# cancel a job (and its children) without invoking callbacks
+ * @note Cancelled jobs will be flushed at the next JobSystemUpdate()
+ * @name JobSystemCancelJobNoCallback
+ * @param context [type:HJobContext] the job system context
+ * @param job [type:HJob] the job to cancel
+ * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if finished, JOBSYSTEM_RESULT_CANCELED if canceled, or JOBSYSTEM_RESULT_PENDING if the job (or any child) is still in flight
+ */
+enum JobSystemResult JobSystemCancelJobNoCallback(HJobContext context, HJob job);
 
 /*# get the data from a job
  * @name JobSystemGetData

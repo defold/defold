@@ -242,10 +242,9 @@ static void CallbackCancelFinishedBeforeUpdate(HJobContext ctx, HJob job, JobSys
     dmAtomicIncrement32(&context->m_CallbackCalled);
 }
 
-// Canceling a finished job before JobSystemUpdate() flushes the done queue must
-// suppress its callback. Callers may free callback-owned state as soon as cancel
-// stops reporting PENDING.
-TEST_P(dmJobSystemTest, CancelFinishedJobBeforeUpdateSkipsCallback)
+// Normal cancellation keeps callback cleanup consistent. A finished job that has
+// not yet been flushed should still invoke its callback during JobSystemUpdate().
+TEST_P(dmJobSystemTest, CancelFinishedJobBeforeUpdateRunsCallback)
 {
     if (GetParam().m_NumThreads == 0)
     {
@@ -287,9 +286,55 @@ TEST_P(dmJobSystemTest, CancelFinishedJobBeforeUpdateSkipsCallback)
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, result);
     ASSERT_EQ(0, dmAtomicGet32(&context.m_CallbackCalled));
 
-    // This mirrors dynamic font resource teardown: once cancellation no longer
-    // reports pending, the resource owner can free the job callback context.
-    // The later update must not call the stale callback from the done queue.
+    JobSystemUpdate(m_JobSystem, 0);
+    ASSERT_EQ(1, dmAtomicGet32(&context.m_CallbackCalled));
+    ASSERT_EQ(JOBSYSTEM_STATUS_FINISHED, context.m_CallbackStatus);
+}
+
+// No-callback cancellation lets owners release callback-owned state as soon as
+// cancellation stops reporting PENDING.
+TEST_P(dmJobSystemTest, CancelFinishedJobNoCallbackBeforeUpdateSkipsCallback)
+{
+    if (GetParam().m_NumThreads == 0)
+    {
+        return;
+    }
+
+    CancelFinishedBeforeUpdateContext context = {0};
+    context.m_CallbackStatus = JOBSYSTEM_STATUS_FREE;
+
+    Job job = {0};
+    job.m_Process = ProcessCancelFinishedBeforeUpdate;
+    job.m_Callback = CallbackCancelFinishedBeforeUpdate;
+    job.m_Context = &context;
+    job.m_Data = &context;
+
+    HJob hjob = JobSystemCreateJob(m_JobSystem, &job);
+    ASSERT_NE((HJob)0, hjob);
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, hjob));
+
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (dmAtomicGet32(&context.m_ProcessStarted) == 0 && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    ASSERT_EQ(1, dmAtomicGet32(&context.m_ProcessStarted));
+
+    ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, JobSystemCancelJobNoCallback(m_JobSystem, hjob));
+
+    dmAtomicIncrement32(&context.m_AllowFinish);
+
+    JobSystemResult result = JOBSYSTEM_RESULT_PENDING;
+    stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (result == JOBSYSTEM_RESULT_PENDING && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+        result = JobSystemCancelJobNoCallback(m_JobSystem, hjob);
+    }
+
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, result);
+    ASSERT_EQ(0, dmAtomicGet32(&context.m_CallbackCalled));
+
     JobSystemUpdate(m_JobSystem, 0);
     ASSERT_EQ(0, dmAtomicGet32(&context.m_CallbackCalled));
 }
@@ -343,9 +388,9 @@ static void UpdateCancelFinishedDuringCallback(void* user_data)
     }
 }
 
-// If a concurrent JobSystemUpdate() has already entered the callback, cancel
-// must still report PENDING until the callback returns.
-TEST_P(dmJobSystemTest, CancelFinishedJobDuringCallbackReportsPending)
+// If a concurrent JobSystemUpdate() has already entered the callback,
+// no-callback cancellation must still report PENDING until the callback returns.
+TEST_P(dmJobSystemTest, CancelFinishedJobNoCallbackDuringCallbackReportsPending)
 {
     if (GetParam().m_NumThreads == 0)
     {
@@ -380,7 +425,7 @@ TEST_P(dmJobSystemTest, CancelFinishedJobDuringCallbackReportsPending)
         ASSERT_EQ(1, dmAtomicGet32(&context.m_CallbackStarted));
     }
 
-    JobSystemResult cancel_result = JobSystemCancelJob(m_JobSystem, hjob);
+    JobSystemResult cancel_result = JobSystemCancelJobNoCallback(m_JobSystem, hjob);
     int callback_finished_before_release = dmAtomicGet32(&context.m_CallbackFinished);
 
     dmAtomicIncrement32(&context.m_AllowCallbackFinish);
@@ -621,9 +666,9 @@ static void CallbackCancelFinishedParentBeforeUpdate(HJobContext ctx, HJob job, 
     dmAtomicIncrement32(&context->m_ParentCallbackCalled);
 }
 
-// Canceling a finished parent before update must also suppress finished child
-// callbacks that are still waiting in the done queue.
-TEST_P(dmJobSystemTest, CancelFinishedParentBeforeUpdateSkipsChildCallbacks)
+// No-callback cancellation of a finished parent must also suppress finished
+// child callbacks that are still waiting in the done queue.
+TEST_P(dmJobSystemTest, CancelFinishedParentNoCallbackBeforeUpdateSkipsChildCallbacks)
 {
     if (GetParam().m_NumThreads == 0)
     {
@@ -673,7 +718,7 @@ TEST_P(dmJobSystemTest, CancelFinishedParentBeforeUpdateSkipsChildCallbacks)
     while (result == JOBSYSTEM_RESULT_PENDING && dmTime::GetMonotonicTime() < stop_time)
     {
         dmTime::Sleep(1000);
-        result = JobSystemCancelJob(m_JobSystem, parent_hjob);
+        result = JobSystemCancelJobNoCallback(m_JobSystem, parent_hjob);
     }
 
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, result);

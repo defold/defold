@@ -324,11 +324,16 @@ void* JobSystemGetData(HJobContext context, HJob hjob)
     return item->m_Job.m_Data;
 }
 
-static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
+static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob, bool clear_callback)
 {
     JobItem* item = GetJobItem(ctx, hjob);
     if (!item)
         return JOBSYSTEM_RESULT_INVALID_HANDLE;
+
+    if (clear_callback)
+    {
+        item->m_Job.m_Callback = 0;
+    }
 
     if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING || item->m_Status == JOBSYSTEM_STATUS_CALLBACK)
     {
@@ -338,19 +343,12 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
     bool was_finished = item->m_Status == JOBSYSTEM_STATUS_FINISHED;
     JobSystemResult result = was_finished ? JOBSYSTEM_RESULT_OK : JOBSYSTEM_RESULT_CANCELED;
 
-    // Finished jobs can still be waiting in the done queue. Clear the callback
-    // before cancellation reports complete so owners can release callback state.
     assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED || item->m_Status == JOBSYSTEM_STATUS_FINISHED);
-
-    if (was_finished)
-    {
-        item->m_Job.m_Callback = 0;
-    }
 
     HJob hchild = item->m_FirstChild;
     while (hchild != INVALID_JOB)
     {
-        JobSystemResult childresult = CancelJobInternal(ctx, hchild);
+        JobSystemResult childresult = CancelJobInternal(ctx, hchild, clear_callback);
         if (childresult == JOBSYSTEM_RESULT_INVALID_HANDLE)
         {
             break; // We cannot get the item pointer
@@ -381,7 +379,14 @@ JobSystemResult JobSystemCancelJob(HJobContext context, HJob hjob)
 {
     JobThreadContext* ctx = &context->m_ThreadContext;
     DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
-    return CancelJobInternal(ctx, hjob);
+    return CancelJobInternal(ctx, hjob, false);
+}
+
+JobSystemResult JobSystemCancelJobNoCallback(HJobContext context, HJob hjob)
+{
+    JobThreadContext* ctx = &context->m_ThreadContext;
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
+    return CancelJobInternal(ctx, hjob, true);
 }
 
 // ***********************************************************************************
@@ -592,10 +597,7 @@ static void ProcessFinishedJobs(HJobContext context, jc::RingBuffer<HJob>& items
             }
 
             item = *_item;
-            if (item.m_Job.m_Callback)
-            {
-                _item->m_Status = JOBSYSTEM_STATUS_CALLBACK;
-            }
+            _item->m_Status = JOBSYSTEM_STATUS_CALLBACK;
         }
 
         Job& job = item.m_Job;
