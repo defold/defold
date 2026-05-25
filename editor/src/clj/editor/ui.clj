@@ -47,6 +47,7 @@
   (:import [com.defold.control DefoldStringConverter ExtendedTreeViewSkin ListCell LongField TreeCell]
            [com.sun.javafx.event DirectEvent]
            [com.sun.javafx.scene NodeHelper]
+           [com.sun.javafx.scene.control ContextMenuContent]
            [com.sun.javafx.scene.control.skin Utils]
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
@@ -1475,6 +1476,60 @@
   {:control control
    :menu-id menu-id})
 
+(defn- next-focusable-menu-item [^ObservableList items ^EventTarget target-node forward]
+  (let [item-count (.size items)]
+    (loop [index 0
+           first-focusable nil
+           last-focusable nil
+           previous-focusable nil
+           current-found false
+           next-focusable nil]
+      (if (< index item-count)
+        (let [menu-item ^MenuItem (.get items index)
+              node (.getStyleableNode menu-item)
+              target-item (and node (nodes-along-path? target-node node nil))
+              current (or target-item (and node (.isFocused node)))
+              focusable (and (.isVisible menu-item)
+                             (not (.isDisable menu-item))
+                             (not (instance? CustomMenuItem menu-item)))]
+          (if (and target-item (true? (user-data menu-item ::grid-menu)))
+            ::grid-menu
+            (recur (inc index)
+                   (or first-focusable (when focusable menu-item))
+                   (if focusable menu-item last-focusable)
+                   (if current last-focusable previous-focusable)
+                   (or current-found current)
+                   (or next-focusable (when (and current-found focusable) menu-item)))))
+        (if current-found
+          (if forward
+            (or next-focusable first-focusable)
+            (or previous-focusable last-focusable))
+          (if forward first-focusable last-focusable))))))
+
+(defn- focus-next-menu-item! [^ContextMenu context-menu ^KeyEvent event forward]
+  (let [items (.getItems context-menu)]
+    (when (pos? (.size items))
+      (let [menu-item (next-focusable-menu-item items (.getTarget event) forward)]
+        (when-not (= ::grid-menu menu-item)
+          (.consume event)
+          (when menu-item
+            (let [context-menu-content ^ContextMenuContent (.getNode (.getSkin context-menu))]
+              (.requestFocusOnIndex context-menu-content (.indexOf (.getItems context-menu) menu-item))))
+          true)))))
+
+(defn- install-disabled-menu-item-focus-filter! [^ContextMenu context-menu]
+  (let [properties (.getProperties context-menu)]
+    (when-not (.containsKey properties ::disabled-menu-item-focus-filter)
+      (let [event-filter (event-handler event
+                           (condp = (.getCode ^KeyEvent event)
+                             KeyCode/DOWN (focus-next-menu-item! context-menu event true)
+                             KeyCode/UP (focus-next-menu-item! context-menu event false)
+                             KeyCode/TAB (let [forward (not (.isShiftDown ^KeyEvent event))]
+                                           (focus-next-menu-item! context-menu event forward))
+                             nil))]
+        (.addEventFilter context-menu KeyEvent/KEY_PRESSED event-filter)
+        (.put properties ::disabled-menu-item-focus-filter event-filter)))))
+
 (defn- make-submenu [id label localization icon ^Collection style-classes menu-items on-open]
   (when (seq menu-items)
     (let [menu (Menu.)]
@@ -1482,6 +1537,13 @@
       (user-data! menu ::menu-item-id id)
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
+      (.setOnShown menu
+        (event-handler _
+          ;; JavaFX creates submenu ContextMenus internally, so they do not pass
+          ;; through `make-context-menu`.
+          (doseq [window (Window/getWindows)]
+            (when (instance? ContextMenu window)
+              (install-disabled-menu-item-focus-filter! window)))))
       (when icon
         (.setGraphic menu (icons/get-image-view icon 16)))
       (when style-classes
@@ -1538,7 +1600,7 @@
       (let [handler (->MenuEventHandler scene command user-data false)]
         (.setOnMenuValidation menu-item handler)
         (.setOnAction menu-item handler))
-      (.setOnAction menu-item (event-handler event (invoke-handler (contexts scene true) command user-data))))
+      (.setOnAction menu-item (event-handler _ (invoke-handler (contexts scene true) command user-data))))
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
@@ -1572,70 +1634,73 @@
                                 #(or (:category %)
                                      (localization/message "resource.category.other"))
                                 items)
-                              (update-vals #(localization/natural-sort-by-label @localization %)))]
-    (fx/instance
-      (fx/create-component
-        {:fx/type fx.custom-menu-item/lifecycle
-         :hide-on-click false
-         :style-class ["grid-menu"]
-         :content
-         {:fx/type fx.h-box/lifecycle
-          :spacing 10.0
-          :padding 5.0
-          :children
-          (interpose
-            {:fx/type fx.region/lifecycle
-             :min-width 1.0
-             :max-width 1.0
-             :style-class ["grid-menu-column-separator"]}
-            (for [column columns]
-              {:fx/type fx.v-box/lifecycle
-               :children
-               (interpose
-                 {:fx/type fx.region/lifecycle
-                  :min-height 18.0
-                  :max-height 18.0}
-                 (keep
-                   (fn [category-key]
-                     (when-let [category-items (get items-by-category category-key)]
-                       {:fx/type fx.v-box/lifecycle
-                        :spacing 3.0
-                        :children
-                        (concat
-                          [{:fx/type fx.h-box/lifecycle
-                            :alignment :center-left
-                            :children [{:fx/type fx.label/lifecycle
-                                        :text (localization category-key)
-                                        :style-class ["grid-menu-group-label"]}
-                                       {:fx/type fx.separator/lifecycle
-                                        :h-box/hgrow :always
-                                        :style-class ["grid-menu-separator"]
-                                        :orientation :horizontal}]}]
-                          (keep
-                            (fn [child]
-                              (let [command (:command child)
-                                    user-data (:user-data child)]
-                                (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                  (let [label (or (handler/label handler-ctx evaluation-context) (:label child))
-                                        enabled? (handler/enabled? handler-ctx evaluation-context)]
-                                    {:fx/type fx.button/lifecycle
-                                     :text (localization label)
-                                     :disable (not enabled?)
-                                     :on-action (fn [_] (invoke-handler (contexts scene false) command user-data))
-                                     :on-key-pressed (fn [^KeyEvent e]
-                                                       (when (= KeyCode/ENTER (.getCode e))
-                                                         (.consume e)
-                                                         (invoke-handler (contexts scene false) command user-data)))
-                                     :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
-                                     :style-class (into ["grid-menu-item-base"]
-                                                        (when enabled?
-                                                          (into ["grid-menu-item-enabled"]
-                                                                (:style child))))
-                                     :graphic {:fx/type image-icon
-                                               :path (:icon child)
-                                               :size 16.0}}))))
-                            category-items))}))
-                   column))}))}}))))
+                              (update-vals #(localization/natural-sort-by-label @localization %)))
+        grid-menu
+        (fx/instance
+          (fx/create-component
+            {:fx/type fx.custom-menu-item/lifecycle
+             :hide-on-click false
+             :style-class ["grid-menu"]
+             :content
+             {:fx/type fx.h-box/lifecycle
+              :spacing 10.0
+              :padding 5.0
+              :children
+              (interpose
+                {:fx/type fx.region/lifecycle
+                 :min-width 1.0
+                 :max-width 1.0
+                 :style-class ["grid-menu-column-separator"]}
+                (for [column columns]
+                  {:fx/type fx.v-box/lifecycle
+                   :children
+                   (interpose
+                     {:fx/type fx.region/lifecycle
+                      :min-height 18.0
+                      :max-height 18.0}
+                     (keep
+                       (fn [category-key]
+                         (when-let [category-items (get items-by-category category-key)]
+                           {:fx/type fx.v-box/lifecycle
+                            :spacing 3.0
+                            :children
+                            (concat
+                              [{:fx/type fx.h-box/lifecycle
+                                :alignment :center-left
+                                :children [{:fx/type fx.label/lifecycle
+                                            :text (localization category-key)
+                                            :style-class ["grid-menu-group-label"]}
+                                           {:fx/type fx.separator/lifecycle
+                                            :h-box/hgrow :always
+                                            :style-class ["grid-menu-separator"]
+                                            :orientation :horizontal}]}]
+                              (keep
+                                (fn [child]
+                                  (let [command (:command child)
+                                        user-data (:user-data child)]
+                                    (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+                                      (let [label (or (handler/label handler-ctx evaluation-context) (:label child))
+                                            enabled? (handler/enabled? handler-ctx evaluation-context)]
+                                        {:fx/type fx.button/lifecycle
+                                         :text (localization label)
+                                         :disable (not enabled?)
+                                         :on-action (fn [_] (invoke-handler (contexts scene false) command user-data))
+                                         :on-key-pressed (fn [^KeyEvent e]
+                                                           (when (= KeyCode/ENTER (.getCode e))
+                                                             (.consume e)
+                                                             (invoke-handler (contexts scene false) command user-data)))
+                                         :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
+                                         :style-class (into ["grid-menu-item-base"]
+                                                            (when enabled?
+                                                              (into ["grid-menu-item-enabled"]
+                                                                    (:style child))))
+                                         :graphic {:fx/type image-icon
+                                                   :path (:icon child)
+                                                   :size 16.0}}))))
+                                category-items))}))
+                       column))}))}}))]
+    (doto grid-menu
+      (user-data! ::grid-menu true))))
 
 (declare make-menu-items)
 
@@ -1677,6 +1742,7 @@
   (let [context-menu (doto (ContextMenu.)
                        (.setConsumeAutoHidingEvents true))]
     (.addAll (.getItems context-menu) (to-array menu-items))
+    (install-disabled-menu-item-focus-filter! context-menu)
     context-menu))
 
 (declare refresh-separator-visibility)
