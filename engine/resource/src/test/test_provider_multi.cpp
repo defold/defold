@@ -115,13 +115,13 @@ protected:
         //  file    - 30
         {
             dmResource::Result result;
-            result = dmResourceMounts::AddMount(m_Mounts, "a", m_Archives[0], 30); // file
+            result = dmResourceMounts::AddMount(m_Mounts, dmHashString64("a"), m_Archives[0], 30); // file
             ASSERT_EQ(dmResource::RESULT_OK, result);
 
-            result = dmResourceMounts::AddMount(m_Mounts, "b", m_Archives[1], 10); // archive
+            result = dmResourceMounts::AddMount(m_Mounts, dmHashString64("b"), m_Archives[1], 10); // archive
             ASSERT_EQ(dmResource::RESULT_OK, result);
 
-            result = dmResourceMounts::AddMount(m_Mounts, "c", m_Archives[2], 20); // zip
+            result = dmResourceMounts::AddMount(m_Mounts, dmHashString64("c"), m_Archives[2], 20); // zip
             ASSERT_EQ(dmResource::RESULT_OK, result);
         }
     }

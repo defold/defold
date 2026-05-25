@@ -1,0 +1,2 @@
+resource/booster_on_sfx.wav
+resource/layer_guitar_a.ogg

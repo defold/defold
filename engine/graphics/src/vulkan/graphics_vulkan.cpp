@@ -226,7 +226,7 @@ namespace dmGraphics
                 resource_to_destroy.m_Program = ((VulkanProgram*) resource)->m_Handle;
                 break;
             case RESOURCE_TYPE_RENDER_TARGET:
-                resource_to_destroy.m_RenderTarget = ((RenderTarget*) resource)->m_Handle;
+                resource_to_destroy.m_RenderTarget = ((VulkanRenderTarget*) resource)->m_Handle;
                 break;
             default:
                 assert(0);
@@ -265,7 +265,7 @@ namespace dmGraphics
         bool has_pending_clear = false;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-            RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+            VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
             has_pending_clear = rt && (rt->m_HasPendingClearColor || rt->m_HasPendingClearDepth);
         }
 
@@ -475,10 +475,11 @@ namespace dmGraphics
         }
 
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
-        RenderTarget* rt         = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        RenderTarget* current_rt       = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        VulkanRenderTarget* rt         = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        RenderTarget* brt              = &rt->m_Base;
 
-        if (current_rt->m_Id == rt->m_Id &&
+        if (current_rt->m_Id == brt->m_Id &&
             current_rt->m_IsBound)
         {
             return;
@@ -495,7 +496,7 @@ namespace dmGraphics
         memset(vk_clear_values, 0, sizeof(vk_clear_values));
 
         // Clear color
-        for (int i = 0; i < rt->m_ColorAttachmentCount; ++i)
+        for (int i = 0; i < brt->m_ColorAttachmentCount; ++i)
         {
             vk_clear_values[i].color.float32[3] = 1.0f;
             vk_clear_values[i].color.float32[0] = rt->m_ColorAttachmentClearValue[i][0];
@@ -507,7 +508,7 @@ namespace dmGraphics
         // Depth clear value: placed at attachment index m_ColorAttachmentCount (depth always
         // follows the color attachments in the render pass). Defaults to 1.0/0; overridden below
         // when a pending depth clear was recorded by VulkanClear.
-        const uint32_t depth_clear_index = rt->m_ColorAttachmentCount;
+        const uint32_t depth_clear_index = brt->m_ColorAttachmentCount;
         vk_clear_values[depth_clear_index].depthStencil.depth   = 1.0f;
         vk_clear_values[depth_clear_index].depthStencil.stencil = 0;
         if (rt->m_HasPendingClearDepth)
@@ -548,12 +549,12 @@ namespace dmGraphics
         vk_render_pass_begin_info.renderArea.offset.x = 0;
         vk_render_pass_begin_info.renderArea.offset.y = 0;
         vk_render_pass_begin_info.renderArea.extent   = rt->m_Extent;
-        vk_render_pass_begin_info.clearValueCount     = rt->m_ColorAttachmentCount + 1;
+        vk_render_pass_begin_info.clearValueCount     = brt->m_ColorAttachmentCount + 1;
         vk_render_pass_begin_info.pClearValues        = vk_clear_values;
 
         vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        rt->m_IsBound          = 1;
+        brt->m_IsBound         = 1;
         rt->m_SubPassIndex     = 0;
         rt->m_Scissor.extent   = rt->m_Extent;
         rt->m_Scissor.offset.x = 0;
@@ -572,16 +573,16 @@ namespace dmGraphics
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            if (rt->m_TextureColor[i])
+            if (brt->m_TextureColor[i])
             {
-                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
+                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColor[i]);
                 TouchResource(context, texture_color);
             }
         }
 
-        if (rt->m_TextureDepthStencil)
+        if (brt->m_TextureDepthStencil)
         {
-            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureDepthStencil);
             TouchResource(context, depth_stencil_texture);
         }
     }
@@ -746,10 +747,10 @@ namespace dmGraphics
         // The m_Framebuffer construct will be rotated sequentially
         // with the framebuffer objects created per swap chain.
 
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         if (rt == 0x0)
         {
-            rt                          = new RenderTarget(DM_RENDERTARGET_BACKBUFFER_ID);
+            rt                          = new VulkanRenderTarget(DM_RENDERTARGET_BACKBUFFER_ID);
             context->m_MainRenderTarget = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
         }
 
@@ -761,7 +762,8 @@ namespace dmGraphics
         rt->m_Handle.m_RenderPassClearColorDepth = context->m_MainRenderPass;
         rt->m_Handle.m_Framebuffer     = context->m_MainFrameBuffers[0];
         rt->m_Extent                   = context->m_SwapChain->m_ImageExtent;
-        rt->m_ColorAttachmentCount     = 1;
+        RenderTarget* brt              = &rt->m_Base;
+        brt->m_ColorAttachmentCount    = 1;
 
         return VK_SUCCESS;
     }
@@ -1455,8 +1457,8 @@ namespace dmGraphics
 
         // Create a Vulkan pipeline cache so the driver can reuse compiled
         // shader/pipeline state across pipeline creation calls within
-        // the same session. Passing an empty initialData for now — disk
-        // serialization can be added later for cross-session warm starts.
+        // the same session. Passing an empty initialData for now.
+        // Disk serialization can be added later for cross-session warm starts.
         {
             VkPipelineCacheCreateInfo vk_pipeline_cache_info;
             memset(&vk_pipeline_cache_info, 0, sizeof(vk_pipeline_cache_info));
@@ -1700,7 +1702,7 @@ bail:
         vkBeginCommandBuffer(cmd, &beginInfo);
 
         // Set framebuffer for the acquired swap chain image
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[context->m_SwapChain->m_ImageIndex];
 
         context->m_FrameBegun            = 1;
@@ -1860,7 +1862,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentRenderTarget);
 
-        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        VulkanRenderTarget* current_rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         const BufferType color_buffers[] = {
             BUFFER_TYPE_COLOR0_BIT,
@@ -1890,13 +1892,13 @@ bail:
         // (common when scripts pass identical flags to every render.clear()), the bit is a
         // no-op and must not prevent folding.
         const bool pass_not_bound    = !context->m_RenderTargetBound;
-        const bool rt_has_ds         = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil != 0;
+        const bool rt_has_ds         = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_Base.m_TextureDepthStencil != 0;
         const bool clear_ds          = rt_has_ds && ((flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) != 0);
         const bool has_clear_variant = current_rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE;
         // COLOR0_BIT signals that all color attachments should be cleared to the same value.
         // Individual COLOR1/2/3 bits are ignored for the fast-path check; the slow path also
         // treats COLOR0_BIT as "clear all" to keep the semantics consistent.
-        const bool all_colors_in_flags = current_rt->m_ColorAttachmentCount > 0 &&
+        const bool all_colors_in_flags = current_rt->m_Base.m_ColorAttachmentCount > 0 &&
                                          (flags & BUFFER_TYPE_COLOR0_BIT) != 0;
 
         const bool has_color_depth_variant = current_rt->m_Handle.m_RenderPassClearColorDepth != VK_NULL_HANDLE;
@@ -1904,7 +1906,7 @@ bail:
         if (pass_not_bound && has_clear_variant && all_colors_in_flags && (!clear_ds || has_color_depth_variant))
         {
             // Record clear colors on the RT; BeginRenderPass reads these into pClearValues.
-            for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+            for (int i = 0; i < current_rt->m_Base.m_ColorAttachmentCount; ++i)
             {
                 current_rt->m_ColorAttachmentClearValue[i][0] = r;
                 current_rt->m_ColorAttachmentClearValue[i][1] = g;
@@ -1937,11 +1939,11 @@ bail:
         vk_clear_rect.baseArrayLayer     = 0;
         vk_clear_rect.layerCount         = 1;
 
-        bool has_depth_stencil_texture = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil;
+        bool has_depth_stencil_texture = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_Base.m_TextureDepthStencil;
         bool clear_depth_stencil       = clear_ds;
 
         const bool clear_all_colors = (flags & BUFFER_TYPE_COLOR0_BIT) != 0;
-        for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+        for (int i = 0; i < current_rt->m_Base.m_ColorAttachmentCount; ++i)
         {
             if (clear_all_colors || (flags & color_buffers[i]))
             {
@@ -1960,13 +1962,13 @@ bail:
         {
             VkFormat depth_stencil_format;
 
-            if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+            if (current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
             {
                 depth_stencil_format = context->m_MainTextureDepthStencil.m_Format;
             }
             else
             {
-                depth_stencil_format = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil)->m_Format;
+                depth_stencil_format = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureDepthStencil)->m_Format;
             }
 
             VkImageAspectFlags vk_aspect = 0;
@@ -2065,13 +2067,13 @@ bail:
 
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, PipelineCache& pipelineCache,
-        VulkanProgram* program, RenderTarget* rt, VertexDeclaration** vertexDeclaration, uint32_t vertexDeclarationCount)
+        VulkanProgram* program, VulkanRenderTarget* rt, VertexDeclaration** vertexDeclaration, uint32_t vertexDeclarationCount)
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
         dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_Hash, sizeof(program->m_Hash));
         dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &rt->m_Id, sizeof(rt->m_Id));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &rt->m_Base.m_Id, sizeof(rt->m_Base.m_Id));
         dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count, sizeof(vk_sample_count));
 
         for (int i = 0; i < vertexDeclarationCount; ++i)
@@ -3008,7 +3010,7 @@ bail:
 
     static bool DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
-        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        VulkanRenderTarget* current_rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         VulkanProgram* program_ptr = context->m_CurrentProgram;
@@ -3040,11 +3042,10 @@ bail:
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
-        // If the culling, or viewport has changed, make sure to flip the
-        // culling flag if we are rendering to the backbuffer.
-        // This is needed because we are rendering with a negative viewport
-        // which means that the face direction is inverted.
-        if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        // Offscreen Vulkan rendering uses the opposite effective winding from
+        // OpenGL, so flip the cull side to preserve the existing culling
+        // semantics used by render scripts.
+        if (current_rt->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
             if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
             {
@@ -3064,7 +3065,7 @@ bail:
             // If we are rendering to the backbuffer, we must invert the viewport on
             // the y axis. Otherwise we just use the values as-is.
             // If we don't, all FBO rendering will be upside down.
-            if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+            if (current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
             {
                 SetViewportHelper(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight],
                     vp.m_X, (context->m_WindowHeight - vp.m_Y), vp.m_W, -vp.m_H);
@@ -3082,7 +3083,7 @@ bail:
 
         // Get the pipeline for the active draw state
         VkSampleCountFlagBits vk_sample_count = VK_SAMPLE_COUNT_1_BIT;
-        if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        if (current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
             vk_sample_count = context->m_SwapChain->m_SampleCountFlag;
         }
@@ -3824,7 +3825,7 @@ bail:
     {
         VulkanContext* context              = (VulkanContext*) _context;
         context->m_ViewportChanged          = 1;
-        RenderTarget* current_rt            = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        VulkanRenderTarget* current_rt            = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         current_rt->m_Scissor.extent.width  = width;
         current_rt->m_Scissor.extent.height = height;
         current_rt->m_Scissor.offset.x      = x;
@@ -3900,9 +3901,12 @@ bail:
         context->m_CullFaceChanged              = true;
     }
 
-    static void VulkanSetFaceWinding(HContext, FaceWinding face_winding)
+    static void VulkanSetFaceWinding(HContext _context, FaceWinding face_winding)
     {
-        // TODO: Add this to the vulkan pipeline handle aswell, for now it's a NOP
+        VulkanContext* context = (VulkanContext*)_context;
+        assert(context);
+        context->m_PipelineState.m_FaceWinding = face_winding;
+        context->m_CullFaceChanged             = true;
     }
 
     static void VulkanSetPolygonOffset(HContext _context, float factor, float units)
@@ -3993,7 +3997,7 @@ bail:
         return (VkAttachmentLoadOp) -1;
     }
 
-    static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, uint32_t width, uint32_t height, RenderTarget* rtOut)
+    static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, uint32_t width, uint32_t height, VulkanRenderTarget* rtOut)
     {
         assert(rtOut->m_Handle.m_Framebuffer == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPass == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPassClear == VK_NULL_HANDLE);
         const uint8_t num_attachments = MAX_BUFFER_COLOR_ATTACHMENTS + 1;
@@ -4012,8 +4016,8 @@ bail:
 
             assert(!color_texture_ptr->m_Destroyed && color_texture_ptr->m_Handle.m_ImageView != VK_NULL_HANDLE && color_texture_ptr->m_Handle.m_Image != VK_NULL_HANDLE);
             uint8_t color_buffer_index = GetBufferTypeIndex(buffer_types[i]);
-            fb_width                   = rtOut->m_ColorTextureParams[color_buffer_index].m_Width;
-            fb_height                  = rtOut->m_ColorTextureParams[color_buffer_index].m_Height;
+            fb_width                   = rtOut->m_Base.m_ColorTextureParams[color_buffer_index].m_Width;
+            fb_height                  = rtOut->m_Base.m_ColorTextureParams[color_buffer_index].m_Height;
 
             RenderPassAttachment* rp_attachment_color = &rp_attachments[i];
             rp_attachment_color->m_ImageLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -4035,8 +4039,8 @@ bail:
             VulkanTexture* depth_stencil_texture_ptr = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, depth_stencil_texture);
             if (num_color_textures == 0)
             {
-                fb_width  = rtOut->m_DepthStencilTextureParams.m_Height;
-                fb_height = rtOut->m_DepthStencilTextureParams.m_Height;
+                fb_width  = rtOut->m_Base.m_DepthStencilTextureParams.m_Height;
+                fb_height = rtOut->m_Base.m_DepthStencilTextureParams.m_Height;
             }
 
             rp_attachment_depth_stencil                    = &rp_attachments[fb_attachment_count];
@@ -4113,19 +4117,19 @@ bail:
 
         for (int i = 0; i < num_color_textures; ++i)
         {
-            rtOut->m_TextureColor[i] = color_textures[i];
+            rtOut->m_Base.m_TextureColor[i] = color_textures[i];
             rtOut->m_ColorAttachmentBufferTypes[i] = buffer_types[i];
         }
 
-        rtOut->m_ColorAttachmentCount = num_color_textures;
-        rtOut->m_TextureDepthStencil  = depth_stencil_texture;
+        rtOut->m_Base.m_ColorAttachmentCount = num_color_textures;
+        rtOut->m_Base.m_TextureDepthStencil  = depth_stencil_texture;
         rtOut->m_Extent.width         = fb_width;
         rtOut->m_Extent.height        = fb_height;
 
         return VK_SUCCESS;
     }
 
-    static void DestroyRenderTarget(VulkanContext* context, RenderTarget* renderTarget)
+    static void DestroyRenderTarget(VulkanContext* context, VulkanRenderTarget* renderTarget)
     {
         DestroyResourceDeferred(context, renderTarget);
         renderTarget->m_Handle.m_Framebuffer               = VK_NULL_HANDLE;
@@ -4156,22 +4160,22 @@ bail:
     static HRenderTarget VulkanNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
+        VulkanRenderTarget* rt = new VulkanRenderTarget(GetNextRenderTargetId());
 
-        memcpy(rt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
         memcpy(rt->m_ColorBufferLoadOps, params.m_ColorBufferLoadOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
         memcpy(rt->m_ColorBufferStoreOps, params.m_ColorBufferStoreOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
 
-        rt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
+        rt->m_Base.m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
 
         // don't save the data
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            ClearTextureParamsData(rt->m_ColorTextureParams[i]);
+            ClearTextureParamsData(rt->m_Base.m_ColorTextureParams[i]);
         }
-        ClearTextureParamsData(rt->m_DepthStencilTextureParams);
+        ClearTextureParamsData(rt->m_Base.m_DepthStencilTextureParams);
 
         BufferType buffer_types[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture texture_color[MAX_BUFFER_COLOR_ATTACHMENTS];
@@ -4197,7 +4201,7 @@ bail:
 
             if (buffer_type_flags & buffer_type)
             {
-                TextureParams& color_buffer_params = rt->m_ColorTextureParams[i];
+                TextureParams& color_buffer_params = rt->m_Base.m_ColorTextureParams[i];
                 fb_width                           = color_buffer_params.m_Width;
                 fb_height                          = color_buffer_params.m_Height;
 
@@ -4304,20 +4308,21 @@ bail:
     static void VulkanDeleteRenderTarget(HContext _context, HRenderTarget render_target)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        RenderTarget* brt      = &rt->m_Base;
         context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
 
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            if (rt->m_TextureColor[i])
+            if (brt->m_TextureColor[i])
             {
-                DeleteTexture(_context, rt->m_TextureColor[i]);
+                DeleteTexture(_context, brt->m_TextureColor[i]);
             }
         }
 
-        if (rt->m_TextureDepthStencil)
+        if (brt->m_TextureDepthStencil)
         {
-            DeleteTexture(_context, rt->m_TextureDepthStencil);
+            DeleteTexture(_context, brt->m_TextureDepthStencil);
         }
 
         DestroyRenderTarget(context, rt);
@@ -4354,60 +4359,20 @@ bail:
         context->m_ViewportChanged     = 1;
     }
 
-    static HTexture VulkanGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)
-    {
-        VulkanContext* context = (VulkanContext*)_context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-
-        if (IsColorBufferType(buffer_type))
-        {
-            return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            return rt->m_TextureDepthStencil;
-        }
-        return 0;
-    }
-
-    static void VulkanGetRenderTargetSize(HContext _context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
-    {
-        VulkanContext* context = (VulkanContext*)_context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-        TextureParams* params = 0;
-
-        if (IsColorBufferType(buffer_type))
-        {
-            uint32_t i = GetBufferTypeIndex(buffer_type);
-            assert(i < MAX_BUFFER_COLOR_ATTACHMENTS);
-            params = &rt->m_ColorTextureParams[i];
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            params = &rt->m_DepthStencilTextureParams;
-        }
-        else
-        {
-            assert(0);
-        }
-
-        width  = params->m_Width;
-        height = params->m_Height;
-    }
-
     static void VulkanSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        RenderTarget* brt      = &rt->m_Base;
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            rt->m_ColorTextureParams[i].m_Width = width;
-            rt->m_ColorTextureParams[i].m_Height = height;
+            brt->m_ColorTextureParams[i].m_Width = width;
+            brt->m_ColorTextureParams[i].m_Height = height;
 
-            if (rt->m_TextureColor[i])
+            if (brt->m_TextureColor[i])
             {
-                VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
+                VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColor[i]);
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
@@ -4437,12 +4402,12 @@ bail:
             }
         }
 
-        if (rt->m_TextureDepthStencil)
+        if (brt->m_TextureDepthStencil)
         {
-            rt->m_DepthStencilTextureParams.m_Width = width;
-            rt->m_DepthStencilTextureParams.m_Height = height;
+            brt->m_DepthStencilTextureParams.m_Width = width;
+            brt->m_DepthStencilTextureParams.m_Height = height;
 
-            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureDepthStencil);
             DestroyResourceDeferred(context, depth_stencil_texture);
 
             // Check tiling support for this format
@@ -4469,10 +4434,10 @@ bail:
 
         DestroyRenderTarget(context, rt);
         VkResult res = CreateRenderTarget(context,
-            rt->m_TextureColor,
+            brt->m_TextureColor,
             rt->m_ColorAttachmentBufferTypes,
-            rt->m_ColorAttachmentCount,
-            rt->m_TextureDepthStencil,
+            brt->m_ColorAttachmentCount,
+            brt->m_TextureDepthStencil,
             width, height,
             rt);
         CHECK_VK_ERROR(res);
@@ -4878,7 +4843,6 @@ bail:
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
         context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
-
         if (context->m_VkPipelineCache != VK_NULL_HANDLE)
         {
             vkDestroyPipelineCache(vk_device, context->m_VkPipelineCache, 0);
@@ -4938,7 +4902,7 @@ bail:
 
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-            RenderTarget* main_render_target = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+            VulkanRenderTarget* main_render_target = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
             if (main_render_target)
             {
                 context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget);

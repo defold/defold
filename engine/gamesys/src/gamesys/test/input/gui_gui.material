@@ -1,0 +1,8 @@
+name: "gui"
+vertex_program: "/input/gui_gui.vp"
+fragment_program: "/input/gui_gui.fp"
+tags: "gui"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}

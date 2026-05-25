@@ -29,7 +29,7 @@ namespace dmResourceProvider
 
     struct ArchiveLoader
     {
-        dmhash_t                m_NameHash;         // E.g. "http", "archive", "mutable", "file", "zip"
+        dmhash_t                m_NameHash;         // E.g. "http", "archive", "file", "zip"
         FInitializeLoader       m_Initialize;
         FFinalizeLoader         m_Finalize;
 
@@ -37,7 +37,6 @@ namespace dmResourceProvider
         FMount                  m_Mount;
         FUnmount                m_Unmount;
         FGetManifest            m_GetManifest;
-        FSetManifest            m_SetManifest;      // For mutable archive
 
         FGetFileSize            m_GetFileSize;
         FReadFile               m_ReadFile;

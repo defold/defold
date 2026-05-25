@@ -28,8 +28,6 @@
 namespace dmResourceMounts
 {
 
-const int MAX_NAME_LENGTH = 128;
-
 struct ArchiveMount
 {
     dmhash_t                        m_NameHash;
@@ -129,19 +127,12 @@ dmMutex::HMutex GetMutex(HContext ctx)
     return ctx->m_Mutex;
 }
 
-dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority)
+dmResource::Result AddMount(HContext ctx, dmhash_t name_hash, dmResourceProvider::HArchive archive, int priority)
 {
-    if (strlen(name) >= MAX_NAME_LENGTH)
-    {
-        dmLogError("Mount has too long name. Max character count is %d: '%s'", MAX_NAME_LENGTH, name);
-        return dmResource::RESULT_INVAL;
-    }
-
-    dmhash_t name_hash = dmHashString64(name);
     SGetMountResult mount_info;
     if (dmResource::RESULT_OK == GetMountByNameHash(ctx, name_hash, &mount_info))
     {
-        dmLogError("Mount with name already exists: '%s'", name);
+        dmLogError("Mount with name already exists: '%s'", dmHashReverseSafe64(name_hash));
         return dmResource::RESULT_INVAL;
     }
 

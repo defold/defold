@@ -14,6 +14,7 @@
 
 #include "profiler_private.h"
 
+#include <emscripten/heap.h>
 #include <malloc.h>
 
 void dmProfilerExt::SampleCpuUsage()
@@ -21,10 +22,15 @@ void dmProfilerExt::SampleCpuUsage()
     // nop
 }
 
-uint64_t dmProfilerExt::GetMemoryUsage()
+uint64_t dmProfilerExt::GetDetailedMemoryUsage()
 {
     const struct mallinfo info = mallinfo();
     return info.uordblks;
+}
+
+uint64_t dmProfilerExt::GetMemoryUsage()
+{
+    return emscripten_get_heap_size();
 }
 
 double dmProfilerExt::GetCpuUsage()

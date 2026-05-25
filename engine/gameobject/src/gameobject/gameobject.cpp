@@ -49,6 +49,8 @@ DM_PROPERTY_U32(rmtp_GODeleted, 0, PROFILE_PROPERTY_FRAME_RESET, "# deleted inst
 
 namespace dmGameObject
 {
+    DM_STATIC_ASSERT(sizeof(InputAction) == 344, Invalid_Struct_Size); // to avoid it accidentally growing
+
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
     const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));

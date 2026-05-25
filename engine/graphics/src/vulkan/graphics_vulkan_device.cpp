@@ -34,21 +34,20 @@ namespace dmGraphics
         memset(&t->m_Handle, 0, sizeof(t->m_Handle));
     }
 
-    RenderTarget::RenderTarget(const uint32_t rtId)
-        : m_SubPasses(0)
-        , m_TextureDepthStencil(0)
+    VulkanRenderTarget::VulkanRenderTarget(const uint32_t rtId)
+        : m_Base()
         , m_DepthAttachmentClearValue(1.0f)
         , m_StencilAttachmentClearValue(0)
-        , m_Id(rtId)
-        , m_IsBound(0)
+        , m_SubPasses(0)
+        , m_Destroyed(0)
         , m_HasPendingClearColor(0)
         , m_HasPendingClearDepth(0)
         , m_SubPassCount(0)
         , m_SubPassIndex(0)
     {
+        m_Base.m_Id = rtId;
         m_Extent.width  = 0;
         m_Extent.height = 0;
-        memset(m_TextureColor, 0, sizeof(m_TextureColor));
         memset(&m_Handle, 0, sizeof(m_Handle));
     }
 
@@ -283,7 +282,7 @@ namespace dmGraphics
         return RESOURCE_TYPE_PROGRAM;
     }
 
-    const VulkanResourceType RenderTarget::GetType()
+    const VulkanResourceType VulkanRenderTarget::GetType()
     {
         return RESOURCE_TYPE_RENDER_TARGET;
     }
@@ -1016,7 +1015,7 @@ bail:
             attachment_depth.format         = depthStencilAttachment->m_Format;
             attachment_depth.samples        = vk_sample_flags;
             attachment_depth.loadOp         = depthStencilAttachment->m_LoadOp;
-            attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_depth.storeOp        = depthStencilAttachment->m_StoreOp;
             // Keep depth and stencil load ops in sync for packed depth/stencil attachments so
             // the render-pass CLEAR fast path actually clears stencil too.
             attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
@@ -1167,6 +1166,11 @@ bail:
         VK_CULL_MODE_FRONT_AND_BACK
     };
 
+    static const VkFrontFace g_vk_face_windings[] = {
+        VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        VK_FRONT_FACE_CLOCKWISE
+    };
+
     static const VkBlendFactor g_vk_blend_factors[] = {
         VK_BLEND_FACTOR_ZERO,
         VK_BLEND_FACTOR_ONE,
@@ -1228,7 +1232,7 @@ bail:
 
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
-        RenderTarget* render_target, Pipeline* pipelineOut)
+        VulkanRenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1299,7 +1303,7 @@ bail:
         vk_rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
         vk_rasterizer.lineWidth               = 1.0f;
         vk_rasterizer.cullMode                = vk_cull_mode;
-        vk_rasterizer.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        vk_rasterizer.frontFace               = g_vk_face_windings[pipelineState.m_FaceWinding];
         vk_rasterizer.depthBiasEnable         = VK_FALSE;
         vk_rasterizer.depthBiasConstantFactor = 0.0f;
         vk_rasterizer.depthBiasClamp          = 0.0f;
@@ -1327,7 +1331,7 @@ bail:
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
-        uint8_t blend_attachment_count = render_target->m_ColorAttachmentCount;
+        uint8_t blend_attachment_count = render_target->m_Base.m_ColorAttachmentCount;
 
         if (render_target->m_SubPasses)
         {
@@ -1521,7 +1525,7 @@ bail:
         }
     }
 
-    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle)
+    void DestroyRenderTarget(VkDevice vk_device, VulkanRenderTarget::VulkanHandle* handle)
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
         DestroyRenderPass(vk_device, handle->m_RenderPass);
@@ -1599,6 +1603,7 @@ bail:
     QueueFamily GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface)
     {
         assert(device);
+        assert(vkGetPhysicalDeviceSurfaceSupportKHR && "Vulkan function table not initialized for current instance");
 
         QueueFamily qf;
 
@@ -1615,7 +1620,11 @@ bail:
         for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
         {
             QueueFamily candidate;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            VkResult present_support_res = vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            if (present_support_res != VK_SUCCESS)
+            {
+                continue;
+            }
             VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
 
             if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)

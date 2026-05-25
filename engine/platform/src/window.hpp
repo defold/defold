@@ -43,6 +43,7 @@ namespace dmPlatform
     bool           GetSafeArea(HWindow window, WindowSafeArea* out);
 
     const char*    GetJoystickDeviceName(HWindow window, uint32_t joystick_index);
+    const char*    GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index);
     uint32_t       GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity);
     uint32_t       GetJoystickHats(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity);
     uint32_t       GetJoystickButtons(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity);

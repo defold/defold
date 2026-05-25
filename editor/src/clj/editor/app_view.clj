@@ -83,6 +83,7 @@
             [editor.targets :as targets]
             [editor.types :as types]
             [editor.ui :as ui]
+            [editor.ui.settings-popup :as settings-popup]
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
@@ -519,24 +520,13 @@
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
-  (run [app-view scene-visibility]
-    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab)
-                           .getContent
-                           (.lookup "#visibility-settings-graphic")
-                           .getParent)]
-      (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
+  (run [app-view localization scene-visibility]
+    (when-let [btn (scene-visibility/toggle-button app-view)]
+      (scene-visibility/show-settings! (g/node-value app-view :keymap) localization btn scene-visibility)))
   (state [app-view scene-visibility evaluation-context]
-    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab evaluation-context)
-                           .getContent
-                           (.lookup "#visibility-settings-graphic")
-                           .getParent)]
-      ;; TODO: We have no mechanism for updating the style nor icon on
-      ;; on the toolbar button. For now we piggyback on the state
-      ;; update polling to set a style when the filters are active.
-      (if (scene-visibility/filters-appear-active? scene-visibility evaluation-context)
-        (ui/add-style! btn "filters-active")
-        (ui/remove-style! btn "filters-active"))
-      (scene-visibility/settings-visible? btn))))
+    (when-let [btn (scene-visibility/toggle-button app-view)]
+      (scene-visibility/sync-filter-button-style! app-view scene-visibility evaluation-context)
+      (settings-popup/settings-visible? btn))))
 
 (defn- get-settings-button [^Tab tab button-id]
   (some-> tab
@@ -546,21 +536,22 @@
 (defn- show-settings-state [app-view button-id evaluation-context]
   (some-> (g/node-value app-view :active-tab evaluation-context)
           (get-settings-button button-id)
-          (scene-visibility/settings-visible?)))
+          (settings-popup/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
   (run [app-view scene-visibility prefs localization]
     (when-some [btn (some-> (g/node-value app-view :active-tab)
                             (get-settings-button "#show-grid-settings"))]
-      (grid/show-settings! btn app-view prefs localization)))
+      (grid/show-settings! btn app-view prefs (g/node-value app-view :keymap) localization)))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view "#show-grid-settings" evaluation-context)))
 
 (handler/defhandler :scene.perspective-camera.show-settings :workbench
   (run [app-view scene-visibility prefs localization]
-    (when-some [btn (some-> (g/node-value app-view :active-tab)
-                            (get-settings-button "#show-perspective-camera-settings"))]
-      (camera/show-settings! btn prefs localization)))
+    (g/with-auto-evaluation-context evaluation-context
+      (when-some [btn (some-> (g/node-value app-view :active-tab evaluation-context)
+                              (get-settings-button "#show-perspective-camera-settings"))]
+        (camera/show-settings! btn prefs (g/node-value app-view :keymap) localization))))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 
@@ -737,27 +728,21 @@
 (defn- local-url [target web-server]
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
 
-(def ^:private app-task-progress
-  {:main (ref progress/done)
-   :build (ref progress/done)
-   :resource-sync (ref progress/done)
-   :save-all (ref progress/done)
-   :fetch-libraries (ref progress/done)
-   :download-update (ref progress/done)})
+(def ^:private initial-app-task-progress
+  {:main progress/done
+   :build progress/done
+   :resource-sync progress/done
+   :save-all progress/done
+   :fetch-libraries progress/done
+   :download-update progress/done})
 
-(declare ^:private render-task-progress!)
-
-(defn- cancel-task!
-  [task-key]
-  (dosync
-    (let [progress-ref (task-key app-task-progress)]
-      (render-task-progress! task-key (progress/cancel @progress-ref)))))
+(def ^:private app-task-state
+  (atom {:progress initial-app-task-progress
+         :render-ui-inflight false}))
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
   [:save-all :resource-sync :fetch-libraries :build :download-update :main])
-
-(def ^:private render-task-progress-ui-inflight (ref false))
 
 (def status-bar-controls-delay
   (delay
@@ -765,29 +750,46 @@
       (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
       ["progress-bar" "progress-hbox" "progress-percentage-label" "status-label" "progress-cancel-button"])))
 
+(declare ^:private render-task-progress-ui!)
+
+(defn- update-app-task-state! [f & args]
+  (let [[old-state new-state] (apply swap-vals! app-task-state f args)]
+    (when (and (not (:render-ui-inflight old-state))
+               (:render-ui-inflight new-state))
+      (ui/run-later (render-task-progress-ui!)))
+    [old-state new-state]))
+
+(defn- set-task-progress-state [state key progress]
+  (-> state
+      (update :progress assoc key progress)
+      (assoc :render-ui-inflight true)))
+
+(defn- update-task-progress-state [state key f & args]
+  (set-task-progress-state state key (apply f (-> state :progress (get key)) args)))
+
+(defn- cancel-task!
+  [task-key]
+  (update-app-task-state! update-task-progress-state task-key progress/cancel))
+
 (defn- render-task-progress-ui! []
-  (let [task-progress-snapshot (ref nil)]
-    (dosync
-      (ref-set render-task-progress-ui-inflight false)
-      (ref-set task-progress-snapshot
-               (into {} (map (juxt first (comp deref second))) app-task-progress)))
+  (let [task-progress-snapshot (:progress (swap! app-task-state assoc :render-ui-inflight false))]
     (let [[key progress] (->> app-task-ui-priority
-                              (map (juxt identity @task-progress-snapshot))
+                              (map (juxt identity task-progress-snapshot))
                               (filter (comp (complement progress/done?) second))
                               first)
-          show-progress-hbox? (boolean (and (not= key :main)
-                                            progress
-                                            (not (progress/done? progress))))
+          show-progress-hbox (boolean (and (not= key :main)
+                                           progress
+                                           (not (progress/done? progress))))
           localization (ui/user-data (.getScene (ui/main-stage)) :localization)
           {:keys [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]} @status-bar-controls-delay]
       (ui/render-progress-message!
-        (if key progress (@task-progress-snapshot :main))
+        (if key progress (task-progress-snapshot :main))
         status-label
         localization)
       ;; The bottom right of the status bar can show either the progress-hbox
       ;; or the update-link, or both. The progress-hbox will cover
       ;; the update-link if both are visible.
-      (if-not show-progress-hbox?
+      (if-not show-progress-hbox
         (ui/visible! progress-hbox false)
         (do
           (ui/visible! progress-hbox true)
@@ -804,40 +806,38 @@
               (ui/on-action! identity))))))))
 
 (defn- render-task-progress! [key progress]
-  (let [schedule-render-task-progress-ui (ref false)]
-    (dosync
-      (ref-set (get app-task-progress key) progress)
-      (ref-set schedule-render-task-progress-ui (not @render-task-progress-ui-inflight))
-      (ref-set render-task-progress-ui-inflight true))
-    (when @schedule-render-task-progress-ui
-      (ui/run-later (render-task-progress-ui!)))))
+  (update-app-task-state! set-task-progress-state key progress))
 
 (defn make-render-task-progress [key]
-  (assert (contains? app-task-progress key))
+  (assert (contains? initial-app-task-progress key))
   (progress/throttle-render-progress
     (fn [progress] (render-task-progress! key progress))))
 
 (defn begin-task-progress! [key]
-  (let [progress-ref (get app-task-progress key)
-        prev-progress-atom (atom nil)]
-    (assert (some? progress-ref))
+  (let [prev-progress-atom (atom nil)]
+    (assert (contains? initial-app-task-progress key))
     (pair
       (fn render-progress! [progress]
         ;; Combined throttling and inheritance of cancel state.
         ;; The first call to render-progress! overwrites the cancel state of the
-        ;; progress-ref, and then subsequent calls will inherit the cancel state
-        ;; from the progress-ref. This is to ensure we see changes to the
-        ;; progress-refs cancel state from the cancel-task! function.
+        ;; task progress, and then subsequent calls will inherit the cancel state
+        ;; from the task progress. This is to ensure we see changes to the
+        ;; task progress cancel state from the cancel-task! function.
         (let [prev-progress @prev-progress-atom
-              progress (cond-> progress
-                               prev-progress
-                               (progress/with-inherited-cancel-state @progress-ref))]
-          (when (progress/relevant-change? prev-progress progress)
-            (reset! prev-progress-atom progress)
-            (render-task-progress! key progress))))
+              [old-state new-state] (update-app-task-state!
+                                      (fn [state]
+                                        (let [current-progress (-> state :progress (get key))
+                                              progress (cond-> progress
+                                                         prev-progress
+                                                         (progress/with-inherited-cancel-state current-progress))]
+                                          (if (progress/relevant-change? prev-progress progress)
+                                            (set-task-progress-state state key progress)
+                                            state))))]
+          (when-not (= old-state new-state)
+            (reset! prev-progress-atom (-> new-state :progress (get key))))))
 
       (fn task-cancelled? []
-        (progress/cancelled? @progress-ref)))))
+        (-> @app-task-state :progress (get key) progress/cancelled?)))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
@@ -1880,6 +1880,7 @@
     :id ::file
     :children [{:label (localization/message "command.file.new")
                 :id ::new
+                :expand false
                 :command :file.new}
                {:label (localization/message "command.file.open")
                 :id ::open
@@ -3170,7 +3171,7 @@
                                          (future/complete! f nil))
                                      (future/fail! f (Exception. "Save failed")))))
                f))
-    :open-resource! (fn open-resource! [resource]
+    :open-resource! (fn ext-open-resource! [resource]
                       (let [f (future/make)]
                         (ui/run-later
                           (try

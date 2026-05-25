@@ -187,6 +187,63 @@ TEST(dmCrypt, Base64Decode)
     ASSERT_ARRAY_EQ_LEN(expected, (const char*)dst, dst_len);
 }
 
+TEST(dmCrypt, Base64DecodeNoPadding)
+{
+    const char* source_no_pad = "TG9yZW0gSXBzdW0";
+    const char* source_with_pad = "TG9yZW0gSXBzdW0=";
+    const char* expected = "Lorem Ipsum";
+
+    uint8_t dst1[64];
+    uint8_t dst2[64];
+    uint32_t dst_len1 = sizeof(dst1);
+    uint32_t dst_len2 = sizeof(dst2);
+    bool result1, result2;
+
+    result1 = dmCrypt::Base64Decode((const uint8_t*)source_no_pad, strlen(source_no_pad), dst1, &dst_len1);
+    result2 = dmCrypt::Base64Decode((const uint8_t*)source_with_pad, strlen(source_with_pad), dst2, &dst_len2);
+
+    ASSERT_EQ(true, result1);
+    ASSERT_EQ(true, result2);
+    ASSERT_EQ(strlen(expected), dst_len1);
+    ASSERT_EQ(strlen(expected), dst_len2);
+    ASSERT_ARRAY_EQ_LEN(expected, (const char*)dst1, dst_len1);
+    ASSERT_ARRAY_EQ_LEN(expected, (const char*)dst2, dst_len2);
+}
+
+TEST(dmCrypt, Base64DecodeNoPaddingJWT)
+{
+    const char* source = "YWJj";
+    const char* expected = "abc";
+
+    uint8_t dst[64];
+    uint32_t dst_len = sizeof(dst);
+    bool result = dmCrypt::Base64Decode((const uint8_t*)source, strlen(source), dst, &dst_len);
+
+    ASSERT_EQ(true, result);
+    ASSERT_EQ(strlen(expected), dst_len);
+    ASSERT_ARRAY_EQ_LEN(expected, (const char*)dst, dst_len);
+
+    const char* source2 = "YWI";
+    const char* expected2 = "ab";
+
+    dst_len = sizeof(dst);
+    result = dmCrypt::Base64Decode((const uint8_t*)source2, strlen(source2), dst, &dst_len);
+
+    ASSERT_EQ(true, result);
+    ASSERT_EQ(strlen(expected2), dst_len);
+    ASSERT_ARRAY_EQ_LEN(expected2, (const char*)dst, dst_len);
+
+    const char* source3 = "YQ";
+    const char* expected3 = "a";
+
+    dst_len = sizeof(dst);
+    result = dmCrypt::Base64Decode((const uint8_t*)source3, strlen(source3), dst, &dst_len);
+
+    ASSERT_EQ(true, result);
+    ASSERT_EQ(strlen(expected3), dst_len);
+    ASSERT_ARRAY_EQ_LEN(expected3, (const char*)dst, dst_len);
+}
+
 
 int main(int argc, char **argv)
 {

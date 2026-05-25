@@ -195,7 +195,7 @@ static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
         return RESULT_NOT_LOADED;
     }
 
-    dmResourceMounts::AddMount(factory->m_Mounts, "_builtin", factory->m_BuiltinMount, -5);
+    dmResourceMounts::AddMount(factory->m_Mounts, dmHashString64("_builtin"), factory->m_BuiltinMount, -5);
     return RESULT_OK;
 }
 
@@ -279,7 +279,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 factory->m_Mounts = dmResourceMounts::Create(archive);
             }
 
-            dmResourceMounts::AddMount(factory->m_Mounts, "_base", archive, -10);
+            dmResourceMounts::AddMount(factory->m_Mounts, dmHashString64("_base"), archive, -10);
 
             if (strcmp("archive", type_pairs[i].m_ProviderType) == 0)
             {

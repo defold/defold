@@ -47,7 +47,7 @@ import java.util.zip.ZipFile;
 /// values and keep mount/reload policy outside this class.
 public final class Library {
     private static final Logger logger = Logger.getLogger(Library.class.getName());
-    private static final int FETCHES_PER_HOST = 4;
+    private static final int FETCHES_PER_HOST = 3;
     private static final long DEFAULT_TIMEOUT_MILLIS = 15000;
     private static final String CONNECT_TIMEOUT_PROPERTY = "defold.library.connectTimeoutMillis";
     private static final String HOST_PROBE_TIMEOUT_PROPERTY = "defold.library.hostProbeTimeoutMillis";

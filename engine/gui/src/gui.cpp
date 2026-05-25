@@ -4627,6 +4627,8 @@ namespace dmGui
         Vector4 adjust_scale;
         Vector4 offset(0.0f);
 
+        Vector3 position = screen_position;
+
         // Calculate the new parents scene transform
         // We also need to calculate values relative to adjustments and offset
         // corresponding to the values that would be used in AdjustPosScale (see reasoning below).
@@ -4635,10 +4637,22 @@ namespace dmGui
             CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
             reference_scale = parent_node->m_Node.m_LocalAdjustScale;
             adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node->m_Node.m_AdjustMode);
+
+            Vector4 parent_local_position = inverse(parent_m) * Vector4(screen_position, 1.0f);
+            position = parent_local_position.getXYZ();
+
+            if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY)
+            {
+                return position;
+            }
+
+            // For ADJUST_REFERENCE_PARENT the node's local transform is pre-multiplied
+            // by the inverse reference scale in UpdateLocalTransform. Reapply it before
+            // undoing the node adjustment below.
+            position = mulPerElem(position, reference_scale.getXYZ());
         } else {
             reference_scale = CalculateReferenceScale(scene, 0x0);
             adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node->m_Node.m_AdjustMode);
-            parent_m = Matrix4::scale(adjust_scale.getXYZ());
 
             Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
             Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
@@ -4647,10 +4661,6 @@ namespace dmGui
             offset.setX(offset.getX() + scene->m_AdjustOffsetX);
             offset.setY(offset.getY() + scene->m_AdjustOffsetY);
         }
-
-        // We calculate a new position that will be the relative position once
-        // the node has been childed to the new parent.
-        Vector3 position = screen_position - parent_m.getCol3().getXYZ();
 
         // We need to perform the inverse of what AdjustPosScale will do to counteract when
         // it will be applied during next call to CalculateNodeTransform.

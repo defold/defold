@@ -157,6 +157,11 @@ namespace dmPlatform
         return 0;
     }
 
+    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
+    {
+        return 0;
+    }
+
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
     {
         return 0;
