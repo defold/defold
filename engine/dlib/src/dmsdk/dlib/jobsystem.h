@@ -207,10 +207,15 @@ enum JobSystemResult JobSystemPushJob(HJobContext context, HJob job);
 
 /*# cancel a job (and its children)
  * @note Cancelled jobs will be flushed at the next JobSystemUpdate()
+ * @note If a previous cancel call for the same job returned JOBSYSTEM_RESULT_PENDING,
+ *       a later JOBSYSTEM_RESULT_INVALID_HANDLE can mean that JobSystemUpdate()
+ *       finished flushing the job before the next poll. Treat this as a terminal
+ *       result only after you have already observed JOBSYSTEM_RESULT_PENDING for
+ *       that handle.
  * @name JobSystemCancelJob
  * @param context [type:HJobContext] the job system context
  * @param job [type:HJob] the job to cancel
- * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if finished, JOBSYSTEM_RESULT_CANCELED if canceled, or JOBSYSTEM_RESULT_PENDING if the job (or any child) is still in flight
+ * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if finished, JOBSYSTEM_RESULT_CANCELED if canceled, JOBSYSTEM_RESULT_PENDING if the job (or any child) is still in flight or running a callback, or JOBSYSTEM_RESULT_INVALID_HANDLE if the handle is invalid
  * @examples
  * How to wait until a job has been cancelled or finished
  * ```c
@@ -220,16 +225,26 @@ enum JobSystemResult JobSystemPushJob(HJobContext context, HJob job);
  *     dmTime::Sleep(1000);
  *     jr = JobSystemCancelJob(job_context, hjob);
  * }
+ * // If the loop observed PENDING before this point, INVALID_HANDLE means the
+ * // job was flushed by JobSystemUpdate() between polls.
  * ```
  */
 enum JobSystemResult JobSystemCancelJob(HJobContext context, HJob job);
 
 /*# cancel a job (and its children) without invoking callbacks
  * @note Cancelled jobs will be flushed at the next JobSystemUpdate()
+ * @note This only suppresses callbacks that have not already started. If
+ *       JobSystemUpdate() has already entered a callback, cancellation can
+ *       return JOBSYSTEM_RESULT_PENDING until that callback returns.
+ * @note If a previous cancel call for the same job returned JOBSYSTEM_RESULT_PENDING,
+ *       a later JOBSYSTEM_RESULT_INVALID_HANDLE can mean that JobSystemUpdate()
+ *       finished flushing the job before the next poll. Treat this as a terminal
+ *       result only after you have already observed JOBSYSTEM_RESULT_PENDING for
+ *       that handle.
  * @name JobSystemCancelJobNoCallback
  * @param context [type:HJobContext] the job system context
  * @param job [type:HJob] the job to cancel
- * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if finished, JOBSYSTEM_RESULT_CANCELED if canceled, or JOBSYSTEM_RESULT_PENDING if the job (or any child) is still in flight
+ * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if finished, JOBSYSTEM_RESULT_CANCELED if canceled, JOBSYSTEM_RESULT_PENDING if the job (or any child) is still in flight or running a callback, or JOBSYSTEM_RESULT_INVALID_HANDLE if the handle is invalid
  */
 enum JobSystemResult JobSystemCancelJobNoCallback(HJobContext context, HJob job);
 
