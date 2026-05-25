@@ -330,6 +330,12 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob, bool 
     if (!item)
         return JOBSYSTEM_RESULT_INVALID_HANDLE;
 
+    bool was_finished = item->m_Status == JOBSYSTEM_STATUS_FINISHED;
+    if (!clear_callback && was_finished)
+    {
+        return JOBSYSTEM_RESULT_OK;
+    }
+
     if (clear_callback)
     {
         item->m_Job.m_Callback = 0;
@@ -340,7 +346,6 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob, bool 
         return JOBSYSTEM_RESULT_PENDING;
     }
 
-    bool was_finished = item->m_Status == JOBSYSTEM_STATUS_FINISHED;
     JobSystemResult result = was_finished ? JOBSYSTEM_RESULT_OK : JOBSYSTEM_RESULT_CANCELED;
 
     assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED || item->m_Status == JOBSYSTEM_STATUS_FINISHED);

@@ -522,9 +522,9 @@ static void UpdateCancelFinishedParentDuringChildCallback(void* user_data)
     }
 }
 
-// A finished parent can still have a child callback running. Canceling the
-// parent must keep reporting PENDING until the child callback has returned.
-TEST_P(dmJobSystemTest, CancelFinishedParentDuringChildCallbackReportsPending)
+// Normal cancellation of a finished parent does not wait for child callbacks.
+// Callback cleanup remains owned by the callbacks themselves.
+TEST_P(dmJobSystemTest, CancelFinishedParentDuringChildCallbackReportsOk)
 {
     if (GetParam().m_NumThreads == 0)
     {
@@ -601,28 +601,16 @@ TEST_P(dmJobSystemTest, CancelFinishedParentDuringChildCallbackReportsPending)
         ASSERT_EQ(1, dmAtomicGet32(&context.m_ParentProcessFinished));
     }
 
-    JobSystemResult cancel_result = JOBSYSTEM_RESULT_PENDING;
-    int unexpected_cancel_result = 0;
-    stop_time = dmTime::GetMonotonicTime() + 100000;
-    while (dmTime::GetMonotonicTime() < stop_time)
-    {
-        cancel_result = JobSystemCancelJob(m_JobSystem, parent_hjob);
-        if (cancel_result != JOBSYSTEM_RESULT_PENDING || dmAtomicGet32(&context.m_ChildCallbackFinished) != 0)
-        {
-            unexpected_cancel_result = 1;
-            break;
-        }
-        dmTime::Sleep(1000);
-    }
+    JobSystemResult cancel_result = JobSystemCancelJob(m_JobSystem, parent_hjob);
+    int callback_finished_before_release = dmAtomicGet32(&context.m_ChildCallbackFinished);
 
     dmAtomicIncrement32(&context.m_AllowChildCallbackFinish);
     dmThread::Join(update_thread);
 
-    ASSERT_EQ(0, unexpected_cancel_result);
-    ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, cancel_result);
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, cancel_result);
+    ASSERT_EQ(0, callback_finished_before_release);
     ASSERT_EQ(1, dmAtomicGet32(&context.m_ChildCallbackFinished));
     ASSERT_EQ(JOBSYSTEM_STATUS_FINISHED, context.m_ChildCallbackStatus);
-    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemCancelJob(m_JobSystem, parent_hjob));
 }
 
 struct CancelFinishedParentBeforeUpdateContext
