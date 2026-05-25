@@ -13,53 +13,51 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.data
-  (:require [dynamo.graph :as g]
-            [editor.build-target :as bt]
-            [editor.code.data :as data]
-            [editor.code.resource :as r]
-            [editor.localization :as localization]
-            [editor.protobuf :as protobuf]
-            [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto DataProto$Data]
-           [com.google.protobuf Message]))
+  (:require [editor.protobuf :as protobuf]
+            [editor.resource-node :as resource-node])
+  (:import [com.dynamo.gamesys.proto DataProto$Data]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- build-data [build-resource _dep-resources user-data]
-  (let [{:keys [lines]} user-data
-        text (data/lines->string lines)]
-    (try
-      (let [pb (protobuf/str->pb DataProto$Data text)
-            content (protobuf/pb->bytes pb)]
-        {:resource build-resource
-         :content content})
-      (catch Throwable e
-        (throw (ex-info (str "Failed to compile .data file: " (.getMessage e))
-                        {:build-resource build-resource}
-                        e))))))
+(defn data-desc->data-desc-pb-map
+  [data-desc]
+  {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
+  (protobuf/sanitize data-desc :data protobuf/clj-value->ddf-struct-value))
 
-(g/defnk produce-build-targets [_node-id resource lines]
-  (let [build-resource (workspace/make-build-resource resource)]
-    [(bt/with-content-hash
-       {:node-id _node-id
-        :resource build-resource
-        :build-fn build-data
-        :user-data {:lines lines}})]))
+(defn data-desc-pb-map->data-desc
+  [data-desc-pb-map]
+  {:pre [(map? data-desc-pb-map)]} ; DataProto$Data in Protobuf map format.
+  (protobuf/sanitize data-desc-pb-map :data protobuf/ddf-struct-value->clj-value))
 
-(g/defnode DataFileNode
-  (inherits r/CodeEditorResourceNode)
-  (output build-targets g/Any :cached produce-build-targets))
+(defn pb-encode-data-desc
+  [_workspace data-desc]
+  {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
+  (data-desc->data-desc-pb-map data-desc))
 
-(defn register-resource-types [workspace]
-  (r/register-code-resource-type workspace
-    :ext "data"
-    :node-type DataFileNode
-    :label (localization/message "resource.type.data")
-    :icon "icons/32/Icons_11-Script-general.png"
-    :view-types [:code :default]
-    :view-opts {}
-    :build-ext "datac"
-    :lazy-loaded true
-    :built-pb-class DataProto$Data))
+(defn data-resource-type?
+  [resource-type]
+  (= DataProto$Data (:ddf-type (:test-info resource-type))))
 
+(defn register-data-resource-type
+  [workspace & {:keys [sanitize-fn pb-encode-fn] :as args}]
+  {:pre [(not (contains? args :ddf-type))]}
+  (let [ddf-sanitize-fn
+        (if-not sanitize-fn
+          data-desc-pb-map->data-desc
+          (fn ddf-sanitize-fn [data-desc-pb-map]
+            (sanitize-fn (data-desc-pb-map->data-desc data-desc-pb-map))))
+
+        ddf-pb-encode-fn
+        (if-not pb-encode-fn
+          pb-encode-data-desc
+          (fn ddf-pb-encode-fn [workspace data-desc]
+            (pb-encode-data-desc workspace (pb-encode-fn workspace data-desc))))
+
+        args
+        (-> args
+            (assoc :ddf-type DataProto$Data
+                   :sanitize-fn ddf-sanitize-fn
+                   :pb-encode-fn ddf-pb-encode-fn))]
+
+    (apply resource-node/register-ddf-resource-type workspace (mapcat identity args))))

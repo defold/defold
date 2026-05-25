@@ -29,7 +29,6 @@
             [editor.collision-object :as collision-object]
             [editor.compute :as compute]
             [editor.cubemap :as cubemap]
-            [editor.data :as data]
             [editor.display-profiles :as display-profiles]
             [editor.editor-localization :as editor-localization]
             [editor.editor-script :as editor-script]
@@ -108,7 +107,6 @@
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
-      (data/register-resource-types workspace)
       (light/register-resource-types workspace)
       (code-script/register-resource-types workspace)
       (code-shader/register-resource-types workspace)
