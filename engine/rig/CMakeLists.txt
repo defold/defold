@@ -63,6 +63,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x8
   defold_add_library(rig_shared SHARED
     "${RIG_SRC_DIR}/rig.cpp"
     "${RIG_PROTO_CC}")
+  defold_target_skip_sanitizer(rig_shared)
   rig_configure_target(rig_shared)
   defold_target_link_libraries(rig_shared "${TARGET_PLATFORM}"
     ddf_noasan

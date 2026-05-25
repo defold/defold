@@ -123,8 +123,17 @@ function(defold_target_link_libraries target platform)
     message(FATAL_ERROR "defold_target_link_libraries: target and platform are required")
   endif()
 
-  # Remaining unparsed arguments are libraries to link
-  set(_LIBS ${DLIB_UNPARSED_ARGUMENTS})
+  # Remaining unparsed arguments are libraries to link. A plain "lua" entry
+  # mirrors Waf's LUA uselib and resolves to the platform runtime, not
+  # necessarily the vanilla lua target.
+  set(_LIBS)
+  foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
+    if(_lib STREQUAL "lua" AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
+      list(APPEND _LIBS luajit-5.1)
+    else()
+      list(APPEND _LIBS "${_lib}")
+    endif()
+  endforeach()
 
   # Derive OS from tuple (e.g., x86_64-win32 -> win32)
   string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")
@@ -432,6 +441,10 @@ function(defold_add_library target)
 
   # Forward all remaining args directly to add_library
   add_library(${target} ${ARGN})
+
+  if(target MATCHES "_noasan$" AND COMMAND defold_target_skip_sanitizer)
+    defold_target_skip_sanitizer(${target})
+  endif()
 
   # Attach local include dir (e.g., ./include) and headers if present
   if(COMMAND defold_attach_local_include)

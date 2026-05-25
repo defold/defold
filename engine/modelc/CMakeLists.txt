@@ -56,6 +56,7 @@ if(MODELC_IS_DESKTOP)
   defold_target_link_libraries(model "${TARGET_PLATFORM}" SCOPE PUBLIC dlib zip mbedtls profile)
 
   add_library(modelc_bindings OBJECT "${MODELC_GENERATED_CPP}")
+  defold_target_skip_sanitizer(modelc_bindings)
   target_include_directories(modelc_bindings PRIVATE "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model" "${MODELC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
   target_link_libraries(modelc_bindings PRIVATE jni_noasan)
   set_target_properties(modelc_bindings PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -64,6 +65,7 @@ if(MODELC_IS_DESKTOP)
     ${MODELC_CORE_SOURCES}
     "${MODELC_SRC_DIR}/modelimporter_jni.cpp"
     $<TARGET_OBJECTS:modelc_bindings>)
+  defold_target_skip_sanitizer(modelc_shared)
   target_include_directories(modelc_shared PRIVATE "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model" "${MODELC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
   add_dependencies(modelc_shared modelc_bindings)
   defold_target_link_libraries(modelc_shared "${TARGET_PLATFORM}"

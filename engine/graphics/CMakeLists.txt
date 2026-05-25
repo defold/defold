@@ -31,8 +31,16 @@ target_include_directories(graphics_proto_generated PUBLIC
   "${GRAPHICS_PROTO_ROOT}"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(graphics_proto_generated PRIVATE "DLIB_LOG_DOMAIN=\"GRAPHICS\"")
+
+defold_add_library(graphics_proto_generated_noasan OBJECT "${GRAPHICS_PROTO_CC}")
+target_include_directories(graphics_proto_generated_noasan PUBLIC
+  "${GRAPHICS_SRC_DIR}"
+  "${GRAPHICS_PROTO_ROOT}"
+  "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_definitions(graphics_proto_generated_noasan PRIVATE "DLIB_LOG_DOMAIN=\"GRAPHICS\"")
+
 add_custom_target(graphics_proto_header)
-add_dependencies(graphics_proto_header graphics_proto_generated)
+add_dependencies(graphics_proto_header graphics_proto_generated graphics_proto_generated_noasan)
 
 function(graphics_target_os out_var)
   if(TARGET_PLATFORM MATCHES "win32$")
@@ -75,20 +83,25 @@ function(graphics_common_setup target)
 endfunction()
 
 set(GRAPHICS_PROTO_OBJECTS $<TARGET_OBJECTS:graphics_proto_generated>)
+set(GRAPHICS_PROTO_NOASAN_OBJECTS $<TARGET_OBJECTS:graphics_proto_generated_noasan>)
 set(GRAPHICS_PROTO_SOURCES "${GRAPHICS_SRC_DIR}/graphics_proto.cpp" ${GRAPHICS_PROTO_OBJECTS})
+set(GRAPHICS_PROTO_NOASAN_SOURCES "${GRAPHICS_SRC_DIR}/graphics_proto.cpp" ${GRAPHICS_PROTO_NOASAN_OBJECTS})
 
 defold_add_library(graphics_proto STATIC ${GRAPHICS_PROTO_SOURCES})
 graphics_common_setup(graphics_proto)
 defold_target_link_libraries(graphics_proto "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image)
 
-defold_add_library(graphics_proto_noasan STATIC ${GRAPHICS_PROTO_SOURCES})
+defold_add_library(graphics_proto_noasan STATIC ${GRAPHICS_PROTO_NOASAN_SOURCES})
 graphics_common_setup(graphics_proto_noasan)
+add_dependencies(graphics_proto_noasan graphics_proto_generated_noasan)
 defold_target_link_libraries(graphics_proto_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image_noasan)
 
 file(GLOB GRAPHICS_CORE_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/*.cpp")
 file(GLOB GRAPHICS_NULL_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/null/*.cpp")
 set(GRAPHICS_NULL_ALL_SOURCES ${GRAPHICS_CORE_SOURCES} ${GRAPHICS_NULL_SOURCES} ${GRAPHICS_PROTO_OBJECTS})
+set(GRAPHICS_NULL_NOASAN_ALL_SOURCES ${GRAPHICS_CORE_SOURCES} ${GRAPHICS_NULL_SOURCES} ${GRAPHICS_PROTO_NOASAN_OBJECTS})
 list(FILTER GRAPHICS_NULL_ALL_SOURCES EXCLUDE REGEX "/graphics_glfw_wrappers\\.cpp$")
+list(FILTER GRAPHICS_NULL_NOASAN_ALL_SOURCES EXCLUDE REGEX "/graphics_glfw_wrappers\\.cpp$")
 
 defold_add_library(graphics_null STATIC ${GRAPHICS_NULL_ALL_SOURCES})
 graphics_common_setup(graphics_null)
@@ -96,8 +109,9 @@ target_include_directories(graphics_null PUBLIC "${GRAPHICS_SRC_DIR}/null")
 target_compile_definitions(graphics_null PUBLIC DM_GRAPHICS_NULL)
 defold_target_link_libraries(graphics_null "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform_null)
 
-defold_add_library(graphics_null_noasan STATIC ${GRAPHICS_NULL_ALL_SOURCES})
+defold_add_library(graphics_null_noasan STATIC ${GRAPHICS_NULL_NOASAN_ALL_SOURCES})
 graphics_common_setup(graphics_null_noasan)
+add_dependencies(graphics_null_noasan graphics_proto_generated_noasan)
 target_include_directories(graphics_null_noasan PUBLIC "${GRAPHICS_SRC_DIR}/null")
 target_compile_definitions(graphics_null_noasan PUBLIC DM_GRAPHICS_NULL)
 defold_target_link_libraries(graphics_null_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image_noasan platform_null)

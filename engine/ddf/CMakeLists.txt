@@ -202,6 +202,14 @@ target_include_directories(ddf_generated PUBLIC
 target_compile_definitions(ddf_generated PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
 add_dependencies(ddf_generated ddf_proto_py ddf_plugin_py)
 
+defold_add_library(ddf_generated_noasan OBJECT ${DDF_PROTO_CC})
+target_include_directories(ddf_generated_noasan PUBLIC
+  "${DDF_SRC_DIR}"
+  "${DDF_PROTO_DIR}/.."
+  "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_definitions(ddf_generated_noasan PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
+add_dependencies(ddf_generated_noasan ddf_proto_py ddf_plugin_py)
+
 defold_add_library(ddf_proto_core_generated OBJECT ${DDF_PROTO_PBCC})
 target_include_directories(ddf_proto_core_generated PUBLIC
   "${DDF_SRC_DIR}"
@@ -223,13 +231,13 @@ add_dependencies(ddf ddf_generated ddf_proto_core_generated ddf_proto_py ddf_plu
 
 defold_add_library(ddf_noasan STATIC
   ${DDF_SOURCES}
-  $<TARGET_OBJECTS:ddf_generated>)
+  $<TARGET_OBJECTS:ddf_generated_noasan>)
 target_include_directories(ddf_noasan PUBLIC
   "${DDF_SRC_DIR}"
   "${DDF_PROTO_DIR}/.."
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ddf_noasan PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
-add_dependencies(ddf_noasan ddf_generated ddf_proto_py ddf_plugin_py)
+add_dependencies(ddf_noasan ddf_generated_noasan ddf_proto_py ddf_plugin_py)
 
 defold_install_targets(TARGETS ddf ddf_noasan
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}

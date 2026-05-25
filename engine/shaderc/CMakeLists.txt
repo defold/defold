@@ -78,6 +78,7 @@ if(SHADERC_IS_DESKTOP)
     ${SHADERC_EXTRA_LIBS})
 
   add_library(shaderc_bindings OBJECT "${SHADERC_GENERATED_CPP}")
+  defold_target_skip_sanitizer(shaderc_bindings)
   target_include_directories(shaderc_bindings PRIVATE "${SHADERC_SRC_DIR}" "${SHADERC_SRC_DIR}/shader" "${SHADERC_JNI_DIR}" ${SHADERC_EXTRA_INCLUDES} ${JNI_INCLUDE_DIRS})
   target_compile_definitions(shaderc_bindings PRIVATE ${SHADERC_DEFINES})
   target_link_libraries(shaderc_bindings PRIVATE jni_noasan)
@@ -87,6 +88,7 @@ if(SHADERC_IS_DESKTOP)
     ${SHADERC_CORE_SOURCES}
     "${SHADERC_SRC_DIR}/shaderc_jni.cpp"
     $<TARGET_OBJECTS:shaderc_bindings>)
+  defold_target_skip_sanitizer(shaderc_shared)
   target_include_directories(shaderc_shared PRIVATE "${SHADERC_SRC_DIR}" "${SHADERC_SRC_DIR}/shader" "${SHADERC_JNI_DIR}" ${SHADERC_EXTRA_INCLUDES} ${JNI_INCLUDE_DIRS})
   target_compile_definitions(shaderc_shared PRIVATE ${SHADERC_DEFINES})
   add_dependencies(shaderc_shared shaderc_bindings)

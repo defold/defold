@@ -116,6 +116,7 @@ if(TOOLS_IS_DESKTOP)
     add_library(mouse_capture_shared SHARED
       "${TOOLS_SRC_DIR}/mouse_capture/mouse_capture_exports.cpp"
       "${TOOLS_MOUSE_CAPTURE_SOURCE}")
+    defold_target_skip_sanitizer(mouse_capture_shared)
     target_include_directories(mouse_capture_shared PRIVATE "${TOOLS_SRC_DIR}/mouse_capture")
     defold_target_link_libraries(mouse_capture_shared "${TARGET_PLATFORM}" dlib_noasan)
     defold_target_link_socket(mouse_capture_shared "${TARGET_PLATFORM}" PRIVATE)

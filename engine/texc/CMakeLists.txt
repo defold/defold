@@ -59,6 +59,7 @@ if(TEXC_IS_DESKTOP)
   defold_target_link_libraries(texc "${TARGET_PLATFORM}" SCOPE PUBLIC dlib zip mbedtls basis_encoder astcenc)
 
   add_library(texc_bindings OBJECT "${TEXC_GENERATED_CPP}")
+  defold_target_skip_sanitizer(texc_bindings)
   target_include_directories(texc_bindings PRIVATE "${TEXC_SRC_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${TEXC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
   target_link_libraries(texc_bindings PRIVATE jni_noasan)
   set_target_properties(texc_bindings PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -67,6 +68,7 @@ if(TEXC_IS_DESKTOP)
     ${TEXC_CORE_SOURCES}
     "${TEXC_SRC_DIR}/texclibrary_jni.cpp"
     $<TARGET_OBJECTS:texc_bindings>)
+  defold_target_skip_sanitizer(texc_shared)
   target_include_directories(texc_shared PRIVATE "${TEXC_SRC_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${TEXC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
   add_dependencies(texc_shared texc_bindings)
   defold_target_link_libraries(texc_shared "${TARGET_PLATFORM}"

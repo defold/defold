@@ -44,6 +44,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   defold_add_library(particle_shared SHARED
     "${PARTICLE_SRC_DIR}/particle.cpp"
     "${PARTICLE_PROTO_CC}")
+  defold_target_skip_sanitizer(particle_shared)
   target_include_directories(particle_shared PUBLIC
     "${PARTICLE_SRC_DIR}"
     "${PARTICLE_PROTO_ROOT}"
