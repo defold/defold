@@ -18,6 +18,7 @@
 #include <dlib/dstrings.h>
 #include <physics/physics.h>
 
+#include <dmsdk/dlib/hash.h>
 #include <gamesys/gamesys_ddf.h>
 #include "gamesys.h"
 #include "gamesys_private.h"
@@ -116,20 +117,22 @@ namespace dmGameSystem
 {
     int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
     {
-        const char* format = 0;
+        const char* message = 0;
         switch(result)
         {
             case dmResource::RESULT_RESOURCE_NOT_FOUND:
-                format = "The resource was not found (%d): %llu, %s";
+                message = "The resource was not found";
                 break;
             case dmResource::RESULT_NOT_SUPPORTED:
-                format = "The resource type does not support this operation (%d): %llu, %s";
+                message = "The resource type does not support this operation";
                 break;
             default:
-                format = "The resource was not updated (%d): %llu, %s";
+                message = "The resource was not updated";
                 break;
         }
-        return luaL_error(L, format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
+        char path_hash_buffer[32];
+        dmSnPrintf(path_hash_buffer, sizeof(path_hash_buffer), DM_HASH_FMT, path_hash);
+        return luaL_error(L, "%s (%d): %s, %s", message, (int)result, path_hash_buffer, dmHashReverseSafe64(path_hash));
     }
 
     void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
