@@ -2114,6 +2114,8 @@ namespace dmGameSystem
             SpriteComponent* component = &components[i];
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
+            if (component->m_VertexCount == 0 || component->m_IndexCount == 0)
+                continue;
             UpdateTransform(component, sub_pixels);
             // Bounding radius: world matrix already contains component scale; incorporate only sprite size
             Vector3 size = component->m_Size;
@@ -2231,7 +2233,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
             SpriteComponent& component = components[i];
-            if (!component.m_Enabled || !component.m_AddedToUpdate)
+            if (!component.m_Enabled || !component.m_AddedToUpdate || component.m_VertexCount == 0 || component.m_IndexCount == 0)
                 continue;
 
             const Vector3 trans = component.m_World.getCol(3).getXYZ();
