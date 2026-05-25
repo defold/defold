@@ -20,10 +20,11 @@
             [editor.input :as i]
             [editor.keymap :as keymap]
             [editor.math :as math]
+            [editor.mouse-binding :as mouse-binding]
+            [editor.prefs :as prefs]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.popup :as popup]
-            [editor.prefs :as prefs])
+            [editor.ui.popup :as popup])
   (:import [editor.types AABB Camera Frustum Rect Region]
            [javafx.css PseudoClass]
            [javafx.scene Cursor Node Parent]
@@ -512,22 +513,22 @@
            :position (Point3d. (.x delta) (.y delta) (.z delta))
            :rotation r)))
 
-(def ^:private button-interpretation
-  ;; button    shift ctrl  alt   meta => movement
-  {[:primary   false true  false false] :tumble
-   [:primary   false false true  false] :track
-   [:primary   false true  true  false] :dolly
-   [:secondary false false true  false] :dolly
-   [:secondary false false false false] :track
-   [:middle    false false false false] :track})
+(def ^:private camera-command->movement
+  {:scene.camera.free-look :look
+   :scene.camera.orbit :tumble
+   :scene.camera.pan :track
+   :scene.camera.zoom :dolly})
 
-(defn camera-movement [action movements-enabled]
-  ;; NOTE: Hardcoding secondary to start free camera mode, but should be easy to add :middle in the future as an option
-  (if (and (movements-enabled :look) (= (:button action) :secondary))
-    :look
-    (let [movement (button-interpretation [(:button action) (:shift action) (:control action) (:alt action) (:meta action)])]
-      (or (and (movements-enabled movement) movement)
-          :idle))))
+(defn- camera-mouse-binding-context [camera]
+  (if (= :orthographic (:type camera))
+    ::scene-camera-orthographic
+    ::scene-camera-perspective))
+
+(defn camera-movement [camera action movements-enabled]
+  (let [command (mouse-binding/command-for-action (camera-mouse-binding-context camera) action)
+        movement (camera-command->movement command)]
+    (or (and (movements-enabled movement) movement)
+        :idle)))
 
 (defn camera-orthographic-fov-from-aabb [^Camera camera ^Region viewport ^AABB aabb]
   {:pre [camera aabb]}
@@ -948,7 +949,7 @@
           {:keys [x y type key-code]} action
           local-cam (g/node-value self :local-camera evaluation-context)
           movement (if (= type :mouse-pressed)
-                     (camera-movement action movements-enabled)
+                     (camera-movement local-cam (assoc action :type :drag) movements-enabled)
                      (:movement camera-state))]
       (case type
         :scroll (if (and (contains? movements-enabled :dolly)
@@ -1011,7 +1012,8 @@
 
             ;; Allow right click for context menu
             (or (= movement :idle)
-                (and (= (:button action) :secondary)
+                (and (some? (mouse-binding/command-for-action (camera-mouse-binding-context local-cam)
+                                                               (assoc action :type :drag)))
                      (not dragging)))
             action
 
@@ -1022,7 +1024,7 @@
         (cond
           (and (= key-code KeyCode/ESCAPE)
                free-cam-mode
-               (not (contains? (:mouse-buttons input-state) :secondary)))
+               (not (mouse-binding/command-active? ::scene-camera-perspective :scene.camera.free-look input-state)))
           (stop-free-cam-mode! image-view self)
 
           (and (= movement :look)
@@ -1210,3 +1212,58 @@
                          {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4}
                          {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y"}
                          {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode"}]))
+
+(mouse-binding/register!
+  ::scene-camera-orthographic
+  [{:command :scene.camera.drag-select
+    :context-path ["Scene 2D Camera"]
+    :action "Drag Select"
+    :binding {:button :primary :trigger :drag :modifiers []}}
+   {:command :scene.camera.orbit
+    :context-path ["Scene 2D Camera"]
+    :action "Orbit"
+    :binding {:button :primary :trigger :drag :modifiers [:control]}}
+   {:command :scene.camera.pan
+    :context-path ["Scene 2D Camera"]
+    :action "Pan"
+    :binding {:button :primary :trigger :drag :modifiers [:alt]}}
+   {:command :scene.camera.pan
+    :context-path ["Scene 2D Camera"]
+    :action "Pan"
+    :binding {:button :middle :trigger :drag :modifiers []}}
+   {:command :scene.camera.pan
+    :context-path ["Scene 2D Camera"]
+    :action "Pan"
+    :binding {:button :secondary :trigger :drag :modifiers []}}
+   {:command :scene.camera.zoom
+    :context-path ["Scene 2D Camera"]
+    :action "Zoom"
+    :binding {:button :primary :trigger :drag :modifiers [:control :alt]}}])
+
+(mouse-binding/register!
+  ::scene-camera-perspective
+  [{:command :scene.camera.drag-select
+    :context-path ["Scene 3D Camera"]
+    :action "Drag Select"
+    :binding {:button :primary :trigger :drag :modifiers []}}
+   {:command :scene.camera.free-look
+    :context-path ["Scene 3D Camera"]
+    :action "Free Look"
+    :binding {:button :secondary :trigger :drag :modifiers []}}
+   {:command :scene.camera.orbit
+    :context-path ["Scene 3D Camera"]
+    :action "Orbit"
+    :binding {:button :primary :trigger :drag :modifiers [:control]}}
+   {:command :scene.camera.pan
+    :context-path ["Scene 3D Camera"]
+    :action "Pan"
+    :binding {:button :primary :trigger :drag :modifiers [:alt]}}
+   {:command :scene.camera.pan
+    :context-path ["Scene 3D Camera"]
+    :action "Pan"
+    :binding {:button :middle :trigger :drag :modifiers []}}
+   {:command :scene.camera.zoom
+    :context-path ["Scene 3D Camera"]
+    :action "Zoom"
+    :binding {:button :primary :trigger :drag :modifiers [:control :alt]}}
+   ])
