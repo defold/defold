@@ -398,6 +398,55 @@ static void CallbackCancelParent(HJobContext ctx, HJob job, JobSystemStatus stat
     dmAtomicIncrement32(&parent->m_CallbackCalled);
 }
 
+struct CancelPendingParentTrack
+{
+    int32_atomic_t      m_ChildProcessEntered;
+    int32_atomic_t      m_AllowChildProcessFinish;
+    int32_atomic_t      m_ChildProcessFinished;
+    int32_atomic_t      m_ResourceAlive;
+    int32_atomic_t      m_ChildCallbackCalled;
+    int32_atomic_t      m_ChildCallbackAfterResourceRelease;
+    JobSystemStatus     m_ChildCallbackStatus;
+};
+
+static bool WaitForAtomicValue(int32_atomic_t* value, int32_t expected, uint64_t timeout)
+{
+    uint64_t stop_time = dmTime::GetMonotonicTime() + timeout;
+    while (dmTime::GetMonotonicTime() < stop_time)
+    {
+        if (dmAtomicGet32(value) == expected)
+            return true;
+        dmTime::Sleep(1000);
+    }
+    return dmAtomicGet32(value) == expected;
+}
+
+static int32_t ProcessBlockingChild(HJobContext ctx, HJob job, void* user_context, void* user_data)
+{
+    CancelPendingParentTrack* track = (CancelPendingParentTrack*)user_context;
+    dmAtomicStore32(&track->m_ChildProcessEntered, 1);
+
+    while (!dmAtomicGet32(&track->m_AllowChildProcessFinish))
+    {
+        dmTime::Sleep(1000);
+    }
+
+    dmAtomicStore32(&track->m_ChildProcessFinished, 1);
+    return 1;
+}
+
+static void CallbackBlockingChild(HJobContext ctx, HJob job, JobSystemStatus status, void* user_context, void* user_data, int32_t user_result)
+{
+    CancelPendingParentTrack* track = (CancelPendingParentTrack*)user_context;
+    track->m_ChildCallbackStatus = status;
+    dmAtomicIncrement32(&track->m_ChildCallbackCalled);
+
+    if (!dmAtomicGet32(&track->m_ResourceAlive))
+    {
+        dmAtomicIncrement32(&track->m_ChildCallbackAfterResourceRelease);
+    }
+}
+
 // This tests that cancelling the parent after one of the children (not the last one) has finished.
 // doesn't mess up the internal list of children.
 TEST_P(dmJobSystemTest, CancelParentAfterChild)
@@ -572,6 +621,67 @@ TEST_P(dmJobSystemTest, CancelParentAfterChild)
             }
         }
     }
+}
+
+TEST_P(dmJobSystemTest, CancelPendingParentWithFinishedChildBeforeUpdate)
+{
+    if (GetParam().m_NumThreads == 0)
+    {
+        return;
+    }
+
+    CancelPendingParentTrack track = {};
+    track.m_ResourceAlive = 1;
+    track.m_ChildCallbackStatus = JOBSYSTEM_STATUS_FREE;
+
+    Job parent_job = {};
+    parent_job.m_Process = ProcessSimple;
+
+    HJob parent_hjob = JobSystemCreateJob(m_JobSystem, &parent_job);
+    ASSERT_NE((HJob)0, parent_hjob);
+
+    Job child_job = {};
+    child_job.m_Process = ProcessBlockingChild;
+    child_job.m_Callback = CallbackBlockingChild;
+    child_job.m_Context = &track;
+
+    HJob child_hjob = JobSystemCreateJob(m_JobSystem, &child_job);
+    ASSERT_NE((HJob)0, child_hjob);
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemSetParent(m_JobSystem, child_hjob, parent_hjob));
+
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, child_hjob));
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, parent_hjob));
+
+    ASSERT_TRUE(WaitForAtomicValue(&track.m_ChildProcessEntered, 1, 500000));
+
+    // Mirrors the dynamic font crash repro: the resource tracks the sentinel
+    // parent job, starts canceling it while a glyph child job is processing, and
+    // frees the shared job data once cancellation stops returning PENDING.
+    ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, JobSystemCancelJob(m_JobSystem, parent_hjob));
+
+    dmAtomicStore32(&track.m_AllowChildProcessFinish, 1);
+    ASSERT_TRUE(WaitForAtomicValue(&track.m_ChildProcessFinished, 1, 500000));
+
+    JobSystemResult result = JOBSYSTEM_RESULT_PENDING;
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (dmTime::GetMonotonicTime() < stop_time)
+    {
+        result = JobSystemCancelJob(m_JobSystem, parent_hjob);
+        if (result != JOBSYSTEM_RESULT_PENDING)
+        {
+            break;
+        }
+        dmTime::Sleep(1000);
+    }
+
+    ASSERT_EQ(JOBSYSTEM_RESULT_CANCELED, result);
+
+    dmAtomicStore32(&track.m_ResourceAlive, 0);
+    JobSystemUpdate(m_JobSystem, 0);
+
+    ASSERT_EQ(0, dmAtomicGet32(&track.m_ChildCallbackAfterResourceRelease));
+    ASSERT_EQ(0, dmAtomicGet32(&track.m_ChildCallbackCalled));
+    ASSERT_EQ(JOBSYSTEM_STATUS_FREE, track.m_ChildCallbackStatus);
 }
 
 
