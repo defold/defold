@@ -341,14 +341,23 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob, bool 
         item->m_Job.m_Callback = 0;
     }
 
-    if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING || item->m_Status == JOBSYSTEM_STATUS_CALLBACK)
+    bool in_flight = item->m_Status == JOBSYSTEM_STATUS_PROCESSING || item->m_Status == JOBSYSTEM_STATUS_CALLBACK;
+    if (!clear_callback && in_flight)
     {
         return JOBSYSTEM_RESULT_PENDING;
     }
 
-    JobSystemResult result = was_finished ? JOBSYSTEM_RESULT_OK : JOBSYSTEM_RESULT_CANCELED;
+    JobSystemResult result = JOBSYSTEM_RESULT_CANCELED;
+    if (was_finished)
+    {
+        result = JOBSYSTEM_RESULT_OK;
+    }
+    else if (in_flight)
+    {
+        result = JOBSYSTEM_RESULT_PENDING;
+    }
 
-    assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED || item->m_Status == JOBSYSTEM_STATUS_FINISHED);
+    assert(in_flight || item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED || item->m_Status == JOBSYSTEM_STATUS_FINISHED);
 
     HJob hchild = item->m_FirstChild;
     while (hchild != INVALID_JOB)
@@ -373,7 +382,7 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob, bool 
 
     // Preserve FINISHED so later cancel polls still report OK after any
     // pending child callbacks drain. Only unfinished jobs become CANCELED.
-    if (!was_finished)
+    if (!was_finished && !in_flight)
     {
         item->m_Status = JOBSYSTEM_STATUS_CANCELED;
     }
