@@ -71,7 +71,7 @@ echo "Found SDK_ROOT=${SDK_ROOT}"
 
 
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-${YEAR}-${MSVC_VERSION}.tar.gz"
-PACKAGES_WIN32_SDK_10="WindowsKits-${SDK_VERSION}.tar.gz"
+PACKAGES_WIN32_SDK="WindowsKits-${SDK_VERSION}.tar.gz"
 
 
 TARGET_PATH=$(pwd)/local_sdks
@@ -81,11 +81,11 @@ if [ ! -d "${TMP_PATH}" ]; then
 fi
 
 
-if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
-	echo "Packing to ${PACKAGES_WIN32_SDK_10}"
-	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_VERSION} 10/Lib/${SDK_VERSION}/um/x86 10/Lib/${SDK_VERSION}/um/x64 10/Lib/${SDK_VERSION}/ucrt/x86 10/Lib/${SDK_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_VERSION}/x64 10/bin/${SDK_VERSION}/x86
+if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK}" ]; then
+	echo "Packing to ${PACKAGES_WIN32_SDK}"
+	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK} -C "${SDK_PATH}" 10/Include/${SDK_VERSION} 10/Lib/${SDK_VERSION}/um/x86 10/Lib/${SDK_VERSION}/um/x64 10/Lib/${SDK_VERSION}/ucrt/x86 10/Lib/${SDK_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_VERSION}/x64 10/bin/${SDK_VERSION}/x86
 else
-	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} already existed"
+	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK} already existed"
 fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
