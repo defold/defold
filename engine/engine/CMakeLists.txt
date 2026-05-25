@@ -395,6 +395,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   if(TARGET_PLATFORM MATCHES "win32")
     target_sources(${target} PRIVATE "${ENGINE_SRC_DIR}/engine.rc")
     target_link_libraries(${target} PRIVATE Psapi.lib)
+    target_link_options(${target} PRIVATE /DEBUG)
     if(variant STREQUAL "release")
       target_link_options(${target} PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)
     endif()
@@ -476,6 +477,14 @@ defold_install_targets(TARGETS engine engine_release engine_service engine_servi
 
 defold_install_targets(TARGETS dmengine dmengine_release dmengine_headless
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+if(TARGET_PLATFORM MATCHES "win32")
+  foreach(_engine_pdb_target IN ITEMS dmengine dmengine_release dmengine_headless)
+    install(FILES "$<TARGET_PDB_FILE:${_engine_pdb_target}>"
+      DESTINATION bin/${TARGET_PLATFORM}
+      OPTIONAL)
+  endforeach()
+endif()
 
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   set(ENGINE_WEB_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
