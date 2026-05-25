@@ -379,7 +379,7 @@
         animation-vertices (animation-frame->vertex-floats animation-data world-transform)
         vertex-description (shaders/vertex-description animation-overlay-shader)
         ^VertexBuffer vbuf (vtx/make-vertex-buffer vertex-description :stream (count animation-vertices))
-        ^ByteBuffer buf (.buf vbuf)]
+        buf (.buf vbuf)]
     (doseq [vertex animation-vertices]
       (vtx/buf-push-floats! buf vertex))
     (vtx/flip! vbuf)))

@@ -531,7 +531,8 @@
                                    (let [{:keys [anim-data sampler]} primary-texture-binding-info
                                          image-property-label (if (= 1 (count textures)) image-message sampler)]
                                      (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data image-property-label))))))
-            (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
+            (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids)))
+            (dynamic ext-edit-type (g/constantly {:type g/Str})))
 
   (property material resource/Resource ; Default assigned in load-fn.
             (value (gu/passthrough material-resource))

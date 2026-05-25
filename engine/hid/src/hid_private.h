@@ -109,8 +109,8 @@ namespace dmHID
 
     // GUID
     bool ParseGamepadGuid(const char* guid_string, GamepadGuid* guid);
-    void CreateGUIDFromProduct(uint16_t vendor, uint16_t product, uint16_t version, char guid[MAX_GAMEPAD_GUID_LENGTH + 1]);
-    void CreateGUIDFromIdentity(const GamepadIdentity& identity, const char* fallback_name, const char** axis_keys, uint32_t axis_count, const char** button_keys, uint32_t button_count, uint16_t button_mask, char guid[MAX_GAMEPAD_GUID_LENGTH + 1]);
+    GamepadGuid CreateGUID(uint16_t bus, uint16_t vendor, uint16_t product, uint16_t version, const char* vendor_name, const char* product_name, uint8_t driver_signature, uint8_t driver_data);
+    GamepadGuid CreateGUIDFromIdentity(uint16_t bus, const GamepadIdentity& identity, const char* fallback_name, const char** axis_keys, uint32_t axis_count, const char** button_keys, uint32_t button_count, uint16_t button_mask);
 }
 
 #endif

@@ -32,7 +32,7 @@ namespace dmInput
     static const uint16_t INVALID_INDEX = 0xFFFF;
 
     DM_STATIC_ASSERT(sizeof(dmHID::GamepadGuid) == 16, Invalid_Struct_Size);
-    DM_STATIC_ASSERT(sizeof(Action) == 320, Invalid_Struct_Size); // Make sure we don't accidentally grow the struct
+    DM_STATIC_ASSERT(sizeof(Action) == 464, Invalid_Struct_Size); // Make sure we don't accidentally grow the struct
 
     dmHID::Key KEY_MAP[dmInputDDF::MAX_KEY_COUNT];
     dmHID::MouseButton MOUSE_BUTTON_MAP[dmInputDDF::MAX_KEY_COUNT];
@@ -167,7 +167,7 @@ namespace dmInput
             return 0x0;
 
         GamepadConfig* best_config = 0x0;
-        int best_config_name_index = -1;
+        uint32_t best_config_name_index = 0;
 
         uint32_t num_names = 1;
         char* device_names[] = { device_name, 0 };
@@ -177,7 +177,7 @@ namespace dmInput
         device_names[num_names++] = "XBox 360 Controller";
     #endif
 
-        for (int i = 0; i < num_names; ++i)
+        for (uint32_t i = 0; i < num_names; ++i)
         {
             GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_names[i]));
             if (!config)
@@ -478,6 +478,10 @@ namespace dmInput
     {
         if (strcmp(DM_PLATFORM, platform) == 0)
             return true;
+#if defined(__APPLE__)
+        if (strcmp("osx", platform) == 0)
+            return true;
+#endif
         return false;
     }
 
@@ -841,9 +845,11 @@ namespace dmInput
 
                                         // TODO: Check if it's a legacy mapping or not, and choose the old or new controller name
 
-                                        dmHID::GetGamepadDeviceGuid(binding->m_Context->m_HidContext, gamepad, &action->m_GamepadGuid);
+                                        dmHID::GamepadGuid gamepad_guid = {};
+                                        dmHID::GetGamepadDeviceGuid(binding->m_Context->m_HidContext, gamepad, &gamepad_guid);
+                                        action->m_GamepadGuid = gamepad_guid;
 
-                                        action->m_Count = dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
+                                        action->m_Count = (int16_t) dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
                                         action->m_HasText = action->m_Count > 0;
                                         uint32_t user_id32 = 0;
                                         dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &user_id32);

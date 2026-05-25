@@ -39,6 +39,7 @@ target_compile_definitions(defold_sdk INTERFACE
     DM_PLATFORM_WINDOWS
     __STDC_LIMIT_MACROS
     DDF_EXPOSE_DESCRIPTORS
+    DM_HOSTFS=\"\"
     WINVER=0x0600
     _WIN32_WINNT=0x0600
     NOMINMAX

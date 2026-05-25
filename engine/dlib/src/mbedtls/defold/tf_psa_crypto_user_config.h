@@ -17,6 +17,12 @@
 
 #include "mbedtls_rename.h"
 
+/* Defold does not call the mbedTLS self-test APIs at runtime. Leaving them
+ * enabled adds global counters to ECC operations, which race during concurrent
+ * TLS handshakes.
+ */
+#undef MBEDTLS_SELF_TEST
+
 #if defined(DM_MBEDTLS_DISABLE_ASM)
 #undef MBEDTLS_HAVE_ASM
 #undef MBEDTLS_AESNI_C

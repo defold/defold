@@ -3,6 +3,7 @@ import os
 from waf_dynamo import platform_supports_feature, platform_glfw_version
 from BuildUtility import create_build_utility
 from waflib import Options
+from build_constants import TargetOS
 
 def _get_native_file(target_os, name):
     native_source = '%s/%s' % (target_os, name)
@@ -10,17 +11,25 @@ def _get_native_file(target_os, name):
         native_source = name
     return native_source
 
+def configure(conf):
+    target_os = conf.env['TARGET_OS']
+    if target_os in [TargetOS.MACOS, TargetOS.IOS]:
+        conf.env['FRAMEWORK_TESTHID'] = ['GameController']
+
 def build(bld):
     build_util = create_build_utility(bld.env)
     target_os = build_util.get_target_os()
 
     platform_folder = _get_native_file(target_os, '../glfw')
+    glfw_js = bld.path.find_node('../../../../external/glfw/js/library_glfw.js').abspath()
+    web_libs = [glfw_js, 'library_sys.js']
 
-    obj = bld.program(features = 'cxx test',
-                      includes = ['../%s' % target_os, '..', '.', platform_folder],
-                      use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW SOCKET PLATFORM_NULL hid_null',
-                      target   = 'test_hid',
-                      source   = 'test_hid.cpp')
+    bld.program(features = 'cxx test',
+                includes = ['../%s' % target_os, '..', '.', platform_folder],
+                use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW SOCKET PLATFORM_NULL hid_null TESTHID',
+                target   = 'test_hid',
+                source   = 'test_hid.cpp',
+                web_libs = web_libs)
 
     platform_lib = []
     graphics_lib = []
@@ -51,16 +60,9 @@ def build(bld):
     if bld.env.PLATFORM in ('arm64-nx64') and 'DMGLFW' in graphics_lib:
         graphics_lib.remove('DMGLFW')
 
-    if target_os in ['macos', 'ios']:
-        platform_lib.append('GAMECONTROLLER')
-
-    glfw_js = '%s/ext/lib/%s/js/library_glfw.js' % (bld.env.DYNAMO_HOME, bld.env.PLATFORM)
-
-    web_libs = [glfw_js, 'library_sys.js']
-
     bld.program(features = 'cprogram cxx test skip_test apk',
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-        use = 'TESTMAIN APP DLIB DINPUT PROFILE_NULL SOCKET hid'.split() + platform_lib + graphics_lib,
+        use = 'TESTMAIN APP DLIB DINPUT PROFILE_NULL SOCKET hid TESTHID'.split() + platform_lib + graphics_lib,
         web_libs = web_libs,
         exported_symbols = graphics_lib_symbols,
         target = 'test_app_hid',

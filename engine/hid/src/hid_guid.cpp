@@ -26,7 +26,6 @@ namespace dmHID
 {
 
 static void EncodeGamepadGUID(const uint8_t guid_data[16], char guid[MAX_GAMEPAD_GUID_LENGTH + 1]);
-static void CreateSDLGUID(uint16_t bus, uint16_t crc, uint16_t vendor, uint16_t product, uint16_t version, char guid[MAX_GAMEPAD_GUID_LENGTH + 1]);
 
 static_assert(sizeof(GamepadGuid) == 16, "GamepadGuid must match the 16-byte SDL GUID layout");
 static_assert(offsetof(GamepadGuid, m_Bus) == 0, "GamepadGuid layout mismatch");
@@ -114,22 +113,63 @@ static void EncodeGamepadGUID(const uint8_t guid_data[16], char guid[MAX_GAMEPAD
     guid[MAX_GAMEPAD_GUID_LENGTH] = '\0';
 }
 
-static void CreateSDLGUID(uint16_t bus, uint16_t crc, uint16_t vendor, uint16_t product, uint16_t version, char guid[MAX_GAMEPAD_GUID_LENGTH + 1])
+static void SetGUIDWord(uint8_t guid_data[16], uint32_t offset, uint16_t value)
+{
+    guid_data[offset + 0] = (uint8_t) (value & 0xff);
+    guid_data[offset + 1] = (uint8_t) (value >> 8);
+}
+
+GamepadGuid CreateGUID(uint16_t bus, uint16_t vendor, uint16_t product, uint16_t version, const char* vendor_name, const char* product_name, uint8_t driver_signature, uint8_t driver_data)
 {
     uint8_t guid_data[16] = {};
+    uint16_t crc = 0;
 
-    guid_data[0] = (uint8_t) (bus & 0xff);
-    guid_data[1] = (uint8_t) (bus >> 8);
-    guid_data[2] = (uint8_t) (crc & 0xff);
-    guid_data[3] = (uint8_t) (crc >> 8);
-    guid_data[4] = (uint8_t) (vendor & 0xff);
-    guid_data[5] = (uint8_t) (vendor >> 8);
-    guid_data[8] = (uint8_t) (product & 0xff);
-    guid_data[9] = (uint8_t) (product >> 8);
-    guid_data[12] = (uint8_t) (version & 0xff);
-    guid_data[13] = (uint8_t) (version >> 8);
+    if (vendor_name && vendor_name[0] != '\0' && product_name && product_name[0] != '\0')
+    {
+        crc = UpdateCRC16(crc, vendor_name);
+        crc = UpdateCRC16(crc, " ");
+        crc = UpdateCRC16(crc, product_name);
+    }
+    else if (product_name)
+    {
+        crc = UpdateCRC16(crc, product_name);
+    }
 
-    EncodeGamepadGUID(guid_data, guid);
+    SetGUIDWord(guid_data, 0, bus);
+    SetGUIDWord(guid_data, 2, crc);
+
+    if (vendor != 0)
+    {
+        SetGUIDWord(guid_data, 4, vendor);
+        SetGUIDWord(guid_data, 8, product);
+        SetGUIDWord(guid_data, 12, version);
+        guid_data[14] = driver_signature;
+        guid_data[15] = driver_data;
+    }
+    else
+    {
+        uint32_t available_space = sizeof(guid_data) - 4;
+
+        if (driver_signature != 0)
+        {
+            available_space -= 2;
+            guid_data[14] = driver_signature;
+            guid_data[15] = driver_data;
+        }
+
+        if (product_name)
+        {
+            uint32_t i = 0;
+            for (; i + 1 < available_space && product_name[i] != '\0'; ++i)
+            {
+                guid_data[4 + i] = (uint8_t) product_name[i];
+            }
+        }
+    }
+
+    GamepadGuid guid = {};
+    memcpy(&guid, guid_data, sizeof(guid));
+    return guid;
 }
 
 static const char* GetSDLCompatibleControllerName(const GamepadIdentity& identity, const char* fallback_name)
@@ -187,12 +227,7 @@ static const char* GetSDLCompatibleControllerName(const GamepadIdentity& identit
     return "Game Controller";
 }
 
-void CreateGUIDFromProduct(uint16_t vendor, uint16_t product, uint16_t version, char guid[MAX_GAMEPAD_GUID_LENGTH + 1])
-{
-    CreateSDLGUID(0x0003, 0, vendor, product, version, guid);
-}
-
-void CreateGUIDFromIdentity(const GamepadIdentity& identity, const char* fallback_name, const char** axis_keys, uint32_t axis_count, const char** button_keys, uint32_t button_count, uint16_t button_mask, char guid[MAX_GAMEPAD_GUID_LENGTH + 1])
+GamepadGuid CreateGUIDFromIdentity(uint16_t bus, const GamepadIdentity& identity, const char* fallback_name, const char** axis_keys, uint32_t axis_count, const char** button_keys, uint32_t button_count, uint16_t button_mask)
 {
     const char* name_for_guid = GetSDLCompatibleControllerName(identity, fallback_name);
     uint16_t signature = 0;
@@ -216,7 +251,7 @@ void CreateGUIDFromIdentity(const GamepadIdentity& identity, const char* fallbac
         signature = button_mask;
     }
 
-    CreateSDLGUID(0x0005, 0, identity.m_Vendor, identity.m_Product, signature, guid);
+    return CreateGUID(bus, identity.m_Vendor, identity.m_Product, signature, 0, name_for_guid, 0, 0);
 }
 
 void GetGamepadDeviceNameSDL(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH])

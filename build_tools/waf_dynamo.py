@@ -14,7 +14,7 @@
 
 import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
-from waflib import Utils, Build, Options, Task, Logs, Errors
+from waflib import Utils, Build, Options, Task, Logs, Errors, Scripting
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
@@ -87,7 +87,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengl_compute':
         return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
@@ -100,6 +100,88 @@ def platform_setup_vars(ctx, build_util):
 
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
+
+def _default_cmake_target_platform():
+    try:
+        machine = os.uname().machine
+    except AttributeError:
+        machine = os.environ.get('PROCESSOR_ARCHITECTURE', 'x86_64').lower()
+        if machine == 'amd64':
+            machine = 'x86_64'
+
+    if sys.platform == 'darwin':
+        return '%s-macos' % machine
+    if sys.platform.startswith('linux'):
+        return '%s-linux' % machine
+    if sys.platform == 'win32':
+        return '%s-win32' % machine
+    return '<platform>'
+
+def _has_waf_configure_state(path):
+    if os.path.exists(os.path.join(path, 'build', 'c4che', '_cache.py')):
+        return True
+
+    for lock_path in glob.glob(os.path.join(path, '.lock-waf*')):
+        try:
+            with open(lock_path, 'r') as f:
+                for line in f:
+                    match = re.match(r"out_dir = ['\"]([^'\"]+)['\"]", line)
+                    if match and os.path.exists(os.path.join(match.group(1), 'c4che', '_cache.py')):
+                        return True
+        except IOError:
+            pass
+
+    return False
+
+def _fail_if_unconfigured_cmake_library():
+    if not set(Options.commands).intersection(['build', 'clean', 'install', 'uninstall', 'list', 'step']):
+        return
+
+    cwd = os.getcwd()
+    if not os.path.exists(os.path.join(cwd, 'CMakeLists.txt')):
+        return
+    if _has_waf_configure_state(cwd):
+        return
+
+    platform = _default_cmake_target_platform()
+    raise Errors.WafError('''\
+This library has CMakeLists.txt and has not been configured by Waf.
+Use CMake/Ninja for this library instead:
+
+  Configure with tests:
+    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=ON
+
+  Configure without tests:
+    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=OFF
+
+  Build after configuring with tests:
+    ninja -C build all build_tests install
+
+  Build after configuring without tests:
+    ninja -C build all install
+
+  Run tests:
+    ninja -C build run_tests
+''' % (platform, platform))
+
+_cmake_library_guard_installed = False
+
+def _install_unconfigured_cmake_library_guard():
+    global _cmake_library_guard_installed
+    if _cmake_library_guard_installed:
+        return
+
+    run_command = Scripting.run_command
+
+    def run_command_with_cmake_library_guard(cmd_name):
+        if cmd_name == 'init':
+            _fail_if_unconfigured_cmake_library()
+        return run_command(cmd_name)
+
+    Scripting.run_command = run_command_with_cmake_library_guard
+    _cmake_library_guard_installed = True
+
+_install_unconfigured_cmake_library_guard()
 
 def find_platform_file(bld, platform, path, public_fallback = True, private_roots = True):
     repo_root = get_repo_root()
@@ -267,6 +349,9 @@ def platform_graphics_libs_and_symbols(platform):
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
+    elif platform in ('armv7-android', 'arm64-android'):
+        use_opengles = Options.options.with_opengl or not Options.options.with_vulkan
+        use_vulkan = Options.options.with_vulkan or not Options.options.with_opengl
     else:
         use_opengl = True
         use_vulkan = Options.options.with_vulkan
@@ -280,7 +365,10 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_lib_symbols += ['GraphicsAdapterOpenGL']
 
     if use_vulkan:
-        graphics_libs += ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
+        glfw_lib = 'DMGLFW'
+        if platform in ('armv7-android', 'arm64-android') and not use_opengles:
+            glfw_lib = 'DMGLFW_VULKAN'
+        graphics_libs += ['GRAPHICS_VULKAN', glfw_lib, 'VULKAN']
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
     if Options.options.with_dx12 and platform_supports_feature(platform, 'dx12', {}):
@@ -487,6 +575,9 @@ def default_flags(self):
         self.env.append_value('DEFINES', 'DM_PLATFORM_64BIT')
     else:
         self.env.append_value('DEFINES', 'DM_PLATFORM_32BIT')
+
+    if platform_supports_feature(build_util.get_target_platform(), 'compute', None):
+        self.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
 
     if not hasattr(self, 'sdkinfo'):
         self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
@@ -2150,7 +2241,7 @@ def detect(conf):
 
     conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
     if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
-        conf.env['STLIB_DLIB'].append('mbedtls')
+        conf.env['STLIB_DLIB'].append('dmbedtls')
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
 
@@ -2195,6 +2286,7 @@ def detect(conf):
         conf.env['STLIB_DMGLFW'] = 'glfw3'
     else:
         conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW_VULKAN'] = 'dmglfw_vulkan'
 
     # ***********************************************************
     # Vulkan
@@ -2213,7 +2305,7 @@ def detect(conf):
             conf.env.append_value('LIB_VULKAN', ['VkLayer_khronos_validation'])
 
     elif TargetOS.ANDROID == target_os:
-        conf.env['SHLIB_VULKAN'] = ['vulkan']
+        conf.env['SHLIB_VULKAN'] = []
     elif TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 

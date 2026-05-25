@@ -12,7 +12,7 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-require "lua.test_helpers"
+require "gui.lua_test_helpers"
 
 function test_v4_single(self, box)
     assert_vec4(vmath.vector4(1,2,3,4), gui.get(box, "constant_v4"))

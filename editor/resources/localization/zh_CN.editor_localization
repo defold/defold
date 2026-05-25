@@ -336,6 +336,7 @@ dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}
 
 # Fetch libraries notification
 
+notification.fetch-libraries.problem.http-connect-timeout = 获取失败(连接超时)
 
 # Open custom editor notifications
 

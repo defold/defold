@@ -29,8 +29,8 @@ namespace dmInput
         union {
             dmHID::Touch         m_Touch[dmHID::MAX_TOUCH_COUNT];
             char                 m_Text[dmHID::MAX_CHAR_COUNT];
-            dmHID::GamepadPacket m_GamepadPacket;
         };
+        dmHID::GamepadPacket m_GamepadPacket;
         union {
             dmHID::GamepadGuid   m_GamepadGuid; // Valid when m_GamepadConnected == 1
         };

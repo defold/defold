@@ -16,11 +16,16 @@
 #define DM_DDF_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <dmsdk/ddf/ddf.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
 
-#define DDF_OFFSET_OF(T, F) (((uintptr_t) (&((T*) 16)->F)) - 16)
+#if defined(__GNUC__) || defined(__clang__)
+#define DDF_OFFSET_OF(T, F) __builtin_offsetof(T, F)
+#else
+#define DDF_OFFSET_OF(T, F) offsetof(T, F)
+#endif
 #define DDF_MAX_FIELDS (128)
 #define DDF_NO_ONE_OF_INDEX 0
 
@@ -130,6 +135,7 @@ namespace dmDDF
     struct InternalRegisterDescriptor
     {
         InternalRegisterDescriptor(Descriptor* descriptor);
+        InternalRegisterDescriptor(Descriptor** descriptors, uint32_t count);
     };
 
     /**

@@ -12,7 +12,7 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-local ATLAS_B = hash("/gui/texture_setter_override_b.t.texturesetc")
+local ATLAS_B = hash("/gui/texture_setter_override_b.a.texturesetc")
 
 function update(self, dt)
     go.set("#gui", "textures", ATLAS_B, { key = "atlas" })
