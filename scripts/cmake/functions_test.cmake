@@ -290,11 +290,12 @@ function(defold_register_test_target target_name)
         list(APPEND _test_pythonpath_entries ${_test_existing_pythonpath})
       endif()
       cmake_path(CONVERT "${_test_pythonpath_entries}" TO_NATIVE_PATH_LIST _test_pythonpath)
+      string(REPLACE ";" "\\;" _test_pythonpath_env "${_test_pythonpath}")
       set(_run_env
         "${CMAKE_COMMAND}" "-E" "env"
         "DEFOLD_HOME=${DEFOLD_HOME}"
         "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
-        "PYTHONPATH=${_test_pythonpath}")
+        "PYTHONPATH=${_test_pythonpath_env}")
       if(TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
         _defold_find_wasm_runner(_wasm_runner)
         if(NOT _wasm_runner)

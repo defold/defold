@@ -96,11 +96,13 @@ add_custom_command(
     --stamp "${ENGINE_TEST_CONTENT_STAMP}"
     --platform "${TARGET_PLATFORM}"
     --java "${Java_JAVA_EXECUTABLE}"
+    --builtins-root "${ENGINE_BUILTINS_COMPILED_DIR}"
     ${ENGINE_TEST_CLASSPATH_ARGS}
     ${ENGINE_TEST_CONTENT_SETTINGS_ARGS}
   DEPENDS
     "${ENGINE_TEST_CONTENT_SCRIPT}"
     "${ENGINE_BOB_ENGINE_JAR}"
+    "${ENGINE_BUILTINS_STAMP}"
     ${ENGINE_SHADERC_JAR}
     ${ENGINE_TEST_CONTENT_SOURCES}
   WORKING_DIRECTORY "${ENGINE_TEST_ENGINE_ROOT}"
@@ -108,6 +110,7 @@ add_custom_command(
   VERBATIM)
 add_custom_target(engine_test_content DEPENDS "${ENGINE_TEST_CONTENT_STAMP}")
 add_dependencies(engine_test_content engine_bob_engine_jar)
+add_dependencies(engine_test_content engine_builtins)
 if(TARGET shaderc_jar)
   add_dependencies(engine_test_content shaderc_jar)
 endif()

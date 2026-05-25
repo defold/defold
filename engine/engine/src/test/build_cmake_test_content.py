@@ -27,6 +27,18 @@ def rewrite_resource_uri(stage_root):
     game_project.write_text(text)
 
 
+def copy_compiled_builtins(builtins_root, stage_root):
+    if not builtins_root:
+        return
+
+    source = Path(builtins_root).resolve()
+    if not source.exists():
+        raise FileNotFoundError(source)
+
+    destination = stage_root / "build/default/builtins"
+    shutil.copytree(source, destination, dirs_exist_ok=True)
+
+
 def java_command(args, main_class, *bob_args):
     command = [args.java]
     runtime_flags = os.environ.get("DM_JAVA_RUNTIME_FLAGS", "")
@@ -44,6 +56,7 @@ def main():
     parser.add_argument("--stamp", required=True)
     parser.add_argument("--platform", required=True)
     parser.add_argument("--java", required=True)
+    parser.add_argument("--builtins-root")
     parser.add_argument("--classpath", action="append", required=True)
     parser.add_argument("--settings", action="append", default=[])
     args = parser.parse_args()
@@ -78,6 +91,8 @@ def main():
                      "-root", bob_root,
                      "build",
                      *bob_flags), engine_root)
+
+    copy_compiled_builtins(args.builtins_root, stage_root)
 
     stamp.parent.mkdir(parents=True, exist_ok=True)
     stamp.write_text("engine test content\n")
