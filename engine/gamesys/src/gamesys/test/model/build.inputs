@@ -1,3 +1,4 @@
+/model/default.texture_profiles
 /model/dynamic_vertex_attributes.go
 /model/empty_texture.model
 /model/invalid_material.model
@@ -12,4 +13,3 @@
 /model/texture_transform_model.go
 /model/valid_material.go
 /model/valid_model.go
-/script/test_component.script

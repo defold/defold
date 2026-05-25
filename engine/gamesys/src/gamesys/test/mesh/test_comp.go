@@ -5,5 +5,5 @@ components {
 }
 components {
   id: "script"
-  component: "/script/test_component.script"
+  component: "/mesh/script_test_component.script"
 }

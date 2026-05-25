@@ -5,4 +5,3 @@
 /light/valid_directional_light.go
 /light/valid_point_light.go
 /light/valid_spot_light.go
-/script/test_component.script

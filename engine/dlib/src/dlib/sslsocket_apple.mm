@@ -209,6 +209,34 @@ namespace dmSSLSocket
         return RESULT_HANDSHAKE_FAILED;
     }
 
+    static dmSocket::Result ReadStreamNotReadyResult(CFReadStreamRef read_stream)
+    {
+        CFStreamStatus status = CFReadStreamGetStatus(read_stream);
+        if (status == kCFStreamStatusError)
+        {
+            return StreamErrorToSocketResult(CFReadStreamGetError(read_stream));
+        }
+        if (status == kCFStreamStatusAtEnd || status == kCFStreamStatusClosed)
+        {
+            return dmSocket::RESULT_CONNRESET;
+        }
+        return dmSocket::RESULT_WOULDBLOCK;
+    }
+
+    static dmSocket::Result WriteStreamNotReadyResult(CFWriteStreamRef write_stream)
+    {
+        CFStreamStatus status = CFWriteStreamGetStatus(write_stream);
+        if (status == kCFStreamStatusError)
+        {
+            return StreamErrorToSocketResult(CFWriteStreamGetError(write_stream));
+        }
+        if (status == kCFStreamStatusAtEnd || status == kCFStreamStatusClosed)
+        {
+            return dmSocket::RESULT_CONNRESET;
+        }
+        return dmSocket::RESULT_WOULDBLOCK;
+    }
+
     static bool SetStreamProperty(CFReadStreamRef read_stream, CFWriteStreamRef write_stream, CFStringRef property, CFTypeRef value)
     {
         return CFReadStreamSetProperty(read_stream, property, value) && CFWriteStreamSetProperty(write_stream, property, value);
@@ -349,6 +377,11 @@ namespace dmSSLSocket
             *sent_bytes = 0;
         }
 
+        if (!CFWriteStreamCanAcceptBytes(socket->m_WriteStream))
+        {
+            return WriteStreamNotReadyResult(socket->m_WriteStream);
+        }
+
         CFIndex result = CFWriteStreamWrite(socket->m_WriteStream, (const UInt8*)buffer, length);
         if (result > 0)
         {
@@ -370,6 +403,11 @@ namespace dmSSLSocket
         if (received_bytes != 0)
         {
             *received_bytes = 0;
+        }
+
+        if (!CFReadStreamHasBytesAvailable(socket->m_ReadStream))
+        {
+            return ReadStreamNotReadyResult(socket->m_ReadStream);
         }
 
         CFIndex result = CFReadStreamRead(socket->m_ReadStream, (UInt8*)buffer, length);
