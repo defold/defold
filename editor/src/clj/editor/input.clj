@@ -200,3 +200,25 @@
       (and (= :key-released (:type action))
            (trackable-key? (:key-code action)))
       (update :pressed-keys disj (:key-code action)))))
+
+(defn- active-modifiers [x]
+  (into #{}
+        (filter x)
+        [:shift :alt :control]))
+
+(defn- modifiers-match? [expected actual]
+  (= (set expected)
+     (active-modifiers actual)))
+
+(defn mouse-binding-action?
+  [{:keys [button modifiers trigger]} action]
+  (and (= trigger (:type action))
+       (= button (:button action))
+       (not (:meta action))
+       (modifiers-match? modifiers action)))
+
+(defn mouse-binding-active?
+  [{:keys [button modifiers]} input-state]
+  (and button
+       (contains? (:mouse-buttons input-state) button)
+       (modifiers-match? modifiers (:modifiers input-state))))
