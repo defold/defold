@@ -27,8 +27,8 @@ namespace dmMouseCapture
         HWND       m_MessageWindow;
         bool       m_Capturing;
         MouseDelta m_AccumulatedDelta;
-        int        m_SavedCursorX;
-        int        m_SavedCursorY;
+        int        m_RestoreCursorX;
+        int        m_RestoreCursorY;
     };
 
     static void DrainRawInput(MouseDelta* out_delta)
@@ -117,13 +117,28 @@ namespace dmMouseCapture
         SetCursorPos(x, y);
     }
 
+    bool GetCursorPos(CursorPos* cursor_pos)
+    {
+        if (!cursor_pos)
+            return false;
+
+        POINT p;
+        bool result = ::GetCursorPos(&p);
+        if (result)
+        {
+            cursor_pos->x = p.x;
+            cursor_pos->y = p.y;
+        }
+        return result;
+    }
+
     // Just in case we accumulated some deltas between the stop and start capture, let's clear them
     static void DiscardRawInput()
     {
         DrainRawInput(nullptr);
     }
 
-    HContext StartCapture(int save_cursor_x, int save_cursor_y)
+    HContext StartCapture(int capture_cursor_x, int capture_cursor_y)
     {
         if (!EnsureWindowClass())
             return nullptr;
@@ -138,8 +153,14 @@ namespace dmMouseCapture
         context->m_Capturing = true;
         context->m_AccumulatedDelta.dx = 0.0;
         context->m_AccumulatedDelta.dy = 0.0;
-        context->m_SavedCursorX = save_cursor_x;
-        context->m_SavedCursorY = save_cursor_y;
+        context->m_RestoreCursorX = capture_cursor_x;
+        context->m_RestoreCursorY = capture_cursor_y;
+        CursorPos restore_cursor_pos;
+        if (GetCursorPos(&restore_cursor_pos))
+        {
+            context->m_RestoreCursorX = restore_cursor_pos.x;
+            context->m_RestoreCursorY = restore_cursor_pos.y;
+        }
 
         SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)context);
 
@@ -159,11 +180,12 @@ namespace dmMouseCapture
         while (ShowCursor(FALSE) >= 0)
         {
         }
+
         RECT clipRect;
-        clipRect.left = context->m_SavedCursorX;
-        clipRect.right = context->m_SavedCursorX + 1;
-        clipRect.top = context->m_SavedCursorY;
-        clipRect.bottom = context->m_SavedCursorY + 1;
+        clipRect.left = capture_cursor_x;
+        clipRect.right = capture_cursor_x + 1;
+        clipRect.top = capture_cursor_y;
+        clipRect.bottom = capture_cursor_y + 1;
         ClipCursor(&clipRect);
 
         DiscardRawInput();
@@ -192,6 +214,7 @@ namespace dmMouseCapture
         while (ShowCursor(TRUE) < 0)
         {
         }
+        WarpCursor(context->m_RestoreCursorX, context->m_RestoreCursorY);
 
         delete context;
     }

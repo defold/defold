@@ -13,9 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.input
-  (:require [editor.os :as os])
-  (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta]
-           [java.awt MouseInfo]
+  (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta MouseCapture$CursorPos]
            [javafx.event EventType]
            [javafx.scene.input DragEvent InputEvent KeyCode KeyEvent MouseEvent MouseButton ScrollEvent TransferMode]))
 
@@ -40,10 +38,6 @@
 
 (def ^:private mouse-capture-context (atom nil))
 
-(def is-wayland (and (os/is-linux?)
-                     (or (some? (System/getenv "WAYLAND_DISPLAY"))
-                         (= "wayland" (System/getenv "XDG_SESSION_TYPE")))))
-
 ;; NOTE: JavaFX provides Robot for this sort of thing, however, it requires Accessibility Permissions
 ;; on macos, so we need to make native calls
 (defn warp-cursor [x y] (MouseCapture/MouseCapture_WarpCursor x y))
@@ -59,17 +53,19 @@
     (reset! mouse-capture-context nil)
     true))
 
+(def ^:private cached-cursor-pos (atom (MouseCapture$CursorPos.)))
 (def ^:private cached-delta (atom (MouseCapture$MouseDelta.)))
 
 (defn poll-mouse-delta ^MouseCapture$MouseDelta []
   (when-let [context @mouse-capture-context]
-    (let [delta @cached-delta]
-      (when (MouseCapture/MouseCapture_PollDelta context delta)
-        @cached-delta))))
+    (when (MouseCapture/MouseCapture_PollDelta context @cached-delta)
+      @cached-delta)))
 
 (defn get-cursor-pos []
-  (let [point (.getLocation (MouseInfo/getPointerInfo))]
-    [(.getX point) (.getY point)]))
+  (if (MouseCapture/MouseCapture_GetCursorPos @cached-cursor-pos)
+    (let [cursor-pos ^MouseCapture$CursorPos @cached-cursor-pos]
+      [(.x cursor-pos) (.y cursor-pos)])
+    [0 0]))
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))

@@ -24,6 +24,9 @@ namespace dmMouseCapture
         double m_AccDx;
         double m_AccDy;
         id m_LocalMonitor;
+        int m_IgnoreEvents;
+        int m_RestoreCursorX;
+        int m_RestoreCursorY;
     };
 
     static NSEventMask const kMotionMask =
@@ -39,17 +42,53 @@ namespace dmMouseCapture
         CGAssociateMouseAndMouseCursorPosition(YES);
     }
 
-    HContext StartCapture(int save_cursor_x, int save_cursor_y)
+    bool GetCursorPos(CursorPos* cursor_pos)
+    {
+        if (!cursor_pos)
+            return false;
+
+        CGEventRef event = CGEventCreate(NULL);
+        if (!event)
+            return NO;
+        CGPoint p = CGEventGetLocation(event);
+        CFRelease(event);
+        cursor_pos->x = (int)p.x;
+        cursor_pos->y = (int)p.y;
+        return YES;
+    }
+
+    HContext StartCapture(int capture_cursor_x, int capture_cursor_y)
     {
         Context* context = new Context();
         context->m_Capturing = true;
         context->m_AccDx = 0.0;
         context->m_AccDy = 0.0;
+        context->m_IgnoreEvents = 1;
 
+        context->m_RestoreCursorX = capture_cursor_x;
+        context->m_RestoreCursorY = capture_cursor_y;
+
+        CursorPos restore_cursor_pos;
+        if (GetCursorPos(&restore_cursor_pos))
+        {
+            context->m_RestoreCursorX = restore_cursor_pos.x;
+            context->m_RestoreCursorY = restore_cursor_pos.y;
+        }
+
+        [NSCursor hide];
+        // Because we are dissasociating the cursor, this leaves it at a random position, and JavaFX needs the cursor
+        // to be over the Image Node in order to receive events, but we only need to do this for macos
+        WarpCursor(capture_cursor_x, capture_cursor_y);
         CGAssociateMouseAndMouseCursorPosition(NO);
 
         context->m_LocalMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:kMotionMask
             handler:^NSEvent*(NSEvent* event) {
+                // We have to ignore the first event because of the previous WarpCursor creates
+                // one huge jump to move to the center of the screen
+                if (context->m_IgnoreEvents > 0) {
+                    context->m_IgnoreEvents--;
+                    return event;
+                }
                 context->m_AccDx += [event deltaX];
                 context->m_AccDy += [event deltaY];
                 return event;
@@ -76,6 +115,8 @@ namespace dmMouseCapture
         }
 
         CGAssociateMouseAndMouseCursorPosition(YES);
+        WarpCursor(context->m_RestoreCursorX, context->m_RestoreCursorY);
+        [NSCursor unhide];
 
         delete context;
     }
