@@ -23,6 +23,7 @@
             [service.log :as log]
             [util.coll :as coll :refer [pair]])
   (:import [com.defold.extension.pipeline.texture TextureCompression ITextureCompressor]
+           [com.dynamo.bob ClassLoaderScanner]
            [com.dynamo.bob.pipeline Texc$PixelFormat TexcLibraryJni]
            [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [java.awt.image BufferedImage]
@@ -122,7 +123,7 @@
                 (log/error :msg (str "Exception in static initializer of ITextureCompressor implementation " class-name ": " (.getMessage e))
                            :exception e)
                 (pair :faulty-class-names class-name))))
-          (java/scan-class-loader class-loader scanned-package-name))))
+          (ClassLoaderScanner/scanClassLoader class-loader scanned-package-name))))
 
 (defn- set-texture-compressors! [texture-compressor-classes]
   (run! (fn [^Class texture-compressor-class]
