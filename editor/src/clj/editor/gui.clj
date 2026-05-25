@@ -5484,7 +5484,8 @@
   (reduce add-node-type-info empty-node-type-registry (mapv normalize-node-type-info base-node-type-infos)))
 
 (defn- validate-node-type-info! [{:keys [custom-type-name node-cls] :as type-info}]
-  (when-not (string? custom-type-name)
+  (when (or (not (string? custom-type-name))
+            (str/blank? custom-type-name))
     (throw (IllegalArgumentException.
              (format "Plugin GUI node type %s does not specify a valid custom type name."
                      (:name @node-cls)))))

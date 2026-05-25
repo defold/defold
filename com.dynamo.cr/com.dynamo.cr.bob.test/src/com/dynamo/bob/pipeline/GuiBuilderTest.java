@@ -32,6 +32,8 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.MurmurHash;
 
 public class GuiBuilderTest extends AbstractProtoBuilderTest {
@@ -69,8 +71,8 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     public GuiBuilderTest() throws IOException {
         this.scanner = new ClassLoaderScanner(this.getClass().getClassLoader());
         registerProtoBuilderNames();
-        GuiCustomTypeRegistry.register(TestSpineGuiNode.class);
-        GuiCustomTypeRegistry.register(TestTypedGuiNode.class);
+        getProject().getGuiCustomTypeRegistry().register(TestSpineGuiNode.class);
+        getProject().getGuiCustomTypeRegistry().register(TestTypedGuiNode.class);
     }
 
     private boolean nodeExists(Gui.SceneDesc scene, String nodeId)
@@ -480,6 +482,30 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertFalse(node.hasCustomTypeName());
         Assert.assertEquals(7, node.getCustomPropertiesCount());
         Assert.assertEquals(MurmurHash.hash64("hash_value"), findCustomProperty(node, "hash").getHash());
+    }
+
+    @Test
+    public void testCustomTypesAreProjectLocal() throws Exception {
+        Project project = new Project(new DefaultFileSystem());
+        Project otherProject = new Project(new DefaultFileSystem());
+        try {
+            project.getGuiCustomTypeRegistry().register(TestTypedGuiNode.class);
+
+            Assert.assertNotNull(project.getGuiCustomTypeRegistry().getByName("Typed"));
+            Assert.assertNull(otherProject.getGuiCustomTypeRegistry().getByName("Typed"));
+        } finally {
+            project.dispose();
+            otherProject.dispose();
+        }
+    }
+
+    @Test(expected = CompileExceptionError.class)
+    public void testUnknownCustomTypeNameFailsBuild() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNodeWithTypeName(src, "missing", "Missing");
+        finishNode(src);
+
+        buildGui(src, "/test.gui");
     }
 
     @Test

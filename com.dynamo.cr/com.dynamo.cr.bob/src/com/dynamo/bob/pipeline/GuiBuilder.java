@@ -194,10 +194,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> resourceNames, Set<String> fontNames, Set<String> particlefxNames, Set<String> textureNames, Set<String> layerNames, Set<String> materialNames) throws CompileExceptionError {
-        if(builder == null) {
-            return;
-        }
-
         List<String> nodeResources = new ArrayList<>();
 
         // TODO: Do resource validation in the plugin. I.e. how to get the resources?
@@ -207,7 +203,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
 
         if (n.getType() == Type.TYPE_CUSTOM) {
-            GuiCustomTypeRegistry.Type customType = GuiCustomTypeRegistry.getByHash(n.getCustomType());
+            GuiCustomTypeRegistry.Type customType = builder.project.getGuiCustomTypeRegistry().getByHash(n.getCustomType());
             if (customType != null) {
                 for (Property property : n.getCustomPropertiesList()) {
                     GuiCustomTypeRegistry.Property propertyDefinition = property.hasId() && !property.getId().isEmpty()
@@ -386,21 +382,29 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static NodeDesc migrateCustomNode(NodeDesc node) {
-        GuiCustomTypeRegistry.Type customType = null;
+    private static NodeDesc migrateCustomNode(GuiBuilder builder, String input, NodeDesc node) throws CompileExceptionError {
+        GuiCustomTypeRegistry customTypeRegistry = builder.project.getGuiCustomTypeRegistry();
+        GuiCustomTypeRegistry.Type customType;
 
         if (node.getType() == Type.TYPE_SPINE) {
-            customType = GuiCustomTypeRegistry.getByName("Spine");
+            customType = customTypeRegistry.getByName("Spine");
         } else if (node.getType() == Type.TYPE_CUSTOM) {
             if (node.hasCustomTypeName() && !node.getCustomTypeName().isEmpty()) {
-                customType = GuiCustomTypeRegistry.getByName(node.getCustomTypeName());
+                customType = customTypeRegistry.getByName(node.getCustomTypeName());
             } else {
-                customType = GuiCustomTypeRegistry.getByHash(node.getCustomType());
+                customType = customTypeRegistry.getByHash(node.getCustomType());
             }
+        } else {
+            return node;
         }
 
         if (customType == null) {
-            return node;
+            String customTypeName = node.getType() == Type.TYPE_SPINE ? "Spine" : node.getCustomTypeName();
+            String message = customTypeName.isEmpty()
+                    ? "Unknown GUI custom node type hash '" + Integer.toUnsignedLong(node.getCustomType()) + "' for node '" + node.getId() + "'"
+                    : "Unknown GUI custom node type '" + customTypeName + "' for node '" + node.getId() + "'";
+            IResource resource = builder.project.getResource(input);
+            throw new CompileExceptionError(resource, 0, message);
         }
 
         Map<String, Object> migratedProperties = new LinkedHashMap<String, Object>();
@@ -428,18 +432,18 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             existingPropertyHashes.add(propertyNameHash);
         }
 
-        NodeDesc.Builder builder = node.toBuilder();
-        builder.setType(Type.TYPE_CUSTOM);
-        builder.setCustomType(customType.getNameHash());
-        builder.clearCustomTypeName();
-        builder.clearCustomProperties();
-        builder.addAllCustomProperties(customProperties);
-        builder.clearSpineScene();
-        builder.clearSpineDefaultAnimation();
-        builder.clearSpineSkin();
-        builder.clearSpineNodeChild();
-        builder.clearSpineCreateBones();
-        return builder.build();
+        NodeDesc.Builder nodeBuilder = node.toBuilder();
+        nodeBuilder.setType(Type.TYPE_CUSTOM);
+        nodeBuilder.setCustomType(customType.getNameHash());
+        nodeBuilder.clearCustomTypeName();
+        nodeBuilder.clearCustomProperties();
+        nodeBuilder.addAllCustomProperties(customProperties);
+        nodeBuilder.clearSpineScene();
+        nodeBuilder.clearSpineDefaultAnimation();
+        nodeBuilder.clearSpineSkin();
+        nodeBuilder.clearSpineNodeChild();
+        nodeBuilder.clearSpineCreateBones();
+        return nodeBuilder.build();
     }
 
     private static NodeDesc clearEditorOnlyCustomNodeFields(NodeDesc node) {
@@ -474,7 +478,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         builder.clearOverriddenFields();
     }
 
-    private static ArrayList<NodeDesc> mergeNodes(NodeDesc parentNode, List<NodeDesc> nodes, HashMap<String, NodeDesc> layoutNodes, HashMap<String, HashMap<String, NodeDesc>> parentSceneNodeMap, String layout, boolean applyDefaultLayout) {
+    private static ArrayList<NodeDesc> mergeNodes(GuiBuilder builder, String input, NodeDesc parentNode, List<NodeDesc> nodes, HashMap<String, NodeDesc> layoutNodes, HashMap<String, HashMap<String, NodeDesc>> parentSceneNodeMap, String layout, boolean applyDefaultLayout) throws CompileExceptionError {
         ArrayList<NodeDesc> newNodes = new ArrayList<NodeDesc>(nodes.size());
         for(NodeDesc n : nodes) {
             // pick default node if no layout version exist
@@ -500,7 +504,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             if (layoutNodes != null) {
                 ApplyLayoutOverrides(b, layoutNodes, parentSceneNodeMap.get(layout));
             }
-            newNodes.add(migrateCustomNode(b.build()));
+            newNodes.add(migrateCustomNode(builder, input, b.build()));
         }
         return newNodes;
     }
@@ -657,7 +661,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 continue;
             }
 
-            node = migrateCustomNode(node);
+            node = migrateCustomNode(builder, input, node);
 
             // add current scene nodes
             newScene.get("").add(node);
@@ -665,7 +669,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             for(String layout : layouts) {
                 NodeDesc n = nodeMap.get(layout).get(node.getId());
                 if(n != null) {
-                    n = migrateCustomNode(n);
+                    n = migrateCustomNode(builder, input, n);
                     validateNodeResources(n, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
                     newScene.get(layout).add(n);
                 }
@@ -677,7 +681,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 templateBuilder = transformScene(builder, node.getTemplate(), templateBuilder, sceneIO, sceneResourceCache, false);
 
                 // merge template scene nodes with overrides of current scene
-                List<NodeDesc> nodes = mergeNodes(node, templateBuilder.getNodesList(), null, nodeMap, "", true);
+                List<NodeDesc> nodes = mergeNodes(builder, input, node, templateBuilder.getNodesList(), null, nodeMap, "", true);
                 newScene.get("").addAll(nodes);
 
                 List<String> templateLayouts = new ArrayList<String>(templateBuilder.getLayoutsCount());
@@ -699,14 +703,14 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                                 break;
                             }
                         }
-                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, templateLayoutName, false);
+                        nodes = mergeNodes(builder, input, node, templateBuilder.getNodesList(), layoutNodes, nodeMap, templateLayoutName, false);
                     } else {
                         templateLayoutName = "";
                         layoutNodes = new HashMap<String, NodeDesc>(templateBuilder.getNodesCount());
                         for(NodeDesc n : templateBuilder.getNodesList()) {
                             layoutNodes.put(n.getId(), n);
                         }
-                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, layout.getName(), true);
+                        nodes = mergeNodes(builder, input, node, templateBuilder.getNodesList(), layoutNodes, nodeMap, layout.getName(), true);
                     }
 
                     ArrayList<NodeDesc> layoutNodeList = newScene.get(layout.getName());

@@ -149,6 +149,7 @@ public class Project {
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
     private Set<Class<? extends IPlugin>> pluginClasses = new HashSet<>();
+    private final GuiCustomTypeRegistry guiCustomTypeRegistry = new GuiCustomTypeRegistry();
     private ClassLoader classLoader = null;
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
@@ -162,6 +163,10 @@ public class Project {
 
     public ArchiveBuilder getArchiveBuilder() {
         return this.archiveBuilder;
+    }
+
+    public GuiCustomTypeRegistry getGuiCustomTypeRegistry() {
+        return guiCustomTypeRegistry;
     }
 
     public Project(IFileSystem fileSystem) {
@@ -420,7 +425,7 @@ public class Project {
                     }
                 }
 
-                GuiCustomTypeRegistry.register(klass);
+                guiCustomTypeRegistry.register(klass);
                 TimeProfiler.stop();
             } catch (Exception e) {
                 throw new RuntimeException(e);

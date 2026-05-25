@@ -111,10 +111,10 @@ public class GuiCustomTypeRegistry {
         }
     }
 
-    private static final Map<Integer, Type> typesByHash = new LinkedHashMap<Integer, Type>();
-    private static final Map<String, Type> typesByName = new LinkedHashMap<String, Type>();
+    private final Map<Integer, Type> typesByHash = new LinkedHashMap<Integer, Type>();
+    private final Map<String, Type> typesByName = new LinkedHashMap<String, Type>();
 
-    public static void register(Class<?> klass) {
+    public void register(Class<?> klass) {
         GuiCustomNode annotation = klass.getAnnotation(GuiCustomNode.class);
         if (annotation == null) {
             return;
@@ -131,11 +131,11 @@ public class GuiCustomTypeRegistry {
         typesByName.put(type.getName(), type);
     }
 
-    public static Type getByHash(int nameHash) {
+    public Type getByHash(int nameHash) {
         return typesByHash.get(nameHash);
     }
 
-    public static Type getByName(String name) {
+    public Type getByName(String name) {
         return typesByName.get(name);
     }
 
