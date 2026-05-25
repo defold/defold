@@ -118,11 +118,11 @@ def copy_optional_ogg_tools(dynamo_home, bob_root):
                 copy_file_once(lib, dst_dir / lib.name)
 
 
-def get_bob_root(output_root, env):
+def get_bob_root(output_root, env, folder):
     env_root = env.get("DM_BOB_ROOTFOLDER")
     if env_root:
-        return Path(env_root).resolve()
-    return output_root / ".bob" / "bob-root"
+        return Path(env_root).resolve() / "gamesys" / folder
+    return output_root / ".bob" / "bob-root" / folder
 
 
 def read_build_inputs(path):
@@ -195,7 +195,7 @@ def main():
     cmd = build_bob_command(bob_light, inputs, stage_root, bob_output, args.platform)
 
     env = os.environ.copy()
-    bob_root = get_bob_root(output_root, env)
+    bob_root = get_bob_root(output_root, env, folder)
     bob_root.mkdir(parents=True, exist_ok=True)
     dynamo_home = bob_light.parent.parent.parent
     copy_optional_ogg_tools(dynamo_home, bob_root)

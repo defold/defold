@@ -150,11 +150,11 @@ def remove_custom_outputs(path):
             child.unlink()
 
 
-def get_bob_root(output_root, env):
+def get_bob_root(output_root, env, folder):
     env_root = env.get("DM_BOB_ROOTFOLDER")
     if env_root:
-        return Path(env_root).resolve()
-    return output_root / ".bob" / "bob-root"
+        return Path(env_root).resolve() / "gameobject" / folder
+    return output_root / ".bob" / "bob-root" / folder
 
 
 def read_build_inputs(path):
@@ -312,12 +312,12 @@ def main():
 
     bob_output = Path("build") / "bob-test-data"
     bob_output_abs = stage_root / bob_output
-    custom_builders_dir = output_root / ".bob" / "custom-builders" / "classes"
+    custom_builders_dir = output_root / ".bob" / "custom-builders" / folder / "classes"
     compile_custom_builders(custom_builders_dir, bob_light, args.javac)
     cmd = build_bob_command(bob_light, custom_builders_dir, inputs, stage_root, bob_output, args.platform)
 
     env = os.environ.copy()
-    bob_root = get_bob_root(output_root, env)
+    bob_root = get_bob_root(output_root, env, folder)
     bob_root.mkdir(parents=True, exist_ok=True)
     env["DM_BOB_ROOTFOLDER"] = str(bob_root)
 

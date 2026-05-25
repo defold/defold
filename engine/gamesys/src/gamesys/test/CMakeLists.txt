@@ -105,6 +105,11 @@ file(GLOB_RECURSE _GS_BUILTINS_GRAPHICS_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORI
 
 set(_GS_BOB_STAGE_ROOT "${GS_TEST_RUNTIME_DIR}/.bob/root")
 set(_GS_BOB_STAGE_STAMP "${CMAKE_CURRENT_BINARY_DIR}/.bob/stage.stamp")
+if(DEFINED ENV{DM_BOB_ROOTFOLDER} AND NOT "$ENV{DM_BOB_ROOTFOLDER}" STREQUAL "")
+  set(_GS_BOB_ROOT_BASE "$ENV{DM_BOB_ROOTFOLDER}/gamesys")
+else()
+  set(_GS_BOB_ROOT_BASE "${GS_TEST_RUNTIME_DIR}/.bob/bob-root")
+endif()
 add_custom_command(
   OUTPUT "${_GS_BOB_STAGE_STAMP}"
   COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}"
@@ -147,11 +152,13 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
         "${GS_TEST_RUNTIME_DIR}/${_folder}/${_raw_input}c")
   endforeach()
 
+  set(_bob_root "${_GS_BOB_ROOT_BASE}/${_folder}")
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
   add_custom_command(
     OUTPUT "${_stamp}"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}/build/${_folder}"
-    COMMAND "${Java_JAVA_EXECUTABLE}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_bob_root}"
+    COMMAND "${CMAKE_COMMAND}" -E env "DM_BOB_ROOTFOLDER=${_bob_root}" "${Java_JAVA_EXECUTABLE}"
       --enable-native-access=ALL-UNNAMED
       -cp "${_GS_BOB_CLASSPATH}"
       com.dynamo.bob.Bob
