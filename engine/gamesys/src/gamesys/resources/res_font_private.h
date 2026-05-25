@@ -44,6 +44,7 @@ namespace dmGameSystem
 
         FPrewarmTextCallback    m_Callback;
         void*                   m_CallbackContext;
+        bool                    m_CallbackOnCancel;
     };
 
     struct FontResource

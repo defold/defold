@@ -2988,21 +2988,23 @@ TEST_F(FontTest, DynamicGlyph)
 struct DynamicFontJobCallbackState
 {
     uint32_t m_CallbackCount;
+    int      m_Result;
+    char     m_ErrMsg[128];
 };
 
 static void DynamicFontJobCallback(void* ctx, int result, const char* errmsg)
 {
-    (void)result;
-    (void)errmsg;
     DynamicFontJobCallbackState* state = (DynamicFontJobCallbackState*)ctx;
     state->m_CallbackCount++;
+    state->m_Result = result;
+    dmStrlCpy(state->m_ErrMsg, errmsg ? errmsg : "", sizeof(state->m_ErrMsg));
 }
 
-TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobs)
+TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobsAndCompletesCallback)
 {
     const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
     dmGameSystem::FontResource* font = 0;
-    DynamicFontJobCallbackState callback_state = {0};
+    DynamicFontJobCallbackState callback_state = {0, -1, {0}};
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
     ASSERT_NE((void*)0, font);
@@ -3013,9 +3015,12 @@ TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobs)
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_font, 0));
     ASSERT_EQ(0u, font->m_PendingJobs.Size());
+    ASSERT_EQ(1u, callback_state.m_CallbackCount);
+    ASSERT_EQ(0, callback_state.m_Result);
+    ASSERT_STREQ("Font prewarm request was cancelled", callback_state.m_ErrMsg);
 
     JobSystemUpdate(m_JobContext, 0);
-    ASSERT_EQ(0u, callback_state.m_CallbackCount);
+    ASSERT_EQ(1u, callback_state.m_CallbackCount);
 
     dmResource::Release(m_Factory, font);
 }

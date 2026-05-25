@@ -111,6 +111,14 @@ namespace dmGameSystem
         delete job_info;
     }
 
+    static void InvokeCancelledCallback(FontJobResourceInfo* job_info)
+    {
+        if (job_info->m_CallbackOnCancel && job_info->m_Callback)
+        {
+            job_info->m_Callback(job_info->m_CallbackContext, 0, "Font prewarm request was cancelled");
+        }
+    }
+
     static void CancelPendingJobs(FontResource* font)
     {
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
@@ -125,6 +133,7 @@ namespace dmGameSystem
                 jr = JobSystemCancelJobNoCallback(font->m_Jobs, hjob);
             }
 
+            InvokeCancelledCallback(job_info);
             DecRefJobResourceInfo(font->m_Factory, font, job_info);
             DeallocateJobResourceInfo(job_info);
         }
@@ -158,12 +167,13 @@ namespace dmGameSystem
     }
 
     static FontJobResourceInfo* CreateJobResourceInfo(dmResource::HFactory factory, FontResource* resource, uint32_t glyph_count,
-                                                        FPrewarmTextCallback cbk, void* cbk_ctx)
+                                                        FPrewarmTextCallback cbk, void* cbk_ctx, bool callback_on_cancel)
     {
         FontJobResourceInfo* job_info = new FontJobResourceInfo;
         job_info->m_Job = 0;
         job_info->m_Callback = cbk;
         job_info->m_CallbackContext = cbk_ctx;
+        job_info->m_CallbackOnCancel = callback_on_cancel;
         job_info->m_Resource = resource;
 
         HFontCollection fontcollection = ResFontGetFontCollection(resource);
@@ -217,7 +227,7 @@ namespace dmGameSystem
         DestroyJobInfo(job_info);
     }
 
-    dmResource::Result ResFontPrewarmText(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx)
+    static dmResource::Result ResFontPrewarmTextInternal(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx, bool callback_on_cancel)
     {
         if (!resource->m_IsDynamic)
         {
@@ -243,7 +253,7 @@ namespace dmGameSystem
         TextGlyph*  glyphs      = TextLayoutGetGlyphs(layout);
 
         // Increment all resource before we send them to the thread
-        FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, glyph_count, cbk, cbk_ctx);
+        FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, glyph_count, cbk, cbk_ctx, callback_on_cancel);
         job_info->m_Job = dmGameSystem::FontGenAddGlyphs(job_info->m_FontGenJobData, glyphs, glyph_count, TextCallbackJobInfo, job_info);
 
         TextLayoutRelease(layout);
@@ -256,6 +266,11 @@ namespace dmGameSystem
 
         PushPendingJob(resource, job_info);
         return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResFontPrewarmText(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx)
+    {
+        return ResFontPrewarmTextInternal(resource, text, cbk, cbk_ctx, true);
     }
 
     static uint32_t GetResourceSize(FontResource* font)
@@ -541,7 +556,7 @@ namespace dmGameSystem
         FontResource* resource = (FontResource*)user_ctx;
 
         // Increment all child resources (i.e. .ttf) before we send them to the thread
-        FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, 1, 0, 0);
+        FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, 1, 0, 0, false);
         job_info->m_Job = dmGameSystem::FontGenAddGlyphByIndex(job_info->m_FontGenJobData, font, glyph_index, TextCallbackJobInfo, (void*)job_info);
         if (!job_info->m_Job)
         {
@@ -626,7 +641,7 @@ namespace dmGameSystem
             font->m_Prewarming = 1;
             font->m_PrewarmDone = 0;
 
-            dmResource::Result r = ResFontPrewarmText(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font);
+            dmResource::Result r = ResFontPrewarmTextInternal(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font, false);
             if (dmResource::RESULT_OK != r)
             {
                 font->m_Prewarming = 0;
