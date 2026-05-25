@@ -1466,16 +1466,22 @@ Macros currently mean no foreseeable performance gain, however."
 (defn ddf-struct-value->clj-value
   [ddf-struct-value]
   {:pre [(map? ddf-struct-value) ; DdfStruct$Value in map format.
-         (= 1 (count ddf-struct-value))]}
+         (>= 1 (count ddf-struct-value))]}
+  ;; Convert tagged values such as {:bool true} and {:number 1.0} to their raw
+  ;; Clojure counterparts. Typically, the ddf-struct-value will have exactly one
+  ;; map entry, where the key denotes the type and of the associated value.
+  ;; However, we also treat empty maps {} as nil values to keep things simple
+  ;; for the sparse-protobuf-tests. Proper nil values are represented as
+  ;; {:null :null-value}.
   (let [[field-type field-value] (first ddf-struct-value)]
     (case field-type
-      :null nil
-      :list (mapv ddf-struct-value->clj-value (:values field-value))
-      :struct (into {}
-                    (map (fn [[^String key value]]
-                           (pair (.intern key)
-                                 (ddf-struct-value->clj-value value))))
-                    (:fields field-value))
+      (:null nil) nil
+      (:list) (mapv ddf-struct-value->clj-value (:values field-value))
+      (:struct) (into {}
+                      (map (fn [[^String key value]]
+                             (pair (.intern key)
+                                   (ddf-struct-value->clj-value value))))
+                      (:fields field-value))
       field-value)))
 
 (defn clj-value->ddf-struct-value
