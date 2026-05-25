@@ -1070,7 +1070,6 @@ scene-popup.grid.plane = Плоскость
 scene-popup.grid.color = Цвет
 scene-popup.grid.opacity = Прозрачность
 scene-popup.camera.move-speed = Скорость движения
-scene-popup.camera.look-sensitivity = Чувствительность камеры
 scene-popup.camera.invert-y = Инвертировать Y
 scene-popup.camera.walking-mode = Режим ходьбы
 
