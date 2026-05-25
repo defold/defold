@@ -1010,6 +1010,23 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_NoPredicate)
 {
     const char* script =
     "function init(self)\n"
+    "     self.test_pred = render.predicate({hash(\"one\")})"
+    "    render.draw(self.test_pred, \"invalid_arg\")\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaDraw_InvalidArgument)
+{
+    const char* script =
+    "function init(self)\n"
     "    render.draw()\n"
     "end\n";
 

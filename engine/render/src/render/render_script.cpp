@@ -1737,6 +1737,10 @@ namespace dmRender
         dmRender::SortOrder sort_order = dmRender::SORT_UNSPECIFIED;
 
         bool has_options_table = lua_istable(L, 2);
+        if (lua_gettop(L) >=2 && !has_options_table)
+        {
+            return luaL_error(L, "Invalid argument #2 type. Should be table or nil");
+        }
         bool has_constant_buffer_value = false;
 
         if (has_options_table)
