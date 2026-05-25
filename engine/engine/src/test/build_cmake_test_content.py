@@ -16,8 +16,8 @@ def copytree(src, dst):
     shutil.copytree(src, dst, ignore=ignore)
 
 
-def run(args, cwd):
-    subprocess.check_call(args, cwd=str(cwd))
+def run(args, cwd, env=None):
+    subprocess.check_call(args, cwd=str(cwd), env=env)
 
 
 def rewrite_resource_uri(stage_root):
@@ -49,6 +49,13 @@ def java_command(args, main_class, *bob_args):
     return command
 
 
+def get_bob_root(stage_root, env):
+    env_root = env.get("DM_BOB_ROOTFOLDER")
+    if env_root:
+        return Path(env_root) / "engine" / "test_content"
+    return stage_root / ".bob" / "bob-root" / "test_content"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", required=True)
@@ -66,6 +73,10 @@ def main():
     stamp = Path(args.stamp).resolve()
     engine_root = source_root.parents[1]
     bob_root = os.path.relpath(stage_root, engine_root)
+    env = os.environ.copy()
+    bob_workspace_root = get_bob_root(stage_root, env)
+    bob_workspace_root.mkdir(parents=True, exist_ok=True)
+    env["DM_BOB_ROOTFOLDER"] = str(bob_workspace_root)
 
     copytree(source_root, stage_root)
     rewrite_resource_uri(stage_root)
@@ -77,7 +88,9 @@ def main():
     if args.platform in ("js-web", "wasm-web", "wasm_pthread-web"):
         bob_flags.append("--use-vanilla-lua")
 
-    run(java_command(args, "com.dynamo.bob.Bob", "-root", bob_root, "clean"), engine_root)
+    print("  Bob root: %s" % bob_workspace_root, flush=True)
+
+    run(java_command(args, "com.dynamo.bob.Bob", "-root", bob_root, "clean"), engine_root, env=env)
 
     for settings in args.settings:
         settings_path = os.path.relpath(stage_root / settings, engine_root)
@@ -85,12 +98,12 @@ def main():
                          "-root", bob_root,
                          "build",
                          *bob_flags,
-                         "--settings", settings_path), engine_root)
+                         "--settings", settings_path), engine_root, env=env)
 
     run(java_command(args, "com.dynamo.bob.Bob",
                      "-root", bob_root,
                      "build",
-                     *bob_flags), engine_root)
+                     *bob_flags), engine_root, env=env)
 
     copy_compiled_builtins(args.builtins_root, stage_root)
 
