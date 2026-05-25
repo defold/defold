@@ -193,6 +193,9 @@
 (def ext-with-anchor-pane-props
   (fx/make-ext-with-props fx.anchor-pane/props))
 
+(def ext-with-stack-pane-props
+  (fx/make-ext-with-props fx.stack-pane/props))
+
 (defn ext-ensure-scroll-pane-child-visible
   "Extension lifecycle that ensures ScrollPane's child node is visible
 
