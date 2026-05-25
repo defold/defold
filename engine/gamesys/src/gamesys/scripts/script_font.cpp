@@ -49,6 +49,15 @@ struct CallbackContext
     int                        m_Request;
 };
 
+static void DestroyPrewarmTextCallbackContext(CallbackContext* ctx)
+{
+    if (ctx)
+    {
+        dmScript::DestroyCallback(ctx->m_Callback);
+        delete ctx;
+    }
+}
+
 
 /*#
  * associates a ttf resource to a .fontc file.
@@ -173,8 +182,7 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 
         dmScript::TeardownCallback(cbk);
     }
-    dmScript::DestroyCallback(cbk); // only do this if you're not using the callback again
-    delete ctx;
+    DestroyPrewarmTextCallbackContext(ctx); // only do this if you're not using the callback again
 }
 
 
@@ -240,6 +248,7 @@ static int PrewarmText(lua_State* L)
     dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
     if (dmResource::RESULT_OK != r)
     {
+        DestroyPrewarmTextCallbackContext(cbk_ctx);
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
@@ -247,6 +256,7 @@ static int PrewarmText(lua_State* L)
     if (dmResource::RESULT_OK != r)
     {
         dmResource::Release(g_ResourceFactory, resource);
+        DestroyPrewarmTextCallbackContext(cbk_ctx);
         return DM_LUA_ERROR("Failed to add glyphs to font %s", dmHashReverseSafe64(fontc_path_hash));
     }
 
@@ -358,4 +368,3 @@ static dmExtension::Result ScriptFontFinalize(dmExtension::Params* params)
 DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, 0, 0, ScriptFontFinalize)
 
 } // namespace
-

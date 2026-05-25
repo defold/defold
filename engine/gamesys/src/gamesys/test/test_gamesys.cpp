@@ -2987,9 +2987,12 @@ TEST_F(FontTest, DynamicGlyph)
 
 struct DynamicFontJobCallbackState
 {
-    uint32_t m_CallbackCount;
-    int      m_Result;
-    char     m_ErrMsg[128];
+    uint32_t                    m_CallbackCount;
+    int                         m_Result;
+    char                        m_ErrMsg[128];
+    dmGameSystem::FontResource* m_Font;
+    uint32_t                    m_RetryCount;
+    dmResource::Result          m_RetryResult;
 };
 
 static void DynamicFontJobCallback(void* ctx, int result, const char* errmsg)
@@ -2998,6 +3001,18 @@ static void DynamicFontJobCallback(void* ctx, int result, const char* errmsg)
     state->m_CallbackCount++;
     state->m_Result = result;
     dmStrlCpy(state->m_ErrMsg, errmsg ? errmsg : "", sizeof(state->m_ErrMsg));
+}
+
+static void DynamicFontJobRetryCallback(void* ctx, int result, const char* errmsg)
+{
+    DynamicFontJobCallback(ctx, result, errmsg);
+
+    DynamicFontJobCallbackState* state = (DynamicFontJobCallbackState*)ctx;
+    if (state->m_RetryCount == 0)
+    {
+        state->m_RetryCount++;
+        state->m_RetryResult = dmGameSystem::ResFontPrewarmText(state->m_Font, "Retry cancelled pending job", DynamicFontJobCallback, state);
+    }
 }
 
 TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobsAndCompletesCallback)
@@ -3023,6 +3038,34 @@ TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobsAndCompletesCallback)
     ASSERT_EQ(1u, callback_state.m_CallbackCount);
 
     dmResource::Release(m_Factory, font);
+}
+
+TEST_F(FontTest, DestroyRejectsReentrantDynamicFontPrewarmFromCancelCallback)
+{
+    const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
+    dmGameSystem::FontResource* font = 0;
+    DynamicFontJobCallbackState callback_state = {0, -1, {0}};
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
+    ASSERT_NE((void*)0, font);
+    ASSERT_EQ(0u, font->m_PendingJobs.Size());
+
+    callback_state.m_Font = font;
+    callback_state.m_RetryResult = dmResource::RESULT_OK;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Destroy pending jobs", DynamicFontJobRetryCallback, &callback_state));
+    ASSERT_GT(font->m_PendingJobs.Size(), 0u);
+
+    dmResource::Release(m_Factory, font);
+
+    ASSERT_EQ(1u, callback_state.m_CallbackCount);
+    ASSERT_EQ(0, callback_state.m_Result);
+    ASSERT_STREQ("Font prewarm request was cancelled", callback_state.m_ErrMsg);
+    ASSERT_EQ(1u, callback_state.m_RetryCount);
+    ASSERT_EQ(dmResource::RESULT_NOT_LOADED, callback_state.m_RetryResult);
+
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_EQ(1u, callback_state.m_CallbackCount);
 }
 
 // Verifies the Lua API for dynamic font collections updates resource refs and collection membership.
