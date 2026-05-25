@@ -53,13 +53,14 @@ namespace dmGameSystem
     // For scripting
     struct LabelComponent;
 
-    void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics);
-
     const char* CompLabelGetText(const LabelComponent* component);
 
     dmVMath::Matrix4 CompLabelLocalTransform(const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale, const dmVMath::Vector3& size, uint32_t pivot);
 
     void CompLabelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+
+    // For testing
+    void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics);
 }
 
 #endif // DM_GAMESYS_COMP_LABEL_H
