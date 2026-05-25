@@ -33,7 +33,6 @@ add_dependencies(build_tests shaderc_test_spv)
 defold_add_executable(test_shaderc "${SHADERC_TEST_DIR}/test_shaderc.cpp")
 target_include_directories(test_shaderc PRIVATE "${SHADERC_SRC_DIR}" "${SHADERC_TEST_DIR}/..")
 target_compile_definitions(test_shaderc PRIVATE "DM_SHADERC_TEST_DATA_DIR=\"${SHADERC_TEST_DATA_DIR}\"")
-target_compile_definitions(test_shaderc PRIVATE ${SHADERC_DEFINES})
 defold_target_link_libraries(test_shaderc "${TARGET_PLATFORM}"
   shaderc
   dlib
