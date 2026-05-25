@@ -324,45 +324,19 @@ void* JobSystemGetData(HJobContext context, HJob hjob)
     return item->m_Job.m_Data;
 }
 
-static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob, bool clear_callback)
+typedef JobSystemResult (*FCancelJobInternal)(JobThreadContext* ctx, HJob hjob);
+
+static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob);
+static JobSystemResult CancelJobNoCallbackInternal(JobThreadContext* ctx, HJob hjob);
+
+static JobSystemResult CancelChildren(JobThreadContext* ctx, JobItem* item, FCancelJobInternal cancel_child)
 {
-    JobItem* item = GetJobItem(ctx, hjob);
-    if (!item)
-        return JOBSYSTEM_RESULT_INVALID_HANDLE;
-
-    bool was_finished = item->m_Status == JOBSYSTEM_STATUS_FINISHED;
-    if (!clear_callback && was_finished)
-    {
-        return JOBSYSTEM_RESULT_OK;
-    }
-
-    if (clear_callback)
-    {
-        item->m_Job.m_Callback = 0;
-    }
-
-    bool in_flight = item->m_Status == JOBSYSTEM_STATUS_PROCESSING || item->m_Status == JOBSYSTEM_STATUS_CALLBACK;
-    if (!clear_callback && in_flight)
-    {
-        return JOBSYSTEM_RESULT_PENDING;
-    }
-
-    JobSystemResult result = JOBSYSTEM_RESULT_CANCELED;
-    if (was_finished)
-    {
-        result = JOBSYSTEM_RESULT_OK;
-    }
-    else if (in_flight)
-    {
-        result = JOBSYSTEM_RESULT_PENDING;
-    }
-
-    assert(in_flight || item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED || item->m_Status == JOBSYSTEM_STATUS_FINISHED);
+    JobSystemResult result = JOBSYSTEM_RESULT_OK;
 
     HJob hchild = item->m_FirstChild;
     while (hchild != INVALID_JOB)
     {
-        JobSystemResult childresult = CancelJobInternal(ctx, hchild, clear_callback);
+        JobSystemResult childresult = cancel_child(ctx, hchild);
         if (childresult == JOBSYSTEM_RESULT_INVALID_HANDLE)
         {
             break; // We cannot get the item pointer
@@ -380,6 +354,65 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob, bool 
         hchild = child->m_Sibling;
     }
 
+    return result;
+}
+
+static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
+{
+    JobItem* item = GetJobItem(ctx, hjob);
+    if (!item)
+        return JOBSYSTEM_RESULT_INVALID_HANDLE;
+
+    if (item->m_Status == JOBSYSTEM_STATUS_FINISHED)
+    {
+        return JOBSYSTEM_RESULT_OK;
+    }
+
+    if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING || item->m_Status == JOBSYSTEM_STATUS_CALLBACK)
+    {
+        return JOBSYSTEM_RESULT_PENDING;
+    }
+
+    assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED);
+
+    JobSystemResult result = JOBSYSTEM_RESULT_CANCELED;
+    if (CancelChildren(ctx, item, CancelJobInternal) == JOBSYSTEM_RESULT_PENDING)
+    {
+        result = JOBSYSTEM_RESULT_PENDING;
+    }
+
+    item->m_Status = JOBSYSTEM_STATUS_CANCELED;
+    return result;
+}
+
+static JobSystemResult CancelJobNoCallbackInternal(JobThreadContext* ctx, HJob hjob)
+{
+    JobItem* item = GetJobItem(ctx, hjob);
+    if (!item)
+        return JOBSYSTEM_RESULT_INVALID_HANDLE;
+
+    item->m_Job.m_Callback = 0;
+
+    bool was_finished = item->m_Status == JOBSYSTEM_STATUS_FINISHED;
+    bool in_flight = item->m_Status == JOBSYSTEM_STATUS_PROCESSING || item->m_Status == JOBSYSTEM_STATUS_CALLBACK;
+
+    JobSystemResult result = JOBSYSTEM_RESULT_CANCELED;
+    if (was_finished)
+    {
+        result = JOBSYSTEM_RESULT_OK;
+    }
+    else if (in_flight)
+    {
+        result = JOBSYSTEM_RESULT_PENDING;
+    }
+
+    assert(in_flight || item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED || item->m_Status == JOBSYSTEM_STATUS_FINISHED);
+
+    if (CancelChildren(ctx, item, CancelJobNoCallbackInternal) == JOBSYSTEM_RESULT_PENDING)
+    {
+        result = JOBSYSTEM_RESULT_PENDING;
+    }
+
     // Preserve FINISHED so later cancel polls still report OK after any
     // pending child callbacks drain. Only unfinished jobs become CANCELED.
     if (!was_finished && !in_flight)
@@ -393,14 +426,14 @@ JobSystemResult JobSystemCancelJob(HJobContext context, HJob hjob)
 {
     JobThreadContext* ctx = &context->m_ThreadContext;
     DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
-    return CancelJobInternal(ctx, hjob, false);
+    return CancelJobInternal(ctx, hjob);
 }
 
 JobSystemResult JobSystemCancelJobNoCallback(HJobContext context, HJob hjob)
 {
     JobThreadContext* ctx = &context->m_ThreadContext;
     DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
-    return CancelJobInternal(ctx, hjob, true);
+    return CancelJobNoCallbackInternal(ctx, hjob);
 }
 
 // ***********************************************************************************
