@@ -503,34 +503,8 @@
    :type-vector3 protobuf/vector3-zero
    :type-vector4 protobuf/vector4-zero})
 
-(defn- custom-property-info->pb-type [{:keys [protobuf-type] :as custom-property-info}]
-  (if (contains? custom-property-pb-type->value-field protobuf-type)
-    protobuf-type
-    (throw (IllegalArgumentException.
-             (format "GUI custom property does not specify a supported :protobuf-type. (custom-property-info=%s)"
-                     custom-property-info)))))
-
-(defn- custom-property-value-field [pb-type]
-  (or (custom-property-pb-type->value-field pb-type)
-      (throw (IllegalArgumentException.
-               (format "Unsupported GUI custom property type. (type=%s)" pb-type)))))
-
-(defn- custom-property-pb-type-default-value [pb-type]
-  (if (contains? custom-property-pb-type->default-value pb-type)
-    (custom-property-pb-type->default-value pb-type)
-    (throw (IllegalArgumentException.
-             (format "Unsupported GUI custom property type. (type=%s)" pb-type)))))
-
-(defn- custom-property-value [custom-property-info custom-property]
-  (let [expected-pb-type (custom-property-info->pb-type custom-property-info)
-        actual-pb-type (:type custom-property)
-        value-field (custom-property-value-field expected-pb-type)
-        id (:id custom-property)]
-    (when (and (some? actual-pb-type)
-               (not= expected-pb-type actual-pb-type))
-      (throw (IllegalArgumentException.
-               (format "GUI custom property '%s' has type %s, expected %s."
-                       id actual-pb-type expected-pb-type))))
+(defn- custom-property-prop-value [custom-property-info custom-property]
+  (let [value-field (custom-property-pb-type->value-field (:protobuf-type custom-property-info))]
     (if (contains? custom-property value-field)
       (get custom-property value-field)
       (:default custom-property-info))))
@@ -544,7 +518,7 @@
             (fn [{:keys [id] :as custom-property}]
               (let [custom-property-info (id->custom-property-info (keyword id))]
                 (pair (:id custom-property-info)
-                      (custom-property-value custom-property-info custom-property)))))
+                      (custom-property-prop-value custom-property-info custom-property)))))
           custom-properties)))
 
 (defn- custom-property-entry->pb [type-info [id value] include-custom-property-defaults]
@@ -553,8 +527,8 @@
         value (if (some? value) value default)]
     (when (or include-custom-property-defaults
               (not= default value))
-      (let [pb-type (custom-property-info->pb-type custom-property-info)
-            value-field (custom-property-value-field pb-type)]
+      (let [pb-type (:protobuf-type custom-property-info)
+            value-field (custom-property-pb-type->value-field pb-type)]
         {:type pb-type
          :id (name id)
          value-field value}))))
@@ -564,9 +538,6 @@
        (keep #(custom-property-entry->pb type-info % include-custom-property-defaults))
        (sort-by :id)
        vec))
-
-(defn- custom-property-id? [type-info prop-kw]
-  (contains? (:custom-property-id->info type-info) prop-kw))
 
 (defn- expand-custom-properties [prop->value]
   (if-some [custom-properties (coll/not-empty (:custom-properties prop->value))]
@@ -586,16 +557,22 @@
 (defn- sanitize-custom-properties [node-desc type-info]
   (if-not (contains? node-desc :custom-properties)
     node-desc
-    (let [id->custom-property-info (or (:custom-property-id->info type-info) {})
+    (let [id->custom-property-info (:custom-property-id->info type-info)
           include-custom-property-defaults (contains? (set (:overridden-fields node-desc))
                                                       (prop-key->pb-field-index :custom-properties))
           custom-properties (->> (:custom-properties node-desc)
                                  (keep
                                    (fn [{:keys [id] :as custom-property}]
                                      (when-some [custom-property-info (id->custom-property-info (some-> id keyword))]
+                                       (when-some [actual-pb-type (:type custom-property)]
+                                         (let [expected-pb-type (:protobuf-type custom-property-info)]
+                                           (when-not (= expected-pb-type actual-pb-type)
+                                             (throw (IllegalArgumentException.
+                                                      (format "GUI custom property '%s' has type %s, expected %s."
+                                                              id actual-pb-type expected-pb-type))))))
                                        (custom-property-entry->pb type-info
                                                                  [(:id custom-property-info)
-                                                                  (custom-property-value custom-property-info custom-property)]
+                                                                  (custom-property-prop-value custom-property-info custom-property)]
                                                                  include-custom-property-defaults))))
                                  (sort-by :id)
                                  vec)]
@@ -603,15 +580,12 @@
         (dissoc node-desc :custom-properties)
         (assoc node-desc :custom-properties custom-properties)))))
 
-(defn- prop-entry->pb-field-entry-with-collapsed-custom-properties [prop-key prop-value entry]
-  (if (= :custom-properties prop-key)
-    (when-some [custom-properties (coll/not-empty prop-value)]
-      (pair :custom-properties custom-properties))
-    (prop-entry->pb-field-entry entry)))
-
 (defn- prop->pb-field-entries-for-type [type-info include-custom-property-defaults prop->value]
   (e/keep (fn [[prop-key prop-value :as entry]]
-            (prop-entry->pb-field-entry-with-collapsed-custom-properties prop-key prop-value entry))
+            (if (= :custom-properties prop-key)
+              (when-some [custom-properties (coll/not-empty prop-value)]
+                (pair :custom-properties custom-properties))
+              (prop-entry->pb-field-entry entry)))
           (collapse-custom-properties type-info prop->value include-custom-property-defaults)))
 
 (defn- node->node-tree
@@ -820,16 +794,6 @@
 
 (declare basic-gui-resource-rename-fn)
 
-(defn- custom-gui-resource-property-infos [evaluation-context node-id gui-resource-type]
-  (let [gui-node-type-registry (g/node-value node-id :gui-node-type-registry evaluation-context)
-        type-info (get-registered-node-type-info
-                    gui-node-type-registry
-                    (g/node-type* (:basis evaluation-context) node-id))]
-    (coll/into-> (:custom-properties type-info) []
-      (keep (fn [{:keys [resource-kind] :as custom-property-info}]
-              (when (= gui-resource-type resource-kind)
-                custom-property-info))))))
-
 (defn- rename-custom-gui-resource-references-in-properties [rename-fn custom-property-infos old-name new-name custom-properties]
   (reduce
     (fn [custom-properties {:keys [id]}]
@@ -844,7 +808,14 @@
     custom-property-infos))
 
 (defn- update-custom-gui-resource-reference-impl [rename-fn gui-resource-type evaluation-context node-id old-name new-name]
-  (let [custom-property-infos (custom-gui-resource-property-infos evaluation-context node-id gui-resource-type)]
+  (let [gui-node-type-registry (g/node-value node-id :gui-node-type-registry evaluation-context)
+        type-info (get-registered-node-type-info
+                    gui-node-type-registry
+                    (g/node-type* (:basis evaluation-context) node-id))
+        custom-property-infos (coll/into-> (:custom-properties type-info) []
+                                (keep (fn [{:keys [resource-kind] :as custom-property-info}]
+                                        (when (= gui-resource-type resource-kind)
+                                          custom-property-info))))]
     (when (coll/not-empty custom-property-infos)
       (let [basis (:basis evaluation-context)]
         (concat
@@ -1150,16 +1121,18 @@
             (reduce dissoc! node-properties stripped-prop-kws)))))))
 
 (defn- node-custom-property-id->info [evaluation-context node-id]
-  (let [gui-node-type-registry (g/node-value node-id :gui-node-type-registry evaluation-context)
-        node (g/node-by-id (:basis evaluation-context) node-id)]
-    (if gui-node-type-registry
-      (or (:custom-property-id->info (get-registered-node-type-info gui-node-type-registry (g/node-type node)))
-          {})
-      (if (= :type-custom (g/node-value node-id :type evaluation-context))
-        (throw (IllegalStateException.
-                 (format "Unable to locate GUI node type registry for custom GUI node. (node-cls=%s)"
-                         (:k (g/node-type node)))))
-        {}))))
+  (if-some [gui-node-type-registry (g/node-value node-id :gui-node-type-registry evaluation-context)]
+    (:custom-property-id->info
+      (get-registered-node-type-info
+        gui-node-type-registry
+        (g/node-type (g/node-by-id (:basis evaluation-context) node-id))))
+    ;; editor.tx.add initializes attachment properties before it attaches the new
+    ;; GUI node. The attach step connects the parent's :gui-node-type-registry to
+    ;; the child, so property setters that run during initialization can see nil
+    ;; here. GUI attachment initialization has already split custom properties
+    ;; using the workspace resource-type registry, so the remaining properties
+    ;; are regular graph properties.
+    {}))
 
 (defn- layout-property-changes-tx-data
   "Takes changes returned by a changes-fn associated with a layout property
@@ -1249,12 +1222,11 @@
 
 (defn- layout-property-edit-type-clear-in-specific-layout
   [layout-name changes-fn node-id prop-kw]
-  (let [cleared-prop-kws
-        (if (nil? changes-fn)
-          [prop-kw]
-          (g/with-auto-evaluation-context evaluation-context
-            (keys (changes-fn evaluation-context node-id prop-kw nil nil))))]
-    (g/with-auto-evaluation-context evaluation-context
+  (g/with-auto-evaluation-context evaluation-context
+    (let [cleared-prop-kws
+          (if (nil? changes-fn)
+            [prop-kw]
+            (keys (changes-fn evaluation-context node-id prop-kw nil nil)))]
       (layout-property-clears-tx-data evaluation-context layout-name node-id cleared-prop-kws))))
 
 (defn layout-property-edit-type-clear-in-current-layout
@@ -1372,35 +1344,29 @@
                               (g/node-value node-id arg-label evaluation-context))))))]
     (f args)))
 
-(defn- custom-property-edit-type [evaluation-context node-id custom-property-info basic-gui-scene-info]
-  (let [{:keys [id type resource-kind edit-type-fnk]} custom-property-info
-        edit-type (if edit-type-fnk
-                    (node-fnk-value evaluation-context node-id edit-type-fnk)
-                    (if resource-kind
-                      (optional-gui-resource-choicebox (gui-resource-kind-names basic-gui-scene-info resource-kind))
-                      {:type type}))]
-    (wrap-layout-property-edit-type-value id (dissoc edit-type :set-fn :clear-fn :changes-fn))))
-
-(defn- custom-property-error [evaluation-context node-id custom-property-info]
-  (when-some [error-fnk (:error-fnk custom-property-info)]
-    (node-fnk-value evaluation-context node-id error-fnk)))
-
 (defn- custom-property-properties [evaluation-context node-id type-info prop->value layout-override-value basic-gui-scene-info]
   (coll/into-> (:custom-properties type-info) {}
-    (map (fn [{:keys [id type label] :as custom-property-info}]
-           (pair id
-                 (cond-> {:node-id node-id
-                          :prop-kw id
-                          :key id
-                          :value (prop->value id)
-                          :type type
-                          :label label
-                          :edit-type (custom-property-edit-type evaluation-context node-id custom-property-info basic-gui-scene-info)
-                          :assoc-original-value? false}
-                         (contains? custom-property-info :error-fnk)
-                         (assoc :error (custom-property-error evaluation-context node-id custom-property-info))
-                         (contains? layout-override-value id)
-                         (assoc :original-value (layout-override-value id))))))))
+    (map
+      (fn [{:keys [id type label resource-kind edit-type-fnk error-fnk] :as custom-property-info}]
+        (let [edit-type (if edit-type-fnk
+                          (node-fnk-value evaluation-context node-id edit-type-fnk)
+                          (if resource-kind
+                            (optional-gui-resource-choicebox (gui-resource-kind-names basic-gui-scene-info resource-kind))
+                            {:type type}))]
+          (pair id
+                (cond-> {:node-id node-id
+                         :prop-kw id
+                         :key id
+                         :value (prop->value id)
+                         :type type
+                         :label label
+                         :edit-type (wrap-layout-property-edit-type-value id (dissoc edit-type :set-fn :clear-fn :changes-fn))
+                         :assoc-original-value? false}
+                        (contains? custom-property-info :error-fnk)
+                        (assoc :error (when error-fnk
+                                        (node-fnk-value evaluation-context node-id error-fnk)))
+                        (contains? layout-override-value id)
+                        (assoc :original-value (layout-override-value id)))))))))
 
 ;; SDK api
 (defmacro layout-property-edit-type
@@ -3614,12 +3580,13 @@
                  {:pre [(map? layout->prop->override)]}
                  (when-some [prop->override (coll/not-empty (layout->prop->override layout-name))]
                    (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
+                         custom-property-id->info (:custom-property-id->info type-info)
                          overridden-fields
                          (cond-> (->> prop->override
                                       (keep (comp prop-key->pb-field-index key))
                                       (sort)
                                       (vec))
-                                 (some #(custom-property-id? type-info %) (keys prop->override))
+                                 (coll/any? custom-property-id->info (keys prop->override))
                                  (conj (prop-key->pb-field-index :custom-properties)))]
                      (->> prop->override
                           (prop->pb-field-entries-for-type type-info true)
@@ -4852,37 +4819,34 @@
   [root-id _selection workspace _world-pos resources]
   (mapv (partial add-dropped-resource root-id workspace) resources))
 
-(defn- register
-  ([workspace def]
-   (register workspace def base-node-type-registry (sorted-map)))
-  ([workspace def gui-node-type-registry gui-resource-kind-registry]
-   (let [ext (:ext def)
-         exts (if (vector? ext) ext [ext])]
-     (for [ext exts]
-       (concat
-         (resource-node/register-ddf-resource-type workspace
-           :ext ext
-           :label (:label def)
-           :build-ext (:build-ext def)
-           :node-type GuiSceneNode
-           :ddf-type (:pb-class def)
-           :load-fn load-gui-scene
-           :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.
-           :sanitize-fn (partial sanitize-scene gui-node-type-registry)
-           :icon (:icon def)
-           :icon-class (:icon-class def)
-           :category (localization/message "resource.category.components")
-           :tags (:tags def)
-           :tag-opts (:tag-opts def)
-           :template (:template def)
-           :view-types [:scene :text]
-           :view-opts {:scene {:grid true
-                               :drop-fn handle-drop}})
-         (update-gui-resource-type-tx-data
-           workspace
-           #(assoc %
-              :gui-node-type-registry gui-node-type-registry
-              :gui-resource-kind-registry gui-resource-kind-registry)))))))
+(defn- register [workspace def]
+  (let [ext (:ext def)
+        exts (if (vector? ext) ext [ext])]
+    (for [ext exts]
+      (concat
+        (resource-node/register-ddf-resource-type workspace
+          :ext ext
+          :label (:label def)
+          :build-ext (:build-ext def)
+          :node-type GuiSceneNode
+          :ddf-type (:pb-class def)
+          :load-fn load-gui-scene
+          :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.
+          :sanitize-fn (partial sanitize-scene base-node-type-registry)
+          :icon (:icon def)
+          :icon-class (:icon-class def)
+          :category (localization/message "resource.category.components")
+          :tags (:tags def)
+          :tag-opts (:tag-opts def)
+          :template (:template def)
+          :view-types [:scene :text]
+          :view-opts {:scene {:grid true
+                              :drop-fn handle-drop}})
+        (update-gui-resource-type-tx-data
+          workspace
+          assoc
+          :gui-node-type-registry base-node-type-registry
+          :gui-resource-kind-registry (sorted-map))))))
 
 
 (defn- attach-to-gui-scene-txs [{:keys [basis]} attach-fn scene-container-node-fn scene-node item-node]
@@ -5030,7 +4994,7 @@
     (concat
       (update-gui-resource-type-tx-data
         workspace
-        #(update % :gui-resource-kind-registry assoc resource-kind info))
+        update :gui-resource-kind-registry assoc resource-kind info)
       (attachment/register
         workspace GuiSceneNode (:attachment-property info)
         :add {(:node-type info) (partial g/expand-ec attach-gui-resource-kind-entry-to-gui-scene resource-kind)}
@@ -5252,12 +5216,9 @@
    ;; flat list
    :type-infos []})
 
-(defn- node-type-info-custom-type [type-info]
-  (or (:custom-type type-info)
-      (murmur/hash32 (:custom-type-name type-info))))
-
 (defn- add-node-type-info [state {:keys [node-cls node-type custom-type-name deprecated] :as type-info}]
-  (let [custom-type (node-type-info-custom-type type-info)
+  (let [custom-type (or (:custom-type type-info)
+                        (murmur/hash32 custom-type-name))
         type-info (assoc type-info :custom-type custom-type)]
     (when-let [old-node-cls (-> state :node-type->custom-type->type-info (get node-type) (get custom-type) :node-cls)]
       (when-not (= old-node-cls node-cls)
@@ -5273,9 +5234,6 @@
           (update :node-cls->type-info assoc node-cls type-info)
           (and (not deprecated) custom-type-name) (assoc-in [:custom-type-name->type-info custom-type-name] type-info)))))
 
-(def ^:private base-node-type-registry
-  (reduce add-node-type-info empty-node-type-registry base-node-type-infos))
-
 (defn- gui-resource-type-from-resource-types [resource-types]
   (or (get resource-types (:ext pb-def))
       (throw (IllegalStateException.
@@ -5287,26 +5245,23 @@
 (defn- gui-resource-kind-registry-from-resource-types [resource-types]
   (:gui-resource-kind-registry (gui-resource-type-from-resource-types resource-types)))
 
-(defn- gui-resource-type-read-fn [gui-node-type-registry]
-  (comp (partial sanitize-scene gui-node-type-registry)
-        (partial protobuf/read-map-without-defaults (:pb-class pb-def))))
-
-(defn- update-gui-resource-type [resource-type update-fn]
+(defn- update-gui-resource-type [resource-type f & args]
   (when-not (map? resource-type)
     (throw (IllegalStateException.
              (format "Unable to update GUI resource type before it has been registered. (ext=%s)" (:ext pb-def)))))
-  (let [resource-type (update-fn resource-type)
+  (let [resource-type (apply f resource-type args)
         gui-node-type-registry (:gui-node-type-registry resource-type)]
     (assoc resource-type
-      :read-fn (gui-resource-type-read-fn gui-node-type-registry))))
+      :read-fn (comp (partial sanitize-scene gui-node-type-registry)
+                     (partial protobuf/read-map-without-defaults (:pb-class pb-def))))))
 
-(defn- update-gui-resource-type-map [resource-types update-fn]
-  (update resource-types (:ext pb-def) update-gui-resource-type update-fn))
+(defn- update-gui-resource-type-map [resource-types f & args]
+  (apply update resource-types (:ext pb-def) update-gui-resource-type f args))
 
-(defn- update-gui-resource-type-tx-data [workspace update-fn]
+(defn- update-gui-resource-type-tx-data [workspace f & args]
   (concat
-    (g/update-property workspace :resource-types update-gui-resource-type-map update-fn)
-    (g/update-property workspace :resource-types-non-editable update-gui-resource-type-map update-fn)))
+    (apply g/update-property workspace :resource-types update-gui-resource-type-map f args)
+    (apply g/update-property workspace :resource-types-non-editable update-gui-resource-type-map f args)))
 
 (defn- get-registered-node-type-infos [gui-node-type-registry]
   (:type-infos gui-node-type-registry))
@@ -5348,19 +5303,15 @@
           prop-kw)
         ((node-type->layout-property-names node-type) property-name))))
 
-(defn- node-layout-property-id? [evaluation-context node-id prop-kw]
-  (let [node (g/node-by-id (:basis evaluation-context) node-id)]
-    (contains? (set (vals (node-type->layout-property-names (g/node-type node)))) prop-kw)))
-
 (defn- ext-property-info [node-id prop-kw evaluation-context]
-  (if (node-layout-property-id? evaluation-context node-id prop-kw)
-    (let [{:keys [basis]} evaluation-context
-          node (g/node-by-id basis node-id)]
+  (let [{:keys [basis]} evaluation-context
+        node (g/node-by-id basis node-id)]
+    (if (contains? (set (vals (node-type->layout-property-names (g/node-type node)))) prop-kw)
       {:node-id node-id
        :prop-kw prop-kw
        :read-only? (g/node-property-dynamic node prop-kw :read-only? false evaluation-context)
-       :edit-type (g/node-property-dynamic node prop-kw :edit-type evaluation-context)})
-    (get-in (g/node-value node-id :_properties evaluation-context) [:properties prop-kw])))
+       :edit-type (g/node-property-dynamic node prop-kw :edit-type evaluation-context)}
+      (get-in (g/node-value node-id :_properties evaluation-context) [:properties prop-kw]))))
 
 (ext-graph/register-property-getter!
   ::GuiNode
@@ -5432,7 +5383,7 @@
                        (name (:id custom-property-info))))))))
 
 (defn- split-custom-property-attachment [type-info rt project evaluation-context attachment]
-  (if-let [custom-property-id->info (:custom-property-id->info type-info)]
+  (let [custom-property-id->info (:custom-property-id->info type-info)]
     (reduce-kv
       (fn [[attachment custom-properties] property lua-value]
         (let [prop-kw (keyword property)]
@@ -5442,8 +5393,7 @@
                (assoc custom-properties prop-kw value)])
             [attachment custom-properties])))
       [attachment nil]
-      attachment)
-    [attachment nil]))
+      attachment)))
 
 (defn- init-gui-node-attachment [{:keys [basis] :as evaluation-context} rt project parent-node-id child-node-type child-node-id attachment node-id-base-name-fn]
   (let [workspace (project/workspace project evaluation-context)
@@ -5483,13 +5433,12 @@
   (init-gui-node-attachment evaluation-context rt project parent-node-id child-node-type child-node-id attachment template-node-id-base-name))
 
 (defn- custom-property-pb-type [type]
-  (cond
-    (= g/Str type) :type-string
-    (= g/Bool type) :type-boolean
-    (= g/Num type) :type-number
-    (= types/Vec3 type) :type-vector3
-    (= types/Vec4 type) :type-vector4
-    :else
+  (condp = type
+    g/Str :type-string
+    g/Bool :type-boolean
+    g/Num :type-number
+    types/Vec3 :type-vector3
+    types/Vec4 :type-vector4
     (throw (IllegalArgumentException.
              (format "Unable to derive GUI custom property protobuf type. (type=%s)" type)))))
 
@@ -5501,34 +5450,38 @@
     (throw (IllegalArgumentException.
              (format "GUI custom property does not specify :type. (custom-property-info=%s)" custom-property-info))))
   (let [protobuf-type (if (contains? custom-property-info :protobuf-type)
-                        (custom-property-info->pb-type custom-property-info)
+                        (:protobuf-type custom-property-info)
                         (custom-property-pb-type type))]
+    (when-not (contains? custom-property-pb-type->value-field protobuf-type)
+      (throw (IllegalArgumentException.
+               (format "Unsupported GUI custom property type. (type=%s)" protobuf-type))))
     (cond-> (assoc custom-property-info :protobuf-type protobuf-type)
-            (not (contains? custom-property-info :default)) (assoc :default (custom-property-pb-type-default-value protobuf-type))
+            (not (contains? custom-property-info :default)) (assoc :default (custom-property-pb-type->default-value protobuf-type))
             (not (contains? custom-property-info :label)) (assoc :label (properties/keyword->name id)))))
 
 (defn- normalize-node-type-info [type-info]
-  (if-not (contains? type-info :custom-properties)
-    type-info
-    (let [type-info (update type-info :custom-properties #(mapv normalize-custom-property-info %))
-          custom-properties (:custom-properties type-info)
-          custom-property-id->info (coll/pair-map-by :id custom-properties)
-          real-layout-property-keys (set (vals (node-type->layout-property-names (:node-cls type-info))))
-          colliding-custom-property-ids (coll/not-empty
-                                          (coll/into-> (keys custom-property-id->info) []
-                                            (filter real-layout-property-keys)))
-          default-custom-properties (coll/into-> custom-properties {}
-                                      (map (fn [{:keys [id default]}]
-                                             (pair id default))))]
-      (when colliding-custom-property-ids
-        (throw (IllegalArgumentException.
-                 (format "Plugin GUI node type %s custom property ids collide with real layout properties: %s"
-                         (:name @(:node-cls type-info))
-                         (str/join ", " (map name (sort colliding-custom-property-ids)))))))
-      (-> type-info
-          (assoc
-            :custom-property-id->info custom-property-id->info)
-          (assoc-in [:defaults :custom-properties] default-custom-properties)))))
+  (let [type-info (update type-info :custom-properties #(mapv normalize-custom-property-info (or % [])))
+        custom-properties (:custom-properties type-info)
+        custom-property-id->info (coll/pair-map-by :id custom-properties)
+        real-layout-property-keys (set (vals (node-type->layout-property-names (:node-cls type-info))))
+        colliding-custom-property-ids (coll/not-empty
+                                        (coll/into-> (keys custom-property-id->info) []
+                                          (filter real-layout-property-keys)))
+        default-custom-properties (coll/into-> custom-properties {}
+                                    (map (fn [{:keys [id default]}]
+                                           (pair id default))))]
+    (when colliding-custom-property-ids
+      (throw (IllegalArgumentException.
+               (format "Plugin GUI node type %s custom property ids collide with real layout properties: %s"
+                       (:name @(:node-cls type-info))
+                       (str/join ", " (map name (sort colliding-custom-property-ids)))))))
+    (-> type-info
+        (assoc
+          :custom-property-id->info custom-property-id->info)
+        (assoc-in [:defaults :custom-properties] default-custom-properties))))
+
+(def ^:private base-node-type-registry
+  (reduce add-node-type-info empty-node-type-registry (mapv normalize-node-type-info base-node-type-infos)))
 
 (defn- validate-node-type-info! [{:keys [custom-type-name node-cls] :as type-info}]
   (when-not (string? custom-type-name)
@@ -5554,4 +5507,4 @@
     (validate-node-type-info! type-info)
     (update-gui-resource-type-tx-data
       workspace
-      #(update % :gui-node-type-registry add-node-type-info type-info))))
+      update :gui-node-type-registry add-node-type-info type-info)))
