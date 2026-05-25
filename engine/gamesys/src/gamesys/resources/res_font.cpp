@@ -99,16 +99,17 @@ namespace dmGameSystem
         JobSystemPushJob(font->m_Jobs, job_info->m_Job);
     }
 
-    static void RemovePendingJob(FontResource* font, FontJobResourceInfo* job_info)
+    static bool RemovePendingJob(FontResource* font, FontJobResourceInfo* job_info)
     {
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
         {
             if (font->m_PendingJobs[i] == job_info)
             {
                 font->m_PendingJobs.EraseSwap(i);
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     static void DeallocateJobResourceInfo(FontJobResourceInfo* job_info)
@@ -133,19 +134,18 @@ namespace dmGameSystem
 
     static void CancelPendingJobs(FontResource* font)
     {
-        uint32_t pending_job_count = font->m_PendingJobs.Size();
-        if (pending_job_count == 0)
+        if (font->m_PendingJobs.Empty())
         {
             return;
         }
 
         dmArray<PendingCancelCallback> callbacks;
-        callbacks.SetCapacity(pending_job_count);
+        callbacks.SetCapacity(font->m_PendingJobs.Size());
 
         font->m_CancelingPendingJobs = 1;
-        for (uint32_t i = 0; i < pending_job_count; ++i)
+        while (!font->m_PendingJobs.Empty())
         {
-            FontJobResourceInfo* job_info = font->m_PendingJobs[i];
+            FontJobResourceInfo* job_info = font->m_PendingJobs[font->m_PendingJobs.Size() - 1];
             HJob hjob = job_info->m_Job;
 
             JobSystemResult jr = JobSystemCancelJobNoCallback(font->m_Jobs, hjob);
@@ -155,11 +155,17 @@ namespace dmGameSystem
                 jr = JobSystemCancelJobNoCallback(font->m_Jobs, hjob);
             }
 
+            // If JobSystemUpdate() ran a callback while we were waiting, the
+            // callback already removed and destroyed this job info.
+            if (!RemovePendingJob(font, job_info))
+            {
+                continue;
+            }
+
             QueueCancelledCallback(job_info, callbacks);
             DecRefJobResourceInfo(font->m_Factory, font, job_info);
             DeallocateJobResourceInfo(job_info);
         }
-        font->m_PendingJobs.SetSize(0);
 
         for (uint32_t i = 0; i < callbacks.Size(); ++i)
         {
