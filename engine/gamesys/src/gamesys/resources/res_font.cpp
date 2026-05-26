@@ -222,10 +222,18 @@ namespace dmGameSystem
 
         FPrewarmTextCallback callback = job_info->m_Callback;
         void* callback_context = job_info->m_CallbackContext;
+        char errmsg_copy[128];
+        const char* callback_errmsg = 0;
+        if (errmsg)
+        {
+            dmStrlCpy(errmsg_copy, errmsg, sizeof(errmsg_copy));
+            callback_errmsg = errmsg_copy;
+        }
+
         DestroyJobInfo(job_info);
 
         if (callback)
-            callback(callback_context, result, errmsg);
+            callback(callback_context, result, callback_errmsg);
     }
 
     dmResource::Result ResFontPrewarmText(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx)
