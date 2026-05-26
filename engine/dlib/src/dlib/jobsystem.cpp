@@ -211,6 +211,7 @@ static void FreeJob(JobThreadContext* ctx, HJob hjob)
 
     item.m_Generation = INVALID_INDEX;
     item.m_Status = JOBSYSTEM_STATUS_FREE;
+    item.m_CancelRequested = 0;
 
     ctx->m_Items.Free(index, false);
 }
