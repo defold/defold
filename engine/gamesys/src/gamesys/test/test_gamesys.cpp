@@ -3116,7 +3116,7 @@ TEST_F(FontTest, DestroyRejectsReentrantDynamicFontPrewarmFromCancelCallback)
     ASSERT_EQ(0, callback_state.m_Result);
     ASSERT_STREQ("Font prewarm request was cancelled", callback_state.m_ErrMsg);
     ASSERT_EQ(1u, callback_state.m_RetryCount);
-    ASSERT_EQ(dmResource::RESULT_NOT_LOADED, callback_state.m_RetryResult);
+    ASSERT_EQ(dmResource::RESULT_INVAL, callback_state.m_RetryResult);
 
     JobSystemUpdate(m_JobContext, 0);
     ASSERT_EQ(1u, callback_state.m_CallbackCount);
