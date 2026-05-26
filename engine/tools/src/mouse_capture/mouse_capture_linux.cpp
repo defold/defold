@@ -26,6 +26,8 @@ namespace dmMouseCapture
         int        m_XIOpcode;
         bool       m_Capturing;
         MouseDelta m_AccumulatedDelta;
+        // On Linux we need to save both the restore and capture positions so we can restore once we stop,
+        // but also because Linux needs to manually reset the pointer after movement back to the capture pos
         int        m_RestoreCursorX;
         int        m_RestoreCursorY;
         int        m_CaptureCursorX;

@@ -77,7 +77,7 @@ namespace dmMouseCapture
 
         [NSCursor hide];
         // Because we are dissasociating the cursor, this leaves it at a random position, and JavaFX needs the cursor
-        // to be over the Image Node in order to receive events, but we only need to do this for macos
+        // to be over the Image Node in order to receive events
         WarpCursor(capture_cursor_x, capture_cursor_y);
         CGAssociateMouseAndMouseCursorPosition(NO);
 
