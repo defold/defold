@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.input
-  (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta MouseCapture$CursorPos]
+  (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta]
            [javafx.event EventType]
            [javafx.scene.input DragEvent InputEvent KeyCode KeyEvent MouseEvent MouseButton ScrollEvent TransferMode]))
 
@@ -53,19 +53,12 @@
     (reset! mouse-capture-context nil)
     true))
 
-(def ^:private cached-cursor-pos (atom (MouseCapture$CursorPos.)))
 (def ^:private cached-delta (atom (MouseCapture$MouseDelta.)))
 
 (defn poll-mouse-delta ^MouseCapture$MouseDelta []
   (when-let [context @mouse-capture-context]
     (when (MouseCapture/MouseCapture_PollDelta context @cached-delta)
       @cached-delta)))
-
-(defn get-cursor-pos []
-  (if (MouseCapture/MouseCapture_GetCursorPos @cached-cursor-pos)
-    (let [cursor-pos ^MouseCapture$CursorPos @cached-cursor-pos]
-      [(.x cursor-pos) (.y cursor-pos)])
-    [0 0]))
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))

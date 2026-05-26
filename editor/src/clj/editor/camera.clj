@@ -27,7 +27,7 @@
             [editor.prefs :as prefs])
   (:import [editor.types AABB Camera Frustum Rect Region]
            [javafx.css PseudoClass]
-           [javafx.scene Cursor Node Parent]
+           [javafx.scene Node Parent]
            [javafx.scene.image ImageView]
            [javafx.scene.input KeyCode]
            [javafx.stage Window]
@@ -1062,7 +1062,7 @@
 (defn- warp-mouse-around-edges [^ImageView image-view screen-x screen-y view-x view-y last-x last-y]
   ;; NOTE: Unfortunately, Wayland doesn't support XWarpPointer, so we can't support this feature on Wayland just yet
   ;; TODO: We shouldn't have to check for image-view here, we shold be doing it before
-  (if (and (not (os/is-wayland)) image-view screen-x last-x)
+  (if (and (not (os/is-wayland?)) image-view screen-x last-x)
     (let [win ^Window (.getWindow (ui/main-scene))
           win-x (.getX win)
           win-y (.getY win)
@@ -1225,48 +1225,46 @@
       (prefs/set! prefs prefs-key-walking-mode (not current-value)))))
 
 (defn show-settings! [camera-node ^Parent owner prefs keymap localization]
-  (let [fov-fn
+  (let [persp-fov-fn
         (fn [^double value]
           (let [camera (g/node-value camera-node :local-camera)
                 fov-y-old (double (:fov-y camera))
                 fov-x-old (double (:fov-x camera))
                 aspect (/ (Math/tan (Math/toRadians (/ fov-x-old 2.0)))
                           (Math/tan (Math/toRadians (/ fov-y-old 2.0))))]
-            (when (= :perspective (:type camera))
-              (g/update-property! camera-node :local-camera assoc
-                                  :fov-y value
-                                  :fov-x (Math/toDegrees
-                                           (* 2.0 (Math/atan (* aspect (Math/tan (Math/toRadians (/ value 2.0)))))))))))
+            (g/update-property! camera-node :local-camera assoc
+                                :fov-y value
+                                :fov-x (Math/toDegrees
+                                         (* 2.0 (Math/atan (* aspect (Math/tan (Math/toRadians (/ value 2.0))))))))))
         descriptors
-        (filterv some?
-          [{:type :reset-all
-            :on-reset (fn [swap-state]
-                        (prefs/reset-path! prefs [:scene :perspective-camera])
-                        (swap-state merge (prefs/get prefs [:scene :perspective-camera]))
-                        (fov-fn (prefs/get prefs prefs-key-fov)))}
-           {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0 :snap-to 0.25
-            :value (prefs/get prefs prefs-key-move-speed)
-            :on-value-changed #(prefs/set! prefs prefs-key-move-speed %)
-            :slider-value->string (fn [^double v] (str (math/round-with-precision v 0.01) "x"))}
-           {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4
-            :value (prefs/get prefs prefs-key-look-speed)
-            :on-value-changed #(prefs/set! prefs prefs-key-look-speed %)
-            :slider-value->string (fn [^double v]
-                                    (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
-                                      (str (math/round-with-precision scaled 0.1))))}
-           {:key :fov :type :slider :label "scene-popup.camera.fov" :min 5.0 :max 150.0
-            :value #(prefs/get prefs prefs-key-fov)
-            :disabled? (fn [state] (not (:perspective state)) )
-            :on-value-changed (fn [val]
-                                (prefs/set! prefs prefs-key-fov val)
-                                (fov-fn val))
-            :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
-           {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y
-            :value (prefs/get prefs prefs-key-invert-y)
-            :on-value-changed #(prefs/set! prefs prefs-key-invert-y %)}
-           {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode
-            :value (prefs/get prefs prefs-key-walking-mode)
-            :on-value-changed #(prefs/set! prefs prefs-key-walking-mode %)}])
+        [{:type :reset-all
+          :on-reset (fn [swap-state]
+                      (prefs/reset-path! prefs [:scene :perspective-camera])
+                      (swap-state merge (prefs/get prefs [:scene :perspective-camera]))
+                      (persp-fov-fn (prefs/get prefs prefs-key-fov)))}
+         {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0 :snap-to 0.25
+          :value (prefs/get prefs prefs-key-move-speed)
+          :on-value-changed #(prefs/set! prefs prefs-key-move-speed %)
+          :slider-value->string (fn [^double v] (str (math/round-with-precision v 0.01) "x"))}
+         {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4
+          :value (prefs/get prefs prefs-key-look-speed)
+          :on-value-changed #(prefs/set! prefs prefs-key-look-speed %)
+          :slider-value->string (fn [^double v]
+                                  (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
+                                    (str (math/round-with-precision scaled 0.1))))}
+         {:key :fov :type :slider :label "scene-popup.camera.fov" :min 5.0 :max 150.0
+          :value #(prefs/get prefs prefs-key-fov)
+          :disabled? (fn [state] (not (:perspective state)) )
+          :on-value-changed (fn [val]
+                              (prefs/set! prefs prefs-key-fov val)
+                              (persp-fov-fn val))
+          :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
+         {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y
+          :value (prefs/get prefs prefs-key-invert-y)
+          :on-value-changed #(prefs/set! prefs prefs-key-invert-y %)}
+         {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode
+          :value (prefs/get prefs prefs-key-walking-mode)
+          :on-value-changed #(prefs/set! prefs prefs-key-walking-mode %)}]
         compute-state (fn []
                         (-> (into {} (keep (fn [{:keys [key value]}]
                                              (when key

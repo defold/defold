@@ -44,7 +44,7 @@ namespace dmMouseCapture
         XFlush(display);
     }
 
-    bool GetCursorPos(CursorPos* cursor_pos)
+    static bool GetCursorPos(CursorPos* cursor_pos)
     {
         if (!cursor_pos)
             return false;
@@ -105,7 +105,6 @@ namespace dmMouseCapture
         Context* context = new Context();
         context->m_Display = display;
         context->m_XIOpcode = xi_opcode;
-        context->m_Capturing = true;
         context->m_RestoreCursorX = capture_cursor_x;
         context->m_RestoreCursorY = capture_cursor_y;
         context->m_CaptureCursorX = capture_cursor_x;

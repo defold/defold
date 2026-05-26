@@ -42,7 +42,7 @@ namespace dmMouseCapture
         CGAssociateMouseAndMouseCursorPosition(YES);
     }
 
-    bool GetCursorPos(CursorPos* cursor_pos)
+    static bool GetCursorPos(CursorPos* cursor_pos)
     {
         if (!cursor_pos)
             return false;

@@ -22,11 +22,6 @@ extern "C"
         dmMouseCapture::WarpCursor(x, y);
     }
 
-    DM_DLLEXPORT bool MouseCapture_GetCursorPos(dmMouseCapture::CursorPos* cursor_pos)
-    {
-        return dmMouseCapture::GetCursorPos(cursor_pos);
-    }
-
     DM_DLLEXPORT dmMouseCapture::HContext MouseCapture_StartCapture(int capture_cursor_x, int capture_cursor_y)
     {
         return dmMouseCapture::StartCapture(capture_cursor_x, capture_cursor_y);
