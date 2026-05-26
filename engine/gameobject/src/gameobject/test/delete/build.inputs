@@ -1,7 +1,7 @@
 delete.go
 delete.script
-delete_all_deprecated.go
-delete_all_deprecated.script
+delete_all_bones.go
+delete_all_bones.script
 delete_multiple.go
 delete_multiple.script
 delete_multiple_recursive.go
