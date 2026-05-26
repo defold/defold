@@ -446,7 +446,7 @@ def _get_local_vswhere_installations():
 def _get_common_visual_studio_roots():
     roots = []
     for base in filter(None, [os.environ.get('ProgramFiles'), os.environ.get('ProgramFiles(x86)')]):
-        for year in ('18', '2026', '2022', '2019', '2017'):
+        for year in ('18', '2026', '2022'):
             for edition in ('BuildTools', 'Community', 'Professional', 'Enterprise'):
                 installation_root = os.path.join(base, 'Microsoft Visual Studio', year, edition)
                 if os.path.exists(installation_root):
@@ -603,9 +603,7 @@ def _get_windows_visual_studio_year(installation=None, installation_root=None):
         # Visual Studio 2026 uses the major version in the installation path.
         major_to_year = {
             '18': '2026',
-            '17': '2022',
-            '16': '2019',
-            '15': '2017',
+            '17': '2022'
         }
         for part in os.path.normpath(installation_root).split(os.sep):
             if part in major_to_year:
