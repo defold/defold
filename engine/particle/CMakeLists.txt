@@ -70,7 +70,7 @@ if(TARGET particle_shared)
   defold_install_targets(TARGETS particle_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
-          RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+          RUNTIME DESTINATION lib/${TARGET_PLATFORM})
 endif()
 
 install(FILES
