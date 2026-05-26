@@ -209,6 +209,8 @@ namespace dmRig
     bool IsValid(HRigInstance instance);
     uint32_t GetBoneCount(HRigInstance instance);
     uint32_t GetMaxBoneCount(HRigInstance instance);
+    /** True if the pose matrix cache contains a pose produced by animation playback. */
+    bool HasPoseMatrixCacheAnimatedPose(HRigInstance instance);
     /** Live morph weights for \a model_id (MeshSet Model id). Pointer valid until the next rig update. */
     const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count);
     /** Copy up to slot_count weights into the morph buffer for \a model_id; remaining slots are zeroed. */
