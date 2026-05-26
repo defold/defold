@@ -471,7 +471,9 @@ static void json_create_config(lua_State *l)
 #endif // DEFOLD
 
 // DEFOLD
-static void json_initialize_config(lua_State *l, json_config_t* cfg, int encode_keep_buffer, int protected_mode, char* errbuf, size_t errbuf_len)
+static void json_initialize_config(lua_State *l, int options_index, json_config_t* cfg,
+                                   int encode_keep_buffer, int protected_mode,
+                                   char* errbuf, size_t errbuf_len)
 {
     int i;
 
@@ -545,9 +547,9 @@ static void json_initialize_config(lua_State *l, json_config_t* cfg, int encode_
     cfg->escape2char['u'] = 'u';          /* Unicode parsing required */
 
     // read additional config values from options table
-    if (lua_istable(l, 2))
+    if (lua_istable(l, options_index))
     {
-        lua_pushvalue(l, 2); // push config table to top of stack
+        lua_pushvalue(l, options_index); // push config table to top of stack
 
         lua_getfield(l, -1, "decode_null_as_userdata");
         if (!lua_isnil(l, -1))
@@ -970,13 +972,14 @@ static int json_encode(lua_State *l)
 // a default config here to avoid passing the config as
 // a user data object.
 // Also, we return the generated string, and let the caller delete it
-int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
+int lua_cjson_encode(lua_State *l, int index, int options_index,
+                     char** json_str, size_t* json_length)
 {
     json_config_t cfg;
     strbuf_t local_encode_buf;
     strbuf_t *encode_buf;
 
-    json_initialize_config(l, &cfg, DEFAULT_ENCODE_KEEP_BUFFER, 1, 0, 0);
+    json_initialize_config(l, options_index, &cfg, DEFAULT_ENCODE_KEEP_BUFFER, 1, 0, 0);
     if (!cfg.encode_keep_buffer) {
         /* Use private buffer */
         encode_buf = &local_encode_buf;
@@ -987,7 +990,7 @@ int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
         strbuf_reset(encode_buf);
     }
 
-    lua_pushvalue(l, 1); // make sure the table to encode is on the top of the stack
+    lua_pushvalue(l, index); // make sure the value to encode is on top of the stack
     json_append_data(l, &cfg, 0, encode_buf);
     lua_pop(l, 1); // pop it again
 
@@ -1627,13 +1630,15 @@ static int DefoldError(json_config_t* cfg, const char* format, ...)
 // a default config here to avoid passing the config as
 // a user data object.
 // Note: We also have a boolean which decides upon the error handling
-int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len, int protected_mode, char* errbuf, size_t errbuf_len)
+int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len,
+                     int options_index, int protected_mode, char* errbuf,
+                     size_t errbuf_len)
 {
     json_config_t cfg;
     json_parse_t json;
     json_token_t token;
 
-    json_initialize_config(l, &cfg, 0, protected_mode, errbuf, errbuf_len);
+    json_initialize_config(l, options_index, &cfg, 0, protected_mode, errbuf, errbuf_len);
     json.cfg = &cfg;
     json.data = json_string;
     json.data_end = json_string + json_len;

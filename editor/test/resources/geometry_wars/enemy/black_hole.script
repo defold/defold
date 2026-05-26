@@ -60,10 +60,10 @@ function update(self, dt)
 	bounce_t = (bounce_t + 1) * 0.5
 	local tint = min_tint + bounce_t * (max_tint - min_tint)
 	tint.w = math.max(0.3, tint.w * self.power)
-	sprite.set_constant("#background", "tint", tint)
+	go.set("#background", "tint", tint)
 	sprite.set_scale("#light_mask", vmath.vector3(scale, scale, 0))
 	tint.w = 1
-	sprite.set_constant("#light_mask", "tint", tint)
+	go.set("#light_mask", "tint", tint)
 	--msg.post("level#script", "add_impact", {magnitude = 200, position = go.get_position()})
 	local angle_speed = min_angle_speed + self.power * (max_angle_speed - min_angle_speed)
 	self.angle = self.angle + angle_speed * dt

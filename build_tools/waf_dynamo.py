@@ -1139,7 +1139,13 @@ def codesign(task):
     if not hasattr(task.generator, 'sdkinfo'):
         task.generator.sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env['PLATFORM'])
 
-    ret = bld.exec_command('CODESIGN_ALLOCATE=%s/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (sdk.get_toolchain_root(task.generator.sdkinfo, bld.env['PLATFORM']), identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
+    codesign_allocate = os.path.join(sdk.get_toolchain_root(task.generator.sdkinfo, bld.env['PLATFORM']), 'usr', 'bin', 'codesign_allocate')
+    ret = bld.exec_command('CODESIGN_ALLOCATE=%s codesign -f -s %s --resource-rules=%s --entitlements %s %s' % (
+        shlex.quote(codesign_allocate),
+        shlex.quote(identity),
+        shlex.quote(resource_rules_plist_file),
+        shlex.quote(entitlements_path),
+        shlex.quote(signed_exe_dir)))
     if ret != 0:
         error('Error running codesign')
         return 1
@@ -1229,7 +1235,7 @@ def _strip_executable(bld, platform, target_arch, path):
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
     strip = sdk.get_strip_executable(platform, sdkinfo)
 
-    return bld.exec_command("%s %s" % (strip, path))
+    return bld.exec_command([strip, path])
 
 AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
 
@@ -1824,10 +1830,14 @@ def js_web_web_link_flags(self):
                 js = os.path.join(jsLibHome, lib)
             self.env.append_value('LINKFLAGS', ['--js-library', js])
 
-Task.task_factory('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
+def dsym(task):
+    dsymutil = Utils.to_list(task.env.DSYMUTIL)[0]
+    return task.exec_command([dsymutil, '-o', task.outputs[0].abspath(), task.inputs[0].abspath()])
+
+Task.task_factory('dSYM',
+                      func=dsym,
                       color='YELLOW',
-                      after='link_task',
-                      shell=True)
+                      after='link_task')
 
 Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
                       color='BROWN',
@@ -1959,8 +1969,8 @@ def detect(conf):
 
         conf.env['CC']      = '%s/clang' % bin_dir
         conf.env['CXX']     = '%s/clang++' % bin_dir
-        conf.env['LINK_CC'] = '%s/clang' % bin_dir
-        conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+        conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+        conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
         conf.env['CPP']     = '%s/clang -E' % bin_dir
         conf.env['AR']      = '%s/%sar' % (bin_dir, llvm_prefix)
         conf.env['RANLIB']  = '%s/%sranlib' % (bin_dir, llvm_prefix)
@@ -1973,8 +1983,8 @@ def detect(conf):
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
-            conf.env['LINK_CC'] = '%s/clang' % bin_dir
-            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+            conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
             conf.env['CPP']     = '%s/clang -E' % bin_dir
             conf.env['AR']      = '%s/llvm-ar' % bin_dir
             conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
@@ -1984,8 +1994,8 @@ def detect(conf):
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
-            conf.env['LINK_CC'] = '%s/clang' % bin_dir
-            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+            conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
             conf.env['CPP']     = '%s/clang -E' % bin_dir
             conf.env['AR']      = '%s/ar' % bin_dir
             conf.env['RANLIB']  = '%s/ranlib' % bin_dir
@@ -2020,7 +2030,7 @@ def detect(conf):
 
         conf.env['CC']       = f'{bintools}{sep}{clang_name}{cmd_suffix}'
         conf.env['CXX']      = f'{bintools}{sep}{clang_name}++{cmd_suffix}'
-        conf.env['LINK_CXX'] = f'{bintools}{sep}{clang_name}++{cmd_suffix}'
+        conf.env['LINK_CXX'] = [f'{bintools}{sep}{clang_name}++{cmd_suffix}']
         conf.env['CPP']      = f'{bintools}{sep}{clang_name}{cmd_suffix} -E'
 
         conf.env['AR']       = f'{bintools}{sep}llvm-ar{exe_suffix}'
@@ -2041,8 +2051,8 @@ def detect(conf):
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
             conf.env['CPP']     = '%s/clang -E' % bin_dir
-            conf.env['LINK_CC'] = '%s/clang' % bin_dir
-            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+            conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
             conf.env['AR']      = '%s/llvm-ar' % bin_dir
             conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
 
@@ -2142,8 +2152,8 @@ def detect(conf):
 
         conf.env['CC'] = f'{bin_dir}/emcc'
         conf.env['CXX'] = f'{bin_dir}/em++'
-        conf.env['LINK_CC'] = f'{bin_dir}/emcc'
-        conf.env['LINK_CXX'] = f'{bin_dir}/em++'
+        conf.env['LINK_CC'] = [f'{bin_dir}/emcc']
+        conf.env['LINK_CXX'] = [f'{bin_dir}/em++']
         conf.env['CPP'] = f'{bin_dir}/em++'
         conf.env['AR'] = f'{bin_dir}/emar'
         conf.env['RANLIB'] = f'{bin_dir}/emranlib'

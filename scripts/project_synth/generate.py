@@ -1147,7 +1147,7 @@ def render_lua(node: Node) -> str:
             + "    self.text_pred = render.predicate({\"text\"})\n"
             + "end\n\n"
             + "function update(self)\n"
-            + "    render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 1), [render.BUFFER_DEPTH_BIT] = 1})\n"
+            + "    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 0, 0, 1), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1})\n"
             + "    render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())\n"
             + "    render.set_view(vmath.matrix4())\n"
             + "    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))\n"
