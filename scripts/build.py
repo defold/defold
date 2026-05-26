@@ -1292,9 +1292,22 @@ class Configuration(object):
 
             self._add_files_to_zip(zip, variants, self.dynamo_home, topfolder)
 
-            def _findlibs(libdir):
-                paths = os.listdir(libdir)
-                paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
+            def _findlibs(libdirs):
+                if isinstance(libdirs, str):
+                    libdirs = [libdirs]
+
+                paths = []
+                tried = []
+                found_dir = False
+                for libdir in libdirs:
+                    tried.append(libdir)
+                    if not os.path.isdir(libdir):
+                        continue
+                    found_dir = True
+                    paths += [os.path.join(libdir, x) for x in os.listdir(libdir) if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
+
+                if not found_dir:
+                    raise FileNotFoundError("No library directory found: %s" % ", ".join(tried))
                 return paths
 
             def _findjars(jardir, ends_with):
@@ -1316,12 +1329,16 @@ class Configuration(object):
                 return paths
 
             # Dynamo libs
-            libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
-            paths = _findlibs(libdir)
+            libdirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
+            if platform == 'win32':
+                libdirs.append(os.path.join(self.dynamo_home, 'lib/x86-win32'))
+            paths = _findlibs(libdirs)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
             # External libs
-            libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
-            paths = _findlibs(libdir)
+            libdirs = [os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)]
+            if platform == 'win32':
+                libdirs.append(os.path.join(self.dynamo_home, 'ext/lib/x86-win32'))
+            paths = _findlibs(libdirs)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             if platform in ['armv7-android', 'arm64-android']:
@@ -1341,12 +1358,6 @@ class Configuration(object):
                 engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
                 defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
                 self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
-
-            # new cmake support. it outputs to x86-win32 folder
-            if platform == 'win32':
-                libdir = os.path.join(self.dynamo_home, 'lib/x86-win32')
-                paths = _findlibs(libdir)
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # the port scripts contain the necessary files, only need to include them once
             if platform in ['wasm-web']:
