@@ -1518,17 +1518,10 @@
               (.requestFocusOnIndex context-menu-content (.indexOf (.getItems context-menu) menu-item))))
           true)))))
 
-(defn- skip-disabled-menu-item-focus-filter? [^ContextMenu context-menu]
-  (let [items (.getItems context-menu)
-        item-count (.size items)]
-    (loop [index 0]
-      (when (< index item-count)
-        (or (true? (user-data (.get items index) ::skip-disabled-menu-item-focus-filter))
-            (recur (inc index)))))))
-
 (defn- install-disabled-menu-item-focus-filter! [^ContextMenu context-menu]
   (let [properties (.getProperties context-menu)]
-    (when-not (or (skip-disabled-menu-item-focus-filter? context-menu)
+    (when-not (or (coll/any? #(user-data % ::skip-disabled-menu-item-focus-filter)
+                             (.getItems context-menu))
                   (.containsKey properties ::disabled-menu-item-focus-filter))
       (let [event-filter (event-handler event
                            (condp = (.getCode ^KeyEvent event)
