@@ -1544,9 +1544,18 @@
               (.requestFocusOnIndex context-menu-content (.indexOf (.getItems context-menu) menu-item))))
           true)))))
 
+(defn- skip-disabled-menu-item-focus-filter? [^ContextMenu context-menu]
+  (let [items (.getItems context-menu)
+        item-count (.size items)]
+    (loop [index 0]
+      (when (< index item-count)
+        (or (true? (user-data (.get items index) ::skip-disabled-menu-item-focus-filter))
+            (recur (inc index)))))))
+
 (defn- install-disabled-menu-item-focus-filter! [^ContextMenu context-menu]
   (let [properties (.getProperties context-menu)]
-    (when-not (.containsKey properties ::disabled-menu-item-focus-filter)
+    (when-not (or (skip-disabled-menu-item-focus-filter? context-menu)
+                  (.containsKey properties ::disabled-menu-item-focus-filter))
       (let [event-filter (event-handler event
                            (condp = (.getCode ^KeyEvent event)
                              KeyCode/DOWN (focus-next-menu-item! context-menu event true)
@@ -1753,6 +1762,7 @@
             (make-menu-command scene id label localization icon style key-combo user-data command enabled? check)
             (if (some-> options meta :layout (= :grid))
               (let [grid-menu (make-grid-menu scene localization options command-contexts evaluation-context)]
+                (user-data! grid-menu ::skip-disabled-menu-item-focus-filter true)
                 (make-submenu id label localization icon style [grid-menu] #(focus-first-grid-menu-item grid-menu)))
               (make-submenu id label localization icon style
                             (make-menu-items scene (localization/sort-if-annotated @localization options)
