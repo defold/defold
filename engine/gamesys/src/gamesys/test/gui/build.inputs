@@ -1,5 +1,6 @@
 /gui/default.texture_profiles
 /gui/async_texture_auto_size.go
+/gui/custom_properties_layout.go
 /gui/draw_count_empty_text_test.go
 /gui/draw_count_test.go
 /gui/draw_count_test2.go
