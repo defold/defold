@@ -1533,8 +1533,13 @@ class Configuration(object):
         dynamo_home = self.dynamo_home
         self.full_archive_path = full_archive_path
 
-        bin_dir = self.build_utility.get_binary_path()
-        lib_dir = self.build_utility.get_library_path()
+        artifact_platform = self._engine_artifact_platform(self.target_platform)
+        if artifact_platform == self.target_platform:
+            bin_dir = self.build_utility.get_binary_path()
+            lib_dir = self.build_utility.get_library_path()
+        else:
+            bin_dir = join(dynamo_home, 'bin', artifact_platform)
+            lib_dir = join(dynamo_home, 'lib', artifact_platform)
 
         # upload editor 2.0 launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -1783,6 +1788,13 @@ class Configuration(object):
         if platform == 'win32':
             return 'x86-win32'
         return platform
+
+    def _engine_artifact_platform(self, platform):
+        # Waf still writes 32-bit Windows artifacts to win32; CMake uses the
+        # explicit arch tuple x86-win32 while archive/package names stay win32.
+        if self._build_engine_with_waf():
+            return platform
+        return self._cmake_target_platform(platform)
 
     def _cmake_top_build_dir(self, platform):
         return join(self.defold_root, 'engine', 'build', platform)
@@ -2166,6 +2178,7 @@ class Configuration(object):
                          'ext/share/java/android.jar': 'lib/android.jar'} # this should be the stripped one
 
         switch_files = {}
+        win32_engine_platform = self._engine_artifact_platform('win32')
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
@@ -2185,7 +2198,7 @@ class Configuration(object):
                      'switch-bundling': switch_files}
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
-                           'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
+                           'win32-bundling': [[win32_engine_platform, 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
                            'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
