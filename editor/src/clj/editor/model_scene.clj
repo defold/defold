@@ -41,7 +41,7 @@
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
-           [java.nio ByteOrder FloatBuffer]
+           [java.nio ByteBuffer ByteOrder FloatBuffer]
            [javax.vecmath Matrix4d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -228,10 +228,123 @@
                       (not (neg? max-index))
                       (assoc :index-buffer indices)))))))))
 
-(defn- render-mesh-opaque [^GL2 gl render-args renderables]
+(defn- matrix-attribute-values [^Matrix4d matrix vector-type]
+  (graphics/convert-double-values
+    (geom/as-array matrix)
+    :semantic-type-none
+    :vector-type-mat4
+    vector-type))
+
+(defn- renderable-normal-transform [render-args renderable]
+  (let [^Matrix4d view (or (:view render-args) math/identity-mat4)
+        ^Matrix4d world (or (:world-transform renderable) math/identity-mat4)
+        world-view (doto (Matrix4d. view)
+                     (.mul world))]
+    (math/derive-normal-transform world-view)))
+
+(defn- renderable-instance-attribute-values [render-args renderable attribute-info]
+  (let [{:keys [semantic-type vector-type]} attribute-info]
+    (case semantic-type
+      :semantic-type-world-matrix
+      (matrix-attribute-values (or (:world-transform renderable) math/identity-mat4) vector-type)
+
+      :semantic-type-normal-matrix
+      (matrix-attribute-values (renderable-normal-transform render-args renderable) vector-type)
+
+      (graphics.types/default-attribute-doubles semantic-type vector-type))))
+
+(defn- put-attribute-bytes! [^ByteBuffer buffer ^long byte-offset ^bytes attribute-bytes ^long attribute-byte-size]
+  (let [old-position (.position buffer)
+        byte-count (min (alength attribute-bytes) attribute-byte-size)]
+    (.position buffer (int byte-offset))
+    (.put buffer attribute-bytes 0 (int byte-count))
+    (.position buffer old-position)))
+
+(defn- put-instance-attribute! [^ByteBuffer buffer byte-offset render-args renderable attribute-info name-key->attribute-bytes]
+  (let [{:keys [data-type name-key normalize semantic-type vector-type]} attribute-info
+        attribute-byte-size (graphics.types/attribute-info-byte-size attribute-info)]
+    (if (#{:semantic-type-world-matrix :semantic-type-normal-matrix} semantic-type)
+      (let [buffer-data-type (graphics.types/data-type-buffer-data-type data-type)
+            values (renderable-instance-attribute-values render-args renderable attribute-info)]
+        (buffers/put! buffer byte-offset buffer-data-type normalize values))
+      (if-some [attribute-bytes (or (name-key->attribute-bytes name-key)
+                                    (:bytes attribute-info))]
+        (put-attribute-bytes! buffer byte-offset attribute-bytes attribute-byte-size)
+        (let [buffer-data-type (graphics.types/data-type-buffer-data-type data-type)
+              values (renderable-instance-attribute-values render-args renderable attribute-info)]
+          (buffers/put! buffer byte-offset buffer-data-type normalize values))))))
+
+(defn- make-instance-attribute-buffer-binding [render-args renderables attribute-info]
+  (let [{:keys [data-type location name-key normalize vector-type]} attribute-info
+        renderable-count (count renderables)
+        attribute-byte-size (graphics.types/attribute-info-byte-size attribute-info)
+        byte-buffer (buffers/new-byte-buffer (* renderable-count attribute-byte-size) :byte-order/native)
+        first-renderable (first renderables)
+        {:keys [scene-node-id]} (:user-data first-renderable)
+        request-id {:request-type :ModelSceneNode/instance-attribute-buffer
+                    :scene-node-id scene-node-id
+                    :pass-name (some-> render-args :pass :name)
+                    :name-key name-key}]
+    (run!
+      (fn [[instance-index renderable]]
+        (let [instance-index (long instance-index)]
+          (put-instance-attribute!
+            byte-buffer
+            (* instance-index attribute-byte-size)
+            render-args
+            renderable
+            attribute-info
+            (or (some-> renderable :user-data :vertex-attribute-bytes)
+                {}))))
+      (map-indexed vector renderables))
+    (.position byte-buffer (.capacity byte-buffer))
+    (.flip byte-buffer)
+    (attribute/make-attribute-buffer-binding
+      (attribute/make-attribute-buffer
+        request-id
+        (buffers/make-buffer-data byte-buffer)
+        vector-type
+        data-type
+        normalize
+        :stream)
+      location
+      :vertex-step-function-instance)))
+
+(defn- make-instance-attribute-buffer-bindings [render-args renderables]
+  (let [instance-attribute-infos (some-> renderables first :user-data :instance-attribute-infos)]
+    (into {}
+          (map (fn [{:keys [name-key] :as attribute-info}]
+                 [name-key (make-instance-attribute-buffer-binding render-args renderables attribute-info)]))
+          instance-attribute-infos)))
+
+(defn- has-instance-world-matrix? [instance-attribute-infos]
+  (boolean
+    (some #(= :semantic-type-world-matrix (:semantic-type %))
+          instance-attribute-infos)))
+
+(defn- model-batch-key [{:keys [coordinate-space-info has-instance-attributes? index-buffer instance-attribute-infos material-data mesh-renderable-buffers shader textures vertex-attribute-bindings]}]
+  (when (and has-instance-attributes?
+             (has-instance-world-matrix? instance-attribute-infos)
+             (empty? (:coordinate-space-world coordinate-space-info)))
+    [mesh-renderable-buffers
+     vertex-attribute-bindings
+     index-buffer
+     shader
+     textures
+     material-data
+     (mapv #(select-keys % [:data-type :location :name-key :normalize :semantic-type :step-function :vector-type])
+           instance-attribute-infos)]))
+
+(defn- render-mesh-opaque [^GL2 gl render-args renderables ^long rcount]
   (let [renderable (first renderables)
-        {:keys [attribute-bindings coordinate-space-info index-buffer material-data shader textures]} (:user-data renderable)
+        {:keys [attribute-bindings coordinate-space-info has-instance-attributes? index-buffer material-data shader textures vertex-attribute-bindings]} (:user-data renderable)
         render-args (math/rederive-render-transforms render-args coordinate-space-info)
+        instanced? (and has-instance-attributes?
+                        (< 1 rcount))
+        attribute-bindings (if instanced?
+                             (merge vertex-attribute-bindings
+                                    (make-instance-attribute-buffer-bindings render-args renderables))
+                             attribute-bindings)
         index-type (gl.types/element-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)]
     (gl/with-gl-bindings gl render-args [shader attribute-bindings index-buffer]
@@ -243,7 +356,9 @@
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
-      (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count)
+      (if instanced?
+        (gl/gl-draw-elements-instanced gl GL/GL_TRIANGLES index-type 0 index-count rcount)
+        (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count))
       (gl/gl-disable gl GL/GL_CULL_FACE)
       (gl/gl-enable gl GL/GL_BLEND)
       (doseq [[_name t] textures]
@@ -274,14 +389,13 @@
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
-(defn- render-mesh [^GL2 gl render-args renderables rcount]
-  ;; TODO(instancing): Batch instanced meshes together and populate an instance-buffer with the per-instance attributes.
-  (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
+(defn- render-mesh [^GL2 gl render-args renderables ^long rcount]
   (condp = (:pass render-args)
     pass/opaque
-    (render-mesh-opaque gl render-args renderables)
+    (render-mesh-opaque gl render-args renderables rcount)
 
     pass/opaque-selection
+    (assert (= 1 rcount) "Instanced model selection rendering is not implemented.")
     (render-mesh-opaque-selection gl render-args renderables)))
 
 (g/defnk produce-mesh-set-build-target [_node-id resource content]
@@ -550,24 +664,27 @@
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
         attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space nil)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
-        attribute-bindings (model-util/make-attribute-bindings scene-node-id attribute-reflection-infos semantic-type->attribute-buffers {})
+        model-attribute-bindings (model-util/make-model-attribute-bindings scene-node-id attribute-reflection-infos semantic-type->attribute-buffers {})
         selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space nil)
         selection-attribute-bindings (model-util/make-attribute-bindings scene-node-id selection-attribute-reflection-infos semantic-type->attribute-buffers {})
 
         user-data
-        {:attribute-bindings attribute-bindings
-         :coordinate-space-info coordinate-space-info
-         :index-buffer index-buffer
-         :material-data material-data
-         :material-name material-name
-         :mesh-renderable-buffers renderable-buffers
-         :selection-attribute-bindings selection-attribute-bindings
-         :shader shaders/mesh-preview-local-space}
+        (merge
+          {:coordinate-space-info coordinate-space-info
+           :index-buffer index-buffer
+           :material-data material-data
+           :material-name material-name
+           :mesh-renderable-buffers renderable-buffers
+           :scene-node-id scene-node-id
+           :selection-attribute-bindings selection-attribute-bindings
+           :shader shaders/mesh-preview-local-space
+           :vertex-attribute-bytes {}}
+          model-attribute-bindings)
 
         renderable
         {:render-fn render-mesh
          :tags #{:model}
-         :batch-key nil ; Batching is disabled in the editor for simplicity.
+         :batch-key (model-batch-key user-data)
          :select-batch-key nil
          :passes [pass/opaque pass/opaque-selection]
          :user-data user-data}]
@@ -598,23 +715,34 @@
     {:node-id scene-node-id
      :aabb aabb
      :renderable {:tags #{:model}
-                  :batch-key nil ; Batching is disabled in the editor for simplicity.
+                  :batch-key nil
                   :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
      :children child-scenes}))
 
 (g/defnk produce-scene [_node-id renderable-mesh-set]
   (make-scene _node-id renderable-mesh-set))
 
+(defn- claim-attribute-bindings [attribute-bindings new-request-id-fn args]
+  (if (some? attribute-bindings)
+    (apply attribute/claim-transformed-attribute-buffer-bindings attribute-bindings new-request-id-fn args)
+    attribute-bindings))
+
+(defn- claim-user-data-attribute-bindings [user-data new-request-id-fn & args]
+  (-> user-data
+      (update :attribute-bindings claim-attribute-bindings new-request-id-fn args)
+      (update :vertex-attribute-bindings claim-attribute-bindings new-request-id-fn args)
+      (update :instance-attribute-bindings claim-attribute-bindings new-request-id-fn args)))
+
 (defn- finalize-claim-scene [scene _old-node-id new-node-id]
   (update scene :children coll/mapv->
           update :children coll/mapv->
-          update-in [:renderable :user-data :attribute-bindings]
-          attribute/claim-transformed-attribute-buffer-bindings
+          update-in [:renderable :user-data]
+          claim-user-data-attribute-bindings
           assoc :scene-node-id new-node-id))
 
 (defn- augment-mesh-scene [mesh-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
-  (let [{:keys [user-data]} (:renderable mesh-scene)
-        {:keys [material-data material-name]} user-data
+  (let [base-user-data (:user-data (:renderable mesh-scene))
+        {:keys [material-data material-name]} base-user-data
         material-scene-info (material-name->material-scene-info material-name)
         claimed-scene (scene/claim-child-scene mesh-scene old-node-id new-node-id new-node-outline-key)]
     (if (nil? material-scene-info)
@@ -633,20 +761,23 @@
         (assert (every? keyword? (keys vertex-attribute-bytes)))
         (assert (every? bytes? (vals vertex-attribute-bytes)))
         (update claimed-scene :renderable
-                update :user-data
-                (fn [user-data]
-                  (let [mesh-renderable-buffers (:mesh-renderable-buffers user-data)
+                (fn [renderable]
+                  (let [mesh-renderable-buffers (:mesh-renderable-buffers base-user-data)
                         semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
                         combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos default-coordinate-space)
                         coordinate-space-info (graphics/coordinate-space-info combined-attribute-infos)
-                        attribute-bindings (model-util/make-attribute-bindings new-node-id combined-attribute-infos semantic-type->attribute-buffers vertex-attribute-bytes)]
-                    (assoc user-data
-                      :attribute-bindings attribute-bindings
-                      :coordinate-space-info coordinate-space-info
-                      :material-attribute-infos material-attribute-infos
-                      :material-data material-data
-                      :shader shader
-                      :textures gpu-textures))))))))
+                        model-attribute-bindings (model-util/make-model-attribute-bindings new-node-id combined-attribute-infos semantic-type->attribute-buffers vertex-attribute-bytes)
+                        user-data (merge (:user-data renderable)
+                                         model-attribute-bindings
+                                         {:coordinate-space-info coordinate-space-info
+                                          :material-attribute-infos material-attribute-infos
+                                          :material-data material-data
+                                          :shader shader
+                                          :textures gpu-textures
+                                          :vertex-attribute-bytes vertex-attribute-bytes})]
+                    (assoc renderable
+                      :batch-key (model-batch-key user-data)
+                      :user-data user-data))))))))
 
 (defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms]
   (let [model-scene (assoc model-scene

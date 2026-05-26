@@ -386,9 +386,7 @@
   ^AttributeBufferData [^BufferData buffer-data usage]
   (ensure/argument buffer-data gl.types/gl-compatible-buffer-data?)
   (ensure/argument usage graphics.types/usage?)
-  (if (instance? FloatBuffer (.-data buffer-data))
-    (->AttributeBufferData buffer-data usage)
-    (throw (IllegalArgumentException. "buffer-data must use a FloatBuffer"))))
+  (->AttributeBufferData buffer-data usage))
 
 (defonce/record AttributeBufferLifecycle
   [request-id
@@ -411,15 +409,18 @@
 (defn make-attribute-buffer
   "Creates an attribute buffer from the provided data. The returned object is a
   GLBinding and an ElementBuffer."
-  ^AttributeBufferLifecycle [request-id ^BufferData buffer-data vector-type usage]
-  (ensure/argument request-id graphics.types/request-id?)
-  (let [element-type (graphics.types/make-element-type vector-type :type-float false)
-        attribute-buffer-data (make-attribute-buffer-data buffer-data usage)]
-    (->AttributeBufferLifecycle request-id attribute-buffer-data element-type)))
+  (^AttributeBufferLifecycle [request-id ^BufferData buffer-data vector-type usage]
+   (make-attribute-buffer request-id buffer-data vector-type :type-float false usage))
+  (^AttributeBufferLifecycle [request-id ^BufferData buffer-data vector-type data-type normalize usage]
+   (ensure/argument request-id graphics.types/request-id?)
+   (let [element-type (graphics.types/make-element-type vector-type data-type normalize)
+         attribute-buffer-data (make-attribute-buffer-data buffer-data usage)]
+     (->AttributeBufferLifecycle request-id attribute-buffer-data element-type))))
 
 (defonce/record AttributeBufferBinding
   [attribute-buffer-lifecycle
-   ^int base-location]
+   ^int base-location
+   step-function]
 
   gl.types/GLBinding
   (bind! [_this gl render-args]
@@ -431,35 +432,47 @@
           item-gl-type (gl.types/data-type-gl-type data-type)
           item-byte-size (graphics.types/data-type-byte-size data-type)
           vertex-byte-size (* component-count item-byte-size)
+          divisor (case step-function
+                    :vertex-step-function-vertex 0
+                    :vertex-step-function-instance 1)
           row-column-count (graphics.types/vector-type-row-column-count vector-type)]
       (gl/with-gl-bindings gl render-args [attribute-buffer-lifecycle]
         (if (neg? row-column-count)
           (do
             (gl/gl-enable-vertex-attrib-array gl base-location)
-            (gl/gl-vertex-attrib-pointer gl base-location component-count item-gl-type normalize vertex-byte-size 0))
+            (gl/gl-vertex-attrib-pointer gl base-location component-count item-gl-type normalize vertex-byte-size 0)
+            (gl/gl-vertex-attrib-divisor gl base-location divisor))
           (loop [column-index 0]
             (when (< column-index row-column-count)
               (let [location (+ base-location column-index)
                     byte-offset (* column-index row-column-count item-byte-size)]
                 (gl/gl-enable-vertex-attrib-array gl location)
                 (gl/gl-vertex-attrib-pointer gl location row-column-count item-gl-type normalize vertex-byte-size byte-offset)
+                (gl/gl-vertex-attrib-divisor gl location divisor)
                 (recur (inc column-index)))))))))
 
   (unbind! [_this gl _render-args]
     (let [element-type (graphics.types/element-type attribute-buffer-lifecycle)
           vector-type (.-vector-type element-type)
           attribute-count (graphics.types/vector-type-attribute-count vector-type)]
+      (loop [attribute-index 0]
+        (when (< attribute-index attribute-count)
+          (gl/gl-vertex-attrib-divisor gl (+ base-location attribute-index) 0)
+          (recur (inc attribute-index))))
       (gl/disable-vertex-attrib-arrays! gl base-location attribute-count))))
 
 (defn make-attribute-buffer-binding
   "Returns a GLBinding that binds a shader attribute location to an attribute
   buffer. An attribute buffer can be created using the `make-attribute-buffer`
   or `make-transformed-attribute-buffer` functions."
-  ^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]
-  (ensure/argument-satisfies attribute-buffer-lifecycle graphics.types/ElementBuffer)
-  (ensure/argument-satisfies attribute-buffer-lifecycle gl.types/GLBinding)
-  (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
-  (->AttributeBufferBinding attribute-buffer-lifecycle base-location))
+  (^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]
+   (make-attribute-buffer-binding attribute-buffer-lifecycle base-location :vertex-step-function-vertex))
+  (^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location step-function]
+   (ensure/argument-satisfies attribute-buffer-lifecycle graphics.types/ElementBuffer)
+   (ensure/argument-satisfies attribute-buffer-lifecycle gl.types/GLBinding)
+   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
+   (ensure/argument step-function graphics.types/vertex-step-function? "%s must be a vertex step function")
+   (->AttributeBufferBinding attribute-buffer-lifecycle base-location step-function)))
 
 (defn- update-attribute-buffer!
   [^GL2 gl ^long gl-buffer ^AttributeBufferData attribute-buffer-data]

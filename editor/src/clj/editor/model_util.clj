@@ -42,14 +42,16 @@
 
 (defn- make-attribute-buffer-binding
   [scene-node-id attribute-buffer-lifecycle attribute-info]
-  (let [{:keys [attribute-transform ^long location]} attribute-info]
+  (let [{:keys [attribute-transform ^long location step-function]} attribute-info]
     (case attribute-transform
       (:attribute-transform-none)
-      (attribute/make-attribute-buffer-binding attribute-buffer-lifecycle location)
+      (attribute/make-attribute-buffer-binding attribute-buffer-lifecycle location step-function)
 
       (:attribute-transform-normal :attribute-transform-world)
-      (-> (make-transformed-attribute-buffer scene-node-id attribute-buffer-lifecycle attribute-transform)
-          (attribute/make-attribute-buffer-binding location)))))
+      (attribute/make-attribute-buffer-binding
+        (make-transformed-attribute-buffer scene-node-id attribute-buffer-lifecycle attribute-transform)
+        location
+        step-function))))
 
 (defn- make-attribute-value-binding
   [attribute-bytes attribute-info]
@@ -143,3 +145,23 @@
                   ;; else
                   (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
                     (make-attribute-binding-entries scene-node-id attribute-infos attribute-buffers name-key->attribute-bytes))))))))
+
+(defn make-model-attribute-bindings
+  "Returns both the legacy merged attribute bindings used for single-renderable
+  model draws and a vertex/instance split for the instanced model path.
+
+  Instance-step attributes deliberately do not use mesh attribute buffers even if
+  they share a semantic with mesh data. They are supplied from render args,
+  component/material attribute values, or semantic defaults until the caller
+  replaces them with an instance buffer."
+  [scene-node-id combined-attribute-infos semantic-type->attribute-buffers name-key->attribute-bytes]
+  {:pre [(g/node-id? scene-node-id)]}
+  (let [vertex-attribute-infos (filterv #(= :vertex-step-function-vertex (:step-function %)) combined-attribute-infos)
+        instance-attribute-infos (filterv #(= :vertex-step-function-instance (:step-function %)) combined-attribute-infos)
+        vertex-attribute-bindings (make-attribute-bindings scene-node-id vertex-attribute-infos semantic-type->attribute-buffers name-key->attribute-bytes)
+        instance-attribute-bindings (make-attribute-bindings scene-node-id instance-attribute-infos {} name-key->attribute-bytes)]
+    {:attribute-bindings (merge vertex-attribute-bindings instance-attribute-bindings)
+     :vertex-attribute-bindings vertex-attribute-bindings
+     :instance-attribute-bindings instance-attribute-bindings
+     :instance-attribute-infos instance-attribute-infos
+     :has-instance-attributes? (boolean (seq instance-attribute-infos))}))

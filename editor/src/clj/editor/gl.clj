@@ -20,7 +20,7 @@
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.num :as num])
-  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
+  (:import [com.jogamp.opengl GL GL2 GL2ES3 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
            [com.jogamp.opengl.util.awt TextRenderer]
            [java.awt Font]
            [java.nio IntBuffer]
@@ -565,8 +565,14 @@
 (defmacro gl-draw-arrays [gl prim-type start count]
   `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~prim-type ~start ~count))
 
+(defmacro gl-draw-arrays-instanced [gl prim-type start count instance-count]
+  `(.glDrawArraysInstanced ~(with-meta gl {:tag `GL2ES3}) ~prim-type ~start ~count ~instance-count))
+
 (defmacro gl-draw-elements [gl prim-type index-type start count]
   `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count ~index-type ~start))
+
+(defmacro gl-draw-elements-instanced [gl prim-type index-type start count instance-count]
+  `(.glDrawElementsInstanced ~(with-meta gl {:tag `GL2ES3}) ~prim-type ~count ~index-type ~start ~instance-count))
 
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
 
