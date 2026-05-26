@@ -398,6 +398,34 @@ PLATFORM_PACKAGES = {
     'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
 
+BOB_TOOL_PLATFORMS = [
+    'x86_64-macos',
+    'arm64-macos',
+    'x86_64-linux',
+    'arm64-linux',
+    'x86_64-win32'
+]
+
+BOB_TOOL_PACKAGE_PREFIXES = (
+    'aapt2-',
+    'apkc-',
+    'glslang-',
+    'gltf-validator-',
+    'lipo-',
+    'luajit-',
+    'ogg-',
+    'spirv-tools-',
+    'strip_android-',
+    'strip_android_aarch64-',
+    'tint-',
+)
+
+BOB_TOOL_PACKAGES = ('codesign_allocate', 'strip', 'zipalign')
+
+BOB_EXTRA_PLATFORM_PACKAGES = {
+    'arm64-android': [sdk.ANDROID_PACKAGE]
+}
+
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
@@ -817,6 +845,36 @@ class Configuration(object):
             self._extract_zip(file, path)
         else:
             self._extract_tgz(file, path)
+
+    def _is_bob_tool_package(self, package):
+        return package in BOB_TOOL_PACKAGES or package.startswith(BOB_TOOL_PACKAGE_PREFIXES)
+
+    def install_bob_tool_packages(self):
+        def make_package_path(root, platform, package):
+            return join(root, 'packages', package) + '-%s.tar.gz' % platform
+
+        installed_packages = set()
+        for platform in BOB_TOOL_PLATFORMS:
+            packages = [package for package in PLATFORM_PACKAGES.get(platform, []) if self._is_bob_tool_package(package)]
+            packages.extend(BOB_EXTRA_PLATFORM_PACKAGES.get(platform, []))
+            if not packages:
+                continue
+            print("Installing Bob tool packages for %s" % platform)
+            for package in packages:
+                package_path = make_package_path(self.defold_root, platform, package)
+                if package_path in installed_packages:
+                    continue
+                self._extract_tgz(package_path, self.ext)
+                installed_packages.add(package_path)
+
+        for platform, packages in BOB_EXTRA_PLATFORM_PACKAGES.items():
+            print("Installing Bob extra packages for %s" % platform)
+            for package in packages:
+                package_path = make_package_path(self.defold_root, platform, package)
+                if package_path in installed_packages:
+                    continue
+                self._extract_tgz(package_path, self.ext)
+                installed_packages.add(package_path)
 
     def _copy(self, src, dst):
         self._log('Copying %s -> %s' % (src, dst))
@@ -2241,6 +2299,7 @@ class Configuration(object):
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()
+        self.install_bob_tool_packages()
         self._run_bob_copy_script()
         if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.copy_local_bob_artefacts()
