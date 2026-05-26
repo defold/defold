@@ -437,6 +437,11 @@ static int32_t ProcessBlockingChild(HJobContext ctx, HJob job, void* user_contex
 
 static void CallbackBlockingChild(HJobContext ctx, HJob job, JobSystemStatus status, void* user_context, void* user_data, int32_t user_result)
 {
+    if (status != JOBSYSTEM_STATUS_FINISHED)
+    {
+        return;
+    }
+
     CancelPendingParentTrack* track = (CancelPendingParentTrack*)user_context;
     track->m_ChildCallbackStatus = status;
     dmAtomicIncrement32(&track->m_ChildCallbackCalled);
@@ -445,6 +450,83 @@ static void CallbackBlockingChild(HJobContext ctx, HJob job, JobSystemStatus sta
     {
         dmAtomicIncrement32(&track->m_ChildCallbackAfterResourceRelease);
     }
+}
+
+struct BlockingCallbackTrack
+{
+    HJobContext     m_JobSystem;
+    int32_atomic_t  m_CallbackStarted;
+    int32_atomic_t  m_AllowCallbackFinish;
+    int32_atomic_t  m_CallbackFinished;
+    int32_atomic_t  m_StopUpdateThread;
+    JobSystemStatus m_CallbackStatus;
+};
+
+static void CallbackBlocking(HJobContext ctx, HJob job, JobSystemStatus status, void* user_context, void* user_data, int32_t user_result)
+{
+    BlockingCallbackTrack* track = (BlockingCallbackTrack*)user_context;
+    track->m_CallbackStatus = status;
+    dmAtomicIncrement32(&track->m_CallbackStarted);
+
+    while (!dmAtomicGet32(&track->m_AllowCallbackFinish) && !dmAtomicGet32(&track->m_StopUpdateThread))
+    {
+        dmTime::Sleep(1000);
+    }
+
+    dmAtomicIncrement32(&track->m_CallbackFinished);
+}
+
+static void UpdateUntilCallbackStarted(void* user_data)
+{
+    BlockingCallbackTrack* track = (BlockingCallbackTrack*)user_data;
+    while (!dmAtomicGet32(&track->m_CallbackStarted) && !dmAtomicGet32(&track->m_StopUpdateThread))
+    {
+        JobSystemUpdate(track->m_JobSystem, 0);
+        dmTime::Sleep(1000);
+    }
+}
+
+TEST_P(dmJobSystemTest, CancelJobDuringCallbackReportsPending)
+{
+    if (GetParam().m_NumThreads == 0)
+    {
+        return;
+    }
+
+    BlockingCallbackTrack track = {};
+    track.m_JobSystem = m_JobSystem;
+    track.m_CallbackStatus = JOBSYSTEM_STATUS_FREE;
+
+    Job job = {};
+    job.m_Process = ProcessSimple;
+    job.m_Callback = CallbackBlocking;
+    job.m_Context = &track;
+
+    HJob hjob = JobSystemCreateJob(m_JobSystem, &job);
+    ASSERT_NE((HJob)0, hjob);
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, hjob));
+
+    dmThread::Thread update_thread = dmThread::New(UpdateUntilCallbackStarted, 0x80000, &track, "jobupd");
+    ASSERT_NE((dmThread::Thread)0, update_thread);
+
+    if (!WaitForAtomicValue(&track.m_CallbackStarted, 1, 500000))
+    {
+        dmAtomicStore32(&track.m_StopUpdateThread, 1);
+        dmAtomicStore32(&track.m_AllowCallbackFinish, 1);
+        dmThread::Join(update_thread);
+        ASSERT_EQ(1, dmAtomicGet32(&track.m_CallbackStarted));
+    }
+
+    JobSystemResult cancel_result = JobSystemCancelJob(m_JobSystem, hjob);
+    int callback_finished_before_release = dmAtomicGet32(&track.m_CallbackFinished);
+
+    dmAtomicStore32(&track.m_AllowCallbackFinish, 1);
+    dmThread::Join(update_thread);
+
+    ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, cancel_result);
+    ASSERT_EQ(0, callback_finished_before_release);
+    ASSERT_EQ(1, dmAtomicGet32(&track.m_CallbackFinished));
+    ASSERT_EQ(JOBSYSTEM_STATUS_FINISHED, track.m_CallbackStatus);
 }
 
 // This tests that cancelling the parent after one of the children (not the last one) has finished.
