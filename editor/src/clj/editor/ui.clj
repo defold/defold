@@ -1486,57 +1486,31 @@
     (or (and node (.isFocused node))
         (and node (nodes-along-path? target-node node nil)))))
 
-(defn- next-focusable-menu-item [^ObservableList items ^EventTarget target-node]
-  (let [item-count (.size items)]
-    (loop [index 0
-           first-focusable nil
-           current-found false]
-      (if (< index item-count)
-        (let [menu-item ^MenuItem (.get items index)
-              current (current-menu-item? menu-item target-node)
-              focusable (focusable-menu-item? menu-item)]
-          (cond
-            (and current (instance? CustomMenuItem menu-item))
-            ::custom-menu-item
-
-            (and current-found focusable)
-            menu-item
-
-            :else
-            (recur (inc index)
-                   (or first-focusable (when focusable menu-item))
-                   (or current-found current))))
-        first-focusable))))
-
-(defn- previous-focusable-menu-item [^ObservableList items ^EventTarget target-node]
-  (let [item-count (.size items)]
-    (loop [index (dec item-count)
-           last-focusable nil
-           current-found false]
-      (if (<= 0 index)
-        (let [menu-item ^MenuItem (.get items index)
-              current (current-menu-item? menu-item target-node)
-              focusable (focusable-menu-item? menu-item)]
-          (cond
-            (and current (instance? CustomMenuItem menu-item))
-            ::custom-menu-item
-
-            (and current-found focusable)
-            menu-item
-
-            :else
-            (recur (dec index)
-                   (or last-focusable (when focusable menu-item))
-                   (or current-found current))))
-        last-focusable))))
-
-(defn- focus-next-menu-item! [^ContextMenu context-menu ^KeyEvent event forward]
+(defn- focus-traverse-menu-item! [^ContextMenu context-menu ^KeyEvent event forward]
   (let [items (.getItems context-menu)]
     (when (pos? (.size items))
       (let [target-node (.getTarget event)
-            menu-item (if forward
-                        (next-focusable-menu-item items target-node)
-                        (previous-focusable-menu-item items target-node))]
+            item-count (.size items)
+            menu-item (loop [index (if forward 0 (dec item-count))
+                             fallback nil
+                             current-found false]
+                        (if (or (and forward       (< index item-count))
+                                (and (not forward) (<= 0 index)))
+                          (let [menu-item ^MenuItem (.get items index)
+                                current (current-menu-item? menu-item target-node)
+                                focusable (focusable-menu-item? menu-item)]
+                            (cond
+                              (and current (instance? CustomMenuItem menu-item))
+                              ::custom-menu-item
+
+                              (and current-found focusable)
+                              menu-item
+
+                              :else
+                              (recur (if forward (inc index) (dec index))
+                                     (or fallback (when focusable menu-item))
+                                     (or current-found current))))
+                          fallback))]
         (when-not (= ::custom-menu-item menu-item)
           (.consume event)
           (when menu-item
@@ -1558,10 +1532,10 @@
                   (.containsKey properties ::disabled-menu-item-focus-filter))
       (let [event-filter (event-handler event
                            (condp = (.getCode ^KeyEvent event)
-                             KeyCode/DOWN (focus-next-menu-item! context-menu event true)
-                             KeyCode/UP (focus-next-menu-item! context-menu event false)
+                             KeyCode/DOWN (focus-traverse-menu-item! context-menu event true)
+                             KeyCode/UP (focus-traverse-menu-item! context-menu event false)
                              KeyCode/TAB (let [forward (not (.isShiftDown ^KeyEvent event))]
-                                           (focus-next-menu-item! context-menu event forward))
+                                           (focus-traverse-menu-item! context-menu event forward))
                              nil))]
         (.addEventFilter context-menu KeyEvent/KEY_PRESSED event-filter)
         (.put properties ::disabled-menu-item-focus-filter event-filter)))))
