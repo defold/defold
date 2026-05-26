@@ -648,9 +648,9 @@
                       :shader shader
                       :textures gpu-textures))))))))
 
-(defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?]
+(defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms]
   (let [model-scene (assoc model-scene
-                      :pose (if use-skeleton-transforms?
+                      :pose (if use-skeleton-transforms
                               (:pose-with-skeleton model-scene)
                               (:pose-without-skeleton model-scene)))
         mesh-scenes (:children model-scene)]
@@ -667,14 +667,14 @@
     geom/null-aabb
     model-scenes))
 
-(defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?]
+(defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms]
   (if (g/error-value? scene)
     scene
     (let [old-node-id (:node-id scene)
           model-scenes (:children scene)
-          augmented-model-scenes (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms?)
+          augmented-model-scenes (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms)
                                        model-scenes)
-          scene-aabb (when-not use-skeleton-transforms?
+          scene-aabb (when-not use-skeleton-transforms
                        (model-scenes-aabb augmented-model-scenes))
           augmented-model-scenes (cond-> augmented-model-scenes
                                    (and scene-aabb (seq augmented-model-scenes))

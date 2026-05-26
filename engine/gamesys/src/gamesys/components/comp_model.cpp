@@ -1855,10 +1855,10 @@ namespace dmGameSystem
                 instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
                 instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
 
-                // Match legacy behavior: only apply skinned animation matrices while animating.
-                // This keeps non-playing skeleton setups aligned with non-skinned rendering.
+                // Match legacy behavior: only apply skinned animation matrices when the cache holds an animated pose.
+                // This keeps non-playing skeleton setups aligned with non-skinned rendering without dropping the final frame of a completed one-shot animation.
                 if (instance_component->m_Resource->m_RigScene->m_SkeletonRes &&
-                    dmRig::IsAnimating(instance_component->m_RigInstance) &&
+                    dmRig::HasPoseMatrixCacheAnimatedPose(instance_component->m_RigInstance) &&
                     dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
@@ -2027,7 +2027,7 @@ namespace dmGameSystem
                 dmVMath::Vector4 animation_data(0.0f, 0.0f, 0.0f, 0.0f);
 
                 if (component->m_Resource->m_RigScene->m_SkeletonRes &&
-                    dmRig::IsAnimating(component->m_RigInstance) &&
+                    dmRig::HasPoseMatrixCacheAnimatedPose(component->m_RigInstance) &&
                     dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)

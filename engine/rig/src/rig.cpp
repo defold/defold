@@ -133,6 +133,7 @@ namespace dmRig
         {
             RigPlayer* player = GetPlayer(instance);
             player->m_Playing = 0;
+            instance->m_HasPoseMatrixCacheAnimatedPose = 0;
             return dmRig::RESULT_ANIM_NOT_FOUND;
         }
 
@@ -153,6 +154,7 @@ namespace dmRig
         player->m_Animation = anim;
         player->m_Playing = 1;
         player->m_Playback = playback;
+        instance->m_HasPoseMatrixCacheAnimatedPose = 0;
 
         if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD) {
             player->m_Backwards = 1;
@@ -170,6 +172,7 @@ namespace dmRig
     {
         RigPlayer* player = GetPlayer(instance);
         player->m_Playing = 0;
+        instance->m_HasPoseMatrixCacheAnimatedPose = 0;
 
         return dmRig::RESULT_OK;
     }
@@ -747,6 +750,11 @@ namespace dmRig
         return player->m_Playing && player->m_Animation && instance->m_Enabled;
     }
 
+    bool HasPoseMatrixCacheAnimatedPose(HRigInstance instance)
+    {
+        return instance && instance->m_HasPoseMatrixCacheAnimatedPose;
+    }
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
         // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
@@ -760,7 +768,7 @@ namespace dmRig
             // Skinned meshes sample the pose matrix cache every frame. If we skip the cache write while
             // idle, the vertex shader falls back to non-skinned positions which can cause a disparity
             // between authoring tools and animated result. Instead, we write the non-animated
-            // skeleton bind pose whenever this instance owns cache space.
+            // current non-playing pose whenever this instance owns cache space.
             if (instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
             {
                 dmArray<BonePose>& pose = instance->m_Pose;
@@ -841,6 +849,7 @@ namespace dmRig
         UpdatePoseTransforms(skeleton, pose);
 
         CommitPoseMatrixToCache(context, instance);
+        instance->m_HasPoseMatrixCacheAnimatedPose = instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY;
     }
 
     static Result PostUpdate(HRigContext context)
@@ -1407,6 +1416,7 @@ namespace dmRig
         for (uint32_t i = 0; i < n; ++i)
         {
             instances[i]->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
+            instances[i]->m_HasPoseMatrixCacheAnimatedPose = 0;
         }
     }
 
