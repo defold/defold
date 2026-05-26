@@ -482,15 +482,33 @@
     (keep :aabb)
     (map #(assoc (render-util/make-aabb-outline-renderable #{}) :aabb %))))
 
+(defn- make-render-stats []
+  (atom {:model-draw-calls 0
+         :model-instanced-draw-calls 0
+         :model-instances 0}))
+
+(defn- render-stats-text [{:keys [model-draw-calls model-instanced-draw-calls model-instances]}]
+  (when (pos? model-draw-calls)
+    (format "Model draw calls: %d, instanced: %d, model instances: %d"
+            model-draw-calls
+            model-instanced-draw-calls
+            model-instances)))
+
+(defn- render-stats-overlay! [^GL2 gl render-mode render-stats]
+  (when (= :normal render-mode)
+    (when-some [text (render-stats-text @render-stats)]
+      (scene-text/overlay gl text 12.0 -20.0 1.0 1.0 1.0 0.9))))
+
 (defn- render!
   [^GLContext context render-mode renderables updatable-states viewport pass->render-args [clear-r clear-g clear-b clear-a]]
   (let [^GL2 gl (.getGL context)
-        batch-key (render-mode-batch-key render-mode)]
+        batch-key (render-mode-batch-key render-mode)
+        render-stats (make-render-stats)]
     (gl/gl-clear gl clear-r clear-g clear-b clear-a)
     (.glColor4f gl 1.0 1.0 1.0 1.0)
     (gl-viewport gl viewport)
     (doseq [pass (render-mode-passes render-mode)
-            :let [pass-render-args (cond-> (pass->render-args pass)
+            :let [pass-render-args (cond-> (assoc (pass->render-args pass) :render-stats render-stats)
                                      (and (= render-mode :picking-rect)
                                           (some? @last-picking-rect))
                                      (picking-render-args viewport @last-picking-rect))
@@ -499,7 +517,8 @@
       (setup-pass gl pass pass-render-args)
       (if (= render-mode :aabbs)
         (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
-        (batch-render gl pass-render-args pass-renderables batch-key)))))
+        (batch-render gl pass-render-args pass-renderables batch-key)))
+    (render-stats-overlay! gl render-mode render-stats)))
 
 (g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable]
   (when-some [{:keys [camera clear-color display-width display-height render-width render-height]} (make-camera-inset-render-data scene-render-data)]

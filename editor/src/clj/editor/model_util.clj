@@ -146,9 +146,23 @@
                   (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
                     (make-attribute-binding-entries scene-node-id attribute-infos attribute-buffers name-key->attribute-bytes))))))))
 
+(defn- model-instance-step-semantic-type? [semantic-type]
+  (case semantic-type
+    (:semantic-type-world-matrix :semantic-type-normal-matrix) true
+    false))
+
+(defn- auto-instance-step-model-attribute [attribute-info]
+  (cond-> attribute-info
+          (model-instance-step-semantic-type? (:semantic-type attribute-info))
+          (assoc :step-function :vertex-step-function-instance)))
+
 (defn make-model-attribute-bindings
   "Returns both the legacy merged attribute bindings used for single-renderable
   model draws and a vertex/instance split for the instanced model path.
+
+  Model world and normal matrix attributes are promoted to instance-step here
+  to mirror the engine's automatic instancing behavior for the mtx_world and
+  mtx_normal shader attribute names.
 
   Instance-step attributes deliberately do not use mesh attribute buffers even if
   they share a semantic with mesh data. They are supplied from render args,
@@ -156,7 +170,8 @@
   replaces them with an instance buffer."
   [scene-node-id combined-attribute-infos semantic-type->attribute-buffers name-key->attribute-bytes]
   {:pre [(g/node-id? scene-node-id)]}
-  (let [vertex-attribute-infos (filterv #(= :vertex-step-function-vertex (:step-function %)) combined-attribute-infos)
+  (let [combined-attribute-infos (mapv auto-instance-step-model-attribute combined-attribute-infos)
+        vertex-attribute-infos (filterv #(= :vertex-step-function-vertex (:step-function %)) combined-attribute-infos)
         instance-attribute-infos (filterv #(= :vertex-step-function-instance (:step-function %)) combined-attribute-infos)
         vertex-attribute-bindings (make-attribute-bindings scene-node-id vertex-attribute-infos semantic-type->attribute-buffers name-key->attribute-bytes)
         instance-attribute-bindings (make-attribute-bindings scene-node-id instance-attribute-infos {} name-key->attribute-bytes)]

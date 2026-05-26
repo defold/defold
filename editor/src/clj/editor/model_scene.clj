@@ -335,6 +335,18 @@
      (mapv #(select-keys % [:data-type :location :name-key :normalize :semantic-type :step-function :vector-type])
            instance-attribute-infos)]))
 
+(defn- record-model-draw-call! [render-args ^long instance-count instanced?]
+  (when-some [render-stats (:render-stats render-args)]
+    (swap! render-stats
+           (fn [render-stats]
+             (cond-> render-stats
+                     true
+                     (-> (update :model-draw-calls (fnil inc 0))
+                         (update :model-instances (fnil + 0) instance-count))
+
+                     instanced?
+                     (update :model-instanced-draw-calls (fnil inc 0)))))))
+
 (defn- render-mesh-opaque [^GL2 gl render-args renderables ^long rcount]
   (let [renderable (first renderables)
         {:keys [attribute-bindings coordinate-space-info has-instance-attributes? index-buffer material-data shader textures vertex-attribute-bindings]} (:user-data renderable)
@@ -356,6 +368,7 @@
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
+      (record-model-draw-call! render-args rcount instanced?)
       (if instanced?
         (gl/gl-draw-elements-instanced gl GL/GL_TRIANGLES index-type 0 index-count rcount)
         (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count))

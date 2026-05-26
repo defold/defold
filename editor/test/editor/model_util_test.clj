@@ -71,3 +71,24 @@
                    (get-in bindings [:instance-attribute-bindings :mtx-world])))
     (is (= #{:position :color :mtx-world}
            (set (keys (:attribute-bindings bindings)))))))
+
+(deftest make-model-attribute-bindings-auto-promotes-matrix-semantics-to-instance-step
+  (let [scene-node-id 1
+        position-info (make-attribute-info :position :semantic-type-position :vector-type-vec3 :vertex-step-function-vertex 0)
+        world-info (make-attribute-info :mtx-world :semantic-type-world-matrix :vector-type-mat4 :vertex-step-function-vertex 1)
+        normal-info (make-attribute-info :mtx-normal :semantic-type-normal-matrix :vector-type-mat4 :vertex-step-function-vertex 5)
+        position-buffer (make-attribute-buffer scene-node-id :position :vector-type-vec3 [0.0 0.0 0.0])
+        bindings (model-util/make-model-attribute-bindings
+                   scene-node-id
+                   [position-info world-info normal-info]
+                   {:semantic-type-position [position-buffer]}
+                   {})]
+
+    (is (= [:mtx-world :mtx-normal]
+           (mapv :name-key (:instance-attribute-infos bindings))))
+    (is (= [:position]
+           (keys (:vertex-attribute-bindings bindings))))
+    (is (instance? AttributeRenderArgBinding
+                   (get-in bindings [:instance-attribute-bindings :mtx-world])))
+    (is (instance? AttributeRenderArgBinding
+                   (get-in bindings [:instance-attribute-bindings :mtx-normal])))))
