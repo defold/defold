@@ -231,13 +231,10 @@ static int PrewarmText(lua_State* L)
     if (top > 2 && lua_isfunction(L, 3))
     {
         dmScript::LuaCallbackInfo* luacbk = dmScript::CreateCallback(L, 3);
-        if (luacbk)
-        {
-            callback = PrewarmTextCallback;
-            cbk_ctx = new CallbackContext;
-            cbk_ctx->m_Callback = luacbk;
-            cbk_ctx->m_Request = request_id;
-        }
+        callback = PrewarmTextCallback;
+        cbk_ctx = new CallbackContext;
+        cbk_ctx->m_Callback = luacbk;
+        cbk_ctx->m_Request = request_id;
     }
 
     r = dmGameSystem::ResFontPrewarmText(resource, text, callback, cbk_ctx);

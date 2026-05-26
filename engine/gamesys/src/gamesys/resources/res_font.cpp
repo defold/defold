@@ -142,7 +142,7 @@ namespace dmGameSystem
         callbacks.SetCapacity(font->m_PendingJobs.Size());
 
         font->m_Destroying = 1;
-        for (uint32_t i = 0; i < font->m_PendingJobs.Size(); )
+        for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
         {
             FontJobResourceInfo* job_info = font->m_PendingJobs[i];
             HJob hjob = job_info->m_Job;
@@ -154,19 +154,9 @@ namespace dmGameSystem
                 jr = JobSystemCancelJobNoCallback(font->m_Jobs, hjob);
             }
 
-            // If JobSystemUpdate() ran a callback while we were waiting, the
-            // callback already removed and destroyed this job info.
-            if (i == font->m_PendingJobs.Size() || font->m_PendingJobs[i] != job_info)
-            {
-                continue;
-            }
-
-            // The job callback did not run and remove this entry, so cancellation
-            // owns cleanup. Queue the public cancel callback before releasing data.
             QueueCancelledCallback(job_info, callbacks);
             DecRefJobResourceInfo(font->m_Factory, font, job_info);
             DeallocateJobResourceInfo(job_info);
-            ++i;
         }
         font->m_PendingJobs.SetSize(0);
 
