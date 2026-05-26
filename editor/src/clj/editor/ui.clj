@@ -1530,6 +1530,13 @@
         (.addEventFilter context-menu KeyEvent/KEY_PRESSED event-filter)
         (.put properties ::disabled-menu-item-focus-filter event-filter)))))
 
+(defn- install-disabled-menu-item-focus-filters! []
+  ;; JavaFX creates submenu and MenuButton ContextMenus internally, so they do
+  ;; not pass through `make-context-menu`.
+  (doseq [window (Window/getWindows)]
+    (when (instance? ContextMenu window)
+      (install-disabled-menu-item-focus-filter! window))))
+
 (defn- make-submenu [id label localization icon ^Collection style-classes menu-items on-open]
   (when (seq menu-items)
     (let [menu (Menu.)]
@@ -1538,12 +1545,7 @@
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
       (.setOnShown menu
-        (event-handler _
-          ;; JavaFX creates submenu ContextMenus internally, so they do not pass
-          ;; through `make-context-menu`.
-          (doseq [window (Window/getWindows)]
-            (when (instance? ContextMenu window)
-              (install-disabled-menu-item-focus-filter! window)))))
+        (event-handler _ (install-disabled-menu-item-focus-filters!)))
       (when icon
         (.setGraphic menu (icons/get-image-view icon 16)))
       (when style-classes
@@ -1796,6 +1798,8 @@
 
 (defn register-button-menu
   [^MenuButton menu-button menu-location]
+  (.setOnShown menu-button
+    (event-handler _ (install-disabled-menu-item-focus-filters!)))
   (.setOnShowing
     menu-button
     (event-handler event
