@@ -2354,3 +2354,6 @@ error.gui.layer-from-template-not-found-in-scene = Layer "{layer}" from template
 error.gui.adjust-mode-stretch-not-supported-for-particlefx = Adjust mode "Stretch" is not supported for ParticleFX nodes.
 error.gui.template-resource-conflicting-values = {type} "{resource}" has conflicting values in templates: {values}.
 error.gui.max-nodes-exceeded = The actual number of nodes ({count}) exceeds "{property}" ({max}).
+error.gui.custom-property-dynamics-not-map = GUI custom-property-dynamics must be a map.
+error.gui.custom-property-dynamics-overlay-not-map = GUI custom-property-dynamics overlay for "{property}" must be a map.
+error.gui.custom-property-dynamics-overlay-unsupported-keys = GUI custom-property-dynamics overlay for "{property}" contains unsupported keys: {keys}.

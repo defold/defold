@@ -1346,39 +1346,87 @@
     :texture (:texture-resource-names basic-gui-scene-info)
     (get-in basic-gui-scene-info [:gui-resource-kind-names resource-kind])))
 
-(defn- node-fnk-value [evaluation-context node-id f]
-  (let [args (coll/into-> (:arguments (meta f)) {}
-               (map (fn [arg-label]
-                      (pair arg-label
-                            (case arg-label
-                              :_evaluation-context evaluation-context
-                              :_node-id node-id
-                              (g/node-value node-id arg-label evaluation-context))))))]
-    (f args)))
+(def ^:private custom-property-dynamic-overlay-keys
+  #{:edit-type :error})
 
-(defn- custom-property-properties [evaluation-context node-id type-info prop->value layout-override-value basic-gui-scene-info]
-  (coll/into-> (:custom-properties type-info) {}
-    (map
-      (fn [{:keys [id type label resource-kind edit-type-fnk error-fnk] :as custom-property-info}]
-        (let [edit-type (if edit-type-fnk
-                          (node-fnk-value evaluation-context node-id edit-type-fnk)
-                          (if resource-kind
-                            (optional-gui-resource-choicebox (gui-resource-kind-names basic-gui-scene-info resource-kind))
-                            {:type type}))]
-          (pair id
-                (cond-> {:node-id node-id
-                         :prop-kw id
-                         :key id
-                         :value (prop->value id)
-                         :type type
-                         :label label
-                         :edit-type (wrap-layout-property-edit-type-value id (dissoc edit-type :set-fn :clear-fn :changes-fn))
-                         :assoc-original-value? false}
-                        (contains? custom-property-info :error-fnk)
-                        (assoc :error (when error-fnk
-                                        (node-fnk-value evaluation-context node-id error-fnk)))
-                        (contains? layout-override-value id)
-                        (assoc :original-value (layout-override-value id)))))))))
+(defn- custom-property-dynamics-error [node-id prop-kw message]
+  (g/->error node-id prop-kw :fatal nil message {}))
+
+(defn- custom-property-dynamics-problems [node-id type-info custom-property-dynamics]
+  (if-not (map? custom-property-dynamics)
+    {:global (custom-property-dynamics-error
+               node-id nil
+               (localization/message "error.gui.custom-property-dynamics-not-map"))}
+    (let [string-id->prop-kw (coll/into-> (:custom-properties type-info) {}
+                               (map (fn [{:keys [id]}]
+                                      (pair (custom-property-prop-kw->id id) id))))]
+      (reduce-kv
+        (fn [problems string-id overlay]
+          (if-let [prop-kw (string-id->prop-kw string-id)]
+            (cond
+              (not (map? overlay))
+              (assoc-in problems [:by-prop prop-kw]
+                        (custom-property-dynamics-error
+                          node-id prop-kw
+                          (localization/message
+                            "error.gui.custom-property-dynamics-overlay-not-map"
+                            {"property" string-id})))
+
+              :else
+              (let [unsupported-keys (coll/not-empty (remove custom-property-dynamic-overlay-keys (keys overlay)))]
+                (cond-> problems
+                        unsupported-keys
+                        (assoc-in [:by-prop prop-kw]
+                                  (custom-property-dynamics-error
+                                    node-id prop-kw
+                                    (localization/message
+                                      "error.gui.custom-property-dynamics-overlay-unsupported-keys"
+                                      {"property" string-id
+                                       "keys" (localization/and-list (vec (sort (map str unsupported-keys))))}))))))
+            ;; Unknown ids do not correspond to a visible property entry, so
+            ;; there is no local place to report the problem without breaking
+            ;; otherwise valid custom properties.
+            problems))
+        {}
+        custom-property-dynamics))))
+
+(defn- custom-property-dynamics-overlay [custom-property-dynamics string-id]
+  (when (map? custom-property-dynamics)
+    (let [overlay (get custom-property-dynamics string-id)]
+      (when (map? overlay)
+        (select-keys overlay custom-property-dynamic-overlay-keys)))))
+
+(defn- custom-property-properties [node-id type-info prop->value layout-override-value default-layout-custom-property-overrides basic-gui-scene-info custom-property-dynamics]
+  (let [{:keys [global by-prop]} (custom-property-dynamics-problems node-id type-info custom-property-dynamics)]
+    (coll/into-> (:custom-properties type-info) {}
+      (map
+        (fn [{:keys [id type label resource-kind]}]
+          (let [string-id (custom-property-prop-kw->id id)
+                overlay (custom-property-dynamics-overlay custom-property-dynamics string-id)
+                edit-type (or (:edit-type overlay)
+                              (if resource-kind
+                                (optional-gui-resource-choicebox (gui-resource-kind-names basic-gui-scene-info resource-kind))
+                                {:type type}))
+                error (or (get by-prop id) global (:error overlay))]
+            (pair id
+                  (cond-> {:node-id node-id
+                           :prop-kw id
+                           :key id
+                           :value (prop->value id)
+                           :type type
+                           :label label
+                           :edit-type (wrap-layout-property-edit-type-value id (dissoc edit-type :set-fn :clear-fn :changes-fn))
+                           :assoc-original-value? false}
+                    
+                          error
+                          (assoc :error error)
+                    
+                          (contains? layout-override-value id)
+                          (assoc :original-value (layout-override-value id))
+                    
+                          (and (not (contains? layout-override-value id))
+                               (contains? default-layout-custom-property-overrides id))
+                          (assoc :original-value (default-layout-custom-property-overrides id))))))))))
 
 ;; SDK api
 (defmacro layout-property-edit-type
@@ -1486,6 +1534,7 @@
             (dynamic visible (g/constantly false))
             (value (layout-property-getter custom-properties))
             (set (layout-property-setter custom-properties)))
+  (output custom-property-dynamics g/Any (g/constantly {}))
   (output layer-index g/Any
           (g/fnk [basic-gui-scene-info layer]
             (let [layer->index (:layer->index basic-gui-scene-info)]
@@ -1659,7 +1708,7 @@
                         prop->value))))
                 (make-recursive-prop->value-for-default-layout basis _node-id)))))
   (output _properties g/Properties :cached
-          (g/fnk [^:unsafe _evaluation-context _this _node-id _declared-properties prop->value layout->prop->override layout->prop->value trivial-gui-scene-info gui-node-type-registry basic-gui-scene-info]
+          (g/fnk [_this _node-id _declared-properties _overridden-properties prop->value layout->prop->override layout->prop->value trivial-gui-scene-info gui-node-type-registry basic-gui-scene-info custom-property-dynamics]
             ;; For layout properties, the :original-value of each property is
             ;; based on the value returned by the layout-property-getter.
             ;; However, the presence of the :original-value is based on whether
@@ -1670,10 +1719,13 @@
                   prop-kw->layout-override-value (if (str/blank? current-layout)
                                                    {}
                                                    (layout->prop->override current-layout))
+                  default-layout-custom-property-overrides
+                  (or (:custom-properties _overridden-properties) {})
+
                   prop->value (get layout->prop->value current-layout prop->value)
                   declared-properties (if gui-node-type-registry
                                         (let [type-info (get-registered-node-type-info gui-node-type-registry (g/node-type _this))
-                                              virtual-custom-properties (custom-property-properties _evaluation-context _node-id type-info prop->value prop-kw->layout-override-value basic-gui-scene-info)]
+                                              virtual-custom-properties (custom-property-properties _node-id type-info prop->value prop-kw->layout-override-value default-layout-custom-property-overrides basic-gui-scene-info custom-property-dynamics)]
                                           (update _declared-properties :properties #(-> %
                                                                                        (dissoc :custom-properties)
                                                                                        (merge virtual-custom-properties))))

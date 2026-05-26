@@ -2332,3 +2332,6 @@ error.gui.layer-from-template-not-found-in-scene = Слой «{layer}» из ш�
 error.gui.adjust-mode-stretch-not-supported-for-particlefx = Режим подстройки «Stretch» не поддерживается для элементов ParticleFX.
 error.gui.template-resource-conflicting-values = {type} «{resource}» имеет конфликтующие значения в шаблонах\: {values}.
 error.gui.max-nodes-exceeded = Фактическое количество элементов ({count}) превышает «{property}» ({max}).
+error.gui.custom-property-dynamics-not-map = GUI custom-property-dynamics должен быть ассоциативным массивом.
+error.gui.custom-property-dynamics-overlay-not-map = Оверлей GUI custom-property-dynamics для «{property}» должен быть ассоциативным массивом.
+error.gui.custom-property-dynamics-overlay-unsupported-keys = Оверлей GUI custom-property-dynamics для «{property}» содержит неподдерживаемые ключи\: {keys}.

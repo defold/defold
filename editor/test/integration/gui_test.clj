@@ -20,6 +20,7 @@
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
+            [editor.editor-extensions.runtime :as rt]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.gui :as gui]
@@ -81,13 +82,21 @@
 (def ^:private gui-particlefx-resource (partial gui-resource-node gui-particlefx-resources))
 (def ^:private gui-material (partial gui-resource-node gui-materials))
 (def ^:private gui-spine-scene (partial gui-resource-node gui-spine-scenes))
+(def ^:private gui-test-gui-resource (partial gui-resource-node (partial gui-resources-node "Test GUI Resources")))
 
 (g/defnode TestCustomGuiNode
-  (inherits gui/BoxNode))
+  (inherits gui/BoxNode)
+
+  (property test-custom-property-dynamics g/Any (default {})
+            (dynamic visible (g/constantly false)))
+  (output custom-property-dynamics g/Any
+          (g/fnk [test-custom-property-dynamics]
+            test-custom-property-dynamics)))
 
 (g/defnode TestGuiResourceNode
   (inherits outline/OutlineNode)
   (property name g/Str
+            (set (partial gui/update-gui-resource-references :test-gui-resource))
             (dynamic error (g/fnk [_node-id name name-counts]
                              (gui/prop-unique-id-error _node-id :name name name-counts "Name"))))
   (property test-gui-resource resource/Resource
@@ -286,7 +295,12 @@
                     {:id "test_vector4"
                      :type :type-vector4
                      :vector4 test-vector4}]
-                   (:custom-properties saved-node)))))))))
+                   (:custom-properties saved-node))))
+
+          (testing "Generic custom resource property references are renamed in graph storage."
+            (test-util/prop! (gui-test-gui-resource gui-scene "alpha") :name "renamed_alpha")
+            (is (= "renamed_alpha" (prop custom-node :__test_resource)))
+            (is (= "renamed_alpha" (:__test_resource (g/node-value custom-node :custom-properties))))))))))
 
 (deftest custom-gui-extension-build-output-test
   (test-util/with-scratch-project "test/resources/empty_project"
@@ -362,6 +376,17 @@
             IllegalArgumentException
             #"custom_type_name 'TestCustom' resolves to custom_type"
             (#'gui/sanitize-scene gui-node-type-registry {:nodes [mismatched-node]})))
+      (is (thrown-with-msg?
+            IllegalArgumentException
+            #"GUI custom property 'test_number' has type :type-string, expected :type-number"
+            (#'gui/sanitize-scene
+              gui-node-type-registry
+              {:nodes [{:type :type-custom
+                        :custom-type-name "TestCustom"
+                        :id "custom"
+                        :custom-properties [{:id "test_number"
+                                             :type :type-string
+                                             :string-value "wrong"}]}]})))
       (let [sanitized-node (-> (#'gui/sanitize-scene gui-node-type-registry {:nodes [boxed-node-with-stale-custom-type-name]})
                                :nodes
                                first)]
@@ -1424,7 +1449,10 @@
                                                                    :number 1.0}]}]}]})]
       (workspace/resource-sync! workspace)
       (let [gui-scene (test-util/resource-node project gui-resource)
-            custom-node (gui-node gui-scene "custom")]
+            custom-node (gui-node gui-scene "custom")
+            prop-error-message (fn [prop-kw]
+                                 (test-util/localization
+                                   (:message (test-util/prop-error custom-node prop-kw))))]
         (testing "Properties panel exposes custom ids directly."
           (is (= 2.0 (prop custom-node :__test_number)))
           (is (= 2.0 (:__test_number (g/node-value custom-node :prop->value))))
@@ -1434,6 +1462,32 @@
           (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) (keyword nil "__test/slash")))
           (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :__test:colon))
           (is (not (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :custom-properties))))
+
+        (testing "Custom property dynamics errors are local to affected custom properties."
+          (g/set-property! custom-node :test-custom-property-dynamics
+                           {"unknown" {:invalid true}
+                            "test_number" "not a map"
+                            "test-dash" {:unsupported true
+                                         42 true}})
+          (is (= 2.0 (prop custom-node :__test_number)))
+          (is (= 0.0 (prop custom-node :__test_underscore)))
+          (is (str/includes? (prop-error-message :__test_number) "must be a map"))
+          (is (str/includes? (prop-error-message :__test-dash) "unsupported keys"))
+          (is (str/includes? (prop-error-message :__test-dash) "42"))
+          (is (nil? (test-util/prop-error custom-node :__test_underscore))))
+
+        (testing "Custom property dynamics apply supported overlays."
+          (let [overlay-error (g/->error custom-node :__test_number :fatal nil "overlay error" {})]
+            (g/set-property! custom-node :test-custom-property-dynamics
+                             {"test_number" {:edit-type {:type g/Num
+                                                         :options [[2.0 "Two"]]}
+                                             :error overlay-error}})
+            (is (= [[2.0 "Two"]]
+                   (get-in (g/node-value custom-node :_properties) [:properties :__test_number :edit-type :options])))
+            (is (= "overlay error" (:message (test-util/prop-error custom-node :__test_number)))))
+          (g/set-property! custom-node :test-custom-property-dynamics "not a map")
+          (is (str/includes? (prop-error-message :__test_number) "must be a map"))
+          (g/set-property! custom-node :test-custom-property-dynamics {}))
 
         (testing "Editor scripts can read custom ids containing slashes and colons."
           (g/with-auto-evaluation-context evaluation-context
@@ -1468,7 +1522,67 @@
             (is (test-util/prop-overridden? custom-node :__test_number)))
           (let [saved-layout-node (-> (g/node-value gui-scene :save-value) :layouts first :nodes first)]
             (is (= [custom-properties-pb-field-index] (:overridden-fields saved-layout-node)))
-            (is (= 1.0 (saved-node-desc-custom-property-value saved-layout-node "test_number" :number)))))))))
+            (is (= 1.0 (saved-node-desc-custom-property-value saved-layout-node "test_number" :number)))))
+
+        (testing "Editor scripts can list, set, and reset custom properties by id."
+          (g/with-auto-evaluation-context evaluation-context
+            (let [rt (rt/make)
+                  default-setter (ext-graph/ext-lua-value-setter custom-node "__test_number" rt project evaluation-context)
+                  layout-setter (ext-graph/ext-lua-value-setter custom-node "Landscape:__test_number" rt project evaluation-context)]
+              (is (coll/any? #(= "__test_number" %) (ext-graph/ext-readable-properties custom-node project evaluation-context)))
+              (is (coll/any? #(= "Landscape:__test_number" %) (ext-graph/ext-readable-properties custom-node project evaluation-context)))
+              (g/transact (default-setter (rt/->varargs 4.0)))
+              (g/transact (layout-setter (rt/->varargs 5.0)))
+              (let [layout-resetter (((deref #'ext-graph/ext-property-resetter) :editor.gui/GuiNode)
+                                     custom-node
+                                     "Landscape:__test_number"
+                                     evaluation-context)]
+                (g/transact (layout-resetter)))))
+          (g/with-auto-evaluation-context evaluation-context
+            (is (= 4 ((ext-graph/ext-value-getter custom-node "__test_number" project evaluation-context))))
+            (is (= 4 ((ext-graph/ext-value-getter custom-node "Landscape:__test_number" project evaluation-context))))))))))
+
+(deftest custom-gui-template-override-transfer-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (register-test-gui-extensions workspace)
+    (let [custom-properties-pb-field-index (gui/prop-key->pb-field-index :custom-properties)
+          source-gui-resource (test-util/make-resource!
+                                workspace
+                                "/custom_template_source.gui"
+                                {:nodes [{:type :type-custom
+                                          :custom-type-name "TestCustom"
+                                          :id "custom"
+                                          :custom-properties [{:id "test_number"
+                                                               :type :type-number
+                                                               :number 2.0}]}]})
+          referencing-gui-resource (test-util/make-resource!
+                                     workspace
+                                     "/custom_template_referencing.gui"
+                                     {:nodes [{:type :type-template
+                                               :id "template"
+                                               :template "/custom_template_source.gui"}]})]
+      (workspace/resource-sync! workspace)
+      (let [source-gui-scene (test-util/resource-node project source-gui-resource)
+            referencing-gui-scene (test-util/resource-node project referencing-gui-resource)
+            source-node (gui-node source-gui-scene "custom")
+            override-node (gui-node referencing-gui-scene "template/custom")]
+        (prop! override-node :__test_number 7.0)
+        (is (= 7.0 (prop override-node :__test_number)))
+        (is (test-util/prop-overridden? override-node :__test_number))
+        (g/with-auto-evaluation-context evaluation-context
+          (let [source-prop-infos-by-prop-kw (properties/transferred-properties override-node #{:__test_number} evaluation-context)
+                transfer-overrides-plan (-> (properties/pull-up-overrides-plan-alternatives override-node source-prop-infos-by-prop-kw evaluation-context)
+                                            first)]
+            (is (properties/can-transfer-overrides? transfer-overrides-plan))
+            (properties/transfer-overrides! transfer-overrides-plan)))
+        (is (= 7.0 (prop source-node :__test_number)))
+        (is (= 7.0 (prop override-node :__test_number)))
+        (is (not (test-util/prop-overridden? override-node :__test_number)))
+        (let [saved-source-node (-> (g/node-value source-gui-scene :save-value) :nodes first)
+              saved-override-node (-> (g/node-value referencing-gui-scene :save-value) :nodes first)]
+          (is (= 7.0 (saved-node-desc-custom-property-value saved-source-node "test_number" :number)))
+          (is (not (contains? saved-override-node :custom-properties)))
+          (is (not (contains? (set (:overridden-fields saved-override-node)) custom-properties-pb-field-index))))))))
 
 (defn has-successor?
   ([source-id+source-label target-id+target-label]
