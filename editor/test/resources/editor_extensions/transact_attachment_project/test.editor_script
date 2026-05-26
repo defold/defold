@@ -452,8 +452,8 @@ function M.get_commands()
                             {type = "gui-node-type-particlefx"},
                             {
                                 type = "gui-node-type-spine",
-                                spine_scene = "spine_scene",
-                                spine_default_animation = "idle",
+                                __spine_scene = "spine_scene",
+                                __spine_default_animation = "idle",
                                 nodes = {{type = "gui-node-type-box"}}
                             },
                         }
@@ -475,8 +475,8 @@ function M.get_commands()
 
                 print("After transaction (edit):")
                 print_gui(gui)
-                local preconfigured_spine = editor.get(editor.get(editor.get(gui, "nodes")[1], "nodes")[5], "spine_scene")
-                local preconfigured_animation = editor.get(editor.get(editor.get(gui, "nodes")[1], "nodes")[5], "spine_default_animation")
+                local preconfigured_spine = editor.get(editor.get(editor.get(gui, "nodes")[1], "nodes")[5], "__spine_scene")
+                local preconfigured_animation = editor.get(editor.get(editor.get(gui, "nodes")[1], "nodes")[5], "__spine_default_animation")
                 print(("Preconfigured spine node: %s %s"):format(preconfigured_spine, preconfigured_animation))
 
                 local nodes = editor.get(gui, "nodes")

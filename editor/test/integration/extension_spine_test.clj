@@ -478,12 +478,12 @@
                                        [:gui-node-type-registry :custom-type-name->type-info "Spine"])
           spine-node (gui/add-gui-node! project gui-scene node-tree spine-node-type-info nil)]
       (is (= "spine" (test-util/prop spine-node :id)))
-      (test-util/prop! spine-node :spine_scene "spineboy")
-      (is (= "spineboy" (test-util/prop spine-node :spine_scene)))
-      (is (= ["spineboy"] (property-value-choices spine-node :spine_scene)))
-      (is (contains? (set (property-value-choices spine-node :spine_default_animation)) "walk"))
-      (test-util/prop! spine-node :spine_default_animation "missing")
-      (is (g/error? (test-util/prop-error spine-node :spine_default_animation)))
+      (test-util/prop! spine-node :__spine_scene "spineboy")
+      (is (= "spineboy" (test-util/prop spine-node :__spine_scene)))
+      (is (= ["spineboy"] (property-value-choices spine-node :__spine_scene)))
+      (is (contains? (set (property-value-choices spine-node :__spine_default_animation)) "walk"))
+      (test-util/prop! spine-node :__spine_default_animation "missing")
+      (is (g/error? (test-util/prop-error spine-node :__spine_default_animation)))
       (is (= "spineboy" (custom-property (g/node-value spine-node :node-msg) "spine_scene" :string-value))))))
 
 (deftest layout-node-desc-includes-size-mode-test
@@ -508,7 +508,7 @@
       ;; Override the default animation on the SpineNode.
       (let [spine-node (test-util/outline-node-id gui-scene (localization/message "outline.gui.nodes") "spineboy")]
         (gui-test/with-visible-layout! gui-scene "Portrait"
-          (test-util/prop! spine-node :spine_default_animation "jump")))
+          (test-util/prop! spine-node :__spine_default_animation "jump")))
 
       (testing "After overriding a property, the runtime override NodeDesc includes the effective custom properties."
         (let [built-scene-desc (built-scene-desc gui-scene)

@@ -503,6 +503,18 @@
    :type-vector3 protobuf/vector3-zero
    :type-vector4 protobuf/vector4-zero})
 
+(def ^:private custom-property-id-prefix "__")
+
+(defn- custom-property-id->prop-kw [id]
+  {:pre [(string? id)]}
+  (keyword nil (str custom-property-id-prefix id)))
+
+(defn- custom-property-prop-kw->id [prop-kw]
+  {:pre [(keyword? prop-kw)]}
+  (let [prop-name (name prop-kw)]
+    (assert (str/starts-with? prop-name custom-property-id-prefix))
+    (subs prop-name (count custom-property-id-prefix))))
+
 (defn- custom-property-prop-value [custom-property-info custom-property]
   (let [value-field (custom-property-pb-type->value-field (:protobuf-type custom-property-info))]
     (if (contains? custom-property value-field)
@@ -516,7 +528,7 @@
             {})
           (map
             (fn [{:keys [id] :as custom-property}]
-              (let [custom-property-info (id->custom-property-info (keyword id))]
+              (let [custom-property-info (id->custom-property-info (custom-property-id->prop-kw id))]
                 (pair (:id custom-property-info)
                       (custom-property-prop-value custom-property-info custom-property)))))
           custom-properties)))
@@ -530,7 +542,7 @@
       (let [pb-type (:protobuf-type custom-property-info)
             value-field (custom-property-pb-type->value-field pb-type)]
         {:type pb-type
-         :id (name id)
+         :id (custom-property-prop-kw->id id)
          value-field value}))))
 
 (defn- custom-properties-prop-value->pb [type-info custom-properties include-custom-property-defaults]
@@ -563,7 +575,7 @@
           custom-properties (->> (:custom-properties node-desc)
                                  (keep
                                    (fn [{:keys [id] :as custom-property}]
-                                     (when-some [custom-property-info (id->custom-property-info (some-> id keyword))]
+                                     (when-some [custom-property-info (id->custom-property-info (some-> id custom-property-id->prop-kw))]
                                        (when-some [actual-pb-type (:type custom-property)]
                                          (let [expected-pb-type (:protobuf-type custom-property-info)]
                                            (when-not (= expected-pb-type actual-pb-type)
@@ -5298,10 +5310,28 @@
   (let [{:keys [basis]} evaluation-context
         node (g/node-by-id basis node-id)
         node-type (g/node-type node)
-        prop-kw (keyword property-name)]
+        prop-kw (keyword nil property-name)]
     (or (when ((node-custom-property-id->info evaluation-context node-id) prop-kw)
           prop-kw)
         ((node-type->layout-property-names node-type) property-name))))
+
+(defn- ext-property->layout-name+property-name [property]
+  (let [custom-property-colon-index (str/index-of property (str ":" custom-property-id-prefix))
+        last-colon-index (str/last-index-of property \:)]
+    (cond
+      (str/starts-with? property custom-property-id-prefix)
+      ["" property]
+
+      custom-property-colon-index
+      [(subs property 0 custom-property-colon-index)
+       (subs property (inc custom-property-colon-index))]
+
+      last-colon-index
+      [(subs property 0 last-colon-index)
+       (subs property (inc last-colon-index))]
+
+      :else
+      ["" property])))
 
 (defn- ext-property-info [node-id prop-kw evaluation-context]
   (let [{:keys [basis]} evaluation-context
@@ -5316,11 +5346,9 @@
 (ext-graph/register-property-getter!
   ::GuiNode
   (fn GuiNode-getter [node-id property evaluation-context]
-    (let [last-colon-index (str/last-index-of property \:)
-          property-name (if last-colon-index (subs property (inc last-colon-index)) property)]
+    (let [[layout-name property-name] (ext-property->layout-name+property-name property)]
       (when-let [prop-kw (ext-property-name->prop-kw node-id property-name evaluation-context)]
-        (let [layout-name (if last-colon-index (subs property 0 last-colon-index) "")
-              layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)
+        (let [layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)
               prop-info (ext-property-info node-id prop-kw evaluation-context)]
           (when-let [prop->value (get layout->prop->value layout-name)]
             (let [value (prop->value prop-kw)
@@ -5329,6 +5357,7 @@
                 #(converter value))))))))
   (fn GuiNode-lister [node-id evaluation-context]
     (let [prop-kw->prop-info (get-in (g/node-value node-id :_properties evaluation-context) [:properties])
+          custom-property-id->info (node-custom-property-id->info evaluation-context node-id)
           layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)]
       (coll/into-> layout->prop->value []
         (mapcat
@@ -5338,7 +5367,9 @@
                 (fn [[prop-kw prop-info]]
                   (when-let [edit-type-id (properties/edit-type-id (:edit-type prop-info))]
                     (when-let [_converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
-                      (let [property-name (str/replace (name prop-kw) \- \_)]
+                      (let [property-name (if (custom-property-id->info prop-kw)
+                                            (name prop-kw)
+                                            (str/replace (name prop-kw) \- \_))]
                         (if (str/blank? layout-name)
                           property-name
                           (str layout-name ":" property-name))))))))))))))
@@ -5346,29 +5377,26 @@
 (ext-graph/register-property-setter!
   ::GuiNode
   (fn GuiNode-setter [node-id property rt project evaluation-context]
-    (let [last-colon-index (str/last-index-of property \:)
-          property-name (if last-colon-index (subs property (inc last-colon-index)) property)]
+    (let [[layout-name property-name] (ext-property->layout-name+property-name property)]
       (when-let [prop-kw (ext-property-name->prop-kw node-id property-name evaluation-context)]
         (let [prop-info (ext-property-info node-id prop-kw evaluation-context)]
           (when-not (:read-only? prop-info)
-            (let [layout-name (if last-colon-index (subs property 0 last-colon-index) "")]
-              (when (or (str/blank? layout-name)
-                        (-> node-id
-                            (g/node-value :trivial-gui-scene-info evaluation-context)
-                            :layout-names
-                            (contains? layout-name)))
-                (let [edit-type (:edit-type prop-info)]
-                  (when-let [converter (-> edit-type properties/edit-type-id ext-graph/edit-type-id->value-converter :from)]
-                    #(layout-property-set-in-specific-layout evaluation-context layout-name node-id prop-kw (converter % rt edit-type project evaluation-context))))))))))))
+            (when (or (str/blank? layout-name)
+                      (-> node-id
+                          (g/node-value :trivial-gui-scene-info evaluation-context)
+                          :layout-names
+                          (contains? layout-name)))
+              (let [edit-type (:edit-type prop-info)]
+                (when-let [converter (-> edit-type properties/edit-type-id ext-graph/edit-type-id->value-converter :from)]
+                  #(layout-property-set-in-specific-layout evaluation-context layout-name node-id prop-kw (converter % rt edit-type project evaluation-context)))))))))))
 
 (ext-graph/register-property-resetter!
   ::GuiNode
   (fn GuiNode-resetter [node-id property evaluation-context]
-    (when-let [last-colon-index (str/last-index-of property \:)]
-      (let [property-name (subs property (inc last-colon-index))]
+    (let [[layout-name property-name] (ext-property->layout-name+property-name property)]
+      (when-not (str/blank? layout-name)
         (when-let [prop-kw (ext-property-name->prop-kw node-id property-name evaluation-context)]
-          (let [layout-name (subs property 0 last-colon-index)
-                layout->prop->override (g/node-value node-id :layout->prop->override evaluation-context)]
+          (let [layout->prop->override (g/node-value node-id :layout->prop->override evaluation-context)]
             (when-let [prop-kw->override (layout->prop->override layout-name)]
               (when (contains? prop-kw->override prop-kw)
                 #(layout-property-clear-in-specific-layout evaluation-context layout-name node-id prop-kw)))))))))
@@ -5380,13 +5408,13 @@
       (converter lua-value rt edit-type project evaluation-context)
       (throw (org.luaj.vm2.LuaError.
                (format "Can't set custom property \"%s\" of GUI node"
-                       (name (:id custom-property-info))))))))
+                       (custom-property-prop-kw->id (:id custom-property-info))))))))
 
 (defn- split-custom-property-attachment [type-info rt project evaluation-context attachment]
   (let [custom-property-id->info (:custom-property-id->info type-info)]
     (reduce-kv
       (fn [[attachment custom-properties] property lua-value]
-        (let [prop-kw (keyword property)]
+        (let [prop-kw (keyword nil property)]
           (if-let [custom-property-info (custom-property-id->info prop-kw)]
             (let [value (attachment-custom-property-value rt project evaluation-context custom-property-info lua-value)]
               [(dissoc attachment property)
@@ -5443,9 +5471,12 @@
              (format "Unable to derive GUI custom property protobuf type. (type=%s)" type)))))
 
 (defn- normalize-custom-property-info [{:keys [id type] :as custom-property-info}]
-  (when-not (keyword? id)
+  (when-not (and (string? id) (not (str/blank? id)))
     (throw (IllegalArgumentException.
-             (format "GUI custom property does not specify a keyword :id. (custom-property-info=%s)" custom-property-info))))
+             (format "GUI custom property does not specify a non-empty string :id. (custom-property-info=%s)" custom-property-info))))
+  (when (str/starts-with? id custom-property-id-prefix)
+    (throw (IllegalArgumentException.
+             (format "GUI custom property :id cannot start with %s. (custom-property-info=%s)" custom-property-id-prefix custom-property-info))))
   (when-not (some? type)
     (throw (IllegalArgumentException.
              (format "GUI custom property does not specify :type. (custom-property-info=%s)" custom-property-info))))
@@ -5455,13 +5486,24 @@
     (when-not (contains? custom-property-pb-type->value-field protobuf-type)
       (throw (IllegalArgumentException.
                (format "Unsupported GUI custom property type. (type=%s)" protobuf-type))))
-    (cond-> (assoc custom-property-info :protobuf-type protobuf-type)
+    (cond-> (assoc custom-property-info
+              :id (custom-property-id->prop-kw id)
+              :protobuf-type protobuf-type)
             (not (contains? custom-property-info :default)) (assoc :default (custom-property-pb-type->default-value protobuf-type))
-            (not (contains? custom-property-info :label)) (assoc :label (properties/keyword->name id)))))
+            (not (contains? custom-property-info :label)) (assoc :label (properties/keyword->name (keyword nil id))))))
 
 (defn- normalize-node-type-info [type-info]
   (let [type-info (update type-info :custom-properties #(mapv normalize-custom-property-info (or % [])))
         custom-properties (:custom-properties type-info)
+        duplicate-custom-property-ids (->> custom-properties
+                                           (e/map :id)
+                                           frequencies
+                                           (keep (fn [[id count]]
+                                                   (when (< 1 count)
+                                                     id)))
+                                           sort
+                                           vec
+                                           coll/not-empty)
         custom-property-id->info (coll/pair-map-by :id custom-properties)
         real-layout-property-keys (set (vals (node-type->layout-property-names (:node-cls type-info))))
         colliding-custom-property-ids (coll/not-empty
@@ -5470,6 +5512,11 @@
         default-custom-properties (coll/into-> custom-properties {}
                                     (map (fn [{:keys [id default]}]
                                            (pair id default))))]
+    (when duplicate-custom-property-ids
+      (throw (IllegalArgumentException.
+               (format "Plugin GUI node type %s custom property ids are not unique: %s"
+                       (:name @(:node-cls type-info))
+                       (str/join ", " (coll/into-> duplicate-custom-property-ids [] (map name)))))))
     (when colliding-custom-property-ids
       (throw (IllegalArgumentException.
                (format "Plugin GUI node type %s custom property ids collide with real layout properties: %s"
