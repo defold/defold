@@ -529,6 +529,8 @@ static void UpdateUntilCallbackStarted(void* user_data)
     }
 }
 
+// A finished-but-not-yet-flushed job should be converted to a canceled callback
+// when cancellation happens before JobSystemUpdate() runs callbacks.
 TEST_P(dmJobSystemTest, CancelFinishedJobBeforeUpdateReportsCanceled)
 {
     if (GetParam().m_NumThreads == 0)
@@ -572,6 +574,8 @@ TEST_P(dmJobSystemTest, CancelFinishedJobBeforeUpdateReportsCanceled)
     ASSERT_EQ(0, track.m_CallbackResult);
 }
 
+// Canceling a job whose callback is already running must stay pending until
+// the callback exits, so owners do not release callback-owned memory too early.
 TEST_P(dmJobSystemTest, CancelJobDuringCallbackReportsPending)
 {
     if (GetParam().m_NumThreads == 0)
@@ -615,6 +619,8 @@ TEST_P(dmJobSystemTest, CancelJobDuringCallbackReportsPending)
     ASSERT_EQ(JOBSYSTEM_STATUS_FINISHED, track.m_CallbackStatus);
 }
 
+// Canceling a parent must stay pending while one of its child callbacks is
+// already running, since the callback can still access shared job data.
 TEST_P(dmJobSystemTest, CancelParentDuringChildCallbackReportsPending)
 {
     if (GetParam().m_NumThreads == 0)
@@ -845,6 +851,8 @@ TEST_P(dmJobSystemTest, CancelParentAfterChild)
     }
 }
 
+// A canceled parent with an in-flight child must not report cancellation
+// complete until the child has finished and its callback has been suppressed.
 TEST_P(dmJobSystemTest, CancelPendingParentWithFinishedChildBeforeUpdate)
 {
     if (GetParam().m_NumThreads == 0)
@@ -906,6 +914,8 @@ TEST_P(dmJobSystemTest, CancelPendingParentWithFinishedChildBeforeUpdate)
     ASSERT_EQ(JOBSYSTEM_STATUS_FREE, track.m_ChildCallbackStatus);
 }
 
+// If both parent and child have finished before callbacks are flushed,
+// canceling the parent should still suppress the queued child callback.
 TEST_P(dmJobSystemTest, CancelFinishedParentWithFinishedChildBeforeUpdate)
 {
     if (GetParam().m_NumThreads == 0)

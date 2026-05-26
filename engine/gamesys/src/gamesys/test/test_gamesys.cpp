@@ -3027,6 +3027,8 @@ static bool WaitForDynamicFontJobCallbacks(HJobContext job_context, DynamicFontJ
     return state->m_CallbackCount >= callback_count;
 }
 
+// Reloading a dynamic font with pending work must cancel the old jobs and
+// suppress callbacks after the old font state has been torn down.
 TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobs)
 {
     const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
@@ -3050,6 +3052,8 @@ TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobs)
     dmResource::Release(m_Factory, font);
 }
 
+// Releasing a dynamic font with pending work must cancel the jobs and suppress
+// callbacks that would otherwise touch destroyed font job data.
 TEST_F(FontTest, ReleaseCancelsPendingDynamicFontJobs)
 {
     const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
@@ -3070,6 +3074,8 @@ TEST_F(FontTest, ReleaseCancelsPendingDynamicFontJobs)
     ASSERT_EQ(0u, callback_state.m_CallbackCount);
 }
 
+// A successful prewarm callback may reload the same font because job ownership
+// is destroyed before invoking the user callback.
 TEST_F(FontTest, DynamicFontPrewarmCallbackCanReloadSameFont)
 {
     const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
@@ -3097,6 +3103,8 @@ TEST_F(FontTest, DynamicFontPrewarmCallbackCanReloadSameFont)
     dmResource::Release(m_Factory, font);
 }
 
+// While a font resource is being destroyed, new dynamic glyph jobs must be
+// rejected from both explicit prewarm and cache-miss paths.
 TEST_F(FontTest, DestroyingDynamicFontRejectsNewJobs)
 {
     const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
