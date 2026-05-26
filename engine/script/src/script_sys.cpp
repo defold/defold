@@ -1500,7 +1500,6 @@ union SaveLoadBuffer
         {"exists", Sys_Exists},
         {"get_host_path", Sys_GetHostPath},
         {"get_save_file", Sys_GetSaveFile},
-        {"get_config", Sys_GetConfigString}, // deprecated
         {"get_config_string", Sys_GetConfigString},
         {"get_config_int", Sys_GetConfigInt},
         {"get_config_number", Sys_GetConfigNumber},

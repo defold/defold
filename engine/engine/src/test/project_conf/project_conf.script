@@ -14,7 +14,7 @@
 
 function init(self)
     -- Make sure dependencies are stripped
-    local deps = sys.get_config("project.dependencies")
+    local deps = sys.get_config_string("project.dependencies")
     if (deps == nil) then
         print("No dependencies found, OK!")
         msg.post("@system:", "exit", { code = 0 })

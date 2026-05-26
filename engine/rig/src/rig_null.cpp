@@ -109,6 +109,11 @@ namespace dmRig
         return true;
     }
 
+    bool HasPoseMatrixCacheAnimatedPose(HRigInstance instance)
+    {
+        return false;
+    }
+
     bool IsValid(HRigInstance instance)
     {
         return false;

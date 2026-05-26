@@ -51,7 +51,9 @@ def query(query, token, headers = None, variables = None):
     import requests
     try:
         url = URL_GRAPHQL_API
-        if query.startswith("query"):
+        if query.strip().startswith("query"):
+            json = { 'query': query, "variables": variables }
+        elif query.strip().startswith("mutation"):
             json = { 'query': query, "variables": variables }
         else:
             json = { 'query': "query " + query, "variables": variables }

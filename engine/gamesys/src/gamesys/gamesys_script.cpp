@@ -36,7 +36,6 @@
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
 #include "scripts/script_sys_gamesys.h"
-#include "scripts/script_camera.h"
 #include "components/comp_gui.h"
 
 #include <dmsdk/gamesys/script.h>
@@ -552,7 +551,6 @@ namespace dmGameSystem
         bool result = true;
 
         ScriptBufferRegister(context);
-        ScriptCameraRegister(context);
         ScriptLabelRegister(context);
         ScriptParticleFXRegister(context);
         ScriptTileMapRegister(context);

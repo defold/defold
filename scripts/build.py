@@ -649,7 +649,7 @@ class Configuration(object):
         Generate an IDE solution from the top-level CMakeLists.txt for the given target platform.
 
         - macOS/iOS: Xcode
-        - Windows: Visual Studio 2022
+        - Windows: Visual Studio 2026
         - Android: Prints guidance to open CMakeLists.txt in Android Studio
         - Other platforms: falls back to Ninja/Unix Makefiles by default
         """
@@ -672,7 +672,7 @@ class Configuration(object):
         if tp.endswith('-macos') or tp.endswith('-ios'):
             generator = 'Xcode'
         elif 'win32' in tp:
-            generator = 'Visual Studio 17 2022'
+            generator = 'Visual Studio 18 2026'
             # Map architecture
             if tp == 'x86_64-win32':
                 arch_args = ['-A', 'x64']
@@ -1164,7 +1164,7 @@ class Configuration(object):
             if self.package_path is None:
                 self.fatal("The package path isn't specified. Either define DM_PACKAGES_URL or use --package-path.")
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
         if target_platform in ('wasm-web', 'wasm_pthread-web'):

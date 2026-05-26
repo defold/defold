@@ -310,44 +310,6 @@ static int SetText(lua_State* L)
     return 0;
 }
 
-
-/** DEPRECATED
- */
-static int GetTextMetrics(lua_State* L)
-{
-    DM_LUA_STACK_CHECK(L, 1);
-
-    CheckGoInstance(L);
-
-    dmMessage::URL receiver;
-    dmMessage::URL sender;
-    dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-    dmGameSystem::LabelComponent* component = 0;
-    dmScript::GetComponentFromLua(L, 1, LABEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
-
-    assert(component != 0);
-
-    dmRender::TextMetrics metrics;
-    dmGameSystem::CompLabelGetTextMetrics(component, metrics);
-
-    lua_createtable(L, 0, 4);
-    lua_pushliteral(L, "width");
-    lua_pushnumber(L, metrics.m_Width);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "height");
-    lua_pushnumber(L, metrics.m_Height);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "max_ascent");
-    lua_pushnumber(L, metrics.m_MaxAscent);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "max_descent");
-    lua_pushnumber(L, metrics.m_MaxDescent);
-    lua_rawset(L, -3);
-
-    return 1;
-}
-
 /*# gets the text for a label
  *
  * Gets the text from a label component
@@ -388,7 +350,6 @@ static const luaL_reg Module_methods[] =
 {
     {"set_text", SetText},
     {"get_text", GetText},
-    {"get_text_metrics", GetTextMetrics},
     {0, 0}
 };
 
