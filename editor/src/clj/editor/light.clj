@@ -966,7 +966,7 @@
           :label (localization/message "resource.type.spot-light")}]]
 
     (for [type-args args-per-type]
-      (let [build-ext (str (:ext args-per-type) ".lightc")
+      (let [build-ext (str (:ext type-args) ".lightc")
             args (coll/merge common-args
                              type-args
                              {:build-ext build-ext})]
