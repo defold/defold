@@ -189,6 +189,7 @@ def build(bld):
         create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_webserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_sslsocket', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
                     extra_includes = ['.'], extra_defines = extra_defines)
 

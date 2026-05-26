@@ -642,7 +642,7 @@ namespace dmGameSystem
     }
 
 
-    // DEPRECATED
+    // For testing
     void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics)
     {
         LabelComponent* mutable_component = const_cast<LabelComponent*>(component);
