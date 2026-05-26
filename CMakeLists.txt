@@ -73,7 +73,11 @@ set(DEFOLD_HOST_LIBS
   modelc
   shaderc)
 set(DEFOLD_TARGET_LIBS ${DEFOLD_ENGINE_LIBS})
-list(REMOVE_ITEM DEFOLD_TARGET_LIBS jni texc modelc shaderc)
+# Bob archives ship compiler JNI libraries for these desktop targets, even when
+# the target is cross-built on a different host.
+if(NOT TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(macos|linux)$|^x86_64-win32$")
+  list(REMOVE_ITEM DEFOLD_TARGET_LIBS jni texc modelc shaderc)
+endif()
 set(DEFOLD_ENGINE_LIB_SET "all" CACHE STRING "Defold engine lib set to configure: all, host or target")
 set(DEFOLD_SELECTED_ENGINE_LIBS "" CACHE STRING "Optional semicolon or comma separated lib override")
 if(DEFOLD_SELECTED_ENGINE_LIBS)

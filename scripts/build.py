@@ -1684,7 +1684,7 @@ class Configuration(object):
             resources = self._ziptree(join(dynamo_home, 'ext', 'share', 'java', 'res'), directory = join(dynamo_home, 'ext', 'share', 'java'))
             self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
-        if self.is_desktop_target() and self.target_platform == self.host:
+        if self.is_desktop_target():
             libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
