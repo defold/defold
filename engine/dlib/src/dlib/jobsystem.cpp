@@ -333,22 +333,24 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
     if (!item)
         return JOBSYSTEM_RESULT_INVALID_HANDLE;
 
+    JobSystemResult result = JOBSYSTEM_RESULT_CANCELED;
+
     if (item->m_Status == JOBSYSTEM_STATUS_PROCESSING || item->m_Status == JOBSYSTEM_STATUS_CALLBACK)
     {
         item->m_CancelRequested = 1;
-        return JOBSYSTEM_RESULT_PENDING;
+        result = JOBSYSTEM_RESULT_PENDING;
     }
-    if (item->m_Status == JOBSYSTEM_STATUS_FINISHED)
+    else if (item->m_Status == JOBSYSTEM_STATUS_FINISHED)
     {
         item->m_Status = JOBSYSTEM_STATUS_CANCELED;
         item->m_Result = 0;
-        return JOBSYSTEM_RESULT_CANCELED;
     }
-
-    // Can only cancel queued/created items directly, but still wait on children when already canceled
-    assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED);
-
-    JobSystemResult result = JOBSYSTEM_RESULT_CANCELED;
+    else
+    {
+        // Can only cancel queued/created items directly, but still wait on children when already canceled
+        assert(item->m_Status == JOBSYSTEM_STATUS_CREATED || item->m_Status == JOBSYSTEM_STATUS_QUEUED || item->m_Status == JOBSYSTEM_STATUS_CANCELED);
+        item->m_Status = JOBSYSTEM_STATUS_CANCELED;
+    }
 
     HJob hchild = item->m_FirstChild;
     while (hchild != INVALID_JOB)
@@ -371,7 +373,6 @@ static JobSystemResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
         hchild = child->m_Sibling;
     }
 
-    item->m_Status = JOBSYSTEM_STATUS_CANCELED;
     return result;
 }
 

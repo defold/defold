@@ -113,6 +113,12 @@ namespace dmGameSystem
 
     static void CancelPendingJobs(FontResource* font)
     {
+        if (font->m_PendingJobs.Empty())
+        {
+            return;
+        }
+
+        font->m_Destroying = 1;
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
         {
             FontJobResourceInfo* job_info = font->m_PendingJobs[i];
@@ -129,6 +135,7 @@ namespace dmGameSystem
             DeallocateJobResourceInfo(job_info);
         }
         font->m_PendingJobs.SetSize(0);
+        font->m_Destroying = 0;
     }
 
     static void ReleaseResourceIter(void* ctx, const uint64_t* hash, TTFResource** presource)
@@ -212,9 +219,13 @@ namespace dmGameSystem
     static void TextCallbackJobInfo(void* cbk_ctx, int result, const char* errmsg)
     {
         FontJobResourceInfo* job_info = (FontJobResourceInfo*)cbk_ctx;
-        if (job_info->m_Callback)
-            job_info->m_Callback(job_info->m_CallbackContext, result, errmsg);
+
+        FPrewarmTextCallback callback = job_info->m_Callback;
+        void* callback_context = job_info->m_CallbackContext;
         DestroyJobInfo(job_info);
+
+        if (callback)
+            callback(callback_context, result, errmsg);
     }
 
     dmResource::Result ResFontPrewarmText(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx)
@@ -222,6 +233,11 @@ namespace dmGameSystem
         if (!resource->m_IsDynamic)
         {
             return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
+        if (resource->m_Destroying)
+        {
+            return dmResource::RESULT_INVAL;
         }
 
         dmArray<uint32_t> codepoints;
@@ -539,6 +555,10 @@ namespace dmGameSystem
     static FontResult OnGlyphCacheMiss(void* user_ctx, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
     {
         FontResource* resource = (FontResource*)user_ctx;
+        if (resource->m_Destroying)
+        {
+            return FONT_RESULT_ERROR;
+        }
 
         // Increment all child resources (i.e. .ttf) before we send them to the thread
         FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, 1, 0, 0);

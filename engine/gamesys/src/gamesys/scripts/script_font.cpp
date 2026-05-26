@@ -49,7 +49,6 @@ struct CallbackContext
     int                        m_Request;
 };
 
-
 /*#
  * associates a ttf resource to a .fontc file.
  * @note The ttf font is loaded via the resource system. There are a few ways it can be accessed:
@@ -217,24 +216,8 @@ static int PrewarmText(lua_State* L)
     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
     const char* text = luaL_checkstring(L, 2);
 
-    dmScript::LuaCallbackInfo* luacbk = 0;
-    if (top > 2 && lua_isfunction(L, 3))
-    {
-        luacbk = dmScript::CreateCallback(L, 3);
-    }
-
     static int requests = 1;
     int request_id = requests++;
-
-    dmGameSystem::FPrewarmTextCallback callback = 0;
-    CallbackContext* cbk_ctx = 0;
-    if (luacbk)
-    {
-        callback = PrewarmTextCallback;
-        cbk_ctx = new CallbackContext;
-        cbk_ctx->m_Callback  = luacbk;
-        cbk_ctx->m_Request = request_id;
-    }
 
     dmGameSystem::FontResource* resource;
     dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
@@ -243,10 +226,26 @@ static int PrewarmText(lua_State* L)
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
+    dmGameSystem::FPrewarmTextCallback callback = 0;
+    CallbackContext* cbk_ctx = 0;
+    if (top > 2 && lua_isfunction(L, 3))
+    {
+        dmScript::LuaCallbackInfo* luacbk = dmScript::CreateCallback(L, 3);
+        callback = PrewarmTextCallback;
+        cbk_ctx = new CallbackContext;
+        cbk_ctx->m_Callback = luacbk;
+        cbk_ctx->m_Request = request_id;
+    }
+
     r = dmGameSystem::ResFontPrewarmText(resource, text, callback, cbk_ctx);
     if (dmResource::RESULT_OK != r)
     {
         dmResource::Release(g_ResourceFactory, resource);
+        if (cbk_ctx)
+        {
+            dmScript::DestroyCallback(cbk_ctx->m_Callback);
+            delete cbk_ctx;
+        }
         return DM_LUA_ERROR("Failed to add glyphs to font %s", dmHashReverseSafe64(fontc_path_hash));
     }
 
@@ -358,4 +357,3 @@ static dmExtension::Result ScriptFontFinalize(dmExtension::Params* params)
 DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, 0, 0, ScriptFontFinalize)
 
 } // namespace
-

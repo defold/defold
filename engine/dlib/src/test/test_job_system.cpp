@@ -403,6 +403,7 @@ struct CancelPendingParentTrack
     int32_atomic_t      m_ChildProcessEntered;
     int32_atomic_t      m_AllowChildProcessFinish;
     int32_atomic_t      m_ChildProcessFinished;
+    int32_atomic_t      m_ParentProcessFinished;
     int32_atomic_t      m_ResourceAlive;
     int32_atomic_t      m_ChildCallbackCalled;
     int32_atomic_t      m_ChildCallbackAfterResourceRelease;
@@ -432,6 +433,17 @@ static int32_t ProcessBlockingChild(HJobContext ctx, HJob job, void* user_contex
     }
 
     dmAtomicStore32(&track->m_ChildProcessFinished, 1);
+    return 1;
+}
+
+static int32_t ProcessTrackedParent(HJobContext ctx, HJob job, void* user_context, void* user_data)
+{
+    (void)ctx;
+    (void)job;
+    (void)user_data;
+
+    CancelPendingParentTrack* track = (CancelPendingParentTrack*)user_context;
+    dmAtomicStore32(&track->m_ParentProcessFinished, 1);
     return 1;
 }
 
@@ -757,6 +769,50 @@ TEST_P(dmJobSystemTest, CancelPendingParentWithFinishedChildBeforeUpdate)
     }
 
     ASSERT_EQ(JOBSYSTEM_RESULT_CANCELED, result);
+
+    dmAtomicStore32(&track.m_ResourceAlive, 0);
+    JobSystemUpdate(m_JobSystem, 0);
+
+    ASSERT_EQ(0, dmAtomicGet32(&track.m_ChildCallbackAfterResourceRelease));
+    ASSERT_EQ(0, dmAtomicGet32(&track.m_ChildCallbackCalled));
+    ASSERT_EQ(JOBSYSTEM_STATUS_FREE, track.m_ChildCallbackStatus);
+}
+
+TEST_P(dmJobSystemTest, CancelFinishedParentWithFinishedChildBeforeUpdate)
+{
+    if (GetParam().m_NumThreads == 0)
+    {
+        return;
+    }
+
+    CancelPendingParentTrack track = {};
+    track.m_ResourceAlive = 1;
+    track.m_ChildCallbackStatus = JOBSYSTEM_STATUS_FREE;
+    dmAtomicStore32(&track.m_AllowChildProcessFinish, 1);
+
+    Job parent_job = {};
+    parent_job.m_Process = ProcessTrackedParent;
+    parent_job.m_Context = &track;
+
+    HJob parent_hjob = JobSystemCreateJob(m_JobSystem, &parent_job);
+    ASSERT_NE((HJob)0, parent_hjob);
+
+    Job child_job = {};
+    child_job.m_Process = ProcessBlockingChild;
+    child_job.m_Callback = CallbackBlockingChild;
+    child_job.m_Context = &track;
+
+    HJob child_hjob = JobSystemCreateJob(m_JobSystem, &child_job);
+    ASSERT_NE((HJob)0, child_hjob);
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemSetParent(m_JobSystem, child_hjob, parent_hjob));
+
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, child_hjob));
+    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, parent_hjob));
+
+    ASSERT_TRUE(WaitForAtomicValue(&track.m_ChildProcessFinished, 1, 500000));
+    ASSERT_TRUE(WaitForAtomicValue(&track.m_ParentProcessFinished, 1, 500000));
+
+    ASSERT_EQ(JOBSYSTEM_RESULT_CANCELED, JobSystemCancelJob(m_JobSystem, parent_hjob));
 
     dmAtomicStore32(&track.m_ResourceAlive, 0);
     JobSystemUpdate(m_JobSystem, 0);
