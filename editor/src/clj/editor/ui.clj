@@ -1476,40 +1476,67 @@
   {:control control
    :menu-id menu-id})
 
-(defn- next-focusable-menu-item [^ObservableList items ^EventTarget target-node forward]
+(defn- focusable-menu-item? [^MenuItem menu-item]
+  (and (.isVisible menu-item)
+       (not (.isDisable menu-item))
+       (not (instance? CustomMenuItem menu-item))))
+
+(defn- current-menu-item? [^MenuItem menu-item ^EventTarget target-node]
+  (let [node (.getStyleableNode menu-item)]
+    (or (and node (.isFocused node))
+        (and node (nodes-along-path? target-node node nil)))))
+
+(defn- next-focusable-menu-item [^ObservableList items ^EventTarget target-node]
   (let [item-count (.size items)]
     (loop [index 0
            first-focusable nil
-           last-focusable nil
-           previous-focusable nil
-           current-found false
-           next-focusable nil]
+           current-found false]
       (if (< index item-count)
         (let [menu-item ^MenuItem (.get items index)
-              node (.getStyleableNode menu-item)
-              target-item (and node (nodes-along-path? target-node node nil))
-              current (or target-item (and node (.isFocused node)))
-              focusable (and (.isVisible menu-item)
-                             (not (.isDisable menu-item))
-                             (not (instance? CustomMenuItem menu-item)))]
-          (if (and target-item (instance? CustomMenuItem menu-item))
+              current (current-menu-item? menu-item target-node)
+              focusable (focusable-menu-item? menu-item)]
+          (cond
+            (and current (instance? CustomMenuItem menu-item))
             ::custom-menu-item
+
+            (and current-found focusable)
+            menu-item
+
+            :else
             (recur (inc index)
                    (or first-focusable (when focusable menu-item))
-                   (if focusable menu-item last-focusable)
-                   (if current last-focusable previous-focusable)
-                   (or current-found current)
-                   (or next-focusable (when (and current-found focusable) menu-item)))))
-        (if current-found
-          (if forward
-            (or next-focusable first-focusable)
-            (or previous-focusable last-focusable))
-          (if forward first-focusable last-focusable))))))
+                   (or current-found current))))
+        first-focusable))))
+
+(defn- previous-focusable-menu-item [^ObservableList items ^EventTarget target-node]
+  (let [item-count (.size items)]
+    (loop [index (dec item-count)
+           last-focusable nil
+           current-found false]
+      (if (<= 0 index)
+        (let [menu-item ^MenuItem (.get items index)
+              current (current-menu-item? menu-item target-node)
+              focusable (focusable-menu-item? menu-item)]
+          (cond
+            (and current (instance? CustomMenuItem menu-item))
+            ::custom-menu-item
+
+            (and current-found focusable)
+            menu-item
+
+            :else
+            (recur (dec index)
+                   (or last-focusable (when focusable menu-item))
+                   (or current-found current))))
+        last-focusable))))
 
 (defn- focus-next-menu-item! [^ContextMenu context-menu ^KeyEvent event forward]
   (let [items (.getItems context-menu)]
     (when (pos? (.size items))
-      (let [menu-item (next-focusable-menu-item items (.getTarget event) forward)]
+      (let [target-node (.getTarget event)
+            menu-item (if forward
+                        (next-focusable-menu-item items target-node)
+                        (previous-focusable-menu-item items target-node))]
         (when-not (= ::custom-menu-item menu-item)
           (.consume event)
           (when menu-item
