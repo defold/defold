@@ -37,10 +37,6 @@
   {:pre [(map? data-desc-pb-map)]} ; DataProto$Data in Protobuf map format.
   (protobuf/sanitize data-desc-pb-map :data protobuf/ddf-struct-value->clj-value))
 
-(defn data-resource-type?
-  [resource-type]
-  (= DataProto$Data (:ddf-type (:test-info resource-type))))
-
 (defn- build-data [build-resource _dep-resources user-data]
   (let [{:keys [rt-data rt-tags]} user-data
         rt-pb-map (data-desc->data-desc-pb-map

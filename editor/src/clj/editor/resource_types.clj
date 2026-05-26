@@ -29,6 +29,7 @@
             [editor.collision-object :as collision-object]
             [editor.compute :as compute]
             [editor.cubemap :as cubemap]
+            [editor.data-text :as data-text]
             [editor.display-profiles :as display-profiles]
             [editor.editor-localization :as editor-localization]
             [editor.editor-script :as editor-script]
@@ -91,6 +92,7 @@
       (html/register-resource-types workspace)
       (image/register-resource-types workspace)
       (label/register-resource-types workspace)
+      (light/register-resource-types workspace)
       (live-update-settings/register-resource-types workspace)
       (markdown/register-resource-types workspace)
       (material/register-resource-types workspace)
@@ -107,7 +109,7 @@
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
-      (light/register-resource-types workspace)
+      (data-text/register-resource-types workspace)
       (code-script/register-resource-types workspace)
       (code-shader/register-resource-types workspace)
       (code-text-file/register-resource-types workspace)
