@@ -99,17 +99,16 @@ namespace dmGameSystem
         JobSystemPushJob(font->m_Jobs, job_info->m_Job);
     }
 
-    static bool RemovePendingJob(FontResource* font, FontJobResourceInfo* job_info)
+    static void RemovePendingJob(FontResource* font, FontJobResourceInfo* job_info)
     {
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
         {
             if (font->m_PendingJobs[i] == job_info)
             {
                 font->m_PendingJobs.EraseSwap(i);
-                return true;
+                return;
             }
         }
-        return false;
     }
 
     static void DeallocateJobResourceInfo(FontJobResourceInfo* job_info)
@@ -142,10 +141,10 @@ namespace dmGameSystem
         dmArray<PendingCancelCallback> callbacks;
         callbacks.SetCapacity(font->m_PendingJobs.Size());
 
-        font->m_CancelingPendingJobs = 1;
-        while (!font->m_PendingJobs.Empty())
+        font->m_Destroying = 1;
+        for (uint32_t i = 0; i < font->m_PendingJobs.Size(); )
         {
-            FontJobResourceInfo* job_info = font->m_PendingJobs[font->m_PendingJobs.Size() - 1];
+            FontJobResourceInfo* job_info = font->m_PendingJobs[i];
             HJob hjob = job_info->m_Job;
 
             JobSystemResult jr = JobSystemCancelJobNoCallback(font->m_Jobs, hjob);
@@ -157,21 +156,25 @@ namespace dmGameSystem
 
             // If JobSystemUpdate() ran a callback while we were waiting, the
             // callback already removed and destroyed this job info.
-            if (!RemovePendingJob(font, job_info))
+            if (i == font->m_PendingJobs.Size() || font->m_PendingJobs[i] != job_info)
             {
                 continue;
             }
 
+            // The job callback did not run and remove this entry, so cancellation
+            // owns cleanup. Queue the public cancel callback before releasing data.
             QueueCancelledCallback(job_info, callbacks);
             DecRefJobResourceInfo(font->m_Factory, font, job_info);
             DeallocateJobResourceInfo(job_info);
+            ++i;
         }
+        font->m_PendingJobs.SetSize(0);
 
         for (uint32_t i = 0; i < callbacks.Size(); ++i)
         {
             callbacks[i].m_Callback(callbacks[i].m_CallbackContext, 0, "Font prewarm request was cancelled");
         }
-        font->m_CancelingPendingJobs = 0;
+        font->m_Destroying = 0;
     }
 
     static void ReleaseResourceIter(void* ctx, const uint64_t* hash, TTFResource** presource)
@@ -272,9 +275,9 @@ namespace dmGameSystem
             return dmResource::RESULT_NOT_SUPPORTED;
         }
 
-        if (resource->m_CancelingPendingJobs)
+        if (resource->m_Destroying)
         {
-            return dmResource::RESULT_NOT_LOADED;
+            return dmResource::RESULT_INVAL;
         }
 
         dmArray<uint32_t> codepoints;
@@ -597,7 +600,7 @@ namespace dmGameSystem
     static FontResult OnGlyphCacheMiss(void* user_ctx, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
     {
         FontResource* resource = (FontResource*)user_ctx;
-        if (resource->m_CancelingPendingJobs)
+        if (resource->m_Destroying)
         {
             return FONT_RESULT_ERROR;
         }

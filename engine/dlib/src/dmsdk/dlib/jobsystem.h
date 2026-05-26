@@ -235,7 +235,6 @@ enum JobSystemResult JobSystemPushJob(HJobContext context, HJob job);
 enum JobSystemResult JobSystemCancelJob(HJobContext context, HJob job);
 
 /*# cancel a job (and its children) without invoking callbacks
- * @note Cancelled jobs will be flushed at the next JobSystemUpdate()
  * @note This only suppresses callbacks that have not already started. If
  *       JobSystemUpdate() has already entered a callback, cancellation can
  *       return JOBSYSTEM_RESULT_PENDING until that callback returns.
