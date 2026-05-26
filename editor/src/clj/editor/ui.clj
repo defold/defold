@@ -1492,8 +1492,8 @@
               focusable (and (.isVisible menu-item)
                              (not (.isDisable menu-item))
                              (not (instance? CustomMenuItem menu-item)))]
-          (if (and target-item (true? (user-data menu-item ::grid-menu)))
-            ::grid-menu
+          (if (and target-item (instance? CustomMenuItem menu-item))
+            ::custom-menu-item
             (recur (inc index)
                    (or first-focusable (when focusable menu-item))
                    (if focusable menu-item last-focusable)
@@ -1510,7 +1510,7 @@
   (let [items (.getItems context-menu)]
     (when (pos? (.size items))
       (let [menu-item (next-focusable-menu-item items (.getTarget event) forward)]
-        (when-not (= ::grid-menu menu-item)
+        (when-not (= ::custom-menu-item menu-item)
           (.consume event)
           (when menu-item
             (let [context-menu-content ^ContextMenuContent (.getNode (.getSkin context-menu))]
@@ -1634,73 +1634,70 @@
                                 #(or (:category %)
                                      (localization/message "resource.category.other"))
                                 items)
-                              (update-vals #(localization/natural-sort-by-label @localization %)))
-        grid-menu
-        (fx/instance
-          (fx/create-component
-            {:fx/type fx.custom-menu-item/lifecycle
-             :hide-on-click false
-             :style-class ["grid-menu"]
-             :content
-             {:fx/type fx.h-box/lifecycle
-              :spacing 10.0
-              :padding 5.0
-              :children
-              (interpose
-                {:fx/type fx.region/lifecycle
-                 :min-width 1.0
-                 :max-width 1.0
-                 :style-class ["grid-menu-column-separator"]}
-                (for [column columns]
-                  {:fx/type fx.v-box/lifecycle
-                   :children
-                   (interpose
-                     {:fx/type fx.region/lifecycle
-                      :min-height 18.0
-                      :max-height 18.0}
-                     (keep
-                       (fn [category-key]
-                         (when-let [category-items (get items-by-category category-key)]
-                           {:fx/type fx.v-box/lifecycle
-                            :spacing 3.0
-                            :children
-                            (concat
-                              [{:fx/type fx.h-box/lifecycle
-                                :alignment :center-left
-                                :children [{:fx/type fx.label/lifecycle
-                                            :text (localization category-key)
-                                            :style-class ["grid-menu-group-label"]}
-                                           {:fx/type fx.separator/lifecycle
-                                            :h-box/hgrow :always
-                                            :style-class ["grid-menu-separator"]
-                                            :orientation :horizontal}]}]
-                              (keep
-                                (fn [child]
-                                  (let [command (:command child)
-                                        user-data (:user-data child)]
-                                    (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                      (let [label (or (handler/label handler-ctx evaluation-context) (:label child))
-                                            enabled? (handler/enabled? handler-ctx evaluation-context)]
-                                        {:fx/type fx.button/lifecycle
-                                         :text (localization label)
-                                         :disable (not enabled?)
-                                         :on-action (fn [_] (invoke-handler (contexts scene false) command user-data))
-                                         :on-key-pressed (fn [^KeyEvent e]
-                                                           (when (= KeyCode/ENTER (.getCode e))
-                                                             (.consume e)
-                                                             (invoke-handler (contexts scene false) command user-data)))
-                                         :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
-                                         :style-class (into ["grid-menu-item-base"]
-                                                            (when enabled?
-                                                              (into ["grid-menu-item-enabled"]
-                                                                    (:style child))))
-                                         :graphic {:fx/type image-icon
-                                                   :path (:icon child)
-                                                   :size 16.0}}))))
-                                category-items))}))
-                       column))}))}}))]
-    (doto grid-menu
-      (user-data! ::grid-menu true))))
+                              (update-vals #(localization/natural-sort-by-label @localization %)))]
+    (fx/instance
+      (fx/create-component
+        {:fx/type fx.custom-menu-item/lifecycle
+         :hide-on-click false
+         :style-class ["grid-menu"]
+         :content
+         {:fx/type fx.h-box/lifecycle
+          :spacing 10.0
+          :padding 5.0
+          :children
+          (interpose
+            {:fx/type fx.region/lifecycle
+             :min-width 1.0
+             :max-width 1.0
+             :style-class ["grid-menu-column-separator"]}
+            (for [column columns]
+              {:fx/type fx.v-box/lifecycle
+               :children
+               (interpose
+                 {:fx/type fx.region/lifecycle
+                  :min-height 18.0
+                  :max-height 18.0}
+                 (keep
+                   (fn [category-key]
+                     (when-let [category-items (get items-by-category category-key)]
+                       {:fx/type fx.v-box/lifecycle
+                        :spacing 3.0
+                        :children
+                        (concat
+                          [{:fx/type fx.h-box/lifecycle
+                            :alignment :center-left
+                            :children [{:fx/type fx.label/lifecycle
+                                        :text (localization category-key)
+                                        :style-class ["grid-menu-group-label"]}
+                                       {:fx/type fx.separator/lifecycle
+                                        :h-box/hgrow :always
+                                        :style-class ["grid-menu-separator"]
+                                        :orientation :horizontal}]}]
+                          (keep
+                            (fn [child]
+                              (let [command (:command child)
+                                    user-data (:user-data child)]
+                                (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+                                  (let [label (or (handler/label handler-ctx evaluation-context) (:label child))
+                                        enabled? (handler/enabled? handler-ctx evaluation-context)]
+                                    {:fx/type fx.button/lifecycle
+                                     :text (localization label)
+                                     :disable (not enabled?)
+                                     :on-action (fn [_] (invoke-handler (contexts scene false) command user-data))
+                                     :on-key-pressed (fn [^KeyEvent e]
+                                                       (when (= KeyCode/ENTER (.getCode e))
+                                                         (.consume e)
+                                                         (invoke-handler (contexts scene false) command user-data)))
+                                     :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
+                                     :style-class (into ["grid-menu-item-base"]
+                                                        (when enabled?
+                                                          (into ["grid-menu-item-enabled"]
+                                                                (:style child))))
+                                     :graphic {:fx/type image-icon
+                                               :path (:icon child)
+                                               :size 16.0}}))))
+                            category-items))}))
+                   column))}))}}))))
 
 (declare make-menu-items)
 
