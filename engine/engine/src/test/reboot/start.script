@@ -24,7 +24,7 @@ function on_message(self, message_id, message, sender)
         if sender == self.cp1 then
             msg.post(self.cp2, "load")
         else
-            local test_val = sys.get_config("test.val", "default")
+            local test_val = sys.get_config_string("test.val", "default")
             if test_val == "second" then
                 msg.post("@system:", "exit", {code = 7})
             else

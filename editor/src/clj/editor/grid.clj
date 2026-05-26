@@ -23,7 +23,7 @@
             [editor.prefs :as prefs]
             [editor.scene-cache :as scene-cache]
             [editor.types :as types]
-            [editor.ui.popup :as popup])
+            [editor.ui.settings-popup :as settings-popup])
   (:import com.jogamp.opengl.GL2
            [editor.types AABB Camera]
            [java.util List]
@@ -272,14 +272,33 @@
         grid-id (g/node-value scene-view-id :grid)]
     (g/transact [(g/invalidate-output grid-id :grids)])))
 
-(defn show-settings! [^Parent owner app-view prefs localization]
+(defn show-settings! [^Parent owner app-view prefs keymap localization]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
-        ignore-options (g/node-value grid :options)]
-    (popup/show-settings! owner prefs localization 220 [:scene :grid]
-                          [{:key :size :type :vec3-floats}
-                           {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"}
-                           {:key :color :type :color :label "scene-popup.grid.color"}
-                           {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0}]
-                          ignore-options
-                          #(invalidate-grids! app-view))))
+        ignored-keys (set (keys (g/node-value grid :options)))
+        value-changed-fn (fn [k v]
+                           (prefs/set! prefs [:scene :grid k] v)
+                           (invalidate-grids! app-view))
+        all-descriptors
+        [{:type :reset-all
+          :on-reset (fn [swap-state]
+                      (prefs/reset-path! prefs [:scene :grid])
+                      (swap-state merge (prefs/get prefs [:scene :grid]))
+                      (invalidate-grids! app-view))}
+         {:key :size :type :vec3-floats
+          :value (prefs/get prefs [:scene :grid :size])
+          :on-value-changed (partial value-changed-fn :size)}
+         {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"
+          :value (prefs/get prefs [:scene :grid :active-plane])
+          :on-value-changed (partial value-changed-fn :active-plane)}
+         {:key :color :type :color :label "scene-popup.grid.color"
+          :value (prefs/get prefs [:scene :grid :color])
+          :on-value-changed (partial value-changed-fn :color)}
+         {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
+          :value (prefs/get prefs [:scene :grid :opacity])
+          :on-value-changed (partial value-changed-fn :opacity)
+          :slider-value->string (fn [^double v]
+                                  (str (Math/round (* v 100)) "%"))}]
+        descriptors (filterv #(not (contains? ignored-keys (:key %))) all-descriptors)
+        initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
+    (settings-popup/show! owner keymap localization initial-state 240 descriptors)))

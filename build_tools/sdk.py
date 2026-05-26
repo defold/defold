@@ -83,10 +83,11 @@ ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 # Win32
 
 # The version we have prepackaged
-VERSION_WINDOWS_SDK_10="10.0.26100.0"
-VERSION_WINDOWS_MSVC_2022="14.44.35207"
-PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-2022-{VERSION_WINDOWS_MSVC_2022}"
-PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
+VERSION_WINDOWS_SDK="10.0.28000.0"
+VISUAL_STUDIO_VERSION="2026"
+VERSION_WINDOWS_MSVC="14.51.36231"
+PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-{VISUAL_STUDIO_VERSION}-{VERSION_WINDOWS_MSVC}"
+PACKAGES_WIN32_SDK=f"WindowsKits-{VERSION_WINDOWS_SDK}"
 
 ## **********************************************************************************************
 # Emscripten
@@ -120,13 +121,13 @@ defold_info['x86_64-macos']['pattern'] = PACKAGES_MACOS_SDK
 defold_info['arm64-macos']['version'] = VERSION_MACOSX
 defold_info['arm64-macos']['pattern'] = PACKAGES_MACOS_SDK
 
-defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK_10
+defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK
 defold_info['x86_64-win32']['pattern'] = "Win32/%s" % PACKAGES_WIN32_TOOLCHAIN
 defold_info['win32']['version'] = defold_info['x86_64-win32']['version']
 defold_info['win32']['pattern'] = defold_info['x86_64-win32']['pattern']
 
-defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK_10
-defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK_10
+defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK
+defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK
 
 defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
 defold_info['x86_64-linux']['pattern'] = 'x86_64-linux/clang-%s' % VERSION_LINUX_CLANG
