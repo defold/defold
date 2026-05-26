@@ -29,7 +29,7 @@
             [util.coll :as coll :refer [pair]])
   (:import [clojure.lang IHashEq ILookup Util]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto GameSystem$FactoryDesc Gui$NodeDesc ModelProto$ModelDesc Physics$CollisionObjectDesc]
+           [com.dynamo.gamesys.proto DataProto$Data GameSystem$FactoryDesc Gui$NodeDesc ModelProto$ModelDesc Physics$CollisionObjectDesc]
            [java.io File Writer]))
 
 (set! *warn-on-reflection* true)
@@ -272,6 +272,16 @@
                  :attributes vertex-attribute}
       :modifiers {:properties (required {:points (required {:y 0.0})})}}
 
+     "spot_light"
+     {:data {:struct {:fields {"intensity" {:number 1.0}
+                               "range" {:number 10.0}
+                               "inner_cone_angle" {:number 0.0}
+                               "outer_cone_angle" {:number 45.0}
+                               "color" {:list {:values [{:number 1.0}
+                                                        {:number 1.0}
+                                                        {:number 1.0}
+                                                        {:number 1.0}]}}}}}}
+
      "sprite"
      {:attributes vertex-attribute
       :textures {:sampler "texture_sampler"
@@ -479,14 +489,14 @@
             :mass 0.0
             :friction 0.0
             :restitution 0.0}
-           (sparse-pb-map Physics$CollisionObjectDesc ["collisionbobject"] 0)))
+           (sparse-pb-map Physics$CollisionObjectDesc ["collisionobject"] 0)))
     (is (= {:type :collision-object-type-dynamic
             :group ""
             :mass 0.0
             :friction 0.0
             :restitution 0.0
             :embedded-collision-shape {}}
-           (sparse-pb-map Physics$CollisionObjectDesc ["collisionbobject"] 1)))
+           (sparse-pb-map Physics$CollisionObjectDesc ["collisionobject"] 1)))
     (is (= {:type :collision-object-type-dynamic
             :group ""
             :mass 0.0
@@ -514,7 +524,38 @@
                                      :texture "/builtins/graphics/particle_blob.png"}]
                          :attributes [{:name "attribute_name"
                                        :double-values {:v [0.0]}}]}]}
-           (sparse-pb-map ModelProto$ModelDesc ["model"] 2)))))
+           (sparse-pb-map ModelProto$ModelDesc ["model"] 2))))
+
+  (testing "spot_light"
+    (is (= {}
+           (sparse-pb-map DataProto$Data ["spot_light"] 0)))
+    (is (= {:data {}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 1)))
+    (is (= {:data {:struct {}}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 2)))
+    (is (= {:data {:struct {:fields {}}}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 3)))
+    (is (= {:data {:struct {:fields {"intensity" {:number 1.0}
+                                     "range" {:number 10.0}
+                                     "inner_cone_angle" {:number 0.0}
+                                     "outer_cone_angle" {:number 45.0}
+                                     "color" {:list {}}}}}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 4)))
+    (is (= {:data {:struct {:fields {"intensity" {:number 1.0}
+                                     "range" {:number 10.0}
+                                     "inner_cone_angle" {:number 0.0}
+                                     "outer_cone_angle" {:number 45.0}
+                                     "color" {:list {:values []}}}}}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 5)))
+    (is (= {:data {:struct {:fields {"intensity" {:number 1.0}
+                                     "range" {:number 10.0}
+                                     "inner_cone_angle" {:number 0.0}
+                                     "outer_cone_angle" {:number 45.0}
+                                     "color" {:list {:values [{:number 1.0}
+                                                              {:number 1.0}
+                                                              {:number 1.0}
+                                                              {:number 1.0}]}}}}}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 6)))))
 
 (defn- write-save-value! [workspace ^String proj-path save-value]
   (let [resource (workspace/file-resource workspace proj-path)
