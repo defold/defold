@@ -1039,7 +1039,10 @@
           (and (= movement :look)
                (not free-cam-mode)
                (contains-key-code? (:pressed-keys input-state) (:all (g/node-value self :free-cam-shortcuts evaluation-context))))
-          (start-free-cam-mode! image-view self (:cursor-pos input-state)))
+          (start-free-cam-mode! image-view self (:cursor-pos input-state))
+
+          :else
+          action)
 
         ;; NOTE: Don't let other handlers receive input if we're in free camera mode
         (if free-cam-mode
