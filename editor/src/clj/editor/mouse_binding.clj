@@ -92,8 +92,7 @@
                     modifiers)]
     (string/join "+"
                  (cond-> parts
-                   button (conj (button->label button))
-                   trigger (conj (trigger->label trigger))))))
+                   button (conj (button->label button))))))
 
 (comment
   @bindings-atom

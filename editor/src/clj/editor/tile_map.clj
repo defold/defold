@@ -32,6 +32,7 @@
             [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.mouse-binding :as mouse-binding]
             [editor.outline :as outline]
             [editor.pose :as pose]
             [editor.properties :as properties]
@@ -1276,19 +1277,30 @@
          (g/set-property self :op-select-end nil)]))))
 
 (defn- handle-input-editor
-  [self action state evaluation-context]
+  [self input-state action state evaluation-context]
   (let [op (g/node-value self :op evaluation-context)
-        cursor-mode (cond
-                      (and (true? (:shift action)) (true? (:control action))) :cut-mode
-                      (and (true? (:shift action)) (true? (:alt action))) :erase-mode
-                      (true? (:shift action)) :select-mode
-                      :else :paint-mode)
+        modifiers (:modifiers input-state)
+        command (mouse-binding/command-for-action ::tile-map-editor
+                                                  {:type :drag
+                                                   :button :primary
+                                                   :shift (contains? modifiers :shift)
+                                                   :alt (contains? modifiers :alt)
+                                                   :control (contains? modifiers :control)})
+        cursor-mode (case command
+                      :scene.tile-map.select-brush :select-mode
+                      :scene.tile-map.erase :erase-mode
+                      :scene.tile-map.cut :cut-mode
+                      :paint-mode)
         tx (case (:type action)
+             (:key-pressed :key-released)
+             (g/set-property self :cursor-mode cursor-mode)
+
              :mouse-pressed
-             (when-not (some? op)
-               (let [op (if (true? (:shift action))
-                          :select
-                          :paint)
+             (when (and (some? command)
+                        (nil? op))
+               (let [op (if (= :scene.tile-map.paint command)
+                          :paint
+                          :select)
                      op-tx (begin-op op self action state evaluation-context cursor-mode)]
                  (when (seq op-tx)
                    (concat
@@ -1345,17 +1357,17 @@
       false)))
 
 (defn handle-input
-  [self action state]
+  [self input-state action state]
   (let [evaluation-context (g/make-evaluation-context)
         mode (g/node-value self :mode evaluation-context)]
     (case mode
       :palette (handle-input-palette self action state evaluation-context)
-      :editor  (handle-input-editor self action state evaluation-context))))
+      :editor  (handle-input-editor self input-state action state evaluation-context))))
 
 (defn make-input-handler []
   (let [state (atom nil)]
-    (fn [self _input-state action _]
-      (handle-input self action state))))
+    (fn [self input-state action _]
+      (handle-input self input-state action state))))
 
 (defn- get-current-tile
   [cursor-world-pos tile-dimensions]
@@ -1554,6 +1566,25 @@
     :command :scene.flip-brush-vertically}
    {:label (localization/message "command.scene.rotate-brush-90-degrees")
     :command :scene.rotate-brush-90-degrees}])
+
+(mouse-binding/register!
+  ::tile-map-editor
+  [{:command :scene.tile-map.paint
+    :context-path ["Tile Map Editor"]
+    :action "Paint"
+    :binding {:button :primary :trigger :drag :modifiers []}}
+   {:command :scene.tile-map.select-brush
+    :context-path ["Tile Map Editor"]
+    :action "Select Brush"
+    :binding {:button :primary :trigger :drag :modifiers [:shift]}}
+   {:command :scene.tile-map.erase
+    :context-path ["Tile Map Editor"]
+    :action "Erase"
+    :binding {:button :primary :trigger :drag :modifiers [:shift :alt]}}
+   {:command :scene.tile-map.cut
+    :context-path ["Tile Map Editor"]
+    :action "Cut"
+    :binding {:button :primary :trigger :drag :modifiers [:shift :control]}}])
 
 (g/defnode TileMapGrid
   (inherits grid/Grid)
