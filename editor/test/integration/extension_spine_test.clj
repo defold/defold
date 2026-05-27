@@ -67,17 +67,13 @@
         save-data-content-by-proj-path-after))
 
 (defn- custom-property [node-desc id value-key]
-  (coll/some (fn [property]
-               (when (= id (:id property))
-                 (value-key property)))
-             (:custom-properties node-desc)))
+  (when-let [property (coll/first-where #(= id (:id %)) (:custom-properties node-desc))]
+    (value-key property)))
 
 (defn- runtime-custom-property [node-desc id value-key]
   (let [id-hash (murmur/hash64 id)]
-    (coll/some (fn [property]
-                 (when (= id-hash (:id-hash property))
-                   (value-key property)))
-               (:custom-properties node-desc))))
+    (when-let [property (coll/first-where #(= id-hash (:id-hash %)) (:custom-properties node-desc))]
+      (value-key property))))
 
 (deftest registered-resource-types-test
   (test-util/with-loaded-project project-path
@@ -499,8 +495,8 @@
           build-targets (g/node-value gui-scene :build-targets)]
       (when (is (not (g/error? build-targets)))
         (let [built-scene-desc (get-in build-targets [0 :user-data :pb])
-              built-spine-node (coll/some #(when (= "template/spine" (:id %)) %)
-                                          (:nodes built-scene-desc))]
+              built-spine-node (coll/first-where #(= "template/spine" (:id %))
+                                                 (:nodes built-scene-desc))]
           (is (= "flag" (runtime-custom-property built-spine-node "spine_scene" :string-value)))
           (is (= #{{:name "spineboy"
                     :path "/assets/spineboy/spineboy.spinescene"}
@@ -518,12 +514,12 @@
       (let [build-targets (g/node-value gui-scene :build-targets)]
         (when (is (not (g/error? build-targets)))
           (let [built-scene-desc (get-in build-targets [0 :user-data :pb])
-                built-spine-node (coll/some #(when (= "template/spine" (:id %)) %)
-                                            (:nodes built-scene-desc))
-                built-layout-desc (coll/some #(when (= "Portrait" (:name %)) %)
-                                             (:layouts built-scene-desc))
-                built-layout-spine-node (coll/some #(when (= "template/spine" (:id %)) %)
-                                                   (:nodes built-layout-desc))]
+                built-spine-node (coll/first-where #(= "template/spine" (:id %))
+                                                   (:nodes built-scene-desc))
+                built-layout-desc (coll/first-where #(= "Portrait" (:name %))
+                                                    (:layouts built-scene-desc))
+                built-layout-spine-node (coll/first-where #(= "template/spine" (:id %))
+                                                          (:nodes built-layout-desc))]
             (is (= "spineboy" (runtime-custom-property built-spine-node "spine_scene" :string-value)))
             (is (= "flag" (runtime-custom-property built-layout-spine-node "spine_scene" :string-value)))
             (is (= #{{:name "spineboy"
