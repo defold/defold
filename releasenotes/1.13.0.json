@@ -176,7 +176,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements\r\n\r\nTODO: Add new screen recording",
+            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements",
             "closed_issues": [
                 12157,
                 10963,
@@ -1306,7 +1306,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements\r\n\r\nTODO: Add new screen recording",
+            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements",
             "closed_issues": [
                 10963
             ],
@@ -1328,7 +1328,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements\r\n\r\nTODO: Add new screen recording",
+            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements",
             "closed_issues": [
                 10853
             ],
@@ -1370,7 +1370,7 @@
         },
         {
             "author": "singhvishalkr",
-            "body": "When decoding base64 strings that lack padding characters, `dmCrypt::Base64Decode` returns nil. This happens because mbedTLS's base64 decoder strictly requires padding, but many systems (particularly JWT implementations) omit padding per RFC 4648 section 3.2 which states that padding is not always required.\n\nI ran into this while using the crypt extension with Nakama's JWT tokens. The server sends tokens without padding, and the decode fails silently.\n\nThe fix adds the missing `=` characters before passing the input to mbedTLS when the input length is not a multiple of 4. I also added test cases covering strings with and without padding to prevent regression.\n\nTested on Windows. The change should not affect consoles since it only modifies the mbedTLS path.",
+            "body": "When decoding base64 strings that lack padding characters, `dmCrypt::Base64Decode` returns nil. This happens because mbedTLS's base64 decoder strictly requires padding, but many systems (particularly JWT implementations) omit padding per RFC 4648 section 3.2 which states that padding is not always required.\r\n\r\nThis issue can be observed while using the crypt extension with Nakama's JWT tokens. The server sends tokens without padding, and the decode fails silently.\r\n\r\nThe fix adds the missing `=` characters before passing the input to mbedTLS when the input length is not a multiple of 4. In addition, a test cases covering strings with and without padding was added to prevent regression.\r\n\r\nThe change should not affect consoles since it only modifies the mbedTLS path.",
             "closed_issues": [
                 11197
             ],
@@ -1556,8 +1556,94 @@
             "title": "Update msvc to 2026",
             "type": "FIX",
             "url": "https://github.com/defold/defold/pull/12449"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Several fixes and improvements related to the new Scene View Free Camera\r\n\r\n- Added new FOV slider to the Scene Toolbar Camera Popup\r\n- Fixed 2D button not turning off when starting the Free Camera mode\r\n- Block zooming while holding middle-mouse button to avoid janky behavior  \r\n- Fixed incorrect mouse cursor position when exiting free camera mode\r\n- Fixed camera matrix inversion related exception\r\n- Fixed cursor bug with free mode command on macOS\r\n\r\n<img width=\"390\" height=\"340\" alt=\"image\" src=\"https://github.com/user-attachments/assets/5aaacbaa-7294-4c25-848a-af74a4b612d5\" />",
+            "closed_issues": [
+                12361,
+                12360,
+                12226
+            ],
+            "duplicate": false,
+            "issue_number": 12361,
+            "labels": [
+                "bug",
+                "editor",
+                "camera",
+                "scene editor"
+            ],
+            "mergecommit": "3588ef88d1da020db8bc60f9795ad73665efb36d",
+            "pr_number": 12380,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor camera fov slider and bug fixes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12380"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Several fixes and improvements related to the new Scene View Free Camera\r\n\r\n- Added new FOV slider to the Scene Toolbar Camera Popup\r\n- Fixed 2D button not turning off when starting the Free Camera mode\r\n- Block zooming while holding middle-mouse button to avoid janky behavior  \r\n- Fixed incorrect mouse cursor position when exiting free camera mode\r\n- Fixed camera matrix inversion related exception\r\n- Fixed cursor bug with free mode command on macOS\r\n\r\n<img width=\"390\" height=\"340\" alt=\"image\" src=\"https://github.com/user-attachments/assets/5aaacbaa-7294-4c25-848a-af74a4b612d5\" />",
+            "closed_issues": [
+                12360
+            ],
+            "duplicate": true,
+            "issue_number": 12360,
+            "labels": [
+                "bug",
+                "editor",
+                "camera",
+                "scene editor"
+            ],
+            "mergecommit": "3588ef88d1da020db8bc60f9795ad73665efb36d",
+            "pr_number": 12380,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor camera fov slider and bug fixes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12380"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Several fixes and improvements related to the new Scene View Free Camera\r\n\r\n- Added new FOV slider to the Scene Toolbar Camera Popup\r\n- Fixed 2D button not turning off when starting the Free Camera mode\r\n- Block zooming while holding middle-mouse button to avoid janky behavior  \r\n- Fixed incorrect mouse cursor position when exiting free camera mode\r\n- Fixed camera matrix inversion related exception\r\n- Fixed cursor bug with free mode command on macOS\r\n\r\n<img width=\"390\" height=\"340\" alt=\"image\" src=\"https://github.com/user-attachments/assets/5aaacbaa-7294-4c25-848a-af74a4b612d5\" />",
+            "closed_issues": [
+                12226
+            ],
+            "duplicate": true,
+            "issue_number": 12226,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "3588ef88d1da020db8bc60f9795ad73665efb36d",
+            "pr_number": 12380,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor camera fov slider and bug fixes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12380"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "\u26a0\ufe0f Removed deprecated Lua APIs and constants. Here a tables for migration:\r\n\r\n| Old API | New API |\r\n|---------|---------|\r\n| go.get_scale_vector() | go.get_scale() |\r\n| go.delete_all() | go.delete() |\r\n| camera.acquire_focus() | \u26a0\ufe0f  removed |\r\n| camera.release_focus() | \u26a0\ufe0f  removed |\r\n| label.get_text_metrics() | resource.get_text_metrics() |\r\n| model.play() | model.play_anim() |\r\n| model.set_constant() | go.set() |\r\n| physics.set_listener() |  physics.set_event_listener() |\r\n| physics.ray_cast() | physics.raycast_async() |\r\n| sprite.set_constant() | go.set() |\r\n| tilemap.set_constant() | go.set() |\r\n| gui.get_text_metrics() | resource.get_text_metrics() |\r\n| gui.get_text_metrics_from_node() | resource.get_text_metrics() |\r\n| render.enable_render_target() | render.set_render_target() |\r\n| render.disable_render_target() | render.set_render_target() |\r\n| render.draw_debug2d() | render.draw_debug3d() |\r\n| vmath.matrix4_from_quat() | vmath.matrix4_quat() |\r\n| sys.get_config() | sys.get_config_string() |\r\n\r\n\r\n| Old constant | New constant |\r\n|--------------|---------------|\r\n| render.STATE_DEPTH_TEST | graphics.STATE_DEPTH_TEST |\r\n| render.STATE_STENCIL_TEST | graphics.STATE_STENCIL_TEST |\r\n| render.STATE_ALPHA_TEST | graphics.STATE_ALPHA_TEST |\r\n| render.STATE_BLEND | graphics.STATE_BLEND |\r\n| render.STATE_CULL_FACE | graphics.STATE_CULL_FACE |\r\n| render.STATE_POLYGON_OFFSET_FILL | graphics.STATE_POLYGON_OFFSET_FILL |\r\n| render.FORMAT_LUMINANCE | graphics.TEXTURE_FORMAT_LUMINANCE |\r\n| render.FORMAT_RGBA | graphics.TEXTURE_FORMAT_RGBA |\r\n| render.FORMAT_DEPTH | graphics.TEXTURE_FORMAT_DEPTH |\r\n| render.FORMAT_STENCIL | graphics.TEXTURE_FORMAT_STENCIL |\r\n| render.RGB | graphics.TEXTURE_FORMAT_RGB |\r\n| render.RGB16F | graphics.TEXTURE_FORMAT_RGB16F |\r\n| render.RGB32F | graphics.TEXTURE_FORMAT_RGB32F |\r\n| render.RGBA16F | graphics.TEXTURE_FORMAT_RGBA16F |\r\n| render.RGBA32F | graphics.TEXTURE_FORMAT_RGBA32F |\r\n| render.R16F | graphics.TEXTURE_FORMAT_R16F |\r\n| render.RG16F | graphics.TEXTURE_FORMAT_RG16F |\r\n| render.R32F | graphics.TEXTURE_FORMAT_R32F |\r\n| render.RG32F | graphics.TEXTURE_FORMAT_RG32F |\r\n| render.FILTER_LINEAR | graphics.TEXTURE_FILTER_LINEAR |\r\n| render.FILTER_NEAREST | graphics.TEXTURE_FILTER_NEAREST |\r\n| render.WRAP_CLAMP_TO_BORDER | graphics.TEXTURE_WRAP_CLAMP_TO_BORDER |\r\n| render.WRAP_CLAMP_TO_EDGE | graphics.TEXTURE_WRAP_CLAMP_TO_EDGE |\r\n| render.WRAP_MIRRORED_REPEAT | graphics.TEXTURE_WRAP_MIRRORED_REPEAT |\r\n| render.WRAP_REPEAT | graphics.TEXTURE_WRAP_REPEAT |\r\n| render.BLEND_ZERO | graphics.BLEND_FACTOR_ZERO |\r\n| render.BLEND_ONE | graphics.BLEND_FACTOR_ONE |\r\n| render.BLEND_SRC_COLOR | graphics.BLEND_FACTOR_SRC_COLOR |\r\n| render.BLEND_ONE_MINUS_SRC_COLOR | graphics.BLEND_FACTOR_ONE_MINUS_SRC_COLOR |\r\n| render.BLEND_DST_COLOR | graphics.BLEND_FACTOR_DST_COLOR |\r\n| render.BLEND_ONE_MINUS_DST_COLOR | graphics.BLEND_FACTOR_ONE_MINUS_DST_COLOR |\r\n| render.BLEND_SRC_ALPHA | graphics.BLEND_FACTOR_SRC_ALPHA |\r\n| render.BLEND_ONE_MINUS_SRC_ALPHA | graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA |\r\n| render.BLEND_DST_ALPHA | graphics.BLEND_FACTOR_DST_ALPHA |\r\n| render.BLEND_ONE_MINUS_DST_ALPHA | graphics.BLEND_FACTOR_ONE_MINUS_DST_ALPHA |\r\n| render.BLEND_SRC_ALPHA_SATURATE | graphics.BLEND_FACTOR_SRC_ALPHA_SATURATE |\r\n| render.BLEND_CONSTANT_COLOR | graphics.BLEND_FACTOR_CONSTANT_COLOR |\r\n| render.BLEND_ONE_MINUS_CONSTANT_COLOR | graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR |\r\n| render.BLEND_CONSTANT_ALPHA | graphics.BLEND_FACTOR_CONSTANT_ALPHA |\r\n| render.BLEND_ONE_MINUS_CONSTANT_ALPHA | graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA |\r\n| render.BLEND_EQUATION_ADD | graphics.BLEND_EQUATION_ADD |\r\n| render.BLEND_EQUATION_SUBTRACT | graphics.BLEND_EQUATION_SUBTRACT |\r\n| render.BLEND_EQUATION_REVERSE_SUBTRACT | graphics.BLEND_EQUATION_REVERSE_SUBTRACT |\r\n| render.BLEND_EQUATION_MIN | graphics.BLEND_EQUATION_MIN |\r\n| render.BLEND_EQUATION_MAX | graphics.BLEND_EQUATION_MAX |\r\n| render.COMPARE_FUNC_NEVER | graphics.COMPARE_FUNC_NEVER |\r\n| render.COMPARE_FUNC_LESS | graphics.COMPARE_FUNC_LESS |\r\n| render.COMPARE_FUNC_LEQUAL | graphics.COMPARE_FUNC_LEQUAL |\r\n| render.COMPARE_FUNC_GREATER | graphics.COMPARE_FUNC_GREATER |\r\n| render.COMPARE_FUNC_GEQUAL | graphics.COMPARE_FUNC_GEQUAL |\r\n| render.COMPARE_FUNC_EQUAL | graphics.COMPARE_FUNC_EQUAL |\r\n| render.COMPARE_FUNC_NOTEQUAL | graphics.COMPARE_FUNC_NOTEQUAL |\r\n| render.COMPARE_FUNC_ALWAYS | graphics.COMPARE_FUNC_ALWAYS |\r\n| render.STENCIL_OP_KEEP | graphics.STENCIL_OP_KEEP |\r\n| render.STENCIL_OP_ZERO | graphics.STENCIL_OP_ZERO |\r\n| render.STENCIL_OP_REPLACE | graphics.STENCIL_OP_REPLACE |\r\n| render.STENCIL_OP_INCR | graphics.STENCIL_OP_INCR |\r\n| render.STENCIL_OP_INCR_WRAP | graphics.STENCIL_OP_INCR_WRAP |\r\n| render.STENCIL_OP_DECR | graphics.STENCIL_OP_DECR |\r\n| render.STENCIL_OP_DECR_WRAP | graphics.STENCIL_OP_DECR_WRAP |\r\n| render.STENCIL_OP_INVERT | graphics.STENCIL_OP_INVERT |\r\n| render.FACE_FRONT | graphics.FACE_TYPE_FRONT |\r\n| render.FACE_BACK | graphics.FACE_TYPE_BACK |\r\n| render.FACE_FRONT_AND_BACK | graphics.FACE_TYPE_FRONT_AND_BACK |\r\n| render.BUFFER_COLOR_BIT | graphics.BUFFER_TYPE_COLOR0_BIT |\r\n| render.BUFFER_COLOR0_BIT | graphics.BUFFER_TYPE_COLOR0_BIT |\r\n| render.BUFFER_COLOR1_BIT | graphics.BUFFER_TYPE_COLOR1_BIT |\r\n| render.BUFFER_COLOR2_BIT | graphics.BUFFER_TYPE_COLOR2_BIT |\r\n| render.BUFFER_COLOR3_BIT | graphics.BUFFER_TYPE_COLOR3_BIT |\r\n| render.BUFFER_DEPTH_BIT | graphics.BUFFER_TYPE_DEPTH_BIT |\r\n| render.BUFFER_STENCIL_BIT | graphics.BUFFER_TYPE_STENCIL_BIT |\r\n| resource.TEXTURE_TYPE_2D | graphics.TEXTURE_TYPE_2D |\r\n| resource.TEXTURE_TYPE_CUBE_MAP | graphics.TEXTURE_TYPE_CUBE_MAP |\r\n| resource.TEXTURE_TYPE_2D_ARRAY | graphics.TEXTURE_TYPE_2D_ARRAY |\r\n| resource.TEXTURE_TYPE_IMAGE_2D | graphics.TEXTURE_TYPE_IMAGE_2D |\r\n| resource.BUFFER_TYPE_COLOR0_BIT | graphics.BUFFER_TYPE_COLOR0_BIT |\r\n| resource.BUFFER_TYPE_COLOR1_BIT | graphics.BUFFER_TYPE_COLOR1_BIT |\r\n| resource.BUFFER_TYPE_COLOR2_BIT | graphics.BUFFER_TYPE_COLOR2_BIT |\r\n| resource.BUFFER_TYPE_COLOR3_BIT | graphics.BUFFER_TYPE_COLOR3_BIT |\r\n| resource.BUFFER_TYPE_DEPTH_BIT | graphics.BUFFER_TYPE_DEPTH_BIT |\r\n| resource.BUFFER_TYPE_STENCIL_BIT | graphics.BUFFER_TYPE_STENCIL_BIT |\r\n| resource.TEXTURE_USAGE_FLAG_SAMPLE | graphics.TEXTURE_USAGE_FLAG_SAMPLE |\r\n| resource.TEXTURE_USAGE_FLAG_MEMORYLESS | graphics.TEXTURE_USAGE_FLAG_MEMORYLESS |\r\n| resource.TEXTURE_USAGE_FLAG_STORAGE | graphics.TEXTURE_USAGE_FLAG_STORAGE |\r\n| resource.TEXTURE_FORMAT_LUMINANCE | graphics.TEXTURE_FORMAT_LUMINANCE |\r\n| resource.TEXTURE_FORMAT_RGB | graphics.TEXTURE_FORMAT_RGB |\r\n| resource.TEXTURE_FORMAT_RGBA | graphics.TEXTURE_FORMAT_RGBA |\r\n| resource.TEXTURE_FORMAT_DEPTH | graphics.TEXTURE_FORMAT_DEPTH |\r\n| resource.TEXTURE_FORMAT_STENCIL | graphics.TEXTURE_FORMAT_STENCIL |\r\n| resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 | graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 |\r\n| resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 | graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 |\r\n| resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 | graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 |\r\n| resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 | graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 |\r\n| resource.TEXTURE_FORMAT_RGB_ETC1 | graphics.TEXTURE_FORMAT_RGB_ETC1 |\r\n| resource.TEXTURE_FORMAT_RGBA_ETC2 | graphics.TEXTURE_FORMAT_RGBA_ETC2 |\r\n| resource.TEXTURE_FORMAT_RGBA_ASTC_4x4 | graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4 |\r\n| resource.TEXTURE_FORMAT_RGB_BC1 | graphics.TEXTURE_FORMAT_RGB_BC1 |\r\n| resource.TEXTURE_FORMAT_RGBA_BC3 | graphics.TEXTURE_FORMAT_RGBA_BC3 |\r\n| resource.TEXTURE_FORMAT_R_BC4 | graphics.TEXTURE_FORMAT_R_BC4 |\r\n| resource.TEXTURE_FORMAT_RG_BC5 | graphics.TEXTURE_FORMAT_RG_BC5 |\r\n| resource.TEXTURE_FORMAT_RGBA_BC7 | graphics.TEXTURE_FORMAT_RGBA_BC7 |\r\n| resource.TEXTURE_FORMAT_RGB16F | graphics.TEXTURE_FORMAT_RGB16F |\r\n| resource.TEXTURE_FORMAT_RGB32F | graphics.TEXTURE_FORMAT_RGB32F |\r\n| resource.TEXTURE_FORMAT_RGBA16F | graphics.TEXTURE_FORMAT_RGBA16F |\r\n| resource.TEXTURE_FORMAT_RGBA32F | graphics.TEXTURE_FORMAT_RGBA32F |\r\n| resource.TEXTURE_FORMAT_R16F | graphics.TEXTURE_FORMAT_R16F |\r\n| resource.TEXTURE_FORMAT_RG16F | graphics.TEXTURE_FORMAT_RG16F |\r\n| resource.TEXTURE_FORMAT_R32F | graphics.TEXTURE_FORMAT_R32F |\r\n| resource.TEXTURE_FORMAT_RG32F | graphics.TEXTURE_FORMAT_RG32F |\r\n| resource.COMPRESSION_TYPE_DEFAULT | graphics.COMPRESSION_TYPE_DEFAULT |\r\n| resource.COMPRESSION_TYPE_BASIS_UASTC | graphics.COMPRESSION_TYPE_BASIS_UASTC |",
+            "closed_issues": [
+                10455
+            ],
+            "duplicate": false,
+            "issue_number": 10455,
+            "labels": [
+                "task",
+                "engine",
+                "breaking change"
+            ],
+            "mergecommit": "9595a70355d50042cd905d710440902d89f6b4ee",
+            "pr_number": 12441,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Remove deprecated Lua APIs",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/12441"
         }
     ],
-    "timestamp": 1779865726.7222452,
+    "timestamp": 1779884242.694815,
     "version": "1.13.0"
 }
