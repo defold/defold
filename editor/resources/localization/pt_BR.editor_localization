@@ -1932,7 +1932,7 @@ form.label.animationset.animations = Animações
 
 form.label.camera = Câmera
 form.label.camera.aspect-ratio = Taxa de Proporção
-form.label.camera.fov = Campo de visão (FOV)
+form.label.camera.fov = FOV
 form.label.camera.orthographic-projection = Projeção Ortográfica
 form.label.camera.orthographic-mode = Modo de Zoom Ortográfico
 form.label.camera.orthographic-zoom = Zoom Ortográfico
