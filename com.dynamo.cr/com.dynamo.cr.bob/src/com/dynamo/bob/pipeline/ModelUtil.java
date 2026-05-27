@@ -50,6 +50,7 @@ import com.dynamo.proto.DdfMath.Vector3One;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.proto.DdfMath.Transform;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
 
 import com.dynamo.bob.pipeline.Modelimporter.Bone;
 import com.dynamo.bob.pipeline.Modelimporter.Material;
@@ -67,6 +68,52 @@ import com.google.protobuf.ByteString;
 public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
+
+    public static class PackedMorphTargetTexture {
+        public final int width;
+        public final int height;
+        public final int layerCount;
+        public final byte[] data;
+
+        public PackedMorphTargetTexture(int width, int height, int layerCount, byte[] data) {
+            this.width = width;
+            this.height = height;
+            this.layerCount = layerCount;
+            this.data = data;
+        }
+
+        public TextureGenerator.GenerateResult toGenerateResult() {
+            TextureImage.Image image = TextureImage.Image.newBuilder()
+                    .setWidth(width)
+                    .setHeight(height)
+                    .setDepth(layerCount)
+                    .setOriginalWidth(width)
+                    .setOriginalHeight(height)
+                    .setOriginalDepth(layerCount)
+                    .setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA32F)
+                    .addMipMapOffset(0)
+                    .addMipMapSize(data.length)
+                    .addMipMapSizeCompressed(data.length)
+                    .addMipMapDimensions(width)
+                    .addMipMapDimensions(height)
+                    .setDataSize(data.length)
+                    .build();
+
+            TextureGenerator.GenerateResult result = new TextureGenerator.GenerateResult();
+            result.textureImage = TextureImage.newBuilder()
+                    .addAlternatives(image)
+                    .setType(TextureImage.Type.TYPE_2D_ARRAY)
+                    .setCount(layerCount)
+                    .build();
+            result.imageDatas = new ArrayList<byte[]>();
+            result.imageDatas.add(data);
+            return result;
+        }
+    }
+
+    public interface MorphTargetTextureCollector {
+        String add(Mesh mesh, PackedMorphTargetTexture texture);
+    }
 
     /**
      * Atlas size for morph target slices (same growth rule as engine {@code ComputeMorphTextureSize}).
@@ -87,9 +134,9 @@ public class ModelUtil {
         outWidthHeight[1] = h;
     }
 
-    static void validateMorphTargetTextureLayout(Mesh mesh, int maxTexW, int maxTexH) throws LoaderException {
+    private static int getMaxMorphTargetVertexCount(Mesh mesh) throws LoaderException {
         if (mesh.morphTargets == null || mesh.morphTargets.length == 0) {
-            return;
+            return 0;
         }
         if (mesh.positions == null || mesh.positions.length < 3) {
             throw new LoaderException("Mesh has morph targets but no base positions.");
@@ -108,6 +155,14 @@ public class ModelUtil {
                 maxCount = Math.max(maxCount, mt.tangents.length / 4);
             }
         }
+        return maxCount;
+    }
+
+    static void validateMorphTargetTextureLayout(Mesh mesh, int maxTexW, int maxTexH) throws LoaderException {
+        int maxCount = getMaxMorphTargetVertexCount(mesh);
+        if (maxCount == 0) {
+            return;
+        }
 
         int[] wh = new int[2];
         computeMorphTextureSize(maxCount, maxTexW, maxTexH, wh);
@@ -120,6 +175,53 @@ public class ModelUtil {
                             + "Raise those limits or reduce mesh / morph stream size.",
                     meshLabel, maxCount, width, height, maxTexW, maxTexH));
         }
+    }
+
+    private static void packMorphTargetTextureSlice(ByteBuffer buffer, int sliceFloatCount, int layerIndex,
+                                                    float[] source, int sourceStride, int outputComponents) {
+        if (source == null) {
+            return;
+        }
+
+        int count = source.length / sourceStride;
+        int layerFloatOffset = layerIndex * sliceFloatCount;
+        for (int v = 0; v < count; ++v) {
+            int texelFloatOffset = layerFloatOffset + v * 4;
+            int sourceFloatOffset = v * sourceStride;
+            for (int c = 0; c < outputComponents; ++c) {
+                buffer.putFloat((texelFloatOffset + c) * Float.BYTES, source[sourceFloatOffset + c]);
+            }
+        }
+    }
+
+    public static PackedMorphTargetTexture packMorphTargetTexture(Mesh mesh, int maxTexW, int maxTexH) throws LoaderException {
+        int maxCount = getMaxMorphTargetVertexCount(mesh);
+        if (maxCount == 0) {
+            return null;
+        }
+
+        validateMorphTargetTextureLayout(mesh, maxTexW, maxTexH);
+
+        int[] wh = new int[2];
+        computeMorphTextureSize(maxCount, maxTexW, maxTexH, wh);
+        int width = wh[0];
+        int height = wh[1];
+        int sliceFloatCount = width * height * 4;
+        int layerCount = mesh.morphTargets.length * 3;
+
+        ByteBuffer buffer = ByteBuffer
+                .allocate(sliceFloatCount * layerCount * Float.BYTES)
+                .order(ByteOrder.LITTLE_ENDIAN);
+
+        for (int i = 0; i < mesh.morphTargets.length; ++i) {
+            MorphTarget morphTarget = mesh.morphTargets[i];
+            int layerBase = i * 3;
+            packMorphTargetTextureSlice(buffer, sliceFloatCount, layerBase + 0, morphTarget.positions, 3, 3);
+            packMorphTargetTextureSlice(buffer, sliceFloatCount, layerBase + 1, morphTarget.normals, 3, 3);
+            packMorphTargetTextureSlice(buffer, sliceFloatCount, layerBase + 2, morphTarget.tangents, 4, 4);
+        }
+
+        return new PackedMorphTargetTexture(width, height, layerCount, buffer.array());
     }
 
     public static Scene loadScene(byte[] content, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
@@ -949,8 +1051,10 @@ public class ModelUtil {
     }
 
     public static Rig.Mesh loadMesh(Mesh mesh, int maxMorphTargetTexW, int maxMorphTargetTexH) throws LoaderException {
-        validateMorphTargetTextureLayout(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
+        return loadMesh(mesh, maxMorphTargetTexW, maxMorphTargetTexH, null);
+    }
 
+    public static Rig.Mesh loadMesh(Mesh mesh, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
         String name = mesh.name;
 
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
@@ -1009,6 +1113,13 @@ public class ModelUtil {
             meshBuilder.setMaterialIndex(0x0); // We still need to assign a material at some point!
 
         if (mesh.morphTargets != null) {
+            PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
+            if (packedMorphTargetTexture != null) {
+                if (morphTextureCollector != null) {
+                    meshBuilder.setMorphTargetTexture(morphTextureCollector.add(mesh, packedMorphTargetTexture));
+                }
+            }
+
             for (MorphTarget morphTarget : mesh.morphTargets) {
                 Rig.MorphTarget.Builder morphTargetBuilder = Rig.MorphTarget.newBuilder();
                 if (morphTarget.positions != null) {
@@ -1034,12 +1145,12 @@ public class ModelUtil {
         return meshBuilder.build();
     }
 
-    private static Rig.Model loadModel(Node node, Model model, ArrayList<Modelimporter.Bone> skeleton, int maxMorphTexW, int maxMorphTexH) throws LoaderException {
+    private static Rig.Model loadModel(Node node, Model model, ArrayList<Modelimporter.Bone> skeleton, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
         for (Mesh mesh : model.meshes) {
-            modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH));
+            modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH, morphTextureCollector));
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
@@ -1057,16 +1168,40 @@ public class ModelUtil {
         return modelBuilder.build();
     }
 
-    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models, int maxMorphTexW, int maxMorphTexH) throws LoaderException {
+    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
 
         if (node.model != null)
         {
-            models.add(loadModel(node, node.model, skeleton, maxMorphTexW, maxMorphTexH));
+            models.add(loadModel(node, node.model, skeleton, maxMorphTexW, maxMorphTexH, morphTextureCollector));
         }
 
         for (Node child : node.children) {
-            loadModelInstances(child, skeleton, models, maxMorphTexW, maxMorphTexH);
+            loadModelInstances(child, skeleton, models, maxMorphTexW, maxMorphTexH, morphTextureCollector);
         }
+    }
+
+    private static int getNumMorphTargetTextures(Node node) {
+        int count = 0;
+        if (node.model != null && node.model.meshes != null) {
+            for (Mesh mesh : node.model.meshes) {
+                if (mesh.morphTargets != null && mesh.morphTargets.length > 0) {
+                    ++count;
+                }
+            }
+        }
+
+        for (Node child : node.children) {
+            count += getNumMorphTargetTextures(child);
+        }
+        return count;
+    }
+
+    public static int getNumMorphTargetTextures(Scene scene) {
+        int count = 0;
+        for (Node root : scene.rootNodes) {
+            count += getNumMorphTargetTextures(root);
+        }
+        return count;
     }
 
     private static Scene loadInternal(Scene scene) {
@@ -1076,13 +1211,17 @@ public class ModelUtil {
     }
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH) throws LoaderException {
+        loadModels(scene, meshSetBuilder, maxMorphTargetTexW, maxMorphTargetTexH, null);
+    }
+
+    public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
         meshSetBuilder.addAllMaterials(loadMaterials(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            loadModelInstances(root, skeleton, models, maxMorphTargetTexW, maxMorphTargetTexH);
+            loadModelInstances(root, skeleton, models, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector);
         }
         meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());

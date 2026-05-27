@@ -28,6 +28,7 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.TextureUtil;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.MeshSet;
@@ -36,6 +37,11 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 
 @BuilderParams(name="Meshset", inExts={".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes"})
 public class MeshsetBuilder extends Builder  {
+    private static class MorphTargetTextureOutput {
+        IResource resource;
+        ModelUtil.PackedMorphTargetTexture texture;
+    }
+
     public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
         Project project;
@@ -69,6 +75,27 @@ public class MeshsetBuilder extends Builder  {
             .addOutput(input.changeExt(params.outExt()))
             .addOutput(input.changeExt(".skeletonc"))
             .addOutput(input.changeExt("_generated_0.animationsetc"));
+
+        Modelimporter.Scene scene = null;
+        try {
+            scene = ModelUtil.loadScene(input.getContent(), input.getPath(), new Modelimporter.Options(), new ResourceDataResolver(this.project));
+
+            boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
+            if (split_meshes) {
+                ModelUtil.splitMeshes(scene);
+            }
+
+            int morphTargetTextureCount = ModelUtil.getNumMorphTargetTextures(scene);
+            for (int i = 0; i < morphTargetTextureCount; ++i) {
+                taskBuilder.addOutput(input.changeExt(String.format("_morph_%d.texturec", i)));
+            }
+        } catch (IOException e) {
+            // Defer import and validation errors to build(), where existing glTF diagnostics are reported.
+        } finally {
+            if (scene != null) {
+                ModelUtil.unloadScene(scene);
+            }
+        }
         return taskBuilder.build();
     }
 
@@ -97,6 +124,8 @@ public class MeshsetBuilder extends Builder  {
         // MeshSet
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
+            ArrayList<MorphTargetTextureOutput> morphTargetTextureOutputs = new ArrayList<>();
+            int buildDirLen = project.getBuildDirectory().length();
 
             boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
             if (split_meshes) {
@@ -104,7 +133,14 @@ public class MeshsetBuilder extends Builder  {
             }
 
             try {
-                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH);
+                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH, (mesh, texture) -> {
+                    int outputIndex = 3 + morphTargetTextureOutputs.size();
+                    MorphTargetTextureOutput output = new MorphTargetTextureOutput();
+                    output.resource = task.output(outputIndex);
+                    output.texture = texture;
+                    morphTargetTextureOutputs.add(output);
+                    return output.resource.getPath().substring(buildDirLen);
+                });
             } catch (LoaderException e) {
                 throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
             }
@@ -113,6 +149,10 @@ public class MeshsetBuilder extends Builder  {
             meshSetBuilder.build().writeTo(out);
             out.close();
             task.output(0).setContent(out.toByteArray());
+
+            for (MorphTargetTextureOutput output : morphTargetTextureOutputs) {
+                TextureUtil.writeGenerateResultToResource(output.texture.toGenerateResult(), output.resource);
+            }
         }
 
         // Skeleton

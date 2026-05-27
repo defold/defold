@@ -126,6 +126,43 @@ public class ModelUtilTest {
         assertEquals(expected.w, actual.get(3), EPSILON);
     }
 
+    private Modelimporter.Mesh createMorphTextureTestMesh() {
+        Modelimporter.Mesh mesh = new Modelimporter.Mesh();
+        mesh.name = "morph_texture_test";
+        mesh.positions = new float[] {
+                0.0f, 0.0f, 0.0f,
+                1.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                1.0f, 1.0f, 0.0f,
+                2.0f, 1.0f, 0.0f,
+        };
+        mesh.vertexCount = 5;
+        mesh.indices = new int[] { 0, 1, 2, 2, 1, 3 };
+        mesh.aabb = new Modelimporter.Aabb();
+        mesh.aabb.min = new Modelimporter.Vector3();
+        mesh.aabb.max = new Modelimporter.Vector3();
+
+        Modelimporter.MorphTarget target0 = new Modelimporter.MorphTarget();
+        target0.positions = new float[] { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f };
+        target0.normals = new float[] { 7.0f, 8.0f, 9.0f };
+        target0.tangents = new float[] { 10.0f, 11.0f, 12.0f, 13.0f };
+
+        Modelimporter.MorphTarget target1 = new Modelimporter.MorphTarget();
+        target1.positions = new float[] { 14.0f, 15.0f, 16.0f };
+        target1.normals = new float[] { 17.0f, 18.0f, 19.0f };
+        target1.tangents = new float[] { 20.0f, 21.0f, 22.0f, 23.0f };
+
+        mesh.morphTargets = new Modelimporter.MorphTarget[] { target0, target1 };
+        mesh.morphBaseWeights = new float[] { 0.25f, 0.75f };
+        return mesh;
+    }
+
+    private float getPackedMorphTextureFloat(ModelUtil.PackedMorphTargetTexture texture, int layer, int texel, int component) {
+        int sliceFloatCount = texture.width * texture.height * 4;
+        int floatOffset = layer * sliceFloatCount + texel * 4 + component;
+        return ByteBuffer.wrap(texture.data).order(ByteOrder.LITTLE_ENDIAN).getFloat(floatOffset * Float.BYTES);
+    }
+
     /*
      * Helper to test that a bone has the expected position and rotation.
      */
@@ -233,6 +270,54 @@ public class ModelUtilTest {
             e.printStackTrace();
             return null;
         }
+    }
+
+    @Test
+    public void testPackMorphTargetTextureLayout() throws Exception {
+        ModelUtil.PackedMorphTargetTexture texture = ModelUtil.packMorphTargetTexture(createMorphTextureTestMesh(), 4, 4);
+        assertNotNull(texture);
+        assertEquals(4, texture.width);
+        assertEquals(2, texture.height);
+        assertEquals(4 * 2 * 4 * 2 * 3 * Float.BYTES, texture.data.length);
+
+        assertEquals(1.0f, getPackedMorphTextureFloat(texture, 0, 0, 0), EPSILON);
+        assertEquals(2.0f, getPackedMorphTextureFloat(texture, 0, 0, 1), EPSILON);
+        assertEquals(3.0f, getPackedMorphTextureFloat(texture, 0, 0, 2), EPSILON);
+        assertEquals(0.0f, getPackedMorphTextureFloat(texture, 0, 0, 3), EPSILON);
+        assertEquals(4.0f, getPackedMorphTextureFloat(texture, 0, 1, 0), EPSILON);
+        assertEquals(5.0f, getPackedMorphTextureFloat(texture, 0, 1, 1), EPSILON);
+        assertEquals(6.0f, getPackedMorphTextureFloat(texture, 0, 1, 2), EPSILON);
+
+        assertEquals(7.0f, getPackedMorphTextureFloat(texture, 1, 0, 0), EPSILON);
+        assertEquals(8.0f, getPackedMorphTextureFloat(texture, 1, 0, 1), EPSILON);
+        assertEquals(9.0f, getPackedMorphTextureFloat(texture, 1, 0, 2), EPSILON);
+        assertEquals(0.0f, getPackedMorphTextureFloat(texture, 1, 0, 3), EPSILON);
+
+        assertEquals(10.0f, getPackedMorphTextureFloat(texture, 2, 0, 0), EPSILON);
+        assertEquals(11.0f, getPackedMorphTextureFloat(texture, 2, 0, 1), EPSILON);
+        assertEquals(12.0f, getPackedMorphTextureFloat(texture, 2, 0, 2), EPSILON);
+        assertEquals(13.0f, getPackedMorphTextureFloat(texture, 2, 0, 3), EPSILON);
+
+        assertEquals(14.0f, getPackedMorphTextureFloat(texture, 3, 0, 0), EPSILON);
+        assertEquals(17.0f, getPackedMorphTextureFloat(texture, 4, 0, 0), EPSILON);
+        assertEquals(20.0f, getPackedMorphTextureFloat(texture, 5, 0, 0), EPSILON);
+    }
+
+    @Test
+    public void testLoadMeshWritesPackedMorphTargetTexture() throws Exception {
+        ArrayList<ModelUtil.PackedMorphTargetTexture> textures = new ArrayList<ModelUtil.PackedMorphTargetTexture>();
+        Rig.Mesh mesh = ModelUtil.loadMesh(createMorphTextureTestMesh(), 4, 4, (sourceMesh, texture) -> {
+            textures.add(texture);
+            return "/generated/morph_0.texturec";
+        });
+        assertEquals("/generated/morph_0.texturec", mesh.getMorphTargetTexture());
+        assertEquals(1, textures.size());
+        assertEquals(4, textures.get(0).width);
+        assertEquals(2, textures.get(0).height);
+        assertEquals(6, textures.get(0).layerCount);
+        assertEquals(4 * 2 * 4 * 2 * 3 * Float.BYTES, textures.get(0).data.length);
+        assertEquals(2, mesh.getMorphTargetsCount());
+        assertEquals(2, mesh.getMorphBaseWeightsCount());
     }
 
     private Modelimporter.Scene loadBuiltScene(String path,
