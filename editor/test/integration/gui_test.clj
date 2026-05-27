@@ -134,10 +134,9 @@
 (defn- register-test-gui-extensions [workspace]
   (g/transact
     (concat
-      (gui/register-node-type-info
+      (gui/register-custom-node-type-info
         workspace
-        {:node-type :type-custom
-         :node-cls TestCustomGuiNode
+        {:node-cls TestCustomGuiNode
          :display-name "Test Custom"
          :custom-type-name "TestCustom"
          :icon "icons/32/Icons_40-GUI-Box-node.png"

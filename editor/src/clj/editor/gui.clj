@@ -5053,7 +5053,63 @@
     (assoc info :exts exts)))
 
 ;; SDK api
-(defn register-gui-resource-kind [workspace resource-kind info]
+(defn register-gui-resource-kind
+  "Create transaction steps that register a GUI resource kind
+
+  A GUI resource kind creates an outline section for extension-defined GUI
+  resources and exposes their names to custom GUI node resource properties.
+
+  Args:
+    workspace
+      The workspace node id.
+    resource-kind
+      Keyword identifying the GUI resource kind in the GUI scene's internal
+      resource-kind registries. Custom GUI node properties use this value in
+      :resource-kind to read the registered resource names and metadata.
+    info
+      Map describing the GUI resource kind, with these keys:
+        :label
+          Label used for the outline section that lists resources of this kind,
+          and for the add command that creates entries in that section.
+        :icon
+          Icon path used by the outline section and add command.
+        :exts
+          Resource extension string or vector of extension strings. Resources
+          with matching extensions from the GUI file's resource list are loaded
+          as entries of this kind.
+        :node-type
+          Graph node type for each registered resource entry. The node is
+          constructed with :name and the :resource-property value. Additional
+          required endpoints depend on :attach-fn; [[connect-gui-resource-kind-entry]]
+          expects the standard GUI resource-kind outputs such as :pb-msg,
+          :node-outline, :build-errors, :resource-kind-basic-info, and
+          :resource-kind-costly-info.
+        :resource-property
+          Keyword naming the entry node property that stores the referenced
+          resource. When a GUI file is loaded or a resource is added from the
+          outline, this property is initialized with the matching resource.
+        :attachment-property
+          Attachment list keyword registered on GUI scenes. Editor scripts use
+          the corresponding property name to edit this list with editor.get and
+          editor.tx functions. For example, :spine-scenes is exposed as the
+          \"spine_scenes\" list property.
+        :attach-fn
+          Function of gui-scene-node, resource-kind-node, and entry-node that
+          returns transaction steps to connect the entry node into the GUI
+          scene. [[connect-gui-resource-kind-entry]] is suitable when the entry
+          node uses the standard GUI resource-kind outputs.
+
+  Example:
+    (register-gui-resource-kind
+      workspace :spine-scene
+      {:label \"Spine Scenes\"
+       :icon spine-scene-icon
+       :exts [\"spinescene\"]
+       :node-type SpineSceneNode
+       :resource-property :spine-scene
+       :attachment-property :spine-scenes
+       :attach-fn connect-gui-resource-kind-entry})"
+  [workspace resource-kind info]
   (let [info (normalize-gui-resource-kind-info resource-kind info)]
     (concat
       (update-gui-resource-type-tx-data
@@ -5601,10 +5657,94 @@
              (format "Plugin GUI node type %s does not specify :defaults as a map of {:node-prop default-value}."
                      (:name @node-cls))))))
 
-;; SDK api
+;; SDK api (internal, extension-spine legacy file loading only; use register-custom-node-type-info for new custom GUI nodes)
 (defn register-node-type-info [workspace type-info]
   (let [type-info (normalize-node-type-info type-info)]
     (validate-node-type-info! type-info)
     (update-gui-resource-type-tx-data
       workspace
       update :gui-node-type-registry add-node-type-info type-info)))
+
+;; SDK api
+(defn register-custom-node-type-info
+  "Create transaction steps that register a custom GUI node type
+
+  Custom GUI nodes are stored as :type-custom nodes in GUI files. The registered
+  :custom-type-name identifies the concrete custom node type.
+
+  Args:
+    workspace
+      The workspace node id.
+    type-info
+      Map describing the custom GUI node type, with these keys:
+        :node-cls
+          Graph node type implementing the custom GUI node. It is used when
+          constructing new nodes and when loading saved :type-custom node
+          descriptions with the matching :custom-type-name.
+        :custom-type-name
+          Readable custom type name saved in GUI files. This identifies which
+          registered custom node type should be instantiated for a saved
+          :type-custom node.
+        :display-name
+          String or localization MessagePattern used as the label in add-node
+          menus and outlines for this custom node type.
+        :icon
+          Icon path used in menus and outlines for this custom node type.
+        :defaults
+          Map of default graph property values used when a new custom GUI node
+          of this type is created.
+        :custom-properties
+          Vector of custom property maps, each with these keys:
+            :id
+              Stable string id saved in GUI files; exposed as a virtual graph
+              property with a \"__\" prefix.
+            :type
+              Editor graph property type used by the virtual graph property.
+              Examples include g/Str, g/Bool, g/Num, types/Vec3, and types/Vec4.
+              If :resource-kind is supplied, use g/Str for the string name of
+              the referenced GUI resource-kind entry.
+            :protobuf-type
+              Optional protobuf property type used when saving the custom
+              property. Derived from :type when possible for g/Str, g/Bool,
+              g/Num, types/Vec3, and types/Vec4.
+              Supported values:
+                :type-number
+                :type-boolean
+                :type-hash
+                :type-string
+                :type-vector3
+                :type-vector4
+                :type-quat
+            :default
+              Optional default value used when the saved GUI node does not
+              contain this custom property. Derived from :protobuf-type when
+              absent.
+            :label
+              Optional string or localization MessagePattern shown for the
+              property in the Properties view. Derived from :id when absent.
+            :resource-kind
+              Optional GUI resource kind keyword for resource choices. The
+              property editor uses names from the matching
+              [[register-gui-resource-kind]] registration, and validation treats
+              the string value as a reference to an entry of that kind.
+        :convert-fn
+          Optional function of type-info and node-desc that migrates old
+          node-desc data before loading. It is called before the node desc is
+          interpreted as the registered custom node type.
+
+  Example:
+    (register-custom-node-type-info
+      workspace
+      {:node-cls SpineNode
+       :custom-type-name \"Spine\"
+       :display-name \"Spine\"
+       :icon spine-scene-icon
+       :defaults visual-base-node-defaults
+       :custom-properties [{:id \"spine_scene\"
+                            :type g/Str
+                            :resource-kind :spine-scene}
+                           {:id \"spine_default_animation\"
+                            :type g/Str
+                            :default \"\"}]})"
+  [workspace type-info]
+  (register-node-type-info workspace (assoc type-info :node-type :type-custom)))
