@@ -151,18 +151,24 @@
     (:semantic-type-world-matrix :semantic-type-normal-matrix) true
     false))
 
+(defn- model-instance-step-name-key? [name-key]
+  (case name-key
+    :animation-data true
+    false))
+
 (defn- auto-instance-step-model-attribute [attribute-info]
   (cond-> attribute-info
-          (model-instance-step-semantic-type? (:semantic-type attribute-info))
+          (or (model-instance-step-semantic-type? (:semantic-type attribute-info))
+              (model-instance-step-name-key? (:name-key attribute-info)))
           (assoc :step-function :vertex-step-function-instance)))
 
 (defn make-model-attribute-bindings
   "Returns both the legacy merged attribute bindings used for single-renderable
   model draws and a vertex/instance split for the instanced model path.
 
-  Model world and normal matrix attributes are promoted to instance-step here
-  to mirror the engine's automatic instancing behavior for the mtx_world and
-  mtx_normal shader attribute names.
+  Model world matrix, normal matrix, and animation data attributes are promoted
+  to instance-step here to mirror the engine's automatic instancing behavior
+  for the mtx_world, mtx_normal, and animation_data shader attribute names.
 
   Instance-step attributes deliberately do not use mesh attribute buffers even if
   they share a semantic with mesh data. They are supplied from render args,

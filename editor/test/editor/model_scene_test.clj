@@ -46,6 +46,12 @@
     (buffers/put! byte-buffer 0 :float false values)
     bytes))
 
+(defn- attribute-ubytes [values]
+  (let [bytes (byte-array (count values))
+        byte-buffer (buffers/wrap-byte-array bytes :byte-order/native)]
+    (buffers/put! byte-buffer 0 :ubyte false values)
+    bytes))
+
 (defn- binding-floats [^AttributeBufferBinding binding]
   (let [attribute-buffer-lifecycle (.-attribute-buffer-lifecycle binding)
         buffer-data ^BufferData (graphics.types/buffer-data attribute-buffer-lifecycle)
@@ -56,6 +62,14 @@
     (.get float-buffer floats)
     (vec floats)))
 
+(defn- binding-ubytes [^AttributeBufferBinding binding]
+  (let [attribute-buffer-lifecycle (.-attribute-buffer-lifecycle binding)
+        buffer-data ^BufferData (graphics.types/buffer-data attribute-buffer-lifecycle)
+        byte-buffer (.asReadOnlyBuffer ^ByteBuffer (.-data buffer-data))
+        bytes (byte-array (.remaining byte-buffer))]
+    (.get byte-buffer bytes)
+    (mapv #(bit-and 0xff (long %)) bytes)))
+
 (deftest make-instance-attribute-buffer-bindings-encodes-per-renderable-values
   (let [world-1 (doto (Matrix4d.)
                   (.setIdentity)
@@ -65,14 +79,20 @@
                   (.setTranslation (Vector3d. 5.0 6.0 7.0)))
         world-info (make-instance-attribute-info :mtx-world :semantic-type-world-matrix :vector-type-mat4 0)
         color-info (make-instance-attribute-info :color :semantic-type-color :vector-type-vec4 4)
+        animation-data-info (make-instance-attribute-info :animation-data :semantic-type-none :vector-type-vec4 5)
+        packed-color-info (assoc (make-instance-attribute-info :packed-color :semantic-type-color :vector-type-vec4 6)
+                            :data-type :type-unsigned-byte
+                            :normalize true)
         renderables [{:world-transform world-1
                       :user-data {:scene-node-id 1
-                                  :vertex-attribute-bytes {:color (attribute-bytes [0.25 0.5 0.75 1.0])}
-                                  :instance-attribute-infos [world-info color-info]}}
+                                  :vertex-attribute-bytes {:color (attribute-bytes [0.25 0.5 0.75 1.0])
+                                                           :packed-color (attribute-ubytes [255 128 0 255])}
+                                  :instance-attribute-infos [world-info color-info animation-data-info packed-color-info]}}
                      {:world-transform world-2
                       :user-data {:scene-node-id 1
-                                  :vertex-attribute-bytes {:color (attribute-bytes [1.0 0.75 0.5 0.25])}
-                                  :instance-attribute-infos [world-info color-info]}}]
+                                  :vertex-attribute-bytes {:color (attribute-bytes [1.0 0.75 0.5 0.25])
+                                                           :packed-color (attribute-ubytes [0 64 192 255])}
+                                  :instance-attribute-infos [world-info color-info animation-data-info packed-color-info]}}]
         make-instance-attribute-buffer-bindings (ns-resolve 'editor.model-scene 'make-instance-attribute-buffer-bindings)
         bindings (make-instance-attribute-buffer-bindings
                    {:view math/identity-mat4
@@ -83,7 +103,13 @@
            (binding-floats (:mtx-world bindings))))
     (is (= [0.25 0.5 0.75 1.0
             1.0 0.75 0.5 0.25]
-           (binding-floats (:color bindings))))))
+           (binding-floats (:color bindings))))
+    (is (= [0.0 0.0 0.0 0.0
+            0.0 0.0 0.0 0.0]
+           (binding-floats (:animation-data bindings))))
+    (is (= [255 128 0 255
+            0 64 192 255]
+           (binding-ubytes (:packed-color bindings))))))
 
 (deftest model-batch-key-requires-instanced-world-transform
   (let [world-info (make-instance-attribute-info :mtx-world :semantic-type-world-matrix :vector-type-mat4 0)
