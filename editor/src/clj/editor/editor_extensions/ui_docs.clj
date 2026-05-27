@@ -376,7 +376,10 @@
    (make-prop :buttons
               :coerce children-coercer
               :types ["component[]"]
-              :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")])
+              :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")
+   (make-prop :modal
+              :coerce coerce/boolean
+              :doc "if set to <code>false</code>, the dialog window stays on top but does not block interaction with the editor")])
 
 (def ^:private external-file-dialog-title-doc
   "OS window title, either a string or a localization message")
@@ -580,7 +583,7 @@
 (def show-dialog-doc
   {:name "show_dialog"
    :type :function
-   :description "Show a modal dialog and await a result"
+   :description "Show a dialog and await a result"
    :parameters [{:name "dialog"
                  :types ["component"]
                  :doc "a component that resolves to <code>editor.ui.dialog(...)</code>"}]
