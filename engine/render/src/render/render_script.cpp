@@ -889,8 +889,8 @@ namespace dmRender
      * end
      *
      * function update(self, dt)
-     *     -- enable target so all drawing is done to it
-     *     render.enable_render_target(self.my_render_target)
+     *     -- set target so all drawing is done to it
+     *     render.set_render_target(self.my_render_target)
      *
      *     -- draw a predicate to the render target
      *     render.draw(self.my_pred)
