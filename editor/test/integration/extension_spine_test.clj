@@ -72,6 +72,13 @@
                  (value-key property)))
              (:custom-properties node-desc)))
 
+(defn- runtime-custom-property [node-desc id value-key]
+  (let [id-hash (murmur/hash64 id)]
+    (coll/some (fn [property]
+                 (when (= id-hash (:id-hash property))
+                   (value-key property)))
+               (:custom-properties node-desc))))
+
 (deftest registered-resource-types-test
   (test-util/with-loaded-project project-path
     (is (= #{} (test-util/protobuf-resource-exts-that-read-defaults workspace)))))
@@ -485,6 +492,45 @@
       (test-util/prop! spine-node :__spine_default_animation "missing")
       (is (g/error? (test-util/prop-error spine-node :__spine_default_animation)))
       (is (= "spineboy" (custom-property (g/node-value spine-node :node-msg) "spine_scene" :string-value))))))
+
+(deftest legacy-template-child-spine-scene-override-builds-test
+  (test-util/with-loaded-project project-path
+    (let [gui-scene (test-util/resource-node project "/main/spine_template_override.gui")
+          build-targets (g/node-value gui-scene :build-targets)]
+      (when (is (not (g/error? build-targets)))
+        (let [built-scene-desc (get-in build-targets [0 :user-data :pb])
+              built-spine-node (coll/some #(when (= "template/spine" (:id %)) %)
+                                          (:nodes built-scene-desc))]
+          (is (= "flag" (runtime-custom-property built-spine-node "spine_scene" :string-value)))
+          (is (= #{{:name "spineboy"
+                    :path "/assets/spineboy/spineboy.spinescene"}
+                   {:name "flag"
+                    :path "/assets/spineboy/spineboy.spinescene"}}
+                 (set (:resources built-scene-desc)))))))))
+
+(deftest legacy-template-child-spine-scene-layout-override-builds-test
+  (test-util/with-loaded-project project-path
+    (let [gui-scene (test-util/resource-node project "/main/spine_template_layout_override.gui")
+          spine-node (get (g/node-value gui-scene :node-ids) "template/spine")]
+      (gui-test/add-layout! project app-view gui-scene "Portrait")
+      (gui-test/with-visible-layout! gui-scene "Portrait"
+        (test-util/prop! spine-node :__spine_scene "flag"))
+      (let [build-targets (g/node-value gui-scene :build-targets)]
+        (when (is (not (g/error? build-targets)))
+          (let [built-scene-desc (get-in build-targets [0 :user-data :pb])
+                built-spine-node (coll/some #(when (= "template/spine" (:id %)) %)
+                                            (:nodes built-scene-desc))
+                built-layout-desc (coll/some #(when (= "Portrait" (:name %)) %)
+                                             (:layouts built-scene-desc))
+                built-layout-spine-node (coll/some #(when (= "template/spine" (:id %)) %)
+                                                   (:nodes built-layout-desc))]
+            (is (= "spineboy" (runtime-custom-property built-spine-node "spine_scene" :string-value)))
+            (is (= "flag" (runtime-custom-property built-layout-spine-node "spine_scene" :string-value)))
+            (is (= #{{:name "spineboy"
+                      :path "/assets/spineboy/spineboy.spinescene"}
+                     {:name "flag"
+                      :path "/assets/spineboy/spineboy.spinescene"}}
+                   (set (:resources built-scene-desc))))))))))
 
 (deftest layout-node-desc-includes-size-mode-test
   (test-util/with-loaded-project project-path

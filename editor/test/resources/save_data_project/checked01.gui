@@ -370,6 +370,61 @@ nodes {
   }
 }
 nodes {
+  type: TYPE_CUSTOM
+  id: "save_data_custom"
+  parent: "parent"
+  custom_type_name: "SaveDataCustom"
+  custom_properties {
+    id: "test_boolean"
+    type: TYPE_BOOLEAN
+    boolean: true
+  }
+  custom_properties {
+    id: "test_hash"
+    type: TYPE_HASH
+    string_value: "first_hash"
+  }
+  custom_properties {
+    id: "test_number"
+    type: TYPE_NUMBER
+    number: 1.5
+  }
+  custom_properties {
+    id: "test_string"
+    type: TYPE_STRING
+    string_value: "first_string"
+  }
+  custom_properties {
+    id: "test_quat"
+    type: TYPE_QUAT
+    quat {
+      x: 0.5
+      y: 0.5
+      z: 0.707
+      w: 0.707
+    }
+  }
+  custom_properties {
+    id: "test_vector3"
+    type: TYPE_VECTOR3
+    vector3 {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+    }
+  }
+  custom_properties {
+    id: "test_vector4"
+    type: TYPE_VECTOR4
+    vector4 {
+      x: 4.0
+      y: 5.0
+      z: 6.0
+      w: 7.0
+    }
+  }
+}
+nodes {
   position {
     x: 0.1
     y: 0.2
@@ -1140,6 +1195,62 @@ layouts {
       id: "spine_skin"
       type: TYPE_STRING
       string_value: "second_skin"
+    }
+  }
+  nodes {
+    type: TYPE_CUSTOM
+    id: "save_data_custom"
+    parent: "parent"
+    overridden_fields: 50
+    custom_type_name: "SaveDataCustom"
+    custom_properties {
+      id: "test_boolean"
+      type: TYPE_BOOLEAN
+      boolean: true
+    }
+    custom_properties {
+      id: "test_hash"
+      type: TYPE_HASH
+      string_value: "second_hash"
+    }
+    custom_properties {
+      id: "test_number"
+      type: TYPE_NUMBER
+      number: 2.5
+    }
+    custom_properties {
+      id: "test_string"
+      type: TYPE_STRING
+      string_value: "second_string"
+    }
+    custom_properties {
+      id: "test_quat"
+      type: TYPE_QUAT
+      quat {
+        x: 0.707
+        y: 0.707
+        z: 0.707
+        w: 0.707
+      }
+    }
+    custom_properties {
+      id: "test_vector3"
+      type: TYPE_VECTOR3
+      vector3 {
+        x: 3.0
+        y: 2.0
+        z: 1.0
+      }
+    }
+    custom_properties {
+      id: "test_vector4"
+      type: TYPE_VECTOR4
+      vector4 {
+        x: 7.0
+        y: 6.0
+        z: 5.0
+        w: 4.0
+      }
     }
   }
   nodes {

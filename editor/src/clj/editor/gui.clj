@@ -4281,6 +4281,7 @@
               (fn [key aux-value own-value]
                 (case key
                   (:layer->index :layer-names :exclude-gles-sm100) aux-value ; Replaced, not merged.
+                  (:gui-resource-kind-basic-info :gui-resource-kind-names) (coll/merge-with coll/merge aux-value own-value)
                   (coll/merge aux-value own-value)))
               aux-basic-gui-scene-info
               own-basic-gui-scene-info)))
@@ -4296,7 +4297,13 @@
              :texture-infos (reduce coll/merge texture-infos)}))
   (output costly-gui-scene-info CostlyGuiSceneInfo :cached
           (g/fnk [aux-costly-gui-scene-info own-costly-gui-scene-info]
-            (coll/merge-with coll/merge aux-costly-gui-scene-info own-costly-gui-scene-info))))
+            (coll/merge-with-kv
+              (fn [key aux-value own-value]
+                (case key
+                  :gui-resource-kind-costly-info (coll/merge-with coll/merge aux-value own-value)
+                  (coll/merge aux-value own-value)))
+              aux-costly-gui-scene-info
+              own-costly-gui-scene-info))))
 
 (defn add-gui-node-with-props! [scene parent node-type-info props select-fn]
   (-> (g/with-auto-evaluation-context evaluation-context

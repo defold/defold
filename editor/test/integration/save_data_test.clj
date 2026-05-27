@@ -25,8 +25,8 @@
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
             [internal.util :as util]
+            [integration.test-util :as test-util]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.text-util :as text-util])
@@ -87,6 +87,7 @@
   {'dmBufferDDF.StreamDesc "value_type"
    'dmGameObjectDDF.PropertyDesc "type"
    'dmGraphics.VertexAttribute "data_type"
+   'dmGuiDDF.Property "type"
    'dmGuiDDF.NodeDesc "type"
    'dmInputDDF.GamepadMapEntry "type"
    'dmParticleDDF.Emitter "type"
@@ -216,16 +217,71 @@
 
    'dmGuiDDF.Property
    {:default
+    {"id_hash" :runtime-only}}
+
+   ['dmGuiDDF.Property "[TYPE_NUMBER]"]
+   {:default
+    {"boolean" :unused
+     "hash" :unused
+     "quat" :unused
+     "string_value" :unused
+     "type" :allowed-default
+     "vector3" :unused
+     "vector4" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_BOOLEAN]"]
+   {:default
     {"hash" :unused
-     "id_hash" :runtime-only
+     "number" :unused
+     "quat" :unused
+     "string_value" :unused
+     "vector3" :unused
+     "vector4" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_HASH]"]
+   {:default
+    {"boolean" :unused
+     "hash" :runtime-only
      "number" :unused
      "quat" :unused
      "vector3" :unused
-     "vector4" :unused}
+     "vector4" :unused}}
 
-    [["gui" "layouts" "nodes" "[TYPE_CUSTOM]" "custom_properties"]]
+   ['dmGuiDDF.Property "[TYPE_STRING]"]
+   {:default
     {"boolean" :unused
-     "string_value" :unused}}
+     "hash" :unused
+     "number" :unused
+     "quat" :unused
+     "vector3" :unused
+     "vector4" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_VECTOR3]"]
+   {:default
+    {"boolean" :unused
+     "hash" :unused
+     "number" :unused
+     "quat" :unused
+     "string_value" :unused
+     "vector4" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_VECTOR4]"]
+   {:default
+    {"boolean" :unused
+     "hash" :unused
+     "number" :unused
+     "quat" :unused
+     "string_value" :unused
+     "vector3" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_QUAT]"]
+   {:default
+    {"boolean" :unused
+     "hash" :unused
+     "number" :unused
+     "string_value" :unused
+     "vector3" :unused
+     "vector4" :unused}}
 
    'dmGuiDDF.NodeDesc
    {:default
