@@ -37,6 +37,8 @@ public class ShaderCompilers {
     public static final String SHADER_ADAPTER_WEBGPU = "webgpu";
     public static final String SHADER_ADAPTER_DX12 = "dx12";
 
+    // Console platforms use registered/plugin shader compilers instead of the common shader compiler,
+    // so console-specific adapters do not need to be represented here.
     private enum GraphicsAdapter {
         OPENGL(SHADER_ADAPTER_OPENGL),
         OPENGLES(SHADER_ADAPTER_OPENGLES),
