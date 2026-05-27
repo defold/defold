@@ -10,6 +10,19 @@
     &-shortcuts { -fx-padding: 2px 0; }
     &-command:overridden > .label { -fx-text-fill: -df-defold-blue-light; }
     &-command-arrow { -fx-opacity: 0.6; }
+    &-mouse-binding-badge {
+        -fx-background-color: -df-component-light;
+        -fx-background-radius: 4px;
+        -fx-padding: 0px 5px;
+        -fx-text-fill: -df-text-selected;
+        -fx-font-size: 85%;
+        -fx-alignment: center;
+    }
+    &-mouse-binding-preview {
+        -fx-background-color: -df-component-light;
+        -fx-background-radius: 4px;
+        -fx-padding: 4px 8px;
+    }
     &-warning {
         -fx-background-color: -df-component-light;
         -fx-pref-width: 15px;
