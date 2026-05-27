@@ -515,15 +515,7 @@ install(FILES
   "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
   "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest"
   DESTINATION content)
-install(DIRECTORY
-  "${ENGINE_CONTENT_DIR}/builtins/input"
-  "${ENGINE_CONTENT_DIR}/builtins/render"
-  "${ENGINE_CONTENT_DIR}/builtins/materials"
-  "${ENGINE_CONTENT_DIR}/builtins/graphics"
-  "${ENGINE_CONTENT_DIR}/builtins/scripts"
-  "${ENGINE_CONTENT_DIR}/builtins/docs"
-  "${ENGINE_CONTENT_DIR}/builtins/ca-certificates"
-  "${ENGINE_CONTENT_DIR}/builtins/fonts"
+install(DIRECTORY "${ENGINE_CONTENT_DIR}/builtins/"
   DESTINATION content/builtins)
 
 if(BUILD_TESTS)
