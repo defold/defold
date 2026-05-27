@@ -83,7 +83,7 @@ public class BundleResourcesTest {
             this.fileSystem.addMountPoint(this.mp);
         }
         else {
-            this.mp = new ZipMountPoint(null, path, false);
+            this.mp = new ZipMountPoint(null, path);
             this.mp.mount();
         }
 
@@ -317,7 +317,8 @@ public class BundleResourcesTest {
         expected.put(Platform.X86_64Win32, new String[] { "win32.txt", "x86_64-win32.txt" });
         expected.put(Platform.Armv7Android, new String[] { "android.txt" });
         expected.put(Platform.Arm64Ios, new String[] { "ios.txt", "arm64-ios.txt" });
-        expected.put(Platform.JsWeb, new String[] { "web.txt" });
+        expected.put(Platform.WasmWeb, new String[] { "web.txt" });
+        expected.put(Platform.WasmPthreadWeb, new String[] { "web.txt" });
 
         // Should find bundle resources inside the extension1 folder
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/restest2/");

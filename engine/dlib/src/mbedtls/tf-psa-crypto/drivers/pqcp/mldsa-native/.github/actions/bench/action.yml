@@ -1,0 +1,114 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Bench mldsa-native
+description: Run benchmarking script
+
+inputs:
+  name:
+    description: Name for the benchmarking run
+    required: true
+  perf:
+    description: Method of obtaining PMU metrics
+    required: true
+    default: "PERF"
+  cflags:
+    description: CFLAGS to pass to compilation
+    default: ""
+  archflags:
+    description: ARCHFLAGS to pass to compilation
+    default: ""
+  ldflags:
+    description: LDFLAGS to pass to compilation
+    default: ""
+  opt:
+    description: opt flag to set for tests script
+    default: "true"
+  bench_extra_args:
+    description: Further arguments to be appended to command line for `bench` script
+    default: ""
+  store_results:
+    description: Whether to push results to GH pages
+    default: "false"
+  gh_token:
+    description: GitHub access token
+    required: true
+  nix-shell:
+    description: Run in the specified Nix environment if exists
+    default: "ci-bench"
+  nix-cache:
+    description: Determine whether to enable nix cache
+    default: 'false'
+  nix-verbose:
+    description: Determine wether to suppress nix log or not
+    default: 'false'
+  custom_shell:
+    description: The shell to use. Only relevant if no nix-shell specified
+    default: "bash"
+  cross_prefix:
+    description: "Binary prefix for cross-compilation builds"
+    default: ""
+  alert_threshold:
+    description: "Set alert threshold in percentage for benchmark result"
+    default: "103%"
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-shell
+      with:
+        nix-shell: ${{ inputs.nix-shell }}
+        nix-cache: ${{ inputs.nix-cache }}
+        nix-verbose: ${{ inputs.nix-verbose }}
+        gh_token: ${{ inputs.gh_token }}
+        custom_shell: ${{ inputs.custom_shell }}
+        script: |
+          ARCH=$(uname -m)
+          cat >> $GITHUB_STEP_SUMMARY <<-EOF
+            ## Setup
+            Architecture: $ARCH
+            - $(uname -a)
+            - $(nix --version)
+            - $(${{ matrix.target.cross_prefix }}gcc --version | grep -m1 "")
+            - $(bash --version | grep -m1 "")
+
+            ## CPU Info
+            $(cat /proc/cpuinfo)
+          EOF
+    - name: Run benchmark
+      shell: ${{ env.SHELL }}
+      run: |
+        ./scripts/tests bench -c ${{ inputs.perf }} --cross-prefix="${{ inputs.cross_prefix }}" \
+              --cflags="${{ inputs.cflags }} ${{ inputs.archflags }}" \
+              --ldflags="${{ inputs.ldflags }}" \
+              --opt=$([[ ${{ inputs.opt }} == "false" ]] && echo "no_opt" || echo "opt")  \
+              -v --output=output.json ${{ inputs.bench_extra_args }}
+
+        ./scripts/tests bench --components -c ${{ inputs.perf }} --cross-prefix="${{ inputs.cross_prefix }}" \
+              --cflags="${{ inputs.cflags }} ${{ inputs.archflags }}" \
+              --ldflags="${{ inputs.ldflags }}" \
+              --opt=$([[ ${{ inputs.opt }} == "false" ]] && echo "no_opt" || echo "opt")  \
+              -v  ${{ inputs.bench_extra_args }}
+    - name: Check namespace
+      shell: ${{ env.SHELL }}
+      run: |
+        check-namespace
+    - name: Store benchmark result
+      uses: benchmark-action/github-action-benchmark@d48d326b4ca9ba73ca0cd0d59f108f9e02a381c7 # v1.20.4
+      with:
+        name: ${{ inputs.name }}
+        tool: "customSmallerIsBetter"
+        output-file-path: output.json
+        github-token: ${{ inputs.gh_token }}
+        auto-push: ${{ inputs.store_results == 'true' }}
+        comment-on-alert: true
+        summary-always: true
+        alert-threshold: ${{ inputs.alert_threshold }}
+        comment-always: true
+    - name: Reset gh-pages if result is not pushed to gh-pages
+      shell: ${{ env.SHELL }}
+      if: ${{ inputs.store_results != 'true' }}
+      run: |
+        git -c advice.detachedHead=false switch gh-pages
+        git reset --hard HEAD~1
+        git checkout -

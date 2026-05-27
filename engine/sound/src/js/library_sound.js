@@ -2,15 +2,18 @@ var LibrarySoundDevice =
 {
     $DefoldSoundDevice: {
         TryResumeAudio: function() {
-            if (window && window._dmJSDeviceShared) {
-            var audioCtx = window._dmJSDeviceShared.audioCtx;
-            if (audioCtx !== undefined && audioCtx.state != "running") {
-                audioCtx.resume();
-            }
+            if (typeof window !== "undefined" && window._dmJSDeviceShared) {
+                var audioCtx = window._dmJSDeviceShared.audioCtx;
+                if (audioCtx !== undefined && audioCtx.state != "running") {
+                    audioCtx.resume();
+                }
             }
         }
     },
     dmDeviceJSOpen: function(bufferCount) {
+        if (typeof window === "undefined" || (!window.AudioContext && !window.webkitAudioContext)) {
+            return -1;
+        }
 
         // globally shared data
         var shared = window._dmJSDeviceShared;
@@ -126,7 +129,7 @@ var LibrarySoundDevice =
         }
 
         if (device != null) {
-            shared.audioCtx.onstatechanged = function() {
+            shared.audioCtx.onstatechange = function() {
                 if (device._isContextRunning()) {
                     device.timeInSuspendedState = Date.now() / 1000;
                 } else {

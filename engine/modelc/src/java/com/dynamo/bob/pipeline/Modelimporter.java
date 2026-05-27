@@ -179,6 +179,11 @@ public class Modelimporter {
         public boolean doubleSided = false;
         public boolean unlit = false;
     };
+    public static class MorphTarget {
+        public float[] positions;
+        public float[] normals;
+        public float[] tangents;
+    };
     public static class Mesh {
         public String name;
         public Material material;
@@ -195,6 +200,8 @@ public class Modelimporter {
         public Aabb aabb;
         public int[] indices;
         public int vertexCount = 0;
+        public MorphTarget[] morphTargets;
+        public float[] morphBaseWeights;
     };
     public static class Model {
         public String name;
@@ -237,6 +244,9 @@ public class Modelimporter {
         public KeyFrame[] translationKeys;
         public KeyFrame[] rotationKeys;
         public KeyFrame[] scaleKeys;
+        public float[] morphWeightKeyTimes;
+        public float[] morphWeightKeyValues;
+        public int morphWeightDimensions = 0;
         public float startTime = 0.0f;
         public float endTime = 0.0f;
     };

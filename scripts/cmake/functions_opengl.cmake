@@ -51,4 +51,3 @@ function(defold_target_link_opengl target platform)
         # Web and other platforms: no explicit system GL linkage here
     endif()
 endfunction()
-

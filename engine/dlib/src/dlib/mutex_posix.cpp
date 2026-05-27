@@ -15,19 +15,26 @@
 #include <assert.h>
 #include "mutex.h"
 #include <dmsdk/dlib/log.h>
+#include <pthread.h>
 
 namespace dmMutex
 {
-    #define CHECK_RET(ret) \
-        if (ret) { \
-            dmLogError("%s:%d failed: %d", __FUNCTION__, __LINE__, ret); \
-            assert(ret == 0); \
-        }
+    struct Mutex
+    {
+        pthread_mutex_t m_NativeHandle;
+    };
+
+#define CHECK_RET(ret) \
+    if (ret) \
+    { \
+        dmLogError("%s:%d failed: %d", __FUNCTION__, __LINE__, ret); \
+        assert(ret == 0); \
+    }
 
     HMutex New()
     {
         pthread_mutexattr_t attr;
-        int ret = pthread_mutexattr_init(&attr);
+        int                 ret = pthread_mutexattr_init(&attr);
 
         // NOTE: We should perhaps consider non-recursive mutex:
         // from http://pubs.opengroup.org/onlinepubs/7908799/xsh/pthread_mutexattr_settype.html
@@ -77,5 +84,11 @@ namespace dmMutex
         CHECK_RET(ret);
     }
 
-    #undef CHECK_RET
-}
+    void* GetNativeHandle(HMutex mutex)
+    {
+        assert(mutex);
+        return &mutex->m_NativeHandle;
+    }
+
+#undef CHECK_RET
+} // namespace dmMutex

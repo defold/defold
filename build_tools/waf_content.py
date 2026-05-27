@@ -147,11 +147,11 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                 out_f.write(msg.SerializeToString())
 
             return 0
-        except (google.protobuf.text_format.ParseError,e):
+        except google.protobuf.text_format.ParseError as e:
             print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
             return 1
 
-        except (google.protobuf.message.EncodeError,e):
+        except google.protobuf.message.EncodeError as e:
             print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
             return 1
 

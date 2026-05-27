@@ -1,4 +1,4 @@
-mesh: "/model/book_of_defold.dae"
+mesh: "/model/book_of_defold.gltf"
 materials {
   name: "default"
   material: "/builtins/materials/sprite.material"

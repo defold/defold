@@ -28,11 +28,13 @@ namespace dmRender
         }
 
         RenderCamera* camera = new RenderCamera();
-        camera->m_URL        = dmMessage::URL();
-        camera->m_Handle     = render_context->m_RenderCameras.Put(camera);
+        camera->m_URL                  = dmMessage::URL();
+        camera->m_Handle               = render_context->m_RenderCameras.Put(camera);
+        camera->m_OrthographicAutoZoom = 1.0f;
 
         memset(&camera->m_Data, 0, sizeof(camera->m_Data));
         camera->m_Data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+        camera->m_Data.m_OrthographicZoom = 1.0f;
         camera->m_Data.m_OrthographicMode = ORTHO_MODE_FIXED;
 
         return camera->m_Handle;
@@ -63,6 +65,10 @@ namespace dmRender
         if (c)
         {
             c->m_Data = *data;
+            if (!(c->m_Data.m_OrthographicZoom > 0.0f))
+            {
+                c->m_Data.m_OrthographicZoom = 1.0f;
+            }
         }
     }
 
@@ -101,6 +107,18 @@ namespace dmRender
         }
     }
 
+    float GetRenderCameraOrthographicAutoZoom(HRenderContext render_context, HRenderCamera camera)
+    {
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+
+        if (c)
+        {
+            return c->m_OrthographicAutoZoom;
+        }
+
+        return 1.0f;
+    }
+
     void UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
@@ -119,6 +137,8 @@ namespace dmRender
             aspect_ratio = width / height;
         }
 
+        c->m_OrthographicAutoZoom = 1.0f;
+
         if (c->m_Data.m_OrthographicProjection)
         {
             float display_scale = dmGraphics::GetDisplayScaleFactor(graphics_context);
@@ -133,11 +153,11 @@ namespace dmRender
             // Fallbacks to avoid division by zero
             if (proj_width <= 0.0f)
             {
-            	proj_width = 1.0f;
+                proj_width = 1.0f;
             }
             if (proj_height <= 0.0f)
             {
-            	proj_height = 1.0f;
+                proj_height = 1.0f;
             }
 
             // Compute auto zoom if requested
@@ -148,17 +168,19 @@ namespace dmRender
 
                 if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_FIT)
                 {
-                    zoom = (zx < zy) ? zx : zy;
+                    c->m_OrthographicAutoZoom = (zx < zy) ? zx : zy;
                 }
                 else if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_COVER)
                 {
-                    zoom = (zx > zy) ? zx : zy;
+                    c->m_OrthographicAutoZoom = (zx > zy) ? zx : zy;
                 }
 
-                if (zoom <= 0.0f)
+                if (c->m_OrthographicAutoZoom <= 0.0f)
                 {
-                    zoom = 1.0f;
+                    c->m_OrthographicAutoZoom = 1.0f;
                 }
+
+                zoom *= c->m_OrthographicAutoZoom;
             }
 
             float zoomed_width = width / display_scale / zoom;

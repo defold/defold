@@ -191,13 +191,6 @@ Result GetManifest(HArchive archive, dmResource::HManifest* out_manifest)
     return RESULT_NOT_SUPPORTED;
 }
 
-Result SetManifest(HArchive archive, dmResource::HManifest manifest)
-{
-    if (archive->m_Loader->m_SetManifest)
-        return archive->m_Loader->m_SetManifest(archive->m_Internal, manifest);
-    return RESULT_NOT_SUPPORTED;
-}
-
 Result GetUri(HArchive archive, dmURI::Parts* out_uri)
 {
     memcpy(out_uri, &archive->m_Uri, sizeof(dmURI::Parts));

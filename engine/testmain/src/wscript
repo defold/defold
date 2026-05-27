@@ -1,13 +1,14 @@
 #! /usr/bin/env python
 
 import os
+import waflib.Options
 from BuildUtility import create_build_utility
 
 def options(opt):
-    pass
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    pass
+    conf.load('waf_dynamo')
 
 def build(bld):
     build_util = create_build_utility(bld.env)
@@ -20,8 +21,11 @@ def build(bld):
             source_dirs.extend(['%s/*.cpp' % platform])
 
     b = bld.stlib(features     = 'c cxx',
-                  includes     = '. ..',
+                  includes     = ['.', '..'],
                   source       = bld.path.ant_glob(source_dirs),
                   target       = 'testmain')
 
     bld.install_files('${PREFIX}/include/testmain', 'common/testmain.h')
+
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')

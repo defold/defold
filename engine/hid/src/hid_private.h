@@ -24,11 +24,24 @@ namespace dmHID
 {
     typedef uint8_t HGamepadDriver;
 
+    struct GamepadIdentity
+    {
+        uint16_t m_Vendor;
+        uint16_t m_Product;
+        uint8_t  m_HasDualshockTouchpad : 1;
+        uint8_t  m_HasXboxPaddles       : 1;
+        uint8_t  m_HasXboxShareButton   : 1;
+        uint8_t  m_IsBackboneOne        : 1;
+        uint8_t  m_IsSwitchJoyConPair   : 1;
+        uint8_t                         : 3;
+    };
+
     struct Gamepad
     {
         GamepadPacket  m_Packet;
         HGamepadDriver m_Driver;
-        uint8_t        m_AxisCount;
+        uint8_t        m_AxisCount:7;
+        uint8_t        m_LayoutLegacy:1;     // If true, use the legacy layout scheme
         uint8_t        m_ButtonCount;
         uint8_t        m_HatCount    : 7;
         uint8_t        m_Connected   : 1;
@@ -73,6 +86,7 @@ namespace dmHID
         void*              m_NativeContextUserData;
         dmhash_t           m_StateHash;
 
+        uint32_t m_Finalizing : 1;
         uint32_t m_AccelerometerConnected : 1;
         uint32_t m_IgnoreMouse : 1;
         uint32_t m_IgnoreKeyboard : 1;
@@ -80,17 +94,23 @@ namespace dmHID
         uint32_t m_IgnoreTouchDevice : 1;
         uint32_t m_IgnoreAcceleration : 1;
         uint32_t m_FlipScrollDirection : 1;
-        uint32_t : 25;
+        uint32_t : 24;
     };
 
     // TODO: start using the dmUser namespace
     // TODO: How to represent user id from/to C/Lua
     //      I.e. convert from uint32_t to platform type
+
     bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* user_id);
     int  GetKeyValue(Key key);
     int  GetMouseButtonValue(MouseButton button);
 
     dmhash_t CalcStateHash(HContext context);
+
+    // GUID
+    bool ParseGamepadGuid(const char* guid_string, GamepadGuid* guid);
+    GamepadGuid CreateGUID(uint16_t bus, uint16_t vendor, uint16_t product, uint16_t version, const char* vendor_name, const char* product_name, uint8_t driver_signature, uint8_t driver_data);
+    GamepadGuid CreateGUIDFromIdentity(uint16_t bus, const GamepadIdentity& identity, const char* fallback_name, const char** axis_keys, uint32_t axis_count, const char** button_keys, uint32_t button_count, uint16_t button_mask);
 }
 
 #endif

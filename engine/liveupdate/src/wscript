@@ -12,6 +12,7 @@ def configure(conf):
 def build(bld):
     liveupdate = bld.stlib(features = 'cxx',
                            includes = '.',
+                           uselib   = 'LUA',
                            source   = bld.path.ant_glob('*.cpp'),
                            target   = 'liveupdate')
 

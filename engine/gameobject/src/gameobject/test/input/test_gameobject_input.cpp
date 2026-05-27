@@ -18,6 +18,8 @@
 
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 
 #include "../gameobject.h"
 #include "../component.h"
@@ -40,7 +42,8 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/input");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/input"));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
@@ -267,7 +270,7 @@ TEST_F(InputTest, TextComponentTextInput)
     dmGameObject::InputAction action;
     action.m_ActionId = dmHashString64("test_action");
     action.m_HasText = 0;
-    action.m_TextCount = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
+    action.m_Count = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
 
     // Test normal text input action
     dmGameObject::UpdateResult r = dmGameObject::DispatchInput(m_Collection, &action, 1);
@@ -276,7 +279,7 @@ TEST_F(InputTest, TextComponentTextInput)
     // Test marked text input action
     action.m_ActionId = dmHashString64("test_action");
     action.m_HasText = 1;
-    action.m_TextCount = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
+    action.m_Count = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
 
     r = dmGameObject::DispatchInput(m_Collection, &action, 1);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);

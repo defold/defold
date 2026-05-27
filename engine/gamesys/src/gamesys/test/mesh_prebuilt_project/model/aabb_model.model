@@ -1,3 +1,0 @@
-name: "aabb"
-mesh: "/model/aabb_model.gltf"
-material: "/mesh/mesh.material"

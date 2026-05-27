@@ -131,10 +131,12 @@
    {:ui-handler :help.open-issues
     :help "Open the Defold Issue Tracker in a web browser."}
 
-   :rebuild
+   :clean-build
    {:ui-handler :project.clean-build
-    :help "Rebuild and run the project."
-    :resource-sync true}
+    :user-data {:skip-confirmation true}
+    :help "Clears build caches and rebuilds. Use only if builds fail oddly or miss changes."
+    :resource-sync true
+    :response-fn build-response}
 
    :rebundle
    {:ui-handler :project.rebundle
@@ -227,8 +229,8 @@
    {"POST" (with-meta
              (bound-fn [request]
                (let [command (-> request :path-params :command keyword)]
-                 (if-let [{:keys [ui-handler resource-sync response-fn]} (supported-commands command)]
-                   (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
+                 (if-let [{:keys [ui-handler user-data resource-sync response-fn]} (supported-commands command)]
+                   (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler (or user-data {}))]
                      (case ui-handler-ctx
                        (::ui/not-active ::ui/not-enabled) http-server/forbidden
                        (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))

@@ -16,7 +16,6 @@
 
 #include "testmain.h"
 
-
 extern "C" bool TestMainPlatformInit()
 {
     return true;

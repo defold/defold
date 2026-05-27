@@ -80,15 +80,10 @@ namespace dmGraphics
         uint32_t m_Size;
     };
 
-    struct RenderTarget
+    struct NullRenderTarget
     {
-        TextureParams   m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
-        TextureParams   m_DepthBufferParams;
-        TextureParams   m_StencilBufferParams;
-        HTexture        m_ColorBufferTexture[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture        m_DepthBufferTexture;
-        HTexture        m_StencilBufferTexture;
-        FrameBuffer     m_FrameBuffer;
+        RenderTarget m_Base;
+        FrameBuffer  m_FrameBuffer;
     };
 
     struct NullShaderModule
@@ -146,7 +141,7 @@ namespace dmGraphics
         uint32_t                           m_AsyncProcessingSupport : 1;
         uint32_t                           m_UseAsyncTextureLoad    : 1;
         uint32_t                           m_RequestWindowClose     : 1;
-        uint32_t                           m_ContextFeatures        : 8;
+        uint32_t                           m_ContextFeatures        : 9;
     };
 }
 

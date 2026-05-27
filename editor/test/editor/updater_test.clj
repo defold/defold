@@ -124,7 +124,7 @@
                     "test"
                     "1"
                     "1"
-                    Platform/JsWeb
+                    Platform/WasmWeb
                     (io/file ".")
                     (io/file "no-launcher")
                     [])]

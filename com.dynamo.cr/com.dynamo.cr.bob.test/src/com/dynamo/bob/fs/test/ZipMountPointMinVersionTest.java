@@ -17,12 +17,14 @@ package com.dynamo.bob.fs.test;
 import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
+import java.nio.file.Paths;
 
 import org.junit.Rule;
 import org.junit.Test;
 
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.test.TestLibrariesRule;
+import com.dynamo.bob.util.Library;
 
 public class ZipMountPointMinVersionTest {
 
@@ -31,7 +33,7 @@ public class ZipMountPointMinVersionTest {
 
     @Test
     public void testMountWithOkMinVersion() throws Exception {
-        ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_min_ok.zip");
+        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_min_ok.zip")));
         mp.mount();
         try {
             // Should be able to access files under include_dirs
@@ -43,7 +45,7 @@ public class ZipMountPointMinVersionTest {
 
     @Test(expected = IOException.class)
     public void testMountFailsWithTooHighMinVersion() throws Exception {
-        ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_min_fail.zip");
+        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_min_fail.zip")));
         try {
             mp.mount();
         } finally {
@@ -51,4 +53,3 @@ public class ZipMountPointMinVersionTest {
         }
     }
 }
-

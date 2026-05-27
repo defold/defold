@@ -476,6 +476,12 @@ public:
     ~ModelTest() override = default;
 };
 
+class MiscTests : public ScriptBaseTest
+{
+public:
+    virtual ~MiscTests() {}
+};
+
 class ShaderTest : public GamesysTest<const char*>
 {
 public:
@@ -521,7 +527,8 @@ void GamesysTest<T>::SetUp()
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     params.m_JobThreadContext = m_JobContext;
 
-    m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
+    char path[1024];
+    m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gamesys/test"));
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
     WindowCreateParams win_params;
@@ -675,6 +682,8 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_MaxModelCount = 128;
     m_ModelContext.m_MaxBoneMatrixTextureWidth = 1024;
     m_ModelContext.m_MaxBoneMatrixTextureHeight = 1024;
+    m_ModelContext.m_MaxMorphTargetTextureWidth = 1024;
+    m_ModelContext.m_MaxMorphTargetTextureHeight = 1024;
 
     dmBuffer::NewContext(); // ???
 
@@ -690,7 +699,7 @@ void GamesysTest<T>::SetUp()
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
-    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, physics_context);
+    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, physics_context, &m_ModelContext);
     ASSERT_EQ(dmResource::RESULT_OK, r);
 
     dmResource::Get(m_Factory, "/input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);

@@ -1,0 +1,13 @@
+attribute vec4 position;
+attribute vec3 normal;
+attribute vec2 uv;
+
+varying vec2 var_uv;
+varying vec3 var_normal;
+
+void main()
+{
+    gl_Position = position;
+    var_uv = uv;
+    var_normal = normal;
+}

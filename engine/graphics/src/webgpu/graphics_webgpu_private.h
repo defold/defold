@@ -140,19 +140,15 @@ namespace dmGraphics
             memset(this, 0, sizeof(*this));
         }
 
+        RenderTarget m_Base;
         AttachmentOp m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float        m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
-
         HTexture     m_TextureResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture     m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture     m_TextureDepthStencil;
-
         float        m_Scissor[4];
         uint32_t     m_Width;
         uint32_t     m_Height;
         uint8_t      m_Multisample;
-        uint32_t     m_ColorBufferCount : 7;
     };
 
     struct WebGPUComputePass
@@ -234,7 +230,7 @@ namespace dmGraphics
         uint32_t            m_OriginalWidth;
         uint32_t            m_OriginalHeight;
 
-        uint32_t            m_ContextFeatures : 3;
+        uint32_t            m_ContextFeatures : 9;
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_InitComplete : 1;
 

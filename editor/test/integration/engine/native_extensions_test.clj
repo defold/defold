@@ -23,11 +23,14 @@
             [editor.fs :as fs]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [editor.yaml :as yaml]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.repo :as repo])
-  (:import [com.dynamo.bob Platform]
-           [com.dynamo.bob.archive EngineVersion]))
+  (:import [com.defold.extender.client ExtenderResource]
+           [com.dynamo.bob Platform]
+           [com.dynamo.bob.archive EngineVersion]
+           [java.nio.charset StandardCharsets]))
 
 (defn fix-engine-sha1 [f]
   (let [engine-sha1 (or (repo/detect-engine-sha1) EngineVersion/sha1)]
@@ -100,6 +103,67 @@
                    "/subdir/extension2/ext.manifest"
                    "/subdir/extension2/src/.gitkeep"}
                  (platform-resources project "arm64-ios"))))))))
+
+(defn- extender-resource [resources path]
+  (some #(when (= path (.getPath ^ExtenderResource %)) %) resources))
+
+(defn- extender-resources [resources path]
+  (filter #(= path (.getPath ^ExtenderResource %)) resources))
+
+(defn- extender-resource-content [^ExtenderResource resource]
+  (String. (.getContent resource) StandardCharsets/UTF_8))
+
+(defn- extender-resource-yaml [resources path]
+  (yaml/load (extender-resource-content (extender-resource resources path))))
+
+(defn- make-extender-resources [project platform]
+  (g/with-auto-evaluation-context evaluation-context
+    (#'native-extensions/make-extender-resources project platform evaluation-context)))
+
+(def ^:private expected-editor-build-context
+  {"baseVariant" "debug"
+   "withSymbols" true})
+
+(deftest ^:native-extensions app-manifest-context-test
+  (testing "app manifest is synthesized with editor build options"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+            project (test-util/setup-project! workspace)
+            resources (make-extender-resources project "x86_64-macos")]
+        (is (= {"context" expected-editor-build-context}
+               (extender-resource-yaml resources "_app/app.manifest"))))))
+  (testing "configured app manifest is merged with editor build options"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
+            project (test-util/setup-project! workspace)
+            resources (make-extender-resources project "x86_64-macos")
+            app-manifest-file (io/file (workspace/project-directory workspace) "checked.appmanifest")
+            app-manifest (yaml/load (slurp app-manifest-file))]
+        (is (= 1 (count (extender-resources resources "_app/app.manifest"))))
+        (is (= (assoc app-manifest "context" expected-editor-build-context)
+               (extender-resource-yaml resources "_app/app.manifest"))))))
+  (testing "configured app manifest in flow style is merged as yaml data"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
+            project (test-util/setup-project! workspace)
+            app-manifest (project/get-resource-node project "/checked.appmanifest")]
+        (test-util/set-code-editor-source! app-manifest "{\"platforms\": {\"wasm-web\": {\"context\": {}}}}\n")
+        (let [resources (make-extender-resources project "wasm-web")]
+          (is (= {"context" expected-editor-build-context
+                  "platforms" {"wasm-web" {"context" {}}}}
+                 (extender-resource-yaml resources "_app/app.manifest")))))))
+  (doseq [content ["true\n"
+                   "null\n"
+                   "context: true\n"]]
+    (testing (str "configured invalid app manifest is uploaded unchanged: " (string/trim content))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
+              project (test-util/setup-project! workspace)
+              app-manifest (project/get-resource-node project "/checked.appmanifest")]
+          (test-util/set-code-editor-source! app-manifest content)
+          (let [resources (make-extender-resources project "x86_64-macos")]
+            (is (= content
+                   (extender-resource-content (extender-resource resources "_app/app.manifest"))))))))))
 
 (defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
 

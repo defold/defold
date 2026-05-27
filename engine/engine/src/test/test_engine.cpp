@@ -23,6 +23,7 @@
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
+#include "../engine_private.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -109,12 +110,25 @@ static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void
     return dmEngine::RunLoop(&params);
 }
 
+static void PreRunTextInput(dmEngine::HEngine engine, void* context)
+{
+    (void) context;
+    dmHID::AddKeyboardChar(engine->m_HidContext, 'A');
+}
+
 
 
 /*
  * TODO:
  * We should add watchdog support that exists the application after N frames or similar.
  */
+
+TEST_F(EngineTest, TextInputActionFromHid)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/text_input/text_input.collectionc", "--config=input.game_binding=/text_input/text_input.input_bindingc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunTextInput, 0, 0));
+}
 
 TEST_F(EngineTest, ProjectFail)
 {
@@ -294,7 +308,10 @@ static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
     http_ctx->m_PreCount++;
 }
 
-#if !(defined(DM_PLATFORM_VENDOR)) // Until we can reboot properly
+// VENDOR: Until we can reboot properly within the unit test
+// ANDROID: Until we can the http tests are fixed
+#if !(defined(DM_PLATFORM_VENDOR) || \
+      defined(ANDROID))
 TEST_F(EngineTest, HttpPost)
 {
     char project_path[256];
@@ -426,7 +443,10 @@ TEST_F(EngineTest, RunScript)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv5), (char**)argv5, 0, 0, 0));
 }
 
-#if !(defined(DM_PLATFORM_VENDOR)) // until we support connections
+// VENDOR: Until we support connections
+// ANDROID: Until we can the http tests are fixed
+#if !(defined(DM_PLATFORM_VENDOR) || \
+      defined(ANDROID))
 TEST_F(EngineTest, ConnectionRunScript)
 {
     char project_path[256];
@@ -512,6 +532,13 @@ TEST_F(EngineTest, ISSUE_10323)
 {
     char project_path[256];
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10323/issue-10323.collectionc", "--config=script.shared_state=1", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
+TEST_F(EngineTest, ISSUE_12362)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-12362/issue-12362.collectionc", "--config=network.http_cache_enabled=0", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 

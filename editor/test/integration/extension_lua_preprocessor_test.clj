@@ -16,15 +16,15 @@
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.settings-core :as settings-core]
             [integration.test-util :as tu]
+            [local-extensions :as local-extensions]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
   (:import [com.dynamo.lua.proto Lua$LuaModule]))
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private extension-lua-preprocessor-url (settings-core/inject-jvm-properties "{{defold.extension.lua-preprocessor.url}}"))
+(defonce ^:private extension-lua-preprocessor-url (local-extensions/inject-jvm-properties "{{defold.extension.lua-preprocessor.url}}"))
 
 (deftest extension-lua-preprocessor-test
   (with-clean-system

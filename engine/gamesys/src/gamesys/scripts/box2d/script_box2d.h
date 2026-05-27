@@ -30,8 +30,16 @@ namespace dmGameSystem
 
     void  PushWorld(struct lua_State* L, void* world);
     void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
+    void  PushBox2DVersion(struct lua_State* L);
 
     void  ScriptBox2DInitializeBody(struct lua_State* L);
+    void  ScriptBox2DInvalidateBody(void* body);
+    void  ScriptBox2DFinalizeBody();
+    void  ScriptBox2DInitializeJoint(struct lua_State* L);
+    void  ScriptBox2DInvalidateJoint(void* joint);
+    void  ScriptBox2DFinalizeJoint();
+    void  ScriptBox2DInitializeFixture(struct lua_State* L);
+    void  ScriptBox2DInitializeShape(struct lua_State* L);
 }
 
 #endif // DM_GAMESYS_SCRIPT_BOX2D_H

@@ -482,4 +482,52 @@ public class RigUtil {
         // Create duplicate of last keyframe
         propertyBuilder.duplicateLast();
     }
+
+    // sampleTrack() resamples animation keys through PropertyBuilder using one "composite" value per
+    // output time step. Morph clips have morphCount floats per key, but Rig.MorphWeightTrack stores
+    // a single flat weights[] (numPoses * morphCount). This builder maps each composite float[] to
+    // that packed layout (addComposite / duplicateLast) and interpolates whole weight vectors.
+    public static class MorphWeightsBuilder implements PropertyBuilder<float[], RigUtil.AnimationKey> {
+        private final com.dynamo.rig.proto.Rig.MorphWeightTrack.Builder builder;
+        private final int dimensions;
+
+        public MorphWeightsBuilder(com.dynamo.rig.proto.Rig.MorphWeightTrack.Builder b, int d) {
+            this.builder = b;
+            this.dimensions = d;
+        }
+
+        @Override
+        public void addComposite(float[] v) {
+            for (int i = 0; i < dimensions; ++i) {
+                builder.addWeights(v[i]);
+            }
+        }
+
+        @Override
+        public void add(double v) {
+            builder.addWeights((float)v);
+        }
+
+        @Override
+        public void duplicateLast() {
+            int c = builder.getWeightsCount();
+            for (int i = 0; i < dimensions; ++i) {
+                builder.addWeights(builder.getWeights(c - dimensions + i));
+            }
+        }
+
+        @Override
+        public float[] toComposite(RigUtil.AnimationKey key) {
+            return key.value;
+        }
+
+        @Override
+        public float[] interpolate(double t, float[] a, float[] b) {
+            float[] o = new float[dimensions];
+            for (int i = 0; i < dimensions; ++i) {
+                o[i] = (float)((1.0 - t) * a[i] + t * b[i]);
+            }
+            return o;
+        }
+    }
 }

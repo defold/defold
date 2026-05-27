@@ -48,7 +48,7 @@ elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
         include(platform_ios)
 elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
         include(platform_android)
-elseif (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web")
+elseif (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
         include(platform_html5)
 elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
         include(platform_linux)
@@ -69,6 +69,15 @@ target_compile_definitions(defold_sdk INTERFACE
     DDF_EXPOSE_DESCRIPTORS
     GOOGLE_PROTOBUF_NO_RTTI
     DM_USE_CMAKE)
+
+set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE ON)
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|x86_64-ios)$")
+    set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE OFF)
+endif()
+
+if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
+    target_compile_definitions(defold_sdk INTERFACE DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
+endif()
 
 if (TARGET_PLATFORM MATCHES "^arm64|^x86_64")
     target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_64BIT)
@@ -100,6 +109,10 @@ endif()
 # Optimization flags (after platform detection)
 
 set(_DEFOLD_OPT_CONFIG_EXPR "$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>")
+set(_DEFOLD_RELWITHDEBINFO_OPT "-O2")
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+    set(_DEFOLD_RELWITHDEBINFO_OPT "-O3")
+endif()
 
 if(MSVC_CL)
     # Optimization flags scoped to targets using defold_sdk
@@ -108,10 +121,14 @@ if(MSVC_CL)
         "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:/Od>")
 else()
     target_compile_options(defold_sdk INTERFACE
-        "$<${_DEFOLD_OPT_CONFIG_EXPR}:-O2>"
+        "$<$<CONFIG:Release>:-O2>"
+        "$<$<CONFIG:RelWithDebInfo>:${_DEFOLD_RELWITHDEBINFO_OPT}>"
         "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:-O0>")
     target_compile_options(defold_sdk INTERFACE -g)
     target_link_options(defold_sdk INTERFACE -g)
+    if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+        target_link_options(defold_sdk INTERFACE "$<$<CONFIG:RelWithDebInfo>:-O3>")
+    endif()
 endif()
 
 defold_log("CC: ${CMAKE_C_COMPILER}")

@@ -136,6 +136,33 @@ QUERY_PULLREQUEST = r"""
 }
 """
 
+QUERY_PULLREQUEST_TIMELINE_EVENTS = r"""
+{
+  organization(login: "defold") {
+    repository(name: "%s") {
+      pullRequest(number: %s) {
+        timelineItems(first: 250, itemTypes: [MERGED_EVENT, REFERENCED_EVENT]) {
+          nodes {
+            __typename
+            ... on MergedEvent {
+              commit {
+                  oid
+              }
+              mergeRefName
+            }
+            ... on ReferencedEvent {
+              commit {
+                  oid
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
 # https://docs.github.com/en/graphql/overview/explorer
 QUERY_PROJECT_ISSUES_AND_PRS = r"""
 {
@@ -212,7 +239,11 @@ def get_issue(number, repository = "defold"):
 
 def get_pullrequest(number, repository = "defold"):
     data = github_query(QUERY_PULLREQUEST % (repository, number))
-    return data["organization"]["repository"]["pullRequest"]
+    pr = data["organization"]["repository"]["pullRequest"]
+    if find_merge_commit(pr) is None and len(find_reference_commits(pr)) == 0:
+        timeline_data = github_query(QUERY_PULLREQUEST_TIMELINE_EVENTS % (repository, number))
+        pr["timelineItems"] = timeline_data["organization"]["repository"]["pullRequest"]["timelineItems"]
+    return pr
 
 def get_issues_and_prs(project):
     data = github_query(QUERY_PROJECT_ISSUES_AND_PRS % project.get("number"))
@@ -259,6 +290,8 @@ def get_closing_pr(issue):
 def find_merge_commit(pr):
     commit = None
     for node in pr["timelineItems"]["nodes"]:
+        if not node:
+            continue
         if not node["__typename"] == "MergedEvent":
             continue
         if "commit" in node:
@@ -269,6 +302,8 @@ def find_merge_commit(pr):
 def find_reference_commits(pr):
     commits = []
     for node in pr["timelineItems"]["nodes"]:
+        if not node:
+            continue
         if not node["__typename"] == "ReferencedEvent":
             continue
         if "commit" in node:

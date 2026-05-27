@@ -1,4 +1,4 @@
-mesh: "/assets/defold_logo.dae"
+mesh: "/builtins/assets/gltf/cube.gltf"
 skeleton: ""
 animations: ""
 default_animation: ""

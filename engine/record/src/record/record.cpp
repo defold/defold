@@ -194,7 +194,7 @@ namespace dmRecord
     {
         for (uint32_t iy = 0; iy < height; ++iy)
         {
-            char* y_plane_row = (char*) y_plane + iy * width;
+            uint8_t* y_plane_row = (uint8_t*) y_plane + iy * width;
             for (uint32_t ix = 0; ix < width; ++ix)
             {
                 int i = (iy * width + ix) * 4;
@@ -202,7 +202,7 @@ namespace dmRecord
                 uint8_t G = rgba[i+1];
                 uint8_t R = rgba[i+2];
                 float y = (float)( R*66 + G*129 + B*25 + 128 ) / 256 + 16;
-                *y_plane_row = (char) y;
+                *y_plane_row = (uint8_t) y;
                 ++y_plane_row;
             }
         }

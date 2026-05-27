@@ -47,10 +47,8 @@ public class ShaderCompilers {
             if (platform == Platform.Arm64MacOS ||
                 platform == Platform.X86_64MacOS) {
 
-                outputSpirv = true;
-
-                // Vulkan is default on OSX since 1.9.9, meaning OpenGL is optional.
-                if (!isComputeType && outputGLSL) {
+                boolean hasExplicitOutput = outputSpirv || outputGLSL || outputMsl;
+                if (!isComputeType && (outputGLSL || !hasExplicitOutput)) {
                     shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
                 } else if (outputMsl) {
                     shaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
@@ -88,16 +86,19 @@ public class ShaderCompilers {
             else
             if (platform == Platform.Armv7Android ||
                 platform == Platform.Arm64Android) {
-                    if (!isComputeType) {
+                    boolean hasExplicitOutput = outputSpirv || outputGLSL;
+                    if (!isComputeType && (outputGLSL || !hasExplicitOutput)) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         if (!compileOptions.excludeGlesSm100) {
                             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                         }
                     }
+                    if (!hasExplicitOutput) {
+                        outputSpirv = true;
+                    }
             }
             else
-            if (platform == Platform.JsWeb ||
-                platform == Platform.WasmWeb ||
+            if (platform == Platform.WasmWeb ||
                 platform == Platform.WasmPthreadWeb) {
                     if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
@@ -264,7 +265,7 @@ public class ShaderCompilers {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430); // Compute
         } else if (platform == Platform.Arm64Linux || platform == Platform.Armv7Android || platform == Platform.Arm64Android ||
-                platform == Platform.JsWeb || platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
+                platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
         }

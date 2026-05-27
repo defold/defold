@@ -421,7 +421,7 @@ message ContactPoint
  *
  * ```lua
  * physics.set_event_listener(function(self, events)
- *   for _,event in ipairs(events):
+ *   for _,event in ipairs(events) do
  *     if event['type'] == hash("contact_point_event") then
  *         pprint(event)
  *         -- {

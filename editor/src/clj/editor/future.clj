@@ -14,7 +14,7 @@
 
 (ns editor.future
   (:refer-clojure :exclude [future])
-  (:import [java.util.concurrent CompletableFuture CompletionException Executors ThreadFactory]
+  (:import [java.util.concurrent CompletableFuture CompletionException Executors]
            [java.util.function Function Supplier]))
 
 (set! *warn-on-reflection* true)
@@ -40,13 +40,7 @@
              ~@body))))))
 
 (def io-executor
-  (let [counter (atom 0)]
-    (Executors/newCachedThreadPool
-      (reify ThreadFactory
-        (newThread [_ r]
-          (doto (Thread. r)
-            (.setDaemon true)
-            (.setName (str "editor.future/io-executor#" (swap! counter inc)))))))))
+  (Executors/newVirtualThreadPerTaskExecutor))
 
 (defmacro io
   "Asynchronously perform an IO-intensive operation (see also: compute)"

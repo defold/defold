@@ -29,7 +29,7 @@ Our build system detects local installations of the platform SDK's.
 
 * macOS + iOS: [XCode](https://apps.apple.com/us/app/xcode/id497799835)
 * Linux: [Clang++](https://apt.llvm.org/) (v17)
-* Windows: [Visual Studio Community 2022](https://visualstudio.microsoft.com/vs/older-downloads/) + Clang
+* Windows: [Visual Studio Community 2026](https://visualstudio.microsoft.com/vs) + Clang
 * Android: [Android Studio](https://developer.android.com/studio)
 * HTML5: [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) - Set `EMSDK` environment variable to locate the local installation.
 * Consoles: We detect the appropriate environment variables for each platform. We refer to each vendor's installation notes.
@@ -320,16 +320,16 @@ defold$ ./scripts/build.py check_sdk --verbose
 
 <details><summary>Windows...</summary><p>
 
-#### Visual C++ 2022 Community
+#### Visual C++ 2026 Community
 
-[Download](https://visualstudio.microsoft.com/vs/older-downloads/) the [Visual Studio Community 2022](https://aka.ms/vs/17/release/vs_community.exe) version or use the Professional or Enterprise version if you have the proper licence.
+[Download](https://visualstudio.microsoft.com/vs/) the Visual Studio Community 2026 version or use the Professional or Enterprise version if you have the proper licence.
 
 * When installing, in the "Workloads" tab, select the "Desktop Development with C++"
 
 * We also require Clang:
   * In Visual Studio Installer, under Individual components, select *C++ Clang Compiler for Windows* and *MSBuild support for LLVM (clang-cl) toolset*.
 
-  * Add clang to your PATH. For a default installation, the path to add will likely be C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\bin
+  * Add clang to your PATH. For a default installation, the path to add will likely be C:\Program Files\Microsoft Visual Studio\2026\Community\VC\Tools\Llvm\bin
 
 * There is also an optional 3rd party git client.
 
@@ -464,6 +464,49 @@ The path to the SDKs can either be passed to `build.py` using the `--package-pat
 These tools are generally not needed for a regular build.
 
 <details><summary>Details...</summary><p>
+
+### Optional Software - zipmerge
+
+`zipmerge` is an optional tool from [libzip](https://libzip.org/) used by `build-sdk` to merge platform SDK zip archives. If `zipmerge` is not installed, the build falls back to the Python implementation.
+
+<details><summary>macOS...</summary><p>
+
+Install `libzip` using Homebrew:
+
+```sh
+brew install libzip
+```
+
+</p></details>
+
+<details><summary>Linux...</summary><p>
+
+On Ubuntu/Debian, install the `zipmerge` package:
+
+```sh
+sudo apt-get update
+sudo apt-get install zipmerge
+```
+
+</p></details>
+
+<details><summary>Windows...</summary><p>
+
+Install [MSYS2](https://www.msys2.org/), then install `libzip` from the UCRT64 shell:
+
+```sh
+pacman -S mingw-w64-ucrt-x86_64-libzip
+```
+
+Make sure the MSYS2 UCRT64 `bin` folder, typically `C:\msys64\ucrt64\bin`, is available on your PATH when running the build.
+
+</p></details>
+
+Verify the installation:
+
+```sh
+zipmerge -h
+```
 
 ### Optional Software - DotNet 9
 

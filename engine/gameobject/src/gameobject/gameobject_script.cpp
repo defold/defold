@@ -941,31 +941,6 @@ namespace dmGameObject
         return 1;
     }
 
-    /* DEPRECATED gets the 3D scale factor of the instance
-     * The scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world scale factor.
-     *
-     * @name go.get_scale_vector
-     * @param [id] [type:string|hash|url] optional id of the instance to get the scale for, by default the instance of the calling script
-     * @return scale [type:vector3] scale factor
-     * @examples
-     *
-     * Get the scale of the instance the script is attached to:
-     *
-     * ```lua
-     * local s = go.get_scale_vector()
-     * ```
-     *
-     * Get the scale of another instance "x":
-     *
-     * ```lua
-     * local s = go.get_scale_vector("x")
-     * ```
-     */
-    static int Script_GetScaleVector(lua_State* L)
-    {
-        return Script_GetScale(L);
-    }
-
     /*# gets the uniform scale factor of the game object instance
      * The uniform scale is relative the parent (if any). If the underlying scale vector is non-uniform the min element of the vector is returned as the uniform scale factor.
      *
@@ -2004,37 +1979,6 @@ namespace dmGameObject
         return 0;
     }
 
-    /* DEPRECATED deletes a set of game object instance
-     * Delete all game objects simultaneously as listed in table.
-     * The table values (not keys) should be game object ids (hashes).
-     *
-     * @name go.delete_all
-     * @param [ids] [type:table] table with values of instance ids (hashes) to be deleted
-     * @examples
-     *
-     * An example how to delete game objects listed in a table:
-     *
-     * ```lua
-     * -- List the objects to be deleted
-     * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
-     * go.delete_all(ids)
-     * ```
-     *
-     * An example how to delete game objects spawned via a collectionfactory:
-     *
-     * ```lua
-     * -- Spawn a collection of game objects.
-     * local ids = collectionfactory.create("#collectionfactory")
-     * ...
-     * -- Delete all objects listed in the table 'ids'.
-     * go.delete_all(ids)
-     * ```
-     */
-    static int Script_DeleteAll(lua_State* L)
-    {
-        return Script_Delete(L);
-    }
-
     /*# define a property for the script
      * This function defines a property which can then be used in the script through the self-reference.
      * The properties defined this way are automatically exposed in the editor in game objects and collections which use the script.
@@ -2253,7 +2197,6 @@ namespace dmGameObject
         {"get_position",            Script_GetPosition},
         {"get_rotation",            Script_GetRotation},
         {"get_scale",               Script_GetScale},
-        {"get_scale_vector",        Script_GetScaleVector},
         {"get_scale_uniform",       Script_GetScaleUniform},
         {"get_parent",              Script_GetParent},
         {"set_position",            Script_SetPosition},
@@ -2271,7 +2214,6 @@ namespace dmGameObject
         {"animate",                 Script_Animate},
         {"cancel_animations",       Script_CancelAnimations},
         {"delete",                  Script_Delete},
-        {"delete_all",              Script_DeleteAll},
         {"property",                Script_Property},
         {"exists",                  Script_Exists},
         {"world_to_local_position", Script_WorldToLocalPosition},
@@ -2930,15 +2872,17 @@ bail:
      *
      * Gamepad specific fields:
      *
-     * Field             | Description
-     * ----------------- | ----------------------------------------------------------
-     * `gamepad`         | The index of the gamepad device that provided the input.
-     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
-     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
-     * `gamepad_name`    | Name of the gamepad
-     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
-     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
-     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
+     * Field               | Description
+     * ------------------- | ----------------------------------------------------------
+     * `gamepad`           | The index of the gamepad device that provided the input.
+     * `userid`            | Id of the user associated with the controller. Usually only relevant on consoles.
+     * `gamepad_guid`      | The guid of the gamepad controller. Only passed with "connected" action.
+     * `gamepad_guid_info` | Parsed guid info table. Only passed with "connected" action. See table below.
+     * `gamepad_unknown`   | True if the input originated from an unknown/unmapped gamepad.
+     * `gamepad_name`      | Name of the gamepad
+     * `gamepad_axis`      | List of gamepad axis values. For raw gamepad input only.
+     * `gamepadhats`       | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_buttons`   | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:
      *
@@ -2955,6 +2899,17 @@ bail:
      * `acc_x`     | Accelerometer x value (if present).
      * `acc_y`     | Accelerometer y value (if present).
      * `acc_z`     | Accelerometer z value (if present).
+     *
+     * Guid info table:
+     * This info is only passed with a `connected` action.
+     *
+     * Field     | Description
+     * --------- | ----------------------------------------------------------
+     * `vendor`  | USB vendor id. E.g. Nintendo 0x057e, Sony 0x054c, or Microsoft 0x045e
+     * `product` | USB product id
+     * `bus`     | How device is communicating. E.g.0x0003 for USB devices and 0x0005 for Bluetooth devices.
+     * `crc`     | SDL CRC16 signature, typically used when vendor and product ids are unavailable
+     * `version` | The device or firmware version
      *
      * @name on_input
      * @param self [type:userdata] reference to the script state to be used for storing data

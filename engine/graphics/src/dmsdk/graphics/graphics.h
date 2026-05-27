@@ -120,7 +120,7 @@ namespace dmGraphics
 
     /*#
      * Invalid program handle constant.
-     * 
+     *
      * Used to represent an uninitialized or invalid program handle.
      * Can be used to check if program creation or loading failed.
      * @constant
@@ -130,7 +130,7 @@ namespace dmGraphics
 
     /*#
      * Invalid uniform location constant.
-     * 
+     *
      * Used to represent an uninitialized or invalid uniform location.
      * Can be used to check if uniform location lookup failed.
      * @constant
@@ -574,6 +574,26 @@ namespace dmGraphics
     };
 
     /*#
+     * Blend equation operations.
+     * Determines how source and destination colors are combined during blending
+     * @enum
+     * @name BlendEquation
+     * @member BLEND_EQUATION_ADD                 Source + Destination
+     * @member BLEND_EQUATION_SUBTRACT            Source - Destination
+     * @member BLEND_EQUATION_REVERSE_SUBTRACT    Destination - Source
+     * @member BLEND_EQUATION_MIN                 Min(Source, Destination)
+     * @member BLEND_EQUATION_MAX                 Max(Source, Destination)
+     */
+    enum BlendEquation
+    {
+        BLEND_EQUATION_ADD              = 0,
+        BLEND_EQUATION_SUBTRACT         = 1,
+        BLEND_EQUATION_REVERSE_SUBTRACT = 2,
+        BLEND_EQUATION_MIN              = 3,
+        BLEND_EQUATION_MAX              = 4,
+    };
+
+    /*#
      * Graphics adapter family.
      * Identifies the type of graphics backend used by the rendering system
      * @enum
@@ -642,7 +662,7 @@ namespace dmGraphics
      * @member TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR     Linear blend between two mipmap levels, nearest texel
      * @member TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST     Nearest mipmap level, linear texel
      * @member TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR      Linear blend between mipmap levels and texels (trilinear)
-     */ 
+     */
     enum TextureFilter
     {
         TEXTURE_FILTER_DEFAULT                = 0,
@@ -663,7 +683,7 @@ namespace dmGraphics
      * @member TEXTURE_WRAP_CLAMP_TO_EDGE       Clamp to the edge pixel of the texture
      * @member TEXTURE_WRAP_MIRRORED_REPEAT     Repeat texture, mirroring every other repetition
      * @member TEXTURE_WRAP_REPEAT              Repeat texture in a tiled fashion
-     */ 
+     */
     enum TextureWrap
     {
         TEXTURE_WRAP_CLAMP_TO_BORDER = 0,
@@ -728,6 +748,10 @@ namespace dmGraphics
         uint64_t m_BlendEnabled             : 1;
         uint64_t m_BlendSrcFactor           : 4;
         uint64_t m_BlendDstFactor           : 4;
+        uint64_t m_BlendSrcFactorAlpha      : 4;
+        uint64_t m_BlendDstFactorAlpha      : 4;
+        uint64_t m_BlendEquationColor       : 3;
+        uint64_t m_BlendEquationAlpha       : 3;
         // Culling
         uint64_t m_CullFaceEnabled          : 1;
         uint64_t m_CullFaceType             : 2;
@@ -1185,7 +1209,7 @@ namespace dmGraphics
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return data_size [type:uint32_t] Resource data size in bytes
-     */ 
+     */
     uint32_t GetTextureResourceSize(HContext context, HTexture texture);
 
     /*#
@@ -1207,7 +1231,7 @@ namespace dmGraphics
     uint16_t GetTextureHeight(HContext context, HTexture texture);
 
     /*#
-     * Get texture depth. applicable for 3D and cube map textures 
+     * Get texture depth. applicable for 3D and cube map textures
      * @name GetTextureDepth
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
@@ -1440,6 +1464,26 @@ namespace dmGraphics
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
 
     /*#
+     * Set separate blend factors for color and alpha channels.
+     * @name SetBlendFuncSeparate
+     * @param context [type:dmGraphics::HContext]
+     * @param src_factor_color [type:dmGraphics::BlendFactor]
+     * @param dst_factor_color [type:dmGraphics::BlendFactor]
+     * @param src_factor_alpha [type:dmGraphics::BlendFactor]
+     * @param dst_factor_alpha [type:dmGraphics::BlendFactor]
+     */
+    void SetBlendFuncSeparate(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha);
+
+    /*#
+     * Set separate blend equations for color and alpha channels.
+     * @name SetBlendEquationSeparate
+     * @param context [type:dmGraphics::HContext]
+     * @param equation_color [type:dmGraphics::BlendEquation]
+     * @param equation_alpha [type:dmGraphics::BlendEquation]
+     */
+    void SetBlendEquationSeparate(HContext context, BlendEquation equation_color, BlendEquation equation_alpha);
+
+    /*#
      * @name SetColorMask
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param red [type:bool]
@@ -1554,7 +1598,7 @@ namespace dmGraphics
 
     /*#
      * Graphics context creation parameters.
-     * 
+     *
      * Defines the configuration for creating a new graphics context.
      * This structure is used when initializing the graphics system and
      * specifies window association, job system context, texture filtering defaults,
@@ -1597,7 +1641,7 @@ namespace dmGraphics
 
     /*#
      * Creates a new graphics context.
-     * 
+     *
      * Initializes the graphics system with the specified parameters.
      * Only one graphics context can be active at a time.
      * @name NewContext
@@ -1608,7 +1652,7 @@ namespace dmGraphics
 
     /*#
      * Destroys a graphics context.
-     * 
+     *
      * Cleans up all resources associated with the graphics context.
      * The context becomes invalid after this call.
      * @name DeleteContext
@@ -1618,7 +1662,7 @@ namespace dmGraphics
 
     /*#
      * Installs a graphics adapter.
-     * 
+     *
      * Initializes the specified graphics backend (OpenGL, Vulkan, etc.).
      * This must be called before creating any graphics context.
      * @name InstallAdapter
@@ -1629,7 +1673,7 @@ namespace dmGraphics
 
     /*#
      * Gets the adapter family from a string name.
-     * 
+     *
      * Converts a string identifier to the corresponding AdapterFamily enum value.
      * @name GetAdapterFamily
      * @param adapter_name [type:const char*] String name of the adapter (e.g., "opengl", "vulkan")
@@ -1639,7 +1683,7 @@ namespace dmGraphics
 
     /*#
      * Begins frame rendering.
-     * 
+     *
      * Prepares the graphics context for rendering a new frame.
      * This should be called at the start of each frame.
      * @name BeginFrame
@@ -1649,7 +1693,7 @@ namespace dmGraphics
 
     /*#
      * Flips screen buffers.
-     * 
+     *
      * Presents the rendered frame to the display.
      * This should be called at the end of each frame after all rendering is complete.
      * @name Flip
@@ -1659,7 +1703,7 @@ namespace dmGraphics
 
     /*#
      * Closes the window associated with the graphics context.
-     * 
+     *
      * If a window is open, this will close it and clean up associated resources.
      * @name CloseWindow
      * @param context [type:dmGraphics::HContext] Graphics context
@@ -1668,7 +1712,7 @@ namespace dmGraphics
 
     /*#
      * Finalizes the graphics system.
-     * 
+     *
      * Cleans up global graphics resources and shuts down the graphics system.
      * This should be called when the application is exiting.
      * @name Finalize
@@ -1677,7 +1721,7 @@ namespace dmGraphics
 
     /*#
      * Sets the viewport for rendering.
-     * 
+     *
      * Defines the affine transformation from normalized device coordinates to window coordinates.
      * This affects all subsequent rendering operations.
      * @name SetViewport
@@ -1691,7 +1735,7 @@ namespace dmGraphics
 
     /*#
      * Activates a shader program for rendering.
-     * 
+     *
      * Binds the specified program to the graphics pipeline, making it the active program
      * for all subsequent rendering operations until another program is activated or disabled.
      * @name EnableProgram
@@ -1702,7 +1746,7 @@ namespace dmGraphics
 
     /*#
      * Deactivates the currently bound shader program.
-     * 
+     *
      * Unbinds any active program from the graphics pipeline, returning to the default state
      * where no custom shader program is active.
      * @name DisableProgram
@@ -1712,7 +1756,7 @@ namespace dmGraphics
 
     /*#
      * Binds a vertex declaration for rendering.
-     * 
+     *
      * Associates a vertex declaration with a specific binding index in the graphics pipeline.
      * The declaration defines how vertex data is interpreted and laid out in memory.
      * @name EnableVertexDeclaration
@@ -1726,7 +1770,7 @@ namespace dmGraphics
 
     /*#
      * Unbinds a vertex declaration from the graphics pipeline.
-     * 
+     *
      * Removes the association between a vertex declaration and its binding index,
      * freeing up the binding slot for other declarations.
      * @name DisableVertexDeclaration
@@ -1737,7 +1781,7 @@ namespace dmGraphics
 
     /*#
      * Binds a vertex buffer for rendering.
-     * 
+     *
      * Associates a vertex buffer with a specific binding index in the graphics pipeline.
      * The buffer provides the actual vertex data that will be processed according to
      * the active vertex declaration for that binding index.
@@ -1750,7 +1794,7 @@ namespace dmGraphics
 
     /*#
      * Unbinds a vertex buffer from the graphics pipeline.
-     * 
+     *
      * Removes the association between a vertex buffer and its binding index,
      * freeing up the binding slot for other buffers.
      * @name DisableVertexBuffer
@@ -1761,7 +1805,7 @@ namespace dmGraphics
 
     /*#
      * Draws non-indexed primitives.
-     * 
+     *
      * Renders geometry using vertex data directly from the bound vertex buffers
      * without index buffer indirection. The vertices are processed sequentially
      * from the specified starting point.
@@ -1776,7 +1820,7 @@ namespace dmGraphics
 
     /*#
      * Binds a texture sampler to a texture unit.
-     * 
+     *
      * Associates a texture with a specific sampler uniform in the shader,
      * allowing the shader to access the texture data during rendering.
      * @name SetSampler
@@ -1788,7 +1832,7 @@ namespace dmGraphics
 
     /*#
      * Creates a new shader program from a shader description.
-     * 
+     *
      * Compiles and links shader sources defined in the ShaderDesc into a GPU program.
      * Returns a program handle that can be used for rendering.
      * @name NewProgram
@@ -1802,7 +1846,7 @@ namespace dmGraphics
 
     /*#
      * Destroys a shader program and frees associated resources.
-     * 
+     *
      * Cleans up GPU memory and resources associated with the program handle.
      * The handle becomes invalid after this call.
      * @name DeleteProgram
@@ -1813,7 +1857,7 @@ namespace dmGraphics
 
     /*#
      * Clears the render target buffers.
-     * 
+     *
      * Fills the specified buffers with predefined values. Commonly used at the
      * beginning of a frame to clear the screen to a specific color and depth.
      * @name Clear
@@ -1830,7 +1874,7 @@ namespace dmGraphics
 
     /*#
      * Finds the location of a uniform variable in a shader program by name hash.
-     * 
+     *
      * Returns the uniform location that can be used with other uniform-setting functions.
      * This is the preferred method when the uniform name is known at compile time
      * as it avoids runtime string hashing.
@@ -1843,7 +1887,7 @@ namespace dmGraphics
 
     /*#
      * Finds the location of a uniform variable in a shader program by name string.
-     * 
+     *
      * Returns the uniform location that can be used with other uniform-setting functions.
      * This method is useful when the uniform name is only known at runtime.
      * @name FindUniformLocation

@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dlib/hash.h>
+#include <dlib/safe_windows.h>
 #include <graphics/graphics.h>
 
 #include <dmsdk/font/font.h>

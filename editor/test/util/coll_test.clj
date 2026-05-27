@@ -1975,3 +1975,50 @@
           (Thread/sleep 10)))
       (is (empty? @completed-values))
       (is (= (dec task-count) @cancellation-count)))))
+
+(deftest ptree-test
+  (testing "Builds a tree."
+    (let [tree {:value :root
+                :children [{:value :left}
+                           {:value :branch
+                            :children [{:value :leaf}]}]}]
+      (is (= [:root [[:left []]
+                     [:branch [[:leaf []]]]]]
+             (coll/ptree :children
+                         (fn [node children]
+                           [(:value node) children])
+                         tree)))))
+
+  (testing "Preserves child order."
+    (is (= (vec (range 32))
+           (coll/ptree :children
+                       (fn [node children]
+                         (if-let [value (:value node)]
+                           (do
+                             (Thread/sleep ^long (- 31 (long value)))
+                             value)
+                           children))
+                       {:children (mapv (fn [value] {:value value}) (range 32))}))))
+
+  (testing "Propagates thread bindings."
+    (binding [*pmapv-binding-test-value* :bound]
+      (is (= [[:bound 0] [:bound 1] [:bound 2] [:bound 3]]
+             (coll/ptree :children
+                         (fn [node children]
+                           (if-let [value (:value node)]
+                             [*pmapv-binding-test-value* value]
+                             children))
+                         {:children (mapv (fn [value] {:value value}) (range 4))})))))
+
+  (testing "Rethrows task failure."
+    (is (thrown-with-msg?
+          ExceptionInfo
+          #"boom 2"
+          (coll/ptree :children
+                      (fn [node children]
+                        (if-let [value (:value node)]
+                          (if (= 2 value)
+                            (throw (ex-info (str "boom " value) {:value value}))
+                            value)
+                          children))
+                      {:children (mapv (fn [value] {:value value}) (range 4))})))))

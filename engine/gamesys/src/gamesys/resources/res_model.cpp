@@ -19,6 +19,7 @@
 #include "res_render_target.h"
 
 #include "gamesys_private.h"
+#include "gamesys.h"
 
 #include <gamesys/model_ddf.h>
 
@@ -30,43 +31,48 @@
 #include <render/render.h>
 #include <dmsdk/dlib/transform.h>
 #include <rig/rig.h>
-#include <algorithm> // std::sort
+#include <stdlib.h> // qsort
 
 namespace dmGameSystem
 {
-    static void ReleaseResources(dmResource::HFactory factory, ModelResource* resource);
+    static void ReleaseResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource);
 
     // TODO: Sorting+flattening the structure could be done in the pipeline
-    struct MeshSortPred
+    static int MeshSortCompare(const void* a, const void* b)
     {
-        inline bool operator() (const MeshInfo& p1, const MeshInfo& p2)
+        const MeshInfo* mesh_a = (const MeshInfo*) a;
+        const MeshInfo* mesh_b = (const MeshInfo*) b;
+        uint32_t material_a = mesh_a->m_Mesh->m_MaterialIndex;
+        uint32_t material_b = mesh_b->m_Mesh->m_MaterialIndex;
+        if (material_a != material_b)
         {
-            return p1.m_Mesh->m_MaterialIndex < p2.m_Mesh->m_MaterialIndex;
+            return material_a < material_b ? -1 : 1;
         }
-    };
+        return 0;
+    }
 
     // We could sort them in the pipeline, but then we'd have to read the mesh data
     // for compiling each model which we might not want
-    struct MaterialSortPred
+    static int FindMaterialIndex(dmRigDDF::MeshSet* mesh_set, const char* name)
     {
-        dmRigDDF::MeshSet* m_MeshSet;
-        MaterialSortPred(dmRigDDF::MeshSet* mesh_set) : m_MeshSet(mesh_set) {}
-        int FindMaterial(const char* s)
+        for (int i = 0; i < mesh_set->m_Materials.m_Count; ++i)
         {
-            for (int i = 0; i < m_MeshSet->m_Materials.m_Count; ++i)
-            {
-                if (strcmp(s, m_MeshSet->m_Materials.m_Data[i].m_Name) == 0)
-                    return i;
-            }
-            return -1;
+            if (strcmp(name, mesh_set->m_Materials.m_Data[i].m_Name) == 0)
+                return i;
         }
-        inline bool operator() (const MaterialInfo& mat1, const MaterialInfo& mat2)
+        return -1;
+    }
+
+    static int MaterialSortCompare(const void* a, const void* b)
+    {
+        const MaterialInfo* mat_a = (const MaterialInfo*) a;
+        const MaterialInfo* mat_b = (const MaterialInfo*) b;
+        if (mat_a->m_SortOrder != mat_b->m_SortOrder)
         {
-            int i1 = FindMaterial(mat1.m_Name);
-            int i2 = FindMaterial(mat2.m_Name);
-            return i1 < i2;
+            return mat_a->m_SortOrder < mat_b->m_SortOrder ? -1 : 1;
         }
-    };
+        return 0;
+    }
 
     // Flattens the meshes into a list, sorted on material
     static void FlattenMeshes(ModelResource* resource, dmRigDDF::MeshSet* mesh_set)
@@ -88,13 +94,14 @@ namespace dmGameSystem
                 info.m_Model = model;
                 info.m_Mesh = mesh;
                 info.m_Buffers = 0;
+                info.m_MorphTargetTexture = 0;
 
                 resource->m_Meshes.Push(info);
             }
         }
 
         // Sort the meshes by material
-        std::sort(resource->m_Meshes.Begin(), resource->m_Meshes.End(), MeshSortPred());
+        qsort(resource->m_Meshes.Begin(), resource->m_Meshes.Size(), sizeof(MeshInfo), MeshSortCompare);
     }
 
     static inline uint32_t GetRigModelVertexFormatSize(RigModelVertexFormat format)
@@ -237,6 +244,172 @@ namespace dmGameSystem
         }
     }
 
+    static void GetMorphTargetTextureMaxDims(dmGraphics::HContext graphics_context, ModelContext* model_ctx, uint32_t* out_w, uint32_t* out_h)
+    {
+        uint32_t gpu_max = dmGraphics::GetMaxTextureSize(graphics_context);
+        if (gpu_max == 0)
+            gpu_max = 1;
+        uint32_t cfg_w = dmMath::Max(1u, (uint32_t) model_ctx->m_MaxMorphTargetTextureWidth);
+        uint32_t cfg_h = dmMath::Max(1u, (uint32_t) model_ctx->m_MaxMorphTargetTextureHeight);
+        *out_w = dmMath::Min(cfg_w, gpu_max);
+        *out_h = dmMath::Min(cfg_h, gpu_max);
+    }
+
+    static void ComputeMorphTextureSize(uint32_t vertex_count, uint32_t max_w, uint32_t max_h, uint32_t* out_w, uint32_t* out_h)
+    {
+        uint32_t w = 1;
+        uint32_t h = 1;
+        while (w * h < vertex_count)
+        {
+            if (w < max_w)
+                w <<= 1;
+            else if (h < max_h)
+                h <<= 1;
+            else
+                break;
+        }
+        *out_w = w;
+        *out_h = h;
+    }
+
+    static dmGraphics::HTexture CreateMorphTargetTexture(dmGraphics::HContext context, const dmRigDDF::Mesh* ddf_mesh,
+        const char* filename, uint32_t max_tex_w, uint32_t max_tex_h)
+    {
+        uint32_t num_morph_targets = ddf_mesh->m_MorphTargets.m_Count;
+        assert(num_morph_targets != 0);
+
+        uint32_t max_count = 0;
+        uint32_t base_vertex_count = ddf_mesh->m_Positions.m_Count / 3;
+
+        for (uint32_t i = 0; i < num_morph_targets; ++i)
+        {
+            const dmRigDDF::MorphTarget* mt = &ddf_mesh->m_MorphTargets[i];
+            uint32_t num_positions = mt->m_PositionsDelta.m_Count / 3;
+            uint32_t num_normals = mt->m_NormalsDelta.m_Count / 3;
+            uint32_t num_tangents = mt->m_TangentsDelta.m_Count / 4;
+
+            max_count = dmMath::Max(max_count, num_positions);
+            max_count = dmMath::Max(max_count, num_normals);
+            max_count = dmMath::Max(max_count, num_tangents);
+        }
+
+        max_count = dmMath::Max(max_count, base_vertex_count);
+
+        uint32_t width;
+        uint32_t height;
+        ComputeMorphTextureSize(max_count, max_tex_w, max_tex_h, &width, &height);
+        // MeshsetBuilder / editor ModelUtil enforce the same layout against game.project at build time
+        if (width > max_tex_w || height > max_tex_h || width * height < max_count)
+        {
+            dmLogError(
+                "Morph target texture for '%s' would need at least %d texels in a %d x %d atlas (per mesh morph target limits: %d x %d, GPU max %d). "
+                "Raise model.max_morph_target_texture_width/height in game.project or reduce mesh vertex count.",
+                filename, max_count, width, height, max_tex_w, max_tex_h, dmGraphics::GetMaxTextureSize(context));
+            return 0;
+        }
+
+        dmGraphics::TextureCreationParams params;
+        params.m_Type       = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+        params.m_Width      = width;
+        params.m_Height     = height;
+        params.m_LayerCount = num_morph_targets * 3;
+
+        dmGraphics::HTexture tex = dmGraphics::NewTexture(context, params);
+        assert(tex);
+
+        uint32_t slice_size = width * height * 4 * sizeof(float);
+        uint32_t data_size = slice_size * num_morph_targets * 3;
+        void* data = malloc(data_size);
+        memset(data, 0, data_size);
+
+        dmGraphics::TextureParams set_params;
+        set_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+        set_params.m_Width = width;
+        set_params.m_Height = height;
+        set_params.m_LayerCount = num_morph_targets * 3;
+        set_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        set_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+
+        // TODO: Perhaps we could organize/pack the data in the asset pipeline like this instead of doing it here?
+        float* data_f = (float*)data;
+        for (uint32_t i = 0; i < num_morph_targets; ++i)
+        {
+            const dmRigDDF::MorphTarget* mt = &ddf_mesh->m_MorphTargets[i];
+            uint32_t layer_base = i * 3;
+
+            {
+                uint32_t count = mt->m_PositionsDelta.m_Count / 3;
+                const float* src = mt->m_PositionsDelta.m_Data;
+                float* dst = data_f + (size_t)layer_base * width * height * 4;
+                for (uint32_t v = 0; v < count; ++v)
+                {
+                    uint32_t px = v % width;
+                    uint32_t py = v / width;
+                    float* p = dst + (py * width + px) * 4;
+                    p[0] = src[v * 3 + 0];
+                    p[1] = src[v * 3 + 1];
+                    p[2] = src[v * 3 + 2];
+                    p[3] = 0.0f;
+                }
+            }
+            {
+                uint32_t count = mt->m_NormalsDelta.m_Count / 3;
+                const float* src = mt->m_NormalsDelta.m_Data;
+                float* dst = data_f + (size_t)(layer_base + 1) * width * height * 4;
+                for (uint32_t v = 0; v < count; ++v)
+                {
+                    uint32_t px = v % width;
+                    uint32_t py = v / width;
+                    float* p = dst + (py * width + px) * 4;
+                    p[0] = src[v * 3 + 0];
+                    p[1] = src[v * 3 + 1];
+                    p[2] = src[v * 3 + 2];
+                    p[3] = 0.0f;
+                }
+            }
+            {
+                uint32_t count = mt->m_TangentsDelta.m_Count / 4;
+                const float* src = mt->m_TangentsDelta.m_Data;
+                float* dst = data_f + (size_t)(layer_base + 2) * width * height * 4;
+                for (uint32_t v = 0; v < count; ++v)
+                {
+                    uint32_t px = v % width;
+                    uint32_t py = v / width;
+                    float* p = dst + (py * width + px) * 4;
+                    p[0] = src[v * 4 + 0];
+                    p[1] = src[v * 4 + 1];
+                    p[2] = src[v * 4 + 2];
+                    p[3] = src[v * 4 + 3];
+                }
+            }
+        }
+
+        set_params.m_Data = data;
+        set_params.m_DataSize = data_size;
+        dmGraphics::SetTexture(context, tex, set_params);
+
+        free(data);
+        return tex;
+    }
+
+    static bool CreateMorphTargetTextures(dmGraphics::HContext context, ModelResource* resource, const char* filename,
+        uint32_t max_tex_w, uint32_t max_tex_h)
+    {
+        for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
+        {
+            MeshInfo& info = resource->m_Meshes[i];
+            if (info.m_Mesh->m_MorphTargets.m_Count > 0)
+            {
+                info.m_MorphTargetTexture = CreateMorphTargetTexture(context, info.m_Mesh, filename, max_tex_w, max_tex_h);
+                if (!info.m_MorphTargetTexture)
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     static bool AreAllMaterialsWorldSpace(const ModelResource* resource)
     {
         for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
@@ -248,28 +421,38 @@ namespace dmGameSystem
         return true; // All materials are currently world space
     }
 
-    // We could sort them in the pipeline, but then we'd have to read the material data
-    // for compiling each model which we might not want
-    struct TextureSortPred
+    static uintptr_t GetTextureSortOrder(dmRender::HMaterial material, const MaterialTextureInfo* texture)
     {
-        dmRender::HMaterial m_Material;
-        TextureSortPred(dmRender::HMaterial material) : m_Material(material) {}
-
-        bool operator ()(MaterialTextureInfo& a, MaterialTextureInfo& b) const
-        {
-            uintptr_t ia = dmRender::GetMaterialConstantLocation(m_Material, a.m_SamplerNameHash);
-            uintptr_t ib = dmRender::GetMaterialConstantLocation(m_Material, b.m_SamplerNameHash);
-            return ia < ib;
-        }
-    };
-
-    void SortTextures(dmRender::HMaterial material, uint32_t num_textures, MaterialTextureInfo* textures)
-    {
-        TextureSortPred pred(material);
-        std::sort(textures, textures + num_textures, pred);
+        return dmRender::GetMaterialConstantLocation(material, texture->m_SamplerNameHash);
     }
 
-    dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource, const char* filename)
+    static void SortTextures(dmRender::HMaterial material, uint32_t num_textures, MaterialTextureInfo* textures)
+    {
+        for (uint32_t i = 0; i < num_textures; ++i)
+        {
+            uint32_t best_index = i;
+            uintptr_t best_order = GetTextureSortOrder(material, &textures[i]);
+            for (uint32_t j = i + 1; j < num_textures; ++j)
+            {
+                uintptr_t order = GetTextureSortOrder(material, &textures[j]);
+                if (order < best_order)
+                {
+                    best_index = j;
+                    best_order = order;
+                }
+            }
+
+            if (best_index != i)
+            {
+                MaterialTextureInfo tmp = textures[i];
+                textures[i] = textures[best_index];
+                textures[best_index] = tmp;
+            }
+        }
+    }
+
+    dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource, const char* filename,
+        uint32_t max_morph_tex_w, uint32_t max_morph_tex_h)
     {
         dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_RigScene, (void**) &resource->m_RigScene);
         if (result != dmResource::RESULT_OK)
@@ -278,6 +461,11 @@ namespace dmGameSystem
         dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
         FlattenMeshes(resource, mesh_set);
         CreateBuffers(context, resource);
+        if (!CreateMorphTargetTextures(context, resource, filename, max_morph_tex_w, max_morph_tex_h))
+        {
+            ReleaseResources(context, factory, resource);
+            return dmResource::RESULT_OUT_OF_RESOURCES;
+        }
 
         uint32_t material_count = dmMath::Max(resource->m_Model->m_Materials.m_Count, mesh_set->m_Materials.m_Count);
         resource->m_Materials.SetCapacity(material_count);
@@ -301,6 +489,7 @@ namespace dmGameSystem
             }
 
             info.m_Name = strdup(model_material->m_Name);
+            info.m_SortOrder = FindMaterialIndex(mesh_set, info.m_Name);
 
             info.m_Attributes = model_material->m_Attributes.m_Data;
             info.m_AttributeCount = model_material->m_Attributes.m_Count;
@@ -353,11 +542,11 @@ namespace dmGameSystem
         }
 
         // Sort the materials so that they have the same indices as specified in the MeshSet list of materials
-        std::sort(resource->m_Materials.Begin(), resource->m_Materials.End(), MaterialSortPred(mesh_set));
+        qsort(resource->m_Materials.Begin(), resource->m_Materials.Size(), sizeof(MaterialInfo), MaterialSortCompare);
 
         if (result != dmResource::RESULT_OK)
         {
-            ReleaseResources(factory, resource);
+            ReleaseResources(context, factory, resource);
             return result;
         }
 
@@ -383,11 +572,16 @@ namespace dmGameSystem
         delete buffers;
     }
 
-    static void ReleaseResources(dmResource::HFactory factory, ModelResource* resource)
+    static void ReleaseResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource)
     {
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
             MeshInfo& info = resource->m_Meshes[i];
+            if (info.m_MorphTargetTexture)
+            {
+                dmGraphics::DeleteTexture(context, info.m_MorphTargetTexture);
+                info.m_MorphTargetTexture = 0;
+            }
             ReleaseBuffers(info.m_Buffers);
         }
         resource->m_Meshes.SetSize(0);
@@ -449,17 +643,22 @@ namespace dmGameSystem
 
     dmResource::Result ResModelCreate(const dmResource::ResourceCreateParams* params)
     {
+        ModelContext* model_ctx = (ModelContext*) params->m_Context;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(model_ctx->m_RenderContext);
+        uint32_t max_morph_w, max_morph_h;
+        GetMorphTargetTextureMaxDims(graphics_context, model_ctx, &max_morph_w, &max_morph_h);
+
         ModelResource* model_resource = new ModelResource();
         memset(model_resource, 0, sizeof(ModelResource));
         model_resource->m_Model = (dmModelDDF::Model*) params->m_PreloadData;
-        dmResource::Result r = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, model_resource, params->m_Filename);
+        dmResource::Result r = AcquireResources(graphics_context, params->m_Factory, model_resource, params->m_Filename, max_morph_w, max_morph_h);
         if (r == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, model_resource);
         }
         else
         {
-            ReleaseResources(params->m_Factory, model_resource);
+            ReleaseResources(dmRender::GetGraphicsContext(((ModelContext*)params->m_Context)->m_RenderContext), params->m_Factory, model_resource);
             delete model_resource;
         }
         return r;
@@ -468,7 +667,7 @@ namespace dmGameSystem
     dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams* params)
     {
         ModelResource* model_resource = (ModelResource*)dmResource::GetResource(params->m_Resource);
-        ReleaseResources(params->m_Factory, model_resource);
+        ReleaseResources(dmRender::GetGraphicsContext(((ModelContext*)params->m_Context)->m_RenderContext), params->m_Factory, model_resource);
         delete model_resource;
         return dmResource::RESULT_OK;
     }
@@ -481,9 +680,14 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_DDF_ERROR;
         }
+        ModelContext* model_ctx = (ModelContext*) params->m_Context;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(model_ctx->m_RenderContext);
+        uint32_t max_morph_w, max_morph_h;
+        GetMorphTargetTextureMaxDims(graphics_context, model_ctx, &max_morph_w, &max_morph_h);
+
         ModelResource* model_resource = (ModelResource*)dmResource::GetResource(params->m_Resource);
-        ReleaseResources(params->m_Factory, model_resource);
+        ReleaseResources(graphics_context, params->m_Factory, model_resource);
         model_resource->m_Model = ddf;
-        return AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, model_resource, params->m_Filename);
+        return AcquireResources(graphics_context, params->m_Factory, model_resource, params->m_Filename, max_morph_w, max_morph_h);
     }
 }

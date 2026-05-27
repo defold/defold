@@ -14,7 +14,7 @@ emitters {
     z: 0.0
     w: 1.0
   }
-  tile_source: "/tile/valid.tileset"
+  tile_source: "/particlefx/tile_valid.tileset"
   animation: "anim"
   material: "/particlefx/attribute_mismatch_scalar.material"
   blend_mode: BLEND_MODE_ADD
@@ -67,6 +67,8 @@ emitters {
     semantic_type: SEMANTIC_TYPE_NONE
     data_type: TYPE_FLOAT
     vector_type: VECTOR_TYPE_SCALAR
-    binary_values: "\000\000\200?"
+    double_values {
+      v: 1.0
+    }
   }
 }

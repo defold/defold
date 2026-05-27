@@ -1,0 +1,137 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Setup nix
+description: Setup nix
+
+inputs:
+  script:
+    description: The script to be run in the nix shell
+    required: false
+  devShell:
+    description: The name of the devShell
+    required: true
+  cache:
+    description: Determine whether to enable nix cache
+    default: 'false'
+  verbose:
+    description: Determine wether to suppress nix log or not
+    default: 'false'
+  cache_prefix:
+    description: Fixed prefix of ID of Github cache entries that should be removed.
+    required: false
+  save_cache:
+    description: Determine whether to save cache with primary key or not
+    required: false
+    default: 'false'
+  gh_token:
+    description: Github access token to use
+    required: true
+  install:
+    required: false
+    description: Determine how to install nix ('installer' | 'apt')
+    default: 'installer'
+
+runs:
+  using: composite
+  steps:
+    - name: Pre-check nix
+      id: nix-pre-check
+      if: ${{ env.NIX_SHELL == '' }}
+      shell: bash -lo pipefail {0}
+      run: |
+        suppress() {
+          local exit_code="$?"
+          local line_no="$1"
+          echo "Nix check failed at $line_no: $exit_code"
+          echo "installed=false" >> $GITHUB_OUTPUT
+          exit 0
+        }
+
+        trap 'suppress $LINENO' ERR
+
+        if [[ $USER == 'root' ]]; then
+          mkdir -p /root
+          echo "HOME=/root" >> $GITHUB_ENV
+        fi
+
+        nix --version
+    - name: Install nix via apt
+      if: ${{ steps.nix-pre-check.outputs.installed == 'false' && inputs.install == 'apt' }}
+      shell: bash
+      run: |
+        if [[ -f /.dockerenv ]]; then
+          apt install nix -y
+        else
+          sudo apt install nix -y
+        fi
+        mkdir -p ~/.config/nix
+        cat >> ~/.config/nix/nix.conf << EOF
+          experimental-features = nix-command flakes
+        EOF
+
+        if [[ ! -z $GH_TOKEN ]]; then
+          echo "access-tokens = github.com=$GH_TOKEN" >> ~/.config/nix/nix.conf
+        fi
+    - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
+      if: ${{ steps.nix-pre-check.outputs.installed == 'false' }}
+      with:
+        github_access_token: ${{ inputs.gh_token }}
+    - name: Post-check nix
+      id: nix-post-check
+      continue-on-error: true
+      shell: bash -lo pipefail {0}
+      run: |
+        echo "::group::nix config"
+        if [[ -z "${{ inputs.cache_prefix }}" ]]; then
+          cache_prefix="${{ runner.os }}-${{ runner.arch }}"
+        else
+          cache_prefix="${{ inputs.cache_prefix }}"
+        fi
+
+        echo "cache_prefix=$cache_prefix" >> $GITHUB_OUTPUT
+
+        if [[ "${{ steps.nix-pre-check.outputs.installed }}" == 'false' ]]; then
+          sudo chown -R $USER:nixbld /nix
+        fi
+
+        nix profile install nixpkgs/nixos-24.11#sqlite
+        nix config show
+        echo "::endgroup::"
+    - uses: nix-community/cache-nix-action@dab0514428ae3988852b7787a6d86a6fc571cc9d #v6.0.0
+      id: cache
+      if: ${{ env.NIX_CACHE_ENABLED != 1 && inputs.cache == 'true' }}
+      continue-on-error: true
+      with:
+        primary-key: ${{ steps.nix-post-check.outputs.cache_prefix }}
+        gc-max-store-size-linux: 3221225472
+        purge: ${{ inputs.save_cache == 'true' }}
+        save: ${{ inputs.save_cache == 'true' }}
+        purge-prefixes: cache-${{ steps.nix-post-check.outputs.cache_prefix }}
+        purge-created: 0
+        purge-primary-key: ${{ inputs.save_cache == 'true' && 'always' || 'never' }}
+        token: ${{ inputs.gh_token }}
+    - name: Set Shell
+      shell: bash -lo pipefail {0}
+      run: |
+        echo "::group::set nix shell"
+        if [[ "${{ steps.cache.outputs.hit-primary-key }}" == "true" ]]; then
+          echo NIX_CACHE_ENABLED=1 >> $GITHUB_ENV
+        fi
+
+        echo NIX_SHELL="${{ inputs.devShell }}" >> $GITHUB_ENV
+        nix_extra_flags="${{ inputs.verbose == 'false' && '--quiet' || '' }}"
+        if [[ ${{ inputs.install }} == 'apt' && ! -f /.dockerenv ]]; then
+          echo SHELL="sudo $(which nix) develop $nix_extra_flags .#${{ inputs.devShell }} -c bash -e {0}" >> $GITHUB_ENV
+        else
+          echo SHELL="$(which nix) develop $nix_extra_flags .#${{ inputs.devShell }} -c bash -e {0}" >> $GITHUB_ENV
+        fi
+        echo "::endgroup::"
+    - name: Prepare nix dev shell
+      shell: ${{ env.SHELL }}
+      run: |
+    - name: Dependency check
+      shell: ${{ env.SHELL }}
+      if: inputs.script != ''
+      run: eval ${{ inputs.script }}

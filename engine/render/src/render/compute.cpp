@@ -70,8 +70,6 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context           = dmRender::GetGraphicsContext(render_context);
         const dmArray<RenderConstant>& render_constants = compute_program->m_Constants;
-        dmGraphics::HProgram program                    = compute_program->m_Program;
-        dmGraphics::ShaderDesc::Language language       = dmGraphics::GetProgramLanguage(program);
 
         dmVMath::Matrix4 world_matrix;
         dmVMath::Matrix4 texture_matrix;
@@ -82,7 +80,7 @@ namespace dmRender
             const HConstant constant                     = material_constant.m_Constant;
             dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
-            SetProgramConstant(render_context, graphics_context, world_matrix, texture_matrix, language, type, program, location, constant);
+            SetProgramConstant(render_context, graphics_context, world_matrix, texture_matrix, type, location, constant);
         }
     }
 
@@ -119,6 +117,21 @@ namespace dmRender
     dmGraphics::HProgram GetComputeProgram(HComputeProgram program)
     {
         return program->m_Program;
+    }
+
+    bool GetComputeProgramConstantNameHash(HComputeProgram program, uint32_t index, dmhash_t* out_name_hash)
+    {
+        if (index < program->m_Constants.Size())
+        {
+             *out_name_hash = GetConstantName(program->m_Constants[index].m_Constant);
+            return true;
+        }
+        return false;
+    }
+
+    uint32_t GetComputeProgramConstantCount(HComputeProgram program)
+    {
+        return program->m_Constants.Size();
     }
 
     void DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program)

@@ -1,0 +1,232 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: bench-ec2-reusable
+on:
+  workflow_call:
+    inputs:
+      name:
+        type: string
+        description: Alternative name of instance
+        default: Graviton2
+      ec2_instance_type:
+        type: string
+        description: Type if EC2 instance to benchmark on
+        default: t4g.small
+      ec2_ami:
+        type: string
+        description: Textual description of AMI
+        default: ubuntu-latest (aarch64)
+      ec2_ami_id:
+        type: string
+        description: AMI ID
+        default: ami-0c4e709339fa8521a
+      cflags:
+        type: string
+        description: Custom CFLAGS for compilation
+        default: ""
+      archflags:
+        type: string
+        description: Custom ARCH flags for compilation
+        default: -mcpu=neoverse-n1 -march=armv8.2-a
+      ldflags:
+        type: string
+        description: Custom LDFLAGS for linking
+        default: ""
+      opt:
+        type: string
+        description: Runs with optimized code if enabled (opt, no_opt, all)
+        default: "opt"
+      perf:
+        type: string
+        description: Method by which clock cycles should be measured (PMU | PERF)
+        default: PERF
+      store_results:
+        type: boolean
+        description: Indicates if results should be pushed to github pages
+        default: false
+      verbose:
+        description: Determine for the log verbosity
+        type: boolean
+        default: false
+      bench_extra_args:
+        type: string
+        description: Additional command line to be appended to `bench` script
+        default: ''
+      compiler:
+        type: string
+        description: Compiler to use. When unset, default nix shell is used.
+        default: ''
+      additional_packages:
+        type: string
+        description: Additional packages to install when custom compiler is used.
+        default: ''
+      aws_region:
+        type: string
+        default: "us-east-1"
+      alert_threshold:
+        type: string
+        description: "Set alert threshold in percentage for benchmark result"
+        default: "103%"
+env:
+  AWS_ROLE: arn:aws:iam::904233116199:role/mldsa-native-ci
+  AMI_UBUNTU_LATEST_X86_64: ami-084568db4383264d4
+  AMI_UBUNTU_LATEST_AARCH64: ami-0c4e709339fa8521a
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  start-ec2-runner:
+    name: Start ${{ inputs.name }} (${{ inputs.ec2_instance_type }})
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # The point is to make this step non-cancellable,
+                        # avoiding race conditions where an instance is started,
+                        # but isn't yet done registering as a runner and reporting back.
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Determine AMI ID
+        id: det_ami_id
+        run: |
+          if [[ "${{ inputs.ec2_ami }}" == "ubuntu-latest (x86_64)" ]]; then
+            AMI_ID=${{ env.AMI_UBUNTU_LATEST_X86_64 }}
+          elif [[ "${{ inputs.ec2_ami }}" == "ubuntu-latest (aarch64)" ]]; then
+            AMI_ID=${{ env.AMI_UBUNTU_LATEST_AARCH64 }}
+          elif [[ "${{ inputs.ec2_ami }}" == "ubuntu-latest (custom AMI)" ]]; then
+            AMI_ID=${{ inputs.ec2_ami_id }}
+          fi
+          echo "Using AMI ID: $AMI_ID"
+          echo "AMI_ID=$AMI_ID" >> $GITHUB_OUTPUT
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@a6dbcefcf8a31a861f5e078bb153ed332130c512 # v2.4.3
+        with:
+          mode: start
+          github-token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          ec2-image-id: ${{ steps.det_ami_id.outputs.AMI_ID }}
+          ec2-instance-type: ${{ inputs.ec2_instance_type }}
+          subnet-id: subnet-094d73eb42eb6bf5b
+          security-group-id: sg-0282706dbc92a1579
+  bench_nix:
+    name: Bench (nix)
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ${{ needs.start-ec2-runner.outputs.label }}
+    needs: start-ec2-runner # required to start the main job when the runner is ready
+    if: ${{ inputs.compiler == '' }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/bench
+        if: ${{ inputs.opt == 'all' || inputs.opt == 'opt' }}
+        with:
+          nix-verbose: ${{ inputs.verbose }}
+          name: ${{ inputs.name }}
+          cflags: ${{ inputs.cflags }}
+          archflags: ${{ inputs.archflags }}
+          ldflags: ${{ inputs.ldflags }}
+          opt: true
+          perf: ${{ inputs.perf }}
+          store_results: ${{ inputs.store_results }}
+          bench_extra_args: ${{ inputs.bench_extra_args }}
+          gh_token: ${{ secrets.AWS_GITHUB_TOKEN }}
+      - uses: ./.github/actions/bench
+        if: ${{ inputs.opt == 'all' || inputs.opt == 'no_opt' }}
+        with:
+          nix-verbose: ${{ inputs.verbose }}
+          name: ${{ inputs.name }} (no-opt)
+          cflags: ${{ inputs.cflags }}
+          archflags: ${{ inputs.archflags }}
+          ldflags: ${{ inputs.ldflags }}
+          opt: false
+          perf: ${{ inputs.perf }}
+          store_results: ${{ inputs.store_results }}
+          bench_extra_args: ${{ inputs.bench_extra_args }}
+          gh_token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          alert_threshold: ${{ inputs.alert_threshold }}
+  bench_custom:
+    name: Bench (custom compiler)
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ${{ needs.start-ec2-runner.outputs.label }}
+    needs: start-ec2-runner # required to start the main job when the runner is ready
+    if: ${{ inputs.compiler != '' }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/setup-apt
+        with:
+          packages: ${{ inputs.additional_packages }}
+      - name: Set compiler
+        run: |
+          echo "CC=${{ inputs.compiler }}" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/bench
+        if: ${{ inputs.opt == 'all' || inputs.opt == 'opt' }}
+        with:
+          nix-shell: 'ci-bench'
+          custom-shell: 'bash'
+          nix-cache: false
+          nix-verbose: ${{ inputs.verbose }}
+          name: ${{ inputs.name }} (${{ inputs.compiler }})
+          cflags: ${{ inputs.cflags }}
+          archflags: ${{ inputs.archflags }}
+          ldflags: ${{ inputs.ldflags }}
+          opt: true
+          perf: ${{ inputs.perf }}
+          store_results: ${{ inputs.store_results }}
+          bench_extra_args: ${{ inputs.bench_extra_args }}
+          gh_token: ${{ secrets.AWS_GITHUB_TOKEN }}
+      - uses: ./.github/actions/bench
+        if: ${{ inputs.opt == 'all' || inputs.opt == 'no_opt' }}
+        with:
+          nix-shell: 'ci-bench'
+          custom-shell: 'bash'
+          nix-cache: false
+          nix-verbose: ${{ inputs.verbose }}
+          name: ${{ inputs.name }} (${{ inputs.compiler }}) (no-opt)
+          cflags: ${{ inputs.cflags }}
+          archflags: ${{ inputs.archflags }}
+          ldflags: ${{ inputs.ldflags }}
+          opt: false
+          perf: ${{ inputs.perf }}
+          store_results: ${{ inputs.store_results }}
+          bench_extra_args: ${{ inputs.bench_extra_args }}
+          gh_token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          alert_threshold: ${{ inputs.alert_threshold }}
+  stop-ec2-runner:
+    name: Stop ${{ inputs.name }} (${{ inputs.ec2_instance_type }})
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    needs:
+      - start-ec2-runner
+      - bench_nix # required to wait when the main job is done
+      - bench_custom # required to wait when the main job is done
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@a6dbcefcf8a31a861f5e078bb153ed332130c512 # v2.4.3
+        with:
+          mode: stop
+          github-token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          label: ${{ needs.start-ec2-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-ec2-runner.outputs.ec2-instance-id }}

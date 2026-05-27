@@ -26,7 +26,7 @@ namespace dmImage
 
     Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
     {
-        return RESULT_OK;
+        return RESULT_IMAGE_ERROR;
     }
 
     void Free(Image* image)
@@ -51,5 +51,14 @@ namespace dmImage
     {
         return 0;
     }
-}
 
+    bool GetAstcBlockSize(const void* mem, uint32_t memsize, uint32_t* width, uint32_t* height, uint32_t* depth)
+    {
+        return false;
+    }
+
+    bool GetAstcDimensions(const void* mem, uint32_t memsize, uint32_t* width, uint32_t* height, uint32_t* depth)
+    {
+        return false;
+    }
+}

@@ -134,6 +134,22 @@ namespace dmRender
                     dmGraphics::SetBlendFunc(context, (dmGraphics::BlendFactor)c->m_Operands[0], (dmGraphics::BlendFactor)c->m_Operands[1]);
                     break;
                 }
+                case COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE:
+                {
+                    dmGraphics::SetBlendFuncSeparate(context,
+                        (dmGraphics::BlendFactor) c->m_Operands[0],
+                        (dmGraphics::BlendFactor) c->m_Operands[1],
+                        (dmGraphics::BlendFactor) c->m_Operands[2],
+                        (dmGraphics::BlendFactor) c->m_Operands[3]);
+                    break;
+                }
+                case COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE:
+                {
+                    dmGraphics::SetBlendEquationSeparate(context,
+                        (dmGraphics::BlendEquation) c->m_Operands[0],
+                        (dmGraphics::BlendEquation) c->m_Operands[1]);
+                    break;
+                }
                 case COMMAND_TYPE_SET_COLOR_MASK:
                 {
                     dmGraphics::SetColorMask(context, c->m_Operands[0] != 0, c->m_Operands[1] != 0, c->m_Operands[2] != 0, c->m_Operands[3] != 0);

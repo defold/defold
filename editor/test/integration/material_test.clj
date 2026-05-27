@@ -15,6 +15,7 @@
 (ns integration.material-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]))
@@ -31,6 +32,12 @@
           samplers (g/node-value node-id :samplers)]
       (is (some? (g/node-value node-id :shader)))
       (is (= 1 (count samplers))))))
+
+(deftest missing-material-constant-value
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/materials/test_missing_constant_value.material")]
+      (is (= protobuf/vector4-zero (get-in (g/node-value node-id :fragment-constants) [0 :value])))
+      (is (= [protobuf/vector4-zero] (get-in (g/node-value node-id :save-value) [:fragment-constants 0 :value]))))))
 
 (deftest material-pbr-parameters
   ;; Test that all exposed PBR parameters are found, and that they are true

@@ -161,7 +161,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testCompressedLuaSourceForHTML5() throws Exception {
         Project p = getProject();
-        p.setOption("platform", "js-web");
+        p.setOption("platform", "wasm-web");
 
         final String path = "/test.script";
         final String scriptSource = "function foo() print('foo') end";
@@ -181,7 +181,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     // @Test
     // public void testVanillaLuaBytecode() throws Exception {
     //     Project p = GetProject();
-    //     p.setOption("platform", "js-web");
+    //     p.setOption("platform", "wasm-web");
 
     //     StringBuilder src = new StringBuilder();
     //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
@@ -195,7 +195,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     // @Test
     // public void testVanillaLuaBytecodeChunkname() throws Exception {
     //     Project p = GetProject();
-    //     p.setOption("platform", "js-web");
+    //     p.setOption("platform", "wasm-web");
 
     //     StringBuilder src = new StringBuilder();
     //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
