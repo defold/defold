@@ -835,10 +835,11 @@
       (fx/run-later
         (future/complete!
           f
-          (fxui/show-dialog-and-await-result!
-            :event-handler #(assoc %1 ::fxui/result (:result %2))
-            :error-handler #(future/fail! f %)
-            :description desc)))
+          (rt/and-refresh-context
+            (fxui/show-dialog-and-await-result!
+              :event-handler #(assoc %1 ::fxui/result (:result %2))
+              :error-handler #(future/fail! f %)
+              :description desc))))
       f)))
 
 ;; endregion
