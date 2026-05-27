@@ -57,7 +57,8 @@ typedef struct JobContext* HJobContext;
  * @member JOBSYSTEM_STATUS_QUEUED 2
  * @member JOBSYSTEM_STATUS_PROCESSING 3
  * @member JOBSYSTEM_STATUS_FINISHED 4
- * @member JOBSYSTEM_STATUS_CANCELED 5
+ * @member JOBSYSTEM_STATUS_CALLBACK 5
+ * @member JOBSYSTEM_STATUS_CANCELED 6
  */
 enum JobSystemStatus
 {
@@ -66,7 +67,8 @@ enum JobSystemStatus
     JOBSYSTEM_STATUS_QUEUED           = 2,
     JOBSYSTEM_STATUS_PROCESSING       = 3,
     JOBSYSTEM_STATUS_FINISHED         = 4,
-    JOBSYSTEM_STATUS_CANCELED         = 5,
+    JOBSYSTEM_STATUS_CALLBACK         = 5,
+    JOBSYSTEM_STATUS_CANCELED         = 6,
 };
 
 /*# job result enumeration
@@ -208,7 +210,7 @@ enum JobSystemResult JobSystemPushJob(HJobContext context, HJob job);
  * @name JobSystemCancelJob
  * @param context [type:HJobContext] the job system context
  * @param job [type:HJob] the job to cancel
- * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_OK if finished, JOBSYSTEM_RESULT_CANCELED if canceled, or JOBSYSTEM_RESULT_PENDING if the job (or any child) is still in flight
+ * @return result [type:JobSystemResult] Returns JOBSYSTEM_RESULT_CANCELED if canceled, JOBSYSTEM_RESULT_PENDING if the job (or any child) is still in flight, or JOBSYSTEM_RESULT_INVALID_HANDLE if the handle is invalid
  * @examples
  * How to wait until a job has been cancelled or finished
  * ```c
@@ -218,6 +220,8 @@ enum JobSystemResult JobSystemPushJob(HJobContext context, HJob job);
  *     dmTime::Sleep(1000);
  *     jr = JobSystemCancelJob(job_context, hjob);
  * }
+ * // If the loop observed PENDING before this point, INVALID_HANDLE means the
+ * // job was flushed by JobSystemUpdate() between polls.
  * ```
  */
 enum JobSystemResult JobSystemCancelJob(HJobContext context, HJob job);
