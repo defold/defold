@@ -29,6 +29,7 @@ public interface IShaderCompiler {
         public int maxPageCount;
         public boolean forceSplitSamplers;
         public boolean excludeGlesSm100;
+        public String spirvOptMode = "";
         public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
     };
