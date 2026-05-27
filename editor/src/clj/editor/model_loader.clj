@@ -21,7 +21,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [com.dynamo.bob.pipeline ModelUtil]
+  (:import [com.dynamo.bob.pipeline ModelUtil ModelUtil$MorphTargetTextureCollector ModelUtil$PackedMorphTargetTexture]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
            [java.io InputStream]))
@@ -32,6 +32,15 @@
   (mapv #(int (get project-settings %))
         [["model" "max_morph_target_texture_width"]
          ["model" "max_morph_target_texture_height"]]))
+
+(defn- morph-target-texture-token [index]
+  (format "__morph_target_texture_%d__" index))
+
+(defn- packed-morph-target-texture->map [^ModelUtil$PackedMorphTargetTexture texture]
+  {:width (.-width texture)
+   :height (.-height texture)
+   :layer-count (.-layerCount texture)
+   :data (.-data texture)})
 
 (defn- load-model-scene
   [resource ^InputStream stream morph-tex-w morph-tex-h]
@@ -45,16 +54,29 @@
         scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
-        animation-ids (ModelUtil/getAnimationNames scene)] ; sorted on duration (largest first)
+        animation-ids (ModelUtil/getAnimationNames scene) ; sorted on duration (largest first)
+        morph-target-textures (java.util.ArrayList.)]
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h)
+    (ModelUtil/loadModels
+      scene
+      mesh-set-builder
+      morph-tex-w
+      morph-tex-h
+      (reify ModelUtil$MorphTargetTextureCollector
+        (add [_ _mesh texture]
+          (let [index (.size morph-target-textures)
+                token (morph-target-texture-token index)]
+            (.add morph-target-textures {:token token
+                                         :packed-texture (packed-morph-target-texture->map texture)})
+            token))))
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
        :skeleton skeleton
        :bones bones
        :buffers (.buffers scene)
+       :morph-target-textures (vec morph-target-textures)
        :animation-ids animation-ids
        :material-ids material-ids})))
 

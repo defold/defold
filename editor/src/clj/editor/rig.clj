@@ -13,12 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.rig
-  (:require [editor.build-target :as bt]
+  (:require [clojure.string :as string]
+            [editor.build-target :as bt]
             [editor.pipeline :as pipeline]
+            [editor.pipeline.tex-gen :as tex-gen]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]))
+  (:import [com.dynamo.bob.pipeline ModelUtil$PackedMorphTargetTexture]
+           [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]))
+
+(def ^:private morph-target-texture-token-prefix "__morph_target_texture_")
 
 (defn- build-skeleton
   [resource _dep-resources {:keys [skeleton] :as _user-data}]
@@ -46,17 +51,71 @@
      :user-data {:animation-set animation-set}}))
 
 
-(defn- build-mesh-set
-  [resource _dep-resources {:keys [mesh-set] :as _user-data}]
-  {:resource resource :content (protobuf/map->bytes Rig$MeshSet mesh-set)})
+(defn- replace-morph-target-texture-tokens
+  [mesh-set morph-target-textures dep-resources]
+  (let [token->texture-resource-path
+        (into {}
+              (map (fn [{:keys [token resource]}]
+                     [token (resource/proj-path (get dep-resources resource resource))]))
+              morph-target-textures)]
+    (update mesh-set :models
+            (fn [models]
+              (mapv (fn [model]
+                      (update model :meshes
+                              (fn [meshes]
+                                (mapv (fn [mesh]
+                                        (if-some [morph-target-texture (not-empty (:morph-target-texture mesh))]
+                                          (if (string/starts-with? morph-target-texture morph-target-texture-token-prefix)
+                                            (if-some [texture-resource-path (token->texture-resource-path morph-target-texture)]
+                                              (assoc mesh :morph-target-texture texture-resource-path)
+                                              (throw (ex-info "Missing generated morph target texture resource."
+                                                              {:morph-target-texture morph-target-texture})))
+                                            mesh)
+                                          mesh))
+                                      meshes))))
+                    models)))))
 
-(defn make-mesh-set-build-target
-  [workspace node-id mesh-set]
+(defn- build-morph-target-texture
+  [resource _dep-resources {:keys [packed-texture] :as _user-data}]
+  (let [{:keys [width height layer-count data]} packed-texture
+        texture (ModelUtil$PackedMorphTargetTexture. (int width) (int height) (int layer-count) data)]
+    {:resource resource
+     :write-content-fn tex-gen/write-texturec-content-fn
+     :user-data {:texture-generator-result (.toGenerateResult texture)}}))
+
+(defn- build-mesh-set
+  [resource dep-resources {:keys [mesh-set morph-target-textures] :as _user-data}]
+  (let [mesh-set (replace-morph-target-texture-tokens mesh-set morph-target-textures dep-resources)]
+    {:resource resource :content (protobuf/map->bytes Rig$MeshSet mesh-set)}))
+
+(defn- make-morph-target-texture-build-target
+  [workspace node-id {:keys [packed-texture]}]
   (bt/with-content-hash
     {:node-id node-id
-     :resource (workspace/make-placeholder-build-resource workspace "meshset")
-     :build-fn build-mesh-set
-     :user-data {:mesh-set mesh-set}}))
+     :resource (workspace/make-placeholder-build-resource workspace "texture")
+     :build-fn build-morph-target-texture
+     :user-data {:packed-texture packed-texture}}))
+
+(defn make-mesh-set-build-target
+  ([workspace node-id mesh-set]
+   (make-mesh-set-build-target workspace node-id mesh-set nil))
+  ([workspace node-id mesh-set morph-target-textures]
+   (let [morph-target-texture-build-targets
+         (mapv (partial make-morph-target-texture-build-target workspace node-id)
+               morph-target-textures)
+         morph-target-textures
+         (mapv (fn [morph-target-texture build-target]
+                 (assoc morph-target-texture :resource (:resource build-target)))
+               morph-target-textures
+               morph-target-texture-build-targets)]
+     (bt/with-content-hash
+       (cond-> {:node-id node-id
+                :resource (workspace/make-placeholder-build-resource workspace "meshset")
+                :build-fn build-mesh-set
+                :user-data {:mesh-set mesh-set
+                            :morph-target-textures morph-target-textures}}
+               (seq morph-target-texture-build-targets)
+               (assoc :deps morph-target-texture-build-targets))))))
 
 (defn make-rig-scene-build-target
   ([workspace node-id pb dep-build-targets]

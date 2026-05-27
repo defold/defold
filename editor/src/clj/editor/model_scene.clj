@@ -285,7 +285,10 @@
     (render-mesh-opaque-selection gl render-args renderables)))
 
 (g/defnk produce-mesh-set-build-target [_node-id resource content]
-  (rig/make-mesh-set-build-target (resource/workspace resource) _node-id (:mesh-set content)))
+  (rig/make-mesh-set-build-target (resource/workspace resource)
+                                  _node-id
+                                  (:mesh-set content)
+                                  (:morph-target-textures content)))
 
 (g/defnk produce-skeleton [content]
   (:skeleton content))

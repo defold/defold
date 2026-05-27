@@ -13,17 +13,43 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.model-utility-test
-  (:require [clojure.set :as set]
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.string :as string]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.model-loader :as model-loader]
             [editor.defold-project :as project]
+            [editor.pipeline :as pipeline]
+            [editor.progress :as progress]
+            [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util])
+  (:import [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.rig.proto Rig$MeshSet]
+           [java.nio.file Files]))
 
 (defn- load-scene [workspace project file-path]
   (let [resource (workspace/file-resource workspace file-path)
         node-id (project/get-resource-node project resource)]
     (model-loader/load-scene node-id resource (project/settings project))))
+
+(defn- build-target! [project build-target]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [workspace (project/workspace project evaluation-context)
+          old-artifact-map (workspace/artifact-map workspace)
+          flat-build-targets (build/resolve-dependencies [build-target] project evaluation-context)
+          build-results (pipeline/build! flat-build-targets
+                                         (workspace/build-path workspace)
+                                         old-artifact-map
+                                         evaluation-context
+                                         progress/null-render-progress!)]
+      (when-some [error (:error build-results)]
+        (throw (ex-info "Build produced an ErrorValue." {:error error})))
+      (workspace/artifact-map! workspace (:artifact-map build-results))
+      (workspace/etags! workspace (:etags build-results))
+      build-results)))
 
 (deftest mesh-normals
   (test-util/with-loaded-project
@@ -70,3 +96,36 @@
       (is (= 1 (count buffers)))
       (is (= "simpleTriangle.bin" (.uri (first buffers))))
       (is (= 44 (count (.buffer (first buffers))))))))
+
+(deftest morph-target-build-data
+  (test-util/with-loaded-project
+    (let [resource (workspace/file-resource workspace "/mesh/morph_weights_anim.gltf")
+          node-id (project/get-resource-node project resource)
+          {:keys [mesh-set morph-target-textures]} (model-loader/load-scene node-id
+                                                                            resource
+                                                                            (project/settings project))
+          mesh (-> mesh-set :models first :meshes first)]
+      (is (= 2 (:morph-target-count mesh)))
+      (is (= [0.0 0.0] (:morph-base-weights mesh)))
+      (is (= 1 (count morph-target-textures)))
+      (is (string/starts-with? (:morph-target-texture mesh) "__morph_target_texture_"))
+      (is (not (g/error? (g/node-value node-id :build-targets))))
+      (let [mesh-set-build-resource (:resource (g/node-value node-id :mesh-set-build-target))
+            _build-results (build-target! project (g/node-value node-id :mesh-set-build-target))
+            built-mesh-set (protobuf/bytes->map-with-defaults
+                              Rig$MeshSet
+                              (Files/readAllBytes (.toPath (io/as-file mesh-set-build-resource))))
+            built-mesh (-> built-mesh-set :models first :meshes first)
+            morph-target-texture (:morph-target-texture built-mesh)
+            texture-file (workspace/build-path workspace morph-target-texture)
+            texture-image (-> (Files/readAllBytes (.toPath texture-file))
+                              TextureUtil/textureResourceBytesToTextureImage
+                              protobuf/pb->map-with-defaults)
+            first-alternative (first (:alternatives texture-image))]
+        (is (string/ends-with? morph-target-texture ".texturec"))
+        (is (not (string/starts-with? morph-target-texture "__morph_target_texture_")))
+        (is (.exists texture-file))
+        (is (= :type-2d-array (:type texture-image)))
+        (is (= 6 (:count texture-image)))
+        (is (= 1 (:depth first-alternative)))
+        (is (= 1 (:original-depth first-alternative)))))))

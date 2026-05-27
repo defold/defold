@@ -47,6 +47,7 @@ import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.rig.proto.Rig;
 
 public class ModelUtilTest {
@@ -316,6 +317,11 @@ public class ModelUtilTest {
         assertEquals(2, textures.get(0).height);
         assertEquals(6, textures.get(0).layerCount);
         assertEquals(4 * 2 * 4 * 2 * 3 * Float.BYTES, textures.get(0).data.length);
+        TextureImage textureImage = textures.get(0).toGenerateResult().textureImage;
+        assertEquals(TextureImage.Type.TYPE_2D_ARRAY, textureImage.getType());
+        assertEquals(6, textureImage.getCount());
+        assertEquals(1, textureImage.getAlternatives(0).getDepth());
+        assertEquals(1, textureImage.getAlternatives(0).getOriginalDepth());
         assertEquals(2, mesh.getMorphTargetCount());
         assertEquals(2, mesh.getMorphBaseWeightsCount());
     }
