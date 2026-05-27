@@ -623,7 +623,9 @@ public class ShaderProgramBuilder extends Builder {
 
             IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
