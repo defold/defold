@@ -37,6 +37,8 @@ foreach(_pf IN LISTS GS_PROTO_FILES)
 endforeach()
 add_custom_target(gamesys_proto_headers DEPENDS ${GS_PROTO_HEADERS})
 
+add_custom_target(gamesys_proto_cpp DEPENDS ${GS_PROTO_CC} ${GS_PROTO_HEADERS})
+
 # Generate Python protobuf modules required by content tooling
 set(GS_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto/gamesys")
 file(MAKE_DIRECTORY "${GS_PROTO_PY_DIR}")
@@ -285,6 +287,11 @@ defold_target_link_libraries(script_box2d_defold "${TARGET_PLATFORM}" SCOPE PUBL
     input
     script
     $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+
+foreach(_target IN ITEMS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold)
+    add_dependencies(${_target} gamesys_proto_cpp)
+    target_include_directories(${_target} PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+endforeach()
 
 # ========= Android Java (optional) =========
 if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")

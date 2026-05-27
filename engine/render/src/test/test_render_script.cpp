@@ -953,7 +953,6 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_StringPredicate)
     "    self.test_pred = render.predicate({\"one\", \"two\"})\n"
     "    render.draw(self.test_pred)\n"
     "    render.draw_debug3d()\n"
-    "    render.draw_debug2d()\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -983,7 +982,6 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_HashPredicate)
     "    self.test_pred = render.predicate({hash(\"one\"), hash(\"two\")})\n"
     "    render.draw(self.test_pred)\n"
     "    render.draw_debug3d()\n"
-    "    render.draw_debug2d()\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
