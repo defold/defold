@@ -1569,7 +1569,7 @@
         (let [camera (view->camera (:basis evaluation-context) scene-view)
               image-view (g/node-value scene-view :image-view evaluation-context)]
           (when (and camera image-view)
-            (c/start-free-cam-mode! image-view camera (i/get-cursor-pos))))))))
+            (c/start-free-cam-mode! image-view camera)))))))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
