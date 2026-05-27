@@ -97,7 +97,7 @@ public class ShaderCompilers {
 
     private static Set<GraphicsAdapter> getShaderAdaptersFromOptions(Platform platform, IShaderCompiler.CompileOptions compileOptions) {
         LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
-        if (compileOptions.shaderAdapters == null || compileOptions.shaderAdapters.isEmpty()) {
+        if (compileOptions.shaderAdapters == null) {
             return getDefaultShaderAdapters(platform);
         }
         for (String adapterName : compileOptions.shaderAdapters.split(",")) {

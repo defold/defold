@@ -479,8 +479,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings(
-                "libs", List.of("graphics", "platform"),
-                "excludeLibs", List.of("graphics_vulkan", "platform_vulkan", "MoltenVK"))));
+                "symbols", List.of("GraphicsAdapterOpenGL"),
+                "excludeLibs", List.of("graphics_vulkan"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_gl"),
             ShaderDesc.Language.LANGUAGE_GLSL_SM330);
@@ -492,6 +492,12 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64Win32, shaderAdapters, "manifest_win32_vulkan"),
             ShaderDesc.Language.LANGUAGE_SPIRV);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings("excludeSymbols", List.of("GraphicsAdapterVulkan"))));
+        assertEquals("", shaderAdapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_no_adapters"));
     }
 
     @Test

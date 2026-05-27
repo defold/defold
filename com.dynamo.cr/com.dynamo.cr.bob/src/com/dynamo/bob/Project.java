@@ -1368,20 +1368,17 @@ public class Project {
      */
     private static class GameProjectBuildOption {
         public String inputOption, outputOption, propertyCategory, propertyKey;
-        public List<String> appManifestSymbols;
         /**
          * @param inputOption        Option that may be used with Bob.
          * @param outputOption       How the option will be saved in project options using project.setOption() for future use.
          * @param propertyCategory   Category in the `game.project` file.
          * @param propertyKey        Key in the `game.project` file.
-         * @param appManifestSymbols Symbols from appManifest that makes this option true.
          */
-        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, List<String> appManifestSymbols) {
+        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey) {
             this.inputOption = inputOption;
             this.outputOption = outputOption;
             this.propertyCategory = propertyCategory;
             this.propertyKey = propertyKey;
-            this.appManifestSymbols = appManifestSymbols;
         }
     }
 
@@ -1468,25 +1465,17 @@ public class Project {
         }
 
         switch (normalized) {
+            case "graphics_opengl":
+                return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
-            case "platform_vulkan":
-            case "dmglfw_vulkan":
-            case "MoltenVK":
-            case "vulkan":
-            case "vulkan-1":
                 return ShaderCompilers.SHADER_ADAPTER_VULKAN;
             case "graphics_opengles":
             case "graphics_gles":
                 return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
-            case "graphics":
-            case "platform":
-            case "dmglfw":
-            case "glfw3":
-                return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_webgpu":
+            case "graphics_webgpu_wagyu":
                 return ShaderCompilers.SHADER_ADAPTER_WEBGPU;
             case "graphics_dx12":
-            case "dx12":
                 return ShaderCompilers.SHADER_ADAPTER_DX12;
         }
 
@@ -1518,22 +1507,22 @@ public class Project {
     public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
         TimeProfiler.start("configurePreBuildProjectOptions");
         List<GameProjectBuildOption> options = new ArrayList<>();
-        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv",null));
-        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl",null));
-        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl",null));
-        options.add(new GameProjectBuildOption("debug-output-msl", "output-msl", "shader","output_msl",null));
-        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader","output_glsl",null));
-        options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader","output_glsl_es100",null));
-        options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader","output_glsl_es300",null));
-        options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader","output_glsl120",null));
-        options.add(new GameProjectBuildOption("output-glsl330", "output-glsl330", "shader","output_glsl330",null));
-        options.add(new GameProjectBuildOption("output-glsl430", "output-glsl430", "shader","output_glsl430",null));
-        options.add(new GameProjectBuildOption("exclude-gles-sm100", "exclude-gles-sm100", "shader", "exclude_gles_sm100", null));
+        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader", "output_spirv"));
+        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader", "output_hlsl"));
+        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader", "output_wgsl"));
+        options.add(new GameProjectBuildOption("debug-output-msl", "output-msl", "shader", "output_msl"));
+        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader", "output_glsl"));
+        options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader", "output_glsl_es100"));
+        options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader", "output_glsl_es300"));
+        options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader", "output_glsl120"));
+        options.add(new GameProjectBuildOption("output-glsl330", "output-glsl330", "shader", "output_glsl330"));
+        options.add(new GameProjectBuildOption("output-glsl430", "output-glsl430", "shader", "output_glsl430"));
+        options.add(new GameProjectBuildOption("exclude-gles-sm100", "exclude-gles-sm100", "shader", "exclude_gles_sm100"));
 
-        options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound","stream_enabled",null));
-        options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model","split_meshes",null));
-        options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus","disabled",null));
-        options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font","runtime_generation",null));
+        options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound", "stream_enabled"));
+        options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model", "split_meshes"));
+        options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus", "disabled"));
+        options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font", "runtime_generation"));
 
         Platform currentPlatform = getPlatform();
         final List<Platform> architectures = Platform.getArchitecturesFromString(this.option("architectures", ""), currentPlatform);
@@ -1553,14 +1542,6 @@ public class Project {
             if (this.hasOption(option.inputOption)) {
                 boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");
                 this.setOption(option.outputOption, Boolean.toString(fromProjectProperties || fromProjectOptions));
-            } else if (option.appManifestSymbols != null) {
-                boolean hasSymbol = false;
-                for(Map<String, Object>platfromSetting : platformsSettings) {
-                    for (String optionSymbol : option.appManifestSymbols) {
-                        hasSymbol = hasSymbol || ExtenderUtil.hasSymbol(optionSymbol, platfromSetting);
-                    }
-                }
-                this.setOption(option.outputOption, Boolean.toString(hasSymbol || fromProjectProperties));
             } else {
                 this.setOption(option.outputOption, Boolean.toString(fromProjectProperties));
             }
