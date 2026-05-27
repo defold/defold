@@ -489,7 +489,7 @@ def addParallelArchiveEntry = { ParallelScatterZipCreator creator, Set<String> s
     creator.addArchiveEntry(entry, { openStream.call() } as InputStreamSupplier)
 }
 
-task createBobJar(dependsOn: [createExternalLibsBuiltinsJar, createLuaJitShareZip]) {
+task createBobJar(dependsOn: [compileBobLight, createExternalLibsBuiltinsJar, createLuaJitShareZip]) {
     def outputFile = file("${project.bobDir}/dist/bob.jar")
 
     inputs.dir(project.classesDir)
