@@ -14,7 +14,6 @@ set(GS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_DIR "${GS_ROOT}/src/gamesys")
 set(GS_DMSDK_SRC_DIR "${GS_ROOT}/src")
 set(GS_PROTO_DIR "${GS_ROOT}/proto/gamesys")
-set(GS_BUILD_DIR "${GS_ROOT}/build")
 
 # ========= Protobuf (DDF) =========
 # Mirror wscript: include all proto files under proto/gamesys except model_ddf.proto
@@ -36,6 +35,8 @@ foreach(_pf IN LISTS GS_PROTO_FILES)
   list(APPEND GS_PROTO_CC "${_out_cc}")
   list(APPEND GS_PROTO_HEADERS "${_out_h}")
 endforeach()
+
+add_custom_target(gamesys_proto_cpp DEPENDS ${GS_PROTO_CC} ${GS_PROTO_HEADERS})
 
 # Generate Python protobuf modules required by content tooling
 set(GS_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto/gamesys")
@@ -164,7 +165,7 @@ target_include_directories(script_box2d PUBLIC
     "${GS_SRC_DIR}"
     "${GS_DMSDK_SRC_DIR}"
     "${DEFOLD_EXT_INCLUDE_DIR}/box2d"
-    "${GS_BUILD_DIR}")
+    "${CMAKE_CURRENT_BINARY_DIR}")
 
 
 
@@ -178,7 +179,12 @@ target_include_directories(script_box2d_defold PUBLIC
     "${GS_SRC_DIR}"
     "${GS_DMSDK_SRC_DIR}"
     "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold"
-    "${GS_BUILD_DIR}")
+    "${CMAKE_CURRENT_BINARY_DIR}")
+
+foreach(_target IN ITEMS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold)
+    add_dependencies(${_target} gamesys_proto_cpp)
+    target_include_directories(${_target} PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+endforeach()
 
 # ========= Android Java (optional) =========
 if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
