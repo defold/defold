@@ -16,7 +16,6 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import java.util.ArrayList;
@@ -33,6 +32,7 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -132,22 +132,14 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         return addAndBuildShaderDesc("/" + outputResource + ".fp", fp, "/" + outputResource + ".shbundle");
     }
 
-    private Map<String, Object> platformSettings(Map<String, Object> context) {
+    private Map<String, Object> platformSettings(Object... contextEntries) {
+        Map<String, Object> context = new HashMap<>();
+        for (int i = 0; i < contextEntries.length; i += 2) {
+            context.put((String) contextEntries[i], contextEntries[i + 1]);
+        }
         Map<String, Object> settings = new HashMap<>();
         settings.put("context", context);
         return settings;
-    }
-
-    private Map<String, Object> manifestContext(String key, List<String> values) {
-        Map<String, Object> context = new HashMap<>();
-        context.put(key, values);
-        return context;
-    }
-
-    private Map<String, Object> manifestContext(String firstKey, List<String> firstValues, String secondKey, List<String> secondValues) {
-        Map<String, Object> context = manifestContext(firstKey, firstValues);
-        context.put(secondKey, secondValues);
-        return context;
     }
 
     private ShaderDesc compileShaderForPlatform(Platform platform, String shaderAdapters, String outputResource) throws Exception {
@@ -452,65 +444,54 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testDefaultShaderLanguagesForPlatforms() throws Exception {
-        checkOnlyExpectedLanguages(
-            buildShaderForPlatform(Platform.X86_64MacOS.getPair(), Platform.X86_64MacOS.getPair(), "default_macos"),
-            ShaderDesc.Language.LANGUAGE_SPIRV);
+        Object[][] platformLanguages = new Object[][] {
+            { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.X86Win32,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
+            { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
+            { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
+            { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.X86_64Ios,      new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.Arm64Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.WasmWeb,        new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.WasmPthreadWeb, new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+        };
 
-        checkOnlyExpectedLanguages(
-            buildShaderForPlatform(Platform.Armv7Android.getPair(), Platform.Armv7Android.getPair(), "default_android"),
-            ShaderDesc.Language.LANGUAGE_GLES_SM300,
-            ShaderDesc.Language.LANGUAGE_GLES_SM100,
-            ShaderDesc.Language.LANGUAGE_SPIRV);
-
-        checkOnlyExpectedLanguages(
-            buildShaderForPlatform(Platform.X86_64Linux.getPair(), Platform.X86_64Linux.getPair(), "default_linux"),
-            ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-
-        checkOnlyExpectedLanguages(
-            buildShaderForPlatform(Platform.WasmWeb.getPair(), Platform.WasmWeb.getPair(), "default_web"),
-            ShaderDesc.Language.LANGUAGE_GLES_SM300,
-            ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        for (Object[] platformLanguage : platformLanguages) {
+            Platform platform = (Platform) platformLanguage[0];
+            ShaderDesc.Language[] expectedLanguages = (ShaderDesc.Language[]) platformLanguage[1];
+            checkOnlyExpectedLanguages(
+                buildShaderForPlatform(platform.getPair(), platform.getPair(), "default_" + platform.getPair().replace("-", "_")),
+                expectedLanguages);
+        }
     }
 
     @Test
     public void testManifestShaderLanguages() throws Exception {
-        String shaderAdapters = ShaderCompilers.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
-            platformSettings(manifestContext("symbols", List.of("GraphicsAdapterOpenGL")))));
+        String shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterOpenGL"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_both"),
             ShaderDesc.Language.LANGUAGE_GLSL_SM330,
             ShaderDesc.Language.LANGUAGE_SPIRV);
 
-        shaderAdapters = ShaderCompilers.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
-            platformSettings(manifestContext(
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings(
                 "libs", List.of("graphics", "platform"),
-                "excludeLibs", List.of("graphics_vulkan", "platform_vulkan", "MoltenVK")))));
+                "excludeLibs", List.of("graphics_vulkan", "platform_vulkan", "MoltenVK"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_gl"),
             ShaderDesc.Language.LANGUAGE_GLSL_SM330);
 
-        shaderAdapters = ShaderCompilers.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
-            platformSettings(manifestContext(
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings(
                 "symbols", List.of("GraphicsAdapterVulkan"),
-                "excludeSymbols", List.of("GraphicsAdapterOpenGL")))));
+                "excludeSymbols", List.of("GraphicsAdapterOpenGL"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64Win32, shaderAdapters, "manifest_win32_vulkan"),
             ShaderDesc.Language.LANGUAGE_SPIRV);
-    }
-
-    @Test
-    public void testConsoleShaderCompilerHandoff() throws Exception {
-        assertNull(ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64PS4));
-        assertNull(ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64PS5));
-        assertNull(ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64XBone));
-
-        checkOnlyExpectedLanguages(
-            compileShaderWithCompiler(ShaderCompilers.GetCommonShaderCompiler(Platform.Arm64NX64), null, "console_switch"),
-            ShaderDesc.Language.LANGUAGE_SPIRV);
-
-        checkOnlyExpectedLanguages(
-            compileShaderWithCompiler(ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64XBone, new ShaderCompilePipeline.Options()), null, "console_xbox"),
-            ShaderDesc.Language.LANGUAGE_HLSL_51);
     }
 
     @Test

@@ -20,24 +20,30 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderCompilers {
     public static final String SHADER_ADAPTERS_OPTION = "shader-adapters";
+    public static final String SHADER_ADAPTER_OPENGL = "opengl";
+    public static final String SHADER_ADAPTER_OPENGLES = "opengles";
+    public static final String SHADER_ADAPTER_VULKAN = "vulkan";
+    public static final String SHADER_ADAPTER_METAL = "metal";
+    public static final String SHADER_ADAPTER_WEBGPU = "webgpu";
+    public static final String SHADER_ADAPTER_DX12 = "dx12";
 
     private enum GraphicsAdapter {
-        OPENGL("opengl"),
-        OPENGLES("opengles"),
-        VULKAN("vulkan"),
-        METAL("metal"),
-        WEBGPU("webgpu"),
-        DX12("dx12");
+        OPENGL(SHADER_ADAPTER_OPENGL),
+        OPENGLES(SHADER_ADAPTER_OPENGLES),
+        VULKAN(SHADER_ADAPTER_VULKAN),
+        METAL(SHADER_ADAPTER_METAL),
+        WEBGPU(SHADER_ADAPTER_WEBGPU),
+        DX12(SHADER_ADAPTER_DX12);
 
         private final String optionName;
 
@@ -55,51 +61,29 @@ public class ShaderCompilers {
         }
     }
 
-    private static boolean isMacOS(Platform platform) {
-        return platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS;
-    }
-
-    private static boolean isAndroid(Platform platform) {
-        return platform == Platform.Armv7Android || platform == Platform.Arm64Android;
-    }
-
-    private static boolean isWeb(Platform platform) {
-        return platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb;
-    }
-
-    private static boolean isIOS(Platform platform) {
-        return platform == Platform.Arm64Ios || platform == Platform.X86_64Ios;
-    }
-
-    private static boolean isSwitch(Platform platform) {
-        return platform == Platform.Arm64NX64;
-    }
-
-    private static boolean isXbox(Platform platform) {
-        return platform == Platform.X86_64XBone;
-    }
-
     private static boolean usesGlesShaderLanguages(Platform platform) {
-        return isAndroid(platform) || isWeb(platform) || isIOS(platform) || platform == Platform.Arm64Linux;
+        return platform.matchesOS(OS.OS_ID_ANDROID) ||
+               platform.matchesOS(OS.OS_ID_WEB) ||
+               platform.matchesOS(OS.OS_ID_IOS) ||
+               (platform.isLinux() && platform.getArch().equals("arm64"));
     }
 
     private static boolean isDesktopOpenGLPlatform(Platform platform) {
-        return platform == Platform.X86Win32 ||
-               platform == Platform.X86_64Win32 ||
-               platform == Platform.X86_64Linux ||
-               isMacOS(platform);
+        return platform.isWindows() ||
+               platform.isMacOS() ||
+               (platform.isLinux() && !usesGlesShaderLanguages(platform));
     }
 
     private static LinkedHashSet<GraphicsAdapter> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
-        if (isMacOS(platform)) {
+        if (platform.isMacOS()) {
             adapters.add(GraphicsAdapter.VULKAN);
-        } else if (isAndroid(platform)) {
+        } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(GraphicsAdapter.VULKAN);
             adapters.add(GraphicsAdapter.OPENGLES);
-        } else if (isSwitch(platform)) {
+        } else if (platform.matchesOS(OS.OS_ID_SWITCH)) {
             adapters.add(GraphicsAdapter.VULKAN);
-        } else if (isXbox(platform)) {
+        } else if (platform.matchesOS(OS.OS_ID_XBOX)) {
             adapters.add(GraphicsAdapter.DX12);
         } else if (usesGlesShaderLanguages(platform)) {
             adapters.add(GraphicsAdapter.OPENGLES);
@@ -107,118 +91,6 @@ public class ShaderCompilers {
             adapters.add(GraphicsAdapter.OPENGL);
         }
         return adapters;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static List<String> getManifestContextList(Map<String, Object> platformSettings, String key) {
-        Map<String, Object> context = (Map<String, Object>) platformSettings.getOrDefault("context", null);
-        if (context == null) {
-            return List.of();
-        }
-        Object value = context.getOrDefault(key, null);
-        if (!(value instanceof List<?>)) {
-            return List.of();
-        }
-        return (List<String>) value;
-    }
-
-    private static void addAdaptersFromManifestItems(Platform platform, Set<GraphicsAdapter> adapters, List<String> items) {
-        for (String item : items) {
-            GraphicsAdapter adapter = getAdapterFromManifestItem(platform, item);
-            if (adapter != null) {
-                adapters.add(adapter);
-            }
-        }
-    }
-
-    private static void removeAdaptersFromManifestItems(Platform platform, Set<GraphicsAdapter> adapters, List<String> items) {
-        for (String item : items) {
-            GraphicsAdapter adapter = getAdapterFromManifestItem(platform, item);
-            if (adapter != null) {
-                adapters.remove(adapter);
-            }
-        }
-    }
-
-    private static GraphicsAdapter getAdapterFromManifestItem(Platform platform, String item) {
-        if (item == null) {
-            return null;
-        }
-
-        switch (item) {
-            case "GraphicsAdapterVulkan":
-                return GraphicsAdapter.VULKAN;
-            case "GraphicsAdapterOpenGLES":
-                return GraphicsAdapter.OPENGLES;
-            case "GraphicsAdapterOpenGL":
-                return usesGlesShaderLanguages(platform) ? GraphicsAdapter.OPENGLES : GraphicsAdapter.OPENGL;
-            case "GraphicsAdapterMetal":
-                return GraphicsAdapter.METAL;
-            case "GraphicsAdapterWebGPU":
-                return GraphicsAdapter.WEBGPU;
-            case "GraphicsAdapterDX12":
-                return GraphicsAdapter.DX12;
-        }
-
-        String normalized = item;
-        if (normalized.startsWith("lib")) {
-            normalized = normalized.substring(3);
-        }
-        if (normalized.endsWith(".lib")) {
-            normalized = normalized.substring(0, normalized.length() - 4);
-        }
-
-        switch (normalized) {
-            case "graphics_vulkan":
-            case "platform_vulkan":
-            case "dmglfw_vulkan":
-            case "MoltenVK":
-            case "vulkan":
-            case "vulkan-1":
-                return GraphicsAdapter.VULKAN;
-            case "graphics_opengles":
-            case "graphics_gles":
-                return GraphicsAdapter.OPENGLES;
-            case "graphics":
-            case "platform":
-            case "dmglfw":
-            case "glfw3":
-                return usesGlesShaderLanguages(platform) ? GraphicsAdapter.OPENGLES : GraphicsAdapter.OPENGL;
-            case "graphics_webgpu":
-                return GraphicsAdapter.WEBGPU;
-            case "graphics_dx12":
-            case "dx12":
-                return GraphicsAdapter.DX12;
-        }
-
-        return null;
-    }
-
-    private static void collectManifestShaderAdapters(Platform platform, Set<GraphicsAdapter> adaptersToAdd, Set<GraphicsAdapter> adaptersToRemove, Map<String, Object> platformSettings) {
-        addAdaptersFromManifestItems(platform, adaptersToAdd, getManifestContextList(platformSettings, "symbols"));
-        addAdaptersFromManifestItems(platform, adaptersToAdd, getManifestContextList(platformSettings, "libs"));
-        addAdaptersFromManifestItems(platform, adaptersToAdd, getManifestContextList(platformSettings, "engineLibs"));
-
-        addAdaptersFromManifestItems(platform, adaptersToRemove, getManifestContextList(platformSettings, "excludeSymbols"));
-        addAdaptersFromManifestItems(platform, adaptersToRemove, getManifestContextList(platformSettings, "excludeLibs"));
-        addAdaptersFromManifestItems(platform, adaptersToRemove, getManifestContextList(platformSettings, "excludeDynamicLibs"));
-    }
-
-    public static String getShaderAdaptersOption(Platform platform, List<Map<String, Object>> platformsSettings) {
-        LinkedHashSet<GraphicsAdapter> adapters = getDefaultShaderAdapters(platform);
-        LinkedHashSet<GraphicsAdapter> adaptersToAdd = new LinkedHashSet<>();
-        LinkedHashSet<GraphicsAdapter> adaptersToRemove = new LinkedHashSet<>();
-        for (Map<String, Object> platformSettings : platformsSettings) {
-            collectManifestShaderAdapters(platform, adaptersToAdd, adaptersToRemove, platformSettings);
-        }
-        adapters.addAll(adaptersToAdd);
-        adapters.removeAll(adaptersToRemove);
-
-        ArrayList<String> adapterNames = new ArrayList<>();
-        for (GraphicsAdapter adapter : adapters) {
-            adapterNames.add(adapter.optionName);
-        }
-        return String.join(",", adapterNames);
     }
 
     private static Set<GraphicsAdapter> getShaderAdaptersFromOptions(Platform platform, IShaderCompiler.CompileOptions compileOptions) {
@@ -287,18 +159,18 @@ public class ShaderCompilers {
                     }
                     case OPENGLES -> addGlesLanguages(shaderLanguages, isComputeType, compileOptions);
                     case VULKAN -> {
-                        if (!isWeb(platform)) {
+                        if (!platform.matchesOS(OS.OS_ID_WEB)) {
                             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
                         }
                     }
                     case METAL -> {
-                        if (isMacOS(platform) || isIOS(platform)) {
+                        if (platform.isMacOS() || platform.matchesOS(OS.OS_ID_IOS)) {
                             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
                         }
                     }
                     case WEBGPU -> shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
                     case DX12 -> {
-                        if (platform == Platform.X86_64Win32 || isXbox(platform)) {
+                        if (platform.isWindows() || platform.matchesOS(OS.OS_ID_XBOX)) {
                             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
                         }
                     }
@@ -422,10 +294,6 @@ public class ShaderCompilers {
             return null;
         }
         return new CommonShaderCompiler(platform);
-    }
-
-    public static IShaderCompiler GetCommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
-        return new CommonShaderCompiler(platform, baseOptions);
     }
 
     public static ArrayList<ShaderDesc.Language> GetSupportedOpenGLVersionsForPlatform(Platform platform) {

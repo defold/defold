@@ -56,6 +56,7 @@ import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -1384,6 +1385,136 @@ public class Project {
         }
     }
 
+    private static boolean usesGlesShaderLanguages(Platform platform) {
+        return platform.matchesOS(OS.OS_ID_ANDROID) ||
+               platform.matchesOS(OS.OS_ID_WEB) ||
+               platform.matchesOS(OS.OS_ID_IOS) ||
+               (platform.isLinux() && platform.getArch().equals("arm64"));
+    }
+
+    private static boolean isDesktopOpenGLPlatform(Platform platform) {
+        return platform.isWindows() ||
+               platform.isMacOS() ||
+               (platform.isLinux() && !usesGlesShaderLanguages(platform));
+    }
+
+    private static LinkedHashSet<String> getDefaultShaderAdapters(Platform platform) {
+        LinkedHashSet<String> adapters = new LinkedHashSet<>();
+        if (platform.isMacOS()) {
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
+        } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);
+        } else if (platform.matchesOS(OS.OS_ID_SWITCH)) {
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
+        } else if (platform.matchesOS(OS.OS_ID_XBOX)) {
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_DX12);
+        } else if (usesGlesShaderLanguages(platform)) {
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);
+        } else if (isDesktopOpenGLPlatform(platform)) {
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGL);
+        }
+        return adapters;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> getManifestContextList(Map<String, Object> platformSettings, String key) {
+        Map<String, Object> context = (Map<String, Object>) platformSettings.getOrDefault("context", null);
+        if (context == null) {
+            return List.of();
+        }
+        Object value = context.getOrDefault(key, null);
+        if (!(value instanceof List<?>)) {
+            return List.of();
+        }
+        return (List<String>) value;
+    }
+
+    private static void addShaderAdaptersFromManifestItems(Platform platform, Set<String> adapters, List<String> items) {
+        for (String item : items) {
+            String adapter = getShaderAdapterFromManifestItem(platform, item);
+            if (adapter != null) {
+                adapters.add(adapter);
+            }
+        }
+    }
+
+    private static String getShaderAdapterFromManifestItem(Platform platform, String item) {
+        if (item == null) {
+            return null;
+        }
+
+        switch (item) {
+            case "GraphicsAdapterVulkan":
+                return ShaderCompilers.SHADER_ADAPTER_VULKAN;
+            case "GraphicsAdapterOpenGLES":
+                return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
+            case "GraphicsAdapterOpenGL":
+                return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
+            case "GraphicsAdapterMetal":
+                return ShaderCompilers.SHADER_ADAPTER_METAL;
+            case "GraphicsAdapterWebGPU":
+                return ShaderCompilers.SHADER_ADAPTER_WEBGPU;
+            case "GraphicsAdapterDX12":
+                return ShaderCompilers.SHADER_ADAPTER_DX12;
+        }
+
+        String normalized = item;
+        if (normalized.startsWith("lib")) {
+            normalized = normalized.substring(3);
+        }
+        if (normalized.endsWith(".lib")) {
+            normalized = normalized.substring(0, normalized.length() - 4);
+        }
+
+        switch (normalized) {
+            case "graphics_vulkan":
+            case "platform_vulkan":
+            case "dmglfw_vulkan":
+            case "MoltenVK":
+            case "vulkan":
+            case "vulkan-1":
+                return ShaderCompilers.SHADER_ADAPTER_VULKAN;
+            case "graphics_opengles":
+            case "graphics_gles":
+                return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
+            case "graphics":
+            case "platform":
+            case "dmglfw":
+            case "glfw3":
+                return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
+            case "graphics_webgpu":
+                return ShaderCompilers.SHADER_ADAPTER_WEBGPU;
+            case "graphics_dx12":
+            case "dx12":
+                return ShaderCompilers.SHADER_ADAPTER_DX12;
+        }
+
+        return null;
+    }
+
+    private static void collectManifestShaderAdapters(Platform platform, Set<String> adaptersToAdd, Set<String> adaptersToRemove, Map<String, Object> platformSettings) {
+        addShaderAdaptersFromManifestItems(platform, adaptersToAdd, getManifestContextList(platformSettings, "symbols"));
+        addShaderAdaptersFromManifestItems(platform, adaptersToAdd, getManifestContextList(platformSettings, "libs"));
+        addShaderAdaptersFromManifestItems(platform, adaptersToAdd, getManifestContextList(platformSettings, "engineLibs"));
+
+        addShaderAdaptersFromManifestItems(platform, adaptersToRemove, getManifestContextList(platformSettings, "excludeSymbols"));
+        addShaderAdaptersFromManifestItems(platform, adaptersToRemove, getManifestContextList(platformSettings, "excludeLibs"));
+        addShaderAdaptersFromManifestItems(platform, adaptersToRemove, getManifestContextList(platformSettings, "excludeDynamicLibs"));
+    }
+
+    public static String getShaderAdaptersOption(Platform platform, List<Map<String, Object>> platformsSettings) {
+        LinkedHashSet<String> adapters = getDefaultShaderAdapters(platform);
+        LinkedHashSet<String> adaptersToAdd = new LinkedHashSet<>();
+        LinkedHashSet<String> adaptersToRemove = new LinkedHashSet<>();
+        for (Map<String, Object> platformSettings : platformsSettings) {
+            collectManifestShaderAdapters(platform, adaptersToAdd, adaptersToRemove, platformSettings);
+        }
+        adapters.addAll(adaptersToAdd);
+        adapters.removeAll(adaptersToRemove);
+        return String.join(",", adapters);
+    }
+
     public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
         TimeProfiler.start("configurePreBuildProjectOptions");
         List<GameProjectBuildOption> options = new ArrayList<>();
@@ -1415,7 +1546,7 @@ public class Project {
         for(String arch : architectureSet) {
             platformsSettings.add(ExtenderUtil.getPlatformSettings(this, arch));
         }
-        this.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, ShaderCompilers.getShaderAdaptersOption(currentPlatform, platformsSettings));
+        this.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, getShaderAdaptersOption(currentPlatform, platformsSettings));
 
         for(GameProjectBuildOption option:options) {
             boolean fromProjectProperties = this.getProjectProperties().getBooleanValue(option.propertyCategory, option.propertyKey, false);
