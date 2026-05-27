@@ -29,8 +29,6 @@
             [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf-forms-util :as protobuf-forms-util]
-            [editor.resource :as resource]
-            [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-tools :as scene-tools]
@@ -52,10 +50,6 @@
   (vec3 position)
   (vec2 texcoord0)
   (vec4 color))
-
-(def ^:private light-component-type-exts #{"point_light" "directional_light" "spot_light"})
-(def ^:private light-range-scale-manips [:scale-uniform])
-(def ^:private default-component-scale-manips [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
 
 (def ^:private outline-shader shaders/basic-color-world-space)
 (def ^:private light-icon-shader shaders/basic-texture-color-world-space)
@@ -634,19 +628,16 @@
                                   :batch-key [outline-shader]
                                   :tags #{:light :outline}
                                   :passes [pass/outline]
-                                  :user-data outline-user-data}}]})
-
-      {:node-id node-id
-       :aabb geom/empty-bounding-box})))
+                                  :user-data outline-user-data}}]}))))
 
 (defn- make-directional-light-scene [node-id color intensity]
-  (make-light-scene node-id :directional-light color intensity 0.0 0.0 0.0))
+  (make-light-scene node-id :directional color intensity 0.0 0.0 0.0))
 
 (defn- make-point-light-scene [node-id color intensity range]
-  (make-light-scene node-id :point-light color intensity range 0.0 0.0))
+  (make-light-scene node-id :point color intensity range 0.0 0.0))
 
 (defn- make-spot-light-scene [node-id color intensity range inner-cone-angle outer-cone-angle]
-  (make-light-scene node-id :spot-light color intensity range inner-cone-angle outer-cone-angle))
+  (make-light-scene node-id :spot color intensity range inner-cone-angle outer-cone-angle))
 
 ;; -----------------------------------------------------------------------------
 ;; BaseLightNode
@@ -783,6 +774,19 @@
       (load-directional-light project self resource data-desc)
       (g/set-property self :range (get data "range")))))
 
+(defmethod scene-tools/manip-scalable? ::PointLightNode [_node-id] true)
+(defmethod scene-tools/manip-scale-manips ::PointLightNode [_node-id] [:scale-uniform])
+
+(defmethod scene-tools/manip-scale ::PointLightNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (let [old-range (g/node-value node-id :range initial-evaluation-context)
+        new-range (properties/scale-by-absolute-value-and-round old-range (.getX delta))]
+    (case manip-phase
+      :manip-phase/commit
+      {:manip/tx-data (g/set-property node-id :range new-range)}
+
+      :manip-phase/preview
+      {:manip/prop-kw->override-value {:range new-range}})))
+
 ;; -----------------------------------------------------------------------------
 ;; SpotLightNode
 ;; -----------------------------------------------------------------------------
@@ -877,69 +881,6 @@
       (g/set-properties self
         :inner-cone-angle (get data "inner_cone_angle")
         :outer-cone-angle (get data "outer_cone_angle")))))
-
-;; -----------------------------------------------------------------------------
-;; Common
-;; -----------------------------------------------------------------------------
-
-(defn- property-effective-value [{:keys [value original-value]}]
-  (if (some? value) value original-value))
-
-(defn- light-component-range-property [component-node-id evaluation-context]
-  (when (contains? light-component-type-exts
-                   (some-> (g/node-value component-node-id :source-resource evaluation-context)
-                           resource/type-ext))
-    (let [range-property (get-in (g/node-value component-node-id :_properties evaluation-context)
-                                 [:properties :range])]
-      (when (and (map? range-property)
-                 (:visible range-property true))
-        range-property))))
-
-(defn- light-component-range-endpoint [component-node-id evaluation-context]
-  (when-some [range-property (light-component-range-property component-node-id evaluation-context)]
-    (let [target-node-id (:node-id range-property)
-          target-prop-kw (or (:prop-kw range-property) :range)]
-      (when (and target-node-id (keyword? target-prop-kw))
-        {:node-id target-node-id
-         :prop-kw target-prop-kw
-         :property range-property}))))
-
-(defn- scalar-scale-factor [^Vector3d delta]
-  (let [scale-components [(.getX delta) (.getY delta) (.getZ delta)]
-        changed-scale-components (into [] (filter #(> (Math/abs (- (double %) 1.0)) 1e-9)) scale-components)]
-    (if (seq changed-scale-components)
-      (let [n (long (count changed-scale-components))
-            sum (loop [i 0
-                       acc 0.0]
-                  (if (< i n)
-                    (recur (unchecked-inc i) (+ acc (double (nth changed-scale-components i))))
-                    acc))
-            n-as-double (double n)]
-        (/ (double sum) n-as-double))
-      (.getX delta))))
-
-;; TODO(light-component): This delegation should be inverted to happen inside editor.game-object, not here.
-(defmethod scene-tools/manip-scalable? :editor.game-object/ComponentNode [node-id]
-  (or (some? (light-component-range-property node-id (g/make-evaluation-context)))
-      (contains? (g/node-value node-id :transform-properties) :scale)))
-
-(defmethod scene-tools/manip-scale-manips :editor.game-object/ComponentNode [node-id]
-  (if (some? (light-component-range-property node-id (g/make-evaluation-context)))
-    light-range-scale-manips
-    default-component-scale-manips))
-
-(defmethod scene-tools/manip-scale :editor.game-object/ComponentNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
-  (if-some [{target-node-id :node-id target-prop-kw :prop-kw property :property}
-            (light-component-range-endpoint node-id initial-evaluation-context)]
-    (let [old-range (double (property-effective-value property))
-          new-range (properties/scale-by-absolute-value-and-round old-range (scalar-scale-factor delta))]
-      (case manip-phase
-        :manip-phase/commit
-        {:manip/tx-data (g/set-property target-node-id target-prop-kw new-range)}
-
-        :manip-phase/preview
-        {:manip/prop-kw->override-value {:range new-range}}))
-    (scene/manip-scale-scene-node node-id delta manip-phase initial-evaluation-context)))
 
 (defn register-resource-types [workspace]
   (let [common-args

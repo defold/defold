@@ -244,6 +244,29 @@
                               (gen-embed-ddf id position rotation scale source-resource source-save-value)))
   (output build-targets g/Any produce-embedded-component-build-targets))
 
+(defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
+  (g/with-auto-evaluation-context evaluation-context
+    (if-some [embedded-resource-id (g/node-value node-id :embedded-resource-id evaluation-context)]
+      (scene-tools/manip-scalable? embedded-resource-id)
+      (contains? (g/node-value node-id :transform-properties evaluation-context) :scale))))
+
+(defmethod scene-tools/manip-scale-manips ::EmbeddedComponent [node-id]
+  (if-some [embedded-resource-id (g/node-value node-id :embedded-resource-id)]
+    (scene-tools/manip-scale-manips embedded-resource-id)
+    scene-tools/default-manip-scale-manips))
+
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id initial-evaluation-context)]
+    (cond
+      (some-> embedded-resource-id scene-tools/manip-scalable?)
+      (scene-tools/manip-scale embedded-resource-id delta manip-phase initial-evaluation-context)
+
+      (contains? (g/node-value node-id :transform-properties initial-evaluation-context) :scale)
+      (scene/manip-scale-scene-node node-id delta manip-phase initial-evaluation-context)
+
+      :else
+      nil)))
+
 (defn- get-all-comp-exts [workspace]
   (keep (fn [[ext {:keys [tags :as _resource-type]}]]
           (when (or (contains? tags :component)
