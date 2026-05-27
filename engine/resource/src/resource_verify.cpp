@@ -19,7 +19,7 @@
 #include "resource_verify.h"
 
 #include <dlib/dalloca.h>
-#include <dlib/endian.h>
+#include <dlib/endian.hpp>
 #include <dlib/log.h>
 #include <dlib/sys.h>
 

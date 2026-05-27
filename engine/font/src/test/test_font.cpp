@@ -66,9 +66,9 @@ protected:
         ASSERT_NE((HFont)0, font);
 
         const char* font_path = FontGetPath(font);
-        ASSERT_STREQ(path, font_path);
+        ASSERT_STREQ(host_path, font_path);
 
-        uint32_t path_hash = dmHashString32(path);
+        uint32_t path_hash = dmHashString32(host_path);
         ASSERT_EQ(path_hash, FontGetPathHash(font));
 
         *out = font;

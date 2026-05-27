@@ -733,10 +733,8 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
 
 #if defined(DM_PLATFORM_VENDOR)
     #include <dmsdk/dlib/hash_vendor.h>
-#elif defined(__linux__) && !defined(__ANDROID__)
-    #define DM_HASH_LONG_FMT "%lu"
 #else
-    #define DM_HASH_LONG_FMT "%llu"
+    #define DM_HASH_LONG_FMT "%" PRIu64
 #endif
 
 DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64_t hash)

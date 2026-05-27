@@ -2107,7 +2107,7 @@ TEST_F(dmGuiTest, PostMessageToGuiEmptyLuaTable)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2139,7 +2139,7 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char DM_ALIGNED(16) buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2409,7 +2409,7 @@ TEST_F(dmGuiTest, Bug352)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr((const char*)BUG352_LUA, BUG352_LUA_SIZE));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char DM_ALIGNED(16) buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2681,7 +2681,7 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     ASSERT_NE(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NE(dmGui::RESULT_OK, r);
-    char buffer[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buffer[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -5528,6 +5528,57 @@ TEST_F(dmGuiTest, SetGetScreenPositionAdjustDisabledRoot)
     Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, root);
     ASSERT_NEAR(target_screen.getX(), after_set.getX(), EPSILON);
     ASSERT_NEAR(target_screen.getY(), after_set.getY(), EPSILON);
+}
+
+TEST_F(dmGuiTest, SetGetScreenPositionLegacyScaledParent)
+{
+    dmGui::SetPhysicalResolution(m_Context, 100, 100);
+    dmGui::SetDefaultResolution(m_Context, 100, 100);
+    dmGui::SetSceneResolution(m_Scene, 100, 100);
+
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(30, 20, 0), Vector3(40, 40, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeProperty(m_Scene, parent, dmGui::PROPERTY_SCALE, Vector4(2.0f, 0.5f, 1.0f, 1.0f));
+
+    dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(10, 8, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeParent(m_Scene, child, parent, false);
+
+    Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, child);
+    Point3 local_before = dmGui::GetNodePosition(m_Scene, child);
+    Point3 local_from_screen = dmGui::ScreenToLocalPosition(m_Scene, child, Point3(before_set.getXYZ()));
+    ASSERT_NEAR(local_before.getX(), local_from_screen.getX(), 0.0001f);
+    ASSERT_NEAR(local_before.getY(), local_from_screen.getY(), 0.0001f);
+
+    dmGui::SetScreenPosition(m_Scene, child, Point3(before_set.getXYZ()));
+
+    Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, child);
+    ASSERT_NEAR(before_set.getX(), after_set.getX(), 0.0001f);
+    ASSERT_NEAR(before_set.getY(), after_set.getY(), 0.0001f);
+}
+
+TEST_F(dmGuiTest, SetGetScreenPositionAdjustParentScaledParent)
+{
+    dmGui::SetPhysicalResolution(m_Context, 960, 640);
+    dmGui::SetDefaultResolution(m_Context, 960, 640);
+    dmGui::SetSceneResolution(m_Scene, 960, 640);
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(422, 388, 0), Vector3(100, 100, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeProperty(m_Scene, parent, dmGui::PROPERTY_SCALE, Vector4(0.75f, 0.75f, 1.0f, 1.0f));
+
+    dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(50, 50, 0), Vector3(100, 100, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeParent(m_Scene, child, parent, false);
+
+    Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, child);
+    Point3 local_before = dmGui::GetNodePosition(m_Scene, child);
+    Point3 local_from_screen = dmGui::ScreenToLocalPosition(m_Scene, child, Point3(before_set.getXYZ()));
+    ASSERT_NEAR(local_before.getX(), local_from_screen.getX(), 0.0001f);
+    ASSERT_NEAR(local_before.getY(), local_from_screen.getY(), 0.0001f);
+
+    dmGui::SetScreenPosition(m_Scene, child, Point3(before_set.getXYZ()));
+
+    Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, child);
+    ASSERT_NEAR(before_set.getX(), after_set.getX(), 0.0001f);
+    ASSERT_NEAR(before_set.getY(), after_set.getY(), 0.0001f);
 }
 
 TEST_F(dmGuiTest, SetGetScreenPositionAdjustDisabledScaledParent)

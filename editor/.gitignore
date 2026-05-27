@@ -5,6 +5,8 @@ pom.xml
 pom.xml.asc
 *.jar
 *.class
+/.m2
+/.openjfx
 /.lein-*
 /.nrepl-port
 /doc/api

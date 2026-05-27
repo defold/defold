@@ -35,8 +35,8 @@ platforms:
 
     android:
         context:
-            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid","platform"]
-            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","graphics_opengles","graphics_vulkan","hid","platform"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterOpenGLES","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
             libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
 
@@ -46,4 +46,3 @@ platforms:
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
             libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
-

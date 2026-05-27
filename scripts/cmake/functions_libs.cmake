@@ -64,6 +64,15 @@ function(defold_target_link_libraries target platform)
   if(_MAPPED_LIBS)
     target_link_libraries(${target} ${DLIB_SCOPE} ${_MAPPED_LIBS})
   endif()
+
+  if(_PLAT_OS STREQUAL "macos" OR _PLAT_OS STREQUAL "ios")
+    list(FIND _LIBS "dlib" _dlib_idx)
+    if(NOT _dlib_idx EQUAL -1)
+      foreach(_fw IN ITEMS CFNetwork Security)
+        target_link_options(${target} ${DLIB_SCOPE} "-Wl,-framework,${_fw}")
+      endforeach()
+    endif()
+  endif()
 endfunction()
 
 # Attach a local include folder to a target and add headers to the IDE tree.

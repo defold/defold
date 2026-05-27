@@ -35,6 +35,7 @@ def build(bld):
                                      includes = '..',
                                      use = libs + ['crashext_null'],
                                      web_libs = ['library_sys.js'],
+                                     defines = ['DM_CRASH_TEST_NULL'],
                                      target = 'test_crash_null',
                                      source = 'test_crash.cpp')
 

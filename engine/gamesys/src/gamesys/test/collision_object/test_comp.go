@@ -4,5 +4,5 @@ components {
 }
 components {
   id: "script"
-  component: "/script/test_component.script"
+  component: "/collision_object/script_test_component.script"
 }

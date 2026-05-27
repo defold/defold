@@ -56,11 +56,11 @@ namespace dmGraphics
     struct OpenGLTexture
     {
         Texture       m_Base;
-        TextureParams     m_Params;
-        HOpenglID*        m_TextureIds;
-        OpenGLSampler     m_Sampler;
-        OpenGLSampler     m_SamplerDirty;
-        uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
+        TextureParams m_Params;
+        HOpenglID*    m_TextureIds;
+        OpenGLSampler m_Sampler;
+        OpenGLSampler m_SamplerDirty;
+        uint32_t      m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
     };
 
     struct OpenGLTextureBinding
@@ -71,18 +71,14 @@ namespace dmGraphics
 
     struct OpenGLRenderTargetAttachment
     {
-        TextureParams m_Params;
-        union
-        {
-            HTexture  m_Texture;
-            HOpenglID m_Buffer;
-        };
+        HOpenglID      m_Buffer;
         AttachmentType m_Type;
         bool           m_Attached;
     };
 
     struct OpenGLRenderTarget
     {
+        RenderTarget                 m_Base;
         OpenGLRenderTargetAttachment m_ColorAttachments[MAX_BUFFER_COLOR_ATTACHMENTS];
         OpenGLRenderTargetAttachment m_DepthAttachment;
         OpenGLRenderTargetAttachment m_StencilAttachment;

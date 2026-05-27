@@ -42,7 +42,7 @@ ordinary paths."
             [util.path :as path])
   (:import [clojure.lang DynamicClassLoader]
            [com.dynamo.bob Platform]
-           [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FetchFailed Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
+           [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [editor.resource FileResource]
            [java.io File FileNotFoundException IOException PushbackReader]
            [org.apache.commons.io FilenameUtils]))
@@ -541,6 +541,8 @@ ordinary paths."
                                     (let [problem (.problem result)]
                                       (or (instance? Library$Problem$Missing problem)
                                           (instance? Library$Problem$FetchFailed problem)
+                                          (instance? Library$Problem$FailedHTTPRequest problem)
+                                          (instance? Library$Problem$HttpConnectTimeout problem)
                                           (instance? Library$Problem$InstallFailed problem))))
                                   problem-results)
             show-open-project (coll/any? (fn [^Library$Result result]

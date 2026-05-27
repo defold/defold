@@ -773,79 +773,6 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-TEST_F(dmRenderScriptTest, TestLuaRenderTargetDeprecated)
-{
-    // DEPRECATED functions tested, remove this test when render.enable/disable_render_target script functions are removed!
-    const char* script =
-    "function update(self)\n"
-    "    local params_color = {\n"
-    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
-    "        width = 1,\n"
-    "        height = 2,\n"
-    "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
-    "        mag_filter = graphics.TEXTURE_FILTER_LINEAR,\n"
-    "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
-    "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
-    "    }\n"
-    "    local params_depth = {\n"
-    "        format = graphics.TEXTURE_FORMAT_DEPTH,\n"
-    "        width = 1,\n"
-    "        height = 2,\n"
-    "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
-    "        mag_filter = graphics.TEXTURE_FILTER_LINEAR,\n"
-    "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
-    "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
-    "    }\n"
-    "    local params_stencil = {\n"
-    "        format = graphics.TEXTURE_FORMAT_STENCIL,\n"
-    "        width = 1,\n"
-    "        height = 2,\n"
-    "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
-    "        mag_filter = graphics.TEXTURE_FILTER_LINEAR,\n"
-    "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
-    "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
-    "    }\n"
-    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color, [graphics.BUFFER_TYPE_DEPTH_BIT] = params_depth, [graphics.BUFFER_TYPE_STENCIL_BIT] = params_stencil})\n"
-    "    render.enable_render_target(self.rt)\n"
-    "    render.disable_render_target(self.rt)\n"
-    "    render.set_render_target_size(self.rt, 3, 4)\n"
-            " local rt_w = render.get_render_target_width(self.rt, graphics.BUFFER_TYPE_COLOR0_BIT)\n"
-            " assert(rt_w == 3)\n"
-            " local rt_h = render.get_render_target_height(self.rt, graphics.BUFFER_TYPE_COLOR0_BIT)\n"
-            " assert(rt_h == 4)\n"
-            " local rt_w = render.get_render_target_width(self.rt, graphics.BUFFER_TYPE_DEPTH_BIT)\n"
-            " assert(rt_w == 3)\n"
-            " local rt_h = render.get_render_target_height(self.rt, graphics.BUFFER_TYPE_DEPTH_BIT)\n"
-            " assert(rt_h == 4)\n"
-            " local rt_w = render.get_render_target_width(self.rt, graphics.BUFFER_TYPE_DEPTH_BIT)\n"
-            " assert(rt_w == 3)\n"
-            " local rt_h = render.get_render_target_height(self.rt, graphics.BUFFER_TYPE_DEPTH_BIT)\n"
-            " assert(rt_h == 4)\n"
-
-    "    render.delete_render_target(self.rt)\n"
-    "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
-    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-
-    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
-    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-
-    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(2u, commands.Size());
-    dmRender::Command* command = &commands[0];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, command->m_Type);
-    ASSERT_NE((void*)0, (void*)command->m_Operands[0]);
-    ASSERT_EQ(0, (uint32_t)command->m_Operands[1]);
-    command = &commands[1];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, command->m_Type);
-    ASSERT_EQ((void*)0, (void*)command->m_Operands[0]);
-    ASSERT_EQ(0, (uint32_t)command->m_Operands[1]);
-
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
-    dmRender::DeleteRenderScriptInstance(render_script_instance);
-    dmRender::DeleteRenderScript(m_Context, render_script);
-}
-
 TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
 {
     const char* script =
@@ -1080,6 +1007,23 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_HashPredicate)
 }
 
 TEST_F(dmRenderScriptTest, TestLuaDraw_NoPredicate)
+{
+    const char* script =
+    "function init(self)\n"
+    "     self.test_pred = render.predicate({hash(\"one\")})"
+    "    render.draw(self.test_pred, \"invalid_arg\")\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaDraw_InvalidArgument)
 {
     const char* script =
     "function init(self)\n"
@@ -1741,6 +1685,7 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
         "    assert_near(camera.get_far_z(cams[1]), 100)\n"
         "    assert_near(camera.get_fov(cams[1]), 90)\n"
         "    assert_near(camera.get_orthographic_zoom(cams[1]), 1)\n"
+        "    assert_near(camera.get_orthographic_auto_zoom(cams[1]), 1)\n"
         // Test "set"
         "    camera.set_near_z(cams[1], -1)\n"
         "    assert_near(camera.get_near_z(cams[1]), -1)\n"
@@ -1749,6 +1694,9 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
         "    camera.set_fov(cams[1], 45)\n"
         "    assert_near(camera.get_fov(cams[1]), 45)\n"
         "    camera.set_orthographic_zoom(cams[1], 2)\n"
+        "    assert_near(camera.get_orthographic_zoom(cams[1]), 2)\n"
+        "    assert(pcall(camera.set_orthographic_zoom, cams[1], 0) == false)\n"
+        "    assert(pcall(camera.set_orthographic_zoom, cams[1], -1) == false)\n"
         "    assert_near(camera.get_orthographic_zoom(cams[1]), 2)\n"
         // Test set_camera()
         "    render.set_camera(cams[1])\n"
@@ -1855,7 +1803,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
         ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
         dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
-        dmGraphics::RenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::RenderTarget>(null_context->m_BaseContext.m_AssetHandleContainer, rt);
+        dmGraphics::NullRenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(null_context->m_BaseContext.m_AssetHandleContainer, rt);
         ASSERT_EQ(&rt_ptr->m_FrameBuffer, null_context->m_CurrentFrameBuffer);
         ASSERT_EQ(tex, m_Context->m_TextureBindTable[0].m_Texture);
 

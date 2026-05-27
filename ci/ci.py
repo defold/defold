@@ -244,7 +244,7 @@ def install(args):
 
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
                 with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
-                skip_docs = False, skip_builtins = False, archive = False):
+                skip_docs = False, skip_builtins = False, archive = False, verbose = False):
 
     install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
@@ -260,7 +260,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
                     'arm64-android'):
         install_sdk = ''
 
-    args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
+    args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()
 
     opts = []
     waf_opts = []
@@ -268,6 +268,8 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     opts.append('--platform=%s' % platform)
     # ccache isn't needed on CI
     opts.append('--disable-ccache')
+    if verbose:
+        opts.append('--verbose')
 
     args.append('build_engine')
 
@@ -354,7 +356,7 @@ def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False
 
     opts_string = ' '.join(opts)
 
-    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform, opts_string))
+    call('"%s" scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
 
 def test_editor(channel, platform, engine_artifacts = None):
     if not platform in PLATFORMS_DESKTOP:
@@ -386,12 +388,12 @@ def archive_editor2(channel, engine_artifacts = None, platform = None, skip_inst
     opts_string = ' '.join(opts)
     for platform in platforms:
         if skip_install_ext:
-            call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
+            call('"%s" scripts/build.py archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
         else:
-            call('python scripts/build.py install_ext archive_editor2 --platform=%s %s' % (platform, opts_string))
+            call('"%s" scripts/build.py install_ext archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
 
 def distclean():
-    call("python scripts/build.py distclean")
+    call('"%s" scripts/build.py distclean' % sys.executable)
 
 
 def install_ext(platform = None):
@@ -399,10 +401,10 @@ def install_ext(platform = None):
     if platform:
         opts.append('--platform=%s' % platform)
 
-    call("python scripts/build.py install_ext %s" % ' '.join(opts))
+    call('"%s" scripts/build.py install_ext %s' % (sys.executable, ' '.join(opts)))
 
 def build_bob(channel, branch = None, skip_tests = False):
-    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
+    args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
     opts = []
     opts.append("--channel=%s" % channel)
     if skip_tests:
@@ -412,12 +414,12 @@ def build_bob(channel, branch = None, skip_tests = False):
     call(cmd)
 
 def test_bob(channel):
-    call("python scripts/build.py install_ext --channel=%s" % channel)
-    call("python scripts/build.py test_bob --channel=%s" % channel)
+    call('"%s" scripts/build.py install_ext --channel=%s' % (sys.executable, channel))
+    call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
 def release(channel):
-    args = "python scripts/build.py install_release_dependencies release".split()
+    args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
     opts = []
     opts.append("--channel=%s" % channel)
 
@@ -429,7 +431,7 @@ def release(channel):
     call(cmd)
 
 def build_sdk(channel):
-    args = "python scripts/build.py install_release_dependencies build_sdk".split()
+    args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     opts = []
     opts.append("--channel=%s" % channel)
 
@@ -438,7 +440,7 @@ def build_sdk(channel):
 
 
 def smoke_test():
-    call('python scripts/build.py distclean install_ext smoke_test')
+    call('"%s" scripts/build.py distclean install_ext smoke_test' % sys.executable)
 
 
 
@@ -492,6 +494,7 @@ def main(argv):
     parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
+    parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
@@ -556,7 +559,8 @@ def main(argv):
                 skip_tests = args.skip_tests,
                 skip_build_tests = args.skip_build_tests,
                 skip_builtins = args.skip_builtins,
-                skip_docs = args.skip_docs)
+                skip_docs = args.skip_docs,
+                verbose = args.verbose)
         elif command == "build-editor":
             if not platform:
                 raise Exception("No --platform specified.")

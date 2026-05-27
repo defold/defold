@@ -106,6 +106,11 @@ namespace dmHID
         #endif
     }
 
+    void SetGamepadLayoutLegacy(HGamepad gamepad, bool legacy)
+    {
+        gamepad->m_LayoutLegacy = legacy?1:0;
+    }
+
     uint32_t GetGamepadButtonCount(HGamepad gamepad)
     {
         return gamepad->m_ButtonCount;

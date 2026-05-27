@@ -17,8 +17,11 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+#include <dmsdk/dlib/hash.h>
 
 /*# Hash table
  *
@@ -50,13 +53,33 @@ class dmHashTable
     static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
     static const uint32_t MAX_SIZE      = 0xFFFFFFFF;
 
+    static constexpr uintptr_t AlignUp(uintptr_t value, uintptr_t alignment)
+    {
+        return (value + alignment - 1) & ~(alignment - 1);
+    }
+
 public:
+    typedef KEY key_t;
+    typedef T   value_t;
+
     struct Entry
     {
-        KEY      m_Key;
-        T        m_Value;
+        key_t    m_Key;
+        value_t  m_Value;
         uint32_t m_Next;
     };
+
+    /*#
+     * Returns the number of bytes needed for user allocated memory.
+     * @name GetMemorySize
+     * @param table_size [type:uint32_t] Hashtable size, ie number of buckets. table_size < 0xffffffff
+     * @param capacity [type:uint32_t] Capacity. capacity < 0xffffffff
+     * @return memory_size [type:uint32_t] Number of bytes needed.
+     */
+    static constexpr uint32_t GetMemorySize(uint32_t table_size, uint32_t capacity)
+    {
+        return (uint32_t)(AlignUp(sizeof(uint32_t) * table_size, alignof(Entry)) + (sizeof(Entry) * capacity));
+    }
 
     /*#
      * Constructor. Create an empty hashtable with zero capacity and zero hashtable (buckets)
@@ -72,7 +95,7 @@ public:
      * Creates a hashtable array with user allocated memory.
      * @note User allocated arrays can not change capacity.
      * @name dmHashTable
-     * @param user_allocated [type:void*] Pointer to user allocated continous data-block ((table_size*sizeof(uint32_t)) + (capacity*sizeof(dmHashTable::Entry))
+     * @param user_allocated [type:void*] Pointer to user allocated continous data-block (see dmHashTable::GetMemorySize)
      * @param table_size [type:uint32_t] Hashtable size, ie number of buckets. table_size < 0xffffffff
      * @param capacity [type:uint32_t] Capacity. capacity < 0xffffffff
      */
@@ -87,7 +110,8 @@ public:
         m_HashTable = (uint32_t*) user_allocated;
         memset(m_HashTable, 0xff, sizeof(uint32_t) * table_size);
 
-        m_InitialEntries = (Entry*) (m_HashTable + table_size);
+        uintptr_t entries = AlignUp((uintptr_t)(m_HashTable + table_size), alignof(Entry));
+        m_InitialEntries = (Entry*) entries;
         m_InitialEntriesNextFree = m_InitialEntries;
         m_InitialEntriesEnd = m_InitialEntries + capacity;
         m_State = STATE_USER_ALLOCATED;
@@ -157,6 +181,7 @@ public:
         assert(table_size > 0);
         assert(table_size < MAX_SIZE);
         assert(capacity < MAX_SIZE);
+        assert((m_State & STATE_USER_ALLOCATED) == 0);
         assert(capacity >= Capacity());
 
         if (m_InitialEntries == 0)
@@ -496,7 +521,7 @@ public:
             Entry* found = FindEntry(e->m_Key);
             if (found && found == e )
             {
-                printf("Key '%d' in table but also key '%d' in free list.\n", found->m_Key, e->m_Key);
+                printf("Key '" DM_HASH_FMT "' in table but also key '" DM_HASH_FMT "' in free list.\n", (dmhash_t) found->m_Key, (dmhash_t) e->m_Key);
             }
             assert( found != e );
             free_ptr = e->m_Next;

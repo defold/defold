@@ -25,7 +25,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
-#include <dlib/sys_internal.h>
+#include <dlib/sys_private.h>
 #include <dlib/path.h>
 #include <dlib/log.h>
 #include <dlib/testutil.h>

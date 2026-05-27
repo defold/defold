@@ -101,7 +101,12 @@ namespace dmProfilerExt
     void SampleCpuUsage();
 
     /**
-     * Get current memory usage in bytes (resident/working set) for the process, as reported by OS.
+     * Get detailed memory usage in bytes for the process, as reported by the platform.
+     */
+    uint64_t GetDetailedMemoryUsage();
+
+    /**
+     * Get memory usage in bytes for automatic profiler reporting.
      */
     uint64_t GetMemoryUsage();
 

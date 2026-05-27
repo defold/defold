@@ -158,21 +158,21 @@ void ParticleTest::VerifyVertexTexCoords(TestVertex* vertex_buffer, float* tex_c
         v1 = tc[7];
     }
 
-    // The particle vertices are emitted in the following order:
-    // 1 -- 2               3
-    // |         then       |
-    // 0               5 -- 4
+    // The particle vertices are emitted in the following CCW order:
+    //      4 -- 3/2
+    //      |      |
+    //     5/0 -- 1
 
     ASSERT_NEAR(u0, vertex_buffer[0].m_U, EPSILON);
     ASSERT_NEAR(v1, vertex_buffer[0].m_V, EPSILON);
-    ASSERT_NEAR(u0, vertex_buffer[1].m_U, EPSILON);
-    ASSERT_NEAR(v0, vertex_buffer[1].m_V, EPSILON);
+    ASSERT_NEAR(u1, vertex_buffer[1].m_U, EPSILON);
+    ASSERT_NEAR(v1, vertex_buffer[1].m_V, EPSILON);
     ASSERT_NEAR(u1, vertex_buffer[2].m_U, EPSILON);
     ASSERT_NEAR(v0, vertex_buffer[2].m_V, EPSILON);
     ASSERT_NEAR(u1, vertex_buffer[3].m_U, EPSILON);
     ASSERT_NEAR(v0, vertex_buffer[3].m_V, EPSILON);
-    ASSERT_NEAR(u1, vertex_buffer[4].m_U, EPSILON);
-    ASSERT_NEAR(v1, vertex_buffer[4].m_V, EPSILON);
+    ASSERT_NEAR(u0, vertex_buffer[4].m_U, EPSILON);
+    ASSERT_NEAR(v0, vertex_buffer[4].m_V, EPSILON);
     ASSERT_NEAR(u0, vertex_buffer[5].m_U, EPSILON);
     ASSERT_NEAR(v1, vertex_buffer[5].m_V, EPSILON);
 }
@@ -192,12 +192,12 @@ void ParticleTest::VerifyVertexDims(TestVertex* vertex_buffer, uint32_t particle
     for (uint32_t i = 0; i < particle_count; ++i)
     {
         TestVertex* v = &vertex_buffer[i*6];
-        float x = v[1].m_X - v[2].m_X;
-        float y = v[1].m_Y - v[2].m_Y;
+        float x = v[0].m_X - v[1].m_X;
+        float y = v[0].m_Y - v[1].m_Y;
         float w = sqrt(x * x + y * y);
         ASSERT_NEAR(size * width_factor, w, 0.000001f);
-        x = v[0].m_X - v[1].m_X;
-        y = v[0].m_Y - v[1].m_Y;
+        x = v[1].m_X - v[2].m_X;
+        y = v[1].m_Y - v[2].m_Y;
         float h = sqrt(x * x + y * y);
         ASSERT_NEAR(size * height_factor, h, 0.000001f);
     }
@@ -2255,10 +2255,10 @@ TEST_F(ParticleTest, Pivot)
 
     // Without pivot, y should be between -0.5 and 0.5
     ASSERT_NEAR(0.0f, vertex_buffer[0].m_Y, EPSILON); // bottom left
-    ASSERT_NEAR(1.0f, vertex_buffer[1].m_Y, EPSILON); // top left
+    ASSERT_NEAR(0.0f, vertex_buffer[1].m_Y, EPSILON); // bottom right
     ASSERT_NEAR(1.0f, vertex_buffer[2].m_Y, EPSILON); // top right
     ASSERT_NEAR(1.0f, vertex_buffer[3].m_Y, EPSILON); // top right
-    ASSERT_NEAR(0.0f, vertex_buffer[4].m_Y, EPSILON); // bottom right
+    ASSERT_NEAR(1.0f, vertex_buffer[4].m_Y, EPSILON); // top left
     ASSERT_NEAR(0.0f, vertex_buffer[5].m_Y, EPSILON); // bottom left
 
     dmParticle::DestroyInstance(m_Context, instance);

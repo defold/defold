@@ -52,7 +52,7 @@ def build(bld):
 
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
-                             'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable',
+                             'ResourceProviderFile', 'ResourceProviderArchive',
                              'ResourceTypeOgg','ResourceTypeOpus', 'ResourceTypeWav', 'ResourceTypeFont', 'ResourceTypeTTF',
                              'ResourceTypeLight']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound', 'ComponentTypeLight']
@@ -115,7 +115,8 @@ def build(bld):
     settings = [
         'cross_script_messaging.ini',
         'render_script.ini',
-        'camera_acquire_input_focus.ini']
+        'camera_acquire_input_focus.ini',
+        'text_input.ini']
     for setting_file in settings:
         bld.add_group()
         bld(rule = run_bob,

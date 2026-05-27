@@ -1,11 +1,11 @@
 script: "/gui/valid.gui_script"
 fonts {
   name: "dynamic_font"
-  font: "/font/dyn_glyph_bank_test_1.font"
+  font: "/gui/font_dyn_glyph_bank_test_1.font"
 }
 fonts {
   name: "secondary_font"
-  font: "/font/valid_font.font"
+  font: "/gui/font_valid_font.font"
 }
 material: "/gui/gui.material"
 

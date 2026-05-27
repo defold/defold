@@ -94,6 +94,22 @@
             (is (g/error? (test-util/prop-error node-id :mesh)))
             (is (g/error-value? (g/node-value node-id :build-targets))))))
 
+      (testing "unsupported model file formats fail before build"
+        (let [dae-resource (workspace/resolve-workspace-resource workspace "/model/unsupported.dae")]
+          (doseq [prop-kw [:mesh :skeleton :animations]]
+            (test-util/with-prop [node-id prop-kw dae-resource]
+              (let [prop-error (test-util/prop-error node-id prop-kw)
+                    prop-error-message (test-util/localization (g/error-message prop-error))
+                    build-targets (g/node-value node-id :build-targets)
+                    build-error-message (some->> (tree-seq :causes :causes build-targets)
+                                                 (some :message)
+                                                 test-util/localization)]
+                (is (g/error? prop-error))
+                (is (re-find #"unsupported format \.dae" prop-error-message))
+                (is (re-find #"Defold supports only" prop-error-message))
+                (is (g/error-value? build-targets))
+                (is (= prop-error-message build-error-message)))))))
+
       (testing "material must be assigned and exist"
         (is (not (g/error-value? (g/node-value node-id :build-targets))))
         (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]

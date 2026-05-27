@@ -2690,6 +2690,11 @@ int main(int argc, char **argv)
 {
     dmExportedSymbols();
 
+#if defined(__EMSCRIPTEN__)
+    printf("Skipping sound tests on html5: WebAudio requires a browser window.\n");
+    return 0;
+#endif
+
     dmSound::SoundDataType sound_type;
     const char* sound_file = FindSoundFile(argc, argv, &sound_type);
     if (sound_file)

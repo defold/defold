@@ -22,8 +22,8 @@ option java_outer_classname = "Camera";
 enum OrthoZoomMode
 {
     ORTHO_MODE_FIXED        = 0[(displayName) = "Fixed"]; // Use orthographic_zoom as-is
-    ORTHO_MODE_AUTO_FIT     = 1[(displayName) = "Auto Fit"]; // Fit original display area (fit)
-    ORTHO_MODE_AUTO_COVER   = 2[(displayName) = "Auto Cover"]; // Fill original display area (cover)
+    ORTHO_MODE_AUTO_FIT     = 1[(displayName) = "Auto Fit"]; // Fit original display area and multiply by orthographic_zoom
+    ORTHO_MODE_AUTO_COVER   = 2[(displayName) = "Auto Cover"]; // Fill original display area and multiply by orthographic_zoom
 }
 
 message CameraDesc
@@ -50,7 +50,7 @@ message CameraDesc
  * @param near_z [type:number] position of the near clipping plane (distance from camera along relative z)
  * @param far_z [type:number] position of the far clipping plane (distance from camera along relative z)
  * @param orthographic_projection [type:boolean] set to use an orthographic projection
- * @param orthographic_zoom [type:number] zoom level when the camera is using an orthographic projection
+ * @param orthographic_zoom [type:number] positive zoom multiplier when the camera is using an orthographic projection
  * @param orthographic_mode [type:number] orthographic zoom behavior when orthographic_projection is enabled
  * @examples
  *
@@ -167,7 +167,8 @@ message ReleaseCameraFocus {}
 
 /*# [type:float] camera orthographic_zoom
  *
- * Zoom level when using an orthographic projection.
+ * Positive zoom multiplier when using an orthographic projection. In auto fit and auto cover
+ * modes, this value is multiplied with the calculated orthographic_auto_zoom value.
  * The type of the property is float.
  *
  * @name orthographic_zoom
@@ -180,6 +181,24 @@ message ReleaseCameraFocus {}
  *   local orthographic_zoom = go.get("#camera", "orthographic_zoom")
  *   go.set("#camera", "orthographic_zoom", 2.0)
  *   go.animate("#camera", "orthographic_zoom", go.PLAYBACK_ONCE_PINGPONG, 0.5, go.EASING_INOUTQUAD, 2)
+ * end
+ * ```
+ */
+
+/*# [type:float] camera orthographic_auto_zoom
+ *
+ * [mark:READ ONLY] The zoom calculated from the current window and project dimensions
+ * in auto fit and auto cover modes. The value is 1.0 in fixed mode.
+ * The type of the property is float.
+ *
+ * @name orthographic_auto_zoom
+ * @property
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   local orthographic_auto_zoom = go.get("#camera", "orthographic_auto_zoom")
  * end
  * ```
  */
