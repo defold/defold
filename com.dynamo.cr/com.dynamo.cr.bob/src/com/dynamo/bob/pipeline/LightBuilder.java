@@ -66,13 +66,13 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
     private static void validateLightColorField(IResource resource, Struct struct) throws CompileExceptionError {
         Value value = getRequiredFieldValue(resource, struct, "color");
         if (value.getKindCase() != Value.KindCase.LIST) {
-            throw new CompileExceptionError(resource, 0, "field 'color' must be a list of 3 or 4 numbers");
+            throw new CompileExceptionError(resource, 0, "field 'color' must be a list of 3 numbers");
         }
 
         ListValue color = value.getList();
         int colorValueCount = color.getValuesCount();
-        if (colorValueCount < 3 || colorValueCount > 4) {
-            throw new CompileExceptionError(resource, 0, "field 'color' must contain 3 or 4 numbers");
+        if (colorValueCount != 3) {
+            throw new CompileExceptionError(resource, 0, "field 'color' must contain 3 numbers");
         }
 
         for (Value component : color.getValuesList()) {

@@ -43,6 +43,8 @@
   (property rotation t/Vec4 (dynamic edit-type (g/constantly rotation-edit-type)))
   (property slider g/Num (dynamic edit-type (g/constantly slider-edit-type)))
   (property color t/Color)
+  (property color-rgb t/Color (dynamic edit-type (g/constantly {:type t/Color
+                                                                :ignore-alpha true})))
   (property curve Curve)
   (property curve-spread CurveSpread))
 
@@ -60,6 +62,7 @@
    :rotation (float-vec 0.1 0.2 0.3 1.0)
    :slider (float 0.1)
    :color (float-vec 0.1 0.2 0.3 0.4)
+   :color-rgb (float-vec 0.1 0.2 0.3)
    :curve (properties/->curve [(float-vec 0.0 0.1 1.0 0.0)])
    :curve-spread (properties/->curve-spread [(float-vec 0.0 0.1 1.0 0.0)] (float 0.2))})
 
@@ -71,6 +74,7 @@
    :rotation (double-vec 0.1 0.2 0.3 1.0)
    :slider (double 0.1)
    :color (double-vec 0.1 0.2 0.3 0.4)
+   :color-rgb (double-vec 0.1 0.2 0.3)
    :curve (properties/->curve [(double-vec 0.0 0.1 1.0 0.0)])
    :curve-spread (properties/->curve-spread [(double-vec 0.0 0.1 1.0 0.0)] (double 0.2))})
 
@@ -82,6 +86,7 @@
    :rotation (vector-of :float 0.1 0.2 0.3 1.0)
    :slider (float 0.1)
    :color (vector-of :float 0.1 0.2 0.3 0.4)
+   :color-rgb (vector-of :float 0.1 0.2 0.3)
    :curve (properties/->curve [(vector-of :float 0.0 0.1 1.0 0.0)])
    :curve-spread (properties/->curve-spread [(vector-of :float 0.0 0.1 1.0 0.0)] (float 0.2))})
 
@@ -93,6 +98,7 @@
    :rotation (vector-of :double 0.1 0.2 0.3 1.0)
    :slider (double 0.1)
    :color (vector-of :double 0.1 0.2 0.3 0.4)
+   :color-rgb (vector-of :double 0.1 0.2 0.3)
    :curve (properties/->curve [(vector-of :double 0.0 0.1 1.0 0.0)])
    :curve-spread (properties/->curve-spread [(vector-of :double 0.0 0.1 1.0 0.0)] (double 0.2))})
 

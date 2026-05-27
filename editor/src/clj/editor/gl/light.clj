@@ -54,6 +54,13 @@
          (Math/abs (.z ws)))
     1.0))
 
+(defn- color->vector4d
+  ^Vector4d [color]
+  (Vector4d. (double (nth color 0 1.0))
+             (double (nth color 1 1.0))
+             (double (nth color 2 1.0))
+             (double (nth color 3 1.0))))
+
 (defn renderable->std140-light [renderable]
   (let [light-data (get-in renderable [:user-data :editor-preview-light])
         ^Vector3d translation (:world-translation renderable math/zero-v3)
@@ -64,7 +71,7 @@
         light-range (double (:range light-data))
         scaled-range (max 0.01 (* light-range (preview-renderable-min-scale renderable)))
         translation-v4 (Vector4d. (.x translation) (.y translation) (.z translation) 1.0)
-        color-v4 (doto (Vector4d.) (math/clj->vecmath light-color))
+        color-v4 (color->vector4d light-color)
         type-index (engine-light-type-index light-type)]
     (case light-type
       :directional

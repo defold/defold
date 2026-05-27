@@ -193,10 +193,9 @@
          :double-values (required {:v 0.0})}
 
         light-color
-        {:list {:values [{:number 1.0}
-                         {:number 1.0}
-                         {:number 1.0}
-                         {:number 1.0}]}}
+        {:list (exactly {:values [{:number 1.0}
+                                  {:number 1.0}
+                                  {:number 1.0}]})}
 
         embedded-component-data
         (protobuf/map->str
@@ -673,23 +672,10 @@
                                      "range" {:number 10.0}
                                      "inner_cone_angle" {:number 0.0}
                                      "outer_cone_angle" {:number 45.0}
-                                     "color" {:list {}}}}}}
-           (sparse-pb-map DataProto$Data ["spot_light"] 4)))
-    (is (= {:data {:struct {:fields {"intensity" {:number 1.0}
-                                     "range" {:number 10.0}
-                                     "inner_cone_angle" {:number 0.0}
-                                     "outer_cone_angle" {:number 45.0}
-                                     "color" {:list {:values []}}}}}}
-           (sparse-pb-map DataProto$Data ["spot_light"] 5)))
-    (is (= {:data {:struct {:fields {"intensity" {:number 1.0}
-                                     "range" {:number 10.0}
-                                     "inner_cone_angle" {:number 0.0}
-                                     "outer_cone_angle" {:number 45.0}
                                      "color" {:list {:values [{:number 1.0}
                                                               {:number 1.0}
-                                                              {:number 1.0}
                                                               {:number 1.0}]}}}}}}
-           (sparse-pb-map DataProto$Data ["spot_light"] 6)))))
+           (sparse-pb-map DataProto$Data ["spot_light"] 4)))))
 
 (defn- write-save-value! [workspace ^String proj-path save-value]
   (let [resource (workspace/file-resource workspace proj-path)

@@ -674,8 +674,10 @@
 (g/defnode DirectionalLightNode
   (inherits BaseLightNode)
 
-  (property color types/Color (default [1.0 1.0 1.0 1.0])
-            (dynamic label (properties/label-dynamic :light :color)))
+  (property color types/Color (default [1.0 1.0 1.0])
+            (dynamic label (properties/label-dynamic :light :color))
+            (dynamic edit-type (g/constantly {:type types/Color
+                                              :ignore-alpha true})))
 
   (property intensity g/Num (default 1.0)
             (dynamic label (properties/label-dynamic :light :intensity))
@@ -696,7 +698,7 @@
           (g/fnk [color intensity]
             [{:path [:color]
               :localization-key "light.color"
-              :type :vec4
+              :type :vec3
               :value color}
              {:path [:intensity]
               :localization-key "light.intensity"
@@ -719,7 +721,7 @@
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (g/set-properties self
-      :color (get data "color")
+      :color (coll/resize (get data "color" [1.0 1.0 1.0]) 3 1.0)
       :intensity (get data "intensity"))))
 
 ;; -----------------------------------------------------------------------------

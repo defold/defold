@@ -40,12 +40,13 @@
             {:world-translation (Vector3d. 3.0 4.0 5.0)
              :world-transform (identity-m4)
              :user-data {:editor-preview-light {:light-type :point
-                                                :color [1.0 0.0 0.0 1.0]
+                                                :color [1.0 0.0 0.0]
                                                 :intensity 1.0
                                                 :range 170.0
                                                 :inner-cone-angle 0.0
                                                 :outer-cone-angle 45.0}}})]
     (is (< (Math/abs (- 1.0 (.x ^Vector4d (:color m)))) 1e-6))
+    (is (< (Math/abs (- 1.0 (.w ^Vector4d (:color m)))) 1e-6))
     (is (< (Math/abs (- 170.0 (.w ^Vector4d (:direction-range m)))) 1e-6))
     (is (< (Math/abs (- 1.0 (.x ^Vector4d (:params m)))) 1e-6))))
 

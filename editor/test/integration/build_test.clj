@@ -688,15 +688,15 @@
   (let [light-resource-type-cases
         [{:ext "point_light"
           :label "Point Light"
-          :data {"color" [1.0 1.0 1.0 1.0]
+          :data {"color" [1.0 1.0 1.0]
                  "intensity" 1.0
                  "range" 10.0}}
          {:ext "directional_light"
           :label "Directional Light"
-          :data {"color" [0.25 0.5 0.75 1.0]
+          :data {"color" [0.25 0.5 0.75]
                  "intensity" 2.0}}
          (let [spot-light-data
-               {"color" [1.0 0.75 0.5 0.25]
+               {"color" [1.0 0.75 0.5]
                 "intensity" 3.0
                 "range" 20.0
                 "inner_cone_angle" 15.0

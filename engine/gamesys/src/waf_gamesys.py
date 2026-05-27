@@ -169,11 +169,11 @@ def _require_light_number(task, fields, field_name):
 def _validate_light_color(task, fields):
     color_value = _require_light_field(task, fields, 'color')
     if color_value.WhichOneof('kind') != 'list':
-        raise Exception("%s: field 'color' must be a list of 3 or 4 numbers" % task.inputs[0].srcpath())
+        raise Exception("%s: field 'color' must be a list of 3 numbers" % task.inputs[0].srcpath())
 
     values = color_value.list.values
-    if len(values) < 3 or len(values) > 4:
-        raise Exception("%s: field 'color' must contain 3 or 4 numbers" % task.inputs[0].srcpath())
+    if len(values) != 3:
+        raise Exception("%s: field 'color' must contain 3 numbers" % task.inputs[0].srcpath())
 
     for component in values:
         if component.WhichOneof('kind') != 'number':
