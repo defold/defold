@@ -295,6 +295,8 @@ if(_VSWHERE)
 endif()
 
 list(APPEND _VS_LOCAL_ROOTS
+    "C:/Program Files/Microsoft Visual Studio/2026/BuildTools"
+    "C:/Program Files/Microsoft Visual Studio/2026/Community"
     "C:/Program Files (x86)/Microsoft Visual Studio/2026/BuildTools"
     "C:/Program Files (x86)/Microsoft Visual Studio/2026/Community")
 list(REMOVE_DUPLICATES _VS_LOCAL_ROOTS)
@@ -674,6 +676,8 @@ if(NOT DEFOLD_MSVC_INCLUDE_DIR)
         endif()
     endif()
     list(APPEND _MSVC_INC_CANDIDATE_ROOTS
+        "C:/Program Files/Microsoft Visual Studio/2026/BuildTools"
+        "C:/Program Files/Microsoft Visual Studio/2026/Community"
         "C:/Program Files (x86)/Microsoft Visual Studio/2026/BuildTools"
         "C:/Program Files (x86)/Microsoft Visual Studio/2026/Community"
     )
@@ -744,10 +748,10 @@ if(NOT DEFOLD_MSVC_LIB_DIR)
         endif()
     endif()
     list(APPEND _MSVC_CANDIDATE_ROOTS
-        "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools"
-        "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community"
-        "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools"
-        "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community"
+        "C:/Program Files/Microsoft Visual Studio/2026/BuildTools"
+        "C:/Program Files/Microsoft Visual Studio/2026/Community"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2026/BuildTools"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2026/Community"
     )
     list(REMOVE_DUPLICATES _MSVC_CANDIDATE_ROOTS)
 
