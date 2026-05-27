@@ -971,6 +971,7 @@
   (output selected-collision-group-node g/Any produce-selected-collision-group-node)
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output mouse-binding-context g/Keyword (g/constantly nil))
   (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/fnk [active-tile-idx]
                             (when (some? active-tile-idx)

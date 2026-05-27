@@ -531,12 +531,6 @@
     ::scene-camera-orthographic
     ::scene-camera-perspective))
 
-(defn camera-movement [camera action movements-enabled]
-  (let [command (mouse-binding/command-for-action (camera-mouse-binding-context camera) action)
-        movement (camera-command->movement command)]
-    (or (and (movements-enabled movement) movement)
-        :idle)))
-
 (defn camera-orthographic-fov-from-aabb [^Camera camera ^Region viewport ^AABB aabb]
   {:pre [camera aabb]}
   (if (geom/null-aabb? aabb)
@@ -967,8 +961,20 @@
           free-cam-mode (:free-cam-mode camera-state)
           {:keys [x y type key-code]} action
           local-cam (g/node-value self :local-camera evaluation-context)
-          movement (if (= type :mouse-pressed)
-                     (camera-movement local-cam (assoc action :type :drag) movements-enabled)
+          mouse-binding-command (and (= type :mouse-pressed)
+                                     (:mouse-binding-command action))
+          override-camera (and mouse-binding-command
+                               (nil? (camera-command->movement mouse-binding-command)))
+          movement (cond
+                     (and mouse-binding-command (not override-camera))
+                     (camera-command->movement mouse-binding-command)
+                     (= type :mouse-pressed)
+                     (let [command (mouse-binding/command-for-action (camera-mouse-binding-context local-cam)
+                                                                     (assoc action :type :drag))
+                           movement (camera-command->movement command)]
+                       (or (and movement (movements-enabled movement) movement)
+                           :idle))
+                     :else
                      (:movement camera-state))]
       (case type
         :scroll (if (and (contains? movements-enabled :dolly)
@@ -985,18 +991,20 @@
                     nil)
                   action)
         :mouse-pressed
-        (do
-          ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly, just reset it
-          (reset-dolly! self)
-          (g/user-data-swap! self ::camera-state assoc
-                             :last-x x
-                             :last-y y
-                             :initial-x x
-                             :initial-y y
-                             :movement movement)
-          (when (and (= movement :idle)
-                     (not free-cam-mode))
-            action))
+        (if override-camera
+          action
+          (do
+            ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly, just reset it
+            (reset-dolly! self)
+            (g/user-data-swap! self ::camera-state assoc
+                               :last-x x
+                               :last-y y
+                               :initial-x x
+                               :initial-y y
+                               :movement movement)
+            (when (and (= movement :idle)
+                       (not free-cam-mode))
+              action)))
 
         :drag-detected
         (do
@@ -1032,8 +1040,7 @@
 
             ;; Allow right click for context menu
             (or (= movement :idle)
-                (and (some? (mouse-binding/command-for-action (camera-mouse-binding-context local-cam)
-                                                               (assoc action :type :drag)))
+                (and (= (:button action) :secondary)
                      (not dragging)))
             action
 
@@ -1336,4 +1343,3 @@
         advance-with-state! #(advance! (compute-state))]
     (when advance!
       (g/set-property! camera-node :popup-advance-fn advance-with-state!))))
-

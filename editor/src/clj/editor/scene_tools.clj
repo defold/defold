@@ -666,6 +666,7 @@
 
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output mouse-binding-context g/Keyword (g/constantly nil))
   (output info-text g/Str (g/constantly nil))
   (output manip-opts g/Any produce-manip-opts)
   (output manip-space g/Keyword produce-manip-space))

@@ -1280,16 +1280,32 @@
   [self input-state action state evaluation-context]
   (let [op (g/node-value self :op evaluation-context)
         modifiers (:modifiers input-state)
-        command (mouse-binding/command-for-action ::tile-map-editor
-                                                  {:type :drag
-                                                   :button :primary
-                                                   :shift (contains? modifiers :shift)
-                                                   :alt (contains? modifiers :alt)
-                                                   :control (contains? modifiers :control)})
+        mouse-binding-command (:mouse-binding-command action)
+        command (case mouse-binding-command
+                  (:scene.tile-map.paint :scene.tile-map.select-brush :scene.tile-map.erase :scene.tile-map.cut)
+                  mouse-binding-command
+
+                  (case (:type action)
+                    (:key-pressed :key-released :mouse-moved)
+                    (some #(mouse-binding/command-for-action ::tile-map-editor
+                                                             {:type :drag
+                                                              :button %
+                                                              :shift (contains? modifiers :shift)
+                                                              :alt (contains? modifiers :alt)
+                                                              :control (contains? modifiers :control)})
+                          [:primary :secondary :middle])
+                    nil))
+        ;; _ (println command)
+        ;; cursor-mode (case (if (some? op)
+        ;;                     (g/node-value self :cursor-mode evaluation-context)
+        ;;                     command)
+        ;;               :scene.tile-map.select-brush :select-mode
+        ;;               :scene.tile-map.erase :erase-mode
+        ;;               :scene.tile-map.cut :cut-mode
         cursor-mode (case command
-                      :scene.tile-map.select-brush :select-mode
-                      :scene.tile-map.erase :erase-mode
-                      :scene.tile-map.cut :cut-mode
+                       :scene.tile-map.select-brush :select-mode
+                       :scene.tile-map.erase :erase-mode
+                       :scene.tile-map.cut :cut-mode
                       :paint-mode)
         tx (case (:type action)
              (:key-pressed :key-released)
@@ -1427,6 +1443,10 @@
   (output palette-renderables pass/RenderData produce-palette-renderables)
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly (make-input-handler)))
+  (output mouse-binding-context g/Keyword (g/fnk [mode]
+                                            (case mode
+                                              :editor ::tile-map-editor
+                                              nil)))
   (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions mode palette-tile]
                             (case mode
@@ -1580,11 +1600,32 @@
    {:command :scene.tile-map.erase
     :context-path ["Tile Map Editor"]
     :action "Erase"
-    :binding {:button :primary :trigger :drag :modifiers [:shift :alt]}}
+    ;; :binding {:button :primary :trigger :drag :modifiers [:shift :alt]}}
+    :binding {:button :secondary :trigger :drag :modifiers []}}
    {:command :scene.tile-map.cut
     :context-path ["Tile Map Editor"]
     :action "Cut"
-    :binding {:button :primary :trigger :drag :modifiers [:shift :control]}}])
+    :binding {:button :middle :trigger :drag :modifiers [:shift :control]}}
+   #_{:command :scene.camera.orbit
+    :context-path ["Tile Map Editor"]
+    :action "Orbit"
+    :binding {:button :primary :trigger :drag :modifiers [:control]}}
+   {:command :scene.camera.pan
+    :context-path ["Tile Map Editor"]
+    :action "Pan"
+    :binding {:button :primary :trigger :drag :modifiers [:control]}}
+   {:command :scene.camera.pan
+    :context-path ["Tile Map Editor"]
+    :action "Pan"
+    :binding {:button :middle :trigger :drag :modifiers []}}
+   #_{:command :scene.camera.pan
+    :context-path ["Tile Map Editor"]
+    :action "Pan"
+    :binding {:button :secondary :trigger :drag :modifiers []}}
+   {:command :scene.camera.zoom
+    :context-path ["Tile Map Editor"]
+    :action "Zoom"
+    :binding {:button :primary :trigger :drag :modifiers [:control :alt]}}])
 
 (g/defnode TileMapGrid
   (inherits grid/Grid)

@@ -37,6 +37,7 @@
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.mouse-binding :as mouse-binding]
             [editor.os :as os]
             [editor.pose :as pose]
             [editor.properties :as properties]
@@ -1254,6 +1255,7 @@
   (input picking-rect Rect)
   (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
+  (input mouse-binding-context g/Keyword)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input updatables g/Any)
@@ -1659,6 +1661,15 @@
               ((g/node-value node-id label) node-id input-state action user-data)))
           action input-handlers))
 
+(defn- annotate-mouse-binding-command [mouse-binding-context action]
+  (if (and mouse-binding-context
+           (#{:mouse-pressed :mouse-moved} (:type action)))
+    (let [binding-action (assoc action :type :drag)
+          command (mouse-binding/command-for-action mouse-binding-context binding-action)]
+      (cond-> action
+        command (assoc :mouse-binding-command command)))
+    action))
+
 (defn- update-updatables
   [updatable-states play-mode active-updatables dt]
   (let [context {:dt (if (= play-mode :playing) dt 0)}]
@@ -1673,13 +1684,14 @@
 
 (defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (let [action-queue (g/user-data view-id ::input-action-queue)
-        [render-mode tool-user-data play-mode active-updatables updatable-states]
+        [render-mode tool-user-data play-mode active-updatables updatable-states mouse-binding-context]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value view-id :render-mode evaluation-context)
            (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
            (g/node-value view-id :play-mode evaluation-context)
            (g/node-value view-id :active-updatables evaluation-context)
-           (g/node-value view-id :updatable-states evaluation-context)])
+           (g/node-value view-id :updatable-states evaluation-context)
+           (g/node-value view-id :mouse-binding-context evaluation-context)])
         has-active-updatables (not (coll/empty? active-updatables))
         new-updatable-states (if has-active-updatables
                                (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
@@ -1696,7 +1708,8 @@
       (let [input-handlers (g/sources-of view-id :input-handlers)]
         (g/user-data! view-id ::input-state
                       (reduce (fn [input-state action]
-                                (let [input-state (i/update-input-state input-state action)]
+                                (let [input-state (i/update-input-state input-state action)
+                                      action (annotate-mouse-binding-command mouse-binding-context action)]
                                   (dispatch-input input-handlers input-state action tool-user-data)
                                   input-state))
                               (g/user-data view-id ::input-state)
@@ -1980,6 +1993,7 @@
 
   (input input-handlers Runnable :array)
   (input update-tick-handlers Runnable :array)
+  (input mouse-binding-context g/Keyword)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input localization g/Any)
@@ -2082,6 +2096,7 @@
                   (g/connect app-view-id     :keymap                        camera          :keymap)
 
                   (g/connect tool-controller :input-handler                 view-id         :input-handlers)
+                  (g/connect tool-controller :mouse-binding-context         view-id         :mouse-binding-context)
                   (g/connect tool-controller :info-text                     view-id         :tool-info-text)
                   (g/connect tool-controller :renderables                   view-id         :tool-renderables)
                   (g/connect tool-controller :preview-overrides             view-id         :preview-overrides)
