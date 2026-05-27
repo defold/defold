@@ -111,23 +111,9 @@ public class ShaderCompilers {
 
     public static class CommonShaderCompiler implements IShaderCompiler {
         private final Platform platform;
-        private final ShaderCompilePipeline.Options baseOptions;
 
         public CommonShaderCompiler(Platform platform) {
-            this(platform, null);
-        }
-
-        public CommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
             this.platform = platform;
-            this.baseOptions = baseOptions;
-        }
-
-        private static void copyOptionalPipelineOption(ShaderCompilePipeline.Options dst, ShaderCompilePipeline.Options src, String fieldName) {
-            try {
-                dst.getClass().getField(fieldName).set(dst, src.getClass().getField(fieldName).get(src));
-            } catch (ReflectiveOperationException e) {
-                // Console branches may add fields to pipeline options, e.g. external shader compiler settings.
-            }
         }
 
         private void addGlslLanguages(Set<ShaderDesc.Language> shaderLanguages, boolean isComputeType) {
@@ -207,10 +193,6 @@ public class ShaderCompilers {
             boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
-            if (this.baseOptions != null) {
-                copyOptionalPipelineOption(opts, this.baseOptions, "externalToolPath");
-                copyOptionalPipelineOption(opts, this.baseOptions, "externalToolArgs");
-            }
             opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
             opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
             opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
