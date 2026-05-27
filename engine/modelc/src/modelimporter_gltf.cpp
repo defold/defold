@@ -1951,9 +1951,25 @@ static void LoadScene(Scene* scene, cgltf_data* data)
     GenerateRootBone(scene);
 }
 
+static bool ValidateGltfData(Scene* scene, cgltf_data* data)
+{
+    cgltf_result result = cgltf_validate(data);
+    if (result != cgltf_result_success)
+    {
+        char buf[128];
+        dmSnPrintf(buf, sizeof(buf), "Failed to validate gltf file: %s (%d)", GetResultStr(result), result);
+        printf("%s\n", buf);
+        SetLoadError(scene, buf);
+        return false;
+    }
+    return true;
+}
+
 static bool LoadFinalizeGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    if (!ValidateGltfData(scene, data->m_Data))
+        return false;
     LoadScene(scene, data->m_Data);
     return scene->m_LoadError == 0;
 }
@@ -1961,12 +1977,7 @@ static bool LoadFinalizeGltf(Scene* scene)
 static bool ValidateGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
-    cgltf_result result = cgltf_validate(data->m_Data);
-    if (result != cgltf_result_success)
-    {
-        printf("Failed to validate gltf file: %s (%d)\n", GetResultStr(result), result);
-    }
-    return result == cgltf_result_success;
+    return ValidateGltfData(scene, data->m_Data);
 }
 
 static void DestroyGltf(Scene* scene)
