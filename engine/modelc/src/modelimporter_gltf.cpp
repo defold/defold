@@ -259,37 +259,44 @@ static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_c
     if (desired_num_components == 0)
         desired_num_components = num_components;
 
-    uint32_t size = accessor->count * num_components;
+    uint32_t source_size = accessor->count * num_components;
+    uint32_t size = source_size;
     if (desired_num_components > num_components)
         size = accessor->count * desired_num_components;
 
     *out_count = size;
     float* out = new float[size]; // Now the buffer will fit the max num components
-    float* writeptr = out;
 
     if (desired_num_components > num_components)
     {
-        for (uint32_t i = 0; i < accessor->count; ++i)
-        {
-            for (uint32_t j = 0; j < desired_num_components; ++j)
-                *writeptr++ = default_value;
-        }
-    }
-
-    writeptr = out;
-
-    for (uint32_t i = 0; i < accessor->count; ++i)
-    {
-        bool result = cgltf_accessor_read_float(accessor, i, writeptr, num_components);
-
-        if (!result)
+        float* packed = new float[source_size];
+        cgltf_size unpacked = cgltf_accessor_unpack_floats(accessor, packed, source_size);
+        if (unpacked != source_size)
         {
             printf("Couldn't read floats!\n");
+            delete[] packed;
             delete[] out;
             return 0;
         }
 
-        writeptr += desired_num_components;
+        for (uint32_t i = 0; i < accessor->count; ++i)
+        {
+            for (uint32_t j = 0; j < desired_num_components; ++j)
+            {
+                out[i * desired_num_components + j] = j < num_components ? packed[i * num_components + j] : default_value;
+            }
+        }
+
+        delete[] packed;
+        return out;
+    }
+
+    cgltf_size unpacked = cgltf_accessor_unpack_floats(accessor, out, source_size);
+    if (unpacked != source_size)
+    {
+        printf("Couldn't read floats!\n");
+        delete[] out;
+        return 0;
     }
 
     return out;
