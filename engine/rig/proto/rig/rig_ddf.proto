@@ -272,13 +272,6 @@ enum IndexBufferFormat
     INDEXBUFFER_FORMAT_32 = 1;
 }
 
-message MorphTarget
-{
-    repeated float positions_delta = 1;
-    repeated float normals_delta   = 2;
-    repeated float tangents_delta  = 3;
-}
-
 message Mesh
 {
     required dmMath.Vector3 aabb_min        = 1;
@@ -303,12 +296,14 @@ message Mesh
 
     optional uint32 material_index = 15; // index into the mesh set material list
 
-    repeated MorphTarget morph_targets = 16;
-    repeated float morph_base_weights = 17;
+    repeated float morph_base_weights = 16;
 
     // Packed morph target delta texture resource. Layout is RGBA32F 2D array:
     // target N position/normal/tangent deltas live in layers N*3+0, N*3+1, N*3+2.
-    optional string morph_target_texture = 18 [(resource)=true];
+    optional string morph_target_texture = 17 [(resource)=true];
+
+    // Number of morph targets represented by morph_target_texture.
+    optional uint32 morph_target_count = 18;
 }
 
 message Model // E.g. the Node in the Scene

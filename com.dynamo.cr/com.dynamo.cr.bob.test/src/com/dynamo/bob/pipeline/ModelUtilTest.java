@@ -316,7 +316,7 @@ public class ModelUtilTest {
         assertEquals(2, textures.get(0).height);
         assertEquals(6, textures.get(0).layerCount);
         assertEquals(4 * 2 * 4 * 2 * 3 * Float.BYTES, textures.get(0).data.length);
-        assertEquals(2, mesh.getMorphTargetsCount());
+        assertEquals(2, mesh.getMorphTargetCount());
         assertEquals(2, mesh.getMorphBaseWeightsCount());
     }
 

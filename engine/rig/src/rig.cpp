@@ -41,6 +41,11 @@ namespace dmRig
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt);
     static bool DoPostUpdate(RigInstance* instance);
 
+    uint32_t GetMeshMorphTargetCount(const dmRigDDF::Mesh* mesh)
+    {
+        return mesh->m_MorphTargetCount;
+    }
+
     struct RigContext
     {
         dmObjectPool<HRigInstance>      m_Instances;
@@ -449,7 +454,8 @@ namespace dmRig
         uint32_t mcount = 0;
         for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
         {
-            mcount = dmMath::Max(mcount, model->m_Meshes[m].m_MorphTargets.m_Count);
+            const dmRigDDF::Mesh* mesh = &model->m_Meshes[m];
+            mcount = dmMath::Max(mcount, GetMeshMorphTargetCount(mesh));
         }
         return mcount;
     }

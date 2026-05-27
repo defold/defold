@@ -1071,7 +1071,7 @@ namespace dmGameSystem
             item.m_Component = component;
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
-            item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture;
+            item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture ? resource->m_Meshes[i].m_MorphTargetTexture->m_Texture : 0;
             item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
@@ -1597,7 +1597,7 @@ namespace dmGameSystem
 
     static inline bool MorphTargetsNeedShaderConstants(const MeshRenderItem* render_item, dmRender::HMaterial material)
     {
-        return render_item->m_Mesh->m_MorphTargets.m_Count > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
+        return dmRig::GetMeshMorphTargetCount(render_item->m_Mesh) > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
     }
 
     static void ApplyMorphToRenderObject(ModelWorld* world, dmRender::RenderObject* ro, dmRender::HMaterial material,
@@ -1619,7 +1619,7 @@ namespace dmGameSystem
             }
         }
 
-        const uint32_t mesh_morph_count = render_item->m_Mesh->m_MorphTargets.m_Count;
+        const uint32_t mesh_morph_count = dmRig::GetMeshMorphTargetCount(render_item->m_Mesh);
         const uint32_t max_weights_in_shader = shader_vec4_slots * 4;
         if (mesh_morph_count > max_weights_in_shader)
         {
@@ -2527,7 +2527,7 @@ namespace dmGameSystem
             MeshRenderItem& render_item = component->m_RenderItems[i];
 
             // Not all render items might have morph targets
-            if (render_item.m_Mesh->m_MorphTargets.m_Count == 0)
+            if (dmRig::GetMeshMorphTargetCount(render_item.m_Mesh) == 0)
             {
                 continue;
             }

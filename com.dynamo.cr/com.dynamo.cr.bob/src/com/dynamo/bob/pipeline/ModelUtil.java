@@ -116,7 +116,7 @@ public class ModelUtil {
     }
 
     /**
-     * Atlas size for morph target slices (same growth rule as engine {@code ComputeMorphTextureSize}).
+     * Atlas size for morph target slices.
      */
     public static void computeMorphTextureSize(int vertexCount, int maxW, int maxH, int[] outWidthHeight) {
         int w = 1;
@@ -1113,6 +1113,8 @@ public class ModelUtil {
             meshBuilder.setMaterialIndex(0x0); // We still need to assign a material at some point!
 
         if (mesh.morphTargets != null) {
+            int morphN = mesh.morphTargets.length;
+            meshBuilder.setMorphTargetCount(morphN);
             PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
             if (packedMorphTargetTexture != null) {
                 if (morphTextureCollector != null) {
@@ -1120,20 +1122,6 @@ public class ModelUtil {
                 }
             }
 
-            for (MorphTarget morphTarget : mesh.morphTargets) {
-                Rig.MorphTarget.Builder morphTargetBuilder = Rig.MorphTarget.newBuilder();
-                if (morphTarget.positions != null) {
-                    morphTargetBuilder.addAllPositionsDelta(toList(morphTarget.positions));
-                }
-                if (morphTarget.normals != null) {
-                    morphTargetBuilder.addAllNormalsDelta(toList(morphTarget.normals));
-                }
-                if (morphTarget.tangents != null) {
-                    morphTargetBuilder.addAllTangentsDelta(toList(morphTarget.tangents));
-                }
-                meshBuilder.addMorphTargets(morphTargetBuilder);
-            }
-            int morphN = mesh.morphTargets.length;
             float[] base = new float[morphN];
             if (mesh.morphBaseWeights != null) {
                 int c = Math.min(morphN, mesh.morphBaseWeights.length);
