@@ -1161,6 +1161,15 @@ namespace dmGameSystem
         B2DJointMeta* joint_meta = 0;
         b2Joint* joint1 = CheckJoint(L, 1, &joint_meta);
         b2Joint* joint2 = CheckJoint(L, 2);
+        if ((joint1->GetType() != e_revoluteJoint && joint1->GetType() != e_prismaticJoint) ||
+            (joint2->GetType() != e_revoluteJoint && joint2->GetType() != e_prismaticJoint))
+        {
+            return luaL_error(L, "gear joints can only connect revolute and prismatic joints.");
+        }
+        if (joint1->GetBodyB() == joint2->GetBodyB())
+        {
+            return luaL_error(L, "gear joints must connect joints with different secondary bodies.");
+        }
         b2World* world = joint1->GetBodyA()->GetWorld();
         if (world != joint2->GetBodyA()->GetWorld())
         {
@@ -1174,7 +1183,8 @@ namespace dmGameSystem
 
         b2GearJointDef def;
         ReadCommonDef(L, def_index, &def);
-        def.bodyA = joint1->GetBodyA();
+        // Box2D gear joints connect the secondary bodies of the two source joints.
+        def.bodyA = joint1->GetBodyB();
         def.bodyB = joint2->GetBodyB();
         def.joint1 = joint1;
         def.joint2 = joint2;
