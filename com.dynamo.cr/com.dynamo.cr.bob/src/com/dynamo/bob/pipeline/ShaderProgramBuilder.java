@@ -42,8 +42,10 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 @BuilderParams(name="ShaderProgram", inExts= {".shbundle", ".shbundlec"}, outExt=".spc",
         // See configurePreBuildProjectOptions in Project.java
         paramsForSignature = {
-            "platform", "output-spirv", "output-wgsl", "output-hlsl", "output-msl", "output-glsles100",
-            "output-glsles300", "output-glsl120", "output-glsl330", "output-glsl430", "exclude-gles-sm100"
+            "platform", "architectures", ShaderCompilers.SHADER_ADAPTERS_OPTION,
+            "output-spirv", "output-wgsl", "output-hlsl", "output-msl", "output-glsl",
+            "output-glsles100", "output-glsles300", "output-glsl120", "output-glsl330",
+            "output-glsl430", "exclude-gles-sm100"
         })
 public class ShaderProgramBuilder extends Builder {
 
@@ -142,6 +144,7 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         compileOptions.excludeGlesSm100 = getExcludeGlesSm100Flag();
+        compileOptions.shaderAdapters = this.project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
         compileOptions.glslEsDefaultFloatPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_float", "mediump"));
         compileOptions.glslEsDefaultIntPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_int", "highp"));
 

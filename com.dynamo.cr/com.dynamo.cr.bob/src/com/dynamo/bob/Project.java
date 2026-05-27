@@ -1387,11 +1387,11 @@ public class Project {
     public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
         TimeProfiler.start("configurePreBuildProjectOptions");
         List<GameProjectBuildOption> options = new ArrayList<>();
-        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv",List.of("GraphicsAdapterVulkan")));
-        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl",List.of("GraphicsAdapterDX12")));
-        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl",List.of("GraphicsAdapterWebGPU")));
-        options.add(new GameProjectBuildOption("debug-output-msl", "output-msl", "shader","output_msl",List.of("GraphicsAdapterMetal")));
-        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader","output_glsl",List.of("GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES")));
+        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv",null));
+        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl",null));
+        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl",null));
+        options.add(new GameProjectBuildOption("debug-output-msl", "output-msl", "shader","output_msl",null));
+        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader","output_glsl",null));
         options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader","output_glsl_es100",null));
         options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader","output_glsl_es300",null));
         options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader","output_glsl120",null));
@@ -1415,6 +1415,7 @@ public class Project {
         for(String arch : architectureSet) {
             platformsSettings.add(ExtenderUtil.getPlatformSettings(this, arch));
         }
+        this.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, ShaderCompilers.getShaderAdaptersOption(currentPlatform, platformsSettings));
 
         for(GameProjectBuildOption option:options) {
             boolean fromProjectProperties = this.getProjectProperties().getBooleanValue(option.propertyCategory, option.propertyKey, false);
