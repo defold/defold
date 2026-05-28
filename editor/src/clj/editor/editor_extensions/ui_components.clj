@@ -734,7 +734,8 @@
 
 (fxui/defc dialog-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
-  [{:keys [title header content buttons localization-state]}]
+  [{:keys [title header content buttons modal localization-state]
+    :or {modal true}}]
   (let [title (localization-state title)
         header (or header {:fx/type fxui/legacy-label :text title :variant :header})
         buttons (into []
@@ -756,6 +757,9 @@
              :on-close-request {:result cancel-result}
              :header header
              :footer footer}
+            (not modal)
+            (assoc :modality :none)
+
             content
             (assoc :content content))))
 
@@ -831,10 +835,11 @@
       (fx/run-later
         (future/complete!
           f
-          (fxui/show-dialog-and-await-result!
-            :event-handler #(assoc %1 ::fxui/result (:result %2))
-            :error-handler #(future/fail! f %)
-            :description desc)))
+          (rt/and-refresh-context
+            (fxui/show-dialog-and-await-result!
+              :event-handler #(assoc %1 ::fxui/result (:result %2))
+              :error-handler #(future/fail! f %)
+              :description desc))))
       f)))
 
 ;; endregion

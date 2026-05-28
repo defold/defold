@@ -889,8 +889,8 @@ namespace dmRender
      * end
      *
      * function update(self, dt)
-     *     -- enable target so all drawing is done to it
-     *     render.enable_render_target(self.my_render_target)
+     *     -- set target so all drawing is done to it
+     *     render.set_render_target(self.my_render_target)
      *
      *     -- draw a predicate to the render target
      *     render.draw(self.my_pred)
@@ -1822,7 +1822,6 @@ namespace dmRender
      * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
      * - render.FRUSTUM_PLANES_ALL : All sides of the frustum.
      *
-     * @replaces render.draw_debug2d
      * @examples
      *
      * ```lua
@@ -1867,19 +1866,6 @@ namespace dmRender
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-    }
-
-    /* DEPRECATED. NO API DOC GENERATED.
-     * draws all 2d debug graphics (Deprecated)
-     *
-     * @name render.draw_debug2d
-     * @deprecated Use render.draw_debug3d() to draw visual debug info.
-     */
-    int RenderScript_DrawDebug2d(lua_State* L)
-    {
-        RenderScriptInstance_Check(L);
-        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "render", "draw_debug2d", "render", "draw_debug3d");
-        return 0;
     }
 
     /*# sets the view matrix
@@ -3117,7 +3103,6 @@ namespace dmRender
         {"set_polygon_offset",              RenderScript_SetPolygonOffset},
         {"draw",                            RenderScript_Draw},
         {"draw_debug3d",                    RenderScript_DrawDebug3d},
-        {"draw_debug2d",                    RenderScript_DrawDebug2d},
         {"get_width",                       RenderScript_GetWidth},
         {"get_height",                      RenderScript_GetHeight},
         {"get_window_width",                RenderScript_GetWindowWidth},

@@ -18,6 +18,7 @@ function M.get_commands()
             run = function()
                 local dialog = editor.ui.dialog({
                     title = "Dialog title",
+                    modal = false,
                     header = editor.ui.heading({
                         text = "Header on the Right",
                         color = editor.ui.COLOR.HINT,

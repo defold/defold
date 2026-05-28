@@ -950,7 +950,19 @@ TEST_P(dmJobSystemTest, CancelFinishedParentWithFinishedChildBeforeUpdate)
     ASSERT_TRUE(WaitForAtomicValue(&track.m_ChildProcessFinished, 1, 500000));
     ASSERT_TRUE(WaitForAtomicValue(&track.m_ParentProcessFinished, 1, 500000));
 
-    ASSERT_EQ(JOBSYSTEM_RESULT_CANCELED, JobSystemCancelJob(m_JobSystem, parent_hjob));
+    JobSystemResult result = JOBSYSTEM_RESULT_PENDING;
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (dmTime::GetMonotonicTime() < stop_time)
+    {
+        result = JobSystemCancelJob(m_JobSystem, parent_hjob);
+        if (result != JOBSYSTEM_RESULT_PENDING)
+        {
+            break;
+        }
+        dmTime::Sleep(1000);
+    }
+
+    ASSERT_EQ(JOBSYSTEM_RESULT_CANCELED, result);
 
     dmAtomicStore32(&track.m_ResourceAlive, 0);
     JobSystemUpdate(m_JobSystem, 0);

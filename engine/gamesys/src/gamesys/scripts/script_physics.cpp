@@ -1676,7 +1676,7 @@ namespace dmGameSystem
         }
         else
         {
-            return DM_LUA_ERROR("argument 1 to physics.set_listener() must be either nil or function");
+            return DM_LUA_ERROR("argument 1 to physics.set_event_listener() must be either nil or function");
         }
 
         if (type == LUA_TFUNCTION)
@@ -1743,7 +1743,7 @@ namespace dmGameSystem
 
         if (!dmScript::SetupCallback(cbk))
         {
-            dmLogError("Failed to setup physics.set_listener() callback");
+            dmLogError("Failed to setup physics.set_event_listener() callback");
             return;
         }
         dmScript::PushHash(L, desc->m_NameHash);
@@ -1891,7 +1891,7 @@ namespace dmGameSystem
 
         if (!dmScript::SetupCallback(cbk))
         {
-            dmLogError("Failed to setup physics.set_listener() callback");
+            dmLogError("Failed to setup physics.set_event_listener() callback");
             return;
         }
 
