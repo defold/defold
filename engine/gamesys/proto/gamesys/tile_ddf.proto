@@ -112,13 +112,6 @@ message TileGrid
 }
 
 /* Function wrapper documented in script_tilemap.cpp */
-message SetConstantTileMap
-{
-    required uint64         name_hash   = 1;
-    required dmMath.Vector4 value       = 2 [(field_align)=true];
-}
-
-/* Function wrapper documented in script_tilemap.cpp */
 message ResetConstantTileMap
 {
     required uint64         name_hash   = 1;

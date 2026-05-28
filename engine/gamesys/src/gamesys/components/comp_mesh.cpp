@@ -956,22 +956,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor != 0x0)
         {
-            if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
-            {
-                dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material->m_Material, ddf->m_NameHash,
-                        dmGameObject::PropertyVar(ddf->m_Value), ddf->m_Index, CompMeshSetConstantCallback, component);
-                if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
-                {
-                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
-                    dmLogError("'%s:%s#%s' has no constant named '%s'",
-                            dmMessage::GetSocketName(receiver.m_Socket),
-                            dmHashReverseSafe64(receiver.m_Path),
-                            dmHashReverseSafe64(receiver.m_Fragment),
-                            dmHashReverseSafe64(ddf->m_NameHash));
-                }
-            }
-            else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
+            if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
                 if (component->m_RenderConstants && dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash))

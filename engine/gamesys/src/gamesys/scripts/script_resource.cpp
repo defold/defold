@@ -874,8 +874,8 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *         width  = 32,
  *         height = 32,
  *         depth  = 32,
- *         format = resource.TEXTURE_FORMAT_RGBA32F,
- *         flags  = resource.TEXTURE_USAGE_FLAG_STORAGE + resource.TEXTURE_USAGE_FLAG_SAMPLE,
+ *         format = graphics.TEXTURE_FORMAT_RGBA32F,
+ *         flags  = graphics.TEXTURE_USAGE_FLAG_STORAGE + graphics.TEXTURE_USAGE_FLAG_SAMPLE,
  *     })
  * 
  *     -- pass the backing texture to the render script
@@ -1448,7 +1448,7 @@ static int ReleaseResource(lua_State* L)
  *         width  = 8,
  *         height = 8,
  *         depth  = 8,
- *         format = resource.TEXTURE_FORMAT_RGBA32F
+ *         format = graphics.TEXTURE_FORMAT_RGBA32F
  *     }
  *      
  *     -- This expects that the texture resource "/my_3d_texture.texturec" already exists

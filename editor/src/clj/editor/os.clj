@@ -30,3 +30,8 @@
 
 (defn is-win32? []
   (= (os) :win32))
+
+(defn is-wayland? []
+  (and (is-linux?)
+       (or (some? (System/getenv "WAYLAND_DISPLAY"))
+           (= "wayland" (System/getenv "XDG_SESSION_TYPE")))))

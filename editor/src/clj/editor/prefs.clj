@@ -253,6 +253,7 @@
                                   :properties {:speed {:type :number :default 1.0}
                                                :look-sensitivity {:type :number :default 0.145}
                                                :invert-y {:type :boolean :default false}
+                                               :fov {:type :number :default 37.8}
                                                :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object
           :properties

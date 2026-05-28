@@ -1313,14 +1313,6 @@ namespace dmRender
         return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options, SORT_BACK_TO_FRONT);
     }
 
-    Result DrawDebug2d(HRenderContext context) // Deprecated
-    {
-        if (!context->m_DebugRenderer.m_RenderContext) {
-            return RESULT_INVALID_CONTEXT;
-        }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0, SORT_BACK_TO_FRONT);
-    }
-
     HPredicate NewPredicate()
     {
         HPredicate predicate = new Predicate();
