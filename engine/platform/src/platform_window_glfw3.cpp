@@ -69,6 +69,12 @@ namespace dmPlatform
     static void OnWindowFocus(GLFWwindow* glfw_window, int focus)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+    #ifdef __MACH__
+        if (window->m_FullscreenWindowed)
+        {
+            SetWindowedFullscreenFocusNative(window, focus != 0);
+        }
+    #endif
         if (window->m_FocusCallback != 0x0)
         {
             window->m_FocusCallback(window->m_FocusCallbackUserData, focus);
@@ -187,15 +193,67 @@ namespace dmPlatform
         return 0;
     }
 
+    struct WindowModeParams
+    {
+        GLFWmonitor* m_Monitor;
+        int          m_Width;
+        int          m_Height;
+        int          m_X;
+        int          m_Y;
+        bool         m_WindowedFullscreen;
+    };
+
+    static WindowModeParams GetWindowModeParams(const WindowCreateParams& params)
+    {
+        WindowModeParams mode_params = {};
+        mode_params.m_Width  = (int) params.m_Width;
+        mode_params.m_Height = (int) params.m_Height;
+
+        if (!params.m_Fullscreen)
+        {
+            return mode_params;
+        }
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        if (!monitor)
+        {
+            dmLogWarning("Unable to create fullscreen window: primary monitor not found. Falling back to windowed mode.");
+            return mode_params;
+        }
+
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        if (!mode)
+        {
+            dmLogWarning("Unable to create fullscreen window: current video mode not found. Falling back to windowed mode.");
+            return mode_params;
+        }
+
+        glfwWindowHint(GLFW_RED_BITS,     mode->redBits);
+        glfwWindowHint(GLFW_GREEN_BITS,   mode->greenBits);
+        glfwWindowHint(GLFW_BLUE_BITS,    mode->blueBits);
+        glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+
+    #ifdef __MACH__
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        glfwGetMonitorPos(monitor, &mode_params.m_X, &mode_params.m_Y);
+        mode_params.m_Width              = mode->width;
+        mode_params.m_Height             = mode->height;
+        mode_params.m_WindowedFullscreen = true;
+        return mode_params;
+    #endif
+
+        glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
+
+        mode_params.m_Monitor = monitor;
+        mode_params.m_Width   = mode->width;
+        mode_params.m_Height  = mode->height;
+        return mode_params;
+    }
+
     static WindowResult OpenWindowOpenGL(dmWindow* wnd, const WindowCreateParams& params)
     {
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
-
-        GLFWmonitor* fullscreen_monitor = NULL;
-        if (params.m_Fullscreen)
-        {
-            fullscreen_monitor = glfwGetPrimaryMonitor();
-        }
+        WindowModeParams mode_params = GetWindowModeParams(params);
 
         if (params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES)
         {
@@ -204,7 +262,7 @@ namespace dmPlatform
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-            wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+            wnd->m_Window = glfwCreateWindow(mode_params.m_Width, mode_params.m_Height, params.m_Title, mode_params.m_Monitor, NULL);
         }
         else
         {
@@ -238,12 +296,18 @@ namespace dmPlatform
                 }
             }
 
-            wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+            wnd->m_Window = glfwCreateWindow(mode_params.m_Width, mode_params.m_Height, params.m_Title, mode_params.m_Monitor, NULL);
         }
 
         if (!wnd->m_Window)
         {
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        if (mode_params.m_WindowedFullscreen)
+        {
+            glfwSetWindowPos(wnd->m_Window, mode_params.m_X, mode_params.m_Y);
+            wnd->m_FullscreenWindowed = 1;
         }
 
         wnd->m_SwapIntervalSupported = 1;
@@ -264,17 +328,19 @@ namespace dmPlatform
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
-        GLFWmonitor* fullscreen_monitor = NULL;
-        if (params.m_Fullscreen)
-        {
-            fullscreen_monitor = glfwGetPrimaryMonitor();
-        }
+        WindowModeParams mode_params = GetWindowModeParams(params);
 
-        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+        wnd->m_Window = glfwCreateWindow(mode_params.m_Width, mode_params.m_Height, params.m_Title, mode_params.m_Monitor, NULL);
 
         if (!wnd->m_Window)
         {
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        if (mode_params.m_WindowedFullscreen)
+        {
+            glfwSetWindowPos(wnd->m_Window, mode_params.m_X, mode_params.m_Y);
+            wnd->m_FullscreenWindowed = 1;
         }
 
         return WINDOW_RESULT_OK;
@@ -296,6 +362,7 @@ namespace dmPlatform
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
         glfwWindowHint(GLFW_SCALE_TO_MONITOR, params.m_HighDPI ? GLFW_TRUE : GLFW_FALSE);
+        window->m_FullscreenWindowed = 0;
 
         WindowResult res = WINDOW_RESULT_WINDOW_OPEN_ERROR;
 
@@ -321,9 +388,21 @@ namespace dmPlatform
 
             SetWindowsIconNative(window);
 
+            const bool windowed = glfwGetWindowMonitor(window->m_Window) == NULL && !window->m_FullscreenWindowed;
+
         #ifdef __MACH__
-            // Set size from settings
-            glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
+            if (window->m_FullscreenWindowed)
+            {
+                SetWindowedFullscreenFocusNative(window, true);
+            }
+        #endif
+
+        #ifdef __MACH__
+            if (windowed)
+            {
+                // Set size from settings
+                glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
+            }
         #endif
 
             glfwGetWindowContentScale(window->m_Window, &window->m_XScale, &window->m_YScale);
@@ -343,7 +422,7 @@ namespace dmPlatform
 
             SetSwapInterval(window, 1);
 
-            if (!params.m_Fullscreen)
+            if (windowed)
             {
                 CenterWindowNative(window, glfwGetPrimaryMonitor());
             }

@@ -50,6 +50,7 @@ struct dmWindow
     uint32_t                       m_HighDPI               : 1;
     uint32_t                       m_SwapIntervalSupported : 1;
     uint32_t                       m_WindowOpened          : 1;
+    uint32_t                       m_FullscreenWindowed    : 1;
 };
 
 namespace dmPlatform
@@ -57,6 +58,7 @@ namespace dmPlatform
     void FocusWindowNative(HWindow window);
     void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor);
     void SetWindowsIconNative(HWindow window);
+    void SetWindowedFullscreenFocusNative(HWindow window, bool focused);
 }
 
 #endif // DM_PLATFORM_WINDOW_GLFW3_PRIVATE_H

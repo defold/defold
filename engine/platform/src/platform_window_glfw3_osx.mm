@@ -18,6 +18,8 @@
 #define GLFW_EXPOSE_NATIVE_NSGL
 #include <glfw/glfw3native.h>
 
+#include <AppKit/AppKit.h>
+
 #include "platform_window_osx.h"
 
 #include "platform_window_glfw3_private.h"
@@ -52,5 +54,25 @@ namespace dmPlatform
     void SetWindowsIconNative(HWindow window)
     {
         // NOP
+    }
+
+    void SetWindowedFullscreenFocusNative(HWindow window, bool focused)
+    {
+        NSWindow* ns_window = (NSWindow*) glfwGetCocoaWindow(window->m_Window);
+        if (!ns_window)
+        {
+            return;
+        }
+
+        if (focused)
+        {
+            [ns_window setLevel:NSMainMenuWindowLevel + 1];
+            [ns_window setHasShadow:NO];
+            [ns_window makeKeyAndOrderFront:nil];
+        }
+        else
+        {
+            [ns_window setLevel:NSNormalWindowLevel];
+        }
     }
 }
