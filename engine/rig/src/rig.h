@@ -32,15 +32,6 @@ namespace dmRig
     };
 
     /**
-     * Gets the number of morph targets available for a mesh.
-     * The morph target delta data is stored as a generated texture resource; this count
-     * describes how many weight slots the mesh expects for animation and rendering.
-     * @param mesh The mesh
-     * @return The number of morph targets for the mesh
-     */
-    uint32_t GetMeshMorphTargetCount(const dmRigDDF::Mesh* mesh);
-
-    /**
      * Gets the pose matrix cache data pointer and number of matrices in the cache
      * @param context The rig context
      * @param pose_matrices A pointer to where the pose matrix pointer will be stored

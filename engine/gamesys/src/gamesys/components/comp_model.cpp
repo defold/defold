@@ -887,7 +887,7 @@ namespace dmGameSystem
             FillMorphWeightsFloatSlots(weights, weights_count, (float*) scratch.Begin(), weight_capacity);
             morph_target_weights_channels[0] = (float*) scratch.Begin();
 
-            const uint32_t mesh_morph_count = dmRig::GetMeshMorphTargetCount(render_item->m_Mesh);
+            const uint32_t mesh_morph_count = render_item->m_Mesh->m_MorphTargetCount;
             if (mesh_morph_count > weight_capacity)
             {
                 dmLogOnceError("Model mesh has %u morph targets; material instance attribute `morph_targets_weights` has room for %u weight(s). Increase the attribute vector type. Extra weights are ignored.",
@@ -1657,7 +1657,7 @@ namespace dmGameSystem
 
     static inline bool MorphTargetsNeedShaderData(const MeshRenderItem* render_item, dmRender::HMaterial material)
     {
-        return dmRig::GetMeshMorphTargetCount(render_item->m_Mesh) > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
+        return render_item->m_Mesh->m_MorphTargetCount > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
     }
 
     static inline bool MorphTargetsNeedUniformWeights(const MeshRenderItem* render_item, dmRender::HMaterial material)
@@ -1707,7 +1707,7 @@ namespace dmGameSystem
             }
         }
 
-        const uint32_t mesh_morph_count = dmRig::GetMeshMorphTargetCount(render_item->m_Mesh);
+        const uint32_t mesh_morph_count = render_item->m_Mesh->m_MorphTargetCount;
         const uint32_t max_weights_in_shader = shader_vec4_slots * 4;
         if (mesh_morph_count > max_weights_in_shader)
         {
@@ -2600,7 +2600,7 @@ namespace dmGameSystem
             MeshRenderItem& render_item = component->m_RenderItems[i];
 
             // Not all render items might have morph targets
-            if (dmRig::GetMeshMorphTargetCount(render_item.m_Mesh) == 0)
+            if (render_item.m_Mesh->m_MorphTargetCount == 0)
             {
                 continue;
             }
