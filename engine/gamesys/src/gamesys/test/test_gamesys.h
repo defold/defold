@@ -592,6 +592,7 @@ void GamesysTest<T>::SetUp()
     ExtensionAppParamsInitialize(&m_AppParams);
     ExtensionParamsInitialize(&m_Params);
     m_ContextRegistry = ContextRegistryCreate();
+    dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
     ExtensionAppParamsSetContextRegistry(&m_AppParams, m_ContextRegistry);
     ExtensionParamsSetContextRegistry(&m_Params, m_ContextRegistry);
 

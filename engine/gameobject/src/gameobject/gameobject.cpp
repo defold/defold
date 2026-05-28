@@ -214,6 +214,7 @@ namespace dmGameObject
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
+        m_ContextRegistry = 0;
         m_Mutex = dmMutex::New();
     }
 
@@ -289,6 +290,16 @@ namespace dmGameObject
     {
         assert(regist != 0x0);
         return regist->m_DefaultCollectionCapacity;
+    }
+
+    void SetContextRegistry(HRegister regist, HContextRegistry context_registry)
+    {
+        regist->m_ContextRegistry = context_registry;
+    }
+
+    HContextRegistry GetContextRegistry(HRegister regist)
+    {
+        return regist->m_ContextRegistry;
     }
 
     void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity)
@@ -406,7 +417,7 @@ namespace dmGameObject
         {
             instances_in_collection = dmMath::Min(max_instances, instances_in_collection);
         }
-        Collection* collection = new Collection(0, 0, instances_in_collection, GetInputStackDefaultCapacity(regist));
+        Collection* collection = new Collection(0, regist, instances_in_collection, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
@@ -419,6 +430,7 @@ namespace dmGameObject
                 params.m_MaxComponentInstances = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
                 params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
+                params.m_ContextRegistry = regist->m_ContextRegistry;
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }
         }
@@ -438,6 +450,7 @@ namespace dmGameObject
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
             params.m_World = collection->m_ComponentWorlds[i];
+            params.m_ContextRegistry = regist->m_ContextRegistry;
             if (regist->m_ComponentTypes[i].m_DeleteWorldFunction)
                 regist->m_ComponentTypes[i].m_DeleteWorldFunction(params);
         }
@@ -901,6 +914,7 @@ namespace dmGameObject
             params.m_Context = component_type->m_Context;
             params.m_UserData = component_instance_data;
             params.m_PropertySet = component->m_PropertySet;
+            params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
             CreateResult create_result =  component_type->m_CreateFunction(params);
             if (create_result == CREATE_RESULT_OK)
             {
@@ -934,6 +948,7 @@ namespace dmGameObject
                 params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                 params.m_Context = component_type->m_Context;
                 params.m_UserData = component_instance_data;
+                params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
                 component_type->m_DestroyFunction(params);
             }
         }
@@ -970,6 +985,7 @@ namespace dmGameObject
             params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
             params.m_Context = component_type->m_Context;
             params.m_UserData = component_instance_data;
+            params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
             component_type->m_DestroyFunction(params);
         }
     }
@@ -1802,6 +1818,7 @@ namespace dmGameObject
                 params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                 params.m_Context = component_type->m_Context;
                 params.m_UserData = component_instance_data;
+                params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
                 CreateResult result = component_type->m_InitFunction(params);
                 if (result != CREATE_RESULT_OK)
                 {
@@ -1913,6 +1930,7 @@ namespace dmGameObject
                 params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                 params.m_Context = component_type->m_Context;
                 params.m_UserData = component_instance_data;
+                params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
                 CreateResult result = component_type->m_FinalFunction(params);
                 if (result != CREATE_RESULT_OK)
                 {

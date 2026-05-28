@@ -441,6 +441,7 @@ namespace dmEngine
         m_PreviousFrameTime = dmTime::GetMonotonicTime();
         m_HttpCache = 0;
         m_ContextRegistry = ContextRegistryCreate();
+        dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)

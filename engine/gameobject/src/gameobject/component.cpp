@@ -27,6 +27,11 @@ HContextRegistry ComponentTypeCreateCtxGetContextRegistry(const ComponentTypeCre
     return ctx->m_Impl->m_ContextRegistry;
 }
 
+void* ComponentTypeGetContext(const ComponentTypeCreateCtx* ctx, const char* name)
+{
+    return ContextRegistryGetByName(ComponentTypeCreateCtxGetContextRegistry(ctx), name);
+}
+
 Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char* name, ComponentTypeCreateFunction create_fn, ComponentTypeDestroyFunction destroy_fn)
 {
     DM_STATIC_ASSERT(dmGameObject::s_ComponentTypeDescBufferSize >= sizeof(ComponentTypeDescriptor), Invalid_Struct_Size);

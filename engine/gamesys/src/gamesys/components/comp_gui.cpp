@@ -3444,9 +3444,9 @@ namespace dmGameSystem
 
         CompGuiContext* gui_context = new CompGuiContext;
         gui_context->m_Factory = ctx->m_Factory;
-        gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64(RENDER_CONTEXT_NAME));
-        gui_context->m_GuiContext = *(dmGui::HContext*)ctx->m_Contexts.Get(dmHashString64("guic"));
-        gui_context->m_ScriptContext = *(dmScript::HContext*)ctx->m_Contexts.Get(dmHashString64("gui_scriptc"));
+        gui_context->m_RenderContext = (dmRender::HRenderContext) dmGameObject::ComponentTypeGetContext(ctx, RENDER_CONTEXT_NAME);
+        gui_context->m_GuiContext = (dmGui::HContext) dmGameObject::ComponentTypeGetContext(ctx, "guic");
+        gui_context->m_ScriptContext = (dmScript::HContext) dmGameObject::ComponentTypeGetContext(ctx, "gui_scriptc");
 
         gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);
