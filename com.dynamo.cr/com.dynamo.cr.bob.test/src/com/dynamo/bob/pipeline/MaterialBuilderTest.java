@@ -123,6 +123,43 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testMorphTargetWeightsAttributeIsEngineProvided() throws Exception {
+        String srcShaderStr = "void main() {}\n";
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_vp.vp", "/test_fp.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
+
+        Graphics.VertexAttribute.VectorType[] vectorTypes = new Graphics.VertexAttribute.VectorType[] {
+                Graphics.VertexAttribute.VectorType.VECTOR_TYPE_VEC4,
+                Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT4
+        };
+
+        for (Graphics.VertexAttribute.VectorType vectorType : vectorTypes) {
+            String src = """
+                    name: "test_material"
+                    vertex_program: "/test_vp.vp"
+                    fragment_program: "/test_fp.fp"
+                    attributes {
+                      name: "morph_targets_weights"
+                      semantic_type: SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS
+                      vector_type: %s
+                      data_type: TYPE_FLOAT
+                      step_function: VERTEX_STEP_FUNCTION_INSTANCE
+                    }
+                    """.formatted(vectorType.name());
+
+            addFile("/test_morph_weights_%s.material".formatted(vectorType.name()), "");
+            MaterialDesc material = getMessage(build("/test_morph_weights_%s.material".formatted(vectorType.name()), src), MaterialDesc.class);
+            assertEquals(1, material.getAttributesCount());
+
+            Graphics.VertexAttribute attribute = material.getAttributes(0);
+            assertAttribute(attribute, "morph_targets_weights", vectorType);
+            assertEquals(Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS, attribute.getSemanticType());
+            assertEquals(Graphics.VertexAttribute.StepFunction.VERTEX_STEP_FUNCTION_INSTANCE, attribute.getStepFunction());
+            assertEquals(0, attribute.getDoubleValues().getVCount());
+        }
+    }
+
+    @Test
     public void testVariantArrayTextures() throws Exception {
         String vsShaderLegacy = "void main() {}\n";
         String fsShaderLegacy =

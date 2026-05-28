@@ -1258,6 +1258,8 @@ namespace dmRig
         const float** tangents,
         const float** colors,
         const float** texture_transform_2d,
+        const float** morph_target_weights,
+        dmGraphics::VertexAttribute::VectorType morph_target_weights_vector_type,
         const float** uv_channels,
         uint32_t uv_channels_count)
     {
@@ -1269,6 +1271,7 @@ namespace dmRig
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_WorldMatrix, world_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_NormalMatrix, normal_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_TextureTransform2D, texture_transform_2d, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_MorphTargetWeights, morph_target_weights, morph_target_weights_vector_type, 1, true);
 
         // Per-vertex channels
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsWorldSpace, positions_world_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
@@ -1325,6 +1328,8 @@ namespace dmRig
             tangents_channels,
             colors_channels,
             texture_transform_2d_channels,
+            0,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4,
             uv_channels,
             uv_channels_count);
 
