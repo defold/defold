@@ -698,6 +698,7 @@ TEST(ComponentApi, CreateDestroyType)
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
     dmGameObject::ComponentTypeCreateCtx component_create_ctx;
+    component_create_ctx.m_Impl = 0;
     component_create_ctx.m_Factory = factory;
     component_create_ctx.m_Register = regist;
     component_create_ctx.m_Script = 0;

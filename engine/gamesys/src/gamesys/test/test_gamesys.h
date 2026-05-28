@@ -18,6 +18,7 @@
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
+#include <dlib/context_registry.h>
 #include <dlib/testutil.h>
 #include <hid/hid.h>
 #include <platform/window.hpp>
@@ -111,7 +112,7 @@ public:
 protected:
     void SetUp() override;
     void TearDown() override;
-    void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx);
+    void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx, dmGameObject::ComponentTypeCreateCtxImpl& component_create_ctx_impl);
 
     void WaitForTestsDone(int update_count, bool render, bool* result);
 
@@ -145,6 +146,7 @@ protected:
     dmHashTable64<void*> m_Contexts;
     ExtensionAppParams  m_AppParams;
     ExtensionParams     m_Params;
+    HContextRegistry    m_ContextRegistry;
 };
 
 class ScriptBaseTest : public GamesysTest<const char*>
@@ -498,12 +500,18 @@ bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
 template<typename T>
-void GamesysTest<T>::SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx)
+void GamesysTest<T>::SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx, dmGameObject::ComponentTypeCreateCtxImpl& component_create_ctx_impl)
 {
+    component_create_ctx_impl.m_ContextRegistry = m_ContextRegistry;
+    component_create_ctx.m_Impl = &component_create_ctx_impl;
     component_create_ctx.m_Script = m_ScriptContext;
     component_create_ctx.m_Register = m_Register;
     component_create_ctx.m_Factory = m_Factory;
     component_create_ctx.m_Config = m_Config;
+    ContextRegistrySet(m_ContextRegistry, "graphics", m_GraphicsContext);
+    ContextRegistrySet(m_ContextRegistry, "render", m_RenderContext);
+    ContextRegistrySet(m_ContextRegistry, "guic", m_GuiContext);
+    ContextRegistrySet(m_ContextRegistry, "gui_scriptc", m_ScriptContext);
     component_create_ctx.m_Contexts.SetCapacity(3, 8);
     component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), m_GraphicsContext);
     component_create_ctx.m_Contexts.Put(dmHashString64("render"), m_RenderContext);
@@ -579,13 +587,16 @@ void GamesysTest<T>::SetUp()
 
     ExtensionAppParamsInitialize(&m_AppParams);
     ExtensionParamsInitialize(&m_Params);
+    m_ContextRegistry = ContextRegistryCreate();
+    ExtensionAppParamsSetContextRegistry(&m_AppParams, m_ContextRegistry);
+    ExtensionParamsSetContextRegistry(&m_Params, m_ContextRegistry);
 
     m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
     m_Params.m_ResourceFactory = m_Factory;
     m_Params.m_ConfigFile = m_Config;
-    ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
-    ExtensionParamsSetContext(&m_Params, "config", m_Config);
-    ExtensionParamsSetContext(&m_Params, "jobs", m_JobContext);
+    ContextRegistrySet(m_ContextRegistry, "lua", dmScript::GetLuaState(m_ScriptContext));
+    ContextRegistrySet(m_ContextRegistry, "config", m_Config);
+    ContextRegistrySet(m_ContextRegistry, "jobs", m_JobContext);
 
     dmExtension::AppInitialize(&m_AppParams);
     dmExtension::Initialize(&m_Params);
@@ -706,8 +717,9 @@ void GamesysTest<T>::SetUp()
     ASSERT_NE((void*)0, m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
+    dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
     dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-    SetupComponentCreateContext(component_create_ctx);
+    SetupComponentCreateContext(component_create_ctx, component_create_ctx_impl);
     dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, physics_context, &m_ParticleFXContext, &m_SpriteContext,
@@ -735,8 +747,9 @@ void GamesysTest<T>::TearDown()
 
     dmResource::DeregisterTypes(m_Factory, &m_Contexts);
 
+    dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
     dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-    SetupComponentCreateContext(component_create_ctx);
+    SetupComponentCreateContext(component_create_ctx, component_create_ctx_impl);
     dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
 
     dmGameObject::DeleteRegister(m_Register);
@@ -774,6 +787,7 @@ void GamesysTest<T>::TearDown()
 
     dmExtension::AppFinalize(&m_AppParams);
     ExtensionAppParamsFinalize(&m_AppParams);
+    ContextRegistryDestroy(m_ContextRegistry);
 
     dmBuffer::DeleteContext();
     dmConfigFile::Delete(m_Config);

@@ -20,6 +20,7 @@
 
 #include <dmsdk/dlib/align.h> // DM_ALIGNED
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/dlib/context_registry.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -116,6 +117,14 @@ typedef enum ExtensionAppExitCode
 } ExtensionAppExitCode;
 
 /*#
+ * Extension context cache.
+ * @note Deprecated. Use [ref:HContextRegistry] instead.
+ * @typedef
+ * @name HExtensionContextCache
+ */
+typedef HContextRegistry HExtensionContextCache;
+
+/*#
  * The extension app parameters
  * @struct
  * @name ExtensionAppParams
@@ -190,7 +199,136 @@ void ExtensionParamsInitialize(ExtensionParams* app_params);
 void ExtensionParamsFinalize(ExtensionParams* params);
 
 /*#
+ * Creates an extension context cache.
+ * @note Deprecated. Context registries are engine-owned; use [ref:ExtensionAppParamsGetContextRegistry] or [ref:ExtensionParamsGetContextRegistry] instead.
+ * @name ExtensionContextCacheCreate
+ * @return context_cache [type:HExtensionContextCache] the context cache
+ */
+HExtensionContextCache ExtensionContextCacheCreate();
+
+/*#
+ * Destroys an extension context cache.
+ * @note Deprecated. Context registries are engine-owned; use [ref:ExtensionAppParamsGetContextRegistry] or [ref:ExtensionParamsGetContextRegistry] instead.
+ * @name ExtensionContextCacheDestroy
+ * @param context_cache [type:HExtensionContextCache] the context cache
+ */
+void ExtensionContextCacheDestroy(HExtensionContextCache context_cache);
+
+/*#
+ * Sets the context registry used by the extension app params.
+ * The params do not take ownership of the registry. The registry must outlive any params that use it.
+ * @name ExtensionAppParamsSetContextRegistry
+ * @param params [type:ExtensionAppParams*] the params
+ * @param context_registry [type:HContextRegistry] the context registry
+ */
+void ExtensionAppParamsSetContextRegistry(ExtensionAppParams* params, HContextRegistry context_registry);
+
+/*#
+ * Gets the context registry used by the extension app params.
+ * @name ExtensionAppParamsGetContextRegistry
+ * @param params [type:ExtensionAppParams*] the params
+ * @return context_registry [type:HContextRegistry] the context registry
+ */
+HContextRegistry ExtensionAppParamsGetContextRegistry(ExtensionAppParams* params);
+
+/*#
+ * Sets the context registry used by the extension params.
+ * The params do not take ownership of the registry. The registry must outlive any params that use it.
+ * @name ExtensionParamsSetContextRegistry
+ * @param params [type:ExtensionParams*] the params
+ * @param context_registry [type:HContextRegistry] the context registry
+ */
+void ExtensionParamsSetContextRegistry(ExtensionParams* params, HContextRegistry context_registry);
+
+/*#
+ * Gets the context registry used by the extension params.
+ * @name ExtensionParamsGetContextRegistry
+ * @param params [type:ExtensionParams*] the params
+ * @return context_registry [type:HContextRegistry] the context registry
+ */
+HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params);
+
+/*#
+ * Sets the context cache used by the extension app params.
+ * @note Deprecated. Use [ref:ExtensionAppParamsSetContextRegistry] instead.
+ * @name ExtensionAppParamsSetContextCache
+ * @param params [type:ExtensionAppParams*] the params
+ * @param context_cache [type:HExtensionContextCache] the context cache
+ */
+void ExtensionAppParamsSetContextCache(ExtensionAppParams* params, HExtensionContextCache context_cache);
+
+/*#
+ * Gets the context cache used by the extension app params.
+ * @note Deprecated. Use [ref:ExtensionAppParamsGetContextRegistry] instead.
+ * @name ExtensionAppParamsGetContextCache
+ * @param params [type:ExtensionAppParams*] the params
+ * @return context_cache [type:HExtensionContextCache] the context cache
+ */
+HExtensionContextCache ExtensionAppParamsGetContextCache(ExtensionAppParams* params);
+
+/*#
+ * Sets the context cache used by the extension params.
+ * @note Deprecated. Use [ref:ExtensionParamsSetContextRegistry] instead.
+ * @name ExtensionParamsSetContextCache
+ * @param params [type:ExtensionParams*] the params
+ * @param context_cache [type:HExtensionContextCache] the context cache
+ */
+void ExtensionParamsSetContextCache(ExtensionParams* params, HExtensionContextCache context_cache);
+
+/*#
+ * Gets the context cache used by the extension params.
+ * @note Deprecated. Use [ref:ExtensionParamsGetContextRegistry] instead.
+ * @name ExtensionParamsGetContextCache
+ * @param params [type:ExtensionParams*] the params
+ * @return context_cache [type:HExtensionContextCache] the context cache
+ */
+HExtensionContextCache ExtensionParamsGetContextCache(ExtensionParams* params);
+
+/*#
+ * Sets a context in the extension context cache using a specified name.
+ * @note Deprecated. Use [ref:ContextRegistrySet] instead.
+ * @name ExtensionContextCacheSetContext
+ * @param context_cache [type:HExtensionContextCache] the context cache
+ * @param name [type:const char*] the context name
+ * @param context [type:void*] the context, or 0 to remove the context
+ * @return result [type:int] 0 if successful
+ */
+int ExtensionContextCacheSetContext(HExtensionContextCache context_cache, const char* name, void* context);
+
+/*#
+ * Sets a context in the extension context cache using a specified name hash.
+ * @note Deprecated. Use [ref:ContextRegistrySetByHash] instead.
+ * @name ExtensionContextCacheSetContextByHash
+ * @param context_cache [type:HExtensionContextCache] the context cache
+ * @param name_hash [type:dmhash_t] the context name hash
+ * @param context [type:void*] the context, or 0 to remove the context
+ * @return result [type:int] 0 if successful
+ */
+int ExtensionContextCacheSetContextByHash(HExtensionContextCache context_cache, dmhash_t name_hash, void* context);
+
+/*#
+ * Gets a context from the extension context cache using a specified name.
+ * @note Deprecated. Use [ref:ContextRegistryGetByName] instead.
+ * @name ExtensionContextCacheGetContextByName
+ * @param context_cache [type:HExtensionContextCache] the context cache
+ * @param name [type:const char*] the context name
+ * @return context [type:void*] The context, if it exists
+ */
+void* ExtensionContextCacheGetContextByName(HExtensionContextCache context_cache, const char* name);
+
+/*#
+ * Gets a context from the extension context cache using a specified name hash.
+ * @note Deprecated. Use [ref:ContextRegistryGetByHash] instead.
+ * @name ExtensionContextCacheGetContextByHash
+ * @param context_cache [type:HExtensionContextCache] the context cache
+ * @param name_hash [type:dmhash_t] the context name hash
+ * @return context [type:void*] The context, if it exists
+ */
+void* ExtensionContextCacheGetContextByHash(HExtensionContextCache context_cache, dmhash_t name_hash);
+
+/*#
  * Sets a context using a specified name
+ * @note Deprecated. Use [ref:ContextRegistrySet] on [ref:HContextRegistry] instead.
  * @name ExtensionAppParamsSetContext
  * @param params [type:ExtensionAppParams] the params
  * @param name [type:const char*] the context name
@@ -201,6 +339,7 @@ int ExtensionAppParamsSetContext(ExtensionAppParams* params, const char* name, v
 
 /*#
  * Gets a context using a specified name
+ * @note Deprecated. Use [ref:ContextRegistryGetByName] on [ref:HContextRegistry] instead.
  * @name ExtensionAppParamsGetContextByName
  * @param params [type:ExtensionAppParams] the params
  * @param name [type:const char*] the context name
@@ -210,6 +349,7 @@ void* ExtensionAppParamsGetContextByName(ExtensionAppParams* params, const char*
 
 /*#
  * Gets a context using a specified name hash
+ * @note Deprecated. Use [ref:ContextRegistryGetByHash] on [ref:HContextRegistry] instead.
  * @name ExtensionAppParamsGetContext
  * @param params [type:ExtensionAppParams] the params
  * @param name_hash [type:dmhash_t] the context name hash
@@ -226,8 +366,9 @@ ExtensionAppExitCode ExtensionAppParamsGetAppExitCode(ExtensionAppParams* app_pa
 
 /*#
  * Sets a context using a specified name
+ * @note Deprecated. Use [ref:ContextRegistrySet] on [ref:HContextRegistry] instead.
  * @name ExtensionParamsSetContext
- * @param params [type:ExtensionAppParams] the params
+ * @param params [type:ExtensionParams] the params
  * @param name [type:const char*] the context name
  * @param context [type:void*] the context
  * @return result [type:int] 0 if successful
@@ -236,6 +377,7 @@ int ExtensionParamsSetContext(ExtensionParams* params, const char* name, void* c
 
 /*#
  * Gets a context using a specified name
+ * @note Deprecated. Use [ref:ContextRegistryGetByName] on [ref:HContextRegistry] instead.
  * @name ExtensionParamsGetContextByName
  * @param params [type:ExtensionParams] the params
  * @param name [type:const char*] the context name
@@ -245,6 +387,7 @@ void* ExtensionParamsGetContextByName(ExtensionParams* params, const char* name)
 
 /*#
  * Gets a context using a specified name hash
+ * @note Deprecated. Use [ref:ContextRegistryGetByHash] on [ref:HContextRegistry] instead.
  * @name ExtensionParamsGetContext
  * @param params [type:ExtensionParams] the params
  * @param name_hash [type:dmhash_t] the context name hash

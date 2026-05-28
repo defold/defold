@@ -18,6 +18,7 @@
 #include <script/script.h>
 #include <testmain/testmain.h>
 #include <dlib/configfile.h>
+#include <dlib/context_registry.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -102,6 +103,7 @@ public:
     dmRender::HRenderContext m_RenderContext;
     ExtensionAppParams  m_AppParams;
     ExtensionParams     m_Params;
+    HContextRegistry    m_ContextRegistry;
     int m_NumberOfFails;
 
 protected:
@@ -151,13 +153,16 @@ protected:
 
         ExtensionAppParamsInitialize(&m_AppParams);
         ExtensionParamsInitialize(&m_Params);
+        m_ContextRegistry = ContextRegistryCreate();
+        ExtensionAppParamsSetContextRegistry(&m_AppParams, m_ContextRegistry);
+        ExtensionParamsSetContextRegistry(&m_Params, m_ContextRegistry);
 
         m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
         m_Params.m_ConfigFile = m_ConfigFile;
         m_Params.m_ResourceFactory = m_Factory;
-        ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
-        ExtensionParamsSetContext(&m_Params, "config", m_ConfigFile);
-        ExtensionParamsSetContext(&m_Params, "render", m_RenderContext);
+        ContextRegistrySet(m_ContextRegistry, "lua", dmScript::GetLuaState(m_ScriptContext));
+        ContextRegistrySet(m_ContextRegistry, "config", m_ConfigFile);
+        ContextRegistrySet(m_ContextRegistry, "render", m_RenderContext);
 
         dmExtension::AppInitialize(&m_AppParams);
         dmExtension::Initialize(&m_Params);
@@ -214,6 +219,7 @@ protected:
 
         ExtensionParamsFinalize(&m_Params);
         ExtensionAppParamsFinalize(&m_AppParams);
+        ContextRegistryDestroy(m_ContextRegistry);
 
         dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
         dmGraphics::CloseWindow(m_GraphicsContext);

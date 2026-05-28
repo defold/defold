@@ -130,19 +130,33 @@ namespace dmEngine
         }
     }
 
+    static void PopulateContextRegistry(HEngine engine, dmScript::HContext script_context)
+    {
+        ContextRegistrySet(engine->m_ContextRegistry, "config", engine->m_Config);
+        dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
+        ContextRegistrySet(engine->m_ContextRegistry, "webserver", webserver);
+        ContextRegistrySet(engine->m_ContextRegistry, "register", engine->m_Register);
+        ContextRegistrySet(engine->m_ContextRegistry, "hid", engine->m_HidContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "factory", engine->m_Factory);
+        ContextRegistrySet(engine->m_ContextRegistry, "graphics", engine->m_GraphicsContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "render", engine->m_RenderContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "http_cache", engine->m_HttpCache);
+        ContextRegistrySet(engine->m_ContextRegistry, "jobs", engine->m_JobThreadContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", engine->m_GuiScriptContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "guic", engine->m_GuiContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "script", script_context);
+        ContextRegistrySet(engine->m_ContextRegistry, "lua", script_context ? dmScript::GetLuaState(script_context) : 0);
+    }
+
     struct ScopedExtensionAppParams
     {
         ExtensionAppParams m_AppParams;
         ScopedExtensionAppParams(HEngine engine)
         {
             ExtensionAppParamsInitialize(&m_AppParams);
+            ExtensionAppParamsSetContextRegistry(&m_AppParams, engine->m_ContextRegistry);
             m_AppParams.m_ConfigFile = engine->m_Config;
             m_AppParams.m_ExitStatus = GetAppExitStatusFromAction(engine->m_RunResult.m_Action);
-            ExtensionAppParamsSetContext(&m_AppParams, "config", engine->m_Config);
-            dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
-            ExtensionAppParamsSetContext(&m_AppParams, "webserver", webserver);
-            ExtensionAppParamsSetContext(&m_AppParams, "register", engine->m_Register);
-            ExtensionAppParamsSetContext(&m_AppParams, "hid", engine->m_HidContext);
         }
         ~ScopedExtensionAppParams()
         {
@@ -157,29 +171,14 @@ namespace dmEngine
 
     struct ScopedExtensionParams
     {
-        HEngine         m_Engine;
         ExtensionParams m_Params;
         ScopedExtensionParams(HEngine engine)
-        : m_Engine(engine)
         {
             ExtensionParamsInitialize(&m_Params);
+            ExtensionParamsSetContextRegistry(&m_Params, engine->m_ContextRegistry);
             m_Params.m_ConfigFile = engine->m_Config;
             m_Params.m_ResourceFactory = engine->m_Factory;
             SetLuaContext(engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
-
-            ExtensionParamsSetContext(&m_Params, "config", engine->m_Config);
-            dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
-            ExtensionParamsSetContext(&m_Params, "webserver", webserver);
-            ExtensionParamsSetContext(&m_Params, "register", engine->m_Register);
-            ExtensionParamsSetContext(&m_Params, "hid", engine->m_HidContext);
-            ExtensionParamsSetContext(&m_Params, "factory", engine->m_Factory);
-            ExtensionParamsSetContext(&m_Params, "graphics", engine->m_GraphicsContext);
-            ExtensionParamsSetContext(&m_Params, "render", engine->m_RenderContext);
-            if (engine->m_HttpCache)
-                ExtensionParamsSetContext(&m_Params, "http_cache", engine->m_HttpCache);
-
-            if (engine->m_JobThreadContext)
-                ExtensionParamsSetContext(&m_Params, "jobs", engine->m_JobThreadContext);
         }
         ~ScopedExtensionParams()
         {
@@ -188,8 +187,6 @@ namespace dmEngine
         void SetLuaContext(dmScript::HContext script_context)
         {
             m_Params.m_L = dmScript::GetLuaState(script_context);
-            ExtensionParamsSetContext(&m_Params, "script", script_context);
-            ExtensionParamsSetContext(&m_Params, "lua", m_Params.m_L);
         }
 
         operator ExtensionParams* ()
@@ -299,8 +296,10 @@ namespace dmEngine
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
 
-    static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx)
+    static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx, dmGameObject::ComponentTypeCreateCtxImpl& component_create_ctx_impl)
     {
+        component_create_ctx_impl.m_ContextRegistry = engine->m_ContextRegistry;
+        component_create_ctx.m_Impl = &component_create_ctx_impl;
         component_create_ctx.m_Config = engine->m_Config;
         component_create_ctx.m_Script = engine->m_GOScriptContext;
         component_create_ctx.m_Register = engine->m_Register;
@@ -432,6 +431,7 @@ namespace dmEngine
         m_AccumFrameTime = 0;
         m_PreviousFrameTime = dmTime::GetMonotonicTime();
         m_HttpCache = 0;
+        m_ContextRegistry = ContextRegistryCreate();
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -462,8 +462,9 @@ namespace dmEngine
             dmResource::DeregisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         }
 
+        dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-        SetupComponentCreateContext(engine, component_create_ctx);
+        SetupComponentCreateContext(engine, component_create_ctx, component_create_ctx_impl);
 
         dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
 
@@ -568,13 +569,18 @@ namespace dmEngine
         if (engine->m_PhysicsContextBullet3D.m_Context)
             dmPhysics::DeleteContext3D(engine->m_PhysicsContextBullet3D.m_Context);
 
-        ScopedExtensionAppParams app_params(engine);
-        dmExtension::AppFinalize(app_params);
+        {
+            ScopedExtensionAppParams app_params(engine);
+            dmExtension::AppFinalize(app_params);
+        }
 
 #if !defined(DM_NO_HTTP_CACHE)
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
 #endif
+
+        ContextRegistryDestroy(engine->m_ContextRegistry);
+        engine->m_ContextRegistry = 0;
 
         dmBuffer::DeleteContext();
 
@@ -1011,6 +1017,7 @@ namespace dmEngine
         }
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
+        PopulateContextRegistry(engine, 0);
 
         ScopedExtensionAppParams app_params(engine);
         dmExtension::Result er = dmExtension::AppInitialize(app_params);
@@ -1262,6 +1269,7 @@ namespace dmEngine
         script_params.m_ConfigFile      = engine->m_Config;
         script_params.m_GraphicsContext = engine->m_GraphicsContext;
 
+        PopulateContextRegistry(engine, 0);
 
         ScopedExtensionParams extension_params(engine);
 
@@ -1270,6 +1278,7 @@ namespace dmEngine
         {
             engine->m_SharedScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_SharedScriptContext);
+            PopulateContextRegistry(engine, engine->m_SharedScriptContext);
             extension_params.SetLuaContext(engine->m_SharedScriptContext);
             dmExtension::Initialize(extension_params);
 
@@ -1283,16 +1292,19 @@ namespace dmEngine
         {
             engine->m_GOScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_GOScriptContext);
+            PopulateContextRegistry(engine, engine->m_GOScriptContext);
             extension_params.SetLuaContext(engine->m_GOScriptContext);
             dmExtension::Initialize(extension_params);
 
             engine->m_RenderScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_RenderScriptContext);
+            PopulateContextRegistry(engine, engine->m_RenderScriptContext);
             extension_params.SetLuaContext(engine->m_RenderScriptContext);
             dmExtension::Initialize(extension_params);
 
             engine->m_GuiScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_GuiScriptContext);
+            PopulateContextRegistry(engine, engine->m_GuiScriptContext);
             extension_params.SetLuaContext(engine->m_GuiScriptContext);
             dmExtension::Initialize(extension_params);
 
@@ -1301,6 +1313,7 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_RenderScriptContext);
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
+        PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
 
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
@@ -1341,6 +1354,7 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+        PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
 
@@ -1406,6 +1420,7 @@ namespace dmEngine
         gui_params.m_Dpi = physical_dpi;
 
         engine->m_GuiContext = dmGui::NewContext(&gui_params);
+        PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
 
         UpdateGuiSafeAreaAdjust(engine, physical_width, physical_height);
 
@@ -1511,8 +1526,9 @@ namespace dmEngine
             engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_GOScriptContext;
         }
 
+        dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-        SetupComponentCreateContext(engine, component_create_ctx);
+        SetupComponentCreateContext(engine, component_create_ctx, component_create_ctx_impl);
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;

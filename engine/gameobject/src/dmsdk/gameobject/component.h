@@ -18,6 +18,7 @@
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/dlib/context_registry.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/script/script.h>
@@ -36,6 +37,7 @@ namespace dmGameObject
      */
 
     struct ComponentType;
+    struct ComponentTypeCreateCtxImpl;
 
     /*#
      * Component type handle. It holds the life time functions for a type.
@@ -760,15 +762,19 @@ namespace dmGameObject
      * @member m_Factory [type: dmResource::HFactory] The resource factory
      * @member m_Register [type: dmGameObject::HRegister] The game object registry
      * @member m_Script [type: dmScript::HContext] The shared script context
-     * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contextx
+     * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contexts
+     * @member m_Impl [type: dmGameObject::ComponentTypeCreateCtxImpl*] Opaque implementation data
      */
     struct ComponentTypeCreateCtx {
-        dmConfigFile::HConfig    m_Config;
-        dmResource::HFactory     m_Factory;
-        dmGameObject::HRegister  m_Register;
-        dmScript::HContext       m_Script;
-        dmHashTable64<void*>     m_Contexts;
+        ComponentTypeCreateCtxImpl* m_Impl;
+        dmConfigFile::HConfig       m_Config; // deprecated
+        dmResource::HFactory        m_Factory; // deprecated
+        dmGameObject::HRegister     m_Register; // deprecated
+        dmScript::HContext          m_Script; // deprecated
+        dmHashTable64<void*>        m_Contexts; // deprecated
     };
+
+    HContextRegistry ComponentTypeCreateCtxGetContextRegistry(const ComponentTypeCreateCtx* ctx);
 
     typedef Result (*ComponentTypeCreateFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);
     typedef Result (*ComponentTypeDestroyFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);

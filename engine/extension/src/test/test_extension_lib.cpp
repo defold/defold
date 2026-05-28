@@ -32,15 +32,17 @@ int g_TestAppEventCount = 0;
 int g_TestContextCount = 0;
 
 static int g_LibContext = 0;
+static int g_InitContext = 0;
 
 static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
-    int* engine = (int*)ExtensionAppParamsGetContextByName(params, "engine");
+    HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(params);
+    int* engine = (int*)ContextRegistryGetByName(context_registry, "engine");
     assert(engine != 0);
     assert(*engine == 1337);
 
-    ExtensionAppParamsSetContext(params, "lib", &g_LibContext);
-    int* libctx = (int*)ExtensionAppParamsGetContextByName(params, "lib");
+    ContextRegistrySet(context_registry, "lib", &g_LibContext);
+    int* libctx = (int*)ContextRegistryGetByName(context_registry, "lib");
     assert(libctx == &g_LibContext);
     *libctx = 1976;
 
@@ -50,11 +52,12 @@ static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 
 static dmExtension::Result AppFinalizeTest(dmExtension::AppParams* params)
 {
-    int* libctx = (int*)ExtensionAppParamsGetContextByName(params, "lib");
+    HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(params);
+    int* libctx = (int*)ContextRegistryGetByName(context_registry, "lib");
     assert(libctx == &g_LibContext);
     *libctx = 1976;
 
-    ExtensionAppParamsSetContext(params, "lib", 0);
+    ContextRegistrySet(context_registry, "lib", 0);
 
     g_TestAppInitCount--;
     return dmExtension::RESULT_OK;
@@ -62,6 +65,17 @@ static dmExtension::Result AppFinalizeTest(dmExtension::AppParams* params)
 
 static dmExtension::Result InitializeTest(dmExtension::Params* params)
 {
+    HContextRegistry context_registry = ExtensionParamsGetContextRegistry(params);
+    int* libctx = (int*)ContextRegistryGetByName(context_registry, "lib");
+    assert(libctx == &g_LibContext);
+    assert(*libctx == 1976);
+
+    ContextRegistrySet(context_registry, "init", &g_InitContext);
+    int* initctx = (int*)ContextRegistryGetByName(context_registry, "init");
+    assert(initctx == &g_InitContext);
+    *initctx = 2026;
+
+    g_TestContextCount++;
     g_TestInitCount++;
     return dmExtension::RESULT_OK;
 }
@@ -82,6 +96,18 @@ void OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
 
 static dmExtension::Result FinalizeTest(dmExtension::Params* params)
 {
+    HContextRegistry context_registry = ExtensionParamsGetContextRegistry(params);
+    int* libctx = (int*)ContextRegistryGetByName(context_registry, "lib");
+    assert(libctx == &g_LibContext);
+    assert(*libctx == 1976);
+
+    int* initctx = (int*)ContextRegistryGetByName(context_registry, "init");
+    assert(initctx == &g_InitContext);
+    assert(*initctx == 2026);
+
+    ContextRegistrySet(context_registry, "init", 0);
+
+    g_TestContextCount--;
     g_TestInitCount--;
     return dmExtension::RESULT_OK;
 }

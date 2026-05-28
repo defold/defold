@@ -12,9 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/context_registry.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dlib/hashtable.h>
 #include <dlib/static_assert.h>
 
 #include <dmsdk/dlib/profile.h>
@@ -23,48 +23,51 @@
 
 struct ExtensionParamsImpl
 {
-    dmHashTable64<void*> m_Contexts;
+    HContextRegistry m_ContextRegistry;
+    bool             m_OwnsContextRegistry;
+
+    ExtensionParamsImpl()
+    : m_ContextRegistry(0)
+    , m_OwnsContextRegistry(false)
+    {
+    }
 };
 
-static void EnsureSize(dmHashTable64<void*>* tbl)
+static ExtensionParamsImpl* NewExtensionParamsImpl()
 {
-    if (tbl->Full())
+    ExtensionParamsImpl* impl = new ExtensionParamsImpl;
+    impl->m_ContextRegistry = ContextRegistryCreate();
+    impl->m_OwnsContextRegistry = true;
+    return impl;
+}
+
+static void DeleteExtensionParamsImpl(ExtensionParamsImpl* impl)
+{
+    if (impl->m_OwnsContextRegistry)
     {
-        tbl->OffsetCapacity(4);
+        ContextRegistryDestroy(impl->m_ContextRegistry);
     }
+    delete impl;
 }
 
-static int SetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash, void* context)
+static void SetContextRegistry(ExtensionParamsImpl* impl, HContextRegistry context_registry)
 {
-    assert(contexts);
-    EnsureSize(contexts);
+    assert(impl);
+    assert(context_registry);
 
-    if (context)
-        contexts->Put(name_hash, context);
-    else
+    if (impl->m_ContextRegistry == context_registry)
     {
-        void** pvalue = contexts->Get(name_hash);
-        if (pvalue)
-            contexts->Erase(name_hash);
+        return;
     }
-    return 0;
-}
 
-static int SetContext(dmHashTable64<void*>* contexts, const char* name, void* context)
-{
-    return SetContext(contexts, dmHashString64(name), context);
-}
-
-static void* GetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash)
-{
-    void** pcontext = contexts->Get(name_hash);
-    if (pcontext != 0)
+    if (impl->m_OwnsContextRegistry)
     {
-        return *pcontext;
+        ContextRegistryDestroy(impl->m_ContextRegistry);
     }
-    return 0;
-}
 
+    impl->m_ContextRegistry = context_registry;
+    impl->m_OwnsContextRegistry = false;
+}
 
 #if defined(__cplusplus)
 extern "C" {
@@ -133,42 +136,110 @@ bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCa
 void ExtensionAppParamsInitialize(ExtensionAppParams* app_params)
 {
     memset(app_params, 0, sizeof(*app_params));
-    app_params->m_Impl = new ExtensionParamsImpl;
-    memset(app_params->m_Impl, 0, sizeof(*app_params->m_Impl));
+    app_params->m_Impl = NewExtensionParamsImpl();
 }
 
 void ExtensionAppParamsFinalize(ExtensionAppParams* app_params)
 {
-    delete app_params->m_Impl;
+    DeleteExtensionParamsImpl(app_params->m_Impl);
     app_params->m_Impl = 0;
 }
 
 void ExtensionParamsInitialize(ExtensionParams* params)
 {
     memset(params, 0, sizeof(*params));
-    params->m_Impl = new ExtensionParamsImpl;
-    memset(params->m_Impl, 0, sizeof(*params->m_Impl));
+    params->m_Impl = NewExtensionParamsImpl();
 }
 
 void ExtensionParamsFinalize(ExtensionParams* params)
 {
-    delete params->m_Impl;
+    DeleteExtensionParamsImpl(params->m_Impl);
     params->m_Impl = 0;
+}
+
+HExtensionContextCache ExtensionContextCacheCreate()
+{
+    return ContextRegistryCreate();
+}
+
+void ExtensionContextCacheDestroy(HExtensionContextCache context_cache)
+{
+    ContextRegistryDestroy(context_cache);
+}
+
+void ExtensionAppParamsSetContextRegistry(ExtensionAppParams* params, HContextRegistry context_registry)
+{
+    SetContextRegistry(params->m_Impl, context_registry);
+}
+
+HContextRegistry ExtensionAppParamsGetContextRegistry(ExtensionAppParams* params)
+{
+    return params->m_Impl->m_ContextRegistry;
+}
+
+void ExtensionParamsSetContextRegistry(ExtensionParams* params, HContextRegistry context_registry)
+{
+    SetContextRegistry(params->m_Impl, context_registry);
+}
+
+HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params)
+{
+    return params->m_Impl->m_ContextRegistry;
+}
+
+void ExtensionAppParamsSetContextCache(ExtensionAppParams* params, HExtensionContextCache context_cache)
+{
+    ExtensionAppParamsSetContextRegistry(params, context_cache);
+}
+
+HExtensionContextCache ExtensionAppParamsGetContextCache(ExtensionAppParams* params)
+{
+    return ExtensionAppParamsGetContextRegistry(params);
+}
+
+void ExtensionParamsSetContextCache(ExtensionParams* params, HExtensionContextCache context_cache)
+{
+    ExtensionParamsSetContextRegistry(params, context_cache);
+}
+
+HExtensionContextCache ExtensionParamsGetContextCache(ExtensionParams* params)
+{
+    return ExtensionParamsGetContextRegistry(params);
+}
+
+int ExtensionContextCacheSetContext(HExtensionContextCache context_cache, const char* name, void* context)
+{
+    return ContextRegistrySet(context_cache, name, context);
+}
+
+int ExtensionContextCacheSetContextByHash(HExtensionContextCache context_cache, dmhash_t name_hash, void* context)
+{
+    return ContextRegistrySetByHash(context_cache, name_hash, context);
+}
+
+void* ExtensionContextCacheGetContextByName(HExtensionContextCache context_cache, const char* name)
+{
+    return ContextRegistryGetByName(context_cache, name);
+}
+
+void* ExtensionContextCacheGetContextByHash(HExtensionContextCache context_cache, dmhash_t name_hash)
+{
+    return ContextRegistryGetByHash(context_cache, name_hash);
 }
 
 int ExtensionAppParamsSetContext(ExtensionAppParams* params, const char* name, void* context)
 {
-    return SetContext(&params->m_Impl->m_Contexts, name, context);
+    return ContextRegistrySet(ExtensionAppParamsGetContextRegistry(params), name, context);
 }
 
 void* ExtensionAppParamsGetContext(ExtensionAppParams* params, dmhash_t name_hash)
 {
-    return GetContext(&params->m_Impl->m_Contexts, name_hash);
+    return ContextRegistryGetByHash(ExtensionAppParamsGetContextRegistry(params), name_hash);
 }
 
 void* ExtensionAppParamsGetContextByName(ExtensionAppParams* params, const char* name)
 {
-    return GetContext(&params->m_Impl->m_Contexts, dmHashString64(name));
+    return ContextRegistryGetByName(ExtensionAppParamsGetContextRegistry(params), name);
 }
 
 ExtensionAppExitCode ExtensionAppParamsGetAppExitCode(ExtensionAppParams* app_params)
@@ -178,17 +249,17 @@ ExtensionAppExitCode ExtensionAppParamsGetAppExitCode(ExtensionAppParams* app_pa
 
 int ExtensionParamsSetContext(ExtensionParams* params, const char* name, void* context)
 {
-    return SetContext(&params->m_Impl->m_Contexts, name, context);
+    return ContextRegistrySet(ExtensionParamsGetContextRegistry(params), name, context);
 }
 
 void* ExtensionParamsGetContext(ExtensionParams* params, dmhash_t name_hash)
 {
-    return GetContext(&params->m_Impl->m_Contexts, name_hash);
+    return ContextRegistryGetByHash(ExtensionParamsGetContextRegistry(params), name_hash);
 }
 
 void* ExtensionParamsGetContextByName(ExtensionParams* params, const char* name)
 {
-    return GetContext(&params->m_Impl->m_Contexts, dmHashString64(name));
+    return ContextRegistryGetByName(ExtensionParamsGetContextRegistry(params), name);
 }
 
 
