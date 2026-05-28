@@ -301,12 +301,17 @@ else()
 endif()
 
 defold_add_library(mbedtls STATIC ${DLIB_MBEDTLS_SOURCES})
+set_target_properties(mbedtls PROPERTIES OUTPUT_NAME dmbedtls)
 target_include_directories(mbedtls PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
 target_compile_definitions(mbedtls PUBLIC ${DLIB_MBEDTLS_DEFINES})
 
 defold_add_library(mbedtls_noasan STATIC ${DLIB_MBEDTLS_SOURCES})
+set_target_properties(mbedtls_noasan PROPERTIES OUTPUT_NAME dmbedtls_noasan)
 target_include_directories(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
 target_compile_definitions(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_DEFINES})
+if(TARGET_PLATFORM MATCHES "win32$")
+  set_target_properties(mbedtls mbedtls_noasan PROPERTIES PREFIX "lib")
+endif()
 
 defold_add_library(dlib STATIC ${DLIB_SOURCES})
 target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})

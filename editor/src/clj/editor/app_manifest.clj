@@ -228,6 +228,38 @@
                   "zip" "zip"
                   "zip_noasan" "zip_noasan"}})
 
+(def legacy-windows-lib-names
+  ;; App manifests authored before the CMake migration may still use Waf's
+  ;; Windows library filenames. Keep reading them, but write current names.
+  {:x86-win32 {"gamesys" "gamesys"
+               "gamesys_model" "gamesys_model"
+               "gamesys_model_null" "gamesys_model_null"
+               "gamesys_rig" "gamesys_rig"
+               "gamesys_rig_null" "gamesys_rig_null"
+               "hid" "hid"
+               "hid_null" "hid_null"
+               "input" "input"
+               "platform" "platform"
+               "platform_null" "platform_null"
+               "platform_vulkan" "platform_vulkan"
+               "vpx" "vpx"
+               "vulkan" "vulkan-1"
+               "script_box2d_defold" "script_box2d_defold"}
+   :x86_64-win32 {"gamesys" "gamesys"
+                  "gamesys_model" "gamesys_model"
+                  "gamesys_model_null" "gamesys_model_null"
+                  "gamesys_rig" "gamesys_rig"
+                  "gamesys_rig_null" "gamesys_rig_null"
+                  "hid" "hid"
+                  "hid_null" "hid_null"
+                  "input" "input"
+                  "platform" "platform"
+                  "platform_null" "platform_null"
+                  "platform_vulkan" "platform_vulkan"
+                  "vpx" "vpx"
+                  "vulkan" "vulkan-1"
+                  "script_box2d_defold" "script_box2d_defold"}})
+
 (defn platformify-excluded-lib [platform lib]
   (or (-> custom-lib-names platform (get lib))
       (and (contains? windows platform) (str "lib" lib))
@@ -238,10 +270,23 @@
       (and (contains? windows platform) (str "lib" lib ".lib"))
       lib))
 
+(defn legacy-platformify-excluded-lib [platform lib]
+  (or (-> legacy-windows-lib-names platform (get lib))
+      (and (contains? windows platform) (str "lib" lib))
+      lib))
+
+(defn legacy-platformify-lib [platform lib]
+  (or (some-> legacy-windows-lib-names platform (get lib) (str ".lib"))
+      (and (contains? windows platform) (str "lib" lib ".lib"))
+      lib))
+
 ;; region toggles
 
-(defn contains-toggle [platform key value]
-  {:toggle :contains :platform platform :key key :value value})
+(defn contains-toggle
+  ([platform key value]
+   (contains-toggle platform key value [value]))
+  ([platform key value values]
+   {:toggle :contains :platform platform :key key :value value :values (vec (distinct values))}))
 
 (defn boolean-toggle [platform key value]
   {:toggle :boolean :platform platform :key key :value value})
@@ -249,12 +294,16 @@
 (defn exclude-libs-toggles [platforms libs]
   (for [p platforms
         l libs]
-    (contains-toggle p :excludeLibs (platformify-excluded-lib p l))))
+    (contains-toggle p :excludeLibs (platformify-excluded-lib p l)
+                     [(platformify-excluded-lib p l)
+                      (legacy-platformify-excluded-lib p l)])))
 
 (defn libs-toggles [platforms libs]
   (for [p platforms
         l libs]
-    (contains-toggle p :libs (platformify-lib p l))))
+    (contains-toggle p :libs (platformify-lib p l)
+                     [(platformify-lib p l)
+                      (legacy-platformify-lib p l)])))
 
 (defn generic-contains-toggles [platforms key values]
   (for [p platforms
@@ -341,12 +390,13 @@
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
     :contains (let [{:keys [platform key value]} toggle]
-                (boolean (some #(= value %) (get-in-guarded manifest
-                                                            :platforms map?
-                                                            platform map?
-                                                            :context map?
-                                                            key vector?
-                                                            []))))
+                (boolean (some (set (or (:values toggle) [value]))
+                               (get-in-guarded manifest
+                                               :platforms map?
+                                               platform map?
+                                               :context map?
+                                               key vector?
+                                               []))))
     :boolean (let [{:keys [platform key value]} toggle
                    default-value (not value)]
                (= value (get-in-guarded manifest
@@ -359,7 +409,8 @@
 (defn set-toggle-value [manifest toggle value]
   (case (:toggle toggle)
     :contains (let [enabled value
-                    {:keys [platform key value]} toggle]
+                    {:keys [platform key value]} toggle
+                    accepted-values (set (or (:values toggle) [value]))]
                 (update-in-fixing
                   manifest map? {}
                   :platforms map? {}
@@ -369,8 +420,8 @@
                   (if enabled
                     (fn [values]
                       (into [] (distinct) (conj values value)))
-                    (fn [values]
-                      (filterv #(not= value %) values)))))
+                    (fn [current-values]
+                      (filterv #(not (contains? accepted-values %)) current-values)))))
 
     :boolean (let [enabled value
                    {:keys [platform key value]} toggle]
