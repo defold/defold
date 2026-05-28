@@ -28,7 +28,7 @@ namespace dmCrash
     static bool g_CrashDumpEnabled = true;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
-    static struct sigaction             g_OldSignal[SIGNAL_MAX];
+    static struct sigaction             g_PreviousSignalActions[SIGNAL_SLOT_COUNT];
 
     static void Handler(const int signo, siginfo_t* const si, void *const sc);
 
@@ -101,7 +101,7 @@ namespace dmCrash
         if (!g_CrashDumpEnabled)
         {
             ResetToDefaultSignalHandler(signo);
-            ChainSignalOrRaiseDefault(signo, si, sc, g_OldSignal, Handler);
+            ChainSignalOrRaiseDefault(signo, si, sc, g_PreviousSignalActions, Handler);
             return;
         }
 
@@ -133,7 +133,7 @@ namespace dmCrash
         dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
         dLib::SetDebugMode(is_debug_mode);
 
-        ChainSignalOrRaiseDefault(signo, si, sc, g_OldSignal, Handler);
+        ChainSignalOrRaiseDefault(signo, si, sc, g_PreviousSignalActions, Handler);
     }
 
     void WriteDump()
@@ -144,8 +144,8 @@ namespace dmCrash
 
     void InstallOnSignal(int signum)
     {
-        assert(IsValidSignal(signum));
-        InstallSignalHandler(signum, Handler, g_OldSignal);
+        assert(IsHandledSignal(signum));
+        InstallSignalHandler(signum, Handler, g_PreviousSignalActions);
     }
 
     void SetCrashFilename(const char*)

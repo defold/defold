@@ -33,7 +33,7 @@ namespace dmCrash
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
-    static struct sigaction             g_OldSignal[SIGNAL_MAX];
+    static struct sigaction             g_PreviousSignalActions[SIGNAL_SLOT_COUNT];
 
     static void Handler(const int signum, siginfo_t *const si, void *const sc);
 
@@ -104,7 +104,7 @@ namespace dmCrash
         if (!g_CrashDumpEnabled)
         {
             ResetToDefaultSignalHandler(signum);
-            ChainSignalOrRaiseDefault(signum, si, sc, g_OldSignal, Handler);
+            ChainSignalOrRaiseDefault(signum, si, sc, g_PreviousSignalActions, Handler);
             return;
         }
 
@@ -113,13 +113,13 @@ namespace dmCrash
         // be stuck in a signal-handler loop forever.
         ResetToDefaultSignalHandler(signum);
         OnCrash(signum);
-        ChainSignalOrRaiseDefault(signum, si, sc, g_OldSignal, Handler);
+        ChainSignalOrRaiseDefault(signum, si, sc, g_PreviousSignalActions, Handler);
     }
 
     void InstallOnSignal(int signum)
     {
-        assert(IsValidSignal(signum));
-        InstallSignalHandler(signum, Handler, g_OldSignal);
+        assert(IsHandledSignal(signum));
+        InstallSignalHandler(signum, Handler, g_PreviousSignalActions);
     }
 
     void SetCrashFilename(const char*)

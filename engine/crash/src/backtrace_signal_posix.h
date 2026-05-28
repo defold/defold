@@ -24,18 +24,40 @@
 
 namespace dmCrash
 {
-    static const int SIGNAL_MAX = 64;
+    enum
+    {
+        SIGNAL_SLOT_COUNT = 5
+    };
 
     typedef void (*FSignalAction)(int, siginfo_t*, void*);
 
-    static inline bool IsValidSignal(int signum)
+    static inline int GetSignalSlot(int signum)
     {
-        return signum > 0 && signum < SIGNAL_MAX;
+        switch (signum)
+        {
+        case SIGSEGV: return 0;
+        case SIGBUS:  return 1;
+        case SIGTRAP: return 2;
+        case SIGILL:  return 3;
+        case SIGABRT: return 4;
+        default:      return -1;
+        }
+    }
+
+    static inline bool IsHandledSignal(int signum)
+    {
+        return GetSignalSlot(signum) >= 0;
+    }
+
+    static inline struct sigaction* GetPreviousSignalAction(int signum, struct sigaction* previous_signal_actions)
+    {
+        int slot = GetSignalSlot(signum);
+        return slot >= 0 && previous_signal_actions ? &previous_signal_actions[slot] : 0;
     }
 
     static inline void ResetToDefaultSignalHandler(int signum)
     {
-        if (!IsValidSignal(signum))
+        if (!IsHandledSignal(signum))
         {
             return;
         }
@@ -48,52 +70,57 @@ namespace dmCrash
         sigaction(signum, &sa, 0);
     }
 
-    static inline void RestoreSignalHandler(int signum, struct sigaction* old_signals)
+    static inline void RestoreSignalHandler(int signum, struct sigaction* previous_signal_actions)
     {
-        if (!IsValidSignal(signum) || !old_signals)
+        struct sigaction* previous_signal_action = GetPreviousSignalAction(signum, previous_signal_actions);
+        if (!previous_signal_action)
         {
             return;
         }
 
-        sigaction(signum, &old_signals[signum], 0);
+        sigaction(signum, previous_signal_action, 0);
     }
 
-    static inline bool ChainSignalToPreviousHandler(int signum, siginfo_t* si, void* sc, struct sigaction* old_signals, FSignalAction current_handler)
+    static inline bool ChainSignalToPreviousHandler(int signum, siginfo_t* si, void* sc, struct sigaction* previous_signal_actions, FSignalAction current_handler)
     {
-        if (!IsValidSignal(signum) || !old_signals)
+        struct sigaction* previous_signal_action = GetPreviousSignalAction(signum, previous_signal_actions);
+        if (!previous_signal_action)
         {
             return false;
         }
 
-        struct sigaction* old_signal = &old_signals[signum];
-        if ((old_signal->sa_flags & SA_SIGINFO) &&
-            old_signal->sa_sigaction &&
-            old_signal->sa_sigaction != (FSignalAction)SIG_DFL &&
-            old_signal->sa_sigaction != (FSignalAction)SIG_IGN &&
-            old_signal->sa_sigaction != current_handler)
+        if ((previous_signal_action->sa_flags & SA_SIGINFO) &&
+            previous_signal_action->sa_sigaction &&
+            previous_signal_action->sa_handler != SIG_DFL &&
+            previous_signal_action->sa_handler != SIG_IGN &&
+            previous_signal_action->sa_sigaction != current_handler)
         {
-            RestoreSignalHandler(signum, old_signals);
-            old_signal->sa_sigaction(signum, si, sc);
+            RestoreSignalHandler(signum, previous_signal_actions);
+            previous_signal_action->sa_sigaction(signum, si, sc);
             return true;
         }
-        else if (old_signal->sa_handler != SIG_DFL && old_signal->sa_handler != SIG_IGN && old_signal->sa_handler)
+        else if (!(previous_signal_action->sa_flags & SA_SIGINFO) &&
+                 previous_signal_action->sa_handler != SIG_DFL &&
+                 previous_signal_action->sa_handler != SIG_IGN &&
+                 previous_signal_action->sa_handler)
         {
-            RestoreSignalHandler(signum, old_signals);
-            old_signal->sa_handler(signum);
+            RestoreSignalHandler(signum, previous_signal_actions);
+            previous_signal_action->sa_handler(signum);
             return true;
         }
 
         return false;
     }
 
-    static inline bool WasPreviousSignalIgnored(int signum, struct sigaction* old_signals)
+    static inline bool WasPreviousSignalIgnored(int signum, struct sigaction* previous_signal_actions)
     {
-        return IsValidSignal(signum) && old_signals && old_signals[signum].sa_handler == SIG_IGN;
+        struct sigaction* previous_signal_action = GetPreviousSignalAction(signum, previous_signal_actions);
+        return previous_signal_action && previous_signal_action->sa_handler == SIG_IGN;
     }
 
     static inline void RaiseDefaultSignalHandler(int signum, const siginfo_t* si)
     {
-        if (!IsValidSignal(signum))
+        if (!IsHandledSignal(signum))
         {
             return;
         }
@@ -111,30 +138,33 @@ namespace dmCrash
                 return;
             }
         }
+#else
+        (void)si;
 #endif
 
         raise(signum);
     }
 
-    static inline void ChainSignalOrRaiseDefault(int signum, siginfo_t* si, void* sc, struct sigaction* old_signals, FSignalAction current_handler)
+    static inline void ChainSignalOrRaiseDefault(int signum, siginfo_t* si, void* sc, struct sigaction* previous_signal_actions, FSignalAction current_handler)
     {
-        if (ChainSignalToPreviousHandler(signum, si, sc, old_signals, current_handler))
+        if (ChainSignalToPreviousHandler(signum, si, sc, previous_signal_actions, current_handler))
         {
             return;
         }
 
-        if (WasPreviousSignalIgnored(signum, old_signals))
+        if (WasPreviousSignalIgnored(signum, previous_signal_actions))
         {
-            RestoreSignalHandler(signum, old_signals);
+            RestoreSignalHandler(signum, previous_signal_actions);
             return;
         }
 
         RaiseDefaultSignalHandler(signum, si);
     }
 
-    static inline bool InstallSignalHandler(int signum, FSignalAction handler, struct sigaction* old_signals)
+    static inline bool InstallSignalHandler(int signum, FSignalAction handler, struct sigaction* previous_signal_actions)
     {
-        if (!IsValidSignal(signum) || !handler || !old_signals)
+        struct sigaction* previous_signal_action = GetPreviousSignalAction(signum, previous_signal_actions);
+        if (!handler || !previous_signal_action)
         {
             return false;
         }
@@ -154,7 +184,7 @@ namespace dmCrash
         sa.sa_sigaction = handler;
         sa.sa_flags = SA_SIGINFO;
 
-        return sigaction(signum, &sa, &old_signals[signum]) == 0;
+        return sigaction(signum, &sa, previous_signal_action) == 0;
     }
 }
 
