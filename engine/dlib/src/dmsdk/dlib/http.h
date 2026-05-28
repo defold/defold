@@ -27,6 +27,79 @@ extern "C" {
  * @document
  * @name HTTP
  * @language C
+ * @examples
+ *
+ * Create and push a GET request. The caller owns the request until
+ * HttpPushRequest() succeeds. The callback is called from an HTTP worker
+ * thread, and data pointers are valid only for the duration of the callback.
+ *
+ * ```c
+ * typedef struct HttpExampleContext
+ * {
+ *     uint32_t   m_TotalBytes;
+ *     HttpResult m_Result;
+ *     int        m_Done;
+ * } HttpExampleContext;
+ *
+ * static void HttpExampleCallback(HttpRequest* request, void* user_data, const HttpResponseInfo* response)
+ * {
+ *     HttpExampleContext* context = (HttpExampleContext*) user_data;
+ *     (void) request;
+ *
+ *     switch (response->m_Event)
+ *     {
+ *         case HTTP_RESPONSE_EVENT_HEADER:
+ *             // response->m_Header points to "Name:Value".
+ *             // Copy it here if it is needed after the callback returns.
+ *             break;
+ *
+ *         case HTTP_RESPONSE_EVENT_DATA:
+ *             // Process or copy response->m_Data before returning.
+ *             context->m_TotalBytes += response->m_DataSize;
+ *             break;
+ *
+ *         case HTTP_RESPONSE_EVENT_COMPLETE:
+ *             context->m_Result = response->m_Result;
+ *             context->m_Done = 1;
+ *             break;
+ *     }
+ * }
+ *
+ * static HttpResult PushExampleGet(HttpService* service, HttpExampleContext* context, HttpRequestHandle* handle)
+ * {
+ *     HttpRequest* request = 0;
+ *     HttpResult result = HttpNewRequest(&request);
+ *     if (result != HTTP_RESULT_OK)
+ *     {
+ *         return result;
+ *     }
+ *
+ *     result = HttpSetMethod(request, "GET");
+ *     if (result == HTTP_RESULT_OK)
+ *     {
+ *         result = HttpSetURL(request, "https://example.com/data.json");
+ *     }
+ *     if (result == HTTP_RESULT_OK)
+ *     {
+ *         result = HttpAddHeader(request, "Accept: application/json");
+ *     }
+ *     if (result == HTTP_RESULT_OK)
+ *     {
+ *         result = HttpSetResponseCallback(request, HttpExampleCallback, context);
+ *     }
+ *     if (result == HTTP_RESULT_OK)
+ *     {
+ *         result = HttpPushRequest(service, request, handle);
+ *     }
+ *
+ *     if (result != HTTP_RESULT_OK)
+ *     {
+ *         HttpDeleteRequest(request);
+ *     }
+ *
+ *     return result;
+ * }
+ * ```
  */
 
 /*# HTTP service extension context name
