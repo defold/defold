@@ -14,6 +14,7 @@
 
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/jobsystem.h>
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/time.h>
@@ -502,7 +503,7 @@ dmExtension::Result FontGenInitialize(dmExtension::Params* params)
     g_FontExtContext->m_StbttDefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_base_padding", 3);
     g_FontExtContext->m_StbttDefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_edge_value", 191);
 
-    g_FontExtContext->m_Jobs = dmExtension::GetContextAsType<HJobContext>(params, "jobs");
+    g_FontExtContext->m_Jobs = dmExtension::GetContextAsType<HJobContext>(params, JOB_SYSTEM_CONTEXT_NAME);
     return dmExtension::RESULT_OK;
 }
 

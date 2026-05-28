@@ -20,32 +20,61 @@
 #endif
 
 #include <dmsdk/extension/extension_gen.hpp>
-#include <dmsdk/dlib/hash.h>
 
 namespace dmExtension {
 
    template<typename T>
+   T GetContextAsType(HContextRegistry context_registry, const char* name)
+   {
+      return (T)ContextRegistryGetByName(context_registry, name);
+   }
+
+   template<typename T>
+   T GetContextAsTypeByHash(HContextRegistry context_registry, dmhash_t name_hash)
+   {
+      return (T)ContextRegistryGetByHash(context_registry, name_hash);
+   }
+
+   template<typename T>
+   T GetContextAsType(HContextRegistry context_registry, dmhash_t name_hash)
+   {
+      return GetContextAsTypeByHash<T>(context_registry, name_hash);
+   }
+
+   template<typename T>
    T GetContextAsType(dmExtension::AppParams* app_params, const char* name)
    {
-      return (T)ExtensionAppParamsGetContextByName((ExtensionAppParams*)app_params, name);
+      return GetContextAsType<T>(ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)app_params), name);
+   }
+
+   template<typename T>
+   T GetContextAsTypeByHash(dmExtension::AppParams* app_params, dmhash_t name_hash)
+   {
+      return GetContextAsTypeByHash<T>(ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)app_params), name_hash);
    }
 
    template<typename T>
    T GetContextAsType(dmExtension::AppParams* app_params, dmhash_t name_hash)
    {
-      return (T)ExtensionAppParamsGetContext((ExtensionAppParams*)app_params, name_hash);
+      return GetContextAsTypeByHash<T>(app_params, name_hash);
    }
 
    template<typename T>
    T GetContextAsType(dmExtension::Params* params, const char* name)
    {
-      return (T)ExtensionParamsGetContextByName((ExtensionParams*)params, name);
+      return GetContextAsType<T>(ExtensionParamsGetContextRegistry((ExtensionParams*)params), name);
+   }
+
+   template<typename T>
+   T GetContextAsTypeByHash(dmExtension::Params* params, dmhash_t name_hash)
+   {
+      return GetContextAsTypeByHash<T>(ExtensionParamsGetContextRegistry((ExtensionParams*)params), name_hash);
    }
 
    template<typename T>
    T GetContextAsType(dmExtension::Params* params, dmhash_t name_hash)
    {
-      return (T)ExtensionParamsGetContext((ExtensionParams*)params, name_hash);
+      return GetContextAsTypeByHash<T>(params, name_hash);
    }
 
 

@@ -1162,7 +1162,7 @@ namespace dmGameSystem
     {
         MeshContext* mesh_context = new MeshContext;
         mesh_context->m_Factory = ctx->m_Factory;
-        mesh_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
+        mesh_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64(RENDER_CONTEXT_NAME));
         mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128);
 
         ComponentTypeSetPrio(type, 725);

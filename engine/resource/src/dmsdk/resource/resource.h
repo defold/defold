@@ -29,6 +29,13 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/align.h> // DM_ALIGNED
 
+/*# Resource factory extension context name
+ * Name used when registering the resource factory with the engine context registry.
+ * @constant
+ * @name RESOURCE_FACTORY_CONTEXT_NAME
+ */
+#define RESOURCE_FACTORY_CONTEXT_NAME "factory"
+
 /*#
 * Resource factory handle. Holds references to all currently loaded resources.
 * @name HResourceFactory
