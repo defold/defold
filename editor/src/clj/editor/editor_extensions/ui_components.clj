@@ -734,7 +734,7 @@
 
 (fxui/defc dialog-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
-  [{:keys [title header content buttons modal localization-state]
+  [{:keys [title header content width height resizable buttons modal localization-state]
     :or {modal true}}]
   (let [title (localization-state title)
         header (or header {:fx/type fxui/legacy-label :text title :variant :header})
@@ -757,11 +757,11 @@
              :on-close-request {:result cancel-result}
              :header header
              :footer footer}
-            (not modal)
-            (assoc :modality :none)
-
-            content
-            (assoc :content content))))
+            (not modal) (assoc :modality :none)
+            content (assoc :content content)
+            width (assoc :width width)
+            height (assoc :height height)
+            resizable (assoc :resizable resizable))))
 
 ;; endregion
 
