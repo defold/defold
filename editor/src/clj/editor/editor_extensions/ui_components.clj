@@ -733,8 +733,8 @@
       button)))
 
 (fxui/defc dialog-view
-  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
-  [{:keys [title header content buttons modal localization-state]
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state :owner-window]}]}
+  [{:keys [title header content buttons modal localization-state owner-window]
     :or {modal true}}]
   (let [title (localization-state title)
         header (or header {:fx/type fxui/legacy-label :text title :variant :header})
@@ -754,6 +754,7 @@
                             buttons)}]
     (cond-> {:fx/type dialogs/dialog-stage
              :title title
+             :owner owner-window
              :on-close-request {:result cancel-result}
              :header header
              :footer footer}
@@ -807,9 +808,13 @@
              lifecycle updates, can be accessed using
              [[lifecycle-evaluation-context]] fn
            - localization state: available in cljfx env using [[fx/ext-get-env]]
-             with :localization-state key"
+             with :localization-state key
+           - owner window: available in cljfx env using [[fx/ext-get-env]]
+             with :owner-window key"
    :compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}
-             {:fx/type fx/ext-set-env :env {:localization-state (:localization-state props) :workspace (:workspace props)}}
+             {:fx/type fx/ext-set-env :env {:localization-state (:localization-state props)
+                                            :owner-window (:owner-window props)
+                                            :workspace (:workspace props)}}
              {:fx/type ext-with-evaluation-context}]}
   [{:keys [desc]}]
   desc)
@@ -826,9 +831,11 @@
 
 (defn- make-lua-show-dialog-fn [workspace localization]
   (rt/suspendable-lua-fn show-dialog [{:keys [rt]} lua-dialog-component]
-    (let [desc {:fx/type show-dialog-wrapper-view
+    (let [owner-window (current-owner-window)
+          desc {:fx/type show-dialog-wrapper-view
                 :desc {:fx/type root-view
                        :localization localization
+                       :owner-window owner-window
                        :workspace workspace
                        :desc (rt/->clj rt ui-docs/component-coercer lua-dialog-component)}}
           f (future/make)]
