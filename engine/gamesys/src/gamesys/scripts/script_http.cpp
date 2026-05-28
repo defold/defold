@@ -16,22 +16,22 @@
 #include <stdio.h>
 #include <assert.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <dmsdk/gameobject/script.h>
 
 #include <ddf/ddf.h>
-#include <dlib/align.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/http_cache.h>
+#include <dlib/http/http_cache.h>
+#include <dlib/http/http_service.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/uri.h>
 
 #include <script/script.h>
 #include <script/http_ddf.h>
-#include <script/http_service.h>
 
 #include <extension/extension.hpp>
 
@@ -60,12 +60,150 @@ namespace dmGameSystem
     static dmHttpService::HHttpService g_Service = 0;
     static uint64_t g_Timeout                    = 0;
 
-    static void ReportProgressCallback(dmHttpDDF::HttpRequestProgress* msg, dmMessage::URL* url, uintptr_t user_data)
+    struct ScriptHttpRequest
     {
-        if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(msg, 0, url, user_data, false))
+        ScriptHttpRequest()
+        : m_Callback(0)
+        , m_Method(0)
+        , m_Url(0)
+        , m_Headers(0)
+        , m_RequestData(0)
+        , m_Path(0)
+        , m_Proxy(0)
+        {
+        }
+
+        dmHttpService::Request m_Request;
+        dmMessage::URL         m_Sender;
+        uintptr_t              m_Callback;
+        char*                  m_Method;
+        char*                  m_Url;
+        char*                  m_Headers;
+        char*                  m_RequestData;
+        char*                  m_Path;
+        char*                  m_Proxy;
+    };
+
+    static char* DuplicateString(const char* value)
+    {
+        return value ? strdup(value) : 0;
+    }
+
+    static void DestroyScriptHttpRequest(ScriptHttpRequest* request)
+    {
+        if (request)
+        {
+            free(request->m_Method);
+            free(request->m_Url);
+            free(request->m_Headers);
+            free(request->m_RequestData);
+            free(request->m_Path);
+            free(request->m_Proxy);
+            delete request;
+        }
+    }
+
+    static void MessageDestroyCallback(dmMessage::Message* message)
+    {
+        dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)message->m_Data;
+        free((void*) response->m_Headers);
+        free((void*) response->m_Response);
+        free((void*) response->m_Path);
+        free((void*) response->m_Url);
+    }
+
+    static void ResponseCallback(const dmHttpService::Response* response, void* user_data)
+    {
+        ScriptHttpRequest* request = (ScriptHttpRequest*) user_data;
+
+        dmHttpDDF::HttpResponse resp;
+        memset(&resp, 0, sizeof(resp));
+        resp.m_Status = response->m_Status;
+        resp.m_HeadersLength = response->m_HeadersLength;
+        resp.m_ResponseLength = response->m_ResponseLength;
+        resp.m_RangeStart = response->m_RangeStart;
+        resp.m_RangeEnd = response->m_RangeEnd;
+        resp.m_DocumentSize = response->m_DocumentSize;
+
+        if (response->m_HeadersLength > 0)
+        {
+            resp.m_Headers = (uint64_t) malloc(response->m_HeadersLength);
+            if (!resp.m_Headers)
+            {
+                dmLogWarning("Failed to allocate http-response headers.");
+                return;
+            }
+            memcpy((void*) resp.m_Headers, response->m_Headers, response->m_HeadersLength);
+        }
+
+        if (response->m_ResponseLength > 0)
+        {
+            resp.m_Response = (uint64_t) malloc(response->m_ResponseLength);
+            if (!resp.m_Response)
+            {
+                free((void*) resp.m_Headers);
+                dmLogWarning("Failed to allocate http-response body.");
+                return;
+            }
+            memcpy((void*) resp.m_Response, response->m_Response, response->m_ResponseLength);
+        }
+
+        resp.m_Path = DuplicateString(response->m_Path);
+        resp.m_Url = DuplicateString(response->m_Url);
+        if ((response->m_Path && !resp.m_Path) || (response->m_Url && !resp.m_Url))
+        {
+            free((void*) resp.m_Headers);
+            free((void*) resp.m_Response);
+            free((void*) resp.m_Path);
+            free((void*) resp.m_Url);
+            dmLogWarning("Failed to allocate http-response strings.");
+            return;
+        }
+
+        if (dmMessage::RESULT_OK != dmMessage::Post(0, &request->m_Sender, dmHttpDDF::HttpResponse::m_DDFHash, 0, request->m_Callback, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
+        {
+            free((void*) resp.m_Headers);
+            free((void*) resp.m_Response);
+            free((void*) resp.m_Path);
+            free((void*) resp.m_Url);
+            dmLogWarning("Failed to return http-response. Requester deleted?");
+        }
+    }
+
+    static void ReportProgressCallback(const dmHttpService::RequestProgress* progress, void* user_data)
+    {
+        ScriptHttpRequest* request = (ScriptHttpRequest*) user_data;
+
+        dmHttpDDF::HttpRequestProgress msg = {};
+        msg.m_BytesSent                    = progress->m_BytesSent;
+        msg.m_BytesReceived                = progress->m_BytesReceived;
+        msg.m_BytesTotal                   = progress->m_BytesTotal;
+        msg.m_Url                          = progress->m_Url;
+
+        if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(&msg, 0, &request->m_Sender, request->m_Callback, false))
         {
             dmLogWarning("Failed to return http-progress. Requester deleted?");
         }
+    }
+
+    static void DestroyRequestCallback(dmHttpService::Request* request, void* user_data)
+    {
+        (void) request;
+        DestroyScriptHttpRequest((ScriptHttpRequest*) user_data);
+    }
+
+    static ScriptHttpRequest* NewScriptHttpRequest()
+    {
+        ScriptHttpRequest* request = new ScriptHttpRequest;
+        if (!request)
+        {
+            return 0;
+        }
+
+        request->m_Request.m_ResponseCallback = ResponseCallback;
+        request->m_Request.m_DestroyCallback = DestroyRequestCallback;
+        request->m_Request.m_UserData = request;
+        return request;
     }
 
     /*# perform a HTTP/HTTPS request
@@ -191,6 +329,10 @@ namespace dmGameSystem
                 lua_pop(L, 1);
 
                 headers = (char*) malloc(h.Size() + 1);
+                if (!headers)
+                {
+                    return luaL_error(L, "Failed to create HTTP request headers");
+                }
                 memcpy(headers, h.Begin(), h.Size());
                 headers[h.Size()] = '\0';
                 headers_length = h.Size();
@@ -202,9 +344,17 @@ namespace dmGameSystem
                 size_t len;
                 luaL_checktype(L, 5, LUA_TSTRING);
                 const char* r = luaL_checklstring(L, 5, &len);
-                request_data = (char*) malloc(len);
-                memcpy(request_data, r, len);
-                request_data_length = len;
+                if (len > 0)
+                {
+                    request_data = (char*) malloc(len);
+                    if (!request_data)
+                    {
+                        free(headers);
+                        return luaL_error(L, "Failed to create HTTP request data");
+                    }
+                    memcpy(request_data, r, len);
+                }
+                request_data_length = (int)len;
             }
 
             uint64_t timeout = g_Timeout;
@@ -249,34 +399,45 @@ namespace dmGameSystem
                 lua_pop(L, 1);
             }
 
-            // ddf + max method and url string lengths incl. null character
-            // The buffer is overlaid with HttpRequest before posting, so it must satisfy the struct alignment.
-            char DM_ALIGNED(alignof(dmHttpDDF::HttpRequest)) buf[sizeof(dmHttpDDF::HttpRequest) + max_method_len + 1 + max_url_len + 1];
-            char* string_buf = buf + sizeof(dmHttpDDF::HttpRequest);
-            dmStrlCpy(string_buf, method, method_len + 1);
-            dmStrlCpy(string_buf + method_len + 1, url, url_len + 1);
+            ScriptHttpRequest* request = NewScriptHttpRequest();
+            if (!request)
+            {
+                free(headers);
+                free(request_data);
+                return luaL_error(L, "Failed to create HTTP request");
+            }
 
-            dmHttpDDF::HttpRequest* request = (dmHttpDDF::HttpRequest*) buf;
-            request->m_Method = (const char*) (sizeof(*request));
-            request->m_Url = (const char*) (sizeof(*request) + method_len + 1);
-            request->m_Headers = (uint64_t) headers;
-            request->m_HeadersLength = headers_length;
-            request->m_Request = (uint64_t) request_data;
-            request->m_RequestLength = request_data_length;
-            request->m_Timeout = timeout;
-            request->m_Path = path;
-            request->m_IgnoreCache = ignore_cache;
-            request->m_ChunkedTransfer = chunked_transfer;
-            request->m_ReportProgress = report_progress;
-            request->m_Proxy = proxy;
+            request->m_Sender = sender;
+            request->m_Callback = (uintptr_t)callback;
+            request->m_Method = DuplicateString(method);
+            request->m_Url = DuplicateString(url);
+            request->m_Headers = headers;
+            request->m_RequestData = request_data;
+            request->m_Path = DuplicateString(path);
+            request->m_Proxy = DuplicateString(proxy);
 
-            uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + method_len + 1 + url_len + 1;
-            dmMessage::URL receiver;
-            dmMessage::ResetURL(&receiver);
-            receiver.m_Socket = dmHttpService::GetSocket(g_Service);
+            if (!request->m_Method || !request->m_Url || (path && !request->m_Path) || (proxy && !request->m_Proxy))
+            {
+                DestroyScriptHttpRequest(request);
+                return luaL_error(L, "Failed to create HTTP request");
+            }
 
-            dmMessage::Result r = dmMessage::Post(&sender, &receiver, dmHttpDDF::HttpRequest::m_DDFHash, 0, (uintptr_t)callback, (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor, buf, post_len, 0);
-            if (r != dmMessage::RESULT_OK) {
+            request->m_Request.m_Method = request->m_Method;
+            request->m_Request.m_Url = request->m_Url;
+            request->m_Request.m_Headers = request->m_Headers;
+            request->m_Request.m_HeadersLength = headers_length;
+            request->m_Request.m_Body = request->m_RequestData;
+            request->m_Request.m_BodyLength = request_data_length;
+            request->m_Request.m_Timeout = timeout;
+            request->m_Request.m_Path = request->m_Path;
+            request->m_Request.m_IgnoreCache = ignore_cache;
+            request->m_Request.m_ChunkedTransfer = chunked_transfer;
+            request->m_Request.m_ReportProgress = report_progress;
+            request->m_Request.m_Proxy = request->m_Proxy;
+
+            HttpResult r = dmHttpService::PushRequest(g_Service, &request->m_Request);
+            if (r != HTTP_RESULT_OK) {
+                DestroyScriptHttpRequest(request);
                 dmLogError("Failed to create HTTP request");
             }
             assert(top == lua_gettop(L));

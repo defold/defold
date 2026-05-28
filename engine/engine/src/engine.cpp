@@ -28,7 +28,7 @@
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/http_client.h>
+#include <dlib/http/http_client.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memprofile.h>

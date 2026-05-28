@@ -46,7 +46,7 @@
 #include "test/test_resource_ddf.h"
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
-#include <dlib/http_client.h>
+#include <dlib/http/http_client.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/uri.h>

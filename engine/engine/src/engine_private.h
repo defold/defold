@@ -21,7 +21,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/jobsystem.h>
 #include <dlib/message.h>
-#include <dlib/http_cache.h>
+#include <dlib/http/http_cache.h>
 
 #include <resource/resource.h>
 

@@ -14,8 +14,9 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "dlib/dstrings.h"
 #include "http_server_private.h"
+
+#include <dlib/dstrings.h>
 
 namespace dmHttpServerPrivate
 {
