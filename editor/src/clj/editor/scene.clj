@@ -447,30 +447,17 @@
            :camera camera
            :viewport viewport)))
 
-(declare flatten-scene)
-
-(defn- collect-preview-lights
-  "Collect scene-derived preview lights for material shaders. Light gizmos can be
-  hidden without disabling their lighting contribution."
-  [scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths view-camera light-camera]
-  (if (:error scene)
-    []
-    (let [preview-light-hidden-renderable-tags (disj (or hidden-renderable-tags #{}) :light)
-          view-matrix (c/camera-view-matrix view-camera)
-          preview-light-renderables (:renderables (flatten-scene scene
-                                                                 preview-overrides
-                                                                 #{}
-                                                                 preview-light-hidden-renderable-tags
-                                                                 hidden-node-outline-key-paths
-                                                                 view-matrix))]
-      (light/packed-lights-from-scene preview-light-renderables light-camera))))
-
 (defn- pass->render-args-with-preview-lights [^Region viewport ^Camera camera passes preview-lights]
   (into {}
         (map (fn [pass]
                [pass (assoc (pass-render-args viewport camera pass)
                        :editor/preview-lights preview-lights)]))
         passes))
+
+(defn- scene-render-data->preview-lights [scene-render-data camera]
+  (light/packed-lights-from-preview-light-data
+    (:preview-light-data scene-render-data)
+    camera))
 
 (defn- assoc-updatable-states
   [renderables updatable-states]
@@ -527,16 +514,11 @@
         (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
         (batch-render gl pass-render-args pass-renderables batch-key)))))
 
-(g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths]
+(g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable]
   (when-some [{:keys [camera clear-color display-width display-height render-width render-height]} (make-camera-inset-render-data scene-render-data)]
     (when camera-inset-drawable
       (let [camera-inset-viewport (types/->Region 0 render-width 0 render-height)
-            preview-lights (collect-preview-lights scene
-                                                   preview-overrides
-                                                   hidden-renderable-tags
-                                                   hidden-node-outline-key-paths
-                                                   camera
-                                                   camera)
+            preview-lights (scene-render-data->preview-lights scene-render-data camera)
             camera-inset-pass->render-args (pass->render-args-with-preview-lights camera-inset-viewport
                                                                                   camera
                                                                                   camera-inset-passes
@@ -588,6 +570,12 @@
     (throw (ex-info "Scene maps must use :pose instead of :transform."
                     {:node-id (:node-id scene)}))))
 
+(defn- renderable-visible? [parent-shows-children renderable hidden-renderable-tags hidden-node-outline-key-paths node-outline-key-path]
+  (and parent-shows-children
+       (:visible-self? renderable true)
+       (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
+       (not-any? (partial contains? hidden-renderable-tags) (:tags renderable))))
+
 (defn- assign-pose-to-vecmath! [scene ^Tuple3d translation ^Quat4d rotation ^Tuple3d scale]
   (when-some [pose (:pose scene)]
     (pose/assign-to-vecmath! pose translation rotation scale)))
@@ -599,6 +587,7 @@
                                    preview-overrides
                                    selection-set
                                    hidden-renderable-tags
+                                   preview-light-hidden-renderable-tags
                                    hidden-node-outline-key-paths
                                    view-matrix
                                    node-id-path
@@ -671,10 +660,20 @@
         selection-state (cond
                           (contains? selection-set node-id) :self-selected ; This node is selected.
                           (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
-        is-visible (and parent-shows-children
-                        (:visible-self? renderable true)
-                        (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
-                        (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
+        is-visible
+        (renderable-visible? parent-shows-children
+                             renderable
+                             hidden-renderable-tags
+                             hidden-node-outline-key-paths
+                             node-outline-key-path)
+
+        preview-light-visible
+        (renderable-visible? parent-shows-children
+                             renderable
+                             preview-light-hidden-renderable-tags
+                             hidden-node-outline-key-paths
+                             node-outline-key-path)
+
         local-aabb (:aabb scene)
         world-aabb (if (and local-aabb is-visible)
                      (geom/aabb-transform local-aabb world-transform)
@@ -698,9 +697,9 @@
                                    :aabb world-aabb
                                    :render-key (render-key view-matrix world-translation (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-matrix world-translation (:index renderable) (:topmost? renderable) selection-state)}}))
-        flat-renderable (if is-visible
-                          flat-renderable
-                          (dissoc flat-renderable :updatable))
+        drawn-renderable (if is-visible
+                           flat-renderable
+                           (dissoc flat-renderable :updatable))
         drawn-passes (cond
                        ;; Draw to all passes unless hidden.
                        is-visible
@@ -718,7 +717,13 @@
                        (filterv #(or (= pass/outline %)
                                      (= pass/selection %))
                                 (:passes renderable)))
-        pass-renderables (update-pass-renderables! (:renderables flattened-scene) drawn-passes flat-renderable)
+        pass-renderables (update-pass-renderables! (:renderables flattened-scene) drawn-passes drawn-renderable)
+        preview-light-renderable (when (and preview-light-visible
+                                            (some #{pass/transparent} (:passes renderable)))
+                                   (apply-pass-overrides pass/transparent flat-renderable))
+        preview-light-renderables (cond-> (:preview-light-renderables flattened-scene)
+                                    (some? (get-in preview-light-renderable [:user-data :editor-preview-light]))
+                                    (conj! preview-light-renderable))
         scene-aabb (cond-> (:scene-aabb flattened-scene)
                            (and is-visible (not (geom/empty-aabb? visibility-aabb)))
                            (geom/aabb-union (geom/aabb-transform visibility-aabb world-transform)))]
@@ -739,6 +744,7 @@
                                             preview-overrides
                                             selection-set
                                             hidden-renderable-tags
+                                            preview-light-hidden-renderable-tags
                                             hidden-node-outline-key-paths
                                             view-matrix
                                             child-node-id-path
@@ -748,6 +754,7 @@
                                             world-transform
                                             alloc-picking-id!)))
             {:renderables pass-renderables
+             :preview-light-renderables preview-light-renderables
              :scene-aabb scene-aabb}
             (:children scene))))
 
@@ -778,13 +785,15 @@
 (defn- flatten-scene [scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-matrix]
   (let [node-id->picking-id-atom (atom {})
         alloc-picking-id! (partial alloc-picking-id! node-id->picking-id-atom)
+        preview-light-hidden-renderable-tags (disj (or hidden-renderable-tags #{}) :light)
         node-id-path []
         node-outline-key-path [(:node-id scene)]
         parent-world-rotation geom/NoRotation
         parent-world-transform geom/Identity4d
         parent-world-scale (Vector3d. 1 1 1)]
-    (let [{:keys [renderables scene-aabb]}
+    (let [{:keys [renderables preview-light-renderables scene-aabb]}
           (flatten-scene-renderables! {:renderables (make-pass-renderables)
+                                       :preview-light-renderables (transient [])
                                        :scene-aabb geom/null-aabb}
                                       true
                                       true
@@ -792,6 +801,7 @@
                                       preview-overrides
                                       selection-set
                                       hidden-renderable-tags
+                                      preview-light-hidden-renderable-tags
                                       hidden-node-outline-key-paths
                                       view-matrix
                                       node-id-path
@@ -799,8 +809,10 @@
                                       parent-world-rotation
                                       parent-world-scale
                                       parent-world-transform
-                                      alloc-picking-id!)]
+                                      alloc-picking-id!)
+          preview-light-renderables (persistent! preview-light-renderables)]
       {:renderables (persist-pass-renderables! renderables)
+       :preview-light-data (light/preview-light-data-from-renderables preview-light-renderables)
        :scene-aabb (if (geom/null-aabb? scene-aabb)
                      geom/empty-bounding-box
                      scene-aabb)})))
@@ -823,6 +835,7 @@
   (if-let [error (:error scene)]
     {:error error
      :renderables {}
+     :preview-light-data (light/preview-light-data-from-renderables [])
      :selected-renderables []
      :scene-aabb geom/empty-bounding-box}
     (let [selection-set (set selection)
@@ -878,16 +891,11 @@
 
 (g/defnk produce-pass->render-args
   "Builds the usual per-pass render args and also attaches scene-derived preview
-  light data for material shaders. We collect lights in a separate flatten pass
-  so preview overrides are reflected immediately, and we ignore the `:light`
-  visibility tag here since hiding light gizmos should not disable lighting."
-  [^Region viewport camera scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths local-camera]
-  (let [preview-lights (collect-preview-lights scene
-                                               preview-overrides
-                                               hidden-renderable-tags
-                                               hidden-node-outline-key-paths
-                                               local-camera
-                                               camera)]
+  light data for material shaders. Preview light data is prepared from the
+  flattened scene, ignoring only the `:light` visibility tag so hidden light
+  gizmos can still light the viewport."
+  [^Region viewport camera scene-render-data]
+  (let [preview-lights (scene-render-data->preview-lights scene-render-data camera)]
     (pass->render-args-with-preview-lights viewport camera pass/all-passes preview-lights)))
 
 (g/defnk produce-renderables-aabb+picking-node-id [scene-render-data]

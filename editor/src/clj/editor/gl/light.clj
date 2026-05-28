@@ -14,11 +14,11 @@
 
 (ns editor.gl.light
   (:require [editor.gl :as gl]
-            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.math :as math]
             [editor.scene-cache :as scene-cache]
-            [editor.types :as types])
+            [editor.types :as types]
+            [util.coll :as coll])
   (:import [com.jogamp.opengl GL2]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
 
@@ -104,39 +104,69 @@
        :direction-range (Vector4d. 0.0 0.0 0.0 0.0)
        :params (Vector4d. type-index light-intensity 0.0 0.0)})))
 
-(defn- light-camera-distance-squared
-  ^double [camera renderable]
-  (let [^Point3d camera-position (types/position camera)
-        ^Vector3d world-translation (:world-translation renderable math/zero-v3)
-        dx (- (.x camera-position) (.x world-translation))
-        dy (- (.y camera-position) (.y world-translation))
-        dz (- (.z camera-position) (.z world-translation))]
+(defn- preview-light-renderable? [renderable]
+  (some? (get-in renderable [:user-data :editor-preview-light])))
+
+(defn- renderable-node-id-path-comparator [a b]
+  (compare (vec (:node-id-path a))
+           (vec (:node-id-path b))))
+
+(defn- renderable->preview-light-entry [renderable]
+  {:node-id-path (vec (:node-id-path renderable))
+   :world-translation (:world-translation renderable math/zero-v3)
+   :light-type (get-in renderable [:user-data :editor-preview-light :light-type])
+   :packed-light (renderable->std140-light renderable)})
+
+(defn- directional-preview-light-entry? [preview-light-entry]
+  (= :directional (:light-type preview-light-entry)))
+
+(defn preview-light-data-from-renderables
+  "Prepares the camera-independent parts of scene preview light packing."
+  [renderables]
+  (let [preview-renderables (filterv preview-light-renderable? renderables)]
+    (if (coll/empty? preview-renderables)
+      {:directional-light-entries []
+       :local-light-entries []
+       :local-light-budget default-max-preview-lights}
+      (let [deduped-preview-renderables
+            (into (sorted-set-by renderable-node-id-path-comparator)
+                  preview-renderables)
+
+            preview-light-entries
+            (mapv renderable->preview-light-entry deduped-preview-renderables)
+
+            [directional-light-entries local-light-entries]
+            (coll/separate-by directional-preview-light-entry? preview-light-entries)
+
+            directional-light-entries
+            (subvec directional-light-entries
+                    0
+                    (min (count directional-light-entries)
+                         default-max-preview-lights))
+
+            local-light-budget (- default-max-preview-lights (count directional-light-entries))]
+        {:directional-light-entries directional-light-entries
+         :local-light-entries local-light-entries
+         :local-light-budget local-light-budget}))))
+
+(defn- preview-light-entry-distance-squared
+  ^double [preview-light-entry ^Point3d position]
+  (let [^Vector3d world-translation (:world-translation preview-light-entry)
+        dx (- (.x position) (.x world-translation))
+        dy (- (.y position) (.y world-translation))
+        dz (- (.z position) (.z world-translation))]
     (+ (* dx dx) (* dy dy) (* dz dz))))
 
-(defn- directional-preview-light? [renderable]
-  (= :directional (get-in renderable [:user-data :editor-preview-light :light-type])))
-
-(defn packed-lights-from-scene
-  "Turns the editor scene's light renderables into a small, stable, engine-shaped list so
-  the viewport shaders can produce light data consistently with the runtime layout."
-  [renderables-by-pass camera]
-  (let [visible-with-preview (filterv #(get-in % [:user-data :editor-preview-light])
-                                      (get renderables-by-pass pass/transparent []))
-        deduped-visible-preview (vals (reduce (fn [by-node-id-path renderable]
-                                                (update by-node-id-path (:node-id-path renderable) #(or % renderable)))
-                                              {}
-                                              visible-with-preview))
-        sorted-preview-lights (sort-by (comp vec :node-id-path) deduped-visible-preview)
-        directional-lights (filter directional-preview-light? sorted-preview-lights)
-        local-lights (remove directional-preview-light? sorted-preview-lights)
-        directional-lights (take default-max-preview-lights directional-lights)
-        local-light-budget (- default-max-preview-lights (count directional-lights))]
-    (mapv renderable->std140-light
-          (concat directional-lights
-                  (take local-light-budget
-                        (sort-by (juxt #(light-camera-distance-squared camera %)
-                                       (comp vec :node-id-path))
-                                 local-lights))))))
+(defn packed-lights-from-preview-light-data
+  "Turns prepared scene preview light data into the camera-specific std140 light list."
+  [preview-light-data camera]
+  (let [{:keys [directional-light-entries local-light-entries local-light-budget]} preview-light-data
+        camera-position (types/position camera)]
+    (into (mapv :packed-light directional-light-entries)
+          (comp (take local-light-budget)
+                (map :packed-light))
+          (sort-by #(preview-light-entry-distance-squared % camera-position)
+                   local-light-entries))))
 
 (defn- gl-light-uniform-name [^long i field]
   (str "lights[" i "]." (case field
