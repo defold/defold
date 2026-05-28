@@ -39,10 +39,6 @@ vec4 apply_skin(mat4 bone_matrix, float weight, vec4 base_pos) {
 
 vec4 get_skinned_position(vec4 local_position)
 {
-#ifdef EDITOR
-    // Editor does not support skinned mesh previews yet
-    return local_position;
-#else
     vec4 skinned_position = vec4(0.0);
     if (animation_data.y > 0.0) {
         vec4 base_pos = vec4(position.xyz, 1.0);
@@ -57,6 +53,5 @@ vec4 get_skinned_position(vec4 local_position)
         skinned_position = position;
     }
     return skinned_position;
-#endif
 }
 #endif

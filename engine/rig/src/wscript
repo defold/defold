@@ -33,7 +33,7 @@ def build(bld):
                   includes        = ['.', '..', '../proto'],
                   target          = 'rig_shared',
                   use             = 'DDF_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN SOCKET PLATFORM_NULL GRAPHICS_NULL_NOASAN',
-                  source          = ['rig.cpp', rig_ddf_cpp])
+                  source          = ['rig.cpp', 'rig_shared.cpp', rig_ddf_cpp])
 
     bld.install_files('${PREFIX}/include/rig', 'rig.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/rig/rig_ddf.proto')

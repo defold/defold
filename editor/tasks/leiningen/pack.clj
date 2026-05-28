@@ -30,15 +30,19 @@
 (def engine-artifacts
   {"x86_64-macos" {"bin" ["dmengine"]
                    "lib" ["libparticle_shared.dylib"
+                          "librig_shared.dylib"
                           "libmouse_capture_shared.dylib"]}
    "arm64-macos" {"bin" ["dmengine"]
                   "lib" ["libparticle_shared.dylib"
+                         "librig_shared.dylib"
                          "libmouse_capture_shared.dylib"]}
    "x86_64-win32"  {"bin" ["dmengine.pdb"]
                     "lib" ["particle_shared.dll"
+                           "rig_shared.dll"
                            "mouse_capture_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
                     "lib" ["libparticle_shared.so"
+                           "librig_shared.so"
                            "libmouse_capture_shared.so"]}})
 
 (def known-platforms (vec (keys engine-artifacts)))

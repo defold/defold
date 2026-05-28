@@ -33,6 +33,9 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
+            [editor.rig-lib :as rig-lib]
+            [editor.scene :as scene]
+            [editor.scene-cache :as scene-cache]
             [editor.texture-util :as texture-util]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -198,9 +201,32 @@
       explicit-textures
       samplers)))
 
-(g/defnk produce-scene [_node-id scene material-name->material-scene-info skeleton-resource]
+(defn- preview-animation-id [default-animation animation-ids]
+  (or (when (and (not (str/blank? default-animation))
+                 (contains? (set animation-ids) default-animation))
+        default-animation)
+      (first animation-ids)))
+
+(g/defnk produce-scene-updatable [_node-id mesh-content skeleton-data animation-set default-animation animation-ids]
+  (when-let [animation-id (and (seq (:animations animation-set))
+                               (preview-animation-id default-animation animation-ids))]
+    (let [mesh-set (:mesh-set mesh-content)
+          skeleton (or skeleton-data (:skeleton mesh-content))]
+      (when mesh-set
+        {:node-id _node-id
+         :name "Model"
+         :update-fn (fn [state {:keys [dt node-id]}]
+                      (let [data [skeleton mesh-set animation-set animation-id]
+                            rig-sim-ref (:rig-sim (scene-cache/request-object! ::rig-sim node-id nil data))]
+                        (swap! rig-sim-ref rig-lib/simulate dt)
+                        (cond-> (assoc state :sim-ref rig-sim-ref)
+                          (pos? ^double dt) (update :frame (fnil inc 0)))))}))))
+
+(g/defnk produce-scene [_node-id scene material-name->material-scene-info skeleton-resource scene-updatable]
   (if scene
-    (model-scene/augment-scene scene _node-id "model" material-name->material-scene-info (some? skeleton-resource))
+    (let [scene (model-scene/augment-scene scene _node-id "model" material-name->material-scene-info (some? skeleton-resource))]
+      (cond->> scene
+        scene-updatable (scene/map-scene #(assoc % :updatable scene-updatable))))
     {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 
@@ -446,6 +472,7 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :mesh-resource]
+                                            [:content :mesh-content]
                                             [:mesh-set-build-target :mesh-set-build-target]
                                             [:material-ids :mesh-material-ids]
                                             [:scene :scene])))
@@ -490,6 +517,7 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :skeleton-resource]
+                                            [:skeleton :skeleton-data]
                                             [:bones :skeleton-bones]
                                             [:skeleton-build-target :skeleton-build-target])))
             (dynamic error (g/fnk [_node-id skeleton ^:try skeleton-bones]
@@ -529,10 +557,12 @@
             (dynamic tooltip (properties/tooltip-dynamic :model :default-animation)))
 
   (input mesh-resource resource/Resource)
+  (input mesh-content g/Any)
   (input mesh-set-build-target g/Any)
   (input mesh-material-ids g/Any)
 
   (input skeleton-resource resource/Resource)
+  (input skeleton-data g/Any)
   (input skeleton-build-target g/Any)
   (input animations-resource resource/Resource)
   (input animation-set-build-target g/Any)
@@ -557,6 +587,7 @@
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
+  (output scene-updatable g/Any :cached produce-scene-updatable)
   (output scene g/Any :cached produce-scene)
   (output _properties g/Properties :cached produce-model-properties))
 
@@ -618,6 +649,26 @@
                                                          :sampler (.intern (str "tex" i))
                                                          :texture tex-name)))
                                                    textures))]))))
+
+(defn- make-rig-sim [_ data]
+  (let [[skeleton mesh-set animation-set animation-id] data]
+    {:rig-sim (atom (rig-lib/make-sim skeleton mesh-set animation-set animation-id))
+     :data data}))
+
+(defn- update-rig-sim [_ rig-sim data]
+  (if (= data (:data rig-sim))
+    rig-sim
+    (let [[skeleton mesh-set animation-set animation-id] data
+          rig-sim-ref (:rig-sim rig-sim)]
+      (rig-lib/destroy-sim @rig-sim-ref)
+      (reset! rig-sim-ref (rig-lib/make-sim skeleton mesh-set animation-set animation-id))
+      (assoc rig-sim :data data))))
+
+(defn- destroy-rig-sims [_ rig-sims _]
+  (doseq [rig-sim rig-sims]
+    (rig-lib/destroy-sim @(:rig-sim rig-sim))))
+
+(scene-cache/register-object-cache! ::rig-sim make-rig-sim update-rig-sim destroy-rig-sims)
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
