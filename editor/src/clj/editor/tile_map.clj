@@ -17,7 +17,6 @@
             [dynamo.graph :as g]
             [editor.attachment :as attachment]
             [editor.build-target :as bt]
-            [editor.core :as core]
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -44,7 +43,8 @@
             [editor.tile-map-common :as tile-map-common]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -1295,17 +1295,10 @@
                                                               :control (contains? modifiers :control)})
                           [:primary :secondary :middle])
                     nil))
-        ;; _ (println command)
-        ;; cursor-mode (case (if (some? op)
-        ;;                     (g/node-value self :cursor-mode evaluation-context)
-        ;;                     command)
-        ;;               :scene.tile-map.select-brush :select-mode
-        ;;               :scene.tile-map.erase :erase-mode
-        ;;               :scene.tile-map.cut :cut-mode
         cursor-mode (case command
-                       :scene.tile-map.select-brush :select-mode
-                       :scene.tile-map.erase :erase-mode
-                       :scene.tile-map.cut :cut-mode
+                      :scene.tile-map.select-brush :select-mode
+                      :scene.tile-map.erase :erase-mode
+                      :scene.tile-map.cut :cut-mode
                       :paint-mode)
         tx (case (:type action)
              (:key-pressed :key-released)
@@ -1339,7 +1332,7 @@
                  (end-op op self action state evaluation-context (g/node-value self :cursor-mode evaluation-context))))
 
              nil)]
-    (when (seq tx)
+    (when (coll/not-empty tx)
       (g/transact tx)
       true)))
 
