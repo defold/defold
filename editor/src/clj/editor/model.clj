@@ -217,10 +217,9 @@
          :name "Model"
          :update-fn (fn [state {:keys [dt node-id]}]
                       (let [data [skeleton mesh-set animation-set animation-id]
-                            rig-sim-ref (:rig-sim (scene-cache/request-object! ::rig-sim node-id nil data))]
+                            rig-sim-ref (:rig-sim (scene-cache/request-object! rig-lib/rig-sim-cache-id node-id nil data))]
                         (swap! rig-sim-ref rig-lib/simulate dt)
-                        (cond-> (assoc state :sim-ref rig-sim-ref)
-                          (pos? ^double dt) (update :frame (fnil inc 0)))))}))))
+                        state))}))))
 
 (g/defnk produce-scene [_node-id scene material-name->material-scene-info skeleton-resource scene-updatable]
   (if scene
@@ -668,7 +667,7 @@
   (doseq [rig-sim rig-sims]
     (rig-lib/destroy-sim @(:rig-sim rig-sim))))
 
-(scene-cache/register-object-cache! ::rig-sim make-rig-sim update-rig-sim destroy-rig-sims)
+(scene-cache/register-object-cache! rig-lib/rig-sim-cache-id make-rig-sim update-rig-sim destroy-rig-sims)
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

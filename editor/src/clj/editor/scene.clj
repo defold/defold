@@ -501,7 +501,7 @@
         (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
         (batch-render gl pass-render-args pass-renderables batch-key)))))
 
-(g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable]
+(g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable camera-inset-frame]
   (when-some [{:keys [camera clear-color display-width display-height render-width render-height]} (make-camera-inset-render-data scene-render-data)]
     (when camera-inset-drawable
       (let [camera-inset-viewport (types/->Region 0 render-width 0 render-height)
@@ -509,19 +509,19 @@
                                                  (map (juxt identity (partial pass-render-args camera-inset-viewport camera)))
                                                  camera-inset-passes)
             scene-renderables (make-camera-inset-renderables scene-render-data camera)
-            camera-inset-frame (gl/with-drawable-as-current camera-inset-drawable
-                                 (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
-                                 (scene-cache/process-pending-deletions! gl)
-                                 (render! gl-context :camera-inset scene-renderables updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
-                                 (render-camera-inset-border! gl camera-inset-viewport)
-                                 (.glActiveTexture gl GL/GL_TEXTURE0)
-                                 (.glBindTexture gl GL/GL_TEXTURE_2D 0)
-                                 (.glUseProgram ^GL2 gl 0)
-                                 (let [[w h] (vp-dims camera-inset-viewport)
-                                       buffered-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
-                                   (scene-cache/prune-context! gl)
-                                   buffered-image))
-            camera-inset-image (SwingFXUtils/toFXImage camera-inset-frame nil)]
+            camera-inset-buffered-image (gl/with-drawable-as-current camera-inset-drawable
+                                          (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
+                                          (scene-cache/process-pending-deletions! gl)
+                                          (render! gl-context :camera-inset scene-renderables updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
+                                          (render-camera-inset-border! gl camera-inset-viewport)
+                                          (.glActiveTexture gl GL/GL_TEXTURE0)
+                                          (.glBindTexture gl GL/GL_TEXTURE_2D 0)
+                                          (.glUseProgram ^GL2 gl 0)
+                                          (let [[w h] (vp-dims camera-inset-viewport)
+                                                buffered-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
+                                            (scene-cache/prune-context! gl)
+                                            buffered-image))
+            camera-inset-image (SwingFXUtils/toFXImage camera-inset-buffered-image nil)]
         {:image camera-inset-image
          :width display-width
          :height display-height}))))
@@ -1243,6 +1243,7 @@
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
   (property camera-inset-drawable GLAutoDrawable)
+  (property camera-inset-frame g/Int (default (g/constantly 0)))
   (property picking-drawable GLAutoDrawable)
   (property async-copy-state g/Any)
   (property cursor-pos types/Vec2)
@@ -1673,13 +1674,14 @@
 
 (defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (let [action-queue (g/user-data view-id ::input-action-queue)
-        [render-mode tool-user-data play-mode active-updatables updatable-states]
+        [render-mode tool-user-data play-mode active-updatables updatable-states camera-inset-frame]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value view-id :render-mode evaluation-context)
            (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
            (g/node-value view-id :play-mode evaluation-context)
            (g/node-value view-id :active-updatables evaluation-context)
-           (g/node-value view-id :updatable-states evaluation-context)])
+           (g/node-value view-id :updatable-states evaluation-context)
+           (g/node-value view-id :camera-inset-frame evaluation-context)])
         has-active-updatables (not (coll/empty? active-updatables))
         new-updatable-states (if has-active-updatables
                                (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
@@ -1716,6 +1718,8 @@
       (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
     (when has-active-updatables
       (g/set-property! view-id :updatable-states new-updatable-states))
+    (when (and has-active-updatables (= :playing play-mode))
+      (g/set-property! view-id :camera-inset-frame (inc ^long camera-inset-frame)))
     (profiler/profile "render" -1
       (when (not= last-frame-version frame-version)
         (gl/with-drawable-as-current drawable

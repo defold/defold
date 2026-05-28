@@ -21,13 +21,15 @@
            [com.dynamo.graphics.proto Graphics$CoordinateSpace]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$Skeleton]
            [com.jogamp.common.nio Buffers]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL2 GLContext]
            [com.sun.jna Native Pointer Structure]
            [com.sun.jna.ptr IntByReference]
            [java.nio ByteBuffer FloatBuffer]
            [javax.vecmath Matrix4d Vector4d]))
 
 (set! *warn-on-reflection* true)
+
+(def rig-sim-cache-id ::rig-sim)
 
 (def ^:private null-buffer (ByteBuffer/allocateDirect 0))
 (def ^:private invalid-pose-matrix-cache-entry 0xFFFF)
@@ -53,7 +55,7 @@
      :started? false
      :raw-vbufs {}
      :pose-cache-buffer nil
-     :pose-cache-texture-id 0
+     :pose-cache-texture-ids {}
      :pose-cache-width default-pose-cache-width
      :pose-cache-height default-pose-cache-height}))
 
@@ -102,7 +104,8 @@
         ^FloatBuffer buffer (:pose-cache-buffer sim)
         width (int (:pose-cache-width sim))
         height (int (:pose-cache-height sim))
-        texture-id (int (:pose-cache-texture-id sim))
+        gl-context (or (GLContext/getCurrent) gl)
+        texture-id (int (get (:pose-cache-texture-ids sim) gl-context 0))
         texture-id (if (zero? texture-id)
                      (let [ids (int-array 1)]
                        (.glGenTextures gl 1 ids 0)
@@ -119,7 +122,9 @@
     (.glTexParameteri gl GL/GL_TEXTURE_2D GL/GL_TEXTURE_WRAP_S GL/GL_CLAMP_TO_EDGE)
     (.glTexParameteri gl GL/GL_TEXTURE_2D GL/GL_TEXTURE_WRAP_T GL/GL_CLAMP_TO_EDGE)
     (.glTexImage2D gl GL/GL_TEXTURE_2D 0 GL2/GL_RGBA32F width height 0 GL/GL_RGBA GL/GL_FLOAT buffer)
-    (assoc sim :pose-cache-buffer buffer :pose-cache-texture-id texture-id)))
+    (assoc sim
+      :pose-cache-buffer buffer
+      :pose-cache-texture-ids (assoc (:pose-cache-texture-ids sim) gl-context texture-id))))
 
 (defn model-transform [sim model-index use-bone-transform]
   (let [buffer (Buffers/newDirectFloatBuffer 16)]

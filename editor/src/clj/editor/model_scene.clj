@@ -36,6 +36,7 @@
             [editor.rig :as rig]
             [editor.rig-lib :as rig-lib]
             [editor.scene :as scene]
+            [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.shaders :as shaders]
             [editor.workspace :as workspace]
@@ -283,10 +284,14 @@
         (math/derive-render-transforms animated-world (:view render-args) (:projection render-args) (:texture render-args)))
       render-args)))
 
+(defn- renderable-rig-sim-ref [renderable]
+  (when-let [rig-sim-request-id (some-> renderable :updatable :node-id)]
+    (:rig-sim (scene-cache/lookup-object rig-lib/rig-sim-cache-id rig-sim-request-id nil))))
+
 (defn- render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)
         {:keys [attribute-bindings coordinate-space-info index-buffer material-data shader textures vertex-description vertex-attribute-bytes vertex-space model-index mesh-index] :as user-data} (:user-data renderable)
-        sim-ref (get-in renderable [:updatable :state :sim-ref])
+        sim-ref (renderable-rig-sim-ref renderable)
         render-args (animated-rigid-render-args render-args user-data sim-ref)
         render-args (math/rederive-render-transforms render-args coordinate-space-info)
         index-type (gl.types/element-buffer-gl-type index-buffer)
@@ -301,8 +306,10 @@
             (shader/set-samplers-by-name shader gl "pose_matrix_cache" [15]))))
       (doseq [[name v] material-data]
         (shader/set-uniform shader gl name v))
-      (when (and sim-ref (= :vertex-space-local vertex-space))
-        (shader/set-uniform shader gl "animation_data" (rig-lib/pose-cache-animation-data @sim-ref)))
+      (when (= :vertex-space-local vertex-space)
+        (shader/set-uniform shader gl "animation_data" (if sim-ref
+                                                          (rig-lib/pose-cache-animation-data @sim-ref)
+                                                          (Vector4d. 0.0 0.0 0.0 0.0))))
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
@@ -329,7 +336,8 @@
       (gl/gl-enable gl GL/GL_BLEND)
       (when sim-ref
         (.glActiveTexture gl (+ GL/GL_TEXTURE0 15))
-        (.glBindTexture gl GL/GL_TEXTURE_2D 0))
+        (.glBindTexture gl GL/GL_TEXTURE_2D 0)
+        (.glActiveTexture gl GL/GL_TEXTURE0))
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
