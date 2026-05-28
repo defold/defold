@@ -66,7 +66,7 @@
                (app-manifest/set-toggle-value
                  {:platforms {:x86_64-win32 {:context {:excludeLibs ["record" "librecord"]}}}}
                  exclude-lib-toggle
-                 false)))))))
+                 false))))))
   (testing "boolean toggle"
     (testing "get"
       (testing "positive toggle (expects value to be true for toggle to be on)"
