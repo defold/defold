@@ -24,50 +24,12 @@
 struct ExtensionParamsImpl
 {
     HContextRegistry m_ContextRegistry;
-    bool             m_OwnsContextRegistry;
 
     ExtensionParamsImpl()
     : m_ContextRegistry(0)
-    , m_OwnsContextRegistry(false)
     {
     }
 };
-
-static ExtensionParamsImpl* NewExtensionParamsImpl()
-{
-    ExtensionParamsImpl* impl = new ExtensionParamsImpl;
-    impl->m_ContextRegistry = ContextRegistryCreate();
-    impl->m_OwnsContextRegistry = true;
-    return impl;
-}
-
-static void DeleteExtensionParamsImpl(ExtensionParamsImpl* impl)
-{
-    if (impl->m_OwnsContextRegistry)
-    {
-        ContextRegistryDestroy(impl->m_ContextRegistry);
-    }
-    delete impl;
-}
-
-static void SetContextRegistry(ExtensionParamsImpl* impl, HContextRegistry context_registry)
-{
-    assert(impl);
-    assert(context_registry);
-
-    if (impl->m_ContextRegistry == context_registry)
-    {
-        return;
-    }
-
-    if (impl->m_OwnsContextRegistry)
-    {
-        ContextRegistryDestroy(impl->m_ContextRegistry);
-    }
-
-    impl->m_ContextRegistry = context_registry;
-    impl->m_OwnsContextRegistry = false;
-}
 
 #if defined(__cplusplus)
 extern "C" {
@@ -136,24 +98,24 @@ bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCa
 void ExtensionAppParamsInitialize(ExtensionAppParams* app_params)
 {
     memset(app_params, 0, sizeof(*app_params));
-    app_params->m_Impl = NewExtensionParamsImpl();
+    app_params->m_Impl = new ExtensionParamsImpl;
 }
 
 void ExtensionAppParamsFinalize(ExtensionAppParams* app_params)
 {
-    DeleteExtensionParamsImpl(app_params->m_Impl);
+    delete app_params->m_Impl;
     app_params->m_Impl = 0;
 }
 
 void ExtensionParamsInitialize(ExtensionParams* params)
 {
     memset(params, 0, sizeof(*params));
-    params->m_Impl = NewExtensionParamsImpl();
+    params->m_Impl = new ExtensionParamsImpl;
 }
 
 void ExtensionParamsFinalize(ExtensionParams* params)
 {
-    DeleteExtensionParamsImpl(params->m_Impl);
+    delete params->m_Impl;
     params->m_Impl = 0;
 }
 
@@ -169,7 +131,7 @@ void ExtensionContextCacheDestroy(HExtensionContextCache context_cache)
 
 void ExtensionAppParamsSetContextRegistry(ExtensionAppParams* params, HContextRegistry context_registry)
 {
-    SetContextRegistry(params->m_Impl, context_registry);
+    params->m_Impl->m_ContextRegistry = context_registry;
 }
 
 HContextRegistry ExtensionAppParamsGetContextRegistry(ExtensionAppParams* params)
@@ -179,7 +141,7 @@ HContextRegistry ExtensionAppParamsGetContextRegistry(ExtensionAppParams* params
 
 void ExtensionParamsSetContextRegistry(ExtensionParams* params, HContextRegistry context_registry)
 {
-    SetContextRegistry(params->m_Impl, context_registry);
+    params->m_Impl->m_ContextRegistry = context_registry;
 }
 
 HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params)
