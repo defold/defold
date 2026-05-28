@@ -43,6 +43,7 @@
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [internal.util :as util]
+            [util.coll :as coll]
             [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
@@ -600,13 +601,36 @@
 
 (defn- add-embedded-component-options [basis self workspace user-data]
   (when (not user-data)
-    (->> (embeddable-component-resource-types basis workspace)
-         (mapv (fn [res-type]
-                 {:label (or (:label res-type) (:ext res-type))
-                  :icon (:icon res-type)
-                  :command :edit.add-embedded-component
-                  :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
-         (localization/annotate-as-sorted localization/natural-sort-by-label))))
+    (let [general-category (localization/message "resource.category.components")
+          separate-categories [(localization/message "resource.category.lights")]
+
+          all-items
+          (mapv (fn [{:keys [category] :as resource-type}]
+                  (let [assigned-category
+                        (if (= -1 (coll/index-of separate-categories category))
+                          general-category
+                          category)]
+                    {:label (or (:label resource-type) (:ext resource-type))
+                     :icon (:icon resource-type)
+                     :category assigned-category
+                     :style (resource/type-style-classes resource-type)
+                     :command :edit.add-embedded-component
+                     :user-data {:_node-id self
+                                 :resource-type resource-type
+                                 :workspace workspace}}))
+                (embeddable-component-resource-types basis workspace))
+
+          category-has-items? (into #{} (map :category) all-items)
+
+          populated-categories
+          (filterv category-has-items?
+                   (cons general-category
+                         separate-categories))]
+
+      (-> (localization/annotate-as-sorted localization/natural-sort-by-label all-items)
+          (vary-meta assoc
+                     :layout :grid
+                     :columns [populated-categories])))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]

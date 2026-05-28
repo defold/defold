@@ -888,7 +888,7 @@
   (let [common-args
         {:icon outline-icon
          :icon-class :design
-         :category (localization/message "resource.category.components")
+         :category (localization/message "resource.category.lights")
          :view-types [:cljfx-form-view :text]
          :tags #{:component}
          :tag-opts {:component {:transform-properties #{}}}}
