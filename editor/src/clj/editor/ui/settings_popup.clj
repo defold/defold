@@ -81,27 +81,18 @@
                                        (when on-selected-changed
                                          (on-selected-changed v)))}]}})
 
-(def ^:private scroll-slider-step-ratio 0.04)
+(def ^:private scroll-slider-step-ratio 0.03)
 
-(defn- scroll-slider-value [^Slider slider ^ScrollEvent event ^double snap-to]
+(defn- scroll-slider-value [^Slider slider ^ScrollEvent event]
   (let [direction (compare (.getDeltaY event) 0.0)
         min-value (.getMin slider)
         max-value (.getMax slider)
-        step (* scroll-slider-step-ratio (- max-value min-value))
-        step (if snap-to (max step snap-to) step)
+        step (* ^double scroll-slider-step-ratio (- max-value min-value))
         value (+ (.getValue slider) (* direction step))]
-    (cond-> (-> value
-                (max min-value)
-                (min max-value))
-            snap-to
-            (-> (/ snap-to)
-                Math/round
-                (* snap-to)
-                (max min-value)
-                (min max-value)))))
+    (-> value (max min-value) (min max-value))))
 
 (defn- ext-safe-popup-slider
-  [{:keys [popup snap-to] :as props}]
+  [{:keys [popup snap-to on-value-changed] :as props}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [^Slider slider]
                  (let [pressed? (volatile! false)
@@ -125,7 +116,7 @@
                                   (ui/event-handler event
                                     (when (and (not (.isDisabled slider))
                                                (not (zero? (.getDeltaY ^ScrollEvent event))))
-                                      (let [value (scroll-slider-value slider event snap-to)]
+                                      (let [value (scroll-slider-value slider event)]
                                         (.consume ^ScrollEvent event)
                                         (when (not= value (.getValue slider))
                                           (.setValue slider value))))))
@@ -163,11 +154,7 @@
                   (assoc :snap-to-ticks true
                          :major-tick-unit snap-to
                          :minor-tick-count 0
-                         :show-tick-marks true
-                         :on-mouse-released (fn [^Event e]
-                                              (let [v (snap-fn (.getValue ^Slider (.getSource e)))]
-                                                (on-value-changed v)
-                                                (swap-state assoc key v)))))]}))
+                         :show-tick-marks true))]}))
 
 ;; FIX: The popup loses focus when we open the "Custom Color..." color picker window, so
 ;; we apply the same workaround the slider's get by disabling auto-hide and enabling it once it closes.
