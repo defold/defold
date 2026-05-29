@@ -355,8 +355,6 @@ notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
 # Editor scripts notification
 
-notification.reload-editor-scripts = Скрипты редактора изменились. Перезагрузить их сейчас?
-notification.reload-editor-scripts.action.reload = Перезагрузить скрипты редактора
 
 # Open custom editor notifications
 
