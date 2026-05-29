@@ -29,8 +29,8 @@ local max_angle_speed = 2 * math.pi
 local rotation_speed = 2 * math.pi / 8
 
 function init(self)
-	sprite.set_constant("#sprite", "tint", color)
-	sprite.set_constant("#light_mask", "tint", color)
+	go.set("#sprite", "tint", color)
+	go.set("#light_mask", "tint", color)
 	self.spawning = true
 	self.spawn_timer = spawn_duration
 	self.dynamics = dynamics.init()

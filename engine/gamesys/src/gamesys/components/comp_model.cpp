@@ -1855,9 +1855,11 @@ namespace dmGameSystem
                 instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
                 instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
 
-                // Skinning must run whenever the mesh is skinned: bind pose matrices are written every frame
-                // (see dmRig::DoAnimate when not playing an animation) so idle pose matches animated pose.
-                if (dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
+                // Match legacy behavior: only apply skinned animation matrices when the cache holds an animated pose.
+                // This keeps non-playing skeleton setups aligned with non-skinned rendering without dropping the final frame of a completed one-shot animation.
+                if (instance_component->m_Resource->m_RigScene->m_SkeletonRes &&
+                    dmRig::HasPoseMatrixCacheAnimatedPose(instance_component->m_RigInstance) &&
+                    dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
@@ -2024,7 +2026,9 @@ namespace dmGameSystem
 
                 dmVMath::Vector4 animation_data(0.0f, 0.0f, 0.0f, 0.0f);
 
-                if (dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
+                if (component->m_Resource->m_RigScene->m_SkeletonRes &&
+                    dmRig::HasPoseMatrixCacheAnimatedPose(component->m_RigInstance) &&
+                    dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
@@ -2833,21 +2837,6 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmRig::CancelAnimation(component->m_RigInstance);
-            }
-            else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
-            {
-                dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(GetComponentMaterial(component, component->m_Resource, 0), ddf->m_NameHash,
-                        dmGameObject::PropertyVar(ddf->m_Value), ddf->m_Index, CompModelSetConstantCallback, component);
-                if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
-                {
-                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
-                    dmLogError("'%s:%s#%s' has no constant named '%s'",
-                            dmMessage::GetSocketName(receiver.m_Socket),
-                            dmHashReverseSafe64(receiver.m_Path),
-                            dmHashReverseSafe64(receiver.m_Fragment),
-                            dmHashReverseSafe64(ddf->m_NameHash));
-                }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {

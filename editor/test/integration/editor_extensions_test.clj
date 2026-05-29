@@ -794,6 +794,9 @@ scene.node.get_parent_succeeds=false
 editor.ui.image({image = false}) => false is not a string
 editor.ui.image({image = 'foo', width = false}) => false is not a number
 editor.ui.image({image = 'foo', width = -1}) => -1 is not positive
+editor.ui.dialog({title = 'Dialog title', width = false}) => false is not a number
+editor.ui.dialog({title = 'Dialog title', height = -1}) => -1 is not positive
+editor.ui.dialog({title = 'Dialog title', resizable = 1}) => 1 is not a boolean
 ")
 
 (deftest ui-test

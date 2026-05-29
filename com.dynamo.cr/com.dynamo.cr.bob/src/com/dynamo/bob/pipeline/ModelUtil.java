@@ -33,7 +33,6 @@ import java.util.List;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
-import com.google.protobuf.TextFormat;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
@@ -56,7 +55,6 @@ import com.dynamo.bob.pipeline.Modelimporter.Bone;
 import com.dynamo.bob.pipeline.Modelimporter.Material;
 import com.dynamo.bob.pipeline.Modelimporter.Mesh;
 import com.dynamo.bob.pipeline.Modelimporter.MorphTarget;
-import com.dynamo.bob.pipeline.Modelimporter.Aabb;
 import com.dynamo.bob.pipeline.Modelimporter.Model;
 import com.dynamo.bob.pipeline.Modelimporter.Node;
 import com.dynamo.bob.pipeline.Modelimporter.Options;
@@ -139,7 +137,7 @@ public class ModelUtil {
             if (buffer.buffer == null || buffer.buffer.length == 0)
                 throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
         }
-        return loadInternal(scene, options);
+        return loadInternal(scene);
     }
 
     public static Scene loadScene(InputStream stream, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
@@ -1045,10 +1043,11 @@ public class ModelUtil {
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
-        // Handle GLTF hierarchy correctly based on whether the model is skinned:
-        // - If model is skinned: use node.local to preserve bone hierarchy system
-        // - If model is not skinned: use node.world to flatten transform hierarchy into model transform
-        if (skeleton.size() > 0) {
+        // Preserve local transforms only for meshes that rely on the bone hierarchy at runtime.
+        // Other rigid meshes in a skinned scene should keep their flattened world placement
+        // to match the authored scene preview.
+        boolean preserveLocalTransform = node.skin != null || model.parentBone != null;
+        if (preserveLocalTransform) {
             modelBuilder.setLocal(toDDFTransform(node.local));
         } else {
             modelBuilder.setLocal(toDDFTransform(node.world));
@@ -1070,56 +1069,7 @@ public class ModelUtil {
         }
     }
 
-    private static void calcCenterNode(Node node, Aabb aabb) {
-        if (node.model != null) {
-            // As a default, we only count nodes with models, as the user
-            // cannot currently see/use the lights or cameras etc that are present in the scene.
-            ModelImporterJni.expandAabb(aabb, node.world.translation.x, node.world.translation.y, node.world.translation.z);
-        }
-
-        for (Node child : node.children) {
-            calcCenterNode(child, aabb);
-        }
-    }
-
-    // Currently finds the center point using the world positions of each node
-    private static Modelimporter.Vector3 calcCenter(Scene scene) {
-        Aabb aabb = ModelImporterJni.newAabb();
-        for (Node root : scene.rootNodes) {
-            calcCenterNode(root, aabb);
-        }
-
-        Modelimporter.Vector3 center = new Modelimporter.Vector3();
-        center.x = center.y = center.z = 0.0f;
-        if (ModelImporterJni.aabbIsIsValid(aabb))
-            center = ModelImporterJni.aabbCalcCenter(aabb, center);
-        return center;
-    }
-
-    private static void shiftNodes(Node node, Modelimporter.Vector3 center) {
-        node.world.translation.x -= center.x;
-        node.world.translation.y -= center.y;
-        node.world.translation.z -= center.z;
-
-        for (Node child : node.children) {
-            shiftNodes(child, center);
-        }
-    }
-
-    private static void shiftNodes(Scene scene, Modelimporter.Vector3 center) {
-        for (Node node : scene.rootNodes) {
-            shiftNodes(node, center);
-
-            node.local.translation.x -= center.x;
-            node.local.translation.y -= center.y;
-            node.local.translation.z -= center.z;
-        }
-    }
-
-    private static Scene loadInternal(Scene scene, Options options) {
-        Modelimporter.Vector3 center = calcCenter(scene);
-        shiftNodes(scene, center); // We might make this optional
-
+    private static Scene loadInternal(Scene scene) {
         // Sort on duration. This allows us to return a list of sorted animation names
         Arrays.sort(scene.animations, new SortAnimations());
         return scene;

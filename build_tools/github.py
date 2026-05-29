@@ -47,14 +47,16 @@ def _create_headers(headers, token):
     return headers
 
 # use GraphQL API
-def query(query, token, headers = None):
+def query(query, token, headers = None, variables = None):
     import requests
     try:
         url = URL_GRAPHQL_API
-        if query.startswith("query"):
-            json = { 'query': query }
+        if query.strip().startswith("query"):
+            json = { 'query': query, "variables": variables }
+        elif query.strip().startswith("mutation"):
+            json = { 'query': query, "variables": variables }
         else:
-            json = { 'query': "query " + query }
+            json = { 'query': "query " + query, "variables": variables }
         headers = _create_headers(headers, token)
         response = requests.post(url, json = json, headers = headers)
         response.raise_for_status()

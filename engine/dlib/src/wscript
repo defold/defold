@@ -233,23 +233,23 @@ def build(bld):
         './mbedtls/tf-psa-crypto/utilities',
     ]
 
-    mbedtls = bld.stlib(features    = 'c cxx remove_flags',
+    dmbedtls = bld.stlib(features    = 'c cxx remove_flags',
                   includes    = mbedtls_includes,
-                  target      = 'mbedtls',
+                  target      = 'dmbedtls',
                   source      = bld.path.ant_glob(mbedtls_dirs),
                   remove_flags= remove_flags,
                   defines     = mbedtls_defines)
     if new_opt_level:
-        mbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
+        dmbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     # Create a separate library, in order to separate it from the ASAN builds
-    mbedtls_noasan = bld.stlib(features     = ' '.join(mbedtls.features) + ' skip_asan',
-                         includes     = mbedtls.includes,
+    dmbedtls_noasan = bld.stlib(features     = ' '.join(dmbedtls.features) + ' skip_asan',
+                         includes     = dmbedtls.includes,
                          remove_flags = remove_flags,
-                         defines      = mbedtls.defines,
-                         target       = 'mbedtls_noasan')
-    mbedtls_noasan.source = [x for x in mbedtls.source]
-    mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+                         defines      = dmbedtls.defines,
+                         target       = 'dmbedtls_noasan')
+    dmbedtls_noasan.source = [x for x in dmbedtls.source]
+    dmbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     libzip_dirs = ['zip/**/*.c']
 
@@ -335,7 +335,7 @@ def build(bld):
                                 includes = mbedtls_public_includes,
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines + mbedtls_defines,
-                                use = ['SOCKET', 'profile_null_noasan', 'mbedtls_noasan', 'zip_noasan'])
+                                use = ['SOCKET', 'profile_null_noasan', 'dmbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
 

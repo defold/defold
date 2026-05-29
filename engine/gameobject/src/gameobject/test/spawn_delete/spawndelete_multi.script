@@ -17,7 +17,7 @@ function update(self, dt)
         local ids = {}
 	ids[1] = spawn("/a.goc")
 	ids[2] = spawn("/a.goc")
-        go.delete_all(ids)
+        go.delete(ids)
         self.done = true
     end
 end

@@ -874,8 +874,8 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *         width  = 32,
  *         height = 32,
  *         depth  = 32,
- *         format = resource.TEXTURE_FORMAT_RGBA32F,
- *         flags  = resource.TEXTURE_USAGE_FLAG_STORAGE + resource.TEXTURE_USAGE_FLAG_SAMPLE,
+ *         format = graphics.TEXTURE_FORMAT_RGBA32F,
+ *         flags  = graphics.TEXTURE_USAGE_FLAG_STORAGE + graphics.TEXTURE_USAGE_FLAG_SAMPLE,
  *     })
  * 
  *     -- pass the backing texture to the render script
@@ -1448,7 +1448,7 @@ static int ReleaseResource(lua_State* L)
  *         width  = 8,
  *         height = 8,
  *         depth  = 8,
- *         format = resource.TEXTURE_FORMAT_RGBA32F
+ *         format = graphics.TEXTURE_FORMAT_RGBA32F
  *     }
  *      
  *     -- This expects that the texture resource "/my_3d_texture.texturec" already exists
@@ -3588,83 +3588,6 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 {
     int top = lua_gettop(L);
     luaL_register(L, "resource", Module_methods);
-
-    ////////////////////////////////////////////////////////////////////
-    // DEPRECATED!
-    // -----------
-    // The graphics enums are now exposed in script_graphics.cpp instead
-    // DO NOT add any more graphics enums in this file
-    ////////////////////////////////////////////////////////////////////
-
-#define SETGRAPHICS_ENUM(name) \
-    lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-    lua_setfield(L, -2, #name);
-
-    SETGRAPHICS_ENUM(TEXTURE_TYPE_2D);
-    SETGRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
-    SETGRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
-    SETGRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
-
-    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR0_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR1_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR2_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR3_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_DEPTH_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_STENCIL_BIT);
-
-    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_SAMPLE);
-    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_MEMORYLESS);
-    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_STORAGE);
-#undef SETGRAPHICS_ENUM
-
-#define SETTEXTUREFORMAT_IF_SUPPORTED(name) \
-    if (graphics_context != 0 && dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::name)) \
-    { \
-        lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-        lua_setfield(L, -2, #name); \
-    }
-
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_LUMINANCE);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_DEPTH);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_STENCIL);
-
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_ETC1);
-
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ETC2);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ASTC_4X4);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_BC1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_BC3);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R_BC4);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG_BC5);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_BC7);
-
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB16F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB32F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA16F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA32F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R16F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG16F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R32F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG32F);
-
-#undef SETTEXTUREFORMAT_IF_SUPPORTED
-
-
-#define SETCOMPRESSIONTYPE(name) \
-    lua_pushnumber(L, (lua_Number) dmGraphics::TextureImage:: name); \
-    lua_setfield(L, -2, #name);
-
-    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_DEFAULT);
-    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_UASTC);
-
-#undef SETCOMPRESSIONTYPE
-
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
 }

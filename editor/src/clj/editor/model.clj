@@ -198,9 +198,9 @@
       explicit-textures
       samplers)))
 
-(g/defnk produce-scene [_node-id scene material-name->material-scene-info]
+(g/defnk produce-scene [_node-id scene material-name->material-scene-info skeleton-resource]
   (if scene
-    (model-scene/augment-scene scene _node-id "model" material-name->material-scene-info)
+    (model-scene/augment-scene scene _node-id "model" material-name->material-scene-info (some? skeleton-resource))
     {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 

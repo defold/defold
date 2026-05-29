@@ -68,7 +68,7 @@ target_include_directories(test_input PRIVATE
 
 defold_target_link_libraries(test_input "${TARGET_PLATFORM}"
     dlib
-    mbedtls
+    dmbedtls
     ddf
     profile_null
     testmain
