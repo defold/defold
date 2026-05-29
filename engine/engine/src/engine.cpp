@@ -1063,6 +1063,11 @@ namespace dmEngine
         }
 #endif
 
+        JobSystemCreateParams job_thread_create_param;
+        job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
+        job_thread_create_param.m_ThreadCount       = 1;
+        engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
+
         PopulateContextRegistry(engine, 0);
 
         ScopedExtensionAppParams app_params(engine);
@@ -1201,11 +1206,6 @@ namespace dmEngine
         {
             swap_interval = 0;
         }
-
-        JobSystemCreateParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
-        job_thread_create_param.m_ThreadCount       = 1;
-        engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
