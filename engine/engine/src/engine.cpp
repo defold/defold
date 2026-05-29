@@ -140,6 +140,12 @@ namespace dmEngine
         }
     }
 
+    static void SetScriptContextInContextRegistry(HContextRegistry context_registry, dmScript::HContext script_context)
+    {
+        ContextRegistrySet(context_registry, SCRIPT_CONTEXT_NAME, script_context);
+        ContextRegistrySet(context_registry, LUA_CONTEXT_NAME, script_context ? dmScript::GetLuaState(script_context) : 0);
+    }
+
     static void PopulateContextRegistry(HEngine engine, dmScript::HContext script_context)
     {
         ContextRegistrySet(engine->m_ContextRegistry, CONFIGFILE_CONTEXT_NAME, engine->m_Config);
@@ -154,8 +160,7 @@ namespace dmEngine
         ContextRegistrySet(engine->m_ContextRegistry, JOB_SYSTEM_CONTEXT_NAME, engine->m_JobThreadContext);
         ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", engine->m_GuiScriptContext);
         ContextRegistrySet(engine->m_ContextRegistry, "guic", engine->m_GuiContext);
-        ContextRegistrySet(engine->m_ContextRegistry, SCRIPT_CONTEXT_NAME, script_context);
-        ContextRegistrySet(engine->m_ContextRegistry, LUA_CONTEXT_NAME, script_context ? dmScript::GetLuaState(script_context) : 0);
+        SetScriptContextInContextRegistry(engine->m_ContextRegistry, script_context);
     }
 
     struct ScopedExtensionAppParams
@@ -182,7 +187,10 @@ namespace dmEngine
     struct ScopedExtensionParams
     {
         ExtensionParams m_Params;
+        HEngine         m_Engine;
+
         ScopedExtensionParams(HEngine engine)
+        : m_Engine(engine)
         {
             ExtensionParamsInitialize(&m_Params);
             ExtensionParamsSetContextRegistry(&m_Params, engine->m_ContextRegistry);
@@ -196,7 +204,8 @@ namespace dmEngine
         }
         void SetLuaContext(dmScript::HContext script_context)
         {
-            m_Params.m_L = dmScript::GetLuaState(script_context);
+            m_Params.m_L = script_context ? dmScript::GetLuaState(script_context) : 0;
+            SetScriptContextInContextRegistry(m_Engine->m_ContextRegistry, script_context);
         }
 
         operator ExtensionParams* ()
