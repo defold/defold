@@ -37,12 +37,12 @@ static int g_InitContext = 0;
 static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
     HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(params);
-    int* engine = (int*)ContextRegistryGetByName(context_registry, "engine");
+    int* engine = (int*)ContextRegistryGet(context_registry, "engine");
     assert(engine != 0);
     assert(*engine == 1337);
 
     ContextRegistrySet(context_registry, "lib", &g_LibContext);
-    int* libctx = (int*)ContextRegistryGetByName(context_registry, "lib");
+    int* libctx = (int*)ContextRegistryGet(context_registry, "lib");
     assert(libctx == &g_LibContext);
     *libctx = 1976;
 
@@ -53,7 +53,7 @@ static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 static dmExtension::Result AppFinalizeTest(dmExtension::AppParams* params)
 {
     HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(params);
-    int* libctx = (int*)ContextRegistryGetByName(context_registry, "lib");
+    int* libctx = (int*)ContextRegistryGet(context_registry, "lib");
     assert(libctx == &g_LibContext);
     *libctx = 1976;
 
@@ -66,12 +66,12 @@ static dmExtension::Result AppFinalizeTest(dmExtension::AppParams* params)
 static dmExtension::Result InitializeTest(dmExtension::Params* params)
 {
     HContextRegistry context_registry = ExtensionParamsGetContextRegistry(params);
-    int* libctx = (int*)ContextRegistryGetByName(context_registry, "lib");
+    int* libctx = (int*)ContextRegistryGet(context_registry, "lib");
     assert(libctx == &g_LibContext);
     assert(*libctx == 1976);
 
     ContextRegistrySet(context_registry, "init", &g_InitContext);
-    int* initctx = (int*)ContextRegistryGetByName(context_registry, "init");
+    int* initctx = (int*)ContextRegistryGet(context_registry, "init");
     assert(initctx == &g_InitContext);
     *initctx = 2026;
 
@@ -97,11 +97,11 @@ void OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
 static dmExtension::Result FinalizeTest(dmExtension::Params* params)
 {
     HContextRegistry context_registry = ExtensionParamsGetContextRegistry(params);
-    int* libctx = (int*)ContextRegistryGetByName(context_registry, "lib");
+    int* libctx = (int*)ContextRegistryGet(context_registry, "lib");
     assert(libctx == &g_LibContext);
     assert(*libctx == 1976);
 
-    int* initctx = (int*)ContextRegistryGetByName(context_registry, "init");
+    int* initctx = (int*)ContextRegistryGet(context_registry, "init");
     assert(initctx == &g_InitContext);
     assert(*initctx == 2026);
 

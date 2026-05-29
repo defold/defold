@@ -14,22 +14,17 @@
 
 #include "component.h"
 
-#include <dlib/static_assert.h>
 #include <dlib/hash.h>
+#include <dlib/static_assert.h>
 
 namespace dmGameObject
 {
 
 static ComponentTypeDescriptor g_ComponentTypeSentinel = {0};
 
-HContextRegistry ComponentTypeCreateCtxGetContextRegistry(const ComponentTypeCreateCtx* ctx)
+HContextRegistry ComponentGetContextRegistry(const ComponentTypeCreateCtx* ctx)
 {
     return ctx->m_Impl->m_ContextRegistry;
-}
-
-void* ComponentTypeGetContext(const ComponentTypeCreateCtx* ctx, const char* name)
-{
-    return ContextRegistryGetByName(ComponentTypeCreateCtxGetContextRegistry(ctx), name);
 }
 
 Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char* name, ComponentTypeCreateFunction create_fn, ComponentTypeDestroyFunction destroy_fn)

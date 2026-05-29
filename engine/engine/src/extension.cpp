@@ -19,24 +19,24 @@ namespace dmEngine
     dmConfigFile::HConfig GetConfigFile(dmExtension::AppParams* app_params)
     {
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
-        return (HConfigFile)ContextRegistryGetByName(context_registry, CONFIGFILE_CONTEXT_NAME);
+        return (HConfigFile)ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
     }
 
     dmWebServer::HServer GetWebServer(dmExtension::AppParams* app_params)
     {
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
-        return (dmWebServer::HServer)ContextRegistryGetByName(context_registry, WEBSERVER_CONTEXT_NAME);
+        return (dmWebServer::HServer)ContextRegistryGet(context_registry, WEBSERVER_CONTEXT_NAME);
     }
 
     dmGameObject::HRegister GetGameObjectRegister(dmExtension::AppParams* app_params)
     {
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
-        return (dmGameObject::HRegister)ContextRegistryGetByName(context_registry, GAMEOBJECT_CONTEXT_NAME);
+        return (dmGameObject::HRegister)ContextRegistryGet(context_registry, GAMEOBJECT_CONTEXT_NAME);
     }
 
     dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params)
     {
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
-        return (dmHID::HContext)ContextRegistryGetByName(context_registry, HID_CONTEXT_NAME);
+        return (dmHID::HContext)ContextRegistryGet(context_registry, HID_CONTEXT_NAME);
     }
 }

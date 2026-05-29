@@ -1161,8 +1161,9 @@ namespace dmGameSystem
     static dmGameObject::Result CompMeshTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
     {
         MeshContext* mesh_context = new MeshContext;
+        HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
         mesh_context->m_Factory = ctx->m_Factory;
-        mesh_context->m_RenderContext = (dmRender::HRenderContext) dmGameObject::ComponentTypeGetContext(ctx, RENDER_CONTEXT_NAME);
+        mesh_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
         mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128);
 
         ComponentTypeSetPrio(type, 725);

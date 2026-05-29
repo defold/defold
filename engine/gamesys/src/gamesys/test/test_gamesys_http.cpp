@@ -49,7 +49,7 @@ TEST_F(ComponentTest, HTTPRequest)
 
     SetHttpAddress(L);
 
-    ASSERT_NE((void*)0, ContextRegistryGetByName(m_ContextRegistry, "http_service"));
+    ASSERT_NE((void*)0, ContextRegistryGet(m_ContextRegistry, "http_service"));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 

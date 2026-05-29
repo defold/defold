@@ -169,7 +169,7 @@ protected:
         ContextRegistrySet(m_ContextRegistry, RENDER_CONTEXT_NAME, m_RenderContext);
 
         dmExtension::AppInitialize(&m_AppParams);
-        ASSERT_NE((void*)0, ContextRegistryGetByName(m_ContextRegistry, "http_service"));
+        ASSERT_NE((void*)0, ContextRegistryGet(m_ContextRegistry, "http_service"));
         dmExtension::Initialize(&m_Params);
 
         L = dmScript::GetLuaState(m_ScriptContext);

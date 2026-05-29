@@ -20,64 +20,83 @@
 #endif
 
 #include <dmsdk/extension/extension_gen.hpp>
+#include <dmsdk/dlib/log.h>
+
+#if defined(_MSC_VER)
+#define DM_EXTENSION_DEPRECATED_CONTEXT_HELPER __declspec(deprecated("Use the context registry API directly instead"))
+#elif defined(__GNUC__) || defined(__clang__)
+#define DM_EXTENSION_DEPRECATED_CONTEXT_HELPER __attribute__((deprecated("Use the context registry API directly instead")))
+#else
+#define DM_EXTENSION_DEPRECATED_CONTEXT_HELPER
+#endif
 
 namespace dmExtension {
 
    template<typename T>
-   T GetContextAsType(HContextRegistry context_registry, const char* name)
+   DM_EXTENSION_DEPRECATED_CONTEXT_HELPER T GetContextAsType(HContextRegistry context_registry, const char* name)
    {
-      return (T)ContextRegistryGetByName(context_registry, name);
+      dmLogOnceWarning("%s", "dmExtension::GetContextAsType is deprecated. Use ContextRegistryGet directly instead.");
+      return (T)ContextRegistryGet(context_registry, name);
    }
 
    template<typename T>
-   T GetContextAsTypeByHash(HContextRegistry context_registry, dmhash_t name_hash)
+   DM_EXTENSION_DEPRECATED_CONTEXT_HELPER T GetContextAsTypeByHash(HContextRegistry context_registry, dmhash_t name_hash)
    {
+      dmLogOnceWarning("%s", "dmExtension::GetContextAsTypeByHash is deprecated. Use ContextRegistryGetByHash directly instead.");
       return (T)ContextRegistryGetByHash(context_registry, name_hash);
    }
 
    template<typename T>
-   T GetContextAsType(HContextRegistry context_registry, dmhash_t name_hash)
+   DM_EXTENSION_DEPRECATED_CONTEXT_HELPER T GetContextAsType(HContextRegistry context_registry, dmhash_t name_hash)
    {
-      return GetContextAsTypeByHash<T>(context_registry, name_hash);
+      dmLogOnceWarning("%s", "dmExtension::GetContextAsType is deprecated. Use ContextRegistryGetByHash directly instead.");
+      return (T)ContextRegistryGetByHash(context_registry, name_hash);
    }
 
    template<typename T>
-   T GetContextAsType(dmExtension::AppParams* app_params, const char* name)
+   DM_EXTENSION_DEPRECATED_CONTEXT_HELPER T GetContextAsType(dmExtension::AppParams* app_params, const char* name)
    {
-      return GetContextAsType<T>(ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)app_params), name);
+      dmLogOnceWarning("%s", "dmExtension::GetContextAsType is deprecated. Use ExtensionAppParamsGetContextRegistry and the context registry API directly instead.");
+      return (T)ContextRegistryGet(ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)app_params), name);
    }
 
    template<typename T>
-   T GetContextAsTypeByHash(dmExtension::AppParams* app_params, dmhash_t name_hash)
+   DM_EXTENSION_DEPRECATED_CONTEXT_HELPER T GetContextAsTypeByHash(dmExtension::AppParams* app_params, dmhash_t name_hash)
    {
-      return GetContextAsTypeByHash<T>(ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)app_params), name_hash);
+      dmLogOnceWarning("%s", "dmExtension::GetContextAsTypeByHash is deprecated. Use ExtensionAppParamsGetContextRegistry and the context registry API directly instead.");
+      return (T)ContextRegistryGetByHash(ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)app_params), name_hash);
    }
 
    template<typename T>
-   T GetContextAsType(dmExtension::AppParams* app_params, dmhash_t name_hash)
+   DM_EXTENSION_DEPRECATED_CONTEXT_HELPER T GetContextAsType(dmExtension::AppParams* app_params, dmhash_t name_hash)
    {
-      return GetContextAsTypeByHash<T>(app_params, name_hash);
+      dmLogOnceWarning("%s", "dmExtension::GetContextAsType is deprecated. Use ExtensionAppParamsGetContextRegistry and the context registry API directly instead.");
+      return (T)ContextRegistryGetByHash(ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)app_params), name_hash);
    }
 
    template<typename T>
-   T GetContextAsType(dmExtension::Params* params, const char* name)
+   DM_EXTENSION_DEPRECATED_CONTEXT_HELPER T GetContextAsType(dmExtension::Params* params, const char* name)
    {
-      return GetContextAsType<T>(ExtensionParamsGetContextRegistry((ExtensionParams*)params), name);
+      dmLogOnceWarning("%s", "dmExtension::GetContextAsType is deprecated. Use ExtensionParamsGetContextRegistry and the context registry API directly instead.");
+      return (T)ContextRegistryGet(ExtensionParamsGetContextRegistry((ExtensionParams*)params), name);
    }
 
    template<typename T>
-   T GetContextAsTypeByHash(dmExtension::Params* params, dmhash_t name_hash)
+   DM_EXTENSION_DEPRECATED_CONTEXT_HELPER T GetContextAsTypeByHash(dmExtension::Params* params, dmhash_t name_hash)
    {
-      return GetContextAsTypeByHash<T>(ExtensionParamsGetContextRegistry((ExtensionParams*)params), name_hash);
+      dmLogOnceWarning("%s", "dmExtension::GetContextAsTypeByHash is deprecated. Use ExtensionParamsGetContextRegistry and the context registry API directly instead.");
+      return (T)ContextRegistryGetByHash(ExtensionParamsGetContextRegistry((ExtensionParams*)params), name_hash);
    }
 
    template<typename T>
-   T GetContextAsType(dmExtension::Params* params, dmhash_t name_hash)
+   DM_EXTENSION_DEPRECATED_CONTEXT_HELPER T GetContextAsType(dmExtension::Params* params, dmhash_t name_hash)
    {
-      return GetContextAsTypeByHash<T>(params, name_hash);
+      dmLogOnceWarning("%s", "dmExtension::GetContextAsType is deprecated. Use ExtensionParamsGetContextRegistry and the context registry API directly instead.");
+      return (T)ContextRegistryGetByHash(ExtensionParamsGetContextRegistry((ExtensionParams*)params), name_hash);
    }
-
 
 } // namespace
+
+#undef DM_EXTENSION_DEPRECATED_CONTEXT_HELPER
 
 #endif // DMSDK_EXTENSION_HPP

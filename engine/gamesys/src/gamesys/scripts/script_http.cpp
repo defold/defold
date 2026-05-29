@@ -306,7 +306,7 @@ namespace dmGameSystem
     {
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)params);
 
-        dmConfigFile::HConfig config_file = dmExtension::GetContextAsType<dmConfigFile::HConfig>(context_registry, CONFIGFILE_CONTEXT_NAME);
+        dmConfigFile::HConfig config_file = (dmConfigFile::HConfig) ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
         assert(config_file != 0);
         assert(g_Service == 0);
 
@@ -318,7 +318,7 @@ namespace dmGameSystem
             service_params.m_ThreadCount = dmConfigFile::GetInt(config_file, "network.http_thread_count", service_params.m_ThreadCount);
         }
 
-        service_params.m_HttpCache = dmExtension::GetContextAsType<dmHttpCache::HCache>(context_registry, "http_cache");
+        service_params.m_HttpCache = (dmHttpCache::HCache) ContextRegistryGet(context_registry, "http_cache");
 
         g_Service = dmHttpService::New(&service_params);
         if (g_Service == 0)
@@ -338,10 +338,10 @@ namespace dmGameSystem
     {
         HContextRegistry context_registry = ExtensionParamsGetContextRegistry((ExtensionParams*)params);
 
-        lua_State* L = dmExtension::GetContextAsType<lua_State*>(context_registry, LUA_CONTEXT_NAME);
+        lua_State* L = (lua_State*) ContextRegistryGet(context_registry, LUA_CONTEXT_NAME);
         assert(L != 0);
 
-        dmConfigFile::HConfig config_file = dmExtension::GetContextAsType<dmConfigFile::HConfig>(context_registry, CONFIGFILE_CONTEXT_NAME);
+        dmConfigFile::HConfig config_file = (dmConfigFile::HConfig) ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
         assert(config_file != 0);
 
         int top = lua_gettop(L);

@@ -787,19 +787,12 @@ namespace dmGameObject
     };
 
     /*# get the context registry from the component type create context
-     * @name ComponentTypeCreateCtxGetContextRegistry
+     * Use the returned registry with ContextRegistryGet and ContextRegistrySet to access named engine contexts.
+     * @name ComponentGetContextRegistry
      * @param ctx [type: const ComponentTypeCreateCtx*] component type create context
      * @return registry [type: HContextRegistry] engine context registry
      */
-    HContextRegistry ComponentTypeCreateCtxGetContextRegistry(const ComponentTypeCreateCtx* ctx);
-
-    /*# get a named context from the component type create context
-     * @name ComponentTypeGetContext
-     * @param ctx [type: const ComponentTypeCreateCtx*] component type create context
-     * @param name [type: const char*] context name
-     * @return context [type: void*] context pointer, if it exists
-     */
-    void* ComponentTypeGetContext(const ComponentTypeCreateCtx* ctx, const char* name);
+    HContextRegistry ComponentGetContextRegistry(const ComponentTypeCreateCtx* ctx);
 
     typedef Result (*ComponentTypeCreateFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);
     typedef Result (*ComponentTypeDestroyFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);
