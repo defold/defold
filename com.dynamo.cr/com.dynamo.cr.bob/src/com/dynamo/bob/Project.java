@@ -1547,6 +1547,11 @@ public class Project {
             }
         }
 
+        int maxMorphTargetTextureWidth = this.getProjectProperties().getIntValue("model", "max_morph_target_texture_width", 1024);
+        this.setOption("model-max-morph-target-texture-width", Integer.toString(maxMorphTargetTextureWidth));
+        int maxMorphTargetTextureHeight = this.getProjectProperties().getIntValue("model", "max_morph_target_texture_height", 1024);
+        this.setOption("model-max-morph-target-texture-height", Integer.toString(maxMorphTargetTextureHeight));
+
         boolean isPhysics2D = this.getProjectProperties().getStringValue("physics", "type", "2D").equals("2D");
         this.setOption("physics-type-2D", Boolean.toString(isPhysics2D));
         TimeProfiler.stop();

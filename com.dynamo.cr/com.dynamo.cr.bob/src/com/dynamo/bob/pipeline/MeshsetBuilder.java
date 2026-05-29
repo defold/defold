@@ -35,7 +35,10 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
 
-@BuilderParams(name="Meshset", inExts={".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes"})
+@BuilderParams(name="Meshset", inExts={".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {
+        "model-split-large-meshes",
+        "model-max-morph-target-texture-width",
+        "model-max-morph-target-texture-height"})
 public class MeshsetBuilder extends Builder  {
     private static class MorphTargetTextureOutput {
         IResource resource;
