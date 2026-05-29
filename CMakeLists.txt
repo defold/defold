@@ -110,6 +110,9 @@ endif()
 set(_DEFOLD_BOB_LIGHT_DEPENDS
   "${DEFOLD_BOB_DIR}/build.gradle"
   "${DEFOLD_GRADLEW}")
+if(EXISTS "${DEFOLD_HOME}/.defold-platforms")
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOME}/.defold-platforms")
+endif()
 set(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
 foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared)
   if(TARGET ${_DEFOLD_BOB_LIGHT_LIB})
@@ -120,6 +123,43 @@ foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared)
         "${DEFOLD_LIB_DIR}/$<TARGET_FILE_NAME:${_DEFOLD_BOB_LIGHT_LIB}>")
   endif()
 endforeach()
+set(_DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS)
+if(TARGET dlib_java)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS
+    dlib_java
+    "${DEFOLD_DLIB_BINARY_DIR}/dlib.jar")
+  list(APPEND _DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${DEFOLD_DLIB_BINARY_DIR}/dlib.jar"
+      "${DEFOLD_SDK_ROOT}/share/java/dlib.jar")
+endif()
+if(TARGET modelimporter_jar)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS
+    modelimporter_jar
+    "${DEFOLD_MODELC_BINARY_DIR}/modelimporter.jar")
+  list(APPEND _DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${DEFOLD_MODELC_BINARY_DIR}/modelimporter.jar"
+      "${DEFOLD_SDK_ROOT}/share/java/modelimporter.jar")
+endif()
+if(TARGET texturecompiler_jar)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS
+    texturecompiler_jar
+    "${DEFOLD_TEXC_BINARY_DIR}/texturecompiler.jar")
+  list(APPEND _DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${DEFOLD_TEXC_BINARY_DIR}/texturecompiler.jar"
+      "${DEFOLD_SDK_ROOT}/share/java/texturecompiler.jar")
+endif()
+if(TARGET shaderc_jar)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS
+    shaderc_jar
+    "${DEFOLD_SHADERC_BINARY_DIR}/shaderc.jar")
+  list(APPEND _DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${DEFOLD_SHADERC_BINARY_DIR}/shaderc.jar"
+      "${DEFOLD_SDK_ROOT}/share/java/shaderc.jar")
+endif()
 
 if(NOT DEFOLD_SKIP_BOB_LIGHT)
   add_custom_command(
@@ -127,12 +167,13 @@ if(NOT DEFOLD_SKIP_BOB_LIGHT)
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_LIB_DIR}"
     ${_DEFOLD_BOB_LIGHT_COPY_COMMANDS}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java"
+    ${_DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS}
     COMMAND "${CMAKE_COMMAND}" -E env
       "DEFOLD_HOME=${DEFOLD_HOME}"
       "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
       "JAVA_HOME=${DEFOLD_JAVA_HOME}"
       "GRADLE_OPTS=-Dorg.gradle.parallel=true --sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED"
-      "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed installBobLight
+      "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed "-Ptarget-platform=${TARGET_PLATFORM}" installBobLight
     WORKING_DIRECTORY "${DEFOLD_BOB_DIR}"
     DEPENDS ${_DEFOLD_BOB_LIGHT_DEPENDS}
     COMMENT "Building bob-light.jar"
@@ -140,6 +181,7 @@ if(NOT DEFOLD_SKIP_BOB_LIGHT)
 endif()
 unset(_DEFOLD_BOB_LIGHT_DEPENDS)
 unset(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
+unset(_DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS)
 unset(_DEFOLD_BOB_LIGHT_LIB)
 
 # ===================== CMake package export =====================
