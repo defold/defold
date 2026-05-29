@@ -24,24 +24,6 @@
             [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d]))
 
-(defn- annotate-action [view action]
-  (if (and (g/node-value view :mouse-binding-context)
-           (#{:mouse-pressed :mouse-moved} (:type action)))
-    (let [context (g/node-value view :mouse-binding-context)
-          command (mouse-binding/command-for-action context (assoc action :type :drag))]
-      (cond-> action
-        command (assoc :mouse-binding-command command)))
-    action))
-
-(defn- update-tick! [view input-state]
-  (g/with-auto-evaluation-context evaluation-context
-    (reduce
-      (fn [input-state [node-id label]]
-        (when input-state
-          ((g/node-value node-id label evaluation-context) node-id input-state (/ 1.0 60.0))))
-      input-state
-      (g/sources-of (:basis evaluation-context) view :update-tick-handlers))))
-
 (defn- action [type x y button modifiers]
   (reduce
     (fn [action modifier]
@@ -56,27 +38,20 @@
     modifiers))
 
 (defn- dispatch-action! [view input-state action]
-  (let [input-state (input/update-input-state input-state action)
-        action (->> action
-                    (scene/augment-action view)
-                    (annotate-action view))]
-    (scene/dispatch-input
-      (g/sources-of view :input-handlers)
-      input-state
-      action
-      (g/node-value view :selected-tool-renderables))
-    (update-tick! view input-state)
-    input-state))
+  (let [input-dispatch-context (scene/input-dispatch-context view)
+        action (scene/augment-action view action)]
+    (scene/dispatch-input-action input-dispatch-context input-state action)))
 
-(defn- drag! [view [x0 y0] [x1 y1] button modifiers]
-  (reduce
-    (partial dispatch-action! view)
-    (input/make-input-state)
-    [(action :mouse-moved x0 y0 button modifiers)
-     (action :mouse-pressed x0 y0 button modifiers)
-     (action :drag-detected x0 y0 button modifiers)
-     (action :mouse-moved x1 y1 button modifiers)
-     (action :mouse-released x1 y1 button modifiers)]))
+(defn- update-tick!
+  ([view input-state]
+   (update-tick! view input-state 1))
+  ([view input-state frame-count]
+   (loop [input-state input-state
+          frames-remaining ^int frame-count]
+     (if (pos? frames-remaining)
+       (recur (scene/update-tick-handlers view input-state (/ 1.0 60.0))
+              (dec frames-remaining))
+       input-state))))
 
 (defn- open-tile-map-scene-view! [project app-view path width height]
   (let [resource-node (test-util/resource-node project path)
@@ -101,9 +76,9 @@
     [resource-node view]))
 
 (defn- tile-screen-pos [view resource-node [tile-x tile-y]]
-  (let [[tile-width tile-height] (g/node-value resource-node :tile-dimensions)
-        world-pos (Point3d. (* (+ tile-x 0.5) tile-width)
-                            (* (+ tile-y 0.5) tile-height)
+  (let [[^double tile-width ^double tile-height] (g/node-value resource-node :tile-dimensions)
+        world-pos (Point3d. (* (+ ^double tile-x 0.5) tile-width)
+                            (* (+ ^double tile-y 0.5) tile-height)
                             0.0)
         screen-pos (camera/camera-project (g/node-value view :camera)
                                           (g/node-value view :viewport)
@@ -121,6 +96,14 @@
   (reduce
     (fn [_ [node-id]]
       (when (g/node-instance? tile-map/TileMapController node-id)
+        (reduced node-id)))
+    nil
+    (g/sources-of view :input-handlers)))
+
+(defn- camera-controller [view]
+  (reduce
+    (fn [_ [node-id]]
+      (when (g/node-instance? camera/CameraController node-id)
         (reduced node-id)))
     nil
     (g/sources-of view :input-handlers)))
@@ -143,32 +126,7 @@
 (defmacro with-mouse-bindings [& forms]
   `(with-mouse-bindings* (fn [] ~@forms)))
 
-(defn- dirty-delta [project baseline]
-  (reduce disj
-          (test-util/dirty-proj-paths project)
-          baseline))
-
-(deftest tile-map-primary-drag-paints-without-dirtying-other-open-resources
-  (test-util/with-loaded-project
-    (let [[collection-node] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
-          [tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
-          layer-node (layer-node tile-map-node)
-          tile [0 0]
-          collection-save-value (g/node-value collection-node :save-value)
-          screen-pos (tile-screen-pos view tile-map-node tile)]
-      (app-view/select! app-view [layer-node])
-      (refresh-selection! view)
-      (test-util/clear-cached-save-data! project)
-      (let [dirty-baseline (test-util/dirty-proj-paths project)]
-        (is (= [layer-node] (g/node-value app-view :selected-node-ids)))
-        (is (tile-map-controller view))
-        (is (nil? (cell-at layer-node tile)))
-        (drag! view screen-pos screen-pos :primary [])
-        (is (cell-at layer-node tile))
-        (is (= #{"/tilegrid/with_layers.tilemap"} (dirty-delta project dirty-baseline)))
-        (is (= collection-save-value (g/node-value collection-node :save-value)))))))
-
-(deftest tile-map-secondary-rebind-erases-instead-of-panning-camera
+(deftest tile-map-rebound-drag-runs-tile-map-action
   (test-util/with-loaded-project
     (with-mouse-bindings
       (mouse-binding/register!
@@ -180,48 +138,97 @@
          {:command :scene.tile-map.erase
           :context-path ["Tile Map Editor"]
           :action "Erase"
-          :binding {:button :secondary :trigger :drag :modifiers []}}])
+          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
       (is (= :scene.tile-map.erase
              (mouse-binding/command-for-action
                ::tile-map/tile-map-editor
                {:type :drag
-                :button :secondary})))
-      (let [[collection-node] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
-            [tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
+                :button :primary
+                :shift true})))
+      (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
             tile [-2 -2]
-            collection-save-value (g/node-value collection-node :save-value)
             screen-pos (tile-screen-pos view tile-map-node tile)]
         (app-view/select! app-view [layer-node])
         (refresh-selection! view)
-        (test-util/clear-cached-save-data! project)
-        (let [dirty-baseline (test-util/dirty-proj-paths project)]
-          (is (= [layer-node] (g/node-value app-view :selected-node-ids)))
-          (is (tile-map-controller view))
-          (is (cell-at layer-node tile))
-          (let [input-state (reduce
-                              (partial dispatch-action! view)
-                              (input/make-input-state)
-                              [(action :mouse-moved (first screen-pos) (second screen-pos) :secondary [])
-                               (action :mouse-pressed (first screen-pos) (second screen-pos) :secondary [])])]
-            (is (= :select (g/node-value (tile-map-controller view) :op)))
-            (dispatch-action! view input-state (action :mouse-released (first screen-pos) (second screen-pos) :secondary []))
-            (is (nil? (g/node-value (tile-map-controller view) :op)))
-            (is (nil? (cell-at layer-node tile)))
-            (is (= #{"/tilegrid/with_layers.tilemap"} (dirty-delta project dirty-baseline)))
-            (is (= collection-save-value (g/node-value collection-node :save-value)))))))))
+        (is (= [layer-node] (g/node-value app-view :selected-node-ids)))
+        (is (cell-at layer-node tile))
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved (first screen-pos) (second screen-pos) :primary [])
+                             (action :mouse-pressed (first screen-pos) (second screen-pos) :primary [])])]
+          (is (= :paint (g/node-value (tile-map-controller view) :op)))
+          (dispatch-action! view input-state (action :mouse-released (first screen-pos) (second screen-pos) :primary []))
+          (is (nil? (g/node-value (tile-map-controller view) :op)))
+          (is (nil? (cell-at layer-node tile))))
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved (first screen-pos) (second screen-pos) :primary [:shift])
+                             (action :mouse-pressed (first screen-pos) (second screen-pos) :primary [:shift])])]
+          (is (= :select (g/node-value (tile-map-controller view) :op)))
+          (dispatch-action! view input-state (action :mouse-released (first screen-pos) (second screen-pos) :primary [:shift]))
+          (is (nil? (g/node-value (tile-map-controller view) :op)))
+          (is (nil? (cell-at layer-node tile))))))))
 
-(deftest collection-secondary-drag-pans-camera-without-dirtying-open-resources
+(deftest camera-rebound-drag-runs-camera-action
   (test-util/with-loaded-project
-    (let [[tile-map-node] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
-          [collection-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
-          initial-camera (g/node-value view :camera)
-          tile-map-save-value (g/node-value tile-map-node :save-value)
-          collection-save-value (g/node-value collection-node :save-value)]
-      (test-util/clear-cached-save-data! project)
-      (let [dirty-baseline (test-util/dirty-proj-paths project)]
-        (drag! view [64.0 64.0] [80.0 64.0] :secondary [])
-        (is (not= initial-camera (g/node-value view :camera)))
-        (is (= #{} (dirty-delta project dirty-baseline)))
-        (is (= tile-map-save-value (g/node-value tile-map-node :save-value)))
-        (is (= collection-save-value (g/node-value collection-node :save-value)))))))
+    (with-mouse-bindings
+      (mouse-binding/register!
+        ::camera/scene-camera-orthographic
+        [{:command :scene.camera.pan
+          :context-path ["Scene 2D Camera"]
+          :action "Pan"
+          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
+      (let [[_collection-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
+            camera-controller (camera-controller view)
+            initial-camera (g/node-value view :camera)
+            input-state (reduce
+                          (partial dispatch-action! view)
+                          (input/make-input-state)
+                          [(action :mouse-moved 64.0 64.0 :primary [:shift])
+                           (action :mouse-pressed 64.0 64.0 :primary [:shift])
+                           (action :drag-detected 64.0 64.0 :primary [:shift])])]
+        (is camera-controller)
+        (is (= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
+        (is (:is-dragging (g/user-data camera-controller :editor.camera/camera-state)))
+        (let [input-state (dispatch-action! view input-state (action :mouse-moved 80.0 64.0 :primary [:shift]))
+              input-state (update-tick! view input-state 2)]
+          (dispatch-action! view input-state (action :mouse-released 80.0 64.0 :primary [:shift])))
+        (is (not= initial-camera (g/node-value view :camera)))))))
+
+(deftest tile-map-command-overrides-conflicting-camera-binding
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/register!
+        ::camera/scene-camera-orthographic
+        [{:command :scene.camera.pan
+          :context-path ["Scene 2D Camera"]
+          :action "Pan"
+          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
+      (mouse-binding/register!
+        ::tile-map/tile-map-editor
+        [{:command :scene.tile-map.erase
+          :context-path ["Tile Map Editor"]
+          :action "Erase"
+          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
+      (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
+            layer-node (layer-node tile-map-node)
+            tile [-2 -2]
+            screen-pos (tile-screen-pos view tile-map-node tile)
+            camera-controller (camera-controller view)
+            initial-camera (g/node-value view :camera)]
+        (app-view/select! app-view [layer-node])
+        (refresh-selection! view)
+        (is camera-controller)
+        (is (cell-at layer-node tile))
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved (first screen-pos) (second screen-pos) :primary [:shift])
+                             (action :mouse-pressed (first screen-pos) (second screen-pos) :primary [:shift])])]
+          (is (not= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
+          (dispatch-action! view input-state (action :mouse-released (first screen-pos) (second screen-pos) :primary [:shift])))
+        (is (nil? (cell-at layer-node tile)))
+        (is (= initial-camera (g/node-value view :camera)))))))

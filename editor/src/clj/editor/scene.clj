@@ -1661,14 +1661,32 @@
               ((g/node-value node-id label) node-id input-state action user-data)))
           action input-handlers))
 
-(defn- annotate-mouse-binding-command [mouse-binding-context action]
-  (if (and mouse-binding-context
-           (#{:mouse-pressed :mouse-moved} (:type action)))
-    (let [binding-action (assoc action :type :drag)
-          command (mouse-binding/command-for-action mouse-binding-context binding-action)]
-      (cond-> action
-        command (assoc :mouse-binding-command command)))
-    action))
+(defn input-dispatch-context [view-id]
+  (g/with-auto-evaluation-context evaluation-context
+    {:input-handlers (g/sources-of (:basis evaluation-context) view-id :input-handlers)
+     :user-data (g/node-value view-id :selected-tool-renderables evaluation-context)
+     :mouse-binding-context (g/node-value view-id :mouse-binding-context evaluation-context)}))
+
+(defn dispatch-input-action [{:keys [input-handlers user-data mouse-binding-context]} input-state action]
+  (let [input-state (i/update-input-state input-state action)
+        action (if (and mouse-binding-context
+                        (#{:mouse-pressed :mouse-moved} (:type action)))
+                 (let [binding-action (assoc action :type :drag)
+                       command (mouse-binding/command-for-action mouse-binding-context binding-action)]
+                   (cond-> action
+                     command (assoc :mouse-binding-command command)))
+                 action)]
+    (dispatch-input input-handlers input-state action user-data)
+    input-state))
+
+(defn update-tick-handlers [view-id input-state dt]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [update-tick-handlers (g/sources-of (:basis evaluation-context) view-id :update-tick-handlers)]
+      (reduce (fn [input-state [node-id label]]
+                (when input-state
+                  ((g/node-value node-id label evaluation-context) node-id input-state dt)))
+              input-state
+              update-tick-handlers))))
 
 (defn- update-updatables
   [updatable-states play-mode active-updatables dt]
@@ -1684,14 +1702,12 @@
 
 (defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (let [action-queue (g/user-data view-id ::input-action-queue)
-        [render-mode tool-user-data play-mode active-updatables updatable-states mouse-binding-context]
+        [render-mode play-mode active-updatables updatable-states]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value view-id :render-mode evaluation-context)
-           (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
            (g/node-value view-id :play-mode evaluation-context)
            (g/node-value view-id :active-updatables evaluation-context)
-           (g/node-value view-id :updatable-states evaluation-context)
-           (g/node-value view-id :mouse-binding-context evaluation-context)])
+           (g/node-value view-id :updatable-states evaluation-context)])
         has-active-updatables (not (coll/empty? active-updatables))
         new-updatable-states (if has-active-updatables
                                (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
@@ -1705,25 +1721,15 @@
                             (and has-active-updatables (= :playing play-mode)))
                         inc)]
     (profiler/profile "input-dispatch" -1
-      (let [input-handlers (g/sources-of view-id :input-handlers)]
+      (let [input-dispatch-context (input-dispatch-context view-id)]
         (g/user-data! view-id ::input-state
-                      (reduce (fn [input-state action]
-                                (let [input-state (i/update-input-state input-state action)
-                                      action (annotate-mouse-binding-command mouse-binding-context action)]
-                                  (dispatch-input input-handlers input-state action tool-user-data)
-                                  input-state))
+                      (reduce (partial dispatch-input-action input-dispatch-context)
                               (g/user-data view-id ::input-state)
                               action-queue))
         (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
           (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (profiler/profile "update-tick" -1
-      (g/with-auto-evaluation-context evaluation-context
-        (let [update-tick-handlers (g/sources-of (:basis evaluation-context) view-id :update-tick-handlers)
-              input-state (g/user-data view-id ::input-state)]
-          (reduce (fn [input-state [node-id label]]
-                    (when input-state
-                      ((g/node-value node-id label evaluation-context) node-id input-state dt)))
-                  input-state update-tick-handlers))))
+      (update-tick-handlers view-id (g/user-data view-id ::input-state) dt))
     (when (seq action-queue)
       (g/user-data! view-id ::input-action-queue [])
       (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
