@@ -32,6 +32,7 @@
 #include <dlib/testutil.h>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
+#include <extension/extension.h>
 #include <extension/extension.hpp>
 #include <platform/window.hpp>
 

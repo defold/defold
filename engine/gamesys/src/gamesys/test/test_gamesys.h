@@ -25,6 +25,7 @@
 
 #include <sound/sound.h>
 #include <gameobject/component.h>
+#include <extension/extension.h>
 #include <extension/extension.hpp>
 #include <physics/physics.h>
 #include <rig/rig.h>
