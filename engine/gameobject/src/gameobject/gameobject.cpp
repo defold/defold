@@ -430,7 +430,6 @@ namespace dmGameObject
                 params.m_MaxComponentInstances = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
                 params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
-                params.m_ContextRegistry = regist->m_ContextRegistry;
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }
         }
@@ -450,7 +449,6 @@ namespace dmGameObject
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
             params.m_World = collection->m_ComponentWorlds[i];
-            params.m_ContextRegistry = regist->m_ContextRegistry;
             if (regist->m_ComponentTypes[i].m_DeleteWorldFunction)
                 regist->m_ComponentTypes[i].m_DeleteWorldFunction(params);
         }
@@ -914,7 +912,6 @@ namespace dmGameObject
             params.m_Context = component_type->m_Context;
             params.m_UserData = component_instance_data;
             params.m_PropertySet = component->m_PropertySet;
-            params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
             CreateResult create_result =  component_type->m_CreateFunction(params);
             if (create_result == CREATE_RESULT_OK)
             {
@@ -948,7 +945,6 @@ namespace dmGameObject
                 params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                 params.m_Context = component_type->m_Context;
                 params.m_UserData = component_instance_data;
-                params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
                 component_type->m_DestroyFunction(params);
             }
         }
@@ -985,7 +981,6 @@ namespace dmGameObject
             params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
             params.m_Context = component_type->m_Context;
             params.m_UserData = component_instance_data;
-            params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
             component_type->m_DestroyFunction(params);
         }
     }
@@ -1818,7 +1813,6 @@ namespace dmGameObject
                 params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                 params.m_Context = component_type->m_Context;
                 params.m_UserData = component_instance_data;
-                params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
                 CreateResult result = component_type->m_InitFunction(params);
                 if (result != CREATE_RESULT_OK)
                 {
@@ -1930,7 +1924,6 @@ namespace dmGameObject
                 params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                 params.m_Context = component_type->m_Context;
                 params.m_UserData = component_instance_data;
-                params.m_ContextRegistry = collection->m_Register->m_ContextRegistry;
                 CreateResult result = component_type->m_FinalFunction(params);
                 if (result != CREATE_RESULT_OK)
                 {

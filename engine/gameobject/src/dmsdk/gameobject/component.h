@@ -56,16 +56,14 @@ namespace dmGameObject
      * @member m_World [type: void**] Out-parameter of the pointer in which to store the created world
      * @member m_MaxComponentInstances [type: uint32_t] Max components count of this type in current collection counted at the build stage.
      *                                         If component in factory then value is 0xFFFFFFFF
-     * @member m_ContextRegistry [type: HContextRegistry] Engine context registry
      */
     struct ComponentNewWorldParams
     {
-        void*            m_Context;
-        uint8_t          m_ComponentIndex;
-        uint32_t         m_MaxInstances;
-        void**           m_World;
-        uint32_t         m_MaxComponentInstances;
-        HContextRegistry m_ContextRegistry;
+        void*    m_Context;
+        uint8_t  m_ComponentIndex;
+        uint32_t m_MaxInstances;
+        void**   m_World;
+        uint32_t m_MaxComponentInstances;
     };
 
     /*#
@@ -83,13 +81,11 @@ namespace dmGameObject
      * @name ComponentDeleteWorldParams
      * @member m_Context [type void*] Context for the component type
      * @member m_World [type void*] The pointer to the world to destroy
-     * @member m_ContextRegistry [type: HContextRegistry] Engine context registry
      */
     struct ComponentDeleteWorldParams
     {
-        void*            m_Context;
-        void*            m_World;
-        HContextRegistry m_ContextRegistry;
+        void* m_Context;
+        void* m_World;
     };
 
     /*#
@@ -115,21 +111,19 @@ namespace dmGameObject
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
      * @member m_ComponentIndex [type: uint16_t] Index of the component type being created (among all component types)
-     * @member m_ContextRegistry [type: HContextRegistry] Engine context registry
      */
     struct ComponentCreateParams
     {
-        HInstance           m_Instance;
-        dmVMath::Point3     m_Position;
-        dmVMath::Quat       m_Rotation;
-        dmVMath::Vector3    m_Scale;
-        PropertySet         m_PropertySet;
-        void*               m_Resource;
-        void*               m_World;
-        void*               m_Context;
-        uintptr_t*          m_UserData;
-        uint16_t            m_ComponentIndex;
-        HContextRegistry    m_ContextRegistry;
+        HInstance        m_Instance;
+        dmVMath::Point3  m_Position;
+        dmVMath::Quat    m_Rotation;
+        dmVMath::Vector3 m_Scale;
+        PropertySet      m_PropertySet;
+        void*            m_Resource;
+        void*            m_World;
+        void*            m_Context;
+        uintptr_t*       m_UserData;
+        uint16_t         m_ComponentIndex;
     };
 
     /*#
@@ -151,16 +145,14 @@ namespace dmGameObject
      * @member m_World [type: void*] Component world
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
-     * @member m_ContextRegistry [type: HContextRegistry] Engine context registry
      */
     struct ComponentDestroyParams
     {
-        HCollection      m_Collection;
-        HInstance        m_Instance;
-        void*            m_World;
-        void*            m_Context;
-        uintptr_t*       m_UserData;
-        HContextRegistry m_ContextRegistry;
+        HCollection m_Collection;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -181,16 +173,14 @@ namespace dmGameObject
      * @member m_World [type: void*] Component world
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
-     * @member m_ContextRegistry [type: HContextRegistry] Engine context registry
      */
     struct ComponentInitParams
     {
-        HCollection      m_Collection;
-        HInstance        m_Instance;
-        void*            m_World;
-        void*            m_Context;
-        uintptr_t*       m_UserData;
-        HContextRegistry m_ContextRegistry;
+        HCollection m_Collection;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -211,16 +201,14 @@ namespace dmGameObject
      * @member m_World [type: void*] Component world
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
-     * @member m_ContextRegistry [type: HContextRegistry] Engine context registry
      */
     struct ComponentFinalParams
     {
-        HCollection      m_Collection;
-        HInstance        m_Instance;
-        void*            m_World;
-        void*            m_Context;
-        uintptr_t*       m_UserData;
-        HContextRegistry m_ContextRegistry;
+        HCollection m_Collection;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#

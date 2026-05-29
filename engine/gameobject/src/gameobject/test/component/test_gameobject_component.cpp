@@ -196,7 +196,6 @@ public:
     std::map<uint64_t, uint32_t> m_ComponentDestroyCountMap;
     std::map<uint64_t, uint32_t> m_ComponentUpdateCountMap;
     std::map<uint64_t, uint32_t> m_ComponentAddToUpdateCountMap;
-    std::map<uint64_t, uint32_t> m_ComponentContextRegistryCountMap;
     std::map<uint64_t, uint32_t> m_MaxComponentCreateCountMap;
 
     std::map<uint64_t, uint32_t> m_ComponentUpdateOrderMap;
@@ -260,11 +259,6 @@ static dmGameObject::CreateResult GenericComponentCreate(const dmGameObject::Com
         }
     }
 
-    if (ContextRegistryGet(params.m_ContextRegistry, "component_test") == game_object_test)
-    {
-        game_object_test->m_ComponentContextRegistryCountMap[T::m_DDFHash]++;
-    }
-
     game_object_test->m_ComponentCreateCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -273,11 +267,6 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentInit(const dmGameObject::ComponentInitParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
-    if (ContextRegistryGet(params.m_ContextRegistry, "component_test") == game_object_test)
-    {
-        game_object_test->m_ComponentContextRegistryCountMap[T::m_DDFHash]++;
-    }
-
     game_object_test->m_ComponentInitCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -286,11 +275,6 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentFinal(const dmGameObject::ComponentFinalParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
-    if (ContextRegistryGet(params.m_ContextRegistry, "component_test") == game_object_test)
-    {
-        game_object_test->m_ComponentContextRegistryCountMap[T::m_DDFHash]++;
-    }
-
     game_object_test->m_ComponentFinalCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -323,10 +307,6 @@ static dmGameObject::CreateResult GenericComponentDestroy(const dmGameObject::Co
     }
 
     game_object_test->m_ComponentDestroyCountMap[T::m_DDFHash]++;
-    if (ContextRegistryGet(params.m_ContextRegistry, "component_test") == game_object_test)
-    {
-        game_object_test->m_ComponentContextRegistryCountMap[T::m_DDFHash]++;
-    }
 
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -379,7 +359,6 @@ TEST_F(ComponentTest, TestUpdate)
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentDestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
-    ASSERT_EQ((uint32_t) 4, m_ComponentContextRegistryCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 }
 
 TEST_F(ComponentTest, TestPostDeleteUpdate)

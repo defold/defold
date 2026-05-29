@@ -19,12 +19,6 @@
 
 struct ExtensionDesc;
 
-extern "C"
-{
-    void ExtensionAppParamsSetContextRegistry(ExtensionAppParams* params, HContextRegistry context_registry);
-    void ExtensionParamsSetContextRegistry(ExtensionParams* params, HContextRegistry context_registry);
-}
-
 namespace dmExtension
 {
     typedef const ExtensionDesc* HExtension;
