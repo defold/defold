@@ -46,7 +46,7 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 
 Use `clj-kondo` to find and fix lint issues in your changes.
 
-## Inline single-use trivial helpers
+## Inline single-use trivial helpers/constants
 
 They make the code worse because they make the logic/behavior non-local, introducing a separation where there is none.
 
