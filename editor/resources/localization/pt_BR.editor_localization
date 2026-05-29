@@ -1856,7 +1856,6 @@ form.help.project.sound.stream_enabled = Ativa streaming de som
 form.label.project.sound.stream_chunk_size = Bloco de Transmissão
 form.help.project.sound.stream_chunk_size = Tamanho em bytes de cada bloco carregado a partir de um arquivo de som, 16384 por padrão
 form.label.project.sound.stream_preload_size = Pré-cargarregamento da Transmissão
-form.help.project.sound.stream_preload_size = Tamanho em bytes de cada bloco carregado a partir de um arquivo de som, 16384 por padrão
 form.label.project.sound.stream_cache_size = Cache da Transmissão
 form.help.project.sound.stream_cache_size = Tamanho em bytes do cache de transmissão de som contendo todos os blocos, 2097152 por padrão
 
