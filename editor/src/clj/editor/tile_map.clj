@@ -1332,8 +1332,12 @@
                  (end-op op self action state evaluation-context (g/node-value self :cursor-mode evaluation-context))))
 
              nil)]
-    (when (coll/not-empty tx)
-      (g/transact tx)
+    (if (coll/not-empty tx)
+      (do
+        (g/transact tx)
+        nil)
+      ;; If we pass an action instead, we enable right-click context menu
+      ;; action)))
       true)))
 
 (defn- handle-input-palette
