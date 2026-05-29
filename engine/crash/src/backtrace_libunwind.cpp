@@ -36,7 +36,7 @@ namespace dmCrash
     static bool g_CrashDumpEnabled = true;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
-    static struct sigaction             g_PreviousSignalActions[SIGNAL_SLOT_COUNT];
+    static struct sigaction             g_PreviousSignalActions[MAX_SIGNAL_COUNT];
 
     static void Handler(const int signum, siginfo_t *const si, void *const sc);
 
@@ -218,7 +218,7 @@ namespace dmCrash
 
     void InstallOnSignal(int signum)
     {
-        assert(IsHandledSignal(signum));
+        assert(IsValidSignal(signum));
         InstallSignalHandler(signum, Handler, g_PreviousSignalActions);
     }
 

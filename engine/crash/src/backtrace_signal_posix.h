@@ -24,40 +24,23 @@
 
 namespace dmCrash
 {
-    enum
-    {
-        SIGNAL_SLOT_COUNT = 5
-    };
+    static const int MAX_SIGNAL_COUNT = 64;
 
     typedef void (*FSignalAction)(int, siginfo_t*, void*);
 
-    static inline int GetSignalSlot(int signum)
+    static inline bool IsValidSignal(int signum)
     {
-        switch (signum)
-        {
-        case SIGSEGV: return 0;
-        case SIGBUS:  return 1;
-        case SIGTRAP: return 2;
-        case SIGILL:  return 3;
-        case SIGABRT: return 4;
-        default:      return -1;
-        }
-    }
-
-    static inline bool IsHandledSignal(int signum)
-    {
-        return GetSignalSlot(signum) >= 0;
+        return signum > 0 && signum < MAX_SIGNAL_COUNT;
     }
 
     static inline struct sigaction* GetPreviousSignalAction(int signum, struct sigaction* previous_signal_actions)
     {
-        int slot = GetSignalSlot(signum);
-        return slot >= 0 && previous_signal_actions ? &previous_signal_actions[slot] : 0;
+        return IsValidSignal(signum) && previous_signal_actions ? &previous_signal_actions[signum] : 0;
     }
 
     static inline void ResetToDefaultSignalHandler(int signum)
     {
-        if (!IsHandledSignal(signum))
+        if (!IsValidSignal(signum))
         {
             return;
         }
@@ -120,7 +103,7 @@ namespace dmCrash
 
     static inline void RaiseDefaultSignalHandler(int signum, const siginfo_t* si)
     {
-        if (!IsHandledSignal(signum))
+        if (!IsValidSignal(signum))
         {
             return;
         }
