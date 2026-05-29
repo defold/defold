@@ -59,7 +59,7 @@
             [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [clojure.lang IDeref]
+  (:import [clojure.lang IDeref Murmur3]
            [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [java.io PrintStream PushbackReader]
@@ -80,6 +80,8 @@
                              msg     string message, may be multiline
     :project-prototypes    vector of project-owned editor script Prototypes
     :library-prototypes    vector of library-provided editor script Prototypes
+    :reload-signature      hash of editor script paths and lines when the
+                           runtime was last reloaded
     :rt                    editor script runtime
     :all                   map of module function keyword to a vector of tuples:
                              path      proj-path of an editor script
@@ -121,11 +123,16 @@
 (defn- unwrap-error-values [arr]
   (mapv #(cond-> % (g/error? %) :value) arr))
 
+(g/defnk produce-reload-signature [reload-signatures]
+  (Murmur3/hashUnordered reload-signatures))
+
 (g/defnode EditorExtensions
   (input project-prototypes g/Any :array :substitute unwrap-error-values)
   (input library-prototypes g/Any :array :substitute unwrap-error-values)
+  (input reload-signatures g/Int :array)
   (output project-prototypes g/Any (gu/passthrough project-prototypes))
-  (output library-prototypes g/Any (gu/passthrough library-prototypes)))
+  (output library-prototypes g/Any (gu/passthrough library-prototypes))
+  (output reload-signature g/Int :cached produce-reload-signature))
 
 (defn make [graph]
   (first (g/tx-nodes-added (g/transact (g/make-node graph EditorExtensions)))))
@@ -886,6 +893,13 @@
 
 ;; region public API
 
+(defn reload-needed?
+  "Return true if reloading editor scripts would change the runtime"
+  [project evaluation-context]
+  (let [extensions (g/node-value project :editor-extensions evaluation-context)]
+    (not= (:reload-signature (g/user-data extensions :state))
+          (g/node-value extensions :reload-signature evaluation-context))))
+
 (defn reload!
   "Reload the extensions
 
@@ -992,6 +1006,7 @@
              new-state (re-create-ext-state
                          (assoc opts
                            :rt rt
+                           :reload-signature (g/node-value extensions :reload-signature evaluation-context)
                            :library-prototypes (if (or (= :all kind) (= :library kind))
                                                  (g/node-value extensions :library-prototypes evaluation-context)
                                                  (:library-prototypes old-state []))
