@@ -37,7 +37,7 @@
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Cursor Node Parent]
            [javafx.scene.control ColorPicker PopupControl Skin Slider ToggleButton]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input MouseEvent ScrollEvent]
            [javafx.scene.layout StackPane]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]))
@@ -81,8 +81,27 @@
                                        (when on-selected-changed
                                          (on-selected-changed v)))}]}})
 
+(def ^:private scroll-slider-step-ratio 0.04)
+
+(defn- scroll-slider-value [^Slider slider ^ScrollEvent event ^double snap-to]
+  (let [direction (compare (.getDeltaY event) 0.0)
+        min-value (.getMin slider)
+        max-value (.getMax slider)
+        step (* scroll-slider-step-ratio (- max-value min-value))
+        step (if snap-to (max step snap-to) step)
+        value (+ (.getValue slider) (* direction step))]
+    (cond-> (-> value
+                (max min-value)
+                (min max-value))
+            snap-to
+            (-> (/ snap-to)
+                Math/round
+                (* snap-to)
+                (max min-value)
+                (min max-value)))))
+
 (defn- ext-safe-popup-slider
-  [{:keys [popup] :as props}]
+  [{:keys [popup snap-to] :as props}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [^Slider slider]
                  (let [pressed? (volatile! false)
@@ -102,6 +121,14 @@
                                      (changed [this _ _ _]
                                        (when (try-install!)
                                          (.removeListener (.skinProperty slider) this)))))))
+                 (.addEventFilter slider ScrollEvent/SCROLL
+                                  (ui/event-handler event
+                                    (when (and (not (.isDisabled slider))
+                                               (not (zero? (.getDeltaY ^ScrollEvent event))))
+                                      (let [value (scroll-slider-value slider event snap-to)]
+                                        (.consume ^ScrollEvent event)
+                                        (when (not= value (.getValue slider))
+                                          (.setValue slider value))))))
                  (doto slider
                    (.setOnMouseEntered (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
                    (.setOnMouseExited  (ui/event-handler _ (.setAutoHide ^PopupControl popup true)))))
