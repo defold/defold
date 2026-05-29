@@ -93,6 +93,11 @@ def _existing_dirs(paths):
     return [path for path in paths if os.path.isdir(path)]
 
 
+def _append_unique_tag(tags, tag):
+    if tag and tag not in tags:
+        tags.append(tag)
+
+
 def get_private_library_paths(platform):
     root = get_platform_root(platform)
     if not root:
@@ -141,26 +146,22 @@ def get_platform_file_tags(platform):
         target = platform.split('-')[-1]
 
     tags = []
-    def append_tag(tag):
-        if tag and tag not in tags:
-            tags.append(tag)
-
-    append_tag(target)
+    _append_unique_tag(tags, target)
 
     if target == 'nx64':
-        append_tag('switch')
-        append_tag('nintendo')
+        _append_unique_tag(tags, 'switch')
+        _append_unique_tag(tags, 'nintendo')
     elif target in ('ps4', 'ps5'):
-        append_tag('playstation')
-        append_tag('sony')
+        _append_unique_tag(tags, 'playstation')
+        _append_unique_tag(tags, 'sony')
     elif target == 'xbone':
-        append_tag('xbox')
-        append_tag('microsoft')
-        append_tag('win32')
+        _append_unique_tag(tags, 'xbox')
+        _append_unique_tag(tags, 'microsoft')
+        _append_unique_tag(tags, 'win32')
 
     if target in ('macos', 'ios'):
-        append_tag('darwin')
-        append_tag('apple')
+        _append_unique_tag(tags, 'darwin')
+        _append_unique_tag(tags, 'apple')
 
     return tags
 
@@ -171,21 +172,17 @@ def get_private_platform_file_tags(platform):
         target = platform.split('-')[-1]
 
     tags = []
-    def append_tag(tag):
-        if tag and tag not in tags:
-            tags.append(tag)
-
-    append_tag(target)
+    _append_unique_tag(tags, target)
 
     if target == 'nx64':
-        append_tag('switch')
-        append_tag('nintendo')
+        _append_unique_tag(tags, 'switch')
+        _append_unique_tag(tags, 'nintendo')
     elif target in ('ps4', 'ps5'):
-        append_tag('playstation')
-        append_tag('sony')
+        _append_unique_tag(tags, 'playstation')
+        _append_unique_tag(tags, 'sony')
     elif target == 'xbone':
-        append_tag('xbox')
-        append_tag('microsoft')
+        _append_unique_tag(tags, 'xbox')
+        _append_unique_tag(tags, 'microsoft')
 
     return tags
 
@@ -196,12 +193,8 @@ def get_platform_file_fallback_tags(platform):
         target = platform.split('-')[-1]
 
     tags = []
-    def append_tag(tag):
-        if tag and tag not in tags:
-            tags.append(tag)
-
     if target in ('android', 'ios', 'linux', 'macos', 'web'):
-        append_tag('posix')
+        _append_unique_tag(tags, 'posix')
 
     return tags
 
@@ -269,11 +262,9 @@ def find_platform_files(bld, platform, path, public_fallback = True, private_roo
 def get_platform_variant_tags(platform):
     tags = []
     for tag in reversed(get_platform_file_tags(platform)):
-        if tag not in tags:
-            tags.append(tag)
+        _append_unique_tag(tags, tag)
     for tag in reversed(get_private_platform_file_tags(platform)):
-        if tag not in tags:
-            tags.append(tag)
+        _append_unique_tag(tags, tag)
     return tags
 
 
@@ -331,12 +322,8 @@ def get_feature_extra_tags(platform, extra_tags):
         extra_tags = [extra_tags]
 
     tags = []
-    def append_tag(tag):
-        if tag and tag not in tags:
-            tags.append(tag)
-
     for tag in extra_tags:
-        append_tag(tag)
+        _append_unique_tag(tags, tag)
     return tags
 
 
