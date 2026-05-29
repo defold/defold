@@ -136,8 +136,8 @@
 (g/defnode EditorExtensions
   (input project-prototypes g/Any :array :substitute unwrap-error-values)
   (input library-prototypes g/Any :array :substitute unwrap-error-values)
-  (input project-reload-signatures g/Int :array)
-  (input library-reload-signatures g/Int :array)
+  (input project-reload-signatures g/Int :array :substitute gu/array-subst-remove-errors)
+  (input library-reload-signatures g/Int :array :substitute gu/array-subst-remove-errors)
   (output project-prototypes g/Any (gu/passthrough project-prototypes))
   (output library-prototypes g/Any (gu/passthrough library-prototypes))
   (output project-reload-signature g/Int :cached produce-project-reload-signature)
