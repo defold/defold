@@ -92,7 +92,7 @@
     (-> value (max min-value) (min max-value))))
 
 (defn- ext-safe-popup-slider
-  [{:keys [popup snap-to on-value-changed] :as props}]
+  [{:keys [popup] :as props}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [^Slider slider]
                  (let [pressed? (volatile! false)
