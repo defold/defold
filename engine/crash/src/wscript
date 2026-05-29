@@ -8,6 +8,7 @@ def configure(conf):
 def build(bld):
     load_addrs = 'load_addrs_null.cpp'
     sig_handler = 'backtrace_null.cpp'
+    signal_policy = ''
     file_handler = 'file_null.cpp'
 
     crashnull = bld.stlib(features = 'cxx',
@@ -22,22 +23,27 @@ def build(bld):
     is_win32 = bld.env['PLATFORM'] in ['win32', 'x86_64-win32']
     if 'android' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_libunwind_ndk.cpp'
+        signal_policy = 'backtrace_signal_policy_linux.cpp'
         load_addrs = 'load_addrs_proc_smap.cpp'
         file_handler = 'file_posix.cpp'
     elif 'linux' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_execinfo.cpp'
+        signal_policy = 'backtrace_signal_policy_linux.cpp'
         load_addrs = 'load_addrs_proc_smap.cpp'
         file_handler = 'file_posix.cpp'
     elif not ('web' in bld.env['PLATFORM'] or is_win32):
         file_handler = 'file_posix.cpp'
         sig_handler = 'backtrace_execinfo.cpp'
+        signal_policy = 'backtrace_signal_policy_default.cpp'
 
     if 'web' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_web.cpp';
+        signal_policy = ''
         file_handler = 'file_posix.cpp';
 
     if 'macos' in bld.env['PLATFORM'] or 'ios' in bld.env['PLATFORM']:
         load_addrs = 'load_addrs_mach.cpp'
+        signal_policy = 'backtrace_signal_policy_darwin.cpp'
 
     if bld.env['PLATFORM'] in ['x86_64-macos']:
         sig_handler = 'backtrace_libunwind.cpp'
@@ -45,11 +51,13 @@ def build(bld):
     if is_win32:
         load_addrs = 'load_addrs_win32.cpp'
         sig_handler = 'backtrace_win32.cpp'
+        signal_policy = ''
         file_handler = 'file_win32.cpp'
 
     if bld.env['PLATFORM'] in ('arm64-nx64','x86_64-ps4','x86_64-ps5','x86_64-xbone'):
         load_addrs = 'load_addrs_null.cpp'
         sig_handler = 'backtrace_null.cpp'
+        signal_policy = ''
         file_handler = 'file_null.cpp'
 
     crash = bld.stlib(features = 'cxx',
@@ -57,7 +65,7 @@ def build(bld):
                       proto_gen_py = True,
                       proto_gen_cc = True,
                       protoc_includes = '../proto',
-                      source = 'crash.cpp script_crash.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler,
+                      source = 'crash.cpp script_crash.cpp ' + load_addrs + ' ' + sig_handler + ' ' + signal_policy + ' ' + file_handler,
                       uselib = 'LUA',
                       target = 'crashext')
 

@@ -17,10 +17,8 @@
 
 #include <signal.h>
 #include <string.h>
-#if defined(__linux__)
-#include <sys/syscall.h>
-#include <unistd.h>
-#endif
+
+#include "backtrace_signal_policy.h"
 
 namespace dmCrash
 {
@@ -101,63 +99,12 @@ namespace dmCrash
         return previous_signal_action && previous_signal_action->sa_handler == SIG_IGN;
     }
 
-    static inline bool ShouldReturnToOriginalFault(int signum, const siginfo_t* si)
-    {
-#if defined(__APPLE__)
-        if (!si || si->si_signo != signum)
-        {
-            return false;
-        }
-
-        // Returning from the handler only re-triggers the default action for the
-        // original synchronous fault. Darwin also uses positive si_code values
-        // for user-generated signals such as SI_USER and SI_QUEUE, so use the
-        // signal-specific fault codes instead of treating all positive values as
-        // synchronous faults.
-        int code = si->si_code;
-        switch (signum)
-        {
-        case SIGSEGV:
-            return code == SEGV_MAPERR || code == SEGV_ACCERR;
-        case SIGTRAP:
-            return code == TRAP_BRKPT || code == TRAP_TRACE;
-        case SIGBUS:
-            return code == BUS_ADRALN || code == BUS_ADRERR || code == BUS_OBJERR;
-        case SIGILL:
-            return code == ILL_ILLOPC || code == ILL_ILLTRP || code == ILL_PRVOPC ||
-                   code == ILL_ILLOPN || code == ILL_ILLADR || code == ILL_PRVREG ||
-                   code == ILL_COPROC || code == ILL_BADSTK;
-        default:
-            return false;
-        }
-#else
-        (void)signum;
-        (void)si;
-        return false;
-#endif
-    }
-
     static inline void RaiseDefaultSignalHandler(int signum, const siginfo_t* si)
     {
         if (!IsValidSignal(signum))
         {
             return;
         }
-
-#if defined(__linux__)
-        if (si && si->si_signo == signum)
-        {
-            int result = syscall(SYS_rt_tgsigqueueinfo,
-                                 getpid(),
-                                 syscall(SYS_gettid),
-                                 signum,
-                                 si);
-            if (result == 0)
-            {
-                return;
-            }
-        }
-#endif
 
         if (ShouldReturnToOriginalFault(signum, si))
         {
