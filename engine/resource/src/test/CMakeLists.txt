@@ -6,8 +6,10 @@ include(defold)
 set(RESOURCE_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(RESOURCE_ROOT "${RESOURCE_TEST_ROOT}/../..")
 set(RESOURCE_SRC_DIR "${RESOURCE_ROOT}/src")
-set(RESOURCE_TEST_BUILD_DIR "${RESOURCE_ROOT}/build/src/test")
+set(RESOURCE_TEST_RUN_DIR "${DEFOLD_RESOURCE_BINARY_DIR}/resource-test-runtime")
+set(RESOURCE_TEST_BUILD_DIR "${RESOURCE_TEST_RUN_DIR}/build/src/test")
 set(RESOURCE_TEST_DATA_SCRIPT "${RESOURCE_TEST_ROOT}/build_cmake_test_data.py")
+file(MAKE_DIRECTORY "${RESOURCE_TEST_RUN_DIR}")
 
 find_program(RESOURCE_PYTHON NAMES python3 python)
 if(NOT RESOURCE_PYTHON)
@@ -224,6 +226,35 @@ add_custom_command(
   VERBATIM
   COMMENT "Copying resource test file somedata")
 
+set(RESOURCE_STATIC_TEST_SOURCES)
+set(RESOURCE_STATIC_TEST_DIRS)
+foreach(_resource_static_dir IN ITEMS archive_data files mountfiles overrides zipfiles)
+  if(EXISTS "${RESOURCE_TEST_ROOT}/${_resource_static_dir}")
+    list(APPEND RESOURCE_STATIC_TEST_DIRS "${_resource_static_dir}")
+    file(GLOB_RECURSE _resource_static_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false "${RESOURCE_TEST_ROOT}/${_resource_static_dir}/*")
+    list(APPEND RESOURCE_STATIC_TEST_SOURCES ${_resource_static_sources})
+  endif()
+endforeach()
+
+set(RESOURCE_STATIC_TEST_STAMP "${CMAKE_CURRENT_BINARY_DIR}/.runtime/static_test_data.stamp")
+set(RESOURCE_STATIC_TEST_COPY_COMMANDS)
+foreach(_resource_static_dir IN LISTS RESOURCE_STATIC_TEST_DIRS)
+  list(APPEND RESOURCE_STATIC_TEST_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+      "${RESOURCE_TEST_ROOT}/${_resource_static_dir}"
+      "${RESOURCE_TEST_RUN_DIR}/src/test/${_resource_static_dir}")
+endforeach()
+add_custom_command(
+  OUTPUT "${RESOURCE_STATIC_TEST_STAMP}"
+  COMMAND "${CMAKE_COMMAND}" -E remove_directory "${RESOURCE_TEST_RUN_DIR}/src/test"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${RESOURCE_TEST_RUN_DIR}/src/test"
+  ${RESOURCE_STATIC_TEST_COPY_COMMANDS}
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.runtime"
+  COMMAND "${CMAKE_COMMAND}" -E touch "${RESOURCE_STATIC_TEST_STAMP}"
+  DEPENDS ${RESOURCE_STATIC_TEST_SOURCES}
+  VERBATIM
+  COMMENT "Staging resource test source data")
+
 add_custom_target(resource_test_data DEPENDS
   ${RESOURCE_ARCHIVE_NO_LU_OUTPUTS}
   ${RESOURCE_ARCHIVE_UNCOMPRESSED_OUTPUTS}
@@ -233,7 +264,8 @@ add_custom_target(resource_test_data DEPENDS
   ${RESOURCE_PB_OUTPUTS}
   ${RESOURCE_OVERRIDE_OUTPUTS}
   "${RESOURCE_EMPTY_SCRIPT_OUTPUT}"
-  "${RESOURCE_TEST_BUILD_DIR}/somedata")
+  "${RESOURCE_TEST_BUILD_DIR}/somedata"
+  "${RESOURCE_STATIC_TEST_STAMP}")
 
 function(resource_configure_test target run_test)
   set(_resource_exports ${ARGN})
@@ -261,7 +293,7 @@ function(resource_configure_test target run_test)
     target_link_libraries(${target} PRIVATE Threads::Threads dl)
   endif()
   add_dependencies(${target} resource_test_data)
-  defold_register_test_target(${target} ${run_test} "${RESOURCE_ROOT}"
+  defold_register_test_target(${target} ${run_test} "${RESOURCE_TEST_RUN_DIR}"
     STAGE_FILES
       "src/test/archive_data" "src/test/archive_data"
       "src/test/files" "src/test/files"

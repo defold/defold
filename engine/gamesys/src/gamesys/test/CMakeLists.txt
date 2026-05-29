@@ -8,9 +8,10 @@ include(defold)
 set(GS_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_ROOT  "${CMAKE_CURRENT_LIST_DIR}/..")
 set(GS_PROTO_DIR "${GS_SRC_ROOT}/../../proto/gamesys")
-get_filename_component(GS_TEST_RUN_DIR "${GS_TEST_ROOT}/../../.." ABSOLUTE)
 get_filename_component(GS_ENGINE_CONTENT_DIR "${GS_TEST_ROOT}/../../../../engine/content" ABSOLUTE)
+set(GS_TEST_RUN_DIR "${DEFOLD_GAMESYS_BINARY_DIR}/gamesys-test-runtime")
 set(GS_TEST_RUNTIME_DIR "${GS_TEST_RUN_DIR}/build/src/gamesys/test")
+file(MAKE_DIRECTORY "${GS_TEST_RUN_DIR}")
 
 # When included from engine/gamesys, the 'gamesys' target is already defined.
 # If configured standalone, callers must provide/link appropriate libs.
@@ -53,7 +54,7 @@ endfunction()
 
 # ---------------------------------------------------------------------------
 # Test content setup
-# Build the runtime test content tree in the same location Waf uses.
+# Build the runtime test content tree under the platform build root.
 # ---------------------------------------------------------------------------
 find_package(Java REQUIRED COMPONENTS Runtime)
 
@@ -241,6 +242,19 @@ add_custom_command(
   VERBATIM)
 add_custom_target(gamesys_http_test_content DEPENDS "${_GS_HTTP_TEST_CONTENT_STAMP}")
 add_dependencies(gamesys_http_test_content gamesys_test_content)
+
+set(_GS_HTTP_CONFIG_RUNTIME "${GS_TEST_RUN_DIR}/src/gamesys/test/http/test_http.config.raw")
+add_custom_command(
+  OUTPUT "${_GS_HTTP_CONFIG_RUNTIME}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${GS_TEST_RUN_DIR}/src/gamesys/test/http"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+    "${GS_TEST_ROOT}/http/test_http.config.raw"
+    "${_GS_HTTP_CONFIG_RUNTIME}"
+  DEPENDS "${GS_TEST_ROOT}/http/test_http.config.raw"
+  COMMENT "Staging gamesys HTTP test config"
+  VERBATIM)
+add_custom_target(gamesys_http_test_config DEPENDS "${_GS_HTTP_CONFIG_RUNTIME}")
+add_dependencies(gamesys_http_test_content gamesys_http_test_config)
 
 # ---------------------------------------------------------------------------
 # Exported symbols helper (prevents stripping by linker and ensures adapters)

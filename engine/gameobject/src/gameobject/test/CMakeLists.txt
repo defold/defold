@@ -7,7 +7,9 @@ set(GAMEOBJECT_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 get_filename_component(GAMEOBJECT_ROOT "${GAMEOBJECT_TEST_ROOT}/../../.." ABSOLUTE)
 set(GAMEOBJECT_SRC_DIR "${GAMEOBJECT_ROOT}/src")
 set(GAMEOBJECT_PROTO_ROOT "${GAMEOBJECT_ROOT}/proto")
-set(GAMEOBJECT_TEST_RUNTIME_DIR "${GAMEOBJECT_ROOT}/build/src/gameobject/test")
+set(GAMEOBJECT_TEST_RUN_DIR "${DEFOLD_GAMEOBJECT_BINARY_DIR}/gameobject-test-runtime")
+set(GAMEOBJECT_TEST_RUNTIME_DIR "${GAMEOBJECT_TEST_RUN_DIR}/build/src/gameobject/test")
+file(MAKE_DIRECTORY "${GAMEOBJECT_TEST_RUN_DIR}")
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 find_package(Java COMPONENTS Runtime Development REQUIRED)
@@ -246,7 +248,7 @@ function(gameobject_add_test dir)
     find_package(Threads REQUIRED)
     target_link_libraries(${_target} PRIVATE Threads::Threads dl)
   endif()
-  defold_register_test_target(${_target} ON "${GAMEOBJECT_ROOT}"
+  defold_register_test_target(${_target} ON "${GAMEOBJECT_TEST_RUN_DIR}"
     STAGE_FILES
       "build/src/gameobject/test/${dir}" "build/src/gameobject/test/${dir}")
   if(_resources)
