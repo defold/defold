@@ -83,11 +83,18 @@
 
 (def ^:private scroll-slider-step-ratio 0.03)
 
+(defn- slider-tick-spacing ^double [^Slider slider]
+  (if (zero? (.getMinorTickCount slider))
+    (.getMajorTickUnit slider)
+    (/ (.getMajorTickUnit slider) (inc (.getMinorTickCount slider)))))
+
 (defn- scroll-slider-value [^Slider slider ^ScrollEvent event]
   (let [direction (compare (.getDeltaY event) 0.0)
         min-value (.getMin slider)
         max-value (.getMax slider)
-        step (* ^double scroll-slider-step-ratio (- max-value min-value))
+        step (if (.isSnapToTicks slider)
+               (slider-tick-spacing slider)
+               (* ^double scroll-slider-step-ratio (- max-value min-value)))
         value (+ (.getValue slider) (* direction step))]
     (-> value (max min-value) (min max-value))))
 
@@ -119,18 +126,14 @@
                                       (let [value (scroll-slider-value slider event)]
                                         (.consume ^ScrollEvent event)
                                         (when (not= value (.getValue slider))
-                                          (.setValue slider value))))))
+                                          (.adjustValue slider value))))))
                  (doto slider
                    (.setOnMouseEntered (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
                    (.setOnMouseExited  (ui/event-handler _ (.setAutoHide ^PopupControl popup true)))))
    :desc (assoc (dissoc props :popup) :fx/type fx.slider/lifecycle)})
 
 (defn- make-slider-row [{:keys [popup key label disabled? min max snap-to state swap-state slider-value->string on-value-changed]}]
-  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
-        snap-fn (if snap-to
-                  (fn [^double v]
-                    (* (double snap-to) (Math/round (/ v (double snap-to)))))
-                  identity)]
+  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))]
     {:fx/type fxui/horizontal
      :style-class "spaced"
      :disable (boolean (when disabled? (disabled? state)))
