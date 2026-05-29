@@ -14,6 +14,7 @@ set(GS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_DIR "${GS_ROOT}/src/gamesys")
 set(GS_DMSDK_SRC_DIR "${GS_ROOT}/src")
 set(GS_PROTO_DIR "${GS_ROOT}/proto/gamesys")
+set(GS_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 
 # ========= Protobuf (DDF) =========
 # Mirror wscript: include all proto files under proto/gamesys except model_ddf.proto
@@ -290,7 +291,7 @@ defold_target_link_libraries(script_box2d_defold "${TARGET_PLATFORM}" SCOPE PUBL
 
 foreach(_target IN ITEMS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold)
     add_dependencies(${_target} gamesys_proto_cpp)
-    target_include_directories(${_target} PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+    target_include_directories(${_target} PUBLIC "${GS_GENERATED_INCLUDE_DIR}")
 endforeach()
 
 # ========= Android Java (optional) =========

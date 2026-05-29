@@ -30,6 +30,13 @@
 #if defined(_WIN32)
 #include <io.h>
 #include <windows.h>
+#if defined(WINAPI_FAMILY_PARTITION) && defined(WINAPI_PARTITION_DESKTOP)
+    #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+        #define DM_TEST_WIN32_DESKTOP
+    #endif
+#elif !defined(WINAPI_FAMILY_PARTITION)
+    #define DM_TEST_WIN32_DESKTOP
+#endif
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
 #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
 #endif
@@ -149,14 +156,16 @@ struct EngineCtx
 
 static bool IsInteractiveStdout()
 {
-#if defined(_WIN32)
+#if defined(DM_TEST_WIN32_DESKTOP)
     return _isatty(_fileno(stdout)) != 0;
+#elif defined(_WIN32)
+    return false;
 #else
     return isatty(fileno(stdout)) != 0;
 #endif
 }
 
-#if defined(_WIN32)
+#if defined(DM_TEST_WIN32_DESKTOP)
 static bool EnableVirtualTerminalProcessing()
 {
     HANDLE stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -346,7 +355,7 @@ static void* EngineCreate(int argc, char** argv)
     EngineCtx* engine = (EngineCtx*)&g_EngineCtx;
     memset(engine, 0, sizeof(EngineCtx));
     engine->m_InteractiveOutput = IsInteractiveStdout();
-#if defined(_WIN32)
+#if defined(DM_TEST_WIN32_DESKTOP)
     if (engine->m_InteractiveOutput && !EnableVirtualTerminalProcessing())
     {
         engine->m_InteractiveOutput = false;

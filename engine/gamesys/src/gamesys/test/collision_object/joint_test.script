@@ -51,8 +51,10 @@ local function test_native_b2d_joints(self)
 
     local body_a = b2d.get_body(self.a_coll)
     local body_b = b2d.get_body(self.b_coll)
+    local body_c = b2d.get_body(self.c_coll)
     assert(body_a ~= nil)
     assert(body_b ~= nil)
+    assert(body_c ~= nil)
 
     local managed_joint_id = "native_managed_joint"
     physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, managed_joint_id, zp, self.b_coll, zp)
@@ -231,8 +233,14 @@ local function test_native_b2d_joints(self)
         assert_near(b2d.joint.get_ratio(pulley_joint), 1.5)
         b2d.joint.destroy(pulley_joint)
 
+        local invalid_gear_revolute_joint = b2d.joint.create_revolute(body_a, body_b)
+        local invalid_gear_prismatic_joint = b2d.joint.create_prismatic(body_a, body_b)
+        assert_error(function() b2d.joint.create_gear(invalid_gear_revolute_joint, invalid_gear_prismatic_joint) end)
+        b2d.joint.destroy(invalid_gear_prismatic_joint)
+        b2d.joint.destroy(invalid_gear_revolute_joint)
+
         local gear_revolute_joint = b2d.joint.create_revolute(body_a, body_b)
-        local gear_prismatic_joint = b2d.joint.create_prismatic(body_a, body_b)
+        local gear_prismatic_joint = b2d.joint.create_prismatic(body_a, body_c)
         local gear_joint = b2d.joint.create_gear(gear_revolute_joint, gear_prismatic_joint, {
             ratio = 2,
         })
@@ -257,6 +265,8 @@ function init(self)
     self.a_coll = self.a .. "#collisionobject"
     self.b = "joint_test_b"
     self.b_coll = self.b .. "#collisionobject"
+    self.c = "joint_test_c"
+    self.c_coll = self.c .. "#joint_test_static_floor"
     self.joint_id = "test_joint"
 
     test_native_b2d_joints(self)

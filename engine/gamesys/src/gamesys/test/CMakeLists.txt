@@ -291,6 +291,7 @@ set(_GS_TEST_INCLUDES
   "${GS_SRC_ROOT}"
   "${GS_PROTO_DIR}"
   "${_GS_EMBED_ROOT}"
+  "${GS_GENERATED_INCLUDE_DIR}"
   "${CMAKE_CURRENT_BINARY_DIR}")
 
 function(gamesys_configure_common_test target)
@@ -353,7 +354,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
 
   defold_add_executable(test_gamesys_http ${TEST_GS_HTTP_SOURCES} ${_TEST3_EXPORTED_CPP})
   add_dependencies(test_gamesys_http gamesys_http_test_content)
-  target_include_directories(test_gamesys_http PRIVATE "${GS_SRC_ROOT}" "${GS_PROTO_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+  target_include_directories(test_gamesys_http PRIVATE "${GS_SRC_ROOT}" "${GS_PROTO_DIR}" "${GS_GENERATED_INCLUDE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
   target_link_libraries(test_gamesys_http PRIVATE gamesys gamesys_rig_null gamesys_model_null)
   defold_target_link_libraries(test_gamesys_http ${TARGET_PLATFORM} ${_DEFOLD_TEST_LIBS})
   defold_target_link_bullet3d(test_gamesys_http ${TARGET_PLATFORM})

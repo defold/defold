@@ -20,6 +20,7 @@ import java.util.jar.Attributes
 import java.util.jar.Manifest
 import java.util.zip.CRC32
 import java.util.zip.ZipFile
+import groovy.json.JsonSlurper
 
 apply plugin: 'java'
 gradle.startParameter.parallelProjectExecutionEnabled = true
@@ -135,6 +136,40 @@ sourceSets {
 
 def bobLightDependencyJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
 def bobGitRevision = "git -C ${project.bobDir} log --pretty=%H -n1".execute().text.trim()
+def privateBobPluginModules = []
+def targetPlatform = (project.findProperty('target-platform') ?: System.getenv('DYNAMO_TARGET_PLATFORM') ?: '').toString()
+def platformsConfigFile = file("${project.bobDir}/../../.defold-platforms")
+if (targetPlatform && platformsConfigFile.exists()) {
+    def platformsConfig = new JsonSlurper().parse(platformsConfigFile)
+    def platformConfig = platformsConfig[targetPlatform]
+    if (platformConfig instanceof Map) {
+        if (platformConfig.root) {
+            def root = platformConfig.root.toString()
+            def crDir = file("${root}/com.dynamo.cr")
+            if (crDir.isDirectory()) {
+                crDir.eachDirMatch(~/com\.dynamo\.cr\..+/) { moduleDir ->
+                    if (moduleDir.name != 'com.dynamo.cr.bob' && moduleDir.name != 'com.dynamo.cr.bob.test') {
+                        def sourceDir = file("${moduleDir}/src")
+                        def buildFile = file("${moduleDir}/build.gradle")
+                        if (sourceDir.isDirectory() && buildFile.exists()) {
+                            def matcher = buildFile.getText('UTF-8') =~ /archiveFileName\s*=\s*['"]([^'"]+\.jar)['"]/
+                            if (matcher.find()) {
+                                privateBobPluginModules << [
+                                        name: moduleDir.name,
+                                        sourceDir: sourceDir,
+                                        jarName: matcher.group(1)
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+def privateBobPluginClassPath = privateBobPluginModules.collect { "plugins/${it.jarName}" }.join(' ')
+def privateBobPluginJarTasks = []
 
 task copyDependencies {
     inputs.file("${project.bobDir}/engine_version_generator.py")
@@ -182,6 +217,47 @@ task compileSrc(type: JavaCompile, dependsOn: [compileGenerated, copyDependencie
     options.encoding = 'UTF-8'
     options.compilerArgs << '-g'
     outputs.dir(project.classesDir)
+}
+
+privateBobPluginModules.each { module ->
+    def taskSuffix = module.name.replaceAll(/[^A-Za-z0-9]/, '_')
+    def pluginClassesDir = file("${project.bobDir}/build/private_plugins/${module.name}")
+
+    def compileTask = tasks.create(name: "compilePrivatePlugin_${taskSuffix}", type: JavaCompile) {
+        dependsOn compileSrc
+        source = fileTree(module.sourceDir)
+        destinationDirectory = pluginClassesDir
+        include '**/*.java'
+        classpath = files(project.classesDir) + sourceSets.main.compileClasspath
+        options.encoding = 'UTF-8'
+        options.compilerArgs << '-g'
+        outputs.dir(pluginClassesDir)
+    }
+
+    def jarTask = tasks.create(name: "createPrivatePluginJar_${taskSuffix}", type: Jar) {
+        dependsOn compileTask
+        archiveFileName = module.jarName
+        destinationDirectory = file("${project.bobDir}/dist/plugins")
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        from pluginClassesDir
+        outputs.file("${project.bobDir}/dist/plugins/${module.jarName}")
+    }
+
+    privateBobPluginJarTasks << jarTask
+}
+
+task installPrivatePluginJars(dependsOn: privateBobPluginJarTasks) {
+    doLast {
+        privateBobPluginModules.each { module ->
+            copy {
+                from "${project.bobDir}/dist/plugins/${module.jarName}"
+                into "${project.dynamoHome}/share/java/plugins"
+            }
+        }
+    }
+}
+
+task installPrivatePlugins(dependsOn: 'installBobLight') {
 }
 
 task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) {
@@ -329,6 +405,8 @@ task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
 }
 
 task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLibsLightJar, createLuaJitShareZip]) {
+    dependsOn privateBobPluginJarTasks
+
     archiveFileName = 'bob-light.jar'
     destinationDirectory = file("${project.bobDir}/dist")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -360,7 +438,11 @@ task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLib
     outputs.file("${project.bobDir}/dist/bob-light.jar")
 
     manifest {
-        attributes 'Main-Class': 'com.dynamo.bob.Bob', 'is-bob-light': 'true'
+        def attrs = ['Main-Class': 'com.dynamo.bob.Bob', 'is-bob-light': 'true']
+        if (privateBobPluginClassPath) {
+            attrs['Class-Path'] = privateBobPluginClassPath
+        }
+        attributes attrs
     }
 }
 
@@ -490,6 +572,8 @@ def addParallelArchiveEntry = { ParallelScatterZipCreator creator, Set<String> s
 }
 
 task createBobJar(dependsOn: [compileBobLight, createExternalLibsBuiltinsJar, createLuaJitShareZip]) {
+    dependsOn privateBobPluginJarTasks
+
     def outputFile = file("${project.bobDir}/dist/bob.jar")
 
     inputs.dir(project.classesDir)
@@ -499,6 +583,7 @@ task createBobJar(dependsOn: [compileBobLight, createExternalLibsBuiltinsJar, cr
     inputs.property('keep-bob-uncompressed', project.hasProperty('keep-bob-uncompressed'))
     inputs.property('gradle-version', gradle.gradleVersion)
     inputs.property('created-by', "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})")
+    inputs.property('private-bob-plugin-class-path', privateBobPluginClassPath)
     outputs.file(outputFile)
 
     doLast {
@@ -557,11 +642,15 @@ task createBobJar(dependsOn: [compileBobLight, createExternalLibsBuiltinsJar, cr
             try {
                 zipOutputStream.setUseZip64(Zip64Mode.AsNeeded)
                 zipOutputStream.setMethod(compressionMethod)
-                writeArchiveEntry(zipOutputStream, 'META-INF/MANIFEST.MF', createManifestBytes([
+                def manifestAttributes = [
                         'Main-Class': 'com.dynamo.bob.Bob',
                         'Gradle-Version': gradle.gradleVersion,
                         'Created-By': "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
-                ]), compressionMethod)
+                ]
+                if (privateBobPluginClassPath) {
+                    manifestAttributes['Class-Path'] = privateBobPluginClassPath
+                }
+                writeArchiveEntry(zipOutputStream, 'META-INF/MANIFEST.MF', createManifestBytes(manifestAttributes), compressionMethod)
                 directoryPaths.each { directoryPath ->
                     writeArchiveEntry(zipOutputStream, directoryPath, new byte[0], compressionMethod)
                 }
@@ -592,12 +681,17 @@ task distBob(dependsOn: ['compile', 'createBobJar']) {
     }
 }
 
-task installBobLight(type: Copy, dependsOn: ['distBobLight']) {
-    from "${project.bobDir}/dist/bob-light.jar"
-    into "${project.dynamoHome}/share/java"
+task installBobLight(dependsOn: 'distBobLight') {
+    doLast {
+        copy {
+            from "${project.bobDir}/dist/bob-light.jar"
+            into "${project.dynamoHome}/share/java"
+        }
+    }
 }
+installBobLight.finalizedBy installPrivatePluginJars
 
-task install(dependsOn: ['distBob']) {
+task install(dependsOn: 'distBob') {
     doLast {
         copy {
             from "${project.bobDir}/dist/bob.jar"
@@ -605,3 +699,4 @@ task install(dependsOn: ['distBob']) {
         }
     }
 }
+install.finalizedBy installPrivatePluginJars
