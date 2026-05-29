@@ -58,7 +58,9 @@ endfunction()
 
 set(_GAMEOBJECT_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
 if(NOT EXISTS "${_GAMEOBJECT_BOB_LIGHT}")
-  message(FATAL_ERROR "bob-light.jar not found: ${_GAMEOBJECT_BOB_LIGHT}")
+  if(NOT TARGET bob_light)
+    message(FATAL_ERROR "bob-light.jar not found and bob_light target is unavailable: ${_GAMEOBJECT_BOB_LIGHT}")
+  endif()
 endif()
 
 set(_GAMEOBJECT_TEST_DATA_FOLDERS_FILE "${GAMEOBJECT_TEST_ROOT}/test_data_folders.txt")
