@@ -80,8 +80,12 @@
                              msg     string message, may be multiline
     :project-prototypes    vector of project-owned editor script Prototypes
     :library-prototypes    vector of library-provided editor script Prototypes
-    :reload-signature      hash of editor script paths and lines when the
-                           runtime was last reloaded
+    :project-reload-signature
+                           hash of project editor script paths and lines when
+                           the runtime was last reloaded
+    :library-reload-signature
+                           hash of library editor script paths and lines when
+                           the runtime was last reloaded
     :rt                    editor script runtime
     :all                   map of module function keyword to a vector of tuples:
                              path      proj-path of an editor script
@@ -123,16 +127,21 @@
 (defn- unwrap-error-values [arr]
   (mapv #(cond-> % (g/error? %) :value) arr))
 
-(g/defnk produce-reload-signature [reload-signatures]
-  (Murmur3/hashUnordered reload-signatures))
+(g/defnk produce-project-reload-signature [project-reload-signatures]
+  (Murmur3/hashUnordered project-reload-signatures))
+
+(g/defnk produce-library-reload-signature [library-reload-signatures]
+  (Murmur3/hashUnordered library-reload-signatures))
 
 (g/defnode EditorExtensions
   (input project-prototypes g/Any :array :substitute unwrap-error-values)
   (input library-prototypes g/Any :array :substitute unwrap-error-values)
-  (input reload-signatures g/Int :array)
+  (input project-reload-signatures g/Int :array)
+  (input library-reload-signatures g/Int :array)
   (output project-prototypes g/Any (gu/passthrough project-prototypes))
   (output library-prototypes g/Any (gu/passthrough library-prototypes))
-  (output reload-signature g/Int :cached produce-reload-signature))
+  (output project-reload-signature g/Int :cached produce-project-reload-signature)
+  (output library-reload-signature g/Int :cached produce-library-reload-signature))
 
 (defn make [graph]
   (first (g/tx-nodes-added (g/transact (g/make-node graph EditorExtensions)))))
@@ -896,9 +905,12 @@
 (defn reload-needed?
   "Return true if reloading editor scripts would change the runtime"
   [project evaluation-context]
-  (let [extensions (g/node-value project :editor-extensions evaluation-context)]
-    (not= (:reload-signature (g/user-data extensions :state))
-          (g/node-value extensions :reload-signature evaluation-context))))
+  (let [extensions (g/node-value project :editor-extensions evaluation-context)
+        state (g/user-data extensions :state)]
+    (or (not= (:project-reload-signature state)
+              (g/node-value extensions :project-reload-signature evaluation-context))
+        (not= (:library-reload-signature state)
+              (g/node-value extensions :library-reload-signature evaluation-context)))))
 
 (defn reload!
   "Reload the extensions
@@ -943,6 +955,8 @@
              script-annotations (project/script-annotations project evaluation-context)
              extensions (g/node-value project :editor-extensions evaluation-context)
              old-state (ext-state project evaluation-context)
+             reload-project (or (= :all kind) (= :project kind))
+             reload-library (or (= :all kind) (= :library kind))
              workspace (project/workspace project evaluation-context)
              project-path (.toPath (workspace/project-directory basis workspace))
              rt (rt/make
@@ -1006,11 +1020,16 @@
              new-state (re-create-ext-state
                          (assoc opts
                            :rt rt
-                           :reload-signature (g/node-value extensions :reload-signature evaluation-context)
-                           :library-prototypes (if (or (= :all kind) (= :library kind))
+                           :project-reload-signature (if reload-project
+                                                       (g/node-value extensions :project-reload-signature evaluation-context)
+                                                       (:project-reload-signature old-state))
+                           :library-reload-signature (if reload-library
+                                                       (g/node-value extensions :library-reload-signature evaluation-context)
+                                                       (:library-reload-signature old-state))
+                           :library-prototypes (if reload-library
                                                  (g/node-value extensions :library-prototypes evaluation-context)
                                                  (:library-prototypes old-state []))
-                           :project-prototypes (if (or (= :all kind) (= :project kind))
+                           :project-prototypes (if reload-project
                                                  (g/node-value extensions :project-prototypes evaluation-context)
                                                  (:project-prototypes old-state [])))
                          evaluation-context)

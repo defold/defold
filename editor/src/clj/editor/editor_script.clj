@@ -60,10 +60,11 @@
                                  :lazy-loaded false
                                  :additional-load-fn
                                  (fn [project self resource]
-                                   (let [extensions (g/node-value project :editor-extensions)
-                                         target (if (resource/file-resource? resource)
-                                                  :project-prototypes
-                                                  :library-prototypes)]
-                                     (concat
-                                       (g/connect self :prototype extensions target)
-                                       (g/connect self :reload-signature extensions :reload-signatures))))))
+                                   (let [extensions (g/node-value project :editor-extensions)]
+                                     (if (resource/file-resource? resource)
+                                       (concat
+                                         (g/connect self :prototype extensions :project-prototypes)
+                                         (g/connect self :reload-signature extensions :project-reload-signatures))
+                                       (concat
+                                         (g/connect self :prototype extensions :library-prototypes)
+                                         (g/connect self :reload-signature extensions :library-reload-signatures)))))))
