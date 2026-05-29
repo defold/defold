@@ -98,7 +98,7 @@
                                       :doc "required, user-visible command name, either a string or a localization message"}
                                      {:name "locations"
                                       :types ["string[]"]
-                                      :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), or <code>\"Outline\"</code> (the outline pane)"}
+                                      :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), <code>\"Outline\"</code> (the outline pane), <code>\"Scene\"</code> (the scene view), or <code>\"Code\"</code> (the code editor)"}
                                      {:name "query"
                                       :types ["table"]
                                       :doc (str "optional, a query that both controls the command availability and provides additional information to the command handler functions; a table with the following keys:"
@@ -109,7 +109,7 @@
                                                               (lua-completion/args-doc-html
                                                                 [{:name "type"
                                                                   :types ["string"]
-                                                                  :doc "either <code>\"resource\"</code> (selected resource) or <code>\"outline\"</code> (selected outline node)"}
+                                                                  :doc "either <code>\"resource\"</code> (selected resource), <code>\"outline\"</code> (selected outline node), or <code>\"scene\"</code> (selected scene node)"}
                                                                  {:name "cardinality"
                                                                   :types ["string"]
                                                                   :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}

@@ -404,7 +404,7 @@
       ;; Run the separate scene command from the Scene context menu.
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
-                              (eval-handler-contexts :global [sprite-node-id])
+                              (eval-handler-contexts :workbench [sprite-node-id])
                               {})]
         (is (= [1.0 1.0 1.0] (test-util/prop sprite-node-id :scale)))
         (is (some? handler+context))
@@ -774,7 +774,7 @@ scene.node.get_parent_succeeds=false
                            (is (handler/enabled? handler+context))
                            @(handler/run handler+context)))]
       (run-command! :editor.outline-view/context-menu-end :outline [sprite-outline] "Outline Parent Chain Test")
-      (run-command! :editor.scene-selection/context-menu-end :global [sprite-node-id] "Scene Parent Chain Test")
+      (run-command! :editor.scene-selection/context-menu-end :workbench [sprite-node-id] "Scene Parent Chain Test")
       (expect-script-output expected-outline-selection-parent-chain-test-output out))))
 
 (deftest external-file-attributes-test
