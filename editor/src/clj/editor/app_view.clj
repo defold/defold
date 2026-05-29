@@ -2098,6 +2098,29 @@
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
+(defn- make-reload-editor-scripts-notification-updater [project]
+  (let [last-reload-needed (volatile! nil)]
+    (fn update-reload-editor-scripts-notification! [evaluation-context]
+      (let [workspace (project/workspace project evaluation-context)
+            reload-needed (extensions/reload-needed? project evaluation-context)]
+        (when (not= @last-reload-needed reload-needed)
+          (vreset! last-reload-needed reload-needed)
+          (let [notifications (workspace/notifications workspace evaluation-context)
+                notification-id ::editor-scripts-changed]
+            (g/transact
+              (if reload-needed
+                (notifications/show
+                  notifications
+                  {:id notification-id
+                   :type :info
+                   :message (localization/message "notification.reload-editor-scripts")
+                   :actions [{:message (localization/message "notification.reload-editor-scripts.action.reload")
+                              :on-action #(ui/execute-command
+                                            (ui/contexts (ui/main-scene) true)
+                                            :project.reload-editor-scripts
+                                            nil)}]})
+                (notifications/close notifications notification-id)))))))))
+
 (defn- refresh-menus-and-toolbars! [app-view ^Scene scene evaluation-context]
   (ui/user-data! scene :keymap (g/node-value app-view :keymap evaluation-context))
   (ui/refresh scene evaluation-context))
@@ -2224,6 +2247,7 @@
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
 
       (let [prev-localization-bundle (volatile! nil)
+            reload-editor-scripts-notification-updater (make-reload-editor-scripts-notification-updater project)
             refresh-timer (ui/->timer
                             "refresh-app-view"
                             (fn [_animation-timer _elapsed dt]
@@ -2242,6 +2266,7 @@
                                           (localization/set-bundle! localization ::project localization-bundle)))
                                       (refresh-menus-and-toolbars! app-view app-scene evaluation-context)
                                       (refresh-views! app-view evaluation-context)
+                                      (reload-editor-scripts-notification-updater evaluation-context)
                                       (refresh-app-title! stage project evaluation-context)))
                                   ;; Scene views are always refreshed, since they may play animations.
                                   ;; This performs graph mutations, so needs to manage its own evaluation-contexts.
@@ -3214,6 +3239,7 @@
                                                   (.close out)))))
                      f))
     :web-server web-server)
+  (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
   (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
