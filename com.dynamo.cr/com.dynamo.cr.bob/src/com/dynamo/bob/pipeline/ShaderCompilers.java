@@ -111,9 +111,15 @@ public class ShaderCompilers {
 
     public static class CommonShaderCompiler implements IShaderCompiler {
         private final Platform platform;
+        private final ShaderCompilePipeline.Options baseOptions;
 
         public CommonShaderCompiler(Platform platform) {
+            this(platform, null);
+        }
+
+        public CommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
             this.platform = platform;
+            this.baseOptions = baseOptions;
         }
 
         private void addGlslLanguages(Set<ShaderDesc.Language> shaderLanguages, boolean isComputeType) {
@@ -193,6 +199,10 @@ public class ShaderCompilers {
             boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
+            if (this.baseOptions != null) {
+                opts.externalToolPath = this.baseOptions.externalToolPath;
+                opts.externalToolArgs = this.baseOptions.externalToolArgs;
+            }
             opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
             opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
             opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
@@ -278,6 +288,10 @@ public class ShaderCompilers {
             return null;
         }
         return new CommonShaderCompiler(platform);
+    }
+
+    public static IShaderCompiler GetCommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
+        return new CommonShaderCompiler(platform, baseOptions);
     }
 
     public static ArrayList<ShaderDesc.Language> GetSupportedOpenGLVersionsForPlatform(Platform platform) {
