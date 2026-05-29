@@ -256,13 +256,13 @@
 (def ^:private icon-props
   (into icon-specific-props common-props))
 
-(def image-size-coercer
+(def positive-number-coercer
   (coerce/wrap-with-pred coerce/number pos? "is not positive"))
 
 (def ^:private image-props
   (into [(make-prop :image :coerce coerce/string :required true :doc "either a resource path (starts with <code>/</code>), or an URL")
-         (make-prop :width :coerce image-size-coercer :doc "width of the image view, the image will be fit inside it while preserving its aspect ratio")
-         (make-prop :height :coerce image-size-coercer :doc "height of the image view, the image will be fit inside it while preserving its aspect ratio")]
+         (make-prop :width :coerce positive-number-coercer :doc "width of the image view, the image will be fit inside it while preserving its aspect ratio")
+         (make-prop :height :coerce positive-number-coercer :doc "height of the image view, the image will be fit inside it while preserving its aspect ratio")]
         common-props))
 
 (def ^:private common-input-props
@@ -373,6 +373,15 @@
               :coerce child-coercer
               :types ["component"]
               :doc "content of the dialog")
+   (make-prop :width
+              :coerce positive-number-coercer
+              :doc "initial width of the dialog window in pixels")
+   (make-prop :height
+              :coerce positive-number-coercer
+              :doc "initial height of the dialog window in pixels")
+   (make-prop :resizable
+              :coerce coerce/boolean
+              :doc "determines if the dialog window can be resized by the user")
    (make-prop :buttons
               :coerce children-coercer
               :types ["component[]"]
