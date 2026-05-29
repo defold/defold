@@ -268,14 +268,18 @@ def get_platform_variant_tags(platform):
     return tags
 
 
-def find_platform_variant_files(bld, platform, input_path):
+def find_platform_variant_files(bld, platform, input_path, variant_base_path = None):
+    """Find input_path plus platform variants based on variant_base_path.
+
+    Use variant_base_path when input_path is a generated-file template whose
+    platform variants should be named after the generated output path.
+    """
     files = []
     append_source_file(files, bld.path.find_node(input_path))
 
-    directory, filename = os.path.split(input_path)
+    variant_path = variant_base_path or input_path
+    directory, filename = os.path.split(variant_path)
     basename, extension = os.path.splitext(filename)
-    if basename.endswith('_input'):
-        basename = basename[:-len('_input')]
 
     for tag in get_platform_variant_tags(platform):
         path = os.path.join(directory, '%s_%s%s' % (basename, tag, extension))
@@ -285,14 +289,13 @@ def find_platform_variant_files(bld, platform, input_path):
     return files
 
 
-def find_configured_platform_variant_files(bld, input_path):
+def find_configured_platform_variant_files(bld, input_path, variant_base_path = None):
     files = []
     append_source_file(files, bld.path.find_node(input_path))
 
-    directory, filename = os.path.split(input_path)
+    variant_path = variant_base_path or input_path
+    directory, filename = os.path.split(variant_path)
     basename, extension = os.path.splitext(filename)
-    if basename.endswith('_input'):
-        basename = basename[:-len('_input')]
 
     for platform in get_configured_platforms():
         for tag in get_platform_variant_tags(platform):

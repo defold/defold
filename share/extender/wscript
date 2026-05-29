@@ -53,17 +53,24 @@ def configure(conf):
 
 def build(bld):
 
-    source = find_configured_platform_variant_files(bld, 'build_input.yml')
+    # build_input.yml is the template for generated build.yml. Platform variants
+    # are named after the generated output, e.g. build_ios.yml.
+    source_target = 'build.yml'
+    source = find_configured_platform_variant_files(bld, 'build_input.yml', source_target)
 
     bld(features = 'merge_yaml',
         yaml_source = source,
-        yaml_target = 'build.yml',
+        yaml_target = source_target,
         name='Build Yaml')
 
     variants = ('debug', 'release', 'headless')
     for variant in variants:
-        source = find_configured_platform_variant_files(bld, 'variants/%s_input.appmanifest' % variant)
         source_target = 'variants/%s.appmanifest' % variant
+        # *_input.appmanifest files are templates for generated manifests.
+        # Platform variants use the generated output basename, e.g.
+        # variants/debug_ios.appmanifest.
+        source = find_configured_platform_variant_files(
+            bld, 'variants/%s_input.appmanifest' % variant, source_target)
 
         bld(features = 'merge_yaml',
             yaml_source = source,
