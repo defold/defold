@@ -63,6 +63,8 @@
                 [:run :quit-on-escape]
                 [:asset-browser :track-active-tab]
                 [:build :lint-code]
+                [:scene :high-dpi-viewport]
+                [:scene :hardware-antialiasing]
                 [:window :locale]
                 [:run :engine-arguments]]}
        {:pattern (localization/message "prefs.tab.code")

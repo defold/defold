@@ -39,6 +39,7 @@
             [editor.math :as math]
             [editor.os :as os]
             [editor.pose :as pose]
+            [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.render-util :as render-util]
@@ -192,6 +193,7 @@
 (defonce ^:private cached-buf-img-ref (atom nil))
 (defonce ^:private cached-camera-inset-buf-img-ref (atom nil))
 (def ^:private camera-inset-passes [pass/background pass/opaque pass/transparent])
+(def ^:private ^:const scene-viewport-antialiasing-samples 4)
 
 ;; Replacement for Screenshot/readToBufferedImage but without expensive y-axis flip.
 ;; We flip in JavaFX instead
@@ -343,6 +345,168 @@
 (defn gl-viewport [^GL2 gl ^Region viewport]
   (.glViewport gl (.left viewport) (.top viewport) (- (.right viewport) (.left viewport)) (- (.bottom viewport) (.top viewport))))
 
+(defn- gl-get-integer
+  ^long [^GL2 gl ^long param]
+  (let [out (int-array 1)]
+    (.glGetIntegerv gl (int param) out 0)
+    (aget out 0)))
+
+(defn- render-viewport
+  ^Region [^long width ^long height]
+  (types/->Region 0 width 0 height))
+
+(defn- make-renderbuffer!
+  [^GL2 gl internal-format width height samples]
+  (let [ids (int-array 1)
+        samples (long samples)]
+    (.glGenRenderbuffers gl 1 ids 0)
+    (let [id (aget ids 0)]
+      (.glBindRenderbuffer gl GL2/GL_RENDERBUFFER id)
+      (if (> samples 1)
+        (.glRenderbufferStorageMultisample gl GL2/GL_RENDERBUFFER (int samples) (int internal-format) (int width) (int height))
+        (.glRenderbufferStorage gl GL2/GL_RENDERBUFFER (int internal-format) (int width) (int height)))
+      id)))
+
+(defn- delete-framebuffer!
+  [^GL2 gl ^long framebuffer]
+  (when (pos? framebuffer)
+    (.glDeleteFramebuffers gl 1 (int-array [(int framebuffer)]) 0)))
+
+(defn- delete-renderbuffer!
+  [^GL2 gl ^long renderbuffer]
+  (when (pos? renderbuffer)
+    (.glDeleteRenderbuffers gl 1 (int-array [(int renderbuffer)]) 0)))
+
+(defn- dispose-multisample-state!
+  [multisample-state ^GL2 gl]
+  (when multisample-state
+    (delete-framebuffer! gl (:msaa-framebuffer multisample-state 0))
+    (delete-framebuffer! gl (:resolve-framebuffer multisample-state 0))
+    (delete-renderbuffer! gl (:msaa-color-renderbuffer multisample-state 0))
+    (delete-renderbuffer! gl (:msaa-depth-stencil-renderbuffer multisample-state 0))
+    (delete-renderbuffer! gl (:resolve-color-renderbuffer multisample-state 0))))
+
+(defn- multisample-framebuffer-status-message
+  ^String [^long status]
+  (case status
+    GL2/GL_FRAMEBUFFER_COMPLETE "complete"
+    GL2/GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT "incomplete attachment"
+    GL2/GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT "missing attachment"
+    GL2/GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER "incomplete draw buffer"
+    GL2/GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER "incomplete read buffer"
+    GL2/GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE "incomplete multisample"
+    GL2/GL_FRAMEBUFFER_UNSUPPORTED "unsupported"
+    (str "status 0x" (Long/toHexString status))))
+
+(defn- check-framebuffer-complete!
+  [^GL2 gl label]
+  (let [status (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER)]
+    (when-not (= GL2/GL_FRAMEBUFFER_COMPLETE status)
+      (throw (ex-info (str "Incomplete scene viewport " label " framebuffer: "
+                           (multisample-framebuffer-status-message status))
+                      {:label label
+                       :status status})))))
+
+(defn- create-multisample-state!
+  [^GL2 gl ^long width ^long height ^long requested-samples]
+  (let [max-samples (gl-get-integer gl GL2/GL_MAX_SAMPLES)
+        samples (min requested-samples max-samples)]
+    (when (> samples 1)
+      (let [framebuffers (int-array 2)]
+        (.glGenFramebuffers gl 2 framebuffers 0)
+        (let [msaa-framebuffer (aget framebuffers 0)
+              resolve-framebuffer (aget framebuffers 1)
+              msaa-color-renderbuffer (make-renderbuffer! gl GL/GL_RGBA8 width height samples)
+              msaa-depth-stencil-renderbuffer (make-renderbuffer! gl GL/GL_DEPTH24_STENCIL8 width height samples)
+              resolve-color-renderbuffer (make-renderbuffer! gl GL/GL_RGBA8 width height 1)]
+          (try
+            (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER msaa-framebuffer)
+            (.glFramebufferRenderbuffer gl GL2/GL_FRAMEBUFFER GL2/GL_COLOR_ATTACHMENT0 GL2/GL_RENDERBUFFER msaa-color-renderbuffer)
+            (.glFramebufferRenderbuffer gl GL2/GL_FRAMEBUFFER GL2/GL_DEPTH_STENCIL_ATTACHMENT GL2/GL_RENDERBUFFER msaa-depth-stencil-renderbuffer)
+            (.glDrawBuffer gl GL2/GL_COLOR_ATTACHMENT0)
+            (.glReadBuffer gl GL2/GL_COLOR_ATTACHMENT0)
+            (check-framebuffer-complete! gl "multisample")
+
+            (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER resolve-framebuffer)
+            (.glFramebufferRenderbuffer gl GL2/GL_FRAMEBUFFER GL2/GL_COLOR_ATTACHMENT0 GL2/GL_RENDERBUFFER resolve-color-renderbuffer)
+            (.glDrawBuffer gl GL2/GL_COLOR_ATTACHMENT0)
+            (.glReadBuffer gl GL2/GL_COLOR_ATTACHMENT0)
+            (check-framebuffer-complete! gl "resolve")
+
+            {:width width
+             :height height
+             :requested-samples requested-samples
+             :samples samples
+             :msaa-framebuffer msaa-framebuffer
+             :resolve-framebuffer resolve-framebuffer
+             :msaa-color-renderbuffer msaa-color-renderbuffer
+             :msaa-depth-stencil-renderbuffer msaa-depth-stencil-renderbuffer
+             :resolve-color-renderbuffer resolve-color-renderbuffer}
+            (catch Throwable error
+              (dispose-multisample-state!
+                {:msaa-framebuffer msaa-framebuffer
+                 :resolve-framebuffer resolve-framebuffer
+                 :msaa-color-renderbuffer msaa-color-renderbuffer
+                 :msaa-depth-stencil-renderbuffer msaa-depth-stencil-renderbuffer
+                 :resolve-color-renderbuffer resolve-color-renderbuffer}
+                gl)
+              (throw error))
+            (finally
+              (.glBindRenderbuffer gl GL2/GL_RENDERBUFFER 0)
+              (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER 0))))))))
+
+(defn- matching-multisample-state?
+  [multisample-state width height requested-samples]
+  (and (= width (:width multisample-state))
+       (= height (:height multisample-state))
+       (= requested-samples (:requested-samples multisample-state))))
+
+(defn- ensure-multisample-state!
+  [multisample-state-atom ^GL2 gl width height requested-samples]
+  (let [multisample-state @multisample-state-atom]
+    (cond
+      (<= requested-samples 1)
+      (do
+        (dispose-multisample-state! multisample-state gl)
+        (reset! multisample-state-atom nil)
+        nil)
+
+      (and (:unsupported? multisample-state)
+           (matching-multisample-state? multisample-state width height requested-samples))
+      nil
+
+      (matching-multisample-state? multisample-state width height requested-samples)
+      multisample-state
+
+      :else
+      (do
+        (dispose-multisample-state! multisample-state gl)
+        (try
+          (let [new-state (create-multisample-state! gl width height requested-samples)]
+            (reset! multisample-state-atom
+                    (or new-state
+                        {:unsupported? true
+                         :width width
+                         :height height
+                         :requested-samples requested-samples}))
+            new-state)
+          (catch Throwable error
+            (log/warn :message "Hardware antialiasing is not available for the scene viewport."
+                      :exception error)
+            (reset! multisample-state-atom {:unsupported? true
+                                            :width width
+                                            :height height
+                                            :requested-samples requested-samples})
+            nil))))))
+
+(defn- resolve-multisample-framebuffer!
+  [^GL2 gl {:keys [^long width ^long height ^long msaa-framebuffer ^long resolve-framebuffer]}]
+  (.glBindFramebuffer gl GL2/GL_READ_FRAMEBUFFER (int msaa-framebuffer))
+  (.glBindFramebuffer gl GL2/GL_DRAW_FRAMEBUFFER (int resolve-framebuffer))
+  (.glReadBuffer gl GL2/GL_COLOR_ATTACHMENT0)
+  (.glDrawBuffer gl GL2/GL_COLOR_ATTACHMENT0)
+  (.glBlitFramebuffer gl 0 0 (int width) (int height) 0 0 (int width) (int height) GL/GL_COLOR_BUFFER_BIT GL/GL_NEAREST))
+
 (defn setup-pass
   [^GL2 gl pass render-args]
   (let [glu (GLU.)]
@@ -483,23 +647,25 @@
     (map #(assoc (render-util/make-aabb-outline-renderable #{}) :aabb %))))
 
 (defn- render!
-  [^GLContext context render-mode renderables updatable-states viewport pass->render-args [clear-r clear-g clear-b clear-a]]
-  (let [^GL2 gl (.getGL context)
-        batch-key (render-mode-batch-key render-mode)]
-    (gl/gl-clear gl clear-r clear-g clear-b clear-a)
-    (.glColor4f gl 1.0 1.0 1.0 1.0)
-    (gl-viewport gl viewport)
-    (doseq [pass (render-mode-passes render-mode)
-            :let [pass-render-args (cond-> (pass->render-args pass)
-                                     (and (= render-mode :picking-rect)
-                                          (some? @last-picking-rect))
-                                     (picking-render-args viewport @last-picking-rect))
-                  pass-renderables (-> (get renderables pass)
-                                       (assoc-updatable-states updatable-states))]]
-      (setup-pass gl pass pass-render-args)
-      (if (= render-mode :aabbs)
-        (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
-        (batch-render gl pass-render-args pass-renderables batch-key)))))
+  ([^GLContext context render-mode renderables updatable-states viewport pass->render-args clear-color]
+   (render! context render-mode renderables updatable-states viewport viewport pass->render-args clear-color))
+  ([^GLContext context render-mode renderables updatable-states viewport surface-viewport pass->render-args [clear-r clear-g clear-b clear-a]]
+   (let [^GL2 gl (.getGL context)
+         batch-key (render-mode-batch-key render-mode)]
+     (gl/gl-clear gl clear-r clear-g clear-b clear-a)
+     (.glColor4f gl 1.0 1.0 1.0 1.0)
+     (gl-viewport gl surface-viewport)
+     (doseq [pass (render-mode-passes render-mode)
+             :let [pass-render-args (cond-> (pass->render-args pass)
+                                      (and (= render-mode :picking-rect)
+                                           (some? @last-picking-rect))
+                                      (picking-render-args viewport @last-picking-rect))
+                   pass-renderables (-> (get renderables pass)
+                                        (assoc-updatable-states updatable-states))]]
+       (setup-pass gl pass pass-render-args)
+       (if (= render-mode :aabbs)
+         (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
+         (batch-render gl pass-render-args pass-renderables batch-key))))))
 
 (g/defnk produce-camera-inset-data [scene-render-data updatable-states ^GLAutoDrawable camera-inset-drawable]
   (when-some [{:keys [camera clear-color display-width display-height render-width render-height]} (make-camera-inset-render-data scene-render-data)]
@@ -1237,6 +1403,7 @@
   (inherits SceneRenderer)
 
   (property app-view g/NodeID)
+  (property prefs g/Any)
   (property image-view ImageView)
   (property viewport Region (default (g/constantly (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
@@ -1245,6 +1412,7 @@
   (property camera-inset-drawable GLAutoDrawable)
   (property picking-drawable GLAutoDrawable)
   (property async-copy-state g/Any)
+  (property multisample-state g/Any)
   (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
   (property updatable-states g/Any)
@@ -1304,6 +1472,47 @@
   (let [w4 (c/camera-unproject camera viewport screen-pos)]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
+(defn- node-output-scale
+  ^doubles [^Node node]
+  (if-some [^Window window (some-> node .getScene .getWindow)]
+    (double-array [(.getOutputScaleX window)
+                   (.getOutputScaleY window)])
+    (double-array [1.0 1.0])))
+
+(defn- high-dpi-scene-viewport?
+  [prefs]
+  (if prefs
+    (prefs/get prefs [:scene :high-dpi-viewport])
+    true))
+
+(defn- requested-antialiasing-samples
+  ^long [prefs]
+  (if (and prefs
+           (prefs/get prefs [:scene :hardware-antialiasing]))
+    scene-viewport-antialiasing-samples
+    1))
+
+(defn- scaled-surface-size
+  [^Node node prefs ^double width ^double height]
+  (let [scale (if (high-dpi-scene-viewport? prefs)
+                (node-output-scale node)
+                (double-array [1.0 1.0]))]
+    [(int (max 1.0 (Math/ceil (* width (aget scale 0)))))
+     (int (max 1.0 (Math/ceil (* height (aget scale 1)))))]))
+
+(defn- ensure-surface-size!
+  [^ImageView image-view prefs ^GLAutoDrawable drawable async-copy-state-atom]
+  (let [width (.getFitWidth image-view)
+        height (.getFitHeight image-view)]
+    (when (and (pos? width) (pos? height))
+      (let [[surface-width surface-height] (scaled-surface-size image-view prefs width height)
+            async-copy-state @async-copy-state-atom]
+        (when (or (not= surface-width (:width async-copy-state))
+                  (not= surface-height (:height async-copy-state)))
+          (.setSurfaceSize ^GLOffscreenAutoDrawable drawable surface-width surface-height)
+          (reset! async-copy-state-atom (scene-async/request-resize! async-copy-state surface-width surface-height))
+          true)))))
+
 (defn view->camera
   ([view]
    (view->camera (g/now) view))
@@ -1351,32 +1560,38 @@
 
 (defn dispose-scene-view! [node-id]
   (when (g/node-by-id node-id)
-    (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
-      (gl/with-drawable-as-current drawable
-        (scene-cache/drop-context! gl)
-        (when-let [async-copy-state-atom (g/node-value node-id :async-copy-state)]
-          (scene-async/dispose! @async-copy-state-atom gl))
-        (.glFinish gl))
-      (.destroy drawable))
-    (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
-      (gl/with-drawable-as-current picking-drawable
-        (scene-cache/drop-context! gl)
-        (.glFinish gl))
-      (.destroy picking-drawable))
-    (when (supports-camera-inset-drawable? node-id)
-      (when-let [^GLAutoDrawable camera-inset-drawable (g/node-value node-id :camera-inset-drawable)]
-        (gl/with-drawable-as-current camera-inset-drawable
+    (let [scene-view? (supports-camera-inset-drawable? node-id)]
+      (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
+        (gl/with-drawable-as-current drawable
+          (scene-cache/drop-context! gl)
+          (when-let [async-copy-state-atom (g/node-value node-id :async-copy-state)]
+            (scene-async/dispose! @async-copy-state-atom gl))
+          (when-let [multisample-state-atom (when scene-view?
+                                              (g/node-value node-id :multisample-state))]
+            (dispose-multisample-state! @multisample-state-atom gl))
+          (.glFinish gl))
+        (.destroy drawable))
+      (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
+        (gl/with-drawable-as-current picking-drawable
           (scene-cache/drop-context! gl)
           (.glFinish gl))
-        (.destroy camera-inset-drawable)))
-    (fxui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
-    (g/transact
-      (concat
-        (g/set-property node-id :drawable nil)
-        (g/set-property node-id :picking-drawable nil)
-        (when (supports-camera-inset-drawable? node-id)
-          (g/set-property node-id :camera-inset-drawable nil))
-        (g/set-property node-id :async-copy-state nil)))))
+        (.destroy picking-drawable))
+      (when scene-view?
+        (when-let [^GLAutoDrawable camera-inset-drawable (g/node-value node-id :camera-inset-drawable)]
+          (gl/with-drawable-as-current camera-inset-drawable
+            (scene-cache/drop-context! gl)
+            (.glFinish gl))
+          (.destroy camera-inset-drawable)))
+      (fxui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
+      (g/transact
+        (concat
+          (g/set-property node-id :drawable nil)
+          (g/set-property node-id :picking-drawable nil)
+          (when scene-view?
+            (g/set-property node-id :camera-inset-drawable nil))
+          (g/set-property node-id :async-copy-state nil)
+          (when scene-view?
+            (g/set-property node-id :multisample-state nil)))))))
 
 (defn active-scene-view
   ([app-view]
@@ -1672,7 +1887,13 @@
             active-updatables)))
 
 (defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
-  (let [action-queue (g/user-data view-id ::input-action-queue)
+  (let [scene-view? (supports-camera-inset-drawable? view-id)
+        prefs (when scene-view?
+                (g/node-value view-id :prefs))
+        surface-size-changed? (ensure-surface-size! image-view prefs drawable async-copy-state-atom)
+        antialiasing-samples (requested-antialiasing-samples prefs)
+        last-antialiasing-samples (ui/user-data image-view ::last-antialiasing-samples)
+        action-queue (g/user-data view-id ::input-action-queue)
         [render-mode tool-user-data play-mode active-updatables updatable-states]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value view-id :render-mode evaluation-context)
@@ -1690,6 +1911,8 @@
         frame-version (cond-> (or last-frame-version 0)
                         (or (nil? last-renderables)
                             (not (identical? last-renderables renderables))
+                            surface-size-changed?
+                            (not= last-antialiasing-samples antialiasing-samples)
                             (and has-active-updatables (= :playing play-mode)))
                         inc)]
     (profiler/profile "input-dispatch" -1
@@ -1724,11 +1947,25 @@
                   [(g/node-value view-id :viewport evaluation-context)
                    (g/node-value view-id :pass->render-args evaluation-context)])]
             (scene-cache/process-pending-deletions! gl)
-            (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args [0.0 0.0 0.0 1.0])
+            (let [{:keys [width height]} @async-copy-state-atom]
+              (try
+                (let [multisample-state (when-let [multisample-state-atom (when scene-view?
+                                                                            (g/node-value view-id :multisample-state))]
+                                          (ensure-multisample-state! multisample-state-atom gl width height antialiasing-samples))
+                      render-framebuffer (int (:msaa-framebuffer multisample-state 0))
+                      read-framebuffer (int (:resolve-framebuffer multisample-state 0))]
+                  (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER render-framebuffer)
+                  (render! gl-context render-mode renderables new-updatable-states viewport (render-viewport width height) pass->render-args [0.0 0.0 0.0 1.0])
+                  (when multisample-state
+                    (resolve-multisample-framebuffer! gl multisample-state))
+                  (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER read-framebuffer)
+                  (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl)))
+                (finally
+                  (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER 0))))
             (ui/user-data! image-view ::last-renderables renderables)
             (ui/user-data! image-view ::last-frame-version frame-version)
-            (scene-cache/prune-context! gl)
-            (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
+            (ui/user-data! image-view ::last-antialiasing-samples antialiasing-samples)
+            (scene-cache/prune-context! gl)))))
     ;; call frame-selection if it's the very first aabb change for the scene
     (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
           [scene-aabb reframing-info]
@@ -1892,7 +2129,9 @@
                (layoutChildren []
                  (let [this ^com.defold.control.Region this
                        width (.getWidth this)
-                       height (.getHeight this)]
+                       height (.getHeight this)
+                       prefs (:prefs opts)
+                       [surface-width surface-height] (scaled-surface-size this prefs width height)]
                    (try
                      (.setFitWidth image-view width)
                      (.setFitHeight image-view height)
@@ -1902,11 +2141,14 @@
                          (g/transact (g/set-property view-id :viewport viewport))
                          (if-let [view-id (ui/user-data image-view ::view-id)]
                            (when-some [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
-                             (doto drawable
-                               (.setSurfaceSize width height))
                              (let [async-copy-state-atom (g/node-value view-id :async-copy-state)]
-                               (reset! async-copy-state-atom (scene-async/request-resize! @async-copy-state-atom width height))))
-                           (let [drawable (gl/offscreen-drawable width height)
+                               (when (or (not= surface-width (:width @async-copy-state-atom))
+                                         (not= surface-height (:height @async-copy-state-atom)))
+                                 (doto drawable
+                                   (.setSurfaceSize surface-width surface-height))
+                                 (reset! async-copy-state-atom (scene-async/request-resize! @async-copy-state-atom surface-width surface-height))
+                                 (ui/user-data! image-view ::last-frame-version nil))))
+                           (let [drawable (gl/offscreen-drawable surface-width surface-height)
                                  picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
                                  camera-inset-drawable (when (supports-camera-inset-drawable? view-id)
                                                          (gl/offscreen-drawable camera-inset-width camera-inset-height))]
@@ -1915,16 +2157,17 @@
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
-                            (if camera-inset-drawable
+                             (if camera-inset-drawable
                               (g/set-properties! view-id
                                                 :drawable drawable
                                                 :picking-drawable picking-drawable
                                                 :camera-inset-drawable camera-inset-drawable
-                                                :async-copy-state (atom (scene-async/make-async-copy-state width height)))
+                                                :async-copy-state (atom (scene-async/make-async-copy-state surface-width surface-height))
+                                                :multisample-state (atom nil))
                               (g/set-properties! view-id
                                                 :drawable drawable
                                                 :picking-drawable picking-drawable
-                                                :async-copy-state (atom (scene-async/make-async-copy-state width height))))
+                                                :async-copy-state (atom (scene-async/make-async-copy-state surface-width surface-height))))
                              (frame-selection! view-id false)))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))
@@ -1949,7 +2192,7 @@
     scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]
-  (let [view-id (g/make-node! scene-graph SceneView :updatable-states {} :app-view (:app-view opts))
+  (let [view-id (g/make-node! scene-graph SceneView :updatable-states {} :app-view (:app-view opts) :prefs (:prefs opts))
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
     (ui/with-controls scene-view-pane [overlay-anchor-pane]

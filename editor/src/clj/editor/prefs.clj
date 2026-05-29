@@ -235,6 +235,8 @@
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}
+             :high-dpi-viewport {:type :boolean :default true}
+             :hardware-antialiasing {:type :boolean :default false}
              :grid {:type :object
                     :scope :project
                     :properties {:size {:type :object
