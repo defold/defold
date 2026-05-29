@@ -176,7 +176,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     ${_raw_copy_commands}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
-    DEPENDS "${_GS_BOB_STAGE_STAMP}" "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES}
+    DEPENDS "${_GS_BOB_STAGE_STAMP}" "${_GS_BOB_LIGHT}" "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES}
     WORKING_DIRECTORY "${_GS_BOB_STAGE_ROOT}"
     COMMENT "Building gamesys test data folder ${_folder}"
     VERBATIM)

@@ -102,7 +102,7 @@ function(gameobject_build_test_data out_target dir)
       --proto-include "${GAMEOBJECT_ROOT}/../ddf/src"
       --proto-include "${DEFOLD_SDK_ROOT}/share/proto"
       --proto-include "${DEFOLD_SDK_ROOT}/ext/include"
-    DEPENDS "${GAMEOBJECT_TEST_ROOT}/build_test_data.py" "${_inputs_file}" ${_folder_sources}
+    DEPENDS "${GAMEOBJECT_TEST_ROOT}/build_test_data.py" "${_GAMEOBJECT_BOB_LIGHT}" "${_inputs_file}" ${_folder_sources}
     WORKING_DIRECTORY "${GAMEOBJECT_TEST_ROOT}"
     COMMENT "Building gameobject test data folder ${dir}"
     VERBATIM)

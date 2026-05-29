@@ -683,9 +683,26 @@ task distBob(dependsOn: ['compile', 'createBobJar']) {
 
 task installBobLight(dependsOn: 'distBobLight') {
     doLast {
-        copy {
-            from "${project.bobDir}/dist/bob-light.jar"
-            into "${project.dynamoHome}/share/java"
+        def sourceFile = file("${project.bobDir}/dist/bob-light.jar")
+        def destinationDir = file("${project.dynamoHome}/share/java")
+        def destinationFile = file("${destinationDir}/bob-light.jar")
+        def temporaryFile = file("${destinationDir}/bob-light.jar.${System.nanoTime()}.tmp")
+
+        if (!sourceFile.exists()) {
+            throw new RuntimeException("File '${sourceFile}' does not exist")
+        }
+
+        destinationDir.mkdirs()
+        java.nio.file.Files.copy(sourceFile.toPath(), temporaryFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        try {
+            java.nio.file.Files.move(temporaryFile.toPath(), destinationFile.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            java.nio.file.Files.move(temporaryFile.toPath(), destinationFile.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            temporaryFile.delete()
         }
     }
 }
