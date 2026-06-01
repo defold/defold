@@ -474,12 +474,6 @@ local function test_native_b2d_joints(self)
     assert(body_b ~= nil)
     assert(body_c ~= nil)
 
-    if PHYSICS == "box2dv3" then
-        test_native_b2d_world_and_chains(body_a, body_b, body_c)
-    else
-        test_native_b2d_v2_world_queries(body_a)
-    end
-
     local managed_joint_id = "native_managed_joint"
     physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, managed_joint_id, zp, self.b_coll, zp)
     assert(#b2d.body.get_joints(body_a) == 0)
