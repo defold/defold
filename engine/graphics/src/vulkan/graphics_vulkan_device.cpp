@@ -520,14 +520,15 @@ namespace dmGraphics
         VkImageAspectFlags vk_image_aspect,
         VkImageLayout vk_to_layout,
         uint32_t base_mip_level,
-        uint32_t layer_count)
+        uint32_t layer_count,
+        dmMutex::HMutex queue_mutex)
     {
         VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(vk_device, vk_command_pool);
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         VkFence fence;
-        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
+        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence, queue_mutex);
 
         // Wait for the copy command to finish
         vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
@@ -645,7 +646,7 @@ namespace dmGraphics
         return cmd_buffer;
     }
 
-    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
+    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out, dmMutex::HMutex queue_mutex)
     {
         VkResult res = vkEndCommandBuffer(cmd);
         if (res != VK_SUCCESS)
@@ -662,7 +663,10 @@ namespace dmGraphics
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &cmd;
 
-        res = vkQueueSubmit(queue, 1, &submit_info, fence);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue_mutex);
+            res = vkQueueSubmit(queue, 1, &submit_info, fence);
+        }
         if (res != VK_SUCCESS)
         {
             return res;
@@ -1577,6 +1581,16 @@ bail:
 
     void DestroyLogicalDevice(LogicalDevice* device)
     {
+        if (device->m_QueueMutex)
+        {
+            dmMutex::Delete(device->m_QueueMutex);
+            device->m_QueueMutex = 0;
+        }
+        if (device->m_AsyncUploadMutex)
+        {
+            dmMutex::Delete(device->m_AsyncUploadMutex);
+            device->m_AsyncUploadMutex = 0;
+        }
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
         vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
@@ -1728,6 +1742,11 @@ bail:
                 vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 
                 res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPoolWorker);
+                if (res == VK_SUCCESS)
+                {
+                    logicalDeviceOut->m_QueueMutex       = dmMutex::New();
+                    logicalDeviceOut->m_AsyncUploadMutex = dmMutex::New();
+                }
             }
         }
 
