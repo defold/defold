@@ -61,6 +61,7 @@ namespace dmGameSystem
     }
 
     b2BodyId*   CheckBody(struct lua_State* L, int index);
+    void        PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id);
     b2WorldId*  CheckWorld(struct lua_State* L, int index);
     b2ShapeId*  CheckShapeId(struct lua_State* L, int index);
     b2ShapeId*  ToShapeId(struct lua_State* L, int index);
@@ -73,6 +74,7 @@ namespace dmGameSystem
     void        PushChain(struct lua_State* L, b2ChainId chain_id);
     void        PushShapeId(struct lua_State* L, b2ShapeId shape_id);
     void        PushShapeInfo(struct lua_State* L, b2ShapeId shape, int shape_index);
+    void        PushContactData(struct lua_State* L, const b2ContactData& contact_data);
     B2DShapeDef CheckShapeDef(struct lua_State* L, int index);
     void        CheckShapeCreateDef(struct lua_State* L, int index, B2DShapeDef* out_shape_def, b2ShapeDef* out_shape_create_def);
     void        PushShape(struct lua_State* L, b2ShapeId shape_id);

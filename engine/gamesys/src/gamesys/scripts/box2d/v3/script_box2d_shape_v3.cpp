@@ -20,6 +20,7 @@
 #include <script/script.h>
 #include <gameobject/script.h>
 
+#include "gamesys.h"
 #include "script_box2d_v3.h"
 
 extern "C"
@@ -49,6 +50,37 @@ namespace dmGameSystem
     static dmVMath::Vector3 FromB2(const b2Vec2& p, float inv_scale)
     {
         return dmVMath::Vector3(p.x * inv_scale, p.y * inv_scale, 0);
+    }
+
+    static void PushMassData(lua_State* L, const b2MassData& mass_data)
+    {
+        lua_newtable(L);
+
+        lua_pushnumber(L, mass_data.mass);
+        lua_setfield(L, -2, "mass");
+
+        dmScript::PushVector3(L, FromB2(mass_data.center, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "center");
+
+        lua_pushnumber(L, mass_data.rotationalInertia);
+        lua_setfield(L, -2, "inertia");
+    }
+
+    static void PushCastOutput(lua_State* L, const b2CastOutput& output)
+    {
+        lua_newtable(L);
+
+        dmScript::PushVector3(L, FromB2(output.point, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "point");
+
+        dmScript::PushVector3(L, FromB2(output.normal, 1.0f));
+        lua_setfield(L, -2, "normal");
+
+        lua_pushnumber(L, output.fraction);
+        lua_setfield(L, -2, "fraction");
+
+        lua_pushinteger(L, output.iterations);
+        lua_setfield(L, -2, "iterations");
     }
 
     static bool TryGetNumberField(lua_State* L, int index, const char* field_name, float* out_value)
@@ -520,6 +552,45 @@ namespace dmGameSystem
         lua_setfield(L, -2, "group_index");
     }
 
+    static int Shape_IsValid(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2ShapeId* shape = ToShapeId(L, 1);
+        if (shape)
+        {
+            lua_pushboolean(L, b2Shape_IsValid(*shape));
+            return 1;
+        }
+
+        b2BodyId* body = CheckBody(L, 1);
+        int shape_index = luaL_checkinteger(L, 2);
+        lua_pushboolean(L, b2Shape_IsValid(GetShapeByIndex(*body, shape_index)));
+        return 1;
+    }
+
+    static int Shape_GetBody(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId body = b2Shape_GetBody(CheckShape(L, 1));
+        CollisionComponent* component = (CollisionComponent*)b2Body_GetUserData(body);
+        if (!component || !component->m_Instance)
+        {
+            return luaL_error(L, "Could not resolve shape body owner.");
+        }
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(component->m_Instance);
+        dmhash_t instance_id = dmGameObject::GetIdentifier(component->m_Instance);
+        PushBody(L, &body, collection, instance_id);
+        return 1;
+    }
+
+    static int Shape_GetWorld(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        PushWorldId(L, b2Shape_GetWorld(CheckShape(L, 1)));
+        return 1;
+    }
+
     static int Shape_GetType(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -652,6 +723,62 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Shape_EnableSensorEvents(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Shape_EnableSensorEvents(CheckShape(L, 1), lua_toboolean(L, GetShapeValueIndex(L, 1)));
+        return 0;
+    }
+
+    static int Shape_AreSensorEventsEnabled(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushboolean(L, b2Shape_AreSensorEventsEnabled(CheckShape(L, 1)));
+        return 1;
+    }
+
+    static int Shape_EnableContactEvents(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Shape_EnableContactEvents(CheckShape(L, 1), lua_toboolean(L, GetShapeValueIndex(L, 1)));
+        return 0;
+    }
+
+    static int Shape_AreContactEventsEnabled(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushboolean(L, b2Shape_AreContactEventsEnabled(CheckShape(L, 1)));
+        return 1;
+    }
+
+    static int Shape_EnablePreSolveEvents(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Shape_EnablePreSolveEvents(CheckShape(L, 1), lua_toboolean(L, GetShapeValueIndex(L, 1)));
+        return 0;
+    }
+
+    static int Shape_ArePreSolveEventsEnabled(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushboolean(L, b2Shape_ArePreSolveEventsEnabled(CheckShape(L, 1)));
+        return 1;
+    }
+
+    static int Shape_EnableHitEvents(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Shape_EnableHitEvents(CheckShape(L, 1), lua_toboolean(L, GetShapeValueIndex(L, 1)));
+        return 0;
+    }
+
+    static int Shape_AreHitEventsEnabled(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushboolean(L, b2Shape_AreHitEventsEnabled(CheckShape(L, 1)));
+        return 1;
+    }
+
     static int Shape_GetFilterData(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -692,6 +819,28 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Shape_RayCast(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2ShapeId shape = CheckShape(L, 1);
+        int value_index = GetShapeValueIndex(L, 1);
+
+        b2RayCastInput input = {};
+        input.origin = CheckVec2(L, value_index, GetPhysicsScale());
+        input.translation = CheckVec2(L, value_index + 1, GetPhysicsScale());
+        input.maxFraction = lua_isnoneornil(L, value_index + 2) ? 1.0f : luaL_checknumber(L, value_index + 2);
+
+        b2CastOutput output = b2Shape_RayCast(shape, &input);
+        if (!output.hit)
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+
+        PushCastOutput(L, output);
+        return 1;
+    }
+
     static int Shape_GetAABB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -705,6 +854,92 @@ namespace dmGameSystem
 
         dmScript::PushVector3(L, FromB2(aabb.upperBound, GetInvPhysicsScale()));
         lua_setfield(L, -2, "upper");
+        return 1;
+    }
+
+    static int Shape_GetContactCapacity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushinteger(L, b2Shape_GetContactCapacity(CheckShape(L, 1)));
+        return 1;
+    }
+
+    static int Shape_GetContactData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2ShapeId shape = CheckShape(L, 1);
+        int capacity = b2Shape_GetContactCapacity(shape);
+
+        lua_newtable(L);
+        if (capacity == 0)
+        {
+            return 1;
+        }
+
+        dmArray<b2ContactData> contact_data;
+        contact_data.SetCapacity(capacity);
+        contact_data.SetSize(capacity);
+        int count = b2Shape_GetContactData(shape, contact_data.Begin(), capacity);
+        for (int i = 0; i < count; ++i)
+        {
+            PushContactData(L, contact_data[i]);
+            lua_rawseti(L, -2, i + 1);
+        }
+        return 1;
+    }
+
+    static int Shape_GetSensorCapacity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushinteger(L, b2Shape_GetSensorCapacity(CheckShape(L, 1)));
+        return 1;
+    }
+
+    static int Shape_GetSensorOverlaps(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2ShapeId shape = CheckShape(L, 1);
+        int capacity = b2Shape_GetSensorCapacity(shape);
+
+        lua_newtable(L);
+        if (capacity == 0)
+        {
+            return 1;
+        }
+
+        dmArray<b2ShapeId> overlaps;
+        overlaps.SetCapacity(capacity);
+        overlaps.SetSize(capacity);
+        int count = b2Shape_GetSensorOverlaps(shape, overlaps.Begin(), capacity);
+        int result_index = 1;
+        for (int i = 0; i < count; ++i)
+        {
+            if (!b2Shape_IsValid(overlaps[i]))
+            {
+                continue;
+            }
+
+            b2BodyId body = b2Shape_GetBody(overlaps[i]);
+            PushShapeInfo(L, overlaps[i], GetShapeIndex(body, overlaps[i]));
+            lua_rawseti(L, -2, result_index);
+            ++result_index;
+        }
+        return 1;
+    }
+
+    static int Shape_GetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        PushMassData(L, b2Shape_GetMassData(CheckShape(L, 1)));
+        return 1;
+    }
+
+    static int Shape_GetClosestPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2ShapeId shape = CheckShape(L, 1);
+        b2Vec2 target = CheckVec2(L, GetShapeValueIndex(L, 1), GetPhysicsScale());
+        dmScript::PushVector3(L, FromB2(b2Shape_GetClosestPoint(shape, target), GetInvPhysicsScale()));
         return 1;
     }
 
@@ -744,8 +979,11 @@ namespace dmGameSystem
 
     static const luaL_reg Shape_functions[] =
     {
+        {"is_valid", Shape_IsValid},
         {"get_shape", Shape_GetShape},
         {"set_shape", Shape_SetShape},
+        {"get_body", Shape_GetBody},
+        {"get_world", Shape_GetWorld},
         {"get_type", Shape_GetType},
         {"is_sensor", Shape_IsSensor},
         {"set_sensor", Shape_SetSensor},
@@ -757,11 +995,26 @@ namespace dmGameSystem
         {"set_restitution", Shape_SetRestitution},
         {"get_material", Shape_GetMaterial},
         {"set_material", Shape_SetMaterial},
+        {"enable_sensor_events", Shape_EnableSensorEvents},
+        {"are_sensor_events_enabled", Shape_AreSensorEventsEnabled},
+        {"enable_contact_events", Shape_EnableContactEvents},
+        {"are_contact_events_enabled", Shape_AreContactEventsEnabled},
+        {"enable_pre_solve_events", Shape_EnablePreSolveEvents},
+        {"are_pre_solve_events_enabled", Shape_ArePreSolveEventsEnabled},
+        {"enable_hit_events", Shape_EnableHitEvents},
+        {"are_hit_events_enabled", Shape_AreHitEventsEnabled},
         {"get_filter_data", Shape_GetFilterData},
         {"set_filter_data", Shape_SetFilterData},
         {"refilter", Shape_Refilter},
         {"test_point", Shape_TestPoint},
+        {"ray_cast", Shape_RayCast},
         {"get_aabb", Shape_GetAABB},
+        {"get_contact_capacity", Shape_GetContactCapacity},
+        {"get_contact_data", Shape_GetContactData},
+        {"get_sensor_capacity", Shape_GetSensorCapacity},
+        {"get_sensor_overlaps", Shape_GetSensorOverlaps},
+        {"get_mass_data", Shape_GetMassData},
+        {"get_closest_point", Shape_GetClosestPoint},
         {0,0}
     };
 
@@ -899,4 +1152,116 @@ namespace dmGameSystem
  * @name b2d.shape.set_material
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
  * @param material [type: number] shape material id
+ */
+
+/*# Validate a shape handle.
+ * @name b2d.shape.is_valid
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return valid [type: boolean] true if the shape handle still refers to a live Box2D shape
+ */
+
+/*# Get the body owning a shape.
+ * @name b2d.shape.get_body
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return body [type: b2Body] owning body
+ */
+
+/*# Get the world owning a shape.
+ * @name b2d.shape.get_world
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return world [type: b2World] owning world
+ */
+
+/*# Enable or disable sensor events for a shape.
+ * @name b2d.shape.enable_sensor_events
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @param enable [type: boolean] true to enable sensor events
+ */
+
+/*# Check if sensor events are enabled for a shape.
+ * @name b2d.shape.are_sensor_events_enabled
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return enabled [type: boolean] true if sensor events are enabled
+ */
+
+/*# Enable or disable contact events for a shape.
+ * @name b2d.shape.enable_contact_events
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @param enable [type: boolean] true to enable contact events
+ */
+
+/*# Check if contact events are enabled for a shape.
+ * @name b2d.shape.are_contact_events_enabled
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return enabled [type: boolean] true if contact events are enabled
+ */
+
+/*# Enable or disable pre-solve events for a shape.
+ * @name b2d.shape.enable_pre_solve_events
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @param enable [type: boolean] true to enable pre-solve events
+ */
+
+/*# Check if pre-solve events are enabled for a shape.
+ * @name b2d.shape.are_pre_solve_events_enabled
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return enabled [type: boolean] true if pre-solve events are enabled
+ */
+
+/*# Enable or disable hit events for a shape.
+ * @name b2d.shape.enable_hit_events
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @param enable [type: boolean] true to enable hit events
+ */
+
+/*# Check if hit events are enabled for a shape.
+ * @name b2d.shape.are_hit_events_enabled
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return enabled [type: boolean] true if hit events are enabled
+ */
+
+/*# Ray cast a shape directly.
+ * @name b2d.shape.ray_cast
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @param origin [type: vector3] world ray origin
+ * @param translation [type: vector3] world ray translation
+ * @param max_fraction [type: number] optional maximum translation fraction, defaults to 1
+ * @return hit [type: table] hit table with `point`, `normal`, `fraction`, and `iterations`, or nil
+ */
+
+/*# Get shape contact capacity.
+ * @name b2d.shape.get_contact_capacity
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return capacity [type: number] maximum contact data count
+ */
+
+/*# Get touching contact data for a shape.
+ * @name b2d.shape.get_contact_data
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return contacts [type: table] array of contact tables
+ */
+
+/*# Get sensor overlap capacity.
+ * @name b2d.shape.get_sensor_capacity
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return capacity [type: number] maximum sensor overlap count
+ */
+
+/*# Get sensor overlaps.
+ * @name b2d.shape.get_sensor_overlaps
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return overlaps [type: table] array of shape info tables
+ */
+
+/*# Get mass data for a shape.
+ * @name b2d.shape.get_mass_data
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return data [type: table] table with `mass`, `center`, and `inertia`
+ */
+
+/*# Get the closest point on a shape.
+ * @name b2d.shape.get_closest_point
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @param target [type: vector3] world target point
+ * @return point [type: vector3] closest world point on the shape
  */

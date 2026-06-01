@@ -399,6 +399,21 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Chain_IsValid(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        B2DLuaChain* luachain = CheckChainInternal(L, 1);
+        lua_pushboolean(L, b2Chain_IsValid(luachain->m_Chain));
+        return 1;
+    }
+
+    static int Chain_GetWorld(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        PushWorldId(L, b2Chain_GetWorld(*CheckChain(L, 1)));
+        return 1;
+    }
+
     static int Chain_GetSegmentCount(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -579,6 +594,8 @@ namespace dmGameSystem
     static const luaL_reg Chain_functions[] =
     {
         {"destroy", Chain_Destroy},
+        {"is_valid", Chain_IsValid},
+        {"get_world", Chain_GetWorld},
         {"get_segment_count", Chain_GetSegmentCount},
         {"get_segments", Chain_GetSegments},
         {"get_geometry", Chain_GetGeometry},
@@ -631,6 +648,18 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.chain.destroy
  * @param chain [type: b2Chain] chain
+ */
+
+/*# Validate a chain handle.
+ * @name b2d.chain.is_valid
+ * @param chain [type: b2Chain] chain
+ * @return valid [type: boolean] true if the chain handle still refers to a live Box2D chain
+ */
+
+/*# Get the world owning a chain.
+ * @name b2d.chain.get_world
+ * @param chain [type: b2Chain] chain
+ * @return world [type: b2World] owning world
  */
 
 /*# Get the number of segment shapes in a chain.
