@@ -1490,21 +1490,23 @@
     :on-value-changed      value change callback
     :ignore-alpha          whether the view should ignore the alpha, default
                            false
+    :color-dropper         whether to show the color dropper, default true
     :prefs                 if provided, loads/persists custom colors
     :color                 either :warning or :error"
-  [{:keys [value on-value-changed ignore-alpha prefs editable]
-    :or {editable true}
+  [{:keys [value on-value-changed ignore-alpha color-dropper prefs editable]
+    :or {color-dropper true
+         editable true}
     :as props}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [^Node node]
-                 (ui/user-data! node color-dropper-key (color-dropper/make-color-dropper!)))
+                 (ui/user-data! node ::color-dropper-key (color-dropper/make-color-dropper!)))
    :on-deleted (fn [^Node node]
-                 (when-let [color-dropper (ui/user-data node color-dropper-key)]
+                 (when-let [color-dropper (ui/user-data node ::color-dropper-key)]
                    (color-dropper/deactivate! color-dropper)
-                   (ui/user-data! node color-dropper-key nil)))
+                   (ui/user-data! node ::color-dropper-key nil)))
    :desc
    (-> props
-       (dissoc :value :on-value-changed :ignore-alpha :prefs :editable)
+       (dissoc :value :on-value-changed :ignore-alpha :color-dropper :prefs :editable)
        (assoc
          :fx/type horizontal
          :style-class "ext-color-picker"
@@ -1518,7 +1520,7 @@
                        :editable editable
                        :value value
                        :on-value-changed on-value-changed}
-                      (and on-value-changed editable)
+                      (and color-dropper on-value-changed editable)
                       (assoc
                         :hover-overlay
                         {:fx/type hover-overlay
@@ -1534,17 +1536,9 @@
                           :on-mouse-clicked (fn [^MouseEvent event]
                                               (let [source (.getSource event)]
                                                 (when (instance? Node source)
-                                                  (loop [^Node node source]
-                                                    (cond
-                                                      (nil? node)
-                                                      nil
-
-                                                      (.contains (.getStyleClass node) "ext-color-picker")
-                                                      (when-let [color-dropper (ui/user-data node color-dropper-key)]
-                                                        (color-dropper/activate! color-dropper on-value-changed event))
-
-                                                      :else
-                                                      (recur (.getParent node)))))))}}))
+                                                  (when-let [node (ui/closest-node-with-style "ext-color-picker" source)]
+                                                    (when-let [color-dropper (ui/user-data node ::color-dropper-key)]
+                                                      (color-dropper/activate! color-dropper on-value-changed event))))))}}))
                     (cond-> {:fx/type fx.color-picker/lifecycle
                              :focus-traversable false
                              :disable (not editable)
