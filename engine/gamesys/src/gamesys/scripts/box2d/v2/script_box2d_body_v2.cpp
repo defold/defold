@@ -1133,6 +1133,7 @@ namespace dmGameSystem
 
         lua_setfield(L, -2, "body");
 
+        ScriptBox2DInitializeWorld(L);
         ScriptBox2DInitializeJoint(L);
         ScriptBox2DInitializeFixture(L);
         ScriptBox2DInitializeShape(L);

@@ -374,6 +374,94 @@ local function test_native_b2d_world_and_chains(body_a, body_b, body_c)
     end)
 end
 
+local function test_native_b2d_v2_world_queries(body_a)
+    local world = b2d.get_world()
+    assert(world ~= nil)
+    assert(world == b2d.body.get_world(body_a))
+    assert(b2d.world ~= nil)
+
+    local target = vmath.vector3(100000, 100000, 0)
+    local query_filter = {
+        category_bits = 2,
+        mask_bits = 2,
+        group_index = 0,
+    }
+    local fixture = b2d.body.create_fixture(body_a, {
+        density = 0,
+        shape = {
+            type = b2d.shape.SHAPE_TYPE_CIRCLE,
+            center = target,
+            radius = 1,
+        },
+        filter = query_filter,
+    })
+    assert(fixture ~= nil)
+
+    local function find_fixture_hit(hits, body, fixture_index)
+        for _, hit in ipairs(hits) do
+            local fixture_info = hit.fixture or hit.shape or hit
+            if fixture_info.body == body and fixture_info.index == fixture_index then
+                return hit
+            end
+        end
+        return nil
+    end
+
+    local overlap_hits, overlap_stats = b2d.world.overlap_aabb(world, {
+        lower = target - vmath.vector3(2, 2, 0),
+        upper = target + vmath.vector3(2, 2, 0),
+    }, query_filter, 8)
+    assert(type(overlap_hits) == "table")
+    assert(type(overlap_stats.node_visits) == "number")
+    assert(type(overlap_stats.leaf_visits) == "number")
+    local overlap_hit = find_fixture_hit(overlap_hits, body_a, fixture.index)
+    assert(overlap_hit ~= nil)
+    assert(overlap_hit.type == b2d.shape.SHAPE_TYPE_CIRCLE)
+    assert(overlap_hit.child_index == 1)
+
+    local shape_hits, shape_stats = b2d.world.overlap_shape(world, {
+        type = b2d.shape.SHAPE_TYPE_CIRCLE,
+        center = target,
+        radius = 0.5,
+    }, query_filter, 8)
+    assert(type(shape_hits) == "table")
+    assert(type(shape_stats.leaf_visits) == "number")
+    local shape_overlap_hit = find_fixture_hit(shape_hits, body_a, fixture.index)
+    assert(shape_overlap_hit ~= nil)
+    assert(shape_overlap_hit.type == b2d.shape.SHAPE_TYPE_CIRCLE)
+
+    local ray_origin = target + vmath.vector3(0, -2, 0)
+    local ray_translation = vmath.vector3(0, 4, 0)
+    local ray_hits, ray_stats = b2d.world.cast_ray(world, ray_origin, ray_translation, query_filter, 8)
+    assert(type(ray_hits) == "table")
+    assert(type(ray_stats.leaf_visits) == "number")
+    local ray_hit = find_fixture_hit(ray_hits, body_a, fixture.index)
+    assert(ray_hit ~= nil)
+    assert_vec3_near(ray_hit.point, target + vmath.vector3(0, -1, 0), 0.1)
+    assert_near(ray_hit.fraction, 0.25, 0.01)
+
+    local closest = b2d.world.cast_ray_closest(world, ray_origin, ray_translation, query_filter)
+    assert(closest ~= nil)
+    assert(closest.fixture.body == body_a)
+    assert(closest.fixture.index == fixture.index)
+    assert_vec3_near(closest.point, target + vmath.vector3(0, -1, 0), 0.1)
+    assert_near(closest.fraction, 0.25, 0.01)
+
+    local cast_hits, cast_stats = b2d.world.cast_shape(world, {
+        type = b2d.shape.SHAPE_TYPE_CIRCLE,
+        center = ray_origin,
+        radius = 0.5,
+    }, ray_translation, query_filter, 8)
+    assert(type(cast_hits) == "table")
+    assert(type(cast_stats.node_visits) == "number")
+    local cast_hit = find_fixture_hit(cast_hits, body_a, fixture.index)
+    assert(cast_hit ~= nil)
+    assert_vec3_near(cast_hit.point, target + vmath.vector3(0, -1, 0), 0.2)
+    assert_near(cast_hit.fraction, 0.125, 0.02)
+
+    b2d.body.destroy_fixture(body_a, fixture.index)
+end
+
 local function test_native_b2d_joints(self)
     if b2d == nil then
         return
@@ -388,6 +476,8 @@ local function test_native_b2d_joints(self)
 
     if PHYSICS == "box2dv3" then
         test_native_b2d_world_and_chains(body_a, body_b, body_c)
+    else
+        test_native_b2d_v2_world_queries(body_a)
     end
 
     local managed_joint_id = "native_managed_joint"

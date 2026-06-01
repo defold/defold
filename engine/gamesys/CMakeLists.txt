@@ -175,7 +175,8 @@ defold_add_library(script_box2d_defold STATIC
     "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_body_v2.cpp"
     "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_fixture_v2.cpp"
     "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_joint_v2.cpp"
-    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_shape_v2.cpp")
+    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_shape_v2.cpp"
+    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_world_v2.cpp")
 target_include_directories(script_box2d_defold PUBLIC
     "${GS_SRC_DIR}"
     "${GS_DMSDK_SRC_DIR}"
