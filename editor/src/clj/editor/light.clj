@@ -279,14 +279,16 @@
             vbuf
             (range segments))))
 
-(defn- outline-rgb-for-light [renderable _base-color]
-  (if-let [sel (:selected renderable)]
-    (let [c (colors/selection-color sel)]
-      [(nth c 0) (nth c 1) (nth c 2)])
-    [(nth colors/outline-color 0) (nth colors/outline-color 1) (nth colors/outline-color 2)]))
-
 (defn- light-gizmo-selected? [renderable]
   (#{:self-selected :parent-selected} (:selected renderable)))
+
+(defn- standalone-light-gizmo? [renderable]
+  (and (nil? (:selected renderable))
+       (empty? (:node-id-path renderable))))
+
+(defn- light-gizmo-visible? [renderable]
+  (or (light-gizmo-selected? renderable)
+      (standalone-light-gizmo? renderable)))
 
 (defn- light-rgb [user-data]
   (or (:light-rgb user-data)
@@ -367,9 +369,9 @@
         vbuf (persistent!
                (reduce (fn [vbuf ri]
                          (let [renderable (nth renderables ri)]
-                           (if (light-gizmo-selected? renderable)
-                             (let [{:keys [color range]} (:user-data renderable)
-                                   [cr cg cb] (outline-rgb-for-light renderable color)
+                           (if (light-gizmo-visible? renderable)
+                             (let [{:keys [range]} (:user-data renderable)
+                                   [cr cg cb] (colors/renderable-outline-color renderable)
                                    ^Vector3d world-translation (:world-translation renderable)
                                    r (* (double (or range 1.0)) (double (renderable-min-scale renderable)))
                                    r (max r 0.01)]
@@ -427,9 +429,8 @@
         vbuf-tris (persistent!
                     (reduce (fn [vbuf ri]
                               (let [renderable (nth renderables ri)]
-                                (if (light-gizmo-selected? renderable)
-                                  (let [{:keys [color]} (:user-data renderable)
-                                        [cr cg cb] (outline-rgb-for-light renderable color)
+                                (if (light-gizmo-visible? renderable)
+                                  (let [[cr cg cb] (colors/renderable-outline-color renderable)
                                         ^Vector3d p (:world-translation renderable)
                                         d (world-dir-from-light renderable)
                                         sf (scene-tools/scale-factor camera (:viewport render-args) p)
@@ -443,9 +444,8 @@
         vbuf-lines (persistent!
                      (reduce (fn [vbuf ri]
                                (let [renderable (nth renderables ri)]
-                                 (if (light-gizmo-selected? renderable)
-                                   (let [{:keys [color]} (:user-data renderable)
-                                         [cr cg cb] (outline-rgb-for-light renderable color)
+                                 (if (light-gizmo-visible? renderable)
+                                   (let [[cr cg cb] (colors/renderable-outline-color renderable)
                                          ^Vector3d p (:world-translation renderable)
                                          d (world-dir-from-light renderable)
                                          sf (scene-tools/scale-factor camera (:viewport render-args) p)
@@ -484,9 +484,9 @@
 
 (defn- render-spot-outline [^GL2 gl render-args renderables n]
   (assert (= pass/outline (:pass render-args)))
-  (let [selected (filterv light-gizmo-selected? renderables)]
-    (when (pos? (count selected))
-      (render-light-gizmo-lines gl render-args selected (count selected))))
+  (let [visible-gizmos (filterv light-gizmo-visible? renderables)]
+    (when (pos? (count visible-gizmos))
+      (render-light-gizmo-lines gl render-args visible-gizmos (count visible-gizmos))))
   (render-origin-markers-billboard gl render-args renderables @icon-spot-gpu-texture-delay))
 
 (defn- render-spot-volume [^GL2 gl render-args renderables n]
@@ -553,12 +553,12 @@
       (let [r (max (double range) 0.01)
             ps (float-array [(float r) (float r) (float r) 1.0])
             aabb (geom/mirrored-point->aabb (Point3d. r r r))
-            vol-ud (assoc base-user-data
-                     :range range
-                     :point-scale ps
-                     :double-sided true
-                     :geometry scene-shapes/capsule-triangles)
-            out-ud (assoc base-user-data :range range)]
+            volume-user-data (assoc base-user-data
+                               :range range
+                               :point-scale ps
+                               :double-sided true
+                               :geometry scene-shapes/capsule-triangles)
+            outline-user-data (assoc base-user-data :range range)]
         {:node-id node-id
          :aabb aabb
          :renderable {:render-fn render-point-volume-scaled
@@ -566,7 +566,7 @@
                       :batch-key [scene-shapes/shader]
                       :tags #{:light}
                       :passes [pass/transparent pass/selection]
-                      :user-data vol-ud}
+                      :user-data volume-user-data}
          :children [{:node-id node-id
                      :aabb aabb
                      :renderable {:render-fn render-point-outline-scaled
@@ -574,25 +574,24 @@
                                   :batch-key [outline-shader]
                                   :tags #{:light :outline}
                                   :passes [pass/outline]
-                                  :user-data out-ud}}]})
+                                  :user-data outline-user-data}}]})
 
       :directional
-      (let [aabb (geom/mirrored-point->aabb (Point3d. 1.5 1.5 1.5))
-            dir-ud base-user-data]
+      (let [aabb (geom/mirrored-point->aabb (Point3d. 1.5 1.5 1.5))]
         {:node-id node-id
          :aabb aabb
          :renderable {:render-fn render-directional-volume-scaled
                       :batch-key [outline-shader]
                       :tags #{:light}
                       :passes [pass/transparent pass/selection]
-                      :user-data dir-ud}
+                      :user-data base-user-data}
          :children [{:node-id node-id
                      :aabb aabb
                      :renderable {:render-fn render-directional-outline-scaled
                                   :batch-key [outline-shader]
                                   :tags #{:light :outline}
                                   :passes [pass/outline]
-                                  :user-data dir-ud}}]})
+                                  :user-data base-user-data}}]})
 
       :spot
       (let [h (max (double range) 0.01)
@@ -611,7 +610,8 @@
                                :geometry (scene-shapes/light-cone-triangles))
             outline-user-data (assoc base-user-data
                                 :geometry (scene-shapes/light-cone-lines inner-radius-ratio)
-                                :point-scale point-scale)]
+                                :point-scale point-scale
+                                :color colors/outline-color)]
         {:node-id node-id
          :aabb aabb
          :renderable {:render-fn render-spot-volume-scaled
