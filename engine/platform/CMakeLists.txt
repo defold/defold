@@ -12,7 +12,27 @@ set(PLAT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
 
 # Select platform sources (centralized)
 set(PLATFORM_USE_GLFW3 OFF)
-if(DEFOLD_IS_PRIVATE_VENDOR)
+if(DEFOLD_PLATFORM_WINDOW_SOURCES)
+    set(_platform_private_extra_sources)
+    if(DEFOLD_PLATFORM_WINDOW_JOYSTICK_GUID_STUB)
+        set(_platform_private_compat_source "${CMAKE_CURRENT_BINARY_DIR}/platform_window_private_compat.cpp")
+        file(WRITE "${_platform_private_compat_source}"
+            "#include <stdint.h>\n"
+            "#include \"window.h\"\n"
+            "namespace dmPlatform\n"
+            "{\n"
+            "    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)\n"
+            "    {\n"
+            "        return 0;\n"
+            "    }\n"
+            "}\n")
+        list(APPEND _platform_private_extra_sources "${_platform_private_compat_source}")
+    endif()
+    set(_platform_glfw_sources
+        "${PLAT_SRC_DIR}/window.cpp"
+        ${DEFOLD_PLATFORM_WINDOW_SOURCES}
+        ${_platform_private_extra_sources})
+elseif(DEFOLD_IS_PRIVATE_VENDOR)
     # Private vendor (e.g., Switch): only include native window integration
     set(_platform_glfw_sources
         "${PLAT_SRC_DIR}/window.cpp"

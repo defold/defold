@@ -329,11 +329,12 @@
 (def ^:private stopped-server
   (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs web-server]
+(defn- reload-editor-scripts! [project & {:keys [display-output! kind open-resource! prefs web-server]
                                           :or {display-output! println
+                                               kind :all
                                                open-resource! open-resource-noop!
                                                web-server stopped-server}}]
-  (extensions/reload! project :all
+  (extensions/reload! project kind
                       :prefs (or prefs (test-util/make-test-prefs))
                       :localization test-util/localization
                       :reload-resources! (make-reload-resources-fn (project/workspace project))
@@ -342,6 +343,24 @@
                       :open-resource! open-resource!
                       :invoke-bob! (make-invoke-bob-fn project)
                       :web-server web-server))
+
+(deftest project-editor-script-change-stays-reload-needed-after-library-reload-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
+    (let [script-node (test-util/resource-node project "/test.editor_script")
+          reload-needed? (fn []
+                            (g/with-auto-evaluation-context evaluation-context
+                              (extensions/reload-needed? project evaluation-context)))]
+      (reload-editor-scripts! project)
+      (is (not (reload-needed?)))
+
+      (test-util/update-code-editor-lines! script-node conj "-- changed")
+      (is (reload-needed?))
+
+      (reload-editor-scripts! project :kind :library)
+      (is (reload-needed?))
+
+      (reload-editor-scripts! project)
+      (is (not (reload-needed?))))))
 
 (defn- eval-handler-contexts [context-name selection]
   (let [selection-provider (->StaticSelection selection)
@@ -404,7 +423,7 @@
       ;; Run the separate scene command from the Scene context menu.
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
-                              (eval-handler-contexts :global [sprite-node-id])
+                              (eval-handler-contexts :workbench [sprite-node-id])
                               {})]
         (is (= [1.0 1.0 1.0] (test-util/prop sprite-node-id :scale)))
         (is (some? handler+context))
@@ -735,9 +754,9 @@
             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
 
 (defn- expect-script-output [expected actual]
-  (let [actual (normalize-pprint-output (str actual))]
-    (let [output-matches-expectation (= expected actual)]
-      (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
+  (let [actual (normalize-pprint-output (str actual))
+        output-matches-expectation (= expected actual)]
+    (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3))))))
 
 (def ^:private expected-outline-selection-parent-chain-test-output
   "outline.child.can_get_parent=true
@@ -774,7 +793,7 @@ scene.node.get_parent_succeeds=false
                            (is (handler/enabled? handler+context))
                            @(handler/run handler+context)))]
       (run-command! :editor.outline-view/context-menu-end :outline [sprite-outline] "Outline Parent Chain Test")
-      (run-command! :editor.scene-selection/context-menu-end :global [sprite-node-id] "Scene Parent Chain Test")
+      (run-command! :editor.scene-selection/context-menu-end :workbench [sprite-node-id] "Scene Parent Chain Test")
       (expect-script-output expected-outline-selection-parent-chain-test-output out))))
 
 (deftest external-file-attributes-test

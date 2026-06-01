@@ -150,12 +150,19 @@
   (api/list-node
     [(api/token-node 'dynamo.graph/make-evaluation-context)]))
 
+(defn- symbols-in-node [node]
+  (into #{}
+        (filter symbol?)
+        (tree-seq coll? seq (api/sexpr node))))
+
 (defn- let-ec-init-node [init-node]
   (api/list-node
     [(api/token-node 'let)
      (api/vector-node
        [(api/token-node 'evaluation-context)
-        (evaluation-context-node)])
+        (evaluation-context-node)
+        (api/token-node '_evaluation-context-used-by-clj-kondo-hook)
+        (api/token-node 'evaluation-context)])
      init-node]))
 
 (defn- let-ec-binding-nodes [binding-node]
@@ -185,6 +192,7 @@
 (defn- fn-like-node? [node]
   (let [head (call-head node)]
     (contains? '#{fn fn* clojure.core/fn dynamo.graph/fnk g/fnk
+                  dynamo.graph/constantly g/constantly
                   editor.gui/gen-outline-fnk gen-outline-fnk}
                head)))
 
@@ -229,11 +237,6 @@
        [(api/token-node 'ex-info)
         (api/token-node "lint-only graph value")
         (api/map-node [])])]))
-
-(defn- symbols-in-node [node]
-  (into #{}
-        (filter symbol?)
-        (tree-seq coll? seq (api/sexpr node))))
 
 (defn- scoped-expression-node [labels nodes]
   (let [used-labels (into #{}
@@ -285,14 +288,13 @@
   (let [[_ _ _ & tail] (:children form-node)]
     (loop [nodes []
            tail tail]
-      (if-let [[option-node value-node & tail] (seq tail)]
-        (recur
-          (cond-> nodes
-                  (and (keyword? (api/sexpr option-node))
-                       value-node
-                       (not (keyword? (api/sexpr value-node))))
-                  (conj value-node))
-          tail)
+      (if-let [[option-node & tail] (seq tail)]
+        (let [value-node (first tail)]
+          (if (and (keyword? (api/sexpr option-node))
+                   value-node
+                   (not (keyword? (api/sexpr value-node))))
+            (recur (conj nodes value-node) (rest tail))
+            (recur nodes tail)))
         nodes))))
 
 (defn- property-option-nodes [form-node]

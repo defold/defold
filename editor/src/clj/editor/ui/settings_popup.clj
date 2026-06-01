@@ -37,7 +37,7 @@
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Cursor Node Parent]
            [javafx.scene.control ColorPicker PopupControl Skin Slider ToggleButton]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input MouseEvent ScrollEvent]
            [javafx.scene.layout StackPane]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]))
@@ -81,6 +81,23 @@
                                        (when on-selected-changed
                                          (on-selected-changed v)))}]}})
 
+(def ^:private scroll-slider-step-ratio 0.03)
+
+(defn- slider-tick-spacing ^double [^Slider slider]
+  (if (zero? (.getMinorTickCount slider))
+    (.getMajorTickUnit slider)
+    (/ (.getMajorTickUnit slider) (inc (.getMinorTickCount slider)))))
+
+(defn- scroll-slider-value [^Slider slider ^ScrollEvent event]
+  (let [direction (compare (.getDeltaY event) 0.0)
+        min-value (.getMin slider)
+        max-value (.getMax slider)
+        step (if (.isSnapToTicks slider)
+               (slider-tick-spacing slider)
+               (* ^double scroll-slider-step-ratio (- max-value min-value)))
+        value (+ (.getValue slider) (* direction step))]
+    (-> value (max min-value) (min max-value))))
+
 (defn- ext-safe-popup-slider
   [{:keys [popup] :as props}]
   {:fx/type fx/ext-on-instance-lifecycle
@@ -102,17 +119,21 @@
                                      (changed [this _ _ _]
                                        (when (try-install!)
                                          (.removeListener (.skinProperty slider) this)))))))
+                 (.addEventFilter slider ScrollEvent/SCROLL
+                                  (ui/event-handler event
+                                    (when (and (not (.isDisabled slider))
+                                               (not (zero? (.getDeltaY ^ScrollEvent event))))
+                                      (let [value (scroll-slider-value slider event)]
+                                        (.consume ^ScrollEvent event)
+                                        (when (not= value (.getValue slider))
+                                          (.adjustValue slider value))))))
                  (doto slider
                    (.setOnMouseEntered (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
                    (.setOnMouseExited  (ui/event-handler _ (.setAutoHide ^PopupControl popup true)))))
    :desc (assoc (dissoc props :popup) :fx/type fx.slider/lifecycle)})
 
 (defn- make-slider-row [{:keys [popup key label disabled? min max snap-to state swap-state slider-value->string on-value-changed]}]
-  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
-        snap-fn (if snap-to
-                  (fn [^double v]
-                    (* (double snap-to) (Math/round (/ v (double snap-to)))))
-                  identity)]
+  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))]
     {:fx/type fxui/horizontal
      :style-class "spaced"
      :disable (boolean (when disabled? (disabled? state)))
@@ -136,11 +157,7 @@
                   (assoc :snap-to-ticks true
                          :major-tick-unit snap-to
                          :minor-tick-count 0
-                         :show-tick-marks true
-                         :on-mouse-released (fn [^Event e]
-                                              (let [v (snap-fn (.getValue ^Slider (.getSource e)))]
-                                                (on-value-changed v)
-                                                (swap-state assoc key v)))))]}))
+                         :show-tick-marks true))]}))
 
 ;; FIX: The popup loses focus when we open the "Custom Color..." color picker window, so
 ;; we apply the same workaround the slider's get by disabling auto-hide and enabling it once it closes.
