@@ -289,8 +289,21 @@ namespace dmGraphics
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
     {
+        if (!vkEnumeratePhysicalDevices)
+        {
+            dmLogError("Vulkan physical device enumeration failed: vkEnumeratePhysicalDevices is not loaded.");
+            return 0;
+        }
+
         uint32_t vk_device_count = 0;
-        vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, 0);
+        VkResult res = vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, 0);
+        if (res != VK_SUCCESS)
+        {
+            dmLogError("Vulkan physical device count query failed: VkResult %d.", res);
+            return 0;
+        }
+
+        dmLogInfo("Vulkan physical device count: %u.", vk_device_count);
         return vk_device_count;
     }
 
@@ -298,29 +311,62 @@ namespace dmGraphics
     {
         assert(deviceListOut);
         PhysicalDevice* device_list = *deviceListOut;
+        memset(device_list, 0, sizeof(PhysicalDevice) * deviceListSize);
+
         uint32_t vk_device_count = deviceListSize;
         VkPhysicalDevice* vk_device_list = new VkPhysicalDevice[vk_device_count];
-        vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, vk_device_list);
+        VkResult res = vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, vk_device_list);
+        if (res != VK_SUCCESS)
+        {
+            dmLogError("Vulkan physical device enumeration failed: VkResult %d.", res);
+            delete[] vk_device_list;
+            return;
+        }
+
         assert(vk_device_count == deviceListSize);
 
         for (uint32_t i=0; i < vk_device_count; ++i)
         {
             VkPhysicalDevice vk_device = vk_device_list[i];
-            uint32_t vk_device_extension_count, vk_queue_family_count;
+            uint32_t vk_device_extension_count = 0;
+            uint32_t vk_queue_family_count = 0;
+
+            dmLogInfo("Vulkan physical device %u/%u: reading properties.", i + 1, vk_device_count);
 
             device_list[i].m_Features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
             device_list[i].m_Features2.pNext = pNextFeatures;
 
             vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
             vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
-            vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            dmLogInfo("Vulkan physical device %u/%u: %s, API %u.%u.%u.",
+                i + 1,
+                vk_device_count,
+                device_list[i].m_Properties.deviceName,
+                VK_VERSION_MAJOR(device_list[i].m_Properties.apiVersion),
+                VK_VERSION_MINOR(device_list[i].m_Properties.apiVersion),
+                VK_VERSION_PATCH(device_list[i].m_Properties.apiVersion));
+            if (pNextFeatures && vkGetPhysicalDeviceFeatures2)
+            {
+                dmLogInfo("Vulkan physical device %u/%u: querying extended features.", i + 1, vk_device_count);
+                vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            }
+            else if (pNextFeatures)
+            {
+                dmLogWarning("Vulkan physical device %u/%u: extended features requested but vkGetPhysicalDeviceFeatures2 is not available.", i + 1, vk_device_count);
+            }
+            else
+            {
+                dmLogInfo("Vulkan physical device %u/%u: no extended features requested.", i + 1, vk_device_count);
+            }
             vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
+            dmLogInfo("Vulkan physical device %u/%u: queue families: %u.", i + 1, vk_device_count, vk_queue_family_count);
             device_list[i].m_QueueFamilyProperties = new VkQueueFamilyProperties[vk_queue_family_count];
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, device_list[i].m_QueueFamilyProperties);
 
             vkEnumerateDeviceExtensionProperties(vk_device, 0, &vk_device_extension_count, 0);
+            dmLogInfo("Vulkan physical device %u/%u: device extensions: %u.", i + 1, vk_device_count, vk_device_extension_count);
 
             VkExtensionProperties* vk_device_extensions = new VkExtensionProperties[vk_device_extension_count];
 
@@ -1678,6 +1724,7 @@ bail:
         void* pNext, LogicalDevice* logicalDeviceOut)
     {
         assert(device);
+        memset(logicalDeviceOut, 0, sizeof(LogicalDevice));
 
         // NOTE: Different queues can have different priority from [0..1], but
         //       we only have a single queue right now so set to 1.0f

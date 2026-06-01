@@ -1362,11 +1362,19 @@ namespace dmGraphics
             VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
             VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
 
-        if (supports_present_wait_extensions)
+        dmLogInfo("Vulkan present wait extensions: %s, vkGetPhysicalDeviceFeatures2: %s.",
+            supports_present_wait_extensions ? "supported" : "not supported",
+            vkGetPhysicalDeviceFeatures2 ? "available" : "unavailable");
+
+        if (supports_present_wait_extensions && vkGetPhysicalDeviceFeatures2)
         {
             present_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
             present_features.pNext = &present_id_feature_support;
             vkGetPhysicalDeviceFeatures2(context->m_PhysicalDevice.m_Device, &present_features);
+        }
+        else if (supports_present_wait_extensions)
+        {
+            dmLogWarning("Vulkan present wait extensions are supported but feature query function is unavailable; present wait will be disabled.");
         }
 
         if (supports_present_wait_extensions &&
