@@ -28,14 +28,13 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.properties :as properties]
-            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.scene-picking :as scene-picking]
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-tools :as scene-tools]
             [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.validation :as validation]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll])
   (:import [com.jogamp.opengl GL GL2]
            [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector3d]))
 
@@ -640,31 +639,6 @@
   (make-light-scene node-id :spot color intensity range inner-cone-angle outer-cone-angle))
 
 ;; -----------------------------------------------------------------------------
-;; BaseLightNode
-;; -----------------------------------------------------------------------------
-
-(g/defnode BaseLightNode
-  (inherits data/DataResourceNode)
-
-  (output form-fields g/Any :abstract)
-
-  (output form-data g/Any :cached
-          (g/fnk [_node-id form-fields]
-            (let [fields (mapv #(dissoc % :value)
-                               form-fields)
-                  values (coll/into-> form-fields {}
-                           (map (fn [field-info]
-                                  (pair (:path field-info)
-                                        (:value field-info)))))]
-              {:navigation false
-               :form-ops {:user-data {:node-id _node-id}
-                          :set protobuf-forms-util/set-form-op
-                          :clear protobuf-forms-util/clear-form-op}
-               :sections [{:localization-key "light"
-                           :fields fields}]
-               :values values}))))
-
-;; -----------------------------------------------------------------------------
 ;; DirectionalLightNode
 ;; -----------------------------------------------------------------------------
 
@@ -672,7 +646,7 @@
   (validation/prop-error :fatal node-id :intensity validation/prop-negative? intensity intensity-message))
 
 (g/defnode DirectionalLightNode
-  (inherits BaseLightNode)
+  (inherits data/DataResourceNode)
 
   (property color types/Color (default [1.0 1.0 1.0])
             (dynamic label (properties/label-dynamic :light :color))
@@ -694,18 +668,6 @@
             {"color" color
              "intensity" intensity}))
 
-  (output directional-light-form-fields g/Any :cached
-          (g/fnk [color intensity]
-            [{:path [:color]
-              :localization-key "light.color"
-              :type :vec3
-              :value color}
-             {:path [:intensity]
-              :localization-key "light.intensity"
-              :type :number
-              :min 0.0
-              :value intensity}]))
-
   (output directional-light-build-errors g/Any :cached
           (g/fnk [_node-id intensity]
             (g/package-errors
@@ -713,7 +675,6 @@
               (validate-intensity _node-id intensity))))
 
   (output data g/Any (gu/passthrough directional-light-data))
-  (output form-fields g/Any (gu/passthrough directional-light-form-fields))
   (output own-build-errors g/Any (gu/passthrough directional-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "directional_light"])))
 
@@ -748,15 +709,6 @@
           (g/fnk [directional-light-data range]
             (assoc directional-light-data "range" range)))
 
-  (output point-light-form-fields g/Any :cached
-          (g/fnk [directional-light-form-fields range]
-            (conj directional-light-form-fields
-                  {:path [:range]
-                   :localization-key "light.range"
-                   :type :number
-                   :min 0.0
-                   :value range})))
-
   (output point-light-build-errors g/Any :cached
           (g/fnk [_node-id directional-light-build-errors range]
             (g/package-errors
@@ -765,7 +717,6 @@
               (validate-range _node-id range))))
 
   (output data g/Any (gu/passthrough point-light-data))
-  (output form-fields g/Any (gu/passthrough point-light-form-fields))
   (output own-build-errors g/Any (gu/passthrough point-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "point_light"])))
 
@@ -840,22 +791,6 @@
               "inner_cone_angle" inner-cone-angle
               "outer_cone_angle" outer-cone-angle)))
 
-  (output spot-light-form-fields g/Any :cached
-          (g/fnk [point-light-form-fields inner-cone-angle outer-cone-angle]
-            (into point-light-form-fields
-                  [{:path [:inner-cone-angle]
-                    :localization-key "light.inner-cone-angle"
-                    :type :number
-                    :min 0.0
-                    :max outer-cone-angle
-                    :value inner-cone-angle}
-                   {:path [:outer-cone-angle]
-                    :localization-key "light.outer-cone-angle"
-                    :type :number
-                    :min inner-cone-angle
-                    :max max-spot-cone-angle
-                    :value outer-cone-angle}])))
-
   (output spot-light-build-errors g/Any :cached
           (g/fnk [_node-id point-light-build-errors inner-cone-angle outer-cone-angle]
             (g/package-errors
@@ -865,7 +800,6 @@
               (validate-outer-cone-angle _node-id outer-cone-angle))))
 
   (output data g/Any (gu/passthrough spot-light-data))
-  (output form-fields g/Any (gu/passthrough spot-light-form-fields))
   (output own-build-errors g/Any (gu/passthrough spot-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "spot_light"]))
 
@@ -889,7 +823,7 @@
         {:icon outline-icon
          :icon-class :design
          :category (localization/message "resource.category.lights")
-         :view-types [:cljfx-form-view :text]
+         :view-types [:scene :text]
          :tags #{:component}
          :tag-opts {:component {:transform-properties #{}}}}
 
