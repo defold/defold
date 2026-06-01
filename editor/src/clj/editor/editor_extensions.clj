@@ -148,14 +148,17 @@
 
 ;; region script API
 
-(defn- make-ext-get-fn [project]
+(defn- make-ext-get-fn [project localization]
   (rt/lua-fn ext-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
           editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)
           getter (graph/ext-value-getter editor-lookup property project evaluation-context)]
       (if getter
-        (getter)
+        (let [result (getter)]
+          (if (g/error-value? result)
+            (throw (LuaError. (str "Can't get \"" property "\" property: " (localization (g/error-message result)))))
+            result))
         (throw (LuaError. (str (if (resource/resource? editor-lookup)
                                  (resource/proj-path editor-lookup)
                                  (name (graph/node-id->type-keyword (graph/editor-lookup->node-id editor-lookup) evaluation-context)))
@@ -235,26 +238,37 @@
                       (spit file-path content))
                     path+contents)))
           (future/then (fn [_] (reload-resources!)))
-          (future/then rt/and-refresh-context)))))
+          (future/then
+            (fn [_]
+              (g/let-ec [basis (:basis evaluation-context)
+                         invalid-proj-paths
+                         (coll/into-> created-resource-infos []
+                           (keep (fn [{proj-path 1}]
+                                   (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
+                                     (when (g/defective? basis node-id)
+                                       proj-path)))))]
+                (rt/and-refresh-context
+                  (when-let [invalid-proj-paths (coll/not-empty invalid-proj-paths)]
+                    (LuaError. (str "Created resources are invalid: " (coll/join-to-string ", " invalid-proj-paths))))))))))))
 
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
-    (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)]
-      (let [basis (:basis evaluation-context)
-            workspace (project/workspace project evaluation-context)
-            root-path (-> (workspace/project-directory basis workspace)
-                          (path/real))
-            dir-path (-> (str root-path proj-path)
-                         (path/normalized))]
-        (if (.startsWith dir-path root-path)
-          (try
-            (path/create-directories! dir-path)
-            (future/then (reload-resources!) rt/and-refresh-context)
-            (catch FileAlreadyExistsException e
-              (throw (LuaError. (str "File already exists: " (.getMessage e)))))
-            (catch Exception e
-              (throw (LuaError. ^String (or (.getMessage e) (.getSimpleName (class e)))))))
-          (throw (LuaError. (str "Can't create " dir-path ": outside of project directory"))))))))
+    (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
+          basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          root-path (-> (workspace/project-directory basis workspace)
+                        (path/real))
+          dir-path (-> (str root-path proj-path)
+                       (path/normalized))]
+      (if (.startsWith dir-path root-path)
+        (try
+          (path/create-directories! dir-path)
+          (future/then (reload-resources!) rt/and-refresh-context)
+          (catch FileAlreadyExistsException e
+            (throw (LuaError. (str "File already exists: " (.getMessage e)))))
+          (catch Exception e
+            (throw (LuaError. ^String (or (.getMessage e) (.getSimpleName (class e)))))))
+        (throw (LuaError. (str "Can't create " dir-path ": outside of project directory")))))))
 
 (defn- make-ext-delete-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-delete-directory [{:keys [rt evaluation-context]} lua-proj-path]
@@ -276,7 +290,7 @@
         (throw (LuaError. (str "Can't delete " dir-path ": outside of project directory")))
 
         (= (.getNameCount dir-path) (.getNameCount root-path))
-        (throw (LuaError. (str "Can't delete the project directory itself")))
+        (throw (LuaError. "Can't delete the project directory itself"))
 
         (protected-path? dir-path)
         (throw (LuaError. (str "Can't delete " dir-path ": protected by editor")))
@@ -432,7 +446,7 @@
 
 (defn- make-ext-tx-set-fn [project]
   (rt/lua-fn ext-tx-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property lua-value]
-    (let [node-id (graph/unresolved-editor-lookup->node-id
+    (let [node-id (graph/editable-unresolved-editor-lookup->node-id
                     (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
                     project
                     evaluation-context)
@@ -967,7 +981,7 @@
                   :out (line-writer #(display-output! :out %))
                   :err (line-writer #(display-output! :err %))
                   :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
-                                  "get" (make-ext-get-fn project)
+                                  "get" (make-ext-get-fn project localization)
                                   "can_add" (graph/make-ext-can-add-fn project)
                                   "can_get" (make-ext-can-get-fn project)
                                   "can_reorder" (graph/make-ext-can-reorder-fn project)

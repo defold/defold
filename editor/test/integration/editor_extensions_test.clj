@@ -1125,6 +1125,19 @@ editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resou
   /npc.collection
   /npc.go
   /UPPER.COLLECTION
+editor.create_resources({{\"/test/invalid.go\", \"\\\"name\\\":\\\"invalid\\\"\"}}) => Created resources are invalid: /test/invalid.go
+/test
+  /config.json
+  /invalid.go
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+editor.tx.set(\"/test/invalid.go\", \"text\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.add(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.clear(\"/test/invalid.go\", \"components\") => Cannot edit defective resource: /test/invalid.go
+editor.tx.remove(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.reorder(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.reset(\"/test/invalid.go\", \"text\") => Cannot edit defective resource: /test/invalid.go
 ")
 
 (deftest resources-io-test

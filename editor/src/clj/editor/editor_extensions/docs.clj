@@ -58,7 +58,7 @@
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if you can get this property so `editor.get()` won't throw an error"}
+          :description "Check whether this property is exposed for reading on the supplied node or resource."}
          {:name "editor.properties"
           :type :function
           :parameters [node-param]
@@ -70,22 +70,22 @@
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if `editor.tx.add()` (as well as `editor.tx.clear()` and `editor.tx.remove()`) transaction with this property won't throw an error"}
+          :description "Check whether this list property supports add, clear, and remove operations on the supplied node."}
          {:name "editor.can_set"
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if `editor.tx.set()` transaction with this property won't throw an error"}
+          :description "Check whether this property is exposed for setting on the supplied node."}
          {:name "editor.can_reorder"
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if `editor.tx.reorder()` transaction with this property won't throw an error"}
+          :description "Check whether this list property supports reordering on the supplied node."}
          {:name "editor.can_reset"
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if `editor.tx.reset()` transaction with this property won't throw an error"}
+          :description "Check whether this property supports reset on the supplied node."}
          {:name "editor.command"
           :type :function
           :description "Create an editor command"
