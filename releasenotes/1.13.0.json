@@ -131,7 +131,7 @@
         },
         {
             "author": "Jhonnyg",
-            "body": "glTF files with morph / blend target data are now supported for model components in the engine. Two new shader constructs are now exposed that can be used to achieve morph target rendering:\r\n\r\n```glsl\r\n// 1) a uniform / constant that holds the weights\r\nuniform vs_uniforms\r\n{\r\n\tvec4 morph_targets_weights;\r\n\r\n\t// if you need to support more than 4 weights, use an array instead:\r\n\t// vec4 morph_targets_weights[x];\r\n};\r\n\r\n// 2) an array sampler that holds the morph target data\r\nuniform sampler2DArray morph_targets;\r\n```\r\n\r\nDemo: \r\n[morph-target-testing.zip](https://github.com/user-attachments/files/26677227/morph-target-testing.zip)\r\n\r\nFuture improvements:\r\n* Instancing - a new vertex attribute semantic is needed\r\n* Mix skinning and morph animations - currently an animation can drive either a skinned animation or a morph target animation, not both\r\n* Play multiple morph animations at the same time (also applies to bone animations)",
+            "body": "glTF files with morph / blend target data are now supported for model components in the engine. Two new shader constructs are now exposed that can be used to achieve morph target rendering:\r\n\r\n```glsl\r\n// 1) a uniform / constant that holds the weights\r\nuniform vs_uniforms\r\n{\r\n\tvec4 morph_targets_weights;\r\n\r\n\t// if you need to support more than 4 weights, use an array instead:\r\n\t// vec4 morph_targets_weights[x];\r\n};\r\n\r\n// 2) an array sampler that holds the morph target data\r\nuniform sampler2DArray morph_targets;\r\n```\r\n\r\nDemo: \r\n[morph-target-testing.zip](https://github.com/user-attachments/files/28347210/morph-target-testing.zip)\r\n\r\nFuture improvements:\r\n* Instancing - a new vertex attribute semantic is needed\r\n* Mix skinning and morph animations - currently an animation can drive either a skinned animation or a morph target animation, not both\r\n* Play multiple morph animations at the same time (also applies to bone animations)",
             "closed_issues": [
                 8024,
                 3619
@@ -155,7 +155,7 @@
         },
         {
             "author": "Jhonnyg",
-            "body": "glTF files with morph / blend target data are now supported for model components in the engine. Two new shader constructs are now exposed that can be used to achieve morph target rendering:\r\n\r\n```glsl\r\n// 1) a uniform / constant that holds the weights\r\nuniform vs_uniforms\r\n{\r\n\tvec4 morph_targets_weights;\r\n\r\n\t// if you need to support more than 4 weights, use an array instead:\r\n\t// vec4 morph_targets_weights[x];\r\n};\r\n\r\n// 2) an array sampler that holds the morph target data\r\nuniform sampler2DArray morph_targets;\r\n```\r\n\r\nDemo: \r\n[morph-target-testing.zip](https://github.com/user-attachments/files/26677227/morph-target-testing.zip)\r\n\r\nFuture improvements:\r\n* Instancing - a new vertex attribute semantic is needed\r\n* Mix skinning and morph animations - currently an animation can drive either a skinned animation or a morph target animation, not both\r\n* Play multiple morph animations at the same time (also applies to bone animations)",
+            "body": "glTF files with morph / blend target data are now supported for model components in the engine. Two new shader constructs are now exposed that can be used to achieve morph target rendering:\r\n\r\n```glsl\r\n// 1) a uniform / constant that holds the weights\r\nuniform vs_uniforms\r\n{\r\n\tvec4 morph_targets_weights;\r\n\r\n\t// if you need to support more than 4 weights, use an array instead:\r\n\t// vec4 morph_targets_weights[x];\r\n};\r\n\r\n// 2) an array sampler that holds the morph target data\r\nuniform sampler2DArray morph_targets;\r\n```\r\n\r\nDemo: \r\n[morph-target-testing.zip](https://github.com/user-attachments/files/28347210/morph-target-testing.zip)\r\n\r\nFuture improvements:\r\n* Instancing - a new vertex attribute semantic is needed\r\n* Mix skinning and morph animations - currently an animation can drive either a skinned animation or a morph target animation, not both\r\n* Play multiple morph animations at the same time (also applies to bone animations)",
             "closed_issues": [
                 3619
             ],
@@ -176,7 +176,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements",
+            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements\r\n\r\n\r\nhttps://github.com/user-attachments/assets/817234c7-1193-464d-af85-f592e7ac2bda",
             "closed_issues": [
                 12157,
                 10963,
@@ -990,8 +990,7 @@
             "issue_number": 12366,
             "labels": [
                 "task",
-                "breaking change",
-                "triage"
+                "breaking change"
             ],
             "mergecommit": "35d54385188e9e9fe2120d7bbc0fc853898460dd",
             "pr_number": 12369,
@@ -1149,29 +1148,6 @@
             "url": "https://github.com/defold/defold/pull/12381"
         },
         {
-            "author": "Jhonnyg",
-            "body": "Three distinct fixes has been applied related to Vulkan:\r\n* Support face winding\r\n* Respect render target depth ops\r\n* Fix HighDpi GLFW3 switch for windows",
-            "closed_issues": [
-                9311
-            ],
-            "duplicate": false,
-            "issue_number": 9311,
-            "labels": [
-                "bug",
-                "engine",
-                "windows",
-                "glfw",
-                "vulkan"
-            ],
-            "mergecommit": "b045bd037a29f4b784358b58e71cafcc3fc5d2d1",
-            "pr_number": 12383,
-            "referencecommits": [],
-            "repository": "defold",
-            "title": "Improve Vulkan correctness",
-            "type": "FIX",
-            "url": "https://github.com/defold/defold/pull/12383"
-        },
-        {
             "author": "JCash",
             "body": "The fix is related to correctly keeping the local scaling intact. E.g. for the capsule shape.\r\nThanks to @a-daniel for the original contribution!",
             "closed_issues": [
@@ -1306,7 +1282,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements",
+            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements\r\n\r\n\r\nhttps://github.com/user-attachments/assets/817234c7-1193-464d-af85-f592e7ac2bda",
             "closed_issues": [
                 10963
             ],
@@ -1328,7 +1304,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements",
+            "body": "The user experience and feature set were unified between the current three scene view button popups; grid, camera, and scene visibility.\r\n\r\n- Shortcuts can now be assigned to and their binding displayed for camera toggles, while reacting live.\r\n- Sliders now have a text field showing their current value\r\n- Better color picker for the grid\r\n- Scene Visibility now has focus traversal (tab or shift+tab) and is now localized\r\n- Miscellaneous bug fixes, styling and UX improvements\r\n\r\n\r\nhttps://github.com/user-attachments/assets/817234c7-1193-464d-af85-f592e7ac2bda",
             "closed_issues": [
                 10853
             ],
@@ -1644,6 +1620,6 @@
             "url": "https://github.com/defold/defold/pull/12441"
         }
     ],
-    "timestamp": 1779884242.694815,
+    "timestamp": 1780329654.626373,
     "version": "1.13.0"
 }
