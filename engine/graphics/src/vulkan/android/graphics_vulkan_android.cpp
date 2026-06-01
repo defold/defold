@@ -14,7 +14,6 @@
 
 #include <dlfcn.h>
 #include <android_native_app_glue.h>
-#include <dlib/log.h>
 #include <dmsdk/dlib/android.h>
 #include <platform/platform_window_android.h>
 
@@ -278,15 +277,6 @@ namespace dmGraphics
         vkGetPhysicalDeviceFormatProperties = (PFN_vkGetPhysicalDeviceFormatProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFormatProperties");
         vkGetPhysicalDeviceFeatures = (PFN_vkGetPhysicalDeviceFeatures) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures");
         vkGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures2");
-        if (!vkGetPhysicalDeviceFeatures2)
-        {
-            vkGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures2KHR");
-            dmLogInfo("Vulkan function vkGetPhysicalDeviceFeatures2 unavailable, KHR fallback %s.", vkGetPhysicalDeviceFeatures2 ? "loaded" : "unavailable");
-        }
-        else
-        {
-            dmLogInfo("Vulkan function vkGetPhysicalDeviceFeatures2 loaded.");
-        }
         vkGetPhysicalDeviceQueueFamilyProperties = (PFN_vkGetPhysicalDeviceQueueFamilyProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceQueueFamilyProperties");
         vkGetPhysicalDeviceMemoryProperties = (PFN_vkGetPhysicalDeviceMemoryProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceMemoryProperties");
         vkCmdPipelineBarrier = (PFN_vkCmdPipelineBarrier) vkGetInstanceProcAddr(vk_instance, "vkCmdPipelineBarrier");
