@@ -353,6 +353,9 @@ notification.fetch-libraries.problem.install-failed = falha ao instalar
 notification.fetch-libraries.problem.unknown = problema desconhecido — {problem}
 notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
+# Editor scripts notification
+
+
 # Open custom editor notifications
 
 notification.open-custom-editor-failed.error = Não foi possível executar o editor externo "{editor}".\n\nErro subjacente do SO\:\n{error}
@@ -1856,7 +1859,7 @@ form.help.project.sound.stream_enabled = Ativa streaming de som
 form.label.project.sound.stream_chunk_size = Bloco de Transmissão
 form.help.project.sound.stream_chunk_size = Tamanho em bytes de cada bloco carregado a partir de um arquivo de som, 16384 por padrão
 form.label.project.sound.stream_preload_size = Pré-cargarregamento da Transmissão
-form.help.project.sound.stream_preload_size = Tamanho em bytes de cada bloco carregado a partir de um arquivo de som, 16384 por padrão
+form.help.project.sound.stream_preload_size = Tamanho em bytes do bloco inicial carregado a partir de cada arquivo de som, 16384 por padrão
 form.label.project.sound.stream_cache_size = Cache da Transmissão
 form.help.project.sound.stream_cache_size = Tamanho em bytes do cache de transmissão de som contendo todos os blocos, 2097152 por padrão
 

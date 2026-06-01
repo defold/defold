@@ -27,8 +27,7 @@
             [editor.lsp.async :as lsp.async]
             [editor.resource :as resource]
             [editor.scene :as scene]
-            [util.coll :as coll]
-            [util.fn :as fn]))
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -131,7 +130,7 @@
   (coerce/hash-map
     :req {:label ui-docs/string-or-message-pattern-coercer
           :locations (coerce/vector-of
-                       (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "Scene" "View" "Help")
+                       (coerce/enum "Assets" "Bundle" "Code" "Debug" "Edit" "Outline" "Project" "Scene" "View" "Help")
                        :distinct true
                        :min-count 1)}
     :opt {:query (coerce/hash-map
@@ -164,17 +163,19 @@
         contexts (into #{}
                        (map {"Assets" :asset-browser
                              "Bundle" :global
+                             "Code" :code-view
                              "Debug" :global
                              "Edit" :global
                              "Outline" :outline
                              "Project" :global
-                             "Scene" :global
+                             "Scene" :workbench
                              "View" :global
                              "Help" :global})
                        locations)
         locations (into #{}
                         (map {"Assets" :editor.asset-browser/context-menu-end
                               "Bundle" :editor.bundle/menu
+                              "Code" :editor.code-view/context-menu-end
                               "Debug" :editor.debug-view/debug-end
                               "Edit" :editor.app-view/edit-end
                               "Outline" :editor.outline-view/context-menu-end

@@ -17,29 +17,38 @@ package com.defold.control;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Rectangle;
 
-public class ClippingContainer extends StackPane {
+public final class ClippingContainer extends StackPane {
+    private double prefHeightCap = -1.0;
 
     public ClippingContainer() {
-        Rectangle clip = new Rectangle();
+        var clip = new Rectangle();
         clip.widthProperty().bind(widthProperty());
         clip.heightProperty().bind(heightProperty());
         setClip(clip);
     }
 
+    public double getPrefHeightCap() {
+        return prefHeightCap;
+    }
+
+    public void setPrefHeightCap(double prefHeightCap) {
+        this.prefHeightCap = prefHeightCap;
+        requestLayout();
+    }
+
     @Override
     protected double computeMinWidth(double height) {
-        return limitByMax(super.computeMinWidth(height), getMaxWidth());
+        return 0.0;
     }
 
     @Override
     protected double computeMinHeight(double width) {
-        return limitByMax(super.computeMinHeight(width), getMaxHeight());
+        return 0.0;
     }
 
-    private static double limitByMax(double minSize, double maxSize) {
-        if (maxSize < 0.0) {
-            return minSize;
-        }
-        return Math.min(minSize, maxSize);
+    @Override
+    protected double computePrefHeight(double width) {
+        var prefHeight = super.computePrefHeight(width);
+        return prefHeightCap < 0.0 ? prefHeight : Math.min(prefHeight, prefHeightCap);
     }
 }
