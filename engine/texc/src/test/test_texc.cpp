@@ -35,6 +35,13 @@ protected:
     }
 };
 
+static uint32_t GetASTCCompressedDataSize(uint32_t width, uint32_t height, uint32_t block_x, uint32_t block_y)
+{
+    uint32_t blocks_x = (width + block_x - 1) / block_x;
+    uint32_t blocks_y = (height + block_y - 1) / block_y;
+    return blocks_x * blocks_y * 16;
+}
+
 uint8_t default_data_l[4] =
 {
         255, 0, 0, 255
@@ -487,21 +494,28 @@ TEST(TexcCompileTestASTC, Encode)
     settings.m_Data        = image->m_Data;
     settings.m_DataCount   = image->m_DataCount;
 
-    dmTexc::PixelFormat pixel_formats_astc[] = {
-        dmTexc::PF_RGBA_ASTC_4x4,
-        dmTexc::PF_RGBA_ASTC_5x4,
-        dmTexc::PF_RGBA_ASTC_5x5,
-        dmTexc::PF_RGBA_ASTC_6x5,
-        dmTexc::PF_RGBA_ASTC_6x6,
-        dmTexc::PF_RGBA_ASTC_8x5,
-        dmTexc::PF_RGBA_ASTC_8x6,
-        dmTexc::PF_RGBA_ASTC_8x8,
-        dmTexc::PF_RGBA_ASTC_10x5,
-        dmTexc::PF_RGBA_ASTC_10x6,
-        dmTexc::PF_RGBA_ASTC_10x8,
-        dmTexc::PF_RGBA_ASTC_10x10,
-        dmTexc::PF_RGBA_ASTC_12x10,
-        dmTexc::PF_RGBA_ASTC_12x12,
+    struct ASTCFormat
+    {
+        dmTexc::PixelFormat m_PixelFormat;
+        uint32_t            m_BlockWidth;
+        uint32_t            m_BlockHeight;
+    };
+
+    ASTCFormat pixel_formats_astc[] = {
+        { dmTexc::PF_RGBA_ASTC_4x4,   4,  4 },
+        { dmTexc::PF_RGBA_ASTC_5x4,   5,  4 },
+        { dmTexc::PF_RGBA_ASTC_5x5,   5,  5 },
+        { dmTexc::PF_RGBA_ASTC_6x5,   6,  5 },
+        { dmTexc::PF_RGBA_ASTC_6x6,   6,  6 },
+        { dmTexc::PF_RGBA_ASTC_8x5,   8,  5 },
+        { dmTexc::PF_RGBA_ASTC_8x6,   8,  6 },
+        { dmTexc::PF_RGBA_ASTC_8x8,   8,  8 },
+        { dmTexc::PF_RGBA_ASTC_10x5,  10,  5 },
+        { dmTexc::PF_RGBA_ASTC_10x6,  10,  6 },
+        { dmTexc::PF_RGBA_ASTC_10x8,  10,  8 },
+        { dmTexc::PF_RGBA_ASTC_10x10, 10, 10 },
+        { dmTexc::PF_RGBA_ASTC_12x10, 12, 10 },
+        { dmTexc::PF_RGBA_ASTC_12x12, 12, 12 },
     };
 
     uint8_t* out = 0;
@@ -509,8 +523,9 @@ TEST(TexcCompileTestASTC, Encode)
 
     for (int i = 0; i < DM_ARRAY_SIZE(pixel_formats_astc); ++i)
     {
-        settings.m_OutPixelFormat = pixel_formats_astc[i];
+        settings.m_OutPixelFormat = pixel_formats_astc[i].m_PixelFormat;
         ASSERT_TRUE(dmTexc::ASTCEncode(&settings, &out, &out_size));
+        ASSERT_EQ(GetASTCCompressedDataSize(width, height, pixel_formats_astc[i].m_BlockWidth, pixel_formats_astc[i].m_BlockHeight), out_size);
         free(out);
         out = 0;
     }
