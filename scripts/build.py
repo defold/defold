@@ -22,6 +22,7 @@ import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import build_android
+import codesigning
 import run
 import s3
 import sdk
@@ -1922,7 +1923,7 @@ class Configuration(object):
         for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
             self.upload_to_archive(p, '%s/%s' % (full_archive_path, basename(p)))
 
-    def copy_local_bob_artefacts(self):
+    def copy_local_bob_artefacts(self, sign = False):
         texc_name = format_lib('texc_shared', self.host)
         modelc_name = format_lib('modelc_shared', self.host)
         shaderc_name = format_lib('shaderc_shared', self.host)
@@ -2004,6 +2005,8 @@ class Configuration(object):
                     dst_path = join(cwd, dst)
                     self._mkdirs(os.path.dirname(dst_path))
                     self._copy(src_path, dst_path)
+                if not self.skip_codesign:
+                    codesigning.sign_file(self.target_platform, self, dst_path)
             if m:
                 add_missing(type, m)
         if missing:
@@ -3134,7 +3137,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       help = 'Version to use instead of from VERSION file')
 
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
-                      default = None,
+                      default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help = 'Codesigning identity for macOS version of the editor')
 
     parser.add_option('--gcloud-projectid', dest='gcloud_projectid',

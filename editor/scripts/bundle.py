@@ -521,7 +521,7 @@ def create_bundle(jdk, platform, options):
         log("Skipping code signing")
     else:
         log("Signing for %s..." % platform)
-        sign(bundle_dir, defold_jar, platform, options)
+        sign(bundle_dir, platform, options)
 
     # create final zip file
     zipfile = 'target/editor/Defold-%s.zip' % platform
@@ -541,7 +541,7 @@ def create_bundle(jdk, platform, options):
         log("Creating installer for platform %s..." % platform)
         create_dmg(bundle_dir, options, platform)
 
-def sign(bundle_dir, defold_jar, platform, options):
+def sign(bundle_dir, platform, options):
     if platform_is_macos(platform):
         # we need to sign the binaries in Resources folder manually as codesign of
         # the *.app will not process files in Resources
@@ -555,7 +555,6 @@ def sign(bundle_dir, defold_jar, platform, options):
         codesigning.sign_file(platform, options, bundle_dir)
     elif platform_is_windows(platform):
         codesigning.sign_file(platform, options, os.path.join(bundle_dir, "Defold.exe"))
-        codesigning.sign_files_in_zip(platform, options, defold_jar)
 
 def find_files(root_dir, file_pattern):
     matches = []
