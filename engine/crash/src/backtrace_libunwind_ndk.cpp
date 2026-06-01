@@ -98,40 +98,36 @@ namespace dmCrash
 
     static void Handler(const int signo, siginfo_t* const si, void *const sc)
     {
-        if (!g_CrashDumpEnabled)
-        {
-            ResetToDefaultSignalHandler(signo);
-            ChainSignalOrRaiseDefault(signo, si, sc, g_PreviousSignalActions, Handler);
-            return;
-        }
-
-        AppState* state = GetAppState();
-
-        state->m_Signum = signo;
-        state->m_PtrCount = 0;
-
         // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
         ResetToDefaultSignalHandler(signo);
 
-        unwind_data unwindData;
-        unwindData.offset_extra = 0;
-        unwindData.stack_index = 0;
-        _Unwind_Backtrace(OnFrameEnter, &unwindData);
-
-        if (g_CrashExtraInfoCallback)
+        if (g_CrashDumpEnabled)
         {
-            int extra_len = strlen(state->m_Extra);
-            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            AppState* state = GetAppState();
+
+            state->m_Signum = signo;
+            state->m_PtrCount = 0;
+
+            unwind_data unwindData;
+            unwindData.offset_extra = 0;
+            unwindData.stack_index = 0;
+            _Unwind_Backtrace(OnFrameEnter, &unwindData);
+
+            if (g_CrashExtraInfoCallback)
+            {
+                int extra_len = strlen(state->m_Extra);
+                g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            }
+
+            WriteCrash(GetFilePath(), state);
+
+            bool is_debug_mode = dLib::IsDebugMode();
+            dLib::SetDebugMode(true);
+            dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
+            dLib::SetDebugMode(is_debug_mode);
         }
-
-        WriteCrash(GetFilePath(), state);
-
-        bool is_debug_mode = dLib::IsDebugMode();
-        dLib::SetDebugMode(true);
-        dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
-        dLib::SetDebugMode(is_debug_mode);
 
         ChainSignalOrRaiseDefault(signo, si, sc, g_PreviousSignalActions, Handler);
     }

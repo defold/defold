@@ -16,9 +16,6 @@
 #define DM_CRASH_BACKTRACE_SIGNAL_POSIX_H
 
 #include <signal.h>
-#include <string.h>
-
-#include "backtrace_signal_policy.h"
 
 namespace dmCrash
 {
@@ -26,135 +23,14 @@ namespace dmCrash
 
     typedef void (*FSignalAction)(int, siginfo_t*, void*);
 
-    static inline bool IsValidSignal(int signum)
-    {
-        return signum > 0 && signum < MAX_SIGNAL_COUNT;
-    }
-
-    static inline struct sigaction* GetPreviousSignalAction(int signum, struct sigaction* previous_signal_actions)
-    {
-        return IsValidSignal(signum) && previous_signal_actions ? &previous_signal_actions[signum] : 0;
-    }
-
-    static inline void ResetToDefaultSignalHandler(int signum)
-    {
-        if (!IsValidSignal(signum))
-        {
-            return;
-        }
-
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_handler = SIG_DFL;
-        sa.sa_flags = 0;
-        sigaction(signum, &sa, 0);
-    }
-
-    static inline void RestoreSignalHandler(int signum, struct sigaction* previous_signal_actions)
-    {
-        struct sigaction* previous_signal_action = GetPreviousSignalAction(signum, previous_signal_actions);
-        if (!previous_signal_action)
-        {
-            return;
-        }
-
-        sigaction(signum, previous_signal_action, 0);
-    }
-
-    static inline bool ChainSignalToPreviousHandler(int signum, siginfo_t* si, void* sc, struct sigaction* previous_signal_actions, FSignalAction current_handler)
-    {
-        struct sigaction* previous_signal_action = GetPreviousSignalAction(signum, previous_signal_actions);
-        if (!previous_signal_action)
-        {
-            return false;
-        }
-
-        if ((previous_signal_action->sa_flags & SA_SIGINFO) &&
-            previous_signal_action->sa_sigaction &&
-            previous_signal_action->sa_handler != SIG_DFL &&
-            previous_signal_action->sa_handler != SIG_IGN &&
-            previous_signal_action->sa_sigaction != current_handler)
-        {
-            RestoreSignalHandler(signum, previous_signal_actions);
-            previous_signal_action->sa_sigaction(signum, si, sc);
-            return true;
-        }
-        else if (!(previous_signal_action->sa_flags & SA_SIGINFO) &&
-                 previous_signal_action->sa_handler != SIG_DFL &&
-                 previous_signal_action->sa_handler != SIG_IGN &&
-                 previous_signal_action->sa_handler)
-        {
-            RestoreSignalHandler(signum, previous_signal_actions);
-            previous_signal_action->sa_handler(signum);
-            return true;
-        }
-
-        return false;
-    }
-
-    static inline bool WasPreviousSignalIgnored(int signum, struct sigaction* previous_signal_actions)
-    {
-        struct sigaction* previous_signal_action = GetPreviousSignalAction(signum, previous_signal_actions);
-        return previous_signal_action && previous_signal_action->sa_handler == SIG_IGN;
-    }
-
-    static inline void RaiseDefaultSignalHandler(int signum, const siginfo_t* si)
-    {
-        if (!IsValidSignal(signum))
-        {
-            return;
-        }
-
-        if (ShouldReturnToOriginalFault(signum, si))
-        {
-            return;
-        }
-
-        raise(signum);
-    }
-
-    static inline void ChainSignalOrRaiseDefault(int signum, siginfo_t* si, void* sc, struct sigaction* previous_signal_actions, FSignalAction current_handler)
-    {
-        if (ChainSignalToPreviousHandler(signum, si, sc, previous_signal_actions, current_handler))
-        {
-            return;
-        }
-
-        if (WasPreviousSignalIgnored(signum, previous_signal_actions))
-        {
-            RestoreSignalHandler(signum, previous_signal_actions);
-            return;
-        }
-
-        RaiseDefaultSignalHandler(signum, si);
-    }
-
-    static inline bool InstallSignalHandler(int signum, FSignalAction handler, struct sigaction* previous_signal_actions)
-    {
-        struct sigaction* previous_signal_action = GetPreviousSignalAction(signum, previous_signal_actions);
-        if (!handler || !previous_signal_action)
-        {
-            return false;
-        }
-
-        struct sigaction current;
-        memset(&current, 0, sizeof(current));
-        if (sigaction(signum, 0, &current) == 0 &&
-            (current.sa_flags & SA_SIGINFO) &&
-            current.sa_sigaction == handler)
-        {
-            return true;
-        }
-
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_sigaction = handler;
-        sa.sa_flags = SA_SIGINFO;
-
-        return sigaction(signum, &sa, previous_signal_action) == 0;
-    }
+    bool IsValidSignal(int signum);
+    void ResetToDefaultSignalHandler(int signum);
+    void RestoreSignalHandler(int signum, struct sigaction* previous_signal_actions);
+    bool ChainSignalToPreviousHandler(int signum, siginfo_t* si, void* sc, struct sigaction* previous_signal_actions, FSignalAction current_handler);
+    bool WasPreviousSignalIgnored(int signum, struct sigaction* previous_signal_actions);
+    void RaiseDefaultSignalHandler(int signum, const siginfo_t* si);
+    void ChainSignalOrRaiseDefault(int signum, siginfo_t* si, void* sc, struct sigaction* previous_signal_actions, FSignalAction current_handler);
+    bool InstallSignalHandler(int signum, FSignalAction handler, struct sigaction* previous_signal_actions);
 }
 
 #endif
