@@ -4824,7 +4824,7 @@ bail:
         {
             uint32_t tex_data_size;
             if (IsTextureFormatASTC(params.m_Format))
-                tex_data_size = params.m_DataSize;
+                tex_data_size = params.m_DataSize * tex_layer_count;
             else
                 tex_data_size = (int) ceil((float) tex_data_size_bpp / 8.0f);
 
@@ -4981,7 +4981,7 @@ bail:
             uint32_t tex_data_size;
             if (IsTextureFormatASTC(ap.m_Params.m_Format))
             {
-                tex_data_size = ap.m_Params.m_DataSize;
+                tex_data_size = ap.m_Params.m_DataSize * tex_layer_count;
             }
             else
             {
