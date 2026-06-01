@@ -187,6 +187,58 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
 endforeach()
 
 # ---------------------------------------------------------------------------
+# Host files loaded through source-tree-relative host paths.
+# Mirror the Waf test runner staging paths so the CMake runtime has the same
+# source-tree-relative files under GS_TEST_RUN_DIR.
+# ---------------------------------------------------------------------------
+set(_GS_HOST_TEST_PATHS
+  "resource/blank.basis"
+  "sound_ext/replacement.wav"
+  "font"
+  "image"
+  "sys/sys_buffer_test_content.raw"
+  "http")
+set(_GS_STAGED_HOST_TEST_PATHS)
+set(_GS_HOST_TEST_STAGE_FILES)
+foreach(_host_path IN LISTS _GS_HOST_TEST_PATHS)
+  set(_host_src "${GS_TEST_ROOT}/${_host_path}")
+  set(_host_dst "${GS_TEST_RUN_DIR}/src/gamesys/test/${_host_path}")
+  if(NOT EXISTS "${_host_src}")
+    message(FATAL_ERROR "Missing gamesys host test path: ${_host_src}")
+  endif()
+
+  if(IS_DIRECTORY "${_host_src}")
+    file(GLOB_RECURSE _host_deps CONFIGURE_DEPENDS LIST_DIRECTORIES false "${_host_src}/*")
+    set(_host_output "${CMAKE_CURRENT_BINARY_DIR}/.host/${_host_path}.stamp")
+    get_filename_component(_host_output_dir "${_host_output}" DIRECTORY)
+    add_custom_command(
+      OUTPUT "${_host_output}"
+      COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_host_dst}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_host_src}" "${_host_dst}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_host_output_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E touch "${_host_output}"
+      DEPENDS ${_host_deps}
+      COMMENT "Staging gamesys host test directory ${_host_path}"
+      VERBATIM)
+  else()
+    set(_host_output "${_host_dst}")
+    get_filename_component(_host_dst_dir "${_host_dst}" DIRECTORY)
+    add_custom_command(
+      OUTPUT "${_host_output}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_host_dst_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_host_src}" "${_host_dst}"
+      DEPENDS "${_host_src}"
+      COMMENT "Staging gamesys host test file ${_host_path}"
+      VERBATIM)
+  endif()
+
+  list(APPEND _GS_STAGED_HOST_TEST_PATHS "${_host_output}")
+  list(APPEND _GS_HOST_TEST_STAGE_FILES
+    "src/gamesys/test/${_host_path}" "src/gamesys/test/${_host_path}")
+endforeach()
+add_custom_target(gamesys_host_test_files DEPENDS ${_GS_STAGED_HOST_TEST_PATHS})
+
+# ---------------------------------------------------------------------------
 # Embed resources into headers/sources (used by test_gamesys.cpp)
 # Generates <path>.embed.h/.embed.cpp with variables NAME[] and NAME_SIZE.
 # ---------------------------------------------------------------------------
@@ -224,7 +276,7 @@ add_custom_target(gamesys_test_embeds DEPENDS ${_EMBED_HEADERS} ${_EMBED_CPP})
 
 # Make a phony target to expose content build step
 add_custom_target(gamesys_test_content DEPENDS ${gamesys_content_outputs})
-add_dependencies(gamesys_test_content gamesys gamesys_test_embeds)
+add_dependencies(gamesys_test_content gamesys gamesys_test_embeds gamesys_host_test_files)
 
 # test_gamesys_http uses ComponentTest, whose factory root is collision_object.
 # Mirror the HTTP test collection into that root to match the resource path used
@@ -324,7 +376,8 @@ function(gamesys_configure_common_test target)
   defold_target_link_app(${target} ${TARGET_PLATFORM})
   defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}"
     STAGE_FILES
-      "build/src/gamesys/test" "build/src/gamesys/test")
+      "build/src/gamesys/test" "build/src/gamesys/test"
+      ${_GS_HOST_TEST_STAGE_FILES})
 
   defold_target_link_libraries_web(${target} ${TARGET_PLATFORM} SCOPE PRIVATE
     library_sys.js library_script.js library_render.js)
@@ -382,6 +435,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   defold_target_link_app(test_gamesys_http ${TARGET_PLATFORM})
   defold_register_test_target(test_gamesys_http FALSE "${GS_TEST_RUN_DIR}"
     STAGE_FILES
-      "build/src/gamesys/test" "build/src/gamesys/test")
+      "build/src/gamesys/test" "build/src/gamesys/test"
+      ${_GS_HOST_TEST_STAGE_FILES})
   defold_register_test_with_server(test_gamesys_http ${TARGET_PLATFORM} PORT 9001 WORKDIR "${GS_TEST_RUN_DIR}")
 endif()
