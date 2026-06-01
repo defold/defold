@@ -353,6 +353,9 @@ notification.fetch-libraries.problem.install-failed = falha ao instalar
 notification.fetch-libraries.problem.unknown = problema desconhecido — {problem}
 notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
+# Editor scripts notification
+
+
 # Open custom editor notifications
 
 notification.open-custom-editor-failed.error = Não foi possível executar o editor externo "{editor}".\n\nErro subjacente do SO\:\n{error}

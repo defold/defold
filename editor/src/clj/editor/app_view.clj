@@ -84,7 +84,6 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
-            [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -104,6 +103,8 @@
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
+           [java.time LocalTime]
+           [java.time.format DateTimeFormatter]
            [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener ObservableValue]
@@ -3275,10 +3276,24 @@
   (run [app-view workspace project changes-view build-errors-view prefs localization web-server]
     (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server)))
 
+(def ^:private editor-scripts-reloaded-time-formatter
+  (DateTimeFormatter/ofPattern "HH:mm:ss"))
+
 (handler/defhandler :project.reload-editor-scripts :global
   (enabled? [] (disk-availability/available?))
   (run [app-view project workspace changes-view build-errors-view prefs localization web-server]
-    (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)))
+    (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
+    (let [reloaded-progress (progress/make
+                              (localization/message "progress.editor-scripts-reloaded"
+                                                    {"time" (.format (LocalTime/now) editor-scripts-reloaded-time-formatter)}))]
+      (render-main-task-progress! reloaded-progress)
+      (ui/->future 5.0
+                   #(update-app-task-state!
+                      (fn [state]
+                        (if-not (= reloaded-progress (-> state :progress :main))
+                          state
+                          (set-task-progress-state state :main progress/done))))))
+    nil))
 
 (defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs localization project failure-notification]
   (let [workspace (project/workspace project)
