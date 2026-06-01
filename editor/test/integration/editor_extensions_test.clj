@@ -39,6 +39,7 @@
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.diff :as diff]
@@ -1141,11 +1142,12 @@ editor.tx.reset(\"/test/invalid.go\", \"text\") => Cannot edit defective resourc
 ")
 
 (deftest resources-io-test
-  (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
-    (let [out (StringBuilder.)]
-      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
-      (run-edit-menu-test-command!)
-      (expect-script-output resource-io-test-output out))))
+  (log/without-logging
+    (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+        (run-edit-menu-test-command!)
+        (expect-script-output resource-io-test-output out)))))
 
 (defn- expected-zip-test-output [root]
   (str "Testing zip.pack...
