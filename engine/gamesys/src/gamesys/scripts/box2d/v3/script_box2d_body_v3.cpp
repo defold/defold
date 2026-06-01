@@ -217,7 +217,7 @@ namespace dmGameSystem
         return shapes[shape_index - 1];
     }
 
-    static int GetShapeIndex(b2BodyId body, b2ShapeId shape)
+    int GetShapeIndex(b2BodyId body, b2ShapeId shape)
     {
         const int shape_count = GetShapeCount(body);
         if (shape_count == 0)
@@ -239,12 +239,15 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void PushShapeInfo(lua_State* L, b2ShapeId shape, int shape_index)
+    void PushShapeInfo(lua_State* L, b2ShapeId shape, int shape_index)
     {
         lua_newtable(L);
 
         lua_pushinteger(L, shape_index);
         lua_setfield(L, -2, "index");
+
+        PushShapeId(L, shape);
+        lua_setfield(L, -2, "shape_id");
 
         lua_pushinteger(L, NormalizeShapeTypeForLua(b2Shape_GetType(shape)));
         lua_setfield(L, -2, "type");
@@ -260,6 +263,9 @@ namespace dmGameSystem
 
         lua_pushnumber(L, b2Shape_GetRestitution(shape));
         lua_setfield(L, -2, "restitution");
+
+        lua_pushinteger(L, b2Shape_GetMaterial(shape));
+        lua_setfield(L, -2, "material");
 
         lua_pushinteger(L, 1);
         lua_setfield(L, -2, "child_count");
@@ -803,8 +809,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2WorldId* world_id_ptr = (b2WorldId*) lua_newuserdata(L, sizeof(b2WorldId));
-        *world_id_ptr = b2Body_GetWorld(*body);
+        PushWorldId(L, b2Body_GetWorld(*body));
         return 1;
     }
 
@@ -838,6 +843,7 @@ namespace dmGameSystem
     static const luaL_reg Body_functions[] =
     {
         {"create_shape", Body_CreateShape},
+        {"create_chain", Body_CreateChain},
         {"get_position", Body_GetPosition},
         {"get_transform", Body_GetTransform},
         {"set_transform", Body_SetTransform},
@@ -937,8 +943,10 @@ namespace dmGameSystem
 
         lua_setfield(L, -2, "body");
 
+        ScriptBox2DInitializeWorld(L);
         ScriptBox2DInitializeJoint(L);
         ScriptBox2DInitializeShape(L);
+        ScriptBox2DInitializeChain(L);
     }
 
     void ScriptBox2DInvalidateBody(void* body)
@@ -949,6 +957,9 @@ namespace dmGameSystem
     void ScriptBox2DFinalizeBody()
     {
         TYPE_HASH_BODY = 0;
+        ScriptBox2DFinalizeChain();
+        ScriptBox2DFinalizeShape();
+        ScriptBox2DFinalizeWorld();
         ScriptBox2DFinalizeJoint();
     }
 }
@@ -996,10 +1007,67 @@ namespace dmGameSystem
  * Creates a shape and attaches it to this body.
  * If the density is non-zero, this function automatically updates the mass of the body.
  * Contacts are not created until the next time step.
+ * The definition may include `density`, `friction`, `restitution`, `material`,
+ * `sensor` or `is_sensor`, `filter`, and the shape table itself. The shape table
+ * can be in `definition.shape` or directly in `definition`.
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_shape
  * @param body [type: b2Body] body
  * @param definition [type: table] the shape definition.
+ */
+
+/*# Create a chain and attach its segment shapes to this body.
+ * Chains are one-sided connected segments with optional ghost vertices at
+ * the ends of open chains. Ghost vertices are creation-time chain data only and
+ * cannot be added to arbitrary shapes, bodies, or joints after creation.
+ *
+ * `definition.vertices`
+ * : [type:table] array of local `vector3` vertices. Open chains require at least 2 vertices. Loop chains require at least 4 vertices.
+ *
+ * `definition.loop`
+ * : [type:boolean] true to create a closed loop chain.
+ *
+ * `definition.prev_vertex`
+ * : [type:vector3] optional ghost vertex before the first vertex for open chains.
+ *
+ * `definition.next_vertex`
+ * : [type:vector3] optional ghost vertex after the last vertex for open chains.
+ *
+ * `definition.friction`
+ * : [type:number] optional friction.
+ *
+ * `definition.restitution`
+ * : [type:number] optional restitution.
+ *
+ * `definition.material`
+ * : [type:number] optional material id.
+ *
+ * `definition.filter`
+ * : [type:table] optional filter with `category_bits`, `mask_bits`, and `group_index`.
+ *
+ * `definition.enable_sensor_events`
+ * : [type:boolean] true to enable sensor events for chain segments.
+ *
+ * @warning This function is locked during callbacks.
+ * @name b2d.body.create_chain
+ * @param body [type: b2Body] body
+ * @param definition [type: table] the chain definition
+ * @return chain [type: b2Chain] created chain handle
+ * @return segments [type: table] array of shape info tables for the chain segments
+ * @examples
+ *
+ * ```lua
+ * local chain, segments = b2d.body.create_chain(body, {
+ *     vertices = {
+ *         vmath.vector3(-64, 0, 0),
+ *         vmath.vector3(0, 16, 0),
+ *         vmath.vector3(64, 0, 0),
+ *     },
+ *     prev_vertex = vmath.vector3(-96, 0, 0),
+ *     next_vertex = vmath.vector3(96, 0, 0),
+ *     friction = 0.6,
+ * })
+ * ```
  */
 
 /**
@@ -1324,7 +1392,7 @@ namespace dmGameSystem
 /** Get the list of all shapes attached to this body.
  * @name b2d.body.get_shapes
  * @param body [type: b2Body] body
- * @return shapes [type: table] a table of functional shape entries
+ * @return shapes [type: table] a table of shape info entries. Each entry includes `shape_id` for use with `b2d.shape` functions.
  */
 
 /*# Get the joints attached to this body.

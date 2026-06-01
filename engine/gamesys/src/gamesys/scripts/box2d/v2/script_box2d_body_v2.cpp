@@ -43,6 +43,11 @@ namespace dmGameSystem
 
     #define BOX2D_TYPE_NAME_BODY "b2body"
 
+    void PushWorld(struct lua_State* L, void* world)
+    {
+        lua_pushlightuserdata(L, world);
+    }
+
     struct B2DLuaBody
     {
         HOpaqueHandle             m_Handle;

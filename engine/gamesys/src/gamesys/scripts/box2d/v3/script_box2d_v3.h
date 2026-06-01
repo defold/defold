@@ -23,8 +23,9 @@ namespace dmGameSystem
 {
     enum
     {
-        SHAPE_TYPE_BOX  = b2_polygonShape,
-        SHAPE_TYPE_EDGE = b2_segmentShape,
+        SHAPE_TYPE_BOX     = b2_polygonShape,
+        SHAPE_TYPE_SEGMENT = b2_segmentShape,
+        SHAPE_TYPE_EDGE    = SHAPE_TYPE_SEGMENT,
     };
 
     struct B2DShapeDef
@@ -53,26 +54,40 @@ namespace dmGameSystem
         {
             case b2_segmentShape:
             case b2_chainSegmentShape:
-                return SHAPE_TYPE_EDGE;
+                return SHAPE_TYPE_SEGMENT;
             default:
                 return type;
         }
     }
 
     b2BodyId*   CheckBody(struct lua_State* L, int index);
+    b2WorldId*  CheckWorld(struct lua_State* L, int index);
+    b2ShapeId*  CheckShapeId(struct lua_State* L, int index);
+    b2ShapeId*  ToShapeId(struct lua_State* L, int index);
     dmGameObject::HCollection GetBodyCollection(struct lua_State* L, int index);
     b2ShapeId   GetShapeByIndex(b2BodyId body, int shape_index);
+    int         GetShapeIndex(b2BodyId body, b2ShapeId shape);
     bool        IsJointTracked(b2JointId joint_id);
     void        PushJoint(struct lua_State* L, b2JointId joint_id, dmGameObject::HCollection collection);
+    void        PushWorldId(struct lua_State* L, b2WorldId world_id);
+    void        PushChain(struct lua_State* L, b2ChainId chain_id);
+    void        PushShapeId(struct lua_State* L, b2ShapeId shape_id);
+    void        PushShapeInfo(struct lua_State* L, b2ShapeId shape, int shape_index);
     B2DShapeDef CheckShapeDef(struct lua_State* L, int index);
     void        CheckShapeCreateDef(struct lua_State* L, int index, B2DShapeDef* out_shape_def, b2ShapeDef* out_shape_create_def);
     void        PushShape(struct lua_State* L, b2ShapeId shape_id);
+    int         Body_CreateChain(struct lua_State* L);
     void        ScriptBox2DInitializeBody(struct lua_State* L);
     void        ScriptBox2DInvalidateBody(void* body);
     void        ScriptBox2DFinalizeBody();
+    void        ScriptBox2DInitializeWorld(struct lua_State* L);
+    void        ScriptBox2DFinalizeWorld();
     void        ScriptBox2DInitializeJoint(struct lua_State* L);
     void        ScriptBox2DFinalizeJoint();
     void        ScriptBox2DInitializeShape(struct lua_State* L);
+    void        ScriptBox2DFinalizeShape();
+    void        ScriptBox2DInitializeChain(struct lua_State* L);
+    void        ScriptBox2DFinalizeChain();
 }
 
 #endif // DM_GAMESYS_SCRIPT_BOX2D_V3_H

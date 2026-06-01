@@ -30,6 +30,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    static uint32_t TYPE_HASH_SHAPE = 0;
+
+    #define BOX2D_TYPE_NAME_SHAPE "b2shape"
+
+    struct B2DLuaShape
+    {
+        b2ShapeId m_Shape;
+    };
+
     static b2Vec2 CheckVec2(lua_State* L, int index, float scale)
     {
         dmVMath::Vector3* v = dmScript::CheckVector3(L, index);
@@ -167,7 +176,7 @@ namespace dmGameSystem
             return shape_def;
         }
 
-        if (type == SHAPE_TYPE_EDGE)
+        if (type == SHAPE_TYPE_SEGMENT)
         {
             shape_def.m_Type = B2DShapeDef::TYPE_SEGMENT;
 
@@ -277,6 +286,13 @@ namespace dmGameSystem
             shape_create_def.material.restitution = value;
         }
 
+        lua_getfield(L, index, "material");
+        if (!lua_isnil(L, -1))
+        {
+            shape_create_def.material.userMaterialId = luaL_checkinteger(L, -1);
+        }
+        lua_pop(L, 1);
+
         if (TryGetNumberField(L, index, "density", &value))
         {
             shape_create_def.density = value;
@@ -306,6 +322,37 @@ namespace dmGameSystem
         lua_pop(L, 1);
 
         *out_shape_create_def = shape_create_def;
+    }
+
+    static B2DLuaShape* CheckShapeInternal(lua_State* L, int index)
+    {
+        return (B2DLuaShape*)dmScript::CheckUserType(L, index, TYPE_HASH_SHAPE, "Expected user type " BOX2D_TYPE_NAME_SHAPE);
+    }
+
+    b2ShapeId* CheckShapeId(lua_State* L, int index)
+    {
+        B2DLuaShape* luashape = CheckShapeInternal(L, index);
+        if (!b2Shape_IsValid(luashape->m_Shape))
+        {
+            luaL_error(L, "Invalid b2shape handle.");
+            return 0;
+        }
+        return &luashape->m_Shape;
+    }
+
+    b2ShapeId* ToShapeId(lua_State* L, int index)
+    {
+        B2DLuaShape* luashape = (B2DLuaShape*)dmScript::ToUserType(L, index, TYPE_HASH_SHAPE);
+        return luashape ? &luashape->m_Shape : 0;
+    }
+
+    void PushShapeId(lua_State* L, b2ShapeId shape_id)
+    {
+        B2DLuaShape* luashape = (B2DLuaShape*)lua_newuserdata(L, sizeof(B2DLuaShape));
+        luashape->m_Shape = shape_id;
+
+        luaL_getmetatable(L, BOX2D_TYPE_NAME_SHAPE);
+        lua_setmetatable(L, -2);
     }
 
     void PushShape(lua_State* L, b2ShapeId shape_id)
@@ -348,7 +395,7 @@ namespace dmGameSystem
             case b2_segmentShape:
             {
                 b2Segment segment = b2Shape_GetSegment(shape_id);
-                lua_pushinteger(L, SHAPE_TYPE_EDGE);
+                lua_pushinteger(L, SHAPE_TYPE_SEGMENT);
                 lua_setfield(L, -2, "type");
 
                 dmScript::PushVector3(L, FromB2(segment.point1, GetInvPhysicsScale()));
@@ -362,7 +409,7 @@ namespace dmGameSystem
             case b2_chainSegmentShape:
             {
                 b2ChainSegment segment = b2Shape_GetChainSegment(shape_id);
-                lua_pushinteger(L, SHAPE_TYPE_EDGE);
+                lua_pushinteger(L, SHAPE_TYPE_SEGMENT);
                 lua_setfield(L, -2, "type");
 
                 dmScript::PushVector3(L, FromB2(segment.ghost1, GetInvPhysicsScale()));
@@ -403,7 +450,7 @@ namespace dmGameSystem
         }
     }
 
-    static b2ShapeId CheckShape(lua_State* L, int body_index, int shape_index_index)
+    static b2ShapeId CheckShapeByBodyIndex(lua_State* L, int body_index, int shape_index_index)
     {
         b2BodyId* body = CheckBody(L, body_index);
         int shape_index = luaL_checkinteger(L, shape_index_index);
@@ -416,12 +463,46 @@ namespace dmGameSystem
         return shape;
     }
 
+    static b2ShapeId CheckShape(lua_State* L, int index)
+    {
+        b2ShapeId* shape = ToShapeId(L, index);
+        if (shape)
+        {
+            if (!b2Shape_IsValid(*shape))
+            {
+                luaL_error(L, "Invalid b2shape handle.");
+                return b2_nullShapeId;
+            }
+            return *shape;
+        }
+
+        return CheckShapeByBodyIndex(L, index, index + 1);
+    }
+
+    static int GetShapeArgCount(lua_State* L, int index)
+    {
+        return ToShapeId(L, index) ? 1 : 2;
+    }
+
+    static int GetShapeValueIndex(lua_State* L, int index)
+    {
+        return index + GetShapeArgCount(L, index);
+    }
+
     static void CheckChildIndex(lua_State* L, int index)
     {
         int child_index = luaL_checkinteger(L, index);
         if (child_index != 1)
         {
             luaL_error(L, "child_index %d out of range [1, 1].", child_index);
+        }
+    }
+
+    static void CheckOptionalChildIndex(lua_State* L, int index)
+    {
+        if (!lua_isnoneornil(L, index))
+        {
+            CheckChildIndex(L, index);
         }
     }
 
@@ -442,7 +523,7 @@ namespace dmGameSystem
     static int Shape_GetType(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2ShapeId shape = CheckShape(L, 1, 2);
+        b2ShapeId shape = CheckShape(L, 1);
         lua_pushinteger(L, NormalizeShapeTypeForLua(b2Shape_GetType(shape)));
         return 1;
     }
@@ -450,20 +531,15 @@ namespace dmGameSystem
     static int Shape_GetShape(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        PushShape(L, CheckShape(L, 1, 2));
+        PushShape(L, CheckShape(L, 1));
         return 1;
     }
 
     static int Shape_SetShape(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2BodyId* body = CheckBody(L, 1);
-        int shape_index = luaL_checkinteger(L, 2);
-        b2ShapeId shape = GetShapeByIndex(*body, shape_index);
-        if (!b2Shape_IsValid(shape))
-        {
-            return luaL_error(L, "shape_index %d out of range.", shape_index);
-        }
+        b2ShapeId shape = CheckShape(L, 1);
+        int shape_def_index = GetShapeValueIndex(L, 1);
 
         b2ChainId parent_chain = b2Shape_GetParentChain(shape);
         if (b2Chain_IsValid(parent_chain))
@@ -477,7 +553,7 @@ namespace dmGameSystem
             return luaL_error(L, "Could not set shape. The world is locked.");
         }
 
-        B2DShapeDef shape_def = CheckShapeUpdateDef(L, 3);
+        B2DShapeDef shape_def = CheckShapeUpdateDef(L, shape_def_index);
         switch (shape_def.m_Type)
         {
             case B2DShapeDef::TYPE_CIRCLE:
@@ -494,10 +570,11 @@ namespace dmGameSystem
                 break;
         }
 
-        bool update_mass = lua_gettop(L) >= 4 && !lua_isnil(L, 4) && lua_toboolean(L, 4);
+        int update_mass_index = shape_def_index + 1;
+        bool update_mass = lua_gettop(L) >= update_mass_index && !lua_isnil(L, update_mass_index) && lua_toboolean(L, update_mass_index);
         if (update_mass)
         {
-            b2Body_ApplyMassFromShapes(*body);
+            b2Body_ApplyMassFromShapes(b2Shape_GetBody(shape));
         }
         return 0;
     }
@@ -505,7 +582,7 @@ namespace dmGameSystem
     static int Shape_IsSensor(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushboolean(L, b2Shape_IsSensor(CheckShape(L, 1, 2)));
+        lua_pushboolean(L, b2Shape_IsSensor(CheckShape(L, 1)));
         return 1;
     }
 
@@ -518,52 +595,68 @@ namespace dmGameSystem
     static int Shape_GetDensity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2Shape_GetDensity(CheckShape(L, 1, 2)));
+        lua_pushnumber(L, b2Shape_GetDensity(CheckShape(L, 1)));
         return 1;
     }
 
     static int Shape_SetDensity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2ShapeId shape = CheckShape(L, 1, 2);
-        bool update_mass = lua_gettop(L) >= 4 && !lua_isnil(L, 4) && lua_toboolean(L, 4);
-        b2Shape_SetDensity(shape, luaL_checknumber(L, 3), update_mass);
+        b2ShapeId shape = CheckShape(L, 1);
+        int value_index = GetShapeValueIndex(L, 1);
+        int update_mass_index = value_index + 1;
+        bool update_mass = lua_gettop(L) >= update_mass_index && !lua_isnil(L, update_mass_index) && lua_toboolean(L, update_mass_index);
+        b2Shape_SetDensity(shape, luaL_checknumber(L, value_index), update_mass);
         return 0;
     }
 
     static int Shape_GetFriction(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2Shape_GetFriction(CheckShape(L, 1, 2)));
+        lua_pushnumber(L, b2Shape_GetFriction(CheckShape(L, 1)));
         return 1;
     }
 
     static int Shape_SetFriction(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Shape_SetFriction(CheckShape(L, 1, 2), luaL_checknumber(L, 3));
+        b2Shape_SetFriction(CheckShape(L, 1), luaL_checknumber(L, GetShapeValueIndex(L, 1)));
         return 0;
     }
 
     static int Shape_GetRestitution(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2Shape_GetRestitution(CheckShape(L, 1, 2)));
+        lua_pushnumber(L, b2Shape_GetRestitution(CheckShape(L, 1)));
         return 1;
     }
 
     static int Shape_SetRestitution(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Shape_SetRestitution(CheckShape(L, 1, 2), luaL_checknumber(L, 3));
+        b2Shape_SetRestitution(CheckShape(L, 1), luaL_checknumber(L, GetShapeValueIndex(L, 1)));
+        return 0;
+    }
+
+    static int Shape_GetMaterial(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushinteger(L, b2Shape_GetMaterial(CheckShape(L, 1)));
+        return 1;
+    }
+
+    static int Shape_SetMaterial(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Shape_SetMaterial(CheckShape(L, 1), luaL_checkinteger(L, GetShapeValueIndex(L, 1)));
         return 0;
     }
 
     static int Shape_GetFilterData(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2ShapeId shape = CheckShape(L, 1, 2);
-        CheckChildIndex(L, 3);
+        b2ShapeId shape = CheckShape(L, 1);
+        CheckOptionalChildIndex(L, GetShapeValueIndex(L, 1));
         PushFilterData(L, b2Shape_GetFilter(shape));
         return 1;
     }
@@ -571,16 +664,21 @@ namespace dmGameSystem
     static int Shape_SetFilterData(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2ShapeId shape = CheckShape(L, 1, 2);
-        CheckChildIndex(L, 3);
-        b2Shape_SetFilter(shape, CheckFilterData(L, 4));
+        b2ShapeId shape = CheckShape(L, 1);
+        int filter_index = GetShapeValueIndex(L, 1);
+        if (!lua_istable(L, filter_index))
+        {
+            CheckOptionalChildIndex(L, filter_index);
+            ++filter_index;
+        }
+        b2Shape_SetFilter(shape, CheckFilterData(L, filter_index));
         return 0;
     }
 
     static int Shape_Refilter(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2ShapeId shape = CheckShape(L, 1, 2);
+        b2ShapeId shape = CheckShape(L, 1);
         b2Shape_SetFilter(shape, b2Shape_GetFilter(shape));
         return 0;
     }
@@ -588,8 +686,8 @@ namespace dmGameSystem
     static int Shape_TestPoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2ShapeId shape = CheckShape(L, 1, 2);
-        b2Vec2 point = CheckVec2(L, 3, GetPhysicsScale());
+        b2ShapeId shape = CheckShape(L, 1);
+        b2Vec2 point = CheckVec2(L, GetShapeValueIndex(L, 1), GetPhysicsScale());
         lua_pushboolean(L, b2Shape_TestPoint(shape, point));
         return 1;
     }
@@ -597,8 +695,8 @@ namespace dmGameSystem
     static int Shape_GetAABB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2ShapeId shape = CheckShape(L, 1, 2);
-        CheckChildIndex(L, 3);
+        b2ShapeId shape = CheckShape(L, 1);
+        CheckOptionalChildIndex(L, GetShapeValueIndex(L, 1));
         b2AABB aabb = b2Shape_GetAABB(shape);
 
         lua_newtable(L);
@@ -609,6 +707,40 @@ namespace dmGameSystem
         lua_setfield(L, -2, "upper");
         return 1;
     }
+
+    static int Shape_tostring(lua_State *L)
+    {
+        B2DLuaShape* luashape = CheckShapeInternal(L, 1);
+        lua_pushfstring(L, "Box2D.%s = %p", BOX2D_TYPE_NAME_SHAPE, &luashape->m_Shape);
+        return 1;
+    }
+
+    static int Shape_eq(lua_State *L)
+    {
+        b2ShapeId* a = ToShapeId(L, 1);
+        b2ShapeId* b = ToShapeId(L, 2);
+        bool equal = false;
+        if (a && b)
+        {
+            b2ShapeId shape_a = *a;
+            b2ShapeId shape_b = *b;
+            equal = B2_ID_EQUALS(shape_a, shape_b);
+        }
+        lua_pushboolean(L, equal);
+        return 1;
+    }
+
+    static const luaL_reg Shape_methods[] =
+    {
+        {0,0}
+    };
+
+    static const luaL_reg Shape_meta[] =
+    {
+        {"__tostring", Shape_tostring},
+        {"__eq", Shape_eq},
+        {0,0}
+    };
 
     static const luaL_reg Shape_functions[] =
     {
@@ -623,6 +755,8 @@ namespace dmGameSystem
         {"set_friction", Shape_SetFriction},
         {"get_restitution", Shape_GetRestitution},
         {"set_restitution", Shape_SetRestitution},
+        {"get_material", Shape_GetMaterial},
+        {"set_material", Shape_SetMaterial},
         {"get_filter_data", Shape_GetFilterData},
         {"set_filter_data", Shape_SetFilterData},
         {"refilter", Shape_Refilter},
@@ -633,6 +767,8 @@ namespace dmGameSystem
 
     void ScriptBox2DInitializeShape(lua_State* L)
     {
+        TYPE_HASH_SHAPE = dmScript::RegisterUserType(L, BOX2D_TYPE_NAME_SHAPE, Shape_methods, Shape_meta);
+
         lua_newtable(L);
         luaL_register(L, 0, Shape_functions);
 
@@ -642,8 +778,8 @@ namespace dmGameSystem
 
         SET_CONSTANT(b2_circleShape, "SHAPE_TYPE_CIRCLE");
         SET_CONSTANT(b2_capsuleShape, "SHAPE_TYPE_CAPSULE");
+        SET_CONSTANT(SHAPE_TYPE_SEGMENT, "SHAPE_TYPE_SEGMENT");
         SET_CONSTANT(SHAPE_TYPE_EDGE, "SHAPE_TYPE_EDGE");
-        SET_CONSTANT(SHAPE_TYPE_EDGE, "SHAPE_TYPE_SEGMENT");
         SET_CONSTANT(b2_polygonShape, "SHAPE_TYPE_POLYGON");
         SET_CONSTANT(SHAPE_TYPE_BOX, "SHAPE_TYPE_BOX");
 
@@ -651,12 +787,19 @@ namespace dmGameSystem
 
         lua_setfield(L, -2, "shape");
     }
+
+    void ScriptBox2DFinalizeShape()
+    {
+        TYPE_HASH_SHAPE = 0;
+    }
 }
 
 /*# Box2D b2Shape documentation
  *
  * Constants and functions for Box2D v3 shape tables used with
  * `b2d.body.create_shape` and returned from `b2d.shape.get_shape`.
+ * Shape functions accept either a `b2Shape` handle as the first argument or
+ * the legacy `body, shape_index` argument pair.
  *
  * @document
  * @name b2d.shape
@@ -664,10 +807,15 @@ namespace dmGameSystem
  * @language Lua
  */
 
+/*# Box2D shape
+ * @typedef
+ * @name b2Shape
+ * @param value [type:userdata]
+ */
+
 /*# Get a shape's geometry.
  * @name b2d.shape.get_shape
- * @param body [type: b2Body] body
- * @param shape_index [type: number] 1-based shape index from `b2d.body.get_shapes`
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
  * @return shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
  */
 
@@ -677,9 +825,8 @@ namespace dmGameSystem
  * updated unless `update_mass` is true.
  * @warning This function is locked during callbacks.
  * @name b2d.shape.set_shape
- * @param body [type: b2Body] body
- * @param shape_index [type: number] 1-based shape index from `b2d.body.get_shapes`
- * @param shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @param definition [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
  * @param update_mass [type: boolean] true to reset body mass from shapes
  * @examples
  *
@@ -691,9 +838,9 @@ namespace dmGameSystem
  * circle.center = vmath.vector3(24, 0, 0)
  * b2d.shape.set_shape(body, 1, circle, true)
  *
- * -- Replace an edge shape's local endpoints.
+ * -- Replace a segment shape's local endpoints.
  * b2d.shape.set_shape(body, 2, {
- *     type = b2d.shape.SHAPE_TYPE_EDGE,
+ *     type = b2d.shape.SHAPE_TYPE_SEGMENT,
  *     v1 = vmath.vector3(-32, 0, 0),
  *     v2 = vmath.vector3( 32, 0, 0),
  * })
@@ -719,7 +866,13 @@ namespace dmGameSystem
  * @constant
  */
 
-/*# Edge shape type.
+/*# Segment shape type.
+ * @name b2d.shape.SHAPE_TYPE_SEGMENT
+ * @constant
+ */
+
+/*# Edge shape type alias.
+ * Compatibility alias for `b2d.shape.SHAPE_TYPE_SEGMENT`.
  * @name b2d.shape.SHAPE_TYPE_EDGE
  * @constant
  */
@@ -733,4 +886,17 @@ namespace dmGameSystem
  * Uses the polygon enum value, but indicates the `hx`/`hy` box convenience format.
  * @name b2d.shape.SHAPE_TYPE_BOX
  * @constant
+ */
+
+/*# Get shape material id.
+ * @name b2d.shape.get_material
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @return material [type: number] shape material id
+ */
+
+/*# Set shape material id.
+ * @warning This function is locked during callbacks.
+ * @name b2d.shape.set_material
+ * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
+ * @param material [type: number] shape material id
  */
