@@ -451,7 +451,7 @@
   (into {}
         (map (fn [pass]
                [pass (assoc (pass-render-args viewport camera pass)
-                       :editor/preview-lights preview-lights)]))
+                       :preview-lights preview-lights)]))
         passes))
 
 (defn- scene-render-data->preview-lights [scene-render-data camera]
@@ -570,12 +570,6 @@
     (throw (ex-info "Scene maps must use :pose instead of :transform."
                     {:node-id (:node-id scene)}))))
 
-(defn- renderable-visible? [parent-shows-children renderable hidden-renderable-tags hidden-node-outline-key-paths node-outline-key-path]
-  (and parent-shows-children
-       (:visible-self? renderable true)
-       (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
-       (not-any? (partial contains? hidden-renderable-tags) (:tags renderable))))
-
 (defn- assign-pose-to-vecmath! [scene ^Tuple3d translation ^Quat4d rotation ^Tuple3d scale]
   (when-some [pose (:pose scene)]
     (pose/assign-to-vecmath! pose translation rotation scale)))
@@ -587,7 +581,6 @@
                                    preview-overrides
                                    selection-set
                                    hidden-renderable-tags
-                                   preview-light-hidden-renderable-tags
                                    hidden-node-outline-key-paths
                                    view-matrix
                                    node-id-path
@@ -660,20 +653,12 @@
         selection-state (cond
                           (contains? selection-set node-id) :self-selected ; This node is selected.
                           (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
-        is-visible
-        (renderable-visible? parent-shows-children
-                             renderable
-                             hidden-renderable-tags
-                             hidden-node-outline-key-paths
-                             node-outline-key-path)
-
-        preview-light-visible
-        (renderable-visible? parent-shows-children
-                             renderable
-                             preview-light-hidden-renderable-tags
-                             hidden-node-outline-key-paths
-                             node-outline-key-path)
-
+        has-hidden-outline-key-path (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path)
+        has-hidden-tag (coll/any? #(contains? hidden-renderable-tags %) (:tags renderable))
+        is-visible (and parent-shows-children
+                        (:visible-self? renderable true)
+                        (not has-hidden-outline-key-path)
+                        (not has-hidden-tag))
         local-aabb (:aabb scene)
         world-aabb (if (and local-aabb is-visible)
                      (geom/aabb-transform local-aabb world-transform)
@@ -718,12 +703,10 @@
                                      (= pass/selection %))
                                 (:passes renderable)))
         pass-renderables (update-pass-renderables! (:renderables flattened-scene) drawn-passes drawn-renderable)
-        preview-light-renderable (when (and preview-light-visible
-                                            (some #{pass/transparent} (:passes renderable)))
-                                   (apply-pass-overrides pass/transparent flat-renderable))
         preview-light-renderables (cond-> (:preview-light-renderables flattened-scene)
-                                    (some? (get-in preview-light-renderable [:user-data :editor-preview-light]))
-                                    (conj! preview-light-renderable))
+                                          (and (not has-hidden-outline-key-path)
+                                               (get-in flat-renderable [:user-data :editor-preview-light]))
+                                          (conj! flat-renderable))
         scene-aabb (cond-> (:scene-aabb flattened-scene)
                            (and is-visible (not (geom/empty-aabb? visibility-aabb)))
                            (geom/aabb-union (geom/aabb-transform visibility-aabb world-transform)))]
@@ -744,7 +727,6 @@
                                             preview-overrides
                                             selection-set
                                             hidden-renderable-tags
-                                            preview-light-hidden-renderable-tags
                                             hidden-node-outline-key-paths
                                             view-matrix
                                             child-node-id-path
@@ -785,7 +767,6 @@
 (defn- flatten-scene [scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-matrix]
   (let [node-id->picking-id-atom (atom {})
         alloc-picking-id! (partial alloc-picking-id! node-id->picking-id-atom)
-        preview-light-hidden-renderable-tags (disj (or hidden-renderable-tags #{}) :light)
         node-id-path []
         node-outline-key-path [(:node-id scene)]
         parent-world-rotation geom/NoRotation
@@ -801,7 +782,6 @@
                                       preview-overrides
                                       selection-set
                                       hidden-renderable-tags
-                                      preview-light-hidden-renderable-tags
                                       hidden-node-outline-key-paths
                                       view-matrix
                                       node-id-path

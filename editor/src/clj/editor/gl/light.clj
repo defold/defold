@@ -179,7 +179,7 @@
 
 (defn bind-preview-lights-for-shader! [^GL2 gl shader-lifecycle render-args]
   (when (shader/uses-preview-light-buffer? shader-lifecycle)
-    (let [packed-lights (or (:editor/preview-lights render-args) [])
+    (let [packed-lights (or (:preview-lights render-args) [])
           shader-light-capacity (shader/preview-light-capacity shader-lifecycle)]
       (when-let [{:keys [^int program uniform-infos]}
                  (scene-cache/request-object! ::shader/shader
