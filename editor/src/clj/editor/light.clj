@@ -55,8 +55,8 @@
 
 (def ^:private ^:const billboard-circle-segments 32)
 (def ^:private ^:const gizmo-target-pixels 100.0)
-;; Screen-space half-extent (pixels) for the origin icon quad; world size = scale-factor * this (see camera preview mesh).
-(def ^:private ^:const origin-marker-pixels 8.0)
+;; Screen-space half-extent (pixels) for the light icon quad; world size = scale-factor * this (see camera preview mesh).
+(def ^:private ^:const light-icon-pixels 8.0)
 (def ^:private ^:const max-spot-cone-angle 180.0)
 
 (def ^:private outline-icon "icons/64/Icons_21-Light.png")
@@ -300,17 +300,16 @@
     (and (Double/isFinite x)
          (pos? x))))
 
-(defn- render-origin-markers-billboard [^GL2 gl render-args renderables icon-gpu-texture]
-  (assert (= pass/outline (:pass render-args)))
-  (let [n (count renderables)
+(defn- render-light-icons [^GL2 gl render-args renderables n]
+  (assert (= pass/transparent (:pass render-args)))
+  (let [icon-gpu-texture (:icon-gpu-texture (:user-data (first renderables)))
         camera (:camera render-args)
         vbuf (persistent!
-               (reduce (fn [vbuf ri]
-                         (let [renderable (nth renderables ri)
-                               [ocr ocg ocb] (light-rgb (:user-data renderable))
+               (reduce (fn [vbuf renderable]
+                         (let [[ocr ocg ocb] (light-rgb (:user-data renderable))
                                ^Vector3d world-translation (:world-translation renderable)
                                sf (scene-tools/scale-factor camera (:viewport render-args) world-translation)
-                               h (* 2.0 (double sf) (double origin-marker-pixels))]
+                               h (* 2.0 (double sf) (double light-icon-pixels))]
                            (if (and (finite-positive? sf)
                                     (finite-positive? h))
                              (if-some [axes (billboard-axes world-translation camera)]
@@ -318,10 +317,10 @@
                                  (fill-light-icon-quad! vbuf world-translation right up h ocr ocg ocb))
                                vbuf)
                              vbuf)))
-                       (->tex-color-vtx (* n 6))
-                       (range n)))]
+                       (->tex-color-vtx (* (long n) 6))
+                       renderables))]
     (when (pos? (count vbuf))
-      (let [vb (vtx/use-with ::light-origin-icon vbuf light-icon-shader)]
+      (let [vb (vtx/use-with ::light-icon vbuf light-icon-shader)]
         (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
         (gl/gl-enable gl GL/GL_BLEND)
         (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
@@ -333,21 +332,19 @@
             (gl/gl-disable gl GL/GL_BLEND)
             (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_LINE)))))))
 
-(defn- render-origin-markers-selection [^GL2 gl render-args renderables n]
+(defn- render-light-icon-selection [^GL2 gl render-args renderables n]
   (assert (= pass/selection (:pass render-args)))
-  (let [n (long n)
-        camera (:camera render-args)
+  (let [camera (:camera render-args)
         vbuf (persistent!
-               (reduce (fn [vbuf ri]
-                         (let [renderable (nth renderables ri)
-                               ^floats pc (scene-picking/picking-id->float-array (long (:picking-id renderable)))
+               (reduce (fn [vbuf renderable]
+                         (let [^floats pc (scene-picking/picking-id->float-array (long (:picking-id renderable)))
                                cr (aget pc 0)
                                cg (aget pc 1)
                                cb (aget pc 2)
                                ca (aget pc 3)
                                ^Vector3d world-translation (:world-translation renderable)
                                sf (scene-tools/scale-factor camera (:viewport render-args) world-translation)
-                               h (* 2.0 (double sf) (double origin-marker-pixels))]
+                               h (* 2.0 (double sf) (double light-icon-pixels))]
                            (if (and (finite-positive? sf)
                                     (finite-positive? h))
                              (if-some [axes (billboard-axes world-translation camera)]
@@ -355,33 +352,31 @@
                                  (fill-solid-billboard-quad! vbuf world-translation right up h cr cg cb ca))
                                vbuf)
                              vbuf)))
-                       (->color-vtx (* n 6))
-                       (range n)))]
+                       (->color-vtx (* (long n) 6))
+                       renderables))]
     (when (pos? (count vbuf))
-      (let [vb (vtx/use-with ::light-origin-selection-quad vbuf outline-shader)]
+      (let [vb (vtx/use-with ::light-icon-selection-quad vbuf outline-shader)]
         (gl/with-gl-bindings gl render-args [outline-shader vb]
           (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf)))))))
 
 (defn- render-point-outline [^GL2 gl render-args renderables n]
   (assert (= pass/outline (:pass render-args)))
-  (let [n (long n)
-        camera (:camera render-args)
+  (let [camera (:camera render-args)
         vbuf (persistent!
-               (reduce (fn [vbuf ri]
-                         (let [renderable (nth renderables ri)]
-                           (if (light-gizmo-visible? renderable)
-                             (let [{:keys [range]} (:user-data renderable)
-                                   [cr cg cb] (colors/renderable-outline-color renderable)
-                                   ^Vector3d world-translation (:world-translation renderable)
-                                   r (* (double (or range 1.0)) (double (renderable-min-scale renderable)))
-                                   r (max r 0.01)]
-                               (if-some [axes (billboard-axes world-translation camera)]
-                                 (let [[^Vector3d right ^Vector3d up _] axes]
-                                   (fill-point-billboard-circle! vbuf world-translation right up r cr cg cb))
-                                 vbuf))
-                             vbuf)))
-                       (->color-vtx (* n billboard-circle-segments 2))
-                       (range n)))]
+               (reduce (fn [vbuf renderable]
+                         (if (light-gizmo-visible? renderable)
+                           (let [{:keys [range]} (:user-data renderable)
+                                 [cr cg cb] (colors/renderable-outline-color renderable)
+                                 ^Vector3d world-translation (:world-translation renderable)
+                                 r (* (double (or range 1.0)) (double (renderable-min-scale renderable)))
+                                 r (max r 0.01)]
+                             (if-some [axes (billboard-axes world-translation camera)]
+                               (let [[^Vector3d right ^Vector3d up _] axes]
+                                 (fill-point-billboard-circle! vbuf world-translation right up r cr cg cb))
+                               vbuf))
+                           vbuf))
+                       (->color-vtx (* (long n) billboard-circle-segments 2))
+                       renderables))]
     (when (pos? (count vbuf))
       (gl/gl-enable gl GL/GL_DEPTH_TEST)
       (.glDepthMask gl false)
@@ -390,14 +385,13 @@
           (gl/with-gl-bindings gl render-args [outline-shader vb]
             (.glDrawArrays gl GL/GL_LINES 0 (count vbuf))))
         (finally
-          (gl/gl-disable gl GL/GL_DEPTH_TEST))))
-    (render-origin-markers-billboard gl render-args renderables @icon-omni-gpu-texture-delay)))
+          (gl/gl-disable gl GL/GL_DEPTH_TEST))))))
 
 (defn- render-point-volume [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)
         show-pick (= pass/selection pass)]
     (when show-pick
-      (render-origin-markers-selection gl render-args renderables n))))
+      (render-light-icon-selection gl render-args renderables n))))
 
 (defn- fill-directional-move-arrow-tris-only!
   ([vbuf-tris ^Vector3d p ^Vector3d d-world cr cg cb total-len]
@@ -473,27 +467,25 @@
           (gl/with-gl-bindings gl render-args [outline-shader vb]
             (.glDrawArrays gl GL/GL_LINES 0 (count vbuf-lines))))
         (finally
-          (gl/gl-disable gl GL/GL_DEPTH_TEST))))
-    (render-origin-markers-billboard gl render-args renderables @icon-sun-gpu-texture-delay)))
+          (gl/gl-disable gl GL/GL_DEPTH_TEST))))))
 
 (defn- render-directional-volume [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)
         show-pick (= pass/selection pass)]
     (when show-pick
-      (render-origin-markers-selection gl render-args renderables n))))
+      (render-light-icon-selection gl render-args renderables n))))
 
 (defn- render-spot-outline [^GL2 gl render-args renderables n]
   (assert (= pass/outline (:pass render-args)))
   (let [visible-gizmos (filterv light-gizmo-visible? renderables)]
     (when (pos? (count visible-gizmos))
-      (render-light-gizmo-lines gl render-args visible-gizmos (count visible-gizmos))))
-  (render-origin-markers-billboard gl render-args renderables @icon-spot-gpu-texture-delay))
+      (render-light-gizmo-lines gl render-args visible-gizmos (count visible-gizmos)))))
 
 (defn- render-spot-volume [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)
         show-pick (= pass/selection pass)]
     (when show-pick
-      (render-origin-markers-selection gl render-args renderables n))))
+      (render-light-icon-selection gl render-args renderables n))))
 
 (def ^:private render-point-outline-scaled (wrap-uniform-scale render-point-outline))
 (def ^:private render-point-volume-scaled (wrap-uniform-scale render-point-volume))
@@ -541,6 +533,15 @@
       [visibility-aabb user-data])
     [visibility-aabb user-data]))
 
+(defn- make-icon-scene [node-id icon-gpu-texture color]
+  {:node-id node-id
+   :renderable {:render-fn render-light-icons
+                :batch-key [icon-gpu-texture]
+                :tags #{:light :outline} ; :outline really means "gizmo" in our case.
+                :passes [pass/transparent]
+                :user-data {:color color
+                            :icon-gpu-texture icon-gpu-texture}}})
+
 (defn- make-light-scene [node-id light-type color intensity range inner-cone-angle outer-cone-angle]
   (let [preview (preview-light-user-data light-type color intensity range inner-cone-angle outer-cone-angle)
         rgb-base {:color color
@@ -574,7 +575,8 @@
                                   :batch-key [outline-shader]
                                   :tags #{:light :outline}
                                   :passes [pass/outline]
-                                  :user-data outline-user-data}}]})
+                                  :user-data outline-user-data}}
+                    (make-icon-scene node-id @icon-omni-gpu-texture-delay color)]})
 
       :directional
       (let [aabb (geom/mirrored-point->aabb (Point3d. 1.5 1.5 1.5))]
@@ -591,7 +593,8 @@
                                   :batch-key [outline-shader]
                                   :tags #{:light :outline}
                                   :passes [pass/outline]
-                                  :user-data base-user-data}}]})
+                                  :user-data base-user-data}}
+                    (make-icon-scene node-id @icon-sun-gpu-texture-delay color)]})
 
       :spot
       (let [h (max (double range) 0.01)
@@ -627,7 +630,8 @@
                                   :batch-key [outline-shader]
                                   :tags #{:light :outline}
                                   :passes [pass/outline]
-                                  :user-data outline-user-data}}]}))))
+                                  :user-data outline-user-data}}
+                    (make-icon-scene node-id @icon-spot-gpu-texture-delay color)]}))))
 
 (defn- make-directional-light-scene [node-id color intensity]
   (make-light-scene node-id :directional color intensity 0.0 0.0 0.0))
