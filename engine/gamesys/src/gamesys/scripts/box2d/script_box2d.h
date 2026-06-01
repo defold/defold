@@ -38,6 +38,7 @@ namespace dmGameSystem
     void  ScriptBox2DInitializeJoint(struct lua_State* L);
     void  ScriptBox2DInvalidateJoint(void* joint);
     void  ScriptBox2DFinalizeJoint();
+    void  ScriptBox2DInitializeWorld(struct lua_State* L);
     void  ScriptBox2DInitializeFixture(struct lua_State* L);
     void  ScriptBox2DInitializeShape(struct lua_State* L);
 }
