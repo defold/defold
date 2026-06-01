@@ -49,4 +49,14 @@ public class BuilderUtil {
         return resource;
     }
 
+    public static String getResourcePathFromOutput(Project project, IResource outputResource) {
+        String path = outputResource.getPath();
+        String buildDirectory = project.getBuildDirectory();
+        String buildDirectoryPrefix = buildDirectory + "/";
+        if (!path.startsWith(buildDirectoryPrefix)) {
+            throw new IllegalArgumentException(String.format("Expected output resource path '%s' to start with build directory '%s'", path, buildDirectoryPrefix));
+        }
+        return path.substring(buildDirectory.length());
+    }
+
 }

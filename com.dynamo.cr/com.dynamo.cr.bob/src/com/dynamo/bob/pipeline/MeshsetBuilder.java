@@ -27,7 +27,6 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TextureUtil;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
@@ -43,6 +42,29 @@ public class MeshsetBuilder extends Builder  {
     private static class MorphTargetTextureOutput {
         IResource resource;
         ModelUtil.PackedMorphTargetTexture texture;
+    }
+
+    private static class BobMorphTargetTextureCollector implements ModelUtil.MorphTargetTextureCollector {
+        private final Project project;
+        private final Task task;
+        private final ArrayList<MorphTargetTextureOutput> outputs;
+
+        public BobMorphTargetTextureCollector(Project project, Task task, ArrayList<MorphTargetTextureOutput> outputs) {
+            this.project = project;
+            this.task = task;
+            this.outputs = outputs;
+        }
+
+        @Override
+        public String add(Modelimporter.Mesh mesh, ModelUtil.PackedMorphTargetTexture texture) {
+            // The first three task outputs are meshsetc, skeletonc and animationsetc.
+            int outputIndex = 3 + outputs.size();
+            MorphTargetTextureOutput output = new MorphTargetTextureOutput();
+            output.resource = task.output(outputIndex);
+            output.texture = texture;
+            outputs.add(output);
+            return BuilderUtil.getResourcePathFromOutput(project, output.resource);
+        }
     }
 
     public static class ResourceDataResolver implements ModelImporterJni.DataResolver
@@ -111,9 +133,8 @@ public class MeshsetBuilder extends Builder  {
             validateGltf(task, suffix);
         }
 
-        BobProjectProperties projectProperties = this.project.getProjectProperties();
-        int morphTexW = projectProperties.getIntValue("model", "max_morph_target_texture_width", 1024);
-        int morphTexH = projectProperties.getIntValue("model", "max_morph_target_texture_height", 1024);
+        int morphTexW = Integer.parseInt(this.project.option("model-max-morph-target-texture-width", "1024"));
+        int morphTexH = Integer.parseInt(this.project.option("model-max-morph-target-texture-height", "1024"));
 
         Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
@@ -128,7 +149,7 @@ public class MeshsetBuilder extends Builder  {
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
             ArrayList<MorphTargetTextureOutput> morphTargetTextureOutputs = new ArrayList<>();
-            int buildDirLen = project.getBuildDirectory().length();
+            BobMorphTargetTextureCollector morphTextureCollector = new BobMorphTargetTextureCollector(project, task, morphTargetTextureOutputs);
 
             boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
             if (split_meshes) {
@@ -136,14 +157,7 @@ public class MeshsetBuilder extends Builder  {
             }
 
             try {
-                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH, (mesh, texture) -> {
-                    int outputIndex = 3 + morphTargetTextureOutputs.size();
-                    MorphTargetTextureOutput output = new MorphTargetTextureOutput();
-                    output.resource = task.output(outputIndex);
-                    output.texture = texture;
-                    morphTargetTextureOutputs.add(output);
-                    return output.resource.getPath().substring(buildDirLen);
-                });
+                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH, morphTextureCollector);
             } catch (LoaderException e) {
                 throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
             }

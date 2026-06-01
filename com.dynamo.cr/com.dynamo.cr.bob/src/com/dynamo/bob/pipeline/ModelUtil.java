@@ -1198,10 +1198,6 @@ public class ModelUtil {
         return scene;
     }
 
-    public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH) throws LoaderException {
-        loadModels(scene, meshSetBuilder, maxMorphTargetTexW, maxMorphTargetTexH, null);
-    }
-
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
@@ -1461,7 +1457,7 @@ public class ModelUtil {
         System.out.printf("--------------------------------------------\n");
 
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
-        loadModels(scene, meshSetBuilder, 0, 0); // testing the function
+        loadModels(scene, meshSetBuilder, 0, 0, null); // testing the function
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         loadSkeleton(scene, skeletonBuilder); // testing the function

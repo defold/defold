@@ -333,7 +333,7 @@ public class ModelUtilTest {
         Modelimporter.Scene scene = loadSceneNoException(path);
         if (scene != null)
         {
-            ModelUtil.loadModels(scene, meshSetBuilder, 0, 0);
+            ModelUtil.loadModels(scene, meshSetBuilder, 0, 0, null);
             ModelUtil.loadSkeleton(scene, skeletonBuilder);
 
             ArrayList<String> animationIds = new ArrayList<>();
@@ -345,7 +345,7 @@ public class ModelUtilTest {
     private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder) throws LoaderException {
         Modelimporter.Scene scene = loadSceneNoException(path);
-        ModelUtil.loadModels(scene, meshSetBuilder, 0, 0);
+        ModelUtil.loadModels(scene, meshSetBuilder, 0, 0, null);
         return scene;
     }
 

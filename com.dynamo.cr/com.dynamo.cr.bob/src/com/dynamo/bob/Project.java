@@ -1367,7 +1367,15 @@ public class Project {
      *  Options from the `game.project` file that may affect build outputs.
      */
     private static class GameProjectBuildOption {
+        private enum ValueType {
+            BOOLEAN,
+            INTEGER
+        }
+
         public String inputOption, outputOption, propertyCategory, propertyKey;
+        private ValueType valueType;
+        private String defaultValue;
+
         /**
          * @param inputOption        Option that may be used with Bob.
          * @param outputOption       How the option will be saved in project options using project.setOption() for future use.
@@ -1379,6 +1387,37 @@ public class Project {
             this.outputOption = outputOption;
             this.propertyCategory = propertyCategory;
             this.propertyKey = propertyKey;
+            this.valueType = ValueType.BOOLEAN;
+            this.defaultValue = "false";
+        }
+
+        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, int defaultValue) {
+            this.inputOption = inputOption;
+            this.outputOption = outputOption;
+            this.propertyCategory = propertyCategory;
+            this.propertyKey = propertyKey;
+            this.valueType = ValueType.INTEGER;
+            this.defaultValue = Integer.toString(defaultValue);
+        }
+
+        public String getValue(Project project) {
+            if (valueType == ValueType.BOOLEAN) {
+                boolean fromProjectProperties = project.getProjectProperties().getBooleanValue(propertyCategory, propertyKey, false);
+                if (project.hasOption(inputOption)) {
+                    boolean fromProjectOptions = project.option(inputOption, defaultValue).equals("true");
+                    return Boolean.toString(fromProjectProperties || fromProjectOptions);
+                } else {
+                    return Boolean.toString(fromProjectProperties);
+                }
+            } else if (valueType == ValueType.INTEGER) {
+                if (project.hasOption(inputOption)) {
+                    return project.option(inputOption, defaultValue);
+                }
+                int value = project.getProjectProperties().getIntValue(propertyCategory, propertyKey, Integer.parseInt(defaultValue));
+                return Integer.toString(value);
+            } else {
+                throw new IllegalArgumentException(String.format("Unknown game.project build option value type: %s", valueType));
+            }
         }
     }
 
@@ -1521,6 +1560,8 @@ public class Project {
 
         options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound", "stream_enabled"));
         options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model", "split_meshes"));
+        options.add(new GameProjectBuildOption("model-max-morph-target-texture-width", "model-max-morph-target-texture-width", "model", "max_morph_target_texture_width", 1024));
+        options.add(new GameProjectBuildOption("model-max-morph-target-texture-height", "model-max-morph-target-texture-height", "model", "max_morph_target_texture_height", 1024));
         options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus", "disabled"));
         options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font", "runtime_generation"));
 
@@ -1538,19 +1579,8 @@ public class Project {
         this.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, getShaderAdaptersOption(currentPlatform, platformsSettings));
 
         for(GameProjectBuildOption option:options) {
-            boolean fromProjectProperties = this.getProjectProperties().getBooleanValue(option.propertyCategory, option.propertyKey, false);
-            if (this.hasOption(option.inputOption)) {
-                boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");
-                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties || fromProjectOptions));
-            } else {
-                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties));
-            }
+            this.setOption(option.outputOption, option.getValue(this));
         }
-
-        int maxMorphTargetTextureWidth = this.getProjectProperties().getIntValue("model", "max_morph_target_texture_width", 1024);
-        this.setOption("model-max-morph-target-texture-width", Integer.toString(maxMorphTargetTextureWidth));
-        int maxMorphTargetTextureHeight = this.getProjectProperties().getIntValue("model", "max_morph_target_texture_height", 1024);
-        this.setOption("model-max-morph-target-texture-height", Integer.toString(maxMorphTargetTextureHeight));
 
         boolean isPhysics2D = this.getProjectProperties().getStringValue("physics", "type", "2D").equals("2D");
         this.setOption("physics-type-2D", Boolean.toString(isPhysics2D));
