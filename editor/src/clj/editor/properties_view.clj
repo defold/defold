@@ -469,7 +469,7 @@
 (defn- vec->color [[r g b a]]
   (Color. (float r) (float g) (float b) (float a)))
 
-(defmethod make-control-view types/Color [property {:keys [color-dropper-view prefs]} localization-state]
+(defmethod make-control-view types/Color [property {:keys [prefs]} localization-state]
   (let [values (properties/values property)
         value (properties/unify-values values)
         ignore-alpha (:ignore-alpha (:edit-type property))
@@ -489,7 +489,6 @@
                                             (assoc 3 (coerce (.getOpacity new-color))))))
                               values)))
          :ignore-alpha ignore-alpha
-         :color-dropper-view color-dropper-view
          :prefs prefs
          :editable (not (properties/read-only? property))}
         (resolve-validation property localization-state))))
@@ -775,7 +774,7 @@
                        :properties displayed-node-properties}}})
 
 (g/defnk produce-pane-desc
-  [workspace project app-view search-results-view displayed-node-properties color-dropper-view prefs localization]
+  [workspace project app-view search-results-view displayed-node-properties prefs localization]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type properties-pane-view
           :localization localization
@@ -784,8 +783,7 @@
                     :app-view app-view
                     :prefs prefs
                     :localization localization
-                    :search-results-view search-results-view
-                    :color-dropper-view color-dropper-view}
+                    :search-results-view search-results-view}
           :displayed-node-properties displayed-node-properties}})
 
 (g/defnode PropertiesView
@@ -796,12 +794,11 @@
   (input project g/Any)
   (input app-view g/NodeID)
   (input search-results-view g/NodeID)
-  (input color-dropper-view g/NodeID)
   (input displayed-node-properties g/Any)
 
   (output pane-desc g/Any :cached produce-pane-desc))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs]
+(defn make-properties-view [workspace project app-view search-results-view view-graph prefs]
   (first
     (g/tx-nodes-added
       (g/transact
@@ -810,5 +807,4 @@
           (g/connect workspace :localization view :localization)
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)
-          (g/connect search-results-view :_node-id view :search-results-view)
-          (g/connect color-dropper-view :_node-id view :color-dropper-view))))))
+          (g/connect search-results-view :_node-id view :search-results-view))))))
