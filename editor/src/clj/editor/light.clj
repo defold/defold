@@ -290,11 +290,6 @@
   (or (light-gizmo-selected? renderable)
       (standalone-light-gizmo? renderable)))
 
-(defn- light-rgb [user-data]
-  (or (:light-rgb user-data)
-      (let [c (:color user-data)]
-        [(double (nth c 0 1.0)) (double (nth c 1 1.0)) (double (nth c 2 1.0))])))
-
 (defn- finite-positive? [x]
   (let [x (double x)]
     (and (Double/isFinite x)
@@ -306,7 +301,8 @@
         camera (:camera render-args)
         vbuf (persistent!
                (reduce (fn [vbuf renderable]
-                         (let [[ocr ocg ocb] (light-rgb (:user-data renderable))
+                         (let [[cr cg cb] (or (colors/selection-color (:selected renderable))
+                                              (:color (:user-data renderable)))
                                ^Vector3d world-translation (:world-translation renderable)
                                sf (scene-tools/scale-factor camera (:viewport render-args) world-translation)
                                h (* 2.0 (double sf) (double light-icon-pixels))]
@@ -314,7 +310,7 @@
                                     (finite-positive? h))
                              (if-some [axes (billboard-axes world-translation camera)]
                                (let [[^Vector3d right ^Vector3d up _] axes]
-                                 (fill-light-icon-quad! vbuf world-translation right up h ocr ocg ocb))
+                                 (fill-light-icon-quad! vbuf world-translation right up h cr cg cb))
                                vbuf)
                              vbuf)))
                        (->tex-color-vtx (* (long n) 6))
@@ -544,11 +540,7 @@
 
 (defn- make-light-scene [node-id light-type color intensity range inner-cone-angle outer-cone-angle]
   (let [preview (preview-light-user-data light-type color intensity range inner-cone-angle outer-cone-angle)
-        rgb-base {:color color
-                  :light-rgb [(double (nth color 0 1.0))
-                              (double (nth color 1 1.0))
-                              (double (nth color 2 1.0))]}
-        base-user-data (merge rgb-base preview)]
+        base-user-data (assoc preview :color color)]
     (case light-type
       :point
       (let [r (max (double range) 0.01)
