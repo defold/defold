@@ -436,6 +436,29 @@
                 (catch Throwable e e))))
         (is (= [2 2 2] (test-util/prop sprite-node-id :scale)))))))
 
+(deftest editor-script-commands-preserve-declaration-order-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/command_order_project"
+    (reload-editor-scripts! project)
+    (let [command-labels (into []
+                               (comp
+                                 (filter (fn [{:keys [command]}]
+                                           (and command
+                                                (handler/synthetic-command? command))))
+                                 (map (fn [{:keys [command]}]
+                                        (some-> (handler/active command (eval-handler-contexts :global []) {})
+                                                handler/label))))
+                               (handler/realize-menu :editor.app-view/edit-end))]
+      (is (= ["Command 7"
+              "Command 2"
+              "Command 9"
+              "Command 1"
+              "Command 5"
+              "Command 3"
+              "Command 8"
+              "Command 4"
+              "Command 6"]
+             command-labels)))))
+
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
     (let [output (atom [])
