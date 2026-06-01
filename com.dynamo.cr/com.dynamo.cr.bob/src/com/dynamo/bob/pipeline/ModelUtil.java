@@ -1050,10 +1050,6 @@ public class ModelUtil {
         return Arrays.asList(ArrayUtils.toObject(array));
     }
 
-    public static Rig.Mesh loadMesh(Mesh mesh, int maxMorphTargetTexW, int maxMorphTargetTexH) throws LoaderException {
-        return loadMesh(mesh, maxMorphTargetTexW, maxMorphTargetTexH, null);
-    }
-
     public static Rig.Mesh loadMesh(Mesh mesh, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
         String name = mesh.name;
 

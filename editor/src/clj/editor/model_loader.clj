@@ -52,21 +52,18 @@
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ModelUtil/getAnimationNames scene) ; sorted on duration (largest first)
-        morph-target-textures (java.util.ArrayList.)]
+        morph-target-textures (java.util.ArrayList.)
+        morph-target-texture-collector
+        (reify ModelUtil$MorphTargetTextureCollector
+          (add [_ _mesh texture]
+            (let [index (.size morph-target-textures)
+                  token (format "__morph_target_texture_%d__" index)]
+              (.add morph-target-textures {:token token
+                                           :packed-texture (packed-morph-target-texture->map texture)})
+              token)))]
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadModels
-      scene
-      mesh-set-builder
-      morph-tex-w
-      morph-tex-h
-      (reify ModelUtil$MorphTargetTextureCollector
-        (add [_ _mesh texture]
-          (let [index (.size morph-target-textures)
-                token (format "__morph_target_texture_%d__" index)]
-            (.add morph-target-textures {:token token
-                                         :packed-texture (packed-morph-target-texture->map texture)})
-            token))))
+    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector)
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set

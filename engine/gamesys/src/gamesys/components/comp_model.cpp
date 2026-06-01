@@ -597,8 +597,8 @@ namespace dmGameSystem
             {
                 dmHashUpdateBuffer32(state, &item.m_MorphTargetTexture, sizeof(item.m_MorphTargetTexture));
 
-                // Legacy uniform morph weights are render constants, so they still need to
-                // split instanced batches. Materials using the morph-target weight instance
+                // Uniform morph weights are render constants, so they still need to split
+                // instanced batches. Materials using the morph-target weight instance
                 // attribute carry the weights in the instance stream instead.
                 if (!dmRender::GetMaterialHasMorphTargetWeightsAttribute(material))
                 {

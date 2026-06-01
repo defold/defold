@@ -1391,13 +1391,12 @@ public class Project {
             this.defaultValue = "false";
         }
 
-        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, int defaultValue) {
+        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, ValueType valueType) {
             this.inputOption = inputOption;
             this.outputOption = outputOption;
             this.propertyCategory = propertyCategory;
             this.propertyKey = propertyKey;
-            this.valueType = ValueType.INTEGER;
-            this.defaultValue = Integer.toString(defaultValue);
+            this.valueType = valueType;
         }
 
         public String getValue(Project project) {
@@ -1411,9 +1410,9 @@ public class Project {
                 }
             } else if (valueType == ValueType.INTEGER) {
                 if (project.hasOption(inputOption)) {
-                    return project.option(inputOption, defaultValue);
+                    return project.option(inputOption, null);
                 }
-                int value = project.getProjectProperties().getIntValue(propertyCategory, propertyKey, Integer.parseInt(defaultValue));
+                int value = project.getProjectProperties().getIntValue(propertyCategory, propertyKey);
                 return Integer.toString(value);
             } else {
                 throw new IllegalArgumentException(String.format("Unknown game.project build option value type: %s", valueType));
@@ -1560,8 +1559,8 @@ public class Project {
 
         options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound", "stream_enabled"));
         options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model", "split_meshes"));
-        options.add(new GameProjectBuildOption("model-max-morph-target-texture-width", "model-max-morph-target-texture-width", "model", "max_morph_target_texture_width", 1024));
-        options.add(new GameProjectBuildOption("model-max-morph-target-texture-height", "model-max-morph-target-texture-height", "model", "max_morph_target_texture_height", 1024));
+        options.add(new GameProjectBuildOption("model-max-morph-target-texture-width", "model-max-morph-target-texture-width", "model", "max_morph_target_texture_width", GameProjectBuildOption.ValueType.INTEGER));
+        options.add(new GameProjectBuildOption("model-max-morph-target-texture-height", "model-max-morph-target-texture-height", "model", "max_morph_target_texture_height", GameProjectBuildOption.ValueType.INTEGER));
         options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus", "disabled"));
         options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font", "runtime_generation"));
 
