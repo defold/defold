@@ -33,9 +33,6 @@
         [["model" "max_morph_target_texture_width"]
          ["model" "max_morph_target_texture_height"]]))
 
-(defn- morph-target-texture-token [index]
-  (format "__morph_target_texture_%d__" index))
-
 (defn- packed-morph-target-texture->map [^ModelUtil$PackedMorphTargetTexture texture]
   {:width (.-width texture)
    :height (.-height texture)
@@ -66,7 +63,7 @@
       (reify ModelUtil$MorphTargetTextureCollector
         (add [_ _mesh texture]
           (let [index (.size morph-target-textures)
-                token (morph-target-texture-token index)]
+                token (format "__morph_target_texture_%d__" index)]
             (.add morph-target-textures {:token token
                                          :packed-texture (packed-morph-target-texture->map texture)})
             token))))

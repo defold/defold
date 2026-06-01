@@ -19,8 +19,8 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build :as build]
-            [editor.model-loader :as model-loader]
             [editor.defold-project :as project]
+            [editor.model-loader :as model-loader]
             [editor.pipeline :as pipeline]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
@@ -45,7 +45,7 @@
                                          old-artifact-map
                                          evaluation-context
                                          progress/null-render-progress!)]
-      (when-some [error (:error build-results)]
+      (when-let [error (:error build-results)]
         (throw (ex-info "Build produced an ErrorValue." {:error error})))
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results))
