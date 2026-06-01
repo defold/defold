@@ -1618,8 +1618,27 @@
             "title": "Remove deprecated Lua APIs",
             "type": "BREAKING CHANGE",
             "url": "https://github.com/defold/defold/pull/12441"
+        },
+        {
+            "author": "JCash",
+            "body": "Adds Box2D v3 chain support, typed world/shape handles, and a new b2d.world Lua module.\r\n\r\nBox2D v3 added/changed APIs:\r\n- b2d.body.create_chain\r\n- b2d.body.is_valid\r\n- b2d.body.get_name\r\n- b2d.body.set_name\r\n- b2d.body.set_target_transform\r\n- b2d.body.apply_linear_impulse_to_center\r\n- b2d.body.get_sleep_threshold\r\n- b2d.body.set_sleep_threshold\r\n- b2d.body.enable_contact_events\r\n- b2d.body.enable_hit_events\r\n- b2d.body.get_contact_data\r\n- b2d.body.compute_aabb\r\n- b2d.body.create_shape changed to expose material data\r\n- b2d.body.get_shapes changed to expose shape_id and material data\r\n- b2d.chain.destroy\r\n- b2d.chain.is_valid\r\n- b2d.chain.get_world\r\n- b2d.chain.get_segment_count\r\n- b2d.chain.get_segments\r\n- b2d.chain.get_geometry\r\n- b2d.chain.from_shape\r\n- b2d.chain.get_friction\r\n- b2d.chain.set_friction\r\n- b2d.chain.get_restitution\r\n- b2d.chain.set_restitution\r\n- b2d.chain.get_material\r\n- b2d.chain.set_material\r\n- b2d.shape.SHAPE_TYPE_SEGMENT\r\n- b2d.shape.get_shape changed to report chain segments as SHAPE_TYPE_SEGMENT\r\n- b2d.shape.is_valid\r\n- b2d.shape.get_body\r\n- b2d.shape.get_world\r\n- b2d.shape.get_material\r\n- b2d.shape.set_material\r\n- b2d.shape.enable_sensor_events\r\n- b2d.shape.are_sensor_events_enabled\r\n- b2d.shape.enable_contact_events\r\n- b2d.shape.are_contact_events_enabled\r\n- b2d.shape.enable_pre_solve_events\r\n- b2d.shape.are_pre_solve_events_enabled\r\n- b2d.shape.enable_hit_events\r\n- b2d.shape.are_hit_events_enabled\r\n- b2d.shape.ray_cast\r\n- b2d.shape.get_contact_capacity\r\n- b2d.shape.get_contact_data\r\n- b2d.shape.get_sensor_capacity\r\n- b2d.shape.get_sensor_overlaps\r\n- b2d.shape.get_mass_data\r\n- b2d.shape.get_closest_point\r\n- b2d.joint.is_valid\r\n- b2d.joint.get_world\r\n- b2d.world.is_valid\r\n- b2d.world.is_locked\r\n- b2d.world.get_gravity\r\n- b2d.world.set_gravity\r\n- b2d.world.enable_sleeping\r\n- b2d.world.is_sleeping_enabled\r\n- b2d.world.enable_continuous\r\n- b2d.world.is_continuous_enabled\r\n- b2d.world.set_restitution_threshold\r\n- b2d.world.get_restitution_threshold\r\n- b2d.world.set_hit_event_threshold\r\n- b2d.world.get_hit_event_threshold\r\n- b2d.world.set_maximum_linear_speed\r\n- b2d.world.get_maximum_linear_speed\r\n- b2d.world.enable_warm_starting\r\n- b2d.world.is_warm_starting_enabled\r\n- b2d.world.get_awake_body_count\r\n- b2d.world.set_contact_tuning\r\n- b2d.world.set_joint_tuning\r\n- b2d.world.get_profile\r\n- b2d.world.get_counters\r\n- b2d.world.explode\r\n- b2d.world.rebuild_static_tree\r\n- b2d.world.enable_speculative\r\n- b2d.world.overlap_aabb\r\n- b2d.world.overlap_shape\r\n- b2d.world.cast_ray\r\n- b2d.world.cast_ray_closest\r\n- b2d.world.cast_shape\r\n- b2d.world.cast_mover\r\n- b2d.world.collide_mover\r\n\r\nBox2D v2 added APIs:\r\n- b2d.world.overlap_aabb\r\n- b2d.world.overlap_shape\r\n- b2d.world.cast_ray\r\n- b2d.world.cast_ray_closest\r\n- b2d.world.cast_shape\r\n\r\nSee current example: https://github.com/JCash/example-box2d",
+            "closed_issues": [
+                12500
+            ],
+            "duplicate": false,
+            "issue_number": 12500,
+            "labels": [],
+            "mergecommit": "c9151ef0b35e17de1f3063520b36660016232d68",
+            "pr_number": 12500,
+            "referencecommits": [
+                "82faafac629aa3e5f98d196dcc1ca020822914bc"
+            ],
+            "repository": "defold",
+            "title": "Updated Box2d v3 api with chain an other missing functions",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12500"
         }
     ],
-    "timestamp": 1780329654.626373,
+    "timestamp": 1780329863.357315,
     "version": "1.13.0"
 }
