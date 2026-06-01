@@ -122,8 +122,7 @@
 (defn make-color-dropper! []
   (atom (->ColorDropper nil nil nil nil)))
 
-(defn activate!
-  [color-dropper pick-fn ^MouseEvent event]
+(defn activate! [color-dropper pick-fn ^MouseEvent event]
   (deactivate! color-dropper)
   (let [main-view ^StackPane (ui/main-root)
         canvas (Canvas. (.getWidth main-view) (.getHeight main-view))
