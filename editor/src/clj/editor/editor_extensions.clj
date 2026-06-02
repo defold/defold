@@ -42,6 +42,8 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.library :as library]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
             [editor.os :as os]
@@ -62,6 +64,7 @@
   (:import [clojure.lang IDeref Murmur3]
            [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
+           [com.dynamo.bob.util Library$Result]
            [java.io PrintStream PushbackReader]
            [java.net URI]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
@@ -463,6 +466,20 @@
 (defn- make-ext-save-fn [save!]
   (rt/suspendable-lua-fn ext-save [_]
     (future/then (save!) rt/and-refresh-context)))
+
+(defn- make-ext-fetch-libraries-fn [fetch-libraries! localization-state]
+  (rt/suspendable-lua-fn ext-fetch-libraries [_]
+    (future/then
+      (fetch-libraries!)
+      (fn [[lib-results reload-succeeded]]
+        (rt/and-refresh-context
+          (if-not reload-succeeded
+            (LuaError. "Reload failed")
+            (let [error-messages (coll/into-> lib-results []
+                                   (filter Library$Result/.problem)
+                                   (map library/result-message))]
+              (when (coll/not-empty error-messages)
+                (LuaError. ^String (localization-state (localization/join "\n" error-messages)))))))))))
 
 (defn- make-open-resource-fn [workspace open-resource!]
   (rt/suspendable-lua-fn open-resource [{:keys [rt evaluation-context]} lua-resource-path]
@@ -952,6 +969,9 @@
                           has OS-defined file association, returns
                           CompletableFuture (that might complete exceptionally
                           if resource could not be opened)
+    :fetch-libraries!     0-arg function that asynchronously fetches libraries,
+                          returns a CompletableFuture that completes with tuple
+                          [library-results reload-succeeded]
     :invoke-bob!          3-arg function that asynchronously invokes bob and
                           returns a CompletableFuture (which may complete
                           exceptionally if bob invocation fails). The args:
@@ -962,8 +982,8 @@
                                                   strings
                             evaluation-context    evaluation context of the
                                                   invocation"
-  [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
-  {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! invoke-bob!]}
+  [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
+  {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
   (g/let-ec [basis (:basis evaluation-context)
              lsp (lsp/get-node-lsp basis project)
              script-annotations (project/script-annotations project evaluation-context)
@@ -1001,6 +1021,7 @@
                                   "platform" (.getPair (Platform/getHostPlatform))
                                   "prefs" (prefs-functions/env prefs)
                                   "save" (make-ext-save-fn save!)
+                                  "fetch_libraries" (make-ext-fetch-libraries-fn fetch-libraries! localization)
                                   "transact" ext-transact
                                   "tx" {"set" (make-ext-tx-set-fn project)
                                         "add" (graph/make-ext-add-fn project)
