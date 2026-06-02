@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
 #include <box2d/box2d.h>
 
 #include <dlib/array.h>
@@ -149,6 +148,17 @@ namespace dmGameSystem
         return mass_data;
     }
 
+    static void PushAABB(lua_State* L, const b2AABB& aabb)
+    {
+        lua_newtable(L);
+
+        dmScript::PushVector3(L, FromB2(aabb.lowerBound, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "lower");
+
+        dmScript::PushVector3(L, FromB2(aabb.upperBound, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "upper");
+    }
+
     static B2DLuaBody* CheckBodyInternal(lua_State* L, int index)
     {
         return (B2DLuaBody*)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
@@ -217,7 +227,7 @@ namespace dmGameSystem
         return shapes[shape_index - 1];
     }
 
-    static int GetShapeIndex(b2BodyId body, b2ShapeId shape)
+    int GetShapeIndex(b2BodyId body, b2ShapeId shape)
     {
         const int shape_count = GetShapeCount(body);
         if (shape_count == 0)
@@ -239,12 +249,15 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void PushShapeInfo(lua_State* L, b2ShapeId shape, int shape_index)
+    void PushShapeInfo(lua_State* L, b2ShapeId shape, int shape_index)
     {
         lua_newtable(L);
 
         lua_pushinteger(L, shape_index);
         lua_setfield(L, -2, "index");
+
+        PushShapeId(L, shape);
+        lua_setfield(L, -2, "shape_id");
 
         lua_pushinteger(L, NormalizeShapeTypeForLua(b2Shape_GetType(shape)));
         lua_setfield(L, -2, "type");
@@ -261,12 +274,122 @@ namespace dmGameSystem
         lua_pushnumber(L, b2Shape_GetRestitution(shape));
         lua_setfield(L, -2, "restitution");
 
+        lua_pushinteger(L, b2Shape_GetMaterial(shape));
+        lua_setfield(L, -2, "material");
+
         lua_pushinteger(L, 1);
         lua_setfield(L, -2, "child_count");
 
         b2ChainId parent_chain = b2Shape_GetParentChain(shape);
         lua_pushboolean(L, b2Chain_IsValid(parent_chain));
         lua_setfield(L, -2, "is_chain_segment");
+    }
+
+    static void PushManifoldPoint(lua_State* L, const b2ManifoldPoint& point)
+    {
+        lua_newtable(L);
+
+        dmScript::PushVector3(L, FromB2(point.point, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "point");
+
+        dmScript::PushVector3(L, FromB2(point.anchorA, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "anchor_a");
+
+        dmScript::PushVector3(L, FromB2(point.anchorB, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "anchor_b");
+
+        lua_pushnumber(L, point.separation * GetInvPhysicsScale());
+        lua_setfield(L, -2, "separation");
+
+        lua_pushnumber(L, point.normalImpulse);
+        lua_setfield(L, -2, "normal_impulse");
+
+        lua_pushnumber(L, point.tangentImpulse);
+        lua_setfield(L, -2, "tangent_impulse");
+
+        lua_pushnumber(L, point.totalNormalImpulse);
+        lua_setfield(L, -2, "total_normal_impulse");
+
+        lua_pushnumber(L, point.normalVelocity * GetInvPhysicsScale());
+        lua_setfield(L, -2, "normal_velocity");
+
+        lua_pushinteger(L, point.id);
+        lua_setfield(L, -2, "id");
+
+        lua_pushboolean(L, point.persisted);
+        lua_setfield(L, -2, "persisted");
+    }
+
+    void PushContactData(lua_State* L, const b2ContactData& contact_data)
+    {
+        lua_newtable(L);
+
+        b2BodyId body_a = b2Shape_GetBody(contact_data.shapeIdA);
+        PushShapeInfo(L, contact_data.shapeIdA, GetShapeIndex(body_a, contact_data.shapeIdA));
+        lua_setfield(L, -2, "shape_a");
+
+        b2BodyId body_b = b2Shape_GetBody(contact_data.shapeIdB);
+        PushShapeInfo(L, contact_data.shapeIdB, GetShapeIndex(body_b, contact_data.shapeIdB));
+        lua_setfield(L, -2, "shape_b");
+
+        dmScript::PushVector3(L, FromB2(contact_data.manifold.normal, 1.0f));
+        lua_setfield(L, -2, "normal");
+
+        lua_pushnumber(L, contact_data.manifold.rollingImpulse);
+        lua_setfield(L, -2, "rolling_impulse");
+
+        lua_pushinteger(L, contact_data.manifold.pointCount);
+        lua_setfield(L, -2, "point_count");
+
+        lua_newtable(L);
+        for (int i = 0; i < contact_data.manifold.pointCount; ++i)
+        {
+            PushManifoldPoint(L, contact_data.manifold.points[i]);
+            lua_rawseti(L, -2, i + 1);
+        }
+        lua_setfield(L, -2, "points");
+    }
+
+    static int Body_IsValid(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        B2DLuaBody* luabody = CheckBodyInternal(L, 1);
+        if (luabody->m_InstanceId)
+        {
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
+            if (!instance || dmGameObject::GetGeneration(instance) != luabody->m_InstanceGeneration)
+            {
+                lua_pushboolean(L, false);
+                return 1;
+            }
+        }
+
+        lua_pushboolean(L, b2Body_IsValid(luabody->m_Body));
+        return 1;
+    }
+
+    static int Body_SetName(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        b2Body_SetName(*body, luaL_checkstring(L, 2));
+        return 0;
+    }
+
+    static int Body_GetName(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+        const char* name = b2Body_GetName(*body);
+        if (name)
+        {
+            lua_pushstring(L, name);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
     }
 
     static int Body_GetPosition(lua_State* L)
@@ -293,6 +416,17 @@ namespace dmGameSystem
         float angle = luaL_checknumber(L, 3);
         b2Rot rot = b2MakeRot(angle);
         b2Body_SetTransform(*body, position, rot);
+        return 0;
+    }
+
+    static int Body_SetTargetTransform(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        b2Transform target;
+        target.p = CheckVec2(L, 2, GetPhysicsScale());
+        target.q = b2MakeRot(luaL_checknumber(L, 3));
+        b2Body_SetTargetTransform(*body, target, luaL_checknumber(L, 4));
         return 0;
     }
 
@@ -330,6 +464,15 @@ namespace dmGameSystem
         b2Vec2 impulse = CheckVec2(L, 2, GetPhysicsScale());
         b2Vec2 position = CheckVec2(L, 3, GetPhysicsScale()); // position relative center of body
         b2Body_ApplyLinearImpulse(*body, impulse, position, true);
+        return 0;
+    }
+
+    static int Body_ApplyLinearImpulseToCenter(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        b2Vec2 impulse = CheckVec2(L, 2, GetPhysicsScale());
+        b2Body_ApplyLinearImpulseToCenter(*body, impulse, true);
         return 0;
     }
 
@@ -476,6 +619,38 @@ namespace dmGameSystem
                 ++joint_index;
             }
         }
+        return 1;
+    }
+
+    static int Body_GetContactData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+        int capacity = b2Body_GetContactCapacity(*body);
+
+        lua_newtable(L);
+        if (capacity == 0)
+        {
+            return 1;
+        }
+
+        dmArray<b2ContactData> contact_data;
+        contact_data.SetCapacity(capacity);
+        contact_data.SetSize(capacity);
+        int count = b2Body_GetContactData(*body, contact_data.Begin(), capacity);
+        for (int i = 0; i < count; ++i)
+        {
+            PushContactData(L, contact_data[i]);
+            lua_rawseti(L, -2, i + 1);
+        }
+        return 1;
+    }
+
+    static int Body_ComputeAABB(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+        PushAABB(L, b2Body_ComputeAABB(*body));
         return 1;
     }
 
@@ -716,6 +891,22 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Body_SetSleepThreshold(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        b2Body_SetSleepThreshold(*body, luaL_checknumber(L, 2) * GetPhysicsScale());
+        return 0;
+    }
+
+    static int Body_GetSleepThreshold(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+        lua_pushnumber(L, b2Body_GetSleepThreshold(*body) * GetInvPhysicsScale());
+        return 1;
+    }
+
     static int Body_SetSleepingAllowed(lua_State* L)
     {
         return Body_EnableSleep(L);
@@ -742,6 +933,22 @@ namespace dmGameSystem
         {
             b2Body_Disable(*body);
         }
+        return 0;
+    }
+
+    static int Body_EnableContactEvents(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        b2Body_EnableContactEvents(*body, lua_toboolean(L, 2));
+        return 0;
+    }
+
+    static int Body_EnableHitEvents(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        b2Body_EnableHitEvents(*body, lua_toboolean(L, 2));
         return 0;
     }
 
@@ -803,8 +1010,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2WorldId* world_id_ptr = (b2WorldId*) lua_newuserdata(L, sizeof(b2WorldId));
-        *world_id_ptr = b2Body_GetWorld(*body);
+        PushWorldId(L, b2Body_GetWorld(*body));
         return 1;
     }
 
@@ -837,10 +1043,15 @@ namespace dmGameSystem
 
     static const luaL_reg Body_functions[] =
     {
+        {"is_valid", Body_IsValid},
         {"create_shape", Body_CreateShape},
+        {"create_chain", Body_CreateChain},
+        {"get_name", Body_GetName},
+        {"set_name", Body_SetName},
         {"get_position", Body_GetPosition},
         {"get_transform", Body_GetTransform},
         {"set_transform", Body_SetTransform},
+        {"set_target_transform", Body_SetTargetTransform},
 
         //{"get_user_data", Body_GetUserData}, - could return the game object id ? ur url?
         //{"set_user_data", Body_SetUserData}, - could attach the body to a game object?
@@ -854,6 +1065,8 @@ namespace dmGameSystem
         {"get_angle", Body_GetAngle},
         {"get_shapes", Body_GetShapes},
         {"get_joints", Body_GetJoints},
+        {"get_contact_data", Body_GetContactData},
+        {"compute_aabb", Body_ComputeAABB},
         {"destroy_shape", Body_DestroyShape},
 
         {"get_linear_velocity", Body_GetLinearVelocity},
@@ -879,11 +1092,15 @@ namespace dmGameSystem
 
         {"is_sleeping_enabled", Body_IsSleepingEnabled},
         {"enable_sleep", Body_EnableSleep},
+        {"get_sleep_threshold", Body_GetSleepThreshold},
+        {"set_sleep_threshold", Body_SetSleepThreshold},
         {"is_sleeping_allowed", Body_IsSleepingAllowed},
         {"set_sleeping_allowed", Body_SetSleepingAllowed},
 
         {"is_active", Body_IsActive},
         {"set_active", Body_SetActive},
+        {"enable_contact_events", Body_EnableContactEvents},
+        {"enable_hit_events", Body_EnableHitEvents},
 
         {"get_gravity_scale", Body_GetGravityScale},
         {"set_gravity_scale", Body_SetGravityScale},
@@ -911,6 +1128,7 @@ namespace dmGameSystem
         {"apply_torque", Body_ApplyTorque},
 
         {"apply_linear_impulse", Body_ApplyLinearImpulse},
+        {"apply_linear_impulse_to_center", Body_ApplyLinearImpulseToCenter},
         {"apply_angular_impulse", Body_ApplyAngularImpulse},
 
         {"get_world", Body_GetWorld},
@@ -937,8 +1155,10 @@ namespace dmGameSystem
 
         lua_setfield(L, -2, "body");
 
+        ScriptBox2DInitializeWorld(L);
         ScriptBox2DInitializeJoint(L);
         ScriptBox2DInitializeShape(L);
+        ScriptBox2DInitializeChain(L);
     }
 
     void ScriptBox2DInvalidateBody(void* body)
@@ -949,6 +1169,9 @@ namespace dmGameSystem
     void ScriptBox2DFinalizeBody()
     {
         TYPE_HASH_BODY = 0;
+        ScriptBox2DFinalizeChain();
+        ScriptBox2DFinalizeShape();
+        ScriptBox2DFinalizeWorld();
         ScriptBox2DFinalizeJoint();
     }
 }
@@ -996,10 +1219,67 @@ namespace dmGameSystem
  * Creates a shape and attaches it to this body.
  * If the density is non-zero, this function automatically updates the mass of the body.
  * Contacts are not created until the next time step.
+ * The definition may include `density`, `friction`, `restitution`, `material`,
+ * `sensor` or `is_sensor`, `filter`, and the shape table itself. The shape table
+ * can be in `definition.shape` or directly in `definition`.
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_shape
  * @param body [type: b2Body] body
  * @param definition [type: table] the shape definition.
+ */
+
+/*# Create a chain and attach its segment shapes to this body.
+ * Chains are one-sided connected segments with optional ghost vertices at
+ * the ends of open chains. Ghost vertices are creation-time chain data only and
+ * cannot be added to arbitrary shapes, bodies, or joints after creation.
+ *
+ * `definition.vertices`
+ * : [type:table] array of local `vector3` vertices. Open chains require at least 2 vertices. Loop chains require at least 4 vertices.
+ *
+ * `definition.loop`
+ * : [type:boolean] true to create a closed loop chain.
+ *
+ * `definition.prev_vertex`
+ * : [type:vector3] optional ghost vertex before the first vertex for open chains.
+ *
+ * `definition.next_vertex`
+ * : [type:vector3] optional ghost vertex after the last vertex for open chains.
+ *
+ * `definition.friction`
+ * : [type:number] optional friction.
+ *
+ * `definition.restitution`
+ * : [type:number] optional restitution.
+ *
+ * `definition.material`
+ * : [type:number] optional material id.
+ *
+ * `definition.filter`
+ * : [type:table] optional filter with `category_bits`, `mask_bits`, and `group_index`.
+ *
+ * `definition.enable_sensor_events`
+ * : [type:boolean] true to enable sensor events for chain segments.
+ *
+ * @warning This function is locked during callbacks.
+ * @name b2d.body.create_chain
+ * @param body [type: b2Body] body
+ * @param definition [type: table] the chain definition
+ * @return chain [type: b2Chain] created chain handle
+ * @return segments [type: table] array of shape info tables for the chain segments
+ * @examples
+ *
+ * ```lua
+ * local chain, segments = b2d.body.create_chain(body, {
+ *     vertices = {
+ *         vmath.vector3(-64, 0, 0),
+ *         vmath.vector3(0, 16, 0),
+ *         vmath.vector3(64, 0, 0),
+ *     },
+ *     prev_vertex = vmath.vector3(-96, 0, 0),
+ *     next_vertex = vmath.vector3(96, 0, 0),
+ *     friction = 0.6,
+ * })
+ * ```
  */
 
 /**
@@ -1324,7 +1604,7 @@ namespace dmGameSystem
 /** Get the list of all shapes attached to this body.
  * @name b2d.body.get_shapes
  * @param body [type: b2Body] body
- * @return shapes [type: table] a table of functional shape entries
+ * @return shapes [type: table] a table of shape info entries. Each entry includes `shape_id` for use with `b2d.shape` functions.
  */
 
 /*# Get the joints attached to this body.
@@ -1362,4 +1642,72 @@ namespace dmGameSystem
  * @note Defold Specific
  * @param body [type: b2Body] body
  * @return force [type: vector3]
+ */
+
+/*# Validate a body handle.
+ * @name b2d.body.is_valid
+ * @param body [type: b2Body] body
+ * @return valid [type: boolean] true if the body handle still refers to a live Box2D body
+ */
+
+/*# Set the body name.
+ * @name b2d.body.set_name
+ * @param body [type: b2Body] body
+ * @param name [type: string] body name
+ */
+
+/*# Get the body name.
+ * @name b2d.body.get_name
+ * @param body [type: b2Body] body
+ * @return name [type: string] body name, or nil if no name is set
+ */
+
+/*# Set velocity to reach a target transform.
+ * @name b2d.body.set_target_transform
+ * @param body [type: b2Body] body
+ * @param position [type: vector3] target world position
+ * @param angle [type: number] target world angle in radians
+ * @param time_step [type: number] time step used to compute velocity
+ */
+
+/*# Apply a linear impulse to the center of mass.
+ * @name b2d.body.apply_linear_impulse_to_center
+ * @param body [type: b2Body] body
+ * @param impulse [type: vector3] world impulse vector
+ */
+
+/*# Set the sleep velocity threshold.
+ * @name b2d.body.set_sleep_threshold
+ * @param body [type: b2Body] body
+ * @param threshold [type: number] velocity threshold in Defold units per second
+ */
+
+/*# Get the sleep velocity threshold.
+ * @name b2d.body.get_sleep_threshold
+ * @param body [type: b2Body] body
+ * @return threshold [type: number] velocity threshold in Defold units per second
+ */
+
+/*# Enable or disable contact events on all body shapes.
+ * @name b2d.body.enable_contact_events
+ * @param body [type: b2Body] body
+ * @param enable [type: boolean] true to enable contact events
+ */
+
+/*# Enable or disable hit events on all body shapes.
+ * @name b2d.body.enable_hit_events
+ * @param body [type: b2Body] body
+ * @param enable [type: boolean] true to enable hit events
+ */
+
+/*# Get touching contact data for a body.
+ * @name b2d.body.get_contact_data
+ * @param body [type: b2Body] body
+ * @return contacts [type: table] array of contact tables
+ */
+
+/*# Compute the world AABB of all body shapes.
+ * @name b2d.body.compute_aabb
+ * @param body [type: b2Body] body
+ * @return aabb [type: table] table with `lower` and `upper` vector3 fields
  */

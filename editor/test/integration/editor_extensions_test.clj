@@ -28,11 +28,13 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.library :as library]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
+            [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -320,6 +322,9 @@
 (defn- open-resource-noop! [_]
   (future/completed nil))
 
+(defn- fetch-libraries-noop! []
+  (future/completed [[] true]))
+
 (defn- make-invoke-bob-fn [project]
   (fn invoke-bob! [options commands _]
     (future/io
@@ -330,8 +335,9 @@
 (def ^:private stopped-server
   (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! kind open-resource! prefs web-server]
+(defn- reload-editor-scripts! [project & {:keys [display-output! fetch-libraries! kind open-resource! prefs web-server]
                                           :or {display-output! println
+                                               fetch-libraries! fetch-libraries-noop!
                                                kind :all
                                                open-resource! open-resource-noop!
                                                web-server stopped-server}}]
@@ -342,6 +348,7 @@
                       :display-output! display-output!
                       :save! (make-save-fn project)
                       :open-resource! open-resource!
+                      :fetch-libraries! fetch-libraries!
                       :invoke-bob! (make-invoke-bob-fn project)
                       :web-server web-server))
 
@@ -435,6 +442,29 @@
                 nil
                 (catch Throwable e e))))
         (is (= [2 2 2] (test-util/prop sprite-node-id :scale)))))))
+
+(deftest editor-script-commands-preserve-declaration-order-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/command_order_project"
+    (reload-editor-scripts! project)
+    (let [command-labels (into []
+                               (comp
+                                 (filter (fn [{:keys [command]}]
+                                           (and command
+                                                (handler/synthetic-command? command))))
+                                 (map (fn [{:keys [command]}]
+                                        (some-> (handler/active command (eval-handler-contexts :global []) {})
+                                                handler/label))))
+                               (handler/realize-menu :editor.app-view/edit-end))]
+      (is (= ["Command 7"
+              "Command 2"
+              "Command 9"
+              "Command 1"
+              "Command 5"
+              "Command 3"
+              "Command 8"
+              "Command 4"
+              "Command 6"]
+             command-labels)))))
 
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
@@ -758,6 +788,33 @@
   (let [actual (normalize-pprint-output (str actual))
         output-matches-expectation (= expected actual)]
     (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3))))))
+
+(def ^:private expected-fetch-libraries-test-output
+  "fetch libraries: ok
+resource exists after fetch: true
+fetch missing libraries: error
+resource exists after failed fetch: false
+")
+
+(deftest fetch-libraries-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/fetch_libraries_test"
+    (with-open [_server (http-server/start! test-util/lib-server-handler :port 58091)]
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts!
+          project
+          :display-output! #(doto out (.append %2) (.append \newline))
+          :fetch-libraries! (fn fetch-libraries! []
+                              (future/io
+                                (let [lib-results (library/fetch!
+                                                    (workspace/project-directory workspace)
+                                                    (project/project-dependencies project)
+                                                    progress/null-render-progress!)]
+                                  (ui/run-now
+                                    (workspace/set-project-dependencies! workspace lib-results)
+                                    (workspace/resource-sync! workspace [] progress/null-render-progress!))
+                                  [lib-results true]))))
+        (run-edit-menu-test-command!)
+        (expect-script-output expected-fetch-libraries-test-output out)))))
 
 (def ^:private expected-outline-selection-parent-chain-test-output
   "outline.child.can_get_parent=true

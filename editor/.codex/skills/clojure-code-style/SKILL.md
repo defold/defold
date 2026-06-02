@@ -3,7 +3,7 @@ name: clojure-code-style
 description: Use for all Clojure changes and final checks.
 ---
 
-Applies to your changes only, keep the rest of the code untouched unless explicitly asked.
+Applies to your changes only, keep the rest of the code untouched unless explicitly asked. Carefully go through every rule.
 
 # Rules
 
@@ -46,7 +46,7 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 
 Use `clj-kondo` to find and fix lint issues in your changes.
 
-## Inline single-use trivial helpers/constants
+## Inline single-use trivial helpers/constants/locals
 
 They make the code worse because they make the logic/behavior non-local, introducing a separation where there is none.
 

@@ -22,14 +22,16 @@
 #include <dlfcn.h>
 #include "crash.h"
 #include "crash_private.h"
+#include "backtrace_signal_posix.h"
 
 namespace dmCrash
 {
-    static const int SIGNAL_MAX = 64;
-
     static bool g_CrashDumpEnabled = true;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
+    static struct sigaction             g_PreviousSignalActions[MAX_SIGNAL_COUNT];
+
+    static void Handler(const int signo, siginfo_t* const si, void *const sc);
 
     struct unwind_data {
       uint32_t offset_extra;
@@ -97,48 +99,40 @@ namespace dmCrash
         return state->m_PtrCount >= AppState::PTRS_MAX ? _URC_END_OF_STACK : _URC_NO_REASON;
     }
 
-    static void ResetToDefaultHandler(const int signum)
-    {
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_handler = SIG_DFL;
-        sa.sa_flags = 0;
-        sigaction(signum, &sa, NULL);
-    }
-
     static void Handler(const int signo, siginfo_t* const si, void *const sc)
     {
-        if (!g_CrashDumpEnabled)
-            return;
-
-        AppState* state = GetAppState();
-
-        state->m_Signum = signo;
-        state->m_PtrCount = 0;
-
         // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
-        ResetToDefaultHandler(signo);
+        ResetToDefaultSignalHandler(signo);
 
-        unwind_data unwindData;
-        unwindData.offset_extra = 0;
-        unwindData.stack_index = 0;
-        _Unwind_Backtrace(OnFrameEnter, &unwindData);
-
-        if (g_CrashExtraInfoCallback)
+        if (g_CrashDumpEnabled)
         {
-            int extra_len = strlen(state->m_Extra);
-            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            AppState* state = GetAppState();
+
+            state->m_Signum = signo;
+            state->m_PtrCount = 0;
+
+            unwind_data unwindData;
+            unwindData.offset_extra = 0;
+            unwindData.stack_index = 0;
+            _Unwind_Backtrace(OnFrameEnter, &unwindData);
+
+            if (g_CrashExtraInfoCallback)
+            {
+                int extra_len = strlen(state->m_Extra);
+                g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            }
+
+            WriteCrash(GetFilePath(), state);
+
+            bool is_debug_mode = dLib::IsDebugMode();
+            dLib::SetDebugMode(true);
+            dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
+            dLib::SetDebugMode(is_debug_mode);
         }
 
-        WriteCrash(GetFilePath(), state);
-
-        bool is_debug_mode = dLib::IsDebugMode();
-        dLib::SetDebugMode(true);
-        dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
-        dLib::SetDebugMode(is_debug_mode);
+        ChainSignalOrRaiseDefault(signo, si, sc, g_PreviousSignalActions, Handler);
     }
 
     void WriteDump()
@@ -149,15 +143,8 @@ namespace dmCrash
 
     void InstallOnSignal(int signum)
     {
-        assert(signum >= 0 && signum < SIGNAL_MAX);
-
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_sigaction = Handler;
-        sa.sa_flags = SA_SIGINFO;
-        
-        sigaction(signum, &sa, NULL);
+        assert(IsValidSignal(signum));
+        InstallSignalHandler(signum, Handler, g_PreviousSignalActions);
     }
 
     void SetCrashFilename(const char*)
