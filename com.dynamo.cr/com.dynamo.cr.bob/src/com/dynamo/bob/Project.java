@@ -1410,9 +1410,9 @@ public class Project {
                 }
             } else if (valueType == ValueType.INTEGER) {
                 if (project.hasOption(inputOption)) {
-                    return project.option(inputOption, null);
+                    return project.option(inputOption, "0");
                 }
-                int value = project.getProjectProperties().getIntValue(propertyCategory, propertyKey);
+                int value = project.getProjectProperties().getIntValue(propertyCategory, propertyKey, 0);
                 return Integer.toString(value);
             } else {
                 throw new IllegalArgumentException(String.format("Unknown game.project build option value type: %s", valueType));
