@@ -362,6 +362,31 @@ void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int 
     eglQuerySurface(win_android->display, win_android->surface, EGL_HEIGHT, &h);
     CHECK_EGL_ERROR
 
+    int native_w = -1;
+    int native_h = -1;
+    if (win_android->native_window)
+    {
+        native_w = ANativeWindow_getWidth(win_android->native_window);
+        native_h = ANativeWindow_getHeight(win_android->native_window);
+    }
+
+    if (win_android->app)
+    {
+        LOGV("SIZE_TRACE gl update_width_height_info force=%d egl=%dx%d native=%p anative=%dx%d glfw_before=%dx%d contentRect=%d,%d,%d,%d changed=%d",
+            force, w, h, win_android->native_window, native_w, native_h, win->width, win->height,
+            win_android->app->contentRect.left,
+            win_android->app->contentRect.top,
+            win_android->app->contentRect.right,
+            win_android->app->contentRect.bottom,
+            win->width != w || win->height != h);
+    }
+    else
+    {
+        LOGV("SIZE_TRACE gl update_width_height_info force=%d egl=%dx%d native=%p anative=%dx%d glfw_before=%dx%d changed=%d",
+            force, w, h, win_android->native_window, native_w, native_h, win->width, win->height,
+            win->width != w || win->height != h);
+    }
+
     if (force || (win->width != w || win->height != h))
     {
         LOGV("window size changed from %dx%d to %dx%d", _glfwWin.width, _glfwWin.height, w, h);
