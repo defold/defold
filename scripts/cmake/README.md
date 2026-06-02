@@ -135,26 +135,52 @@ cmake -S . -B engine/build/arm64-macos -DDEFOLD_SELECTED_ENGINE_LIBS=dlib
 cmake -S . -B engine/build/arm64-macos -DDEFOLD_SELECTED_ENGINE_LIBS=testmain,dlib
 ```
 
+### Common library tasks
+
+From the repository root, after configuring `engine/build/<platform>`:
+
+```bash
+# Rebuild one library target
+cmake --build engine/build/arm64-macos --target dlib
+
+# Rebuild and run tests for one library
+cmake -S . -B engine/build/arm64-macos -DDEFOLD_SELECTED_ENGINE_LIBS=dlib
+cmake --build engine/build/arm64-macos --target build_tests run_tests
+
+# Run the tests again for the configured library set
+cmake --build engine/build/arm64-macos --target run_tests
+```
+
+Replace `arm64-macos` with the target platform and `dlib` with the library
+target. When using a full build tree, `run_tests` runs all generated tests. To
+scope `run_tests` to one library, configure that build tree with
+`DEFOLD_SELECTED_ENGINE_LIBS=<lib>`. Individual runnable tests are also exposed
+as `run_<test-target>`, for example `run_test_dlib`.
+
 ## Project generation
 
-Currently, the CMake configuration will generate build commands for the unit tests as well.
-Instead, the option of building and/or running the tests is moved to the
-`cmake --build` invocation.
-
-* We really only want to generate the (i.e. moving to incremental builds as a default)
-* We want a full solution generation to have access to all the tests as well for easy iteration.
+When `BUILD_TESTS=ON`, CMake generates the unit test targets during configure:
+`build_tests`, `run_tests`, each `test_*` binary target, and each
+`run_<test-target>` command target. Test binaries are excluded from the default
+`all` target and are only built when requested through `build_tests`,
+`run_tests`, or a direct `test_*`/`run_*` target.
 
 ## Solution generation
 
-You can create a top level CMakeLists.txt and a solution with the build command:
+You can generate a solution for a platform with:
 
 ```bash
 ./scripts/build.py make_solution
+./scripts/build.py --platform=arm64-macos make_solution
+./scripts/build.py --platform=arm64-macos make_solution -- --enable-feature=box2dv3 --with-opengl
 ```
 
 This uses the host platform by default, with a `RelWithDebInfo` configuration
 and test targets enabled. Pass `--platform=<platform>` when generating for
-another target.
+another target. Pass `-- --skip-build-tests` to generate with
+`BUILD_TESTS=OFF`, which omits test targets from the solution. Feature and
+backend toggles, such as `--enable-feature=box2dv3` and `--with-opengl`, are
+passed after the `--` separator.
 
 Note that for e.g. Android, the CMakeLists.txt _is_ the solution.
 
