@@ -36,7 +36,6 @@
      :build-fn build-skeleton
      :user-data {:skeleton skeleton}}))
 
-
 (defn- build-animation-set
   [resource _dep-resources {:keys [animation-set] :as _user-data}]
   {:resource resource :content (protobuf/map->bytes Rig$AnimationSet animation-set)})
@@ -48,7 +47,6 @@
      :resource (workspace/make-placeholder-build-resource workspace "animationset")
      :build-fn build-animation-set
      :user-data {:animation-set animation-set}}))
-
 
 (defn- replace-morph-target-texture-tokens
   [mesh-set morph-target-textures dep-resources]
@@ -81,7 +79,9 @@
 
 (defn- build-mesh-set
   [resource dep-resources {:keys [mesh-set morph-target-textures] :as _user-data}]
-  (let [mesh-set (replace-morph-target-texture-tokens mesh-set morph-target-textures dep-resources)]
+  (let [mesh-set (cond-> mesh-set
+                   (coll/not-empty morph-target-textures)
+                   (replace-morph-target-texture-tokens morph-target-textures dep-resources))]
     {:resource resource :content (protobuf/map->bytes Rig$MeshSet mesh-set)}))
 
 (defn- make-morph-target-texture-build-target

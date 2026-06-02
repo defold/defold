@@ -109,23 +109,24 @@
       (is (= [0.0 0.0] (:morph-base-weights mesh)))
       (is (= 1 (count morph-target-textures)))
       (is (string/starts-with? (:morph-target-texture mesh) "__morph_target_texture_"))
-      (is (not (g/error? (g/node-value node-id :build-targets))))
-      (let [mesh-set-build-resource (:resource (g/node-value node-id :mesh-set-build-target))
-            _build-results (build-target! project (g/node-value node-id :mesh-set-build-target))
-            built-mesh-set (protobuf/bytes->map-with-defaults
+      (is (false? (g/error? (g/node-value node-id :build-targets))))
+      (let [mesh-set-build-target (g/node-value node-id :mesh-set-build-target)
+            mesh-set-build-resource (:resource mesh-set-build-target)]
+        (build-target! project mesh-set-build-target)
+        (let [built-mesh-set (protobuf/bytes->map-with-defaults
                               Rig$MeshSet
                               (Files/readAllBytes (.toPath (io/as-file mesh-set-build-resource))))
-            built-mesh (-> built-mesh-set :models first :meshes first)
-            morph-target-texture (:morph-target-texture built-mesh)
-            texture-file (workspace/build-path workspace morph-target-texture)
-            texture-image (-> (Files/readAllBytes (.toPath texture-file))
-                              TextureUtil/textureResourceBytesToTextureImage
-                              protobuf/pb->map-with-defaults)
-            first-alternative (first (:alternatives texture-image))]
-        (is (string/ends-with? morph-target-texture ".texturec"))
-        (is (not (string/starts-with? morph-target-texture "__morph_target_texture_")))
-        (is (.exists texture-file))
-        (is (= :type-2d-array (:type texture-image)))
-        (is (= 6 (:count texture-image)))
-        (is (= 1 (:depth first-alternative)))
-        (is (= 1 (:original-depth first-alternative)))))))
+              built-mesh (-> built-mesh-set :models first :meshes first)
+              morph-target-texture (:morph-target-texture built-mesh)
+              texture-file (workspace/build-path workspace morph-target-texture)
+              texture-image (-> (Files/readAllBytes (.toPath texture-file))
+                                TextureUtil/textureResourceBytesToTextureImage
+                                protobuf/pb->map-with-defaults)
+              first-alternative (first (:alternatives texture-image))]
+          (is (string/ends-with? morph-target-texture ".texturec"))
+          (is (false? (string/starts-with? morph-target-texture "__morph_target_texture_")))
+          (is (.exists texture-file))
+          (is (= :type-2d-array (:type texture-image)))
+          (is (= 6 (:count texture-image)))
+          (is (= 1 (:depth first-alternative)))
+          (is (= 1 (:original-depth first-alternative))))))))

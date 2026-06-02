@@ -290,6 +290,7 @@ public class ModelUtil {
     }
 
     public static void unloadScene(Scene scene) {
+        // Intentionally a no-op; Scene does not currently own resources that need explicit release.
     }
 
     private static Vector3 toDDFVector3(Modelimporter.Vector3 v) {

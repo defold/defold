@@ -40,14 +40,6 @@ import com.dynamo.rig.proto.Rig.Skeleton;
         "model-max-morph-target-texture-height"})
 public class MeshsetBuilder extends Builder  {
     /**
-     * Tracks each generated morph target texture output resource. The matching
-     * packed texture data is collected by the shared ModelUtil collector base.
-     */
-    private static class MorphTargetTextureOutput {
-        IResource resource;
-    }
-
-    /**
      * Bridges ModelUtil's resource-agnostic model loading with Bob's task output
      * layout. ModelUtil packs morph target textures while building meshes, and
      * this collector allocates the corresponding task output and returns the
@@ -56,14 +48,14 @@ public class MeshsetBuilder extends Builder  {
     private static class MeshSetMorphTargetTextureCollector extends ModelUtil.MorphTargetTextureCollector {
         private final Project project;
         private final Task task;
-        private final ArrayList<MorphTargetTextureOutput> outputs = new ArrayList<>();
+        private final ArrayList<IResource> outputs = new ArrayList<>();
 
         public MeshSetMorphTargetTextureCollector(Project project, Task task) {
             this.project = project;
             this.task = task;
         }
 
-        public ArrayList<MorphTargetTextureOutput> getOutputs() {
+        public ArrayList<IResource> getOutputs() {
             return outputs;
         }
 
@@ -71,10 +63,9 @@ public class MeshsetBuilder extends Builder  {
         protected String getMorphTargetTextureResourcePath(int index, ModelUtil.PackedMorphTargetTexture texture) {
             // The first three task outputs are meshsetc, skeletonc and animationsetc.
             int outputIndex = 3 + index;
-            MorphTargetTextureOutput output = new MorphTargetTextureOutput();
-            output.resource = task.output(outputIndex);
+            IResource output = task.output(outputIndex);
             outputs.add(output);
-            return BuilderUtil.getResourcePathFromOutput(project, output.resource);
+            return BuilderUtil.getResourcePathFromOutput(project, output);
         }
     }
 
@@ -127,10 +118,6 @@ public class MeshsetBuilder extends Builder  {
             }
         } catch (IOException e) {
             // Defer import and validation errors to build(), where existing glTF diagnostics are reported.
-        } finally {
-            if (scene != null) {
-                ModelUtil.unloadScene(scene);
-            }
         }
         return taskBuilder.build();
     }
@@ -178,9 +165,9 @@ public class MeshsetBuilder extends Builder  {
             task.output(0).setContent(out.toByteArray());
 
             ArrayList<ModelUtil.CollectedMorphTargetTexture> morphTargetTextures = morphTextureCollector.getTextures();
-            ArrayList<MorphTargetTextureOutput> morphTargetTextureOutputs = morphTextureCollector.getOutputs();
+            ArrayList<IResource> morphTargetTextureOutputs = morphTextureCollector.getOutputs();
             for (int i = 0; i < morphTargetTextures.size(); ++i) {
-                TextureUtil.writeGenerateResultToResource(morphTargetTextures.get(i).texture.toGenerateResult(), morphTargetTextureOutputs.get(i).resource);
+                TextureUtil.writeGenerateResultToResource(morphTargetTextures.get(i).texture.toGenerateResult(), morphTargetTextureOutputs.get(i));
             }
         }
 

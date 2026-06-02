@@ -40,7 +40,7 @@
    :data (.-data texture)})
 
 (defn- collected-morph-target-texture->map [^ModelUtil$CollectedMorphTargetTexture texture]
-  (let [^ModelUtil$PackedMorphTargetTexture packed-texture (.-texture texture)]
+  (let [packed-texture (.-texture texture)]
     {:token (.-resourcePath texture)
      :packed-texture (packed-morph-target-texture->map packed-texture)}))
 
