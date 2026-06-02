@@ -337,33 +337,6 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
     };
 }
 
-static void WebGPUGetPhysicalTextureCopySize(TextureFormat texture_format, uint32_t* width, uint32_t* height)
-{
-    assert(width);
-    assert(height);
-
-    TextureFormatCompressedBlockSize block_size;
-    if (GetTextureFormatCompressedBlockSize(texture_format, &block_size))
-    {
-        *width  = ((*width + block_size.m_Width - 1) / block_size.m_Width) * block_size.m_Width;
-        *height = ((*height + block_size.m_Height - 1) / block_size.m_Height) * block_size.m_Height;
-    }
-}
-
-static void WebGPUReleaseTexture(WebGPUTexture* texture)
-{
-    if (texture->m_Texture)
-    {
-        wgpuTextureRelease(texture->m_Texture);
-        texture->m_Texture = NULL;
-    }
-    if (texture->m_TextureView)
-    {
-        wgpuTextureViewRelease(texture->m_TextureView);
-        texture->m_TextureView = NULL;
-    }
-}
-
 static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat format, uint8_t depth, uint32_t sampleCount, WGPUTextureUsage usage)
 {
     if (texture->m_Base.m_Depth > depth)
@@ -378,12 +351,12 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
 #else
         WGPUTextureDescriptor desc = {};
 #endif
-        desc.usage         = texture->m_UsageFlags | usage;
+        desc.usage                 = texture->m_UsageFlags | usage;
         // NOTE: Due to some issue with our webgpu texture handling, we cannot use a width/height of 0 when creating a new texture.
-        desc.size          = { dmMath::Max(1u, (uint32_t)texture->m_Base.m_Width), dmMath::Max(1u, (uint32_t)texture->m_Base.m_Height), dmMath::Max(1u, (uint32_t)depth) };
-        desc.sampleCount   = sampleCount;
-        desc.format        = texture->m_Format;
-        desc.mipLevelCount = texture->m_Base.m_MipMapCount;
+        desc.size                  = { dmMath::Max(1u, (uint32_t)texture->m_Base.m_Width), dmMath::Max(1u, (uint32_t)texture->m_Base.m_Height), dmMath::Max(1u, (uint32_t)depth) };
+        desc.sampleCount           = sampleCount;
+        desc.format                = texture->m_Format;
+        desc.mipLevelCount         = texture->m_Base.m_MipMapCount;
         switch (texture->m_Base.m_Type)
         {
         case TEXTURE_TYPE_3D:
@@ -450,74 +423,6 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
     }
 }
 
-static void WebGPUInstallBlankTexture(WebGPUTexture* texture, const TextureParams& params)
-{
-    WebGPUReleaseTexture(texture);
-
-    uint8_t depth = 1;
-    switch (texture->m_Base.m_Type)
-    {
-        case TEXTURE_TYPE_CUBE_MAP:
-        case TEXTURE_TYPE_TEXTURE_CUBE:
-            depth = 6;
-            break;
-        case TEXTURE_TYPE_3D:
-        case TEXTURE_TYPE_IMAGE_3D:
-        case TEXTURE_TYPE_TEXTURE_3D:
-        case TEXTURE_TYPE_2D_ARRAY:
-        case TEXTURE_TYPE_TEXTURE_2D_ARRAY:
-            depth = dmMath::Max(1u, (uint32_t)texture->m_Base.m_Depth);
-            break;
-        default:
-            break;
-    }
-
-    texture->m_Base.m_Format      = TEXTURE_FORMAT_RGBA;
-    texture->m_Base.m_Width       = 1;
-    texture->m_Base.m_Height      = 1;
-    texture->m_Base.m_Depth       = depth;
-    texture->m_Base.m_MipMapCount = 1;
-
-    WebGPURealizeTexture(texture, WGPUTextureFormat_RGBA8Unorm, depth, 1, WGPUTextureUsage_CopyDst);
-    assert(texture->m_Texture && texture->m_TextureView);
-
-#if defined(DM_GRAPHICS_WEBGPU2)
-    WGPUTexelCopyTextureInfo dest = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-#else
-    WGPUImageCopyTexture dest     = {};
-#endif
-    dest.texture                  = texture->m_Texture;
-    dest.aspect                   = WGPUTextureAspect_All;
-
-#if defined(DM_GRAPHICS_WEBGPU2)
-    WGPUExtent3D extent = WGPU_EXTENT_3D_INIT;
-#else
-    WGPUExtent3D extent = {};
-#endif
-    extent.width                 = 1;
-    extent.height                = 1;
-    extent.depthOrArrayLayers    = depth;
-
-#if defined(DM_GRAPHICS_WEBGPU2)
-    WGPUTexelCopyBufferLayout layout = WGPU_TEXEL_COPY_BUFFER_LAYOUT_INIT;
-#else
-    WGPUTextureDataLayout layout     = {};
-#endif
-    layout.offset                    = 0;
-    layout.bytesPerRow               = 4;
-    layout.rowsPerImage              = 1;
-
-    const size_t blank_texture_size = 4 * depth;
-    uint8_t* blank_texture_data     = new uint8_t[blank_texture_size];
-    memset(blank_texture_data, 0, blank_texture_size);
-
-    wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, blank_texture_data, blank_texture_size, &layout, &extent);
-
-    delete[] blank_texture_data;
-
-    WebGPUSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
-}
-
 static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams& params)
 {
     switch (params.m_Format)
@@ -535,31 +440,16 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
     if (is_compressed && !GetTextureFormatCompressedBlockSize(params.m_Format, &block_size))
     {
         dmLogError("Unable to upload texture data, unsupported compressed format (%s).", GetTextureFormatLiteral(params.m_Format));
-        if (!texture->m_Texture || !params.m_SubUpdate)
-        {
-            WebGPUInstallBlankTexture(texture, params);
-        }
         return;
     }
-
-    const uint32_t texture_width  = dmMath::Max(1u, (uint32_t)params.m_Width);
-    const uint32_t texture_height = dmMath::Max(1u, (uint32_t)params.m_Height);
 
 #if defined(DM_GRAPHICS_WEBGPU2)
-    const uint32_t max_texture_dimension_2d = g_WebGPUContext->m_DeviceLimits.maxTextureDimension2D;
+    assert(params.m_Width <= g_WebGPUContext->m_DeviceLimits.maxTextureDimension2D);
+    assert(params.m_Height <= g_WebGPUContext->m_DeviceLimits.maxTextureDimension2D);
 #else
-    const uint32_t max_texture_dimension_2d = g_WebGPUContext->m_DeviceLimits.limits.maxTextureDimension2D;
+    assert(params.m_Width <= g_WebGPUContext->m_DeviceLimits.limits.maxTextureDimension2D);
+    assert(params.m_Height <= g_WebGPUContext->m_DeviceLimits.limits.maxTextureDimension2D);
 #endif
-    if (texture_width > max_texture_dimension_2d || texture_height > max_texture_dimension_2d)
-    {
-        dmLogError("Unable to upload texture data, texture size %ux%u for format %s exceeds maximum supported texture size %u.",
-            texture_width, texture_height, GetTextureFormatLiteral(params.m_Format), max_texture_dimension_2d);
-        if (!texture->m_Texture || !params.m_SubUpdate)
-        {
-            WebGPUInstallBlankTexture(texture, params);
-        }
-        return;
-    }
 
     if (texture->m_Base.m_MipMapCount == 1 && params.m_MipMap > 0)
         return;
@@ -578,7 +468,10 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
         }
         else
         {
-            WebGPUReleaseTexture(texture);
+            wgpuTextureRelease(texture->m_Texture);
+            texture->m_Texture = NULL;
+            wgpuTextureViewRelease(texture->m_TextureView);
+            texture->m_TextureView = NULL;
         }
     }
     if (!params.m_SubUpdate && params.m_MipMap == 0)
@@ -651,7 +544,8 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             {
                 uint32_t copy_width  = params.m_Width;
                 uint32_t copy_height = params.m_Height;
-                WebGPUGetPhysicalTextureCopySize(params.m_Format, &copy_width, &copy_height);
+                copy_width           = ((copy_width + block_size.m_Width - 1) / block_size.m_Width) * block_size.m_Width;
+                copy_height          = ((copy_height + block_size.m_Height - 1) / block_size.m_Height) * block_size.m_Height;
 
                 const uint32_t block_columns = copy_width / block_size.m_Width;
                 const uint32_t block_rows    = copy_height / block_size.m_Height;
@@ -1464,7 +1358,10 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 
 static void WebGPUDestroyTexture(WebGPUTexture* texture)
 {
-    WebGPUReleaseTexture(texture);
+    if (texture->m_Texture)
+        wgpuTextureRelease(texture->m_Texture);
+    if (texture->m_TextureView)
+        wgpuTextureViewRelease(texture->m_TextureView);
     delete texture;
 }
 
