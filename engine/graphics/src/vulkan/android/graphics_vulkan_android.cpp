@@ -176,8 +176,6 @@ namespace dmGraphics
 
         context->m_WindowWidth          = width;
         context->m_WindowHeight         = height;
-        context->m_BaseContext.m_Width  = width;
-        context->m_BaseContext.m_Height = height;
 
         if (dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window) != width ||
             dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window) != height)
