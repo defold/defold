@@ -54,7 +54,7 @@ def build(bld):
 
         if len(extra_symbols) > 0:
             bld.program(features = 'cxx cprogram test skip_test',
-                        includes = ['../../src', '../../proto'],
+                        includes = ['.', '../../src', '../../proto'],
                         exported_symbols = extra_symbols,
                         source = 'test_app_graphics.cpp',
                         use = 'TESTMAIN APP DDF DLIB PROFILE_NULL'.split() + graphics_libs + platform_lib + glfw_lib + extra_libs,

@@ -1252,6 +1252,13 @@ public class ExtenderUtil {
         Map<String, Object> yamlPlatformContext = (Map<String, Object>) platformSettings.getOrDefault("context", null);
         if (yamlPlatformContext != null) {
             boolean symbolFound = false;
+            List<String> excludedSymbols = (List<String>) yamlPlatformContext.getOrDefault("excludeSymbols", new ArrayList<String>());
+            for (String symbol : excludedSymbols) {
+                if (symbol.equals(symbolName)) {
+                    return false;
+                }
+            }
+
             List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
 
             for (String symbol : symbols) {

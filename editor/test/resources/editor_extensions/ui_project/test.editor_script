@@ -18,6 +18,10 @@ function M.get_commands()
             run = function()
                 local dialog = editor.ui.dialog({
                     title = "Dialog title",
+                    modal = false,
+                    width = 720,
+                    height = 540,
+                    resizable = true,
                     header = editor.ui.heading({
                         text = "Header on the Right",
                         color = editor.ui.COLOR.HINT,
@@ -264,6 +268,11 @@ function M.get_commands()
                 expect_error("editor.ui.image({image = false})", editor.ui.image, {image = false})
                 expect_error("editor.ui.image({image = 'foo', width = false})", editor.ui.image, {image = 'foo', width = false})
                 expect_error("editor.ui.image({image = 'foo', width = -1})", editor.ui.image, {image = 'foo', width = -1})
+                editor.ui.dialog({title = "Width-only dialog", width = 720})
+                editor.ui.dialog({title = "Height-only dialog", height = 540})
+                expect_error("editor.ui.dialog({title = 'Dialog title', width = false})", editor.ui.dialog, {title = "Dialog title", width = false})
+                expect_error("editor.ui.dialog({title = 'Dialog title', height = -1})", editor.ui.dialog, {title = "Dialog title", height = -1})
+                expect_error("editor.ui.dialog({title = 'Dialog title', resizable = 1})", editor.ui.dialog, {title = "Dialog title", resizable = 1})
 
                 -- editor.ui.show_dialog(dialog)
             end

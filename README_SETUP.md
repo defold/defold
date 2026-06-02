@@ -326,8 +326,8 @@ defold$ ./scripts/build.py check_sdk --verbose
 
 * When installing, in the "Workloads" tab, select the "Desktop Development with C++"
 
-* We also require Clang:
-  * In Visual Studio Installer, under Individual components, select *C++ Clang Compiler for Windows* and *MSBuild support for LLVM (clang-cl) toolset*.
+* We also require Clang and MFC/ATL libraries:
+  * In Visual Studio Installer, under Individual components, select *C++ Clang Compiler for Windows*, *MSBuild support for LLVM (clang-cl) toolset*, *C++ ATL for x64/x86 (MSVC v14.50)* and *C++ MFC for x64/x86 (MSVC v14.50)*.
 
   * Add clang to your PATH. For a default installation, the path to add will likely be C:\Program Files\Microsoft Visual Studio\2026\Community\VC\Tools\Llvm\bin
 

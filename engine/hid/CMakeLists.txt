@@ -14,6 +14,10 @@ add_compile_definitions(DLIB_LOG_DOMAIN="HID")
 
 # Sources
 set(HID_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
+set(HID_PRIVATE_SRC_DIR "")
+if(DEFINED DEFOLD_PLATFORM_HID_SOURCE_DIR AND EXISTS "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
+    set(HID_PRIVATE_SRC_DIR "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
+endif()
 
 # hid (native backend)
 set(hid_SOURCES
@@ -29,10 +33,13 @@ if(TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos|arm64-ios|x86_64-ios")
     set(WITH_VULKAN OFF)
     set(WITH_OPENGL ON)
 elseif(DEFOLD_IS_PRIVATE_VENDOR)
+    if(NOT HID_PRIVATE_SRC_DIR)
+        message(FATAL_ERROR "Private HID platform requires DEFOLD_PLATFORM_HID_SOURCE_DIR")
+    endif()
     file(GLOB _hid_vendor_sources
-        "${HID_SRC_DIR}/${TARGET_PLATFORM_OS}/*.c"
-        "${HID_SRC_DIR}/${TARGET_PLATFORM_OS}/*.cpp"
-        "${HID_SRC_DIR}/${TARGET_PLATFORM_OS}/*.mm")
+        "${HID_PRIVATE_SRC_DIR}/${TARGET_PLATFORM_OS}/*.c"
+        "${HID_PRIVATE_SRC_DIR}/${TARGET_PLATFORM_OS}/*.cpp"
+        "${HID_PRIVATE_SRC_DIR}/${TARGET_PLATFORM_OS}/*.mm")
     list(APPEND hid_SOURCES ${_hid_vendor_sources})
 else()
     file(GLOB _hid_native_sources
@@ -52,6 +59,15 @@ target_include_directories(hid PUBLIC
     "${HID_SRC_DIR}/default/src"
 ) # match Waf include layout for hid sources
 
+if(HID_PRIVATE_SRC_DIR)
+    target_include_directories(hid PUBLIC
+        "${HID_PRIVATE_SRC_DIR}"
+        "${HID_PRIVATE_SRC_DIR}/native"
+        "${HID_PRIVATE_SRC_DIR}/external"
+        "${HID_PRIVATE_SRC_DIR}/default/src"
+    )
+endif()
+
 defold_add_library(hid_null STATIC
     "${HID_SRC_DIR}/hid.cpp"
     "${HID_SRC_DIR}/hid_guid.cpp"
@@ -65,6 +81,16 @@ target_include_directories(hid_null PUBLIC
     "${HID_SRC_DIR}/default/src"
 )
 target_compile_definitions(hid_null PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
+
+if(HID_PRIVATE_SRC_DIR)
+    target_include_directories(hid_null PUBLIC
+        "${HID_PRIVATE_SRC_DIR}"
+        "${HID_PRIVATE_SRC_DIR}/native"
+        "${HID_PRIVATE_SRC_DIR}/null"
+        "${HID_PRIVATE_SRC_DIR}/external"
+        "${HID_PRIVATE_SRC_DIR}/default/src"
+    )
+endif()
 
 
 # ===================== Tests =====================
@@ -164,3 +190,20 @@ install(DIRECTORY "${HID_SRC_DIR}/dmsdk/"
                 FILES_MATCHING
                 PATTERN "*.h"
                 PATTERN "*.hpp")
+
+if(HID_PRIVATE_SRC_DIR)
+    set(_hid_private_vendor_header "${HID_PRIVATE_SRC_DIR}/dmsdk/hid/hid_native_defines_vendor.h")
+    if(EXISTS "${_hid_private_vendor_header}")
+        install(FILES "${_hid_private_vendor_header}" DESTINATION sdk/include/dmsdk/hid)
+    endif()
+
+    foreach(_hid_private_dmsdk_dir IN LISTS DEFOLD_PLATFORM_HID_DMSDK_DIRS)
+        if(EXISTS "${_hid_private_dmsdk_dir}")
+            install(DIRECTORY "${_hid_private_dmsdk_dir}"
+                    DESTINATION sdk/include/dmsdk/hid
+                    FILES_MATCHING
+                    PATTERN "*.h"
+                    PATTERN "*.hpp")
+        endif()
+    endforeach()
+endif()

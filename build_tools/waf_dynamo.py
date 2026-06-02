@@ -20,7 +20,8 @@ from waflib.Logs import error
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
-from cross import get_platform_file_fallback_tags, get_platform_file_tags, get_platform_roots, get_repo_root
+from cross_build import find_feature_files, find_platform_file, get_configured_platforms, get_private_library_paths, get_private_path_mirrors, remove_source_files
+from private_hooks import call_hook, get_hook_modules
 import sdk
 import wasm_runner
 
@@ -28,49 +29,32 @@ if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
 
-def import_lib(module_name, path):
-    import importlib
-    # Normally a finder would get you the loader and spec.
-    loader = importlib.machinery.SourceFileLoader(module_name, path)
-    spec = importlib.machinery.ModuleSpec(module_name, loader, origin=path)
-    # Basically what import does when there is no loader.create_module().
-    module = importlib.util.module_from_spec(spec)
-    # Now is the time to put the module in sys.modules if you want.
-    # How import initializes the module.
-    loader.exec_module(module)
+class waf_dynamo_vendor(object):
+    @classmethod
+    def options(cls, opt):
+        for module in get_hook_modules('waf_dynamo'):
+            if hasattr(module, 'options'):
+                module.options(opt)
 
-# import the vendor specific build setup
-script_dir = os.path.dirname(__file__)
-path = os.path.join(script_dir, 'waf_dynamo_vendor.py')
-if os.path.exists(path):
-    sys.dont_write_bytecode = True
-    import_lib('waf_dynamo_vendor', path)
-    print("Imported %s from %s" % ('waf_dynamo_vendor', path))
-    import waf_dynamo_vendor
-    sys.dont_write_bytecode = False
+    @classmethod
+    def setup_tools(cls, ctx, build_util):
+        return call_hook('waf_dynamo', build_util.get_target_platform(), 'setup_tools', None, ctx, build_util)
 
-if 'waf_dynamo_vendor' not in sys.modules:
-    class waf_dynamo_vendor(object):
-        @classmethod
-        def options(cls, opt):
-            pass
-        @classmethod
-        def setup_tools(cls, ctx, build_util):
-            pass
-        @classmethod
-        def setup_vars(cls, ctx, build_util):
-            pass
-        @classmethod
-        def supports_feature(cls, platform, feature, data):
-            return True
-        @classmethod
-        def transform_runnable_path(cls, platform, path):
-            return path
-    globals()['waf_dynamo_vendor'] = waf_dynamo_vendor
+    @classmethod
+    def setup_vars(cls, ctx, build_util):
+        return call_hook('waf_dynamo', build_util.get_target_platform(), 'setup_vars', None, ctx, build_util)
+
+    @classmethod
+    def supports_feature(cls, platform, feature, data):
+        return call_hook('waf_dynamo', platform, 'supports_feature', True, platform, feature, data)
+
+    @classmethod
+    def transform_runnable_path(cls, platform, path):
+        return call_hook('waf_dynamo', platform, 'transform_runnable_path', path, platform, path)
 
 
 def is_platform_private(platform):
-    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
+    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'] or platform in get_configured_platforms()
 
 def feature_enabled(feature):
     return feature in getattr(Options.options, 'enable_features', [])
@@ -183,138 +167,38 @@ def _install_unconfigured_cmake_library_guard():
 
 _install_unconfigured_cmake_library_guard()
 
-def find_platform_file(bld, platform, path, public_fallback = True, private_roots = True):
-    repo_root = get_repo_root()
-    base_path = os.path.relpath(bld.path.abspath(), repo_root)
-    if private_roots:
-        for root in get_platform_roots(platform):
-            absolute_path = os.path.join(root, base_path, path)
-            if os.path.exists(absolute_path):
-                node = bld.root.find_node(absolute_path)
-                if node:
-                    return node
-                return absolute_path
+def prepend_unique_paths(env, name, paths):
+    current_paths = env[name] if name in env else []
+    if not isinstance(current_paths, list):
+        current_paths = [current_paths]
 
-    if public_fallback:
-        return bld.path.find_node(path)
-    return None
+    result = []
+    seen = set()
+    for path in paths + current_paths:
+        if not path:
+            continue
+        key = os.path.normcase(os.path.normpath(path))
+        if key not in seen:
+            seen.add(key)
+            result.append(path)
+    env[name] = result
 
-def source_file_path(source):
-    if hasattr(source, 'abspath'):
-        return source.abspath()
-    return source
+def prepend_private_search_paths(env, platform):
+    prepend_unique_paths(env, 'LIBPATH', get_private_library_paths(platform))
 
-def remove_source_files(sources, remove_sources):
-    remove_paths = set(source_file_path(x) for x in remove_sources)
-    return [x for x in sources if source_file_path(x) not in remove_paths]
+def include_path_contains_dmsdk(path):
+    path = os.path.normpath(path)
+    return os.path.basename(path) == 'dmsdk' or os.path.isdir(os.path.join(path, 'dmsdk'))
 
-def get_feature_extra_tags(platform, extra_tags):
-    if not extra_tags:
-        return []
-
-    target = platform
-    if '-' in platform:
-        target = platform.split('-')[-1]
-
-    if isinstance(extra_tags, dict):
-        if platform in extra_tags:
-            extra_tags = extra_tags[platform]
-        elif target in extra_tags:
-            extra_tags = extra_tags[target]
-        else:
-            extra_tags = extra_tags.get('*', [])
-    if isinstance(extra_tags, str):
-        extra_tags = [extra_tags]
-
-    tags = []
-    def append_tag(tag):
-        if tag and tag not in tags:
-            tags.append(tag)
-
-    for tag in extra_tags:
-        append_tag(tag)
-    return tags
-
-def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred_tags = None):
-    """Return (selected_files, feature_files) for feature_name.
-
-    Rules:
-    * feature_files contains <feature>.<ext> and <feature>_*.ext when found.
-    * selected_files contains all <feature>.<ext> core files when found.
-    * selected_files contains all matching <feature>_<tag>.ext files for the platform.
-    * preferred_tags may be a list for all platforms, or a dict where platform/target override '*'.
-    * preferred tag matches replace platform tag matches when found.
-    * extra_tags may be a list for all platforms, or a dict where platform/target override '*'.
-    * extra tag matches are appended to platform tag matches before fallback tags.
-    * fallback tags and default are used only when no platform tag matched.
-    * platform roots are searched before the public repo for platform tag matches.
-    * missing feature files or missing selected files fail the build.
-    """
-    files = []
-    feature_files = []
-
-    def find_file(path, public_fallback = True, private_roots = True):
-        return find_platform_file(bld, platform, path, public_fallback, private_roots)
-
-    def append_file(files, node):
-        if node and source_file_path(node) not in [source_file_path(x) for x in files]:
-            files.append(node)
-
-    feature_base, extension = os.path.splitext(feature_name)
-    extensions = ['.cpp', '.c', '.cc', '.cxx', '.mm', '.m']
-    if extension:
-        extensions = [extension]
-
-    feature_patterns = []
-    for extension in extensions:
-        feature_patterns += [feature_base + extension,
-                             feature_base + '_*' + extension]
-    for node in bld.path.ant_glob(feature_patterns):
-        append_file(feature_files, node)
-
-    # Core implementation: <feature>.<ext> is shared by all platforms.
-    for extension in extensions:
-        node = find_file(feature_base + extension, True, False)
-        if node:
-            append_file(files, node)
-            append_file(feature_files, node)
-
-    # Preferred tags: explicit feature choices such as mbedtls override platform tags.
-    tag_files = []
-    for tag in get_feature_extra_tags(platform, preferred_tags):
-        for extension in extensions:
-            node = find_file('%s_%s%s' % (feature_base, tag, extension))
-            if node:
-                append_file(tag_files, node)
-                append_file(feature_files, node)
-
-    # Platform tags: target-specific files, optionally extended with feature tags.
-    if not tag_files:
-        for tag in get_platform_file_tags(platform) + get_feature_extra_tags(platform, extra_tags):
-            for extension in extensions:
-                node = find_file('%s_%s%s' % (feature_base, tag, extension))
-                if node:
-                    append_file(tag_files, node)
-                    append_file(feature_files, node)
-
-    # Fallback tags: public shared implementations used when no platform file matched.
-    if not tag_files:
-        for tag in get_platform_file_fallback_tags(platform) + ['default']:
-            for extension in extensions:
-                node = find_file('%s_%s%s' % (feature_base, tag, extension), True, False)
-                if node:
-                    append_file(tag_files, node)
-                    append_file(feature_files, node)
-
-    for node in tag_files:
-        append_file(files, node)
-
-    if not feature_files:
-        bld.fatal('Could not find any source files for feature %s' % feature_name)
-    if not files:
-        bld.fatal('Could not find selected source files for feature %s on platform %s' % (feature_name, platform))
-
-    return files, feature_files
+def prepend_private_task_paths(task_gen, platform):
+    for name in ('includes', 'libpath'):
+        if hasattr(task_gen, name):
+            current_paths = task_gen.to_list(getattr(task_gen, name))
+            private_paths = get_private_path_mirrors(platform, task_gen.path.abspath(), current_paths)
+            if private_paths:
+                if name == 'includes':
+                    private_paths = [path for path in private_paths if not include_path_contains_dmsdk(path)]
+                setattr(task_gen, name, private_paths + current_paths)
 
 def platform_glfw_version(platform):
     if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux']:
@@ -516,8 +400,10 @@ after('process_source')(apply_framework)
 @before('process_source')
 def default_flags(self):
     build_util = create_build_utility(self.env)
+    target_platform = build_util.get_target_platform()
     target_os = build_util.get_target_os()
     target_arch = build_util.get_target_architecture()
+    prepend_private_task_paths(self, target_platform)
 
     use_cl_exe = target_os in [TargetOS.WINDOWS, TargetOS.XBONE]
 
@@ -830,7 +716,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', emflags_link)
         self.env.append_value('LINKFLAGS', linkflags)
 
-    elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
+    elif target_platform in ['win32', 'x86_64-win32']:
         for f in ['CFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
@@ -849,6 +735,7 @@ def default_flags(self):
         self.env.cxxstlib_PATTERN = 'lib%s.lib'
 
     platform_setup_vars(self, build_util)
+    prepend_private_search_paths(self.env, target_platform)
 
     hostfs = ''
     if 'DM_HOSTFS' in self.env:
@@ -1614,7 +1501,10 @@ def embed_file(self):
     source_nodes = []
     for x in Utils.to_list(self.source):
         if type(x) == str:
-            source_nodes.append(self.path.find_node(x))
+            node = self.bld.root.find_node(x) if os.path.isabs(x) else self.path.find_node(x)
+            if node is None:
+                raise Errors.WafError("Source '%s' was not found for target '%s' in %s" % (x, self.target, self.path.abspath()))
+            source_nodes.append(node)
         else:
             source_nodes.append(x)
 
@@ -2100,6 +1990,8 @@ def detect(conf):
 
             conf.load('compiler_c')
             conf.load('compiler_cxx')
+
+    prepend_private_search_paths(conf.env, platform)
 
     # Since we're using an old waf version, we remove unused arguments
     remove_flag(conf.env['shlib_CFLAGS'], '-compatibility_version', 1)
