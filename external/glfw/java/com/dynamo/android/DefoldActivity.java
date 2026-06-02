@@ -28,7 +28,6 @@ import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Build;
 import android.os.IBinder;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
@@ -87,56 +86,6 @@ public class DefoldActivity extends NativeActivity {
 
     private ArrayList<Integer> mGameControllerDeviceIds = new ArrayList<Integer>();
 
-    private void logWindowSizeTrace(String reason, WindowInsets insets) {
-        Window window = getWindow();
-        View decorView = window.getDecorView();
-        WindowInsets rootInsets = insets;
-        if (rootInsets == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            rootInsets = decorView.getRootWindowInsets();
-        }
-
-        int cutoutMode = -1;
-        int cutoutLeft = 0;
-        int cutoutTop = 0;
-        int cutoutRight = 0;
-        int cutoutBottom = 0;
-        int systemLeft = 0;
-        int systemTop = 0;
-        int systemRight = 0;
-        int systemBottom = 0;
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            cutoutMode = window.getAttributes().layoutInDisplayCutoutMode;
-            if (rootInsets != null) {
-                DisplayCutout cutout = rootInsets.getDisplayCutout();
-                if (cutout != null) {
-                    cutoutLeft = cutout.getSafeInsetLeft();
-                    cutoutTop = cutout.getSafeInsetTop();
-                    cutoutRight = cutout.getSafeInsetRight();
-                    cutoutBottom = cutout.getSafeInsetBottom();
-                }
-            }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && rootInsets != null) {
-            android.graphics.Insets systemBars = rootInsets.getInsets(WindowInsets.Type.systemBars());
-            systemLeft = systemBars.left;
-            systemTop = systemBars.top;
-            systemRight = systemBars.right;
-            systemBottom = systemBars.bottom;
-        }
-
-        Log.d(TAG, "SIZE_TRACE java " + reason
-                + " immersive=" + mImmersiveMode
-                + " displayCutout=" + mDisplayCutout
-                + " sdk=" + Build.VERSION.SDK_INT
-                + " decor=" + decorView.getWidth() + "x" + decorView.getHeight()
-                + " cutoutMode=" + cutoutMode
-                + " cutoutSafe=" + cutoutLeft + "," + cutoutTop + "," + cutoutRight + "," + cutoutBottom
-                + " systemBars=" + systemLeft + "," + systemTop + "," + systemRight + "," + systemBottom
-                + " hasInsets=" + (rootInsets != null));
-    }
-
     private void updateFullscreenMode() {
         final Window window = getWindow();
         if (mImmersiveMode) {
@@ -178,7 +127,6 @@ public class DefoldActivity extends NativeActivity {
                 getWindow().setAttributes(layoutParams);
             }
         }
-        logWindowSizeTrace("updateFullscreenMode", null);
     }
 
     public boolean isAppInstalled(String appPackageName) {
@@ -344,7 +292,6 @@ public class DefoldActivity extends NativeActivity {
             decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
                 @Override
                 public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-                    logWindowSizeTrace("onApplyWindowInsets", insets);
                     glfwSetPendingResizeBecauseOfInsets();
                     return v.onApplyWindowInsets(insets);
                 }
@@ -576,7 +523,6 @@ public class DefoldActivity extends NativeActivity {
     public void setFullscreenParameters(final boolean immersiveMode, final boolean displayCutout) {
         mImmersiveMode = immersiveMode;
         mDisplayCutout = displayCutout;
-        Log.d(TAG, "SIZE_TRACE java setFullscreenParameters immersive=" + immersiveMode + " displayCutout=" + displayCutout);
         runOnUiThread(new Runnable() {
             @Override
             public void run() {

@@ -680,10 +680,7 @@ namespace dmGraphics
                 context->m_LogicalDevice.m_GraphicsQueue,
                 depth_stencil_texture_out,
                 vk_aspect_flags,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                0,
-                1,
-                context->m_LogicalDevice.m_QueueMutex);
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
             CHECK_VK_ERROR(res);
         }
 
@@ -1162,11 +1159,6 @@ namespace dmGraphics
             context->m_ASTCArrayTextureSupport = 1;
         }
 
-        dmLogInfo("Vulkan texture compression support: ETC2=%u BC=%u ASTC_LDR=%u.",
-            context->m_PhysicalDevice.m_Features.textureCompressionETC2,
-            context->m_PhysicalDevice.m_Features.textureCompressionBC,
-            context->m_PhysicalDevice.m_Features.textureCompressionASTC_LDR);
-
         TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
                                             TEXTURE_FORMAT_LUMINANCE_ALPHA,
                                             TEXTURE_FORMAT_RGBA,
@@ -1373,19 +1365,11 @@ namespace dmGraphics
             VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
             VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
 
-        dmLogInfo("Vulkan present wait extensions: %s, vkGetPhysicalDeviceFeatures2: %s.",
-            supports_present_wait_extensions ? "supported" : "not supported",
-            vkGetPhysicalDeviceFeatures2 ? "available" : "unavailable");
-
         if (supports_present_wait_extensions && vkGetPhysicalDeviceFeatures2)
         {
             present_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
             present_features.pNext = &present_id_feature_support;
             vkGetPhysicalDeviceFeatures2(context->m_PhysicalDevice.m_Device, &present_features);
-        }
-        else if (supports_present_wait_extensions)
-        {
-            dmLogWarning("Vulkan present wait extensions are supported but feature query function is unavailable; present wait will be disabled.");
         }
 
         if (supports_present_wait_extensions &&
@@ -1806,10 +1790,7 @@ bail:
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores    = &renderFinishedSemaphore;
 
-        {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_LogicalDevice.m_QueueMutex);
-            res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
-        }
+        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
         CHECK_VK_ERROR(res);
 
         // Present the swapchain image
@@ -1833,10 +1814,7 @@ bail:
             presentInfo.pNext = &present_id_info;
         }
 
-        {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_LogicalDevice.m_QueueMutex);
-            res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
-        }
+        res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
         if ((res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) && present_id != 0)
         {
             context->m_SwapChain->m_LastPresentId = present_id;
@@ -2663,10 +2641,7 @@ bail:
                 context->m_LogicalDevice.m_GraphicsQueue,
                 texture,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                image_layout,
-                0,
-                1,
-                context->m_LogicalDevice.m_QueueMutex);
+                image_layout);
             CHECK_VK_ERROR(res);
         }
 
@@ -4278,10 +4253,7 @@ bail:
                     context->m_LogicalDevice.m_GraphicsQueue,
                     new_texture_color,
                     VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    0,
-                    1,
-                    context->m_LogicalDevice.m_QueueMutex);
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 CHECK_VK_ERROR(res);
 
                 VulkanSetTextureParamsInternal(context, new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
@@ -4679,8 +4651,7 @@ bail:
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_GraphicsQueue,
             vk_command_buffer,
-            &submit_fence,
-            context->m_LogicalDevice.m_QueueMutex);
+            &submit_fence);
         CHECK_VK_ERROR(res);
 
         VulkanCommandBuffer cmd_buffer;
@@ -5004,8 +4975,6 @@ bail:
 
         // Async texture uploading
         {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_LogicalDevice.m_AsyncUploadMutex);
-
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
             uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
@@ -5062,12 +5031,7 @@ bail:
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
             VkFence fence;
-            VkResult res = SubmitCommandBuffer(
-                context->m_LogicalDevice.m_Device,
-                context->m_LogicalDevice.m_GraphicsQueue,
-                cmd_buffer,
-                &fence,
-                context->m_LogicalDevice.m_QueueMutex);
+            VkResult res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, &fence);
             CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
@@ -5386,12 +5350,7 @@ bail:
             1);
 
         VkFence fence;
-        res = SubmitCommandBuffer(
-            context->m_LogicalDevice.m_Device,
-            context->m_LogicalDevice.m_GraphicsQueue,
-            vk_command_buffer,
-            &fence,
-            context->m_LogicalDevice.m_QueueMutex);
+        res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, &fence);
         CHECK_VK_ERROR(res);
 
         // Wait for the copy command to finish

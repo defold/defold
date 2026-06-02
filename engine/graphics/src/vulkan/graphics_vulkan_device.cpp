@@ -289,21 +289,8 @@ namespace dmGraphics
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
     {
-        if (!vkEnumeratePhysicalDevices)
-        {
-            dmLogError("Vulkan physical device enumeration failed: vkEnumeratePhysicalDevices is not loaded.");
-            return 0;
-        }
-
         uint32_t vk_device_count = 0;
-        VkResult res = vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, 0);
-        if (res != VK_SUCCESS)
-        {
-            dmLogError("Vulkan physical device count query failed: VkResult %d.", res);
-            return 0;
-        }
-
-        dmLogInfo("Vulkan physical device count: %u.", vk_device_count);
+        vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, 0);
         return vk_device_count;
     }
 
@@ -311,62 +298,32 @@ namespace dmGraphics
     {
         assert(deviceListOut);
         PhysicalDevice* device_list = *deviceListOut;
-        memset(device_list, 0, sizeof(PhysicalDevice) * deviceListSize);
-
         uint32_t vk_device_count = deviceListSize;
         VkPhysicalDevice* vk_device_list = new VkPhysicalDevice[vk_device_count];
-        VkResult res = vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, vk_device_list);
-        if (res != VK_SUCCESS)
-        {
-            dmLogError("Vulkan physical device enumeration failed: VkResult %d.", res);
-            delete[] vk_device_list;
-            return;
-        }
-
+        vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, vk_device_list);
         assert(vk_device_count == deviceListSize);
 
         for (uint32_t i=0; i < vk_device_count; ++i)
         {
             VkPhysicalDevice vk_device = vk_device_list[i];
-            uint32_t vk_device_extension_count = 0;
-            uint32_t vk_queue_family_count = 0;
-
-            dmLogInfo("Vulkan physical device %u/%u: reading properties.", i + 1, vk_device_count);
+            uint32_t vk_device_extension_count, vk_queue_family_count;
 
             device_list[i].m_Features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
             device_list[i].m_Features2.pNext = pNextFeatures;
 
             vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
             vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
-            dmLogInfo("Vulkan physical device %u/%u: %s, API %u.%u.%u.",
-                i + 1,
-                vk_device_count,
-                device_list[i].m_Properties.deviceName,
-                VK_VERSION_MAJOR(device_list[i].m_Properties.apiVersion),
-                VK_VERSION_MINOR(device_list[i].m_Properties.apiVersion),
-                VK_VERSION_PATCH(device_list[i].m_Properties.apiVersion));
             if (pNextFeatures && vkGetPhysicalDeviceFeatures2)
             {
-                dmLogInfo("Vulkan physical device %u/%u: querying extended features.", i + 1, vk_device_count);
                 vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
-            }
-            else if (pNextFeatures)
-            {
-                dmLogWarning("Vulkan physical device %u/%u: extended features requested but vkGetPhysicalDeviceFeatures2 is not available.", i + 1, vk_device_count);
-            }
-            else
-            {
-                dmLogInfo("Vulkan physical device %u/%u: no extended features requested.", i + 1, vk_device_count);
             }
             vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
-            dmLogInfo("Vulkan physical device %u/%u: queue families: %u.", i + 1, vk_device_count, vk_queue_family_count);
             device_list[i].m_QueueFamilyProperties = new VkQueueFamilyProperties[vk_queue_family_count];
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, device_list[i].m_QueueFamilyProperties);
 
             vkEnumerateDeviceExtensionProperties(vk_device, 0, &vk_device_extension_count, 0);
-            dmLogInfo("Vulkan physical device %u/%u: device extensions: %u.", i + 1, vk_device_count, vk_device_extension_count);
 
             VkExtensionProperties* vk_device_extensions = new VkExtensionProperties[vk_device_extension_count];
 
@@ -566,15 +523,14 @@ namespace dmGraphics
         VkImageAspectFlags vk_image_aspect,
         VkImageLayout vk_to_layout,
         uint32_t base_mip_level,
-        uint32_t layer_count,
-        dmMutex::HMutex queue_mutex)
+        uint32_t layer_count)
     {
         VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(vk_device, vk_command_pool);
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         VkFence fence;
-        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence, queue_mutex);
+        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
 
         // Wait for the copy command to finish
         vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
@@ -692,7 +648,7 @@ namespace dmGraphics
         return cmd_buffer;
     }
 
-    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out, dmMutex::HMutex queue_mutex)
+    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
     {
         VkResult res = vkEndCommandBuffer(cmd);
         if (res != VK_SUCCESS)
@@ -709,10 +665,7 @@ namespace dmGraphics
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &cmd;
 
-        {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue_mutex);
-            res = vkQueueSubmit(queue, 1, &submit_info, fence);
-        }
+        res = vkQueueSubmit(queue, 1, &submit_info, fence);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -1627,16 +1580,6 @@ bail:
 
     void DestroyLogicalDevice(LogicalDevice* device)
     {
-        if (device->m_QueueMutex)
-        {
-            dmMutex::Delete(device->m_QueueMutex);
-            device->m_QueueMutex = 0;
-        }
-        if (device->m_AsyncUploadMutex)
-        {
-            dmMutex::Delete(device->m_AsyncUploadMutex);
-            device->m_AsyncUploadMutex = 0;
-        }
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
         vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
@@ -1724,7 +1667,6 @@ bail:
         void* pNext, LogicalDevice* logicalDeviceOut)
     {
         assert(device);
-        memset(logicalDeviceOut, 0, sizeof(LogicalDevice));
 
         // NOTE: Different queues can have different priority from [0..1], but
         //       we only have a single queue right now so set to 1.0f
@@ -1789,11 +1731,6 @@ bail:
                 vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 
                 res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPoolWorker);
-                if (res == VK_SUCCESS)
-                {
-                    logicalDeviceOut->m_QueueMutex       = dmMutex::New();
-                    logicalDeviceOut->m_AsyncUploadMutex = dmMutex::New();
-                }
             }
         }
 

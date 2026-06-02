@@ -14,7 +14,6 @@
 
 #include <dlfcn.h>
 #include <android_native_app_glue.h>
-#include <dlib/log.h>
 #include <dmsdk/dlib/android.h>
 #include <platform/platform_window_android.h>
 
@@ -162,13 +161,6 @@ namespace dmGraphics
         struct android_app* app = dmAndroid::GetAndroidApp();
         assert(app);
 
-        int native_width = app->window ? ANativeWindow_getWidth(app->window) : -1;
-        int native_height = app->window ? ANativeWindow_getHeight(app->window) : -1;
-        dmLogInfo("SIZE_TRACE vulkan create_window_surface window=%p anative=%dx%d contentRect=%d,%d,%d,%d highDPI=%d",
-            app->window, native_width, native_height,
-            app->contentRect.left, app->contentRect.top, app->contentRect.right, app->contentRect.bottom,
-            enableHighDPI ? 1 : 0);
-
         VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
         vk_surface_create_info.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
         vk_surface_create_info.window = app->window;
@@ -176,47 +168,10 @@ namespace dmGraphics
         return vkCreateAndroidSurfaceKHR(vkInstance, &vk_surface_create_info, 0, vkSurfaceOut);
     }
 
-    void TraceAndroidVulkanWindowSize(const char* reason, VulkanContext* context, uint32_t platform_width, uint32_t platform_height)
-    {
-        android_app* app = dmAndroid::GetAndroidApp();
-        ANativeWindow* native_window = app ? app->window : 0;
-        int native_width = native_window ? ANativeWindow_getWidth(native_window) : -1;
-        int native_height = native_window ? ANativeWindow_getHeight(native_window) : -1;
-        uint32_t swapchain_width = context->m_SwapChain ? context->m_SwapChain->m_ImageExtent.width : 0;
-        uint32_t swapchain_height = context->m_SwapChain ? context->m_SwapChain->m_ImageExtent.height : 0;
-
-        if (app)
-        {
-            dmLogInfo("SIZE_TRACE vulkan %s platform=%ux%u tracked=%ux%u androidTracked=%ux%u swapchain=%ux%u native=%p contextNative=%p anative=%dx%d contentRect=%d,%d,%d,%d base=%ux%u",
-                reason,
-                platform_width, platform_height,
-                context->m_WindowWidth, context->m_WindowHeight,
-                context->m_AndroidVulkanWindowWidth, context->m_AndroidVulkanWindowHeight,
-                swapchain_width, swapchain_height,
-                native_window, context->m_AndroidVulkanWindow,
-                native_width, native_height,
-                app->contentRect.left, app->contentRect.top, app->contentRect.right, app->contentRect.bottom,
-                context->m_BaseContext.m_Width, context->m_BaseContext.m_Height);
-        }
-        else
-        {
-            dmLogInfo("SIZE_TRACE vulkan %s platform=%ux%u tracked=%ux%u androidTracked=%ux%u swapchain=%ux%u native=NULL contextNative=%p base=%ux%u",
-                reason,
-                platform_width, platform_height,
-                context->m_WindowWidth, context->m_WindowHeight,
-                context->m_AndroidVulkanWindowWidth, context->m_AndroidVulkanWindowHeight,
-                swapchain_width, swapchain_height,
-                context->m_AndroidVulkanWindow,
-                context->m_BaseContext.m_Width, context->m_BaseContext.m_Height);
-        }
-    }
-
     void SyncAndroidVulkanWindowSize(VulkanContext* context)
     {
         uint32_t width  = context->m_SwapChain->m_ImageExtent.width;
         uint32_t height = context->m_SwapChain->m_ImageExtent.height;
-
-        TraceAndroidVulkanWindowSize("sync_before", context, dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window), dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window));
 
         context->m_WindowWidth          = width;
         context->m_WindowHeight         = height;
@@ -230,7 +185,6 @@ namespace dmGraphics
         context->m_AndroidVulkanWindowWidth  = width;
         context->m_AndroidVulkanWindowHeight = height;
 
-        TraceAndroidVulkanWindowSize("sync_after", context, dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window), dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window));
     }
 
     VkResult RecreateAndroidWindowSurface(void* ctx)
@@ -243,7 +197,6 @@ namespace dmGraphics
             context->m_WindowSurface = VK_NULL_HANDLE;
         }
 
-        TraceAndroidVulkanWindowSize("recreate_surface_before", context, dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window), dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window));
         VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI));
         if (res == VK_SUCCESS)
         {
@@ -251,7 +204,6 @@ namespace dmGraphics
             context->m_AndroidVulkanWindow = (void*) (app ? app->window : 0);
             context->m_SwapChain->m_Surface = context->m_WindowSurface;
         }
-        TraceAndroidVulkanWindowSize("recreate_surface_after", context, dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window), dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window));
         return res;
     }
 
@@ -277,17 +229,6 @@ namespace dmGraphics
                 target_window_width = (uint32_t) native_width;
                 target_window_height = (uint32_t) native_height;
             }
-        }
-
-        if (native_window && (native_window != context_native_window ||
-            target_window_width != context->m_AndroidVulkanWindowWidth ||
-            target_window_height != context->m_AndroidVulkanWindowHeight ||
-            target_window_width != context->m_WindowWidth ||
-            target_window_height != context->m_WindowHeight ||
-            window_width != target_window_width ||
-            window_height != target_window_height))
-        {
-            TraceAndroidVulkanWindowSize("surface_change_check", context, window_width, window_height);
         }
 
         if (native_window && (native_window != context_native_window ||
@@ -357,11 +298,6 @@ namespace dmGraphics
         if (!vkGetPhysicalDeviceFeatures2)
         {
             vkGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures2KHR");
-            dmLogInfo("Vulkan function vkGetPhysicalDeviceFeatures2 unavailable, KHR fallback %s.", vkGetPhysicalDeviceFeatures2 ? "loaded" : "unavailable");
-        }
-        else
-        {
-            dmLogInfo("Vulkan function vkGetPhysicalDeviceFeatures2 loaded.");
         }
         vkGetPhysicalDeviceQueueFamilyProperties = (PFN_vkGetPhysicalDeviceQueueFamilyProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceQueueFamilyProperties");
         vkGetPhysicalDeviceMemoryProperties = (PFN_vkGetPhysicalDeviceMemoryProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceMemoryProperties");

@@ -243,18 +243,6 @@ namespace dmGraphics
         vk_swap_chain_create_info.clipped        = VK_TRUE;
         vk_swap_chain_create_info.oldSwapchain   = vk_old_swap_chain;
 
-        dmLogInfo("Vulkan swapchain: extent=%ux%u images=%u format=%d colorspace=%d usage=0x%08x supported_usage=0x%08x transform=0x%08x current_transform=0x%08x present_mode=%d.",
-            vk_extent.width,
-            vk_extent.height,
-            swap_chain_image_count,
-            swapChain->m_SurfaceFormat.format,
-            swapChain->m_SurfaceFormat.colorSpace,
-            vk_swap_chain_create_info.imageUsage,
-            capabilities.m_SurfaceCapabilities.supportedUsageFlags,
-            vk_swap_chain_create_info.preTransform,
-            capabilities.m_SurfaceCapabilities.currentTransform,
-            vk_present_mode);
-
         VkResult res = vkCreateSwapchainKHR(vk_device, &vk_swap_chain_create_info, 0, &swapChain->m_SwapChain);
         if (res != VK_SUCCESS)
         {
@@ -306,8 +294,7 @@ namespace dmGraphics
             }
 
             res = TransitionImageLayout(vk_device, logicalDevice->m_CommandPool, logicalDevice->m_GraphicsQueue,
-                swapChain->m_ResolveTexture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                0, 1, logicalDevice->m_QueueMutex);
+                swapChain->m_ResolveTexture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             if (res != VK_SUCCESS)
             {
                 return res;
