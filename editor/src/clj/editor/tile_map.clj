@@ -567,7 +567,7 @@
       (attach-layer-node parent layer-node))))
 
 (defn world-pos->tile
-  [^Point3d pos tile-width tile-height]
+  [^Point3d pos ^double tile-width ^double tile-height]
   [(long (Math/floor (/ (.x pos) tile-width)))
    (long (Math/floor (/ (.y pos) tile-height)))])
 
@@ -1218,12 +1218,18 @@
 (defmulti update-op (fn [op node action state evaluation-context cursor-mode] op))
 (defmulti end-op (fn [op node action state evaluation-context cursor-mode] op))
 
+(defn- action->tile
+  [self action evaluation-context]
+  (when-let [world-pos (:world-pos action)]
+    (when-let [[w h] (g/node-value self :tile-dimensions evaluation-context)]
+      (world-pos->tile world-pos w h))))
+
 ;; painting tiles from brush
 
 (defmethod begin-op :paint
   [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
-    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
+    (when-let [current-tile (action->tile self action evaluation-context)]
       (let [brush (g/node-value self :brush evaluation-context)
             op-seq (gensym)]
         (swap! state assoc :last-tile current-tile)
@@ -1234,7 +1240,7 @@
 (defmethod update-op :paint
   [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
-    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
+    (when-let [current-tile (action->tile self action evaluation-context)]
       (when (not= current-tile (-> state deref :last-tile))
         (swap! state assoc :last-tile current-tile)
         (let [brush (g/node-value self :brush evaluation-context)
@@ -1252,14 +1258,14 @@
 (defmethod begin-op :select
   [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
-    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
+    (when-let [current-tile (action->tile self action evaluation-context)]
       [(g/set-property self :op-select-start current-tile)
        (g/set-property self :op-select-end current-tile)])))
 
 (defmethod update-op :select
   [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
-    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
+    (when-let [current-tile (action->tile self action evaluation-context)]
       [(g/set-property self :op-select-end current-tile)])))
 
 (defmethod end-op :select

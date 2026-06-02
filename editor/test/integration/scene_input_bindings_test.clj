@@ -76,18 +76,6 @@
     (app-view/select! app-view [resource-node])
     [resource-node view]))
 
-(defn- tile-screen-center-pos [view resource-node [tile-x tile-y]]
-  (let [[^double tile-width ^double tile-height] (g/node-value resource-node :tile-dimensions)
-        world-pos (Point3d. (* (+ ^double tile-x 0.5) tile-width)
-                            (* (+ ^double tile-y 0.5) tile-height)
-                            0.0)
-        half-width (double (/ (double (first (tile-screen-size view resource-node))) 2.0))
-        center ()
-        screen-pos (camera/camera-project (g/node-value view :camera)
-                                          (g/node-value view :viewport)
-                                          world-pos)]
-    [(+ half-width (.x screen-pos)) (+ half-width (.y screen-pos))]))
-
 (defn- refresh-selection! [view]
   (g/node-value view :all-renderables)
   (g/node-value view :selected-renderables))
@@ -124,59 +112,25 @@
 (defmacro with-mouse-bindings [& forms]
   `(with-mouse-bindings* (fn [] ~@forms)))
 
-(defn- tile-screen-size [view resource-node]
-  (let [[^double tw ^double th] (g/node-value resource-node :tile-dimensions)
-        camera (g/node-value view :camera)
-        viewport (g/node-value view :viewport)
-        p0 (camera/camera-project camera viewport (Point3d. 0.0 0.0 0.0))
-        p1 (camera/camera-project camera viewport (Point3d. tw th 0.0))]
-    [(Math/abs (- (.x p1) (.x p0)))
-     (Math/abs (- (.y p1) (.y p0)))]))
-
 (defn- screen-pos->tile-cell
-  ([view resource-node [screen-x screen-y]]
-   (screen-pos->tile-cell view resource-node screen-x screen-y))
-  ([view resource-node screen-x screen-y]
-   (let [[^double tile-width ^double tile-height] (g/node-value resource-node :tile-dimensions)
-         world-pos (camera/camera-unproject (g/node-value view :camera)
-                                            (g/node-value view :viewport)
-                                            (Point3d. screen-x screen-y 0.0))]
-     (tile-map/world-pos->tile (Point3d. (.x world-pos) (.y world-pos) (.z world-pos))
-                               tile-width
-                               tile-height))))
+  [view resource-node screen-x screen-y]
+  (let [[^double tile-width ^double tile-height] (g/node-value resource-node :tile-dimensions)
+        world-pos (camera/camera-unproject (g/node-value view :camera)
+                                           (g/node-value view :viewport)
+                                           (Point3d. screen-x screen-y 0.0))]
+    (tile-map/world-pos->tile (Point3d. (.x world-pos) (.y world-pos) (.z world-pos))
+                              tile-width
+                              tile-height)))
 
 (defn- tile-screen-center-pos [view resource-node [tile-x tile-y]]
   (let [[^double tile-width ^double tile-height] (g/node-value resource-node :tile-dimensions)
         world-pos (Point3d. (* (+ ^double tile-x 0.5) tile-width)
                             (* (+ ^double tile-y 0.5) tile-height)
                             0.0)
-        half-width (double (/ (double (first (tile-screen-size view resource-node))) 2.0))
         screen-pos (camera/camera-project (g/node-value view :camera)
                                           (g/node-value view :viewport)
                                           world-pos)]
-    [(+ (.x screen-pos)) (+ (.y screen-pos))]))
-
-(comment
-  (test-util/with-loaded-project
-    (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
-          layer-node (layer-node tile-map-node)
-          tile [5 5]
-          screen-pos (tile-screen-center-pos view tile-map-node tile)
-          asdf (cell-at layer-node tile)]
-      (app-view/select! app-view [layer-node])
-      (refresh-selection! view)
-      (screen-pos->tile-cell view tile-map-node 10.0 60.3035)))
-  :-)
-
-(defn print-cells [layer-node start-cell width height]
-  (let [[sx sy] start-cell]
-    (println (str "┌" (apply str (repeat width "─")) "┐"))
-    (doseq [y (range sy (+ sy height))]
-      (print "│")
-      (doseq [x (range sx (+ sx width))]
-        (print (if (cell-at layer-node [x y]) "█" "·")))
-      (println "│"))
-    (println (str "└" (apply str (repeat width "─")) "┘"))))
+    [(.x screen-pos) (.y screen-pos)]))
 
 (deftest tile-map-rebound-drag-runs-tile-map-action
   (test-util/with-loaded-project
@@ -199,12 +153,12 @@
                 :shift true})))
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
-            tile [-1 -1]
+            tile [-2 -2]
             screen-pos (tile-screen-center-pos view tile-map-node tile)]
         (app-view/select! app-view [layer-node])
         (refresh-selection! view)
         (is (= [layer-node] (g/node-value app-view :selected-node-ids)))
-        (is (nil? (cell-at layer-node tile)))
+        (is (cell-at layer-node tile))
         (let [tile-a [5 5]
               tile-b [6 5]
               tile-c [7 5]
@@ -218,22 +172,20 @@
                              (action :mouse-pressed  (first pos-a) (second pos-a) :primary [])
                              (action :mouse-moved    (first pos-b) (second pos-b) :primary [])
                              (action :mouse-moved    (first pos-c) (second pos-c) :primary [])
-                             (action :mouse-moved    (first pos-c) (second pos-c) :primary [])
                              (action :mouse-released (first pos-c) (second pos-c) :primary [])])]
-          (println pos-a pos-b pos-c)
-          (print-cells layer-node [0 0] 10 10)
+          (is (= tile-c (screen-pos->tile-cell view tile-map-node (first pos-c) (second pos-c))))
           (is (some? (cell-at layer-node tile-a)))
           (is (some? (cell-at layer-node tile-b)))
           (is (some? (cell-at layer-node tile-c))))
-        #_(let [input-state (reduce
-                              (partial dispatch-action! view)
-                              (input/make-input-state)
-                              [(action :mouse-moved (first screen-pos) (second screen-pos) :primary [:shift])
-                               (action :mouse-pressed (first screen-pos) (second screen-pos) :primary [:shift])])]
-            (is (= :select (g/node-value (tile-map-controller view) :op)))
-            (dispatch-action! view input-state (action :mouse-released (first screen-pos) (second screen-pos) :primary [:shift]))
-            (is (nil? (g/node-value (tile-map-controller view) :op)))
-            (is (nil? (cell-at layer-node tile))))))))
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved (first screen-pos) (second screen-pos) :primary [:shift])
+                             (action :mouse-pressed (first screen-pos) (second screen-pos) :primary [:shift])])]
+          (is (= :select (g/node-value (tile-map-controller view) :op)))
+          (dispatch-action! view input-state (action :mouse-released (first screen-pos) (second screen-pos) :primary [:shift]))
+          (is (nil? (g/node-value (tile-map-controller view) :op)))
+          (is (nil? (cell-at layer-node tile))))))))
 
 (deftest camera-rebound-drag-runs-camera-action
   (test-util/with-loaded-project
