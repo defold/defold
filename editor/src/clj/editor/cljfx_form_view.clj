@@ -319,13 +319,14 @@
 
 ;; endregion
 
-;; region vector input
+;; region vec4 input
 
-(defmethod handle-event :on-vector-element-change [{:keys [value index on-value-changed fx/event]}]
+(defmethod handle-event :on-vec4-element-change [{:keys [value index on-value-changed fx/event]}]
   {:dispatch (assoc on-value-changed :fx/event (assoc value index event))})
 
-(defn- vector-input-view [labels {:keys [value on-value-changed] :as field}]
-  (let [value (ensure-value value field)]
+(defmethod form-input-view :vec4 [{:keys [value on-value-changed] :as field}]
+  (let [labels ["X" "Y" "Z" "W"]
+        value (ensure-value value field)]
     {:fx/type fx.h-box/lifecycle
      :padding {:left 5}
      :spacing 5
@@ -345,17 +346,11 @@
                                       :pref-width normal-field-width
                                       :max-width :use-computed-size
                                       :value n
-                                      :on-value-changed {:event-type :on-vector-element-change
+                                      :on-value-changed {:event-type :on-vec4-element-change
                                                          :on-value-changed on-value-changed
                                                          :value value
                                                          :index i}}]}))
                      value)}))
-
-(defmethod form-input-view :vec3 [field]
-  (vector-input-view ["X" "Y" "Z"] field))
-
-(defmethod form-input-view :vec4 [field]
-  (vector-input-view ["X" "Y" "Z" "W"] field))
 
 (defmethod handle-event :keep-edit [{:keys [state-path ui-state fx/event on-value-changed]}]
   [[:set-ui-state (assoc-in ui-state (conj state-path :value) event)]
@@ -374,12 +369,12 @@
                             :state-path state-path}}
    :desc desc})
 
-(defn- vector-cell-input-view [{:keys [on-cancel
-                                       on-commit
-                                       on-value-changed
-                                       state
-                                       state-path]
-                                :as field}]
+(defmethod cell-input-view :vec4 [{:keys [on-cancel
+                                          on-commit
+                                          on-value-changed
+                                          state
+                                          state-path]
+                                   :as field}]
   (-> field
       (assoc :fx/type form-input-view
              :state-path (conj state-path :form-input-state)
@@ -391,12 +386,6 @@
       (wrap-cancel-on-escape on-cancel)
       (wrap-commit-on-enter on-commit state-path)
       (wrap-focus-text-field)))
-
-(defmethod cell-input-view :vec3 [field]
-  (vector-cell-input-view field))
-
-(defmethod cell-input-view :vec4 [field]
-  (vector-cell-input-view field))
 
 ;; endregion
 
@@ -640,7 +629,7 @@
     :resource (resource/resource->proj-path value)
     :choicebox (or (->> field :options (coll/some #(when (= (first %) value) (second %))))
                    ((:to-string field str) value))
-    (:vec3 :vec4) (->> value (e/map field-expression/format-number) (coll/join-to-string "  "))
+    :vec4 (->> value (e/map field-expression/format-number) (coll/join-to-string "  "))
     (str value)))
 
 (defn- list-cell-factory [element edit-index [i v]]
@@ -1040,7 +1029,7 @@
       (-> type
           (case
             :choicebox {:style {:-fx-padding -2}}
-            (:vec3 :vec4) {:style {:-fx-padding "-2 0 0 0"}}
+            :vec4 {:style {:-fx-padding "-2 0 0 0"}}
             (:integer :number :string) {:style {:-fx-padding -1}}
             :resource {:style {:-fx-padding [0 2 2 0]}}
             {})
@@ -1076,7 +1065,7 @@
      :reorderable false
      :sortable false
      :min-width (cond
-                  (and (#{:vec3 :vec4} type)
+                  (and (= :vec4 type)
                        (= path (:path edit)))
                   235
 
