@@ -39,29 +39,40 @@ import com.dynamo.rig.proto.Rig.Skeleton;
         "model-max-morph-target-texture-width",
         "model-max-morph-target-texture-height"})
 public class MeshsetBuilder extends Builder  {
+    /**
+     * Tracks each generated morph target texture output resource. The matching
+     * packed texture data is collected by the shared ModelUtil collector base.
+     */
     private static class MorphTargetTextureOutput {
         IResource resource;
-        ModelUtil.PackedMorphTargetTexture texture;
     }
 
-    private static class BobMorphTargetTextureCollector implements ModelUtil.MorphTargetTextureCollector {
+    /**
+     * Bridges ModelUtil's resource-agnostic model loading with Bob's task output
+     * layout. ModelUtil packs morph target textures while building meshes, and
+     * this collector allocates the corresponding task output and returns the
+     * resource path that should be stored in the meshset.
+     */
+    private static class MeshSetMorphTargetTextureCollector extends ModelUtil.MorphTargetTextureCollector {
         private final Project project;
         private final Task task;
-        private final ArrayList<MorphTargetTextureOutput> outputs;
+        private final ArrayList<MorphTargetTextureOutput> outputs = new ArrayList<>();
 
-        public BobMorphTargetTextureCollector(Project project, Task task, ArrayList<MorphTargetTextureOutput> outputs) {
+        public MeshSetMorphTargetTextureCollector(Project project, Task task) {
             this.project = project;
             this.task = task;
-            this.outputs = outputs;
+        }
+
+        public ArrayList<MorphTargetTextureOutput> getOutputs() {
+            return outputs;
         }
 
         @Override
-        public String add(Modelimporter.Mesh mesh, ModelUtil.PackedMorphTargetTexture texture) {
+        protected String getMorphTargetTextureResourcePath(int index, ModelUtil.PackedMorphTargetTexture texture) {
             // The first three task outputs are meshsetc, skeletonc and animationsetc.
-            int outputIndex = 3 + outputs.size();
+            int outputIndex = 3 + index;
             MorphTargetTextureOutput output = new MorphTargetTextureOutput();
             output.resource = task.output(outputIndex);
-            output.texture = texture;
             outputs.add(output);
             return BuilderUtil.getResourcePathFromOutput(project, output.resource);
         }
@@ -148,8 +159,7 @@ public class MeshsetBuilder extends Builder  {
         // MeshSet
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-            ArrayList<MorphTargetTextureOutput> morphTargetTextureOutputs = new ArrayList<>();
-            BobMorphTargetTextureCollector morphTextureCollector = new BobMorphTargetTextureCollector(project, task, morphTargetTextureOutputs);
+            MeshSetMorphTargetTextureCollector morphTextureCollector = new MeshSetMorphTargetTextureCollector(project, task);
 
             boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
             if (split_meshes) {
@@ -167,8 +177,10 @@ public class MeshsetBuilder extends Builder  {
             out.close();
             task.output(0).setContent(out.toByteArray());
 
-            for (MorphTargetTextureOutput output : morphTargetTextureOutputs) {
-                TextureUtil.writeGenerateResultToResource(output.texture.toGenerateResult(), output.resource);
+            ArrayList<ModelUtil.CollectedMorphTargetTexture> morphTargetTextures = morphTextureCollector.getTextures();
+            ArrayList<MorphTargetTextureOutput> morphTargetTextureOutputs = morphTextureCollector.getOutputs();
+            for (int i = 0; i < morphTargetTextures.size(); ++i) {
+                TextureUtil.writeGenerateResultToResource(morphTargetTextures.get(i).texture.toGenerateResult(), morphTargetTextureOutputs.get(i).resource);
             }
         }
 

@@ -306,18 +306,21 @@ public class ModelUtilTest {
 
     @Test
     public void testLoadMeshWritesPackedMorphTargetTexture() throws Exception {
-        ArrayList<ModelUtil.PackedMorphTargetTexture> textures = new ArrayList<ModelUtil.PackedMorphTargetTexture>();
-        Rig.Mesh mesh = ModelUtil.loadMesh(createMorphTextureTestMesh(), 4, 4, (sourceMesh, texture) -> {
-            textures.add(texture);
-            return "/generated/morph_0.texturec";
-        });
+        ModelUtil.MorphTargetTextureCollector textures = new ModelUtil.MorphTargetTextureCollector() {
+            @Override
+            protected String getMorphTargetTextureResourcePath(int index, ModelUtil.PackedMorphTargetTexture texture) {
+                return "/generated/morph_0.texturec";
+            }
+        };
+        Rig.Mesh mesh = ModelUtil.loadMesh(createMorphTextureTestMesh(), 4, 4, textures);
         assertEquals("/generated/morph_0.texturec", mesh.getMorphTargetTexture());
-        assertEquals(1, textures.size());
-        assertEquals(4, textures.get(0).width);
-        assertEquals(2, textures.get(0).height);
-        assertEquals(6, textures.get(0).layerCount);
-        assertEquals(4 * 2 * 4 * 2 * 3 * Float.BYTES, textures.get(0).data.length);
-        TextureImage textureImage = textures.get(0).toGenerateResult().textureImage;
+        assertEquals(1, textures.getTextures().size());
+        ModelUtil.PackedMorphTargetTexture texture = textures.getTextures().get(0).texture;
+        assertEquals(4, texture.width);
+        assertEquals(2, texture.height);
+        assertEquals(6, texture.layerCount);
+        assertEquals(4 * 2 * 4 * 2 * 3 * Float.BYTES, texture.data.length);
+        TextureImage textureImage = texture.toGenerateResult().textureImage;
         assertEquals(TextureImage.Type.TYPE_2D_ARRAY, textureImage.getType());
         assertEquals(6, textureImage.getCount());
         assertEquals(1, textureImage.getAlternatives(0).getDepth());

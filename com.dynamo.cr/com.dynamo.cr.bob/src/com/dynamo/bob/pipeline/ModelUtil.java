@@ -111,8 +111,50 @@ public class ModelUtil {
         }
     }
 
-    public interface MorphTargetTextureCollector {
-        String add(Mesh mesh, PackedMorphTargetTexture texture);
+    /**
+     * A generated morph target texture and the resource path or editor token
+     * that was stored in the generated meshset.
+     */
+    public static class CollectedMorphTargetTexture {
+        public final String resourcePath;
+        public final PackedMorphTargetTexture texture;
+
+        public CollectedMorphTargetTexture(String resourcePath, PackedMorphTargetTexture texture) {
+            this.resourcePath = resourcePath;
+            this.texture = texture;
+        }
+    }
+
+    /**
+     * Receives packed morph target textures produced while loading meshes and
+     * returns the resource path that should be stored in the generated meshset.
+     * Subclasses can override resource path generation to connect ModelUtil's
+     * resource-agnostic packing with Bob/editor-specific generated resources.
+     */
+    public static class MorphTargetTextureCollector {
+        private final ArrayList<CollectedMorphTargetTexture> textures = new ArrayList<CollectedMorphTargetTexture>();
+
+        public String add(PackedMorphTargetTexture texture) {
+            String resourcePath = getMorphTargetTextureResourcePath(textures.size(), texture);
+            textures.add(new CollectedMorphTargetTexture(resourcePath, texture));
+            return resourcePath;
+        }
+
+        protected String getMorphTargetTextureResourcePath(int index, PackedMorphTargetTexture texture) {
+            return String.format("__morph_target_texture_%d__", index);
+        }
+
+        public ArrayList<CollectedMorphTargetTexture> getTextures() {
+            return textures;
+        }
+    }
+
+    /**
+     * Editor-only helper used by editor/model_loader.clj. Bob uses a
+     * MeshsetBuilder-specific subclass that allocates task outputs instead.
+     */
+    public static MorphTargetTextureCollector createMorphTargetTextureCollector() {
+        return new MorphTargetTextureCollector();
     }
 
     /**
@@ -1114,7 +1156,7 @@ public class ModelUtil {
             PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
             if (packedMorphTargetTexture != null) {
                 if (morphTextureCollector != null) {
-                    meshBuilder.setMorphTargetTexture(morphTextureCollector.add(mesh, packedMorphTargetTexture));
+                    meshBuilder.setMorphTargetTexture(morphTextureCollector.add(packedMorphTargetTexture));
                 }
             }
 

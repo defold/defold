@@ -21,7 +21,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [com.dynamo.bob.pipeline ModelUtil ModelUtil$MorphTargetTextureCollector ModelUtil$PackedMorphTargetTexture]
+  (:import [com.dynamo.bob.pipeline ModelUtil ModelUtil$CollectedMorphTargetTexture ModelUtil$PackedMorphTargetTexture]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
            [java.io InputStream]))
@@ -39,6 +39,11 @@
    :layer-count (.-layerCount texture)
    :data (.-data texture)})
 
+(defn- collected-morph-target-texture->map [^ModelUtil$CollectedMorphTargetTexture texture]
+  (let [^ModelUtil$PackedMorphTargetTexture packed-texture (.-texture texture)]
+    {:token (.-resourcePath texture)
+     :packed-texture (packed-morph-target-texture->map packed-texture)}))
+
 (defn- load-model-scene
   [resource ^InputStream stream morph-tex-w morph-tex-h]
   (let [workspace (resource/workspace resource)
@@ -52,15 +57,7 @@
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ModelUtil/getAnimationNames scene) ; sorted on duration (largest first)
-        morph-target-textures (java.util.ArrayList.)
-        morph-target-texture-collector
-        (reify ModelUtil$MorphTargetTextureCollector
-          (add [_ _mesh texture]
-            (let [index (.size morph-target-textures)
-                  token (format "__morph_target_texture_%d__" index)]
-              (.add morph-target-textures {:token token
-                                           :packed-texture (packed-morph-target-texture->map texture)})
-              token)))]
+        morph-target-texture-collector (ModelUtil/createMorphTargetTextureCollector)]
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
     (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector)
@@ -70,7 +67,7 @@
        :skeleton skeleton
        :bones bones
        :buffers (.buffers scene)
-       :morph-target-textures (vec morph-target-textures)
+       :morph-target-textures (mapv collected-morph-target-texture->map (.getTextures morph-target-texture-collector))
        :animation-ids animation-ids
        :material-ids material-ids})))
 
