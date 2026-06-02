@@ -337,7 +337,7 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
     };
 }
 
-static void WebGPUGetPhysicalTextureSize(TextureFormat texture_format, uint32_t* width, uint32_t* height)
+static void WebGPUGetPhysicalTextureCopySize(TextureFormat texture_format, uint32_t* width, uint32_t* height)
 {
     assert(width);
     assert(height);
@@ -364,7 +364,7 @@ static void WebGPUReleaseTexture(WebGPUTexture* texture)
     }
 }
 
-static void WebGPURealizeTexture(WebGPUTexture* texture, TextureFormat texture_format, WGPUTextureFormat format, uint8_t depth, uint32_t sampleCount, WGPUTextureUsage usage)
+static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat format, uint8_t depth, uint32_t sampleCount, WGPUTextureUsage usage)
 {
     if (texture->m_Base.m_Depth > depth)
         depth = texture->m_Base.m_Depth;
@@ -378,18 +378,9 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, TextureFormat texture_f
 #else
         WGPUTextureDescriptor desc = {};
 #endif
-        uint32_t texture_width  = dmMath::Max(1u, (uint32_t)texture->m_Base.m_Width);
-        uint32_t texture_height = dmMath::Max(1u, (uint32_t)texture->m_Base.m_Height);
-
-        // WebGPU texture creation sizes for compressed formats must be whole texel blocks.
-        // Keep Defold's logical texture dimensions in m_Base, but allocate the GPU texture
-        // with the physical block-rounded size.
-        // https://gpuweb.github.io/gpuweb/#abstract-opdef-validating-gputexturedescriptor
-        WebGPUGetPhysicalTextureSize(texture_format, &texture_width, &texture_height);
-
         desc.usage         = texture->m_UsageFlags | usage;
         // NOTE: Due to some issue with our webgpu texture handling, we cannot use a width/height of 0 when creating a new texture.
-        desc.size          = { texture_width, texture_height, dmMath::Max(1u, (uint32_t)depth) };
+        desc.size          = { dmMath::Max(1u, (uint32_t)texture->m_Base.m_Width), dmMath::Max(1u, (uint32_t)texture->m_Base.m_Height), dmMath::Max(1u, (uint32_t)depth) };
         desc.sampleCount   = sampleCount;
         desc.format        = texture->m_Format;
         desc.mipLevelCount = texture->m_Base.m_MipMapCount;
@@ -487,7 +478,7 @@ static void WebGPUInstallBlankTexture(WebGPUTexture* texture, const TextureParam
     texture->m_Base.m_Depth       = depth;
     texture->m_Base.m_MipMapCount = 1;
 
-    WebGPURealizeTexture(texture, TEXTURE_FORMAT_RGBA, WGPUTextureFormat_RGBA8Unorm, depth, 1, WGPUTextureUsage_CopyDst);
+    WebGPURealizeTexture(texture, WGPUTextureFormat_RGBA8Unorm, depth, 1, WGPUTextureUsage_CopyDst);
     assert(texture->m_Texture && texture->m_TextureView);
 
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -551,9 +542,8 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
         return;
     }
 
-    uint32_t texture_width  = dmMath::Max(1u, (uint32_t)params.m_Width);
-    uint32_t texture_height = dmMath::Max(1u, (uint32_t)params.m_Height);
-    WebGPUGetPhysicalTextureSize(params.m_Format, &texture_width, &texture_height);
+    const uint32_t texture_width  = dmMath::Max(1u, (uint32_t)params.m_Width);
+    const uint32_t texture_height = dmMath::Max(1u, (uint32_t)params.m_Height);
 
 #if defined(DM_GRAPHICS_WEBGPU2)
     const uint32_t max_texture_dimension_2d = g_WebGPUContext->m_DeviceLimits.maxTextureDimension2D;
@@ -562,7 +552,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
 #endif
     if (texture_width > max_texture_dimension_2d || texture_height > max_texture_dimension_2d)
     {
-        dmLogError("Unable to upload texture data, physical texture size %ux%u for format %s exceeds maximum supported texture size %u.",
+        dmLogError("Unable to upload texture data, texture size %ux%u for format %s exceeds maximum supported texture size %u.",
             texture_width, texture_height, GetTextureFormatLiteral(params.m_Format), max_texture_dimension_2d);
         if (!texture->m_Texture || !params.m_SubUpdate)
         {
@@ -629,7 +619,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             if (!texture->m_Texture)
             {
                 assert(!params.m_SubUpdate);
-                WebGPURealizeTexture(texture, TEXTURE_FORMAT_RGBA, WGPUTextureFormat_RGBA8Unorm, params.m_Depth, 1, WGPUTextureUsage_CopyDst);
+                WebGPURealizeTexture(texture, WGPUTextureFormat_RGBA8Unorm, params.m_Depth, 1, WGPUTextureUsage_CopyDst);
                 assert(texture->m_Texture && texture->m_TextureView);
                 texture->m_Base.m_Format = TEXTURE_FORMAT_RGBA;
             }
@@ -650,7 +640,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             if (!texture->m_Texture)
             {
                 assert(!params.m_SubUpdate);
-                WebGPURealizeTexture(texture, params.m_Format, WebGPUFormatFromTextureFormat(params.m_Format), params.m_Depth, 1, WGPUTextureUsage_CopyDst);
+                WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(params.m_Format), params.m_Depth, 1, WGPUTextureUsage_CopyDst);
                 assert(texture->m_Texture && texture->m_TextureView);
                 texture->m_Base.m_Format = params.m_Format;
             }
@@ -659,14 +649,19 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             layout.bytesPerRow = extent.width;
             if (is_compressed)
             {
-                const uint32_t block_columns = (params.m_Width + block_size.m_Width - 1) / block_size.m_Width;
-                const uint32_t block_rows    = (params.m_Height + block_size.m_Height - 1) / block_size.m_Height;
+                uint32_t copy_width  = params.m_Width;
+                uint32_t copy_height = params.m_Height;
+                WebGPUGetPhysicalTextureCopySize(params.m_Format, &copy_width, &copy_height);
+
+                const uint32_t block_columns = copy_width / block_size.m_Width;
+                const uint32_t block_rows    = copy_height / block_size.m_Height;
 
                 // WebGPU compressed texture copies operate on whole texel blocks.
-                // Keep the texture's logical dimensions, but copy the physical block-rounded extent.
-                // https://gpuweb.github.io/gpuweb/#texel-copy
-                extent.width        = block_columns * block_size.m_Width;
-                extent.height       = block_rows * block_size.m_Height;
+                // Texture descriptors stay in logical dimensions; copy extents use the
+                // physical block-rounded mip extent accepted by WebGPU validation.
+                // https://gpuweb.github.io/gpuweb/#abstract-opdef-physical-miplevel-specific-texture-extent
+                extent.width        = copy_width;
+                extent.height       = copy_height;
                 layout.bytesPerRow  = block_columns * block_size.m_ByteSize;
                 layout.rowsPerImage = block_rows;
             }
@@ -1954,7 +1949,7 @@ static void WebGPUBeginFrame(HContext _context)
                 }
                 textureColor->m_Base.m_Width  = (uint16_t) dmMath::Min(currentWidth, 0xFFFFu);
                 textureColor->m_Base.m_Height = (uint16_t) dmMath::Min(currentHeight, 0xFFFFu);
-                WebGPURealizeTexture(textureColor, textureColor->m_Base.m_Format, context->m_Format, 1, context->m_MainRenderTarget->m_Multisample, g_rendertarget_usage);
+                WebGPURealizeTexture(textureColor, context->m_Format, 1, context->m_MainRenderTarget->m_Multisample, g_rendertarget_usage);
             }
 
             WebGPUTexture* textureResolve = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureResolve[0]);
@@ -1973,7 +1968,7 @@ static void WebGPUBeginFrame(HContext _context)
             }
             textureDepthStencil->m_Base.m_Width  = (uint16_t) dmMath::Min(currentWidth, 0xFFFFu);
             textureDepthStencil->m_Base.m_Height = (uint16_t) dmMath::Min(currentHeight, 0xFFFFu);
-            WebGPURealizeTexture(textureDepthStencil, textureDepthStencil->m_Base.m_Format, WGPUTextureFormat_Depth24PlusStencil8, 1, context->m_MainRenderTarget->m_Multisample, WGPUTextureUsage_RenderAttachment);
+            WebGPURealizeTexture(textureDepthStencil, WGPUTextureFormat_Depth24PlusStencil8, 1, context->m_MainRenderTarget->m_Multisample, WGPUTextureUsage_RenderAttachment);
         }
     }
     context->m_CurrentRenderTarget = context->m_MainRenderTarget;
@@ -3403,7 +3398,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
             {
                 WebGPUTexture* texture    = WebGPUNewTextureInternal(params.m_ColorBufferCreationParams[i]);
                 texture->m_Base.m_Format = rt->m_Base.m_ColorTextureParams[i].m_Format;
-                WebGPURealizeTexture(texture, rt->m_Base.m_ColorTextureParams[i].m_Format, WebGPUFormatFromTextureFormat(rt->m_Base.m_ColorTextureParams[i].m_Format), 1, 1, g_rendertarget_usage);
+                WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(rt->m_Base.m_ColorTextureParams[i].m_Format), 1, 1, g_rendertarget_usage);
                 rt->m_Base.m_TextureColor[rt->m_Base.m_ColorAttachmentCount] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
                 if (!rt->m_Width)
                 {
@@ -3438,7 +3433,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
             format                    = WGPUTextureFormat_Stencil8;
         }
         assert(texture);
-        WebGPURealizeTexture(texture, texture->m_Base.m_Format, format, 1, 1, WGPUTextureUsage_RenderAttachment);
+        WebGPURealizeTexture(texture, format, 1, 1, WGPUTextureUsage_RenderAttachment);
         rt->m_Base.m_TextureDepthStencil = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
         if (!rt->m_Width)
         {
