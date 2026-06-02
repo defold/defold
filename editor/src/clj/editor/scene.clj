@@ -703,6 +703,9 @@
                                      (= pass/selection %))
                                 (:passes renderable)))
         pass-renderables (update-pass-renderables! (:renderables flattened-scene) drawn-passes drawn-renderable)
+        ;; Lights contribute to the scene even if their gizmo is filtered out by
+        ;; hidden tags. However, hiding specific objects from the Outline View
+        ;; should also eliminate their light contribution.
         preview-light-renderables (cond-> (:preview-light-renderables flattened-scene)
                                           (and (not has-hidden-outline-key-path)
                                                (get-in flat-renderable [:user-data :editor-preview-light]))
@@ -871,9 +874,8 @@
 
 (g/defnk produce-pass->render-args
   "Builds the usual per-pass render args and also attaches scene-derived preview
-  light data for material shaders. Preview light data is prepared from the
-  flattened scene, ignoring only the `:light` visibility tag so hidden light
-  gizmos can still light the viewport."
+  light data for material shaders. Preview light data is collected as the scene
+  is flattened."
   [^Region viewport camera scene-render-data]
   (let [preview-lights (scene-render-data->preview-lights scene-render-data camera)]
     (pass->render-args-with-preview-lights viewport camera pass/all-passes preview-lights)))
