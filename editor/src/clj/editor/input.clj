@@ -201,7 +201,8 @@
 
 (defn mouse-binding-action?
   [{:keys [button modifiers trigger]} action]
-  (and (= trigger (:type action))
+  (and button
+       (= trigger (:type action))
        (= button (:button action))
        (not (:meta action))
        (modifiers-match? modifiers action)))

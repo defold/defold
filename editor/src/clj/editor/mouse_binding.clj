@@ -85,14 +85,14 @@
         (get-in @bindings-atom [:contexts context])))
 
 (defn binding-display-text [{selected-modifiers :modifiers
-                             :keys [button trigger]}]
-  (let [parts (into []
-                    (comp (filter (set selected-modifiers))
-                          (map modifier->label))
-                    modifiers)]
-    (string/join "+"
-                 (cond-> parts
-                   button (conj (button->label button))))))
+                             :keys [button]}]
+  (if button
+    (let [parts (into []
+                      (comp (filter (set selected-modifiers))
+                            (map modifier->label))
+                      modifiers)]
+      (string/join "+" (conj parts (button->label button))))
+    "Unassigned"))
 
 (comment
   @bindings-atom

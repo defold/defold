@@ -1609,26 +1609,22 @@
     :context-path ["Tile Map Editor"]
     :action "Cut"
     :binding {:button :middle :trigger :drag :modifiers [:shift :control]}}
-   #_{:command :scene.camera.orbit
+   {:command :scene.camera.orbit
     :context-path ["Tile Map Editor"]
-    :action "Orbit"
-    :binding {:button :primary :trigger :drag :modifiers [:control]}}
+    :action "Orbit"}
    {:command :scene.camera.pan
     :context-path ["Tile Map Editor"]
-    :action "Pan"
-    :binding {:button :primary :trigger :drag :modifiers [:control]}}
+    :action "Pan"}
    {:command :scene.camera.pan
     :context-path ["Tile Map Editor"]
-    :action "Pan"
-    :binding {:button :middle :trigger :drag :modifiers []}}
+    :action "Pan"}
    #_{:command :scene.camera.pan
     :context-path ["Tile Map Editor"]
     :action "Pan"
     :binding {:button :secondary :trigger :drag :modifiers []}}
    {:command :scene.camera.zoom
     :context-path ["Tile Map Editor"]
-    :action "Zoom"
-    :binding {:button :primary :trigger :drag :modifiers [:control :alt]}}])
+    :action "Zoom"}])
 
 (g/defnode TileMapGrid
   (inherits grid/Grid)
