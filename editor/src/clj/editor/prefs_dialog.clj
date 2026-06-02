@@ -370,8 +370,11 @@
               :initial-state (:binding props)
               :key :draft-binding
               :swap-key :swap-draft-binding}]}
-  [{:keys [row binding draft-binding swap-draft-binding swap-state]}]
-  (let [draft-binding (or draft-binding binding)
+  [{:keys [row binding draft-binding swap-draft-binding swap-state update-mouse-bindings]}]
+  (let [draft-binding (merge {:trigger :drag
+                              :modifiers []}
+                             binding
+                             draft-binding)
         selected-modifiers (set (:modifiers draft-binding))]
     {:fx/type fxui/vertical
      :padding :medium
@@ -423,7 +426,10 @@
         {:fx/type fxui/button
          :text "Apply"
          :on-action (fn [_]
-                      (swap-state update :mouse-bindings assoc (mouse-binding-key row) draft-binding)
+                      (let [binding-key (mouse-binding-key row)]
+                        (if (:button draft-binding)
+                          (update-mouse-bindings assoc binding-key draft-binding)
+                          (update-mouse-bindings dissoc binding-key)))
                       (swap-state dissoc :mouse-binding-popup))}]}]}))
 
 (defn- show-new-shortcut-dialog! [swap-state command ^Window window]
@@ -493,13 +499,13 @@
                              :text (localization-state (localization/message "prefs.keymap.context-menu.add" {"shortcut" text}))
                              :on-action #(handle-add-shortcut-action update-keymap command shortcut %)}))))))))))
 
-(defn- mouse-binding-context-menu-items [swap-state row]
+(defn- mouse-binding-context-menu-items [swap-state update-mouse-bindings row]
   [{:fx/type fx.menu-item/lifecycle
     :text "Edit Mouse Binding"
     :on-action #(handle-edit-mouse-binding-action swap-state row %)}
    {:fx/type fx.menu-item/lifecycle
     :text "Reset Mouse Binding"
-    :on-action (fn [_] (swap-state update :mouse-bindings dissoc (mouse-binding-key row)))}])
+    :on-action (fn [_] (update-mouse-bindings dissoc (mouse-binding-key row)))}])
 
 (fxui/defc keymap-view
   {:compose [{:fx/type fx/ext-watcher
@@ -509,9 +515,9 @@
               :ref mouse-binding/bindings-atom
               :key :mouse-binding-state}
              {:fx/type fx/ext-state
-              :initial-state {:filter-text "" :mouse-bindings {}}}]}
-  [{:keys [update-keymap state swap-state keymap handler-state localization-state]}]
-  (let [{:keys [filter-text context-menu new-shortcut-popup mouse-binding-popup mouse-bindings]} state
+              :initial-state {:filter-text ""}}]}
+  [{:keys [update-keymap update-mouse-bindings state swap-state keymap handler-state localization-state mouse-bindings]}]
+  (let [{:keys [filter-text context-menu new-shortcut-popup mouse-binding-popup]} state
         keyboard-rows (->> (handler/public-commands handler-state)
                            (into (keymap/commands keymap))
                            (e/map keyboard-row))
@@ -592,13 +598,14 @@
                         {:fx/type mouse-binding-view
                          :row row
                          :binding binding
-                         :swap-state swap-state}]}]})
+                         :swap-state swap-state
+                         :update-mouse-bindings update-mouse-bindings}]}]})
 
          context-menu
          (let [{:keys [row x y]} context-menu
                command (:command row)
                items (case (:kind row)
-                       :mouse-binding (mouse-binding-context-menu-items swap-state row)
+                       :mouse-binding (mouse-binding-context-menu-items swap-state update-mouse-bindings row)
                        :keyboard (keyboard-context-menu-items localization-state update-keymap swap-state keymap command))]
            {:fx/type fx.context-menu/lifecycle
             :on-window true
@@ -702,7 +709,9 @@
                 :content {:fx/type keymap-view
                           :localization-state localization-state
                           :keymap (keymap/from-prefs prefs-state prefs)
-                          :update-keymap (fn/partial prefs/update! prefs [:window :keymap])}}))}}})
+                          :update-keymap (fn/partial prefs/update! prefs [:window :keymap])
+                          :mouse-bindings (prefs/get prefs-state prefs [:window :mouse-bindings])
+                          :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}}))}}})
 
 (defn open!
   "Show the prefs dialog and block the thread until the dialog is closed"

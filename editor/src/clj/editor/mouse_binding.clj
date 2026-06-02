@@ -75,12 +75,16 @@
 (defn command-active? [context command input-state]
   (boolean
     (some (fn [mouse-binding]
-            (i/mouse-binding-active? (:binding mouse-binding) input-state))
+            (when-let [binding (:binding mouse-binding)]
+              (i/mouse-binding-active? binding input-state)))
           (get-in @bindings-atom [:contexts context command]))))
 
 (defn command-for-action [context action]
   (some (fn [[command bindings]]
-          (when (some #(i/mouse-binding-action? (:binding %) action) bindings)
+          (when (some (fn [mouse-binding]
+                        (when-let [binding (:binding mouse-binding)]
+                          (i/mouse-binding-action? binding action)))
+                      bindings)
             command))
         (get-in @bindings-atom [:contexts context])))
 
