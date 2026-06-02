@@ -39,6 +39,7 @@
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.diff :as diff]
@@ -434,6 +435,29 @@
                 nil
                 (catch Throwable e e))))
         (is (= [2 2 2] (test-util/prop sprite-node-id :scale)))))))
+
+(deftest editor-script-commands-preserve-declaration-order-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/command_order_project"
+    (reload-editor-scripts! project)
+    (let [command-labels (into []
+                               (comp
+                                 (filter (fn [{:keys [command]}]
+                                           (and command
+                                                (handler/synthetic-command? command))))
+                                 (map (fn [{:keys [command]}]
+                                        (some-> (handler/active command (eval-handler-contexts :global []) {})
+                                                handler/label))))
+                               (handler/realize-menu :editor.app-view/edit-end))]
+      (is (= ["Command 7"
+              "Command 2"
+              "Command 9"
+              "Command 1"
+              "Command 5"
+              "Command 3"
+              "Command 8"
+              "Command 4"
+              "Command 6"]
+             command-labels)))))
 
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
@@ -1125,14 +1149,28 @@ editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resou
   /npc.collection
   /npc.go
   /UPPER.COLLECTION
+editor.create_resources({{\"/test/invalid.go\", \"\\\"name\\\":\\\"invalid\\\"\"}}) => Created resources are invalid: /test/invalid.go
+/test
+  /config.json
+  /invalid.go
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+editor.tx.set(\"/test/invalid.go\", \"text\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.add(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.clear(\"/test/invalid.go\", \"components\") => Cannot edit defective resource: /test/invalid.go
+editor.tx.remove(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.reorder(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.reset(\"/test/invalid.go\", \"text\") => Cannot edit defective resource: /test/invalid.go
 ")
 
 (deftest resources-io-test
-  (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
-    (let [out (StringBuilder.)]
-      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
-      (run-edit-menu-test-command!)
-      (expect-script-output resource-io-test-output out))))
+  (log/without-logging
+    (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+        (run-edit-menu-test-command!)
+        (expect-script-output resource-io-test-output out)))))
 
 (defn- expected-zip-test-output [root]
   (str "Testing zip.pack...

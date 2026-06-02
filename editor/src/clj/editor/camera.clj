@@ -956,7 +956,7 @@
 (defn handle-input [self input-state action _user-data]
   (g/with-auto-evaluation-context evaluation-context
     (let [image-view (g/node-value self :image-view evaluation-context)
-          camera-state (or (g/user-data self ::camera-state) {:movement :idle})
+          camera-state (g/user-data self ::camera-state)
           movements-enabled (g/node-value self :movements-enabled evaluation-context)
           free-cam-mode (:free-cam-mode camera-state)
           {:keys [x y type key-code]} action
@@ -975,7 +975,7 @@
                        (or (and movement (movements-enabled movement) movement)
                            :idle))
                      :else
-                     (:movement camera-state))]
+                     (get camera-state :movement :idle))]
       (case type
         :scroll (if (and (contains? movements-enabled :dolly)
                          (not free-cam-mode)
@@ -1150,7 +1150,7 @@
           (when (not= final-camera current-camera)
             (set-camera! self current-camera final-camera false)))
         (let [viewport (g/node-value self :viewport evaluation-context)
-              {:keys [last-x last-y movement]} camera-state
+              {:keys [last-x last-y movement] :or {movement :idle}} camera-state
               camera (g/node-value self :camera evaluation-context)
               filter-fn (:filter-fn camera)
               [screen-x screen-y] (:cursor-pos input-state)
