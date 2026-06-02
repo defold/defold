@@ -38,10 +38,9 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
             "      key: \"color\"\n" +
             "      value {\n" +
             "        list {\n" +
-            "          values { number: 1.0 }\n" +
-            "          values { number: 1.0 }\n" +
-            "          values { number: 1.0 }\n" +
-            "          values { number: 1.0 }\n" +
+            "          values { number: 0.25 }\n" +
+            "          values { number: 0.5 }\n" +
+            "          values { number: 0.75 }\n" +
             "        }\n" +
             "      }\n" +
             "    }\n" +
@@ -60,9 +59,8 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
             "      value {\n" +
             "        list {\n" +
             "          values { number: 1.0 }\n" +
-            "          values { number: 1.0 }\n" +
-            "          values { number: 1.0 }\n" +
-            "          values { number: 1.0 }\n" +
+            "          values { number: 0.5 }\n" +
+            "          values { number: 0.25 }\n" +
             "        }\n" +
             "      }\n" +
             "    }\n" +
@@ -84,10 +82,9 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
             "      key: \"color\"\n" +
             "      value {\n" +
             "        list {\n" +
-            "          values { number: 1.0 }\n" +
-            "          values { number: 1.0 }\n" +
-            "          values { number: 1.0 }\n" +
-            "          values { number: 1.0 }\n" +
+            "          values { number: 0.2 }\n" +
+            "          values { number: 0.8 }\n" +
+            "          values { number: 0.1 }\n" +
             "        }\n" +
             "      }\n" +
             "    }\n" +
@@ -130,6 +127,18 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    private void assertBuiltLightColor(String path, String source, double... expectedComponents) throws Exception {
+        List<Message> messages = build(path, source);
+        Data data = getMessage(messages, Data.class);
+        assertNotNull(data);
+        List<Value> colorComponents = data.getData().getStruct().getFieldsOrThrow("color").getList().getValuesList();
+        assertEquals(expectedComponents.length, colorComponents.size());
+
+        for (int i = 0; i < expectedComponents.length; i++) {
+            assertEquals(expectedComponents[i], colorComponents.get(i).getNumber(), 0.000001);
+        }
+    }
+
     @Test
     public void testPointLightBuilderTags() throws Exception {
         assertLightTags("/light/test.point_light", POINT_LIGHT_SOURCE, "point_light");
@@ -143,6 +152,39 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testSpotLightBuilderTags() throws Exception {
         assertLightTags("/light/test.spot_light", SPOT_LIGHT_SOURCE, "spot_light");
+    }
+
+    @Test
+    public void testLightBuilderColor() throws Exception {
+        assertBuiltLightColor("/light/test.directional_light", LIGHT_SOURCE, 0.25, 0.5, 0.75);
+        assertBuiltLightColor("/light/test.point_light", POINT_LIGHT_SOURCE, 1.0, 0.5, 0.25);
+        assertBuiltLightColor("/light/test.spot_light", SPOT_LIGHT_SOURCE, 0.2, 0.8, 0.1);
+    }
+
+    @Test
+    public void testLightBuilderRejectsAlphaComponent() throws Exception {
+        String source =
+                "data {\n" +
+                "  struct {\n" +
+                "    fields {\n" +
+                "      key: \"color\"\n" +
+                "      value {\n" +
+                "        list {\n" +
+                "          values { number: 1.0 }\n" +
+                "          values { number: 1.0 }\n" +
+                "          values { number: 1.0 }\n" +
+                "          values { number: 1.0 }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "    fields {\n" +
+                "      key: \"intensity\"\n" +
+                "      value { number: 1.0 }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}\n";
+
+        assertCompileFailure("/light/test.directional_light", source, "field 'color' must contain 3 numbers");
     }
 
     @Test

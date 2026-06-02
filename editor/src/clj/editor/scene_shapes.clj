@@ -265,8 +265,8 @@
                     [0.0 0.0 0.0] [-1.0 0.0 -1.0]
                     [0.0 0.0 0.0] [0.0 1.0 -1.0]
                     [0.0 0.0 0.0] [0.0 -1.0 -1.0]]
-        ;; Axis through the cone, slightly past the base
-        axis [[0.0 0.0 0.0] [0.0 0.0 -1.08]]
+        ;; Axis through the cone
+        axis [[0.0 0.0 0.0] [0.0 0.0 -1.0]]
         pair-pairs (vec (concat outer-circle
                                 (or inner-circle [])
                                 (partition 2 silhouette)

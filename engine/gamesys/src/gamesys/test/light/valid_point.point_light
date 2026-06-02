@@ -7,7 +7,6 @@ data {
           values { number: 1.0 }
           values { number: 0.5 }
           values { number: 0.25 }
-          values { number: 1.0 }
         }
       }
     }

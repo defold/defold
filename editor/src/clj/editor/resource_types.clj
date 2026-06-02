@@ -20,17 +20,16 @@
             [editor.binary-file :as binary-file]
             [editor.buffer :as buffer]
             [editor.camera-editor :as camera]
-            [editor.data :as data]
             [editor.code.script :as code-script]
             [editor.code.shader :as code-shader]
             [editor.code.text-file :as code-text-file]
-            [editor.model-scene :as model-scene]
             [editor.collection :as collection]
             [editor.collection-non-editable :as collection-non-editable]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
             [editor.compute :as compute]
             [editor.cubemap :as cubemap]
+            [editor.data-text :as data-text]
             [editor.display-profiles :as display-profiles]
             [editor.editor-localization :as editor-localization]
             [editor.editor-script :as editor-script]
@@ -50,6 +49,7 @@
             [editor.material :as material]
             [editor.mesh :as mesh]
             [editor.model :as model]
+            [editor.model-scene :as model-scene]
             [editor.particlefx :as particlefx]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.protobuf-types :as protobuf-types]
@@ -92,6 +92,7 @@
       (html/register-resource-types workspace)
       (image/register-resource-types workspace)
       (label/register-resource-types workspace)
+      (light/register-resource-types workspace)
       (live-update-settings/register-resource-types workspace)
       (markdown/register-resource-types workspace)
       (material/register-resource-types workspace)
@@ -108,8 +109,7 @@
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
-      (data/register-resource-types workspace)
-      (light/register-resource-types workspace)
+      (data-text/register-resource-types workspace)
       (code-script/register-resource-types workspace)
       (code-shader/register-resource-types workspace)
       (code-text-file/register-resource-types workspace)

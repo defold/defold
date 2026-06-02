@@ -591,7 +591,7 @@
             (mapv #(mapv localization/message %)
                   [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
                    ["resource.category.components"]
-                   ["resource.category.resources"]
+                   ["resource.category.resources" "resource.category.lights"]
                    ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]])
 
             predefined-categories (into #{} cat base-columns)
