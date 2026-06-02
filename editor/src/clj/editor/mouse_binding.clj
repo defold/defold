@@ -38,7 +38,9 @@
 
 (defonce bindings-atom
   (atom {;; contexts: {context {command [mouse-binding]}}
-         :contexts {}}))
+         :contexts {}
+         ;; overrides: {[context command binding-index] binding}
+         :overrides {}}))
 
 (defn- add-bindings [state context bindings]
   (assoc-in state [:contexts context] (group-by :command bindings)))
@@ -56,37 +58,57 @@
   (swap! bindings-atom remove-bindings context)
   nil)
 
+(defn set-overrides! [overrides]
+  (swap! bindings-atom assoc :overrides overrides)
+  nil)
+
+(defn- effective-binding [overrides context command binding-index mouse-binding]
+  (assoc mouse-binding :binding (get overrides [context command binding-index] (:binding mouse-binding))))
+
+(defn- effective-command-bindings [state context command bindings]
+  (mapv (fn [binding-index mouse-binding]
+          (effective-binding (:overrides state) context command binding-index mouse-binding))
+        (range)
+        bindings))
+
 (defn all-bindings []
-  (into []
-        (mapcat (fn [[context command->bindings]]
-                  (mapcat (fn [[command bindings]]
-                            (map-indexed (fn [binding-index mouse-binding]
-                                           (assoc mouse-binding
-                                             :context context
-                                             :command command
-                                             :binding-index binding-index))
-                                         bindings))
-                          command->bindings)))
-        (:contexts @bindings-atom)))
+  (let [{:keys [contexts overrides]} @bindings-atom]
+    (into []
+          (mapcat (fn [[context command->bindings]]
+                    (mapcat (fn [[command bindings]]
+                              (map-indexed (fn [binding-index mouse-binding]
+                                             (assoc (effective-binding overrides context command binding-index mouse-binding)
+                                               :context context
+                                               :command command
+                                               :binding-index binding-index))
+                                           bindings))
+                            command->bindings)))
+          contexts)))
 
 (defn bindings [context]
-  (into [] cat (vals (get-in @bindings-atom [:contexts context]))))
+  (let [state @bindings-atom]
+    (into []
+          (mapcat (fn [[command bindings]]
+                    (effective-command-bindings state context command bindings)))
+          (get-in state [:contexts context]))))
 
 (defn command-active? [context command input-state]
-  (boolean
-    (some (fn [mouse-binding]
-            (when-let [binding (:binding mouse-binding)]
-              (i/mouse-binding-active? binding input-state)))
-          (get-in @bindings-atom [:contexts context command]))))
+  (let [state @bindings-atom]
+    (boolean
+      (some (fn [mouse-binding]
+              (when-let [binding (:binding mouse-binding)]
+                (i/mouse-binding-active? binding input-state)))
+            (effective-command-bindings state context command (get-in state [:contexts context command]))))))
 
 (defn command-for-action [context action]
-  (some (fn [[command bindings]]
-          (when (some (fn [mouse-binding]
-                        (when-let [binding (:binding mouse-binding)]
-                          (i/mouse-binding-action? binding action)))
-                      bindings)
-            command))
-        (get-in @bindings-atom [:contexts context])))
+  (let [state @bindings-atom]
+    (some (fn [[command bindings]]
+            (when (some (fn [mouse-binding]
+                          (when-let [binding (:binding mouse-binding)]
+                            (i/mouse-binding-action? binding action)))
+                        (effective-command-bindings state context command bindings))
+              command))
+          (get-in state [:contexts context]))))
 
 (defn binding-display-text [{selected-modifiers :modifiers
                              :keys [button]}]
