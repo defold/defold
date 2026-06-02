@@ -203,8 +203,9 @@ namespace dmGui
 
     /*#
      * Custom GUI node property value.
-     * String values are owned by the GUI scene after they are passed to a
-     * successful SetNodeCustomProperty() call, and will be released with free().
+     * String values returned from GetNodeCustomProperty() are owned by the GUI
+     * scene and must not be freed by the caller. String values passed to
+     * SetNodeCustomProperty() are copied.
      * @name CustomProperty
      * @type struct
      * @member m_Type [type:dmGui::CustomPropertyType] the value type
@@ -383,8 +384,8 @@ namespace dmGui
 
     /*#
      * Set a custom property on a GUI node.
-     * String values are owned by the GUI scene after a successful call and will
-     * be released with free().
+     * String values are copied, and the caller retains ownership of the input
+     * string.
      * @name SetNodeCustomProperty
      * @param scene [type: dmGui::HScene] scene
      * @param node [type: dmGui::HNode] node

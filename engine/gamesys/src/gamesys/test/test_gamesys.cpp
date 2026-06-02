@@ -9517,12 +9517,45 @@ TEST_F(GuiTest, GuiCustomPropertiesFromLayoutDDF)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
     ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
     ASSERT_STREQ("default", property.m_String);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(1.0f, property.m_Number, EPSILON);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_TRUE(property.m_Boolean);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_VEC3(Vector3(1.0f, 2.0f, 3.0f), property.m_Vector3);
 
     gui_component->m_Scene->m_ApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Landscape"));
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
     ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
     ASSERT_STREQ("landscape", property.m_String);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(2.0f, property.m_Number, EPSILON);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_FALSE(property.m_Boolean);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_VEC3(Vector3(4.0f, 5.0f, 6.0f), property.m_Vector3);
+
+    gui_component->m_Scene->m_ApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Portrait"));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("default", property.m_String);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(1.0f, property.m_Number, EPSILON);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_TRUE(property.m_Boolean);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_VEC3(Vector3(1.0f, 2.0f, 3.0f), property.m_Vector3);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 

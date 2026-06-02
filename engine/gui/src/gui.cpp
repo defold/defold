@@ -2888,8 +2888,19 @@ namespace dmGui
             return RESULT_WRONG_TYPE;
         }
 
+        CustomProperty new_property = *prop;
+        if (prop->m_Type == CUSTOM_PROPERTY_TYPE_STRING)
+        {
+            const char* string_value = prop->m_String ? prop->m_String : "";
+            new_property.m_String = strdup(string_value);
+            if (!new_property.m_String)
+            {
+                return RESULT_OUT_OF_RESOURCES;
+            }
+        }
+
         FreeCustomProperty(&property->m_Property);
-        property->m_Property = *prop;
+        property->m_Property = new_property;
         return RESULT_OK;
     }
 

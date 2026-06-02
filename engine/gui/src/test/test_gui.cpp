@@ -5697,7 +5697,7 @@ TEST_F(dmGuiTest, CustomProperties)
     new_hash.m_Hash = dmHashString64("new-hash-value");
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("hash"), &new_hash));
 
-    char* string_value = strdup("runtime");
+    char string_value[] = "runtime";
     dmGui::CustomProperty new_string = {};
     new_string.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
     new_string.m_String = string_value;
@@ -5728,8 +5728,21 @@ TEST_F(dmGuiTest, CustomProperties)
     ASSERT_EQ(dmHashString64("new-hash-value"), property.m_Hash);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &property));
-    ASSERT_EQ((const char*) string_value, property.m_String);
+    ASSERT_NE((const char*) string_value, property.m_String);
     ASSERT_STREQ("runtime", property.m_String);
+
+    dmGui::CustomProperty scene_string = property;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &scene_string));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &property));
+    ASSERT_STREQ("runtime", property.m_String);
+
+    dmGui::CustomProperty replacement_string = {};
+    replacement_string.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
+    replacement_string.m_String = "replacement";
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &replacement_string));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &property));
+    ASSERT_NE(replacement_string.m_String, property.m_String);
+    ASSERT_STREQ("replacement", property.m_String);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(m_Scene, node, dmHashString64("vector3"), &property));
     ASSERT_NEAR(8.0f, property.m_Vector3.getX(), EPSILON);
@@ -5772,7 +5785,7 @@ TEST_F(dmGuiTest, CloneNodeCustomProperties)
 
     dmGui::CustomProperty new_string = {};
     new_string.m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
-    new_string.m_String = strdup("changed");
+    new_string.m_String = "changed";
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeCustomProperty(m_Scene, node, dmHashString64("string"), &new_string));
 
     dmGui::CustomProperty new_number = {};

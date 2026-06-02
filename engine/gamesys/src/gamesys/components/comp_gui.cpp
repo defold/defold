@@ -320,6 +320,76 @@ namespace dmGameSystem
         return true;
     }
 
+    static const uint32_t NODE_DESC_CUSTOM_PROPERTIES_FIELD_NUMBER = 50;
+
+    static bool HasOverriddenField(const dmGuiDDF::NodeDesc* node_desc, uint32_t field_number)
+    {
+        for (uint32_t i = 0; i < node_desc->m_OverriddenFields.m_Count; ++i)
+        {
+            if (node_desc->m_OverriddenFields[i] == field_number)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static void ResetDefaultNodeDescCache(GuiComponent* component, uint32_t node_count)
+    {
+        if (node_count == 0)
+        {
+            if (component->m_DefaultNodeDescs.Capacity() > 0)
+            {
+                component->m_DefaultNodeDescs.Clear();
+            }
+            return;
+        }
+
+        if (component->m_DefaultNodeDescs.Capacity() < node_count)
+        {
+            component->m_DefaultNodeDescs.SetCapacity(node_count);
+        }
+        component->m_DefaultNodeDescs.Clear();
+    }
+
+    static const dmGuiDDF::NodeDesc* FindDefaultNodeDesc(const dmGui::HScene scene, dmGui::HNode node)
+    {
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        dmhash_t node_id = dmGui::GetNodeId(scene, node);
+
+        const dmGuiDDF::NodeDesc* const* default_node_desc = component->m_DefaultNodeDescs.Get(node_id);
+        if (default_node_desc)
+        {
+            return *default_node_desc;
+        }
+
+        dmGuiDDF::SceneDesc* scene_desc = component->m_Resource->m_SceneDesc;
+        for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
+        {
+            const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
+            if (node_desc->m_Id && dmHashString64(node_desc->m_Id) == node_id)
+            {
+                return node_desc;
+            }
+        }
+        return 0;
+    }
+
+    static const dmGuiDDF::NodeDesc* GetCustomPropertiesNodeDesc(const dmGui::HScene scene, dmGui::HNode node, const dmGuiDDF::NodeDesc* node_desc)
+    {
+        if (node_desc->m_CustomProperties.m_Count != 0 || HasOverriddenField(node_desc, NODE_DESC_CUSTOM_PROPERTIES_FIELD_NUMBER))
+        {
+            return node_desc;
+        }
+
+        const dmGuiDDF::NodeDesc* default_node_desc = FindDefaultNodeDesc(scene, node);
+        if (node_desc == default_node_desc)
+        {
+            return node_desc;
+        }
+        return default_node_desc ? default_node_desc : node_desc;
+    }
+
     static dmGui::NodeType DDFNodeTypeToGuiNodeType(dmGuiDDF::NodeDesc::Type type)
     {
         switch (type)
@@ -792,10 +862,12 @@ namespace dmGameSystem
     static void SetNodeCallback(const dmGui::HScene scene, dmGui::HNode n, const void* node_desc)
     {
         const dmGuiDDF::NodeDesc* node_desc_ddf = (const dmGuiDDF::NodeDesc*) node_desc;
-        if (SetCustomProperties(scene, n, node_desc_ddf))
+        const dmGuiDDF::NodeDesc* custom_properties_node_desc = GetCustomPropertiesNodeDesc(scene, n, node_desc_ddf);
+        if (!SetCustomProperties(scene, n, custom_properties_node_desc))
         {
-            SetNode(scene, n, node_desc_ddf);
+            return;
         }
+        SetNode(scene, n, node_desc_ddf);
     }
 
     static void SendLayoutChangedMessage(const dmGui::HScene scene, dmhash_t layout_id, dmhash_t previous_layout_id)
@@ -1027,6 +1099,7 @@ namespace dmGameSystem
         uint32_t layouts_count = scene_desc->m_Layouts.m_Count;
         if(layouts_count != 0)
         {
+            ResetDefaultNodeDescCache(gui_component, scene_desc->m_Nodes.m_Count);
             dmGui::AllocateLayouts(scene, scene_desc->m_Nodes.m_Count, layouts_count);
             for (uint32_t i = 0; i < layouts_count; ++i)
             {
@@ -1051,7 +1124,13 @@ namespace dmGameSystem
             if (n)
             {
                 if (node_desc->m_Id)
+                {
                     dmGui::SetNodeId(scene, n, node_desc->m_Id);
+                    if (layouts_count != 0)
+                    {
+                        gui_component->m_DefaultNodeDescs.Put(dmHashString64(node_desc->m_Id), node_desc);
+                    }
+                }
                 if (!SetCustomProperties(scene, n, node_desc))
                     return false;
                 if(!SetNode(scene, n, node_desc))
