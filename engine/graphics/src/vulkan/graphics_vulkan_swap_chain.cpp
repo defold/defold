@@ -140,7 +140,7 @@ namespace dmGraphics
         VkExtent2D vk_current_extent = capabilities.m_SurfaceCapabilities.currentExtent;
         VkExtent2D vk_extent         = {};
 
-        if (vk_current_extent.width == 0xFFFFFFFF || vk_current_extent.width == 0xFFFFFFFF)
+        if (vk_current_extent.width == 0xFFFFFFFF || vk_current_extent.height == 0xFFFFFFFF)
         {
             // Clamp swap buffer extent to our wanted width / height.
             vk_extent.width  = *wantedWidth;
@@ -185,8 +185,14 @@ namespace dmGraphics
 
         // imageArrayLayers: the number of views in a multiview/stereo surface.
         // For non-stereoscopic-3D applications, this value is 1
+        VkImageUsageFlags vk_image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        if (capabilities.m_SurfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+        {
+            vk_image_usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        }
+
         vk_swap_chain_create_info.imageArrayLayers = 1;
-        vk_swap_chain_create_info.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        vk_swap_chain_create_info.imageUsage       = vk_image_usage;
 
          // Move queue indices over to uint32_t array
         uint32_t queue_family_indices[2] = {(uint32_t) swapChain->m_QueueFamily.m_GraphicsQueueIx, (uint32_t) swapChain->m_QueueFamily.m_PresentQueueIx};
@@ -224,12 +230,30 @@ namespace dmGraphics
             }
         }
 
-         // The preTransform field can be used to rotate the swap chain when presenting
-        vk_swap_chain_create_info.preTransform   = capabilities.m_SurfaceCapabilities.currentTransform;
+         // The preTransform field can be used to rotate the swap chain when presenting.
+        VkSurfaceTransformFlagBitsKHR vk_pre_transform = capabilities.m_SurfaceCapabilities.currentTransform;
+        if (capabilities.m_SurfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+        {
+            vk_pre_transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+        }
+
+        vk_swap_chain_create_info.preTransform   = vk_pre_transform;
         vk_swap_chain_create_info.compositeAlpha = vk_composite_alpha_flag_selected;
         vk_swap_chain_create_info.presentMode    = vk_present_mode;
         vk_swap_chain_create_info.clipped        = VK_TRUE;
         vk_swap_chain_create_info.oldSwapchain   = vk_old_swap_chain;
+
+        dmLogInfo("Vulkan swapchain: extent=%ux%u images=%u format=%d colorspace=%d usage=0x%08x supported_usage=0x%08x transform=0x%08x current_transform=0x%08x present_mode=%d.",
+            vk_extent.width,
+            vk_extent.height,
+            swap_chain_image_count,
+            swapChain->m_SurfaceFormat.format,
+            swapChain->m_SurfaceFormat.colorSpace,
+            vk_swap_chain_create_info.imageUsage,
+            capabilities.m_SurfaceCapabilities.supportedUsageFlags,
+            vk_swap_chain_create_info.preTransform,
+            capabilities.m_SurfaceCapabilities.currentTransform,
+            vk_present_mode);
 
         VkResult res = vkCreateSwapchainKHR(vk_device, &vk_swap_chain_create_info, 0, &swapChain->m_SwapChain);
         if (res != VK_SUCCESS)
@@ -282,7 +306,8 @@ namespace dmGraphics
             }
 
             res = TransitionImageLayout(vk_device, logicalDevice->m_CommandPool, logicalDevice->m_GraphicsQueue,
-                swapChain->m_ResolveTexture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                swapChain->m_ResolveTexture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                0, 1, logicalDevice->m_QueueMutex);
             if (res != VK_SUCCESS)
             {
                 return res;

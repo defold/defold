@@ -152,6 +152,12 @@ namespace dmGraphics
             properties.deviceName);
         dmLogInfo("Device ID: 0x%04x  Type: %s", properties.deviceID, VkPhysicalDeviceTypeToStr(properties.deviceType));
         dmLogInfo("Vendor: %s (0x%04x) driver version: 0x%08x", VkVendorIdToStr(properties.vendorID), properties.vendorID, properties.driverVersion);
+        dmLogInfo("Device extensions (%u):", context->m_PhysicalDevice.m_DeviceExtensionCount);
+        for (uint32_t i = 0; i < context->m_PhysicalDevice.m_DeviceExtensionCount; ++i)
+        {
+            const VkExtensionProperties& extension = context->m_PhysicalDevice.m_DeviceExtensions[i];
+            dmLogInfo("  %s (spec version %u)", extension.extensionName, extension.specVersion);
+        }
     }
 
     VulkanContext::VulkanContext(const ContextParams& params, const VkInstance vk_instance)
@@ -674,7 +680,10 @@ namespace dmGraphics
                 context->m_LogicalDevice.m_GraphicsQueue,
                 depth_stencil_texture_out,
                 vk_aspect_flags,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                0,
+                1,
+                context->m_LogicalDevice.m_QueueMutex);
             CHECK_VK_ERROR(res);
         }
 
@@ -1152,6 +1161,11 @@ namespace dmGraphics
             context->m_ASTCSupport = 1;
             context->m_ASTCArrayTextureSupport = 1;
         }
+
+        dmLogInfo("Vulkan texture compression support: ETC2=%u BC=%u ASTC_LDR=%u.",
+            context->m_PhysicalDevice.m_Features.textureCompressionETC2,
+            context->m_PhysicalDevice.m_Features.textureCompressionBC,
+            context->m_PhysicalDevice.m_Features.textureCompressionASTC_LDR);
 
         TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
                                             TEXTURE_FORMAT_LUMINANCE_ALPHA,
@@ -1792,7 +1806,10 @@ bail:
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores    = &renderFinishedSemaphore;
 
-        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_LogicalDevice.m_QueueMutex);
+            res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
+        }
         CHECK_VK_ERROR(res);
 
         // Present the swapchain image
@@ -1816,7 +1833,10 @@ bail:
             presentInfo.pNext = &present_id_info;
         }
 
-        res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_LogicalDevice.m_QueueMutex);
+            res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
+        }
         if ((res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) && present_id != 0)
         {
             context->m_SwapChain->m_LastPresentId = present_id;
@@ -2643,7 +2663,10 @@ bail:
                 context->m_LogicalDevice.m_GraphicsQueue,
                 texture,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                image_layout);
+                image_layout,
+                0,
+                1,
+                context->m_LogicalDevice.m_QueueMutex);
             CHECK_VK_ERROR(res);
         }
 
@@ -4255,7 +4278,10 @@ bail:
                     context->m_LogicalDevice.m_GraphicsQueue,
                     new_texture_color,
                     VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    0,
+                    1,
+                    context->m_LogicalDevice.m_QueueMutex);
                 CHECK_VK_ERROR(res);
 
                 VulkanSetTextureParamsInternal(context, new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
@@ -4653,7 +4679,8 @@ bail:
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_GraphicsQueue,
             vk_command_buffer,
-            &submit_fence);
+            &submit_fence,
+            context->m_LogicalDevice.m_QueueMutex);
         CHECK_VK_ERROR(res);
 
         VulkanCommandBuffer cmd_buffer;
@@ -4977,6 +5004,8 @@ bail:
 
         // Async texture uploading
         {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_LogicalDevice.m_AsyncUploadMutex);
+
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
             uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
@@ -5033,7 +5062,12 @@ bail:
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
             VkFence fence;
-            VkResult res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, &fence);
+            VkResult res = SubmitCommandBuffer(
+                context->m_LogicalDevice.m_Device,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                cmd_buffer,
+                &fence,
+                context->m_LogicalDevice.m_QueueMutex);
             CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
@@ -5352,7 +5386,12 @@ bail:
             1);
 
         VkFence fence;
-        res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, &fence);
+        res = SubmitCommandBuffer(
+            context->m_LogicalDevice.m_Device,
+            context->m_LogicalDevice.m_GraphicsQueue,
+            vk_command_buffer,
+            &fence,
+            context->m_LogicalDevice.m_QueueMutex);
         CHECK_VK_ERROR(res);
 
         // Wait for the copy command to finish
