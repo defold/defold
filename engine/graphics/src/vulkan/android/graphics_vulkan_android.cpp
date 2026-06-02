@@ -265,21 +265,42 @@ namespace dmGraphics
         android_app* app = dmAndroid::GetAndroidApp();
         ANativeWindow* native_window = app ? app->window : 0;
         ANativeWindow* context_native_window = (ANativeWindow*) context->m_AndroidVulkanWindow;
+        uint32_t target_window_width = window_width;
+        uint32_t target_window_height = window_height;
+
+        if (native_window)
+        {
+            int native_width = ANativeWindow_getWidth(native_window);
+            int native_height = ANativeWindow_getHeight(native_window);
+            if (native_width > 0 && native_height > 0)
+            {
+                target_window_width = (uint32_t) native_width;
+                target_window_height = (uint32_t) native_height;
+            }
+        }
+
         if (native_window && (native_window != context_native_window ||
-            window_width != context->m_AndroidVulkanWindowWidth ||
-            window_height != context->m_AndroidVulkanWindowHeight ||
-            window_width != context->m_WindowWidth ||
-            window_height != context->m_WindowHeight))
+            target_window_width != context->m_AndroidVulkanWindowWidth ||
+            target_window_height != context->m_AndroidVulkanWindowHeight ||
+            target_window_width != context->m_WindowWidth ||
+            target_window_height != context->m_WindowHeight ||
+            window_width != target_window_width ||
+            window_height != target_window_height))
         {
             TraceAndroidVulkanWindowSize("surface_change_check", context, window_width, window_height);
         }
 
         if (native_window && (native_window != context_native_window ||
-            window_width != context->m_AndroidVulkanWindowWidth ||
-            window_height != context->m_AndroidVulkanWindowHeight))
+            target_window_width != context->m_AndroidVulkanWindowWidth ||
+            target_window_height != context->m_AndroidVulkanWindowHeight))
         {
-            context->m_WindowWidth  = window_width;
-            context->m_WindowHeight = window_height;
+            if (window_width != target_window_width || window_height != target_window_height)
+            {
+                dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, target_window_width, target_window_height);
+            }
+
+            context->m_WindowWidth  = target_window_width;
+            context->m_WindowHeight = target_window_height;
             SwapChainChanged(context,
                 &context->m_WindowWidth,
                 &context->m_WindowHeight,
