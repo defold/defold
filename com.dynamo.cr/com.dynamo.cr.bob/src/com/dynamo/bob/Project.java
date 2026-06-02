@@ -1374,7 +1374,6 @@ public class Project {
 
         public String inputOption, outputOption, propertyCategory, propertyKey;
         private ValueType valueType;
-        private String defaultValue;
 
         /**
          * @param inputOption        Option that may be used with Bob.
@@ -1388,7 +1387,6 @@ public class Project {
             this.propertyCategory = propertyCategory;
             this.propertyKey = propertyKey;
             this.valueType = ValueType.BOOLEAN;
-            this.defaultValue = "false";
         }
 
         public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, ValueType valueType) {
@@ -1403,7 +1401,7 @@ public class Project {
             if (valueType == ValueType.BOOLEAN) {
                 boolean fromProjectProperties = project.getProjectProperties().getBooleanValue(propertyCategory, propertyKey, false);
                 if (project.hasOption(inputOption)) {
-                    boolean fromProjectOptions = project.option(inputOption, defaultValue).equals("true");
+                    boolean fromProjectOptions = project.option(inputOption, "false").equals("true");
                     return Boolean.toString(fromProjectProperties || fromProjectOptions);
                 } else {
                     return Boolean.toString(fromProjectProperties);

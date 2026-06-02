@@ -282,8 +282,7 @@ namespace dmGraphics
             }
 
             res = TransitionImageLayout(vk_device, logicalDevice->m_CommandPool, logicalDevice->m_GraphicsQueue,
-                swapChain->m_ResolveTexture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                0, 1, logicalDevice->m_QueueMutex);
+                swapChain->m_ResolveTexture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             if (res != VK_SUCCESS)
             {
                 return res;

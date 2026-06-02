@@ -674,10 +674,7 @@ namespace dmGraphics
                 context->m_LogicalDevice.m_GraphicsQueue,
                 depth_stencil_texture_out,
                 vk_aspect_flags,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                0,
-                1,
-                context->m_LogicalDevice.m_QueueMutex);
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
             CHECK_VK_ERROR(res);
         }
 
@@ -1787,10 +1784,7 @@ bail:
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores    = &renderFinishedSemaphore;
 
-        {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_LogicalDevice.m_QueueMutex);
-            res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
-        }
+        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
         CHECK_VK_ERROR(res);
 
         // Present the swapchain image
@@ -1814,10 +1808,7 @@ bail:
             presentInfo.pNext = &present_id_info;
         }
 
-        {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_LogicalDevice.m_QueueMutex);
-            res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
-        }
+        res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
         if ((res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) && present_id != 0)
         {
             context->m_SwapChain->m_LastPresentId = present_id;
@@ -2644,10 +2635,7 @@ bail:
                 context->m_LogicalDevice.m_GraphicsQueue,
                 texture,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                image_layout,
-                0,
-                1,
-                context->m_LogicalDevice.m_QueueMutex);
+                image_layout);
             CHECK_VK_ERROR(res);
         }
 
@@ -4259,10 +4247,7 @@ bail:
                     context->m_LogicalDevice.m_GraphicsQueue,
                     new_texture_color,
                     VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    0,
-                    1,
-                    context->m_LogicalDevice.m_QueueMutex);
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 CHECK_VK_ERROR(res);
 
                 VulkanSetTextureParamsInternal(context, new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
@@ -4660,8 +4645,7 @@ bail:
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_GraphicsQueue,
             vk_command_buffer,
-            &submit_fence,
-            context->m_LogicalDevice.m_QueueMutex);
+            &submit_fence);
         CHECK_VK_ERROR(res);
 
         VulkanCommandBuffer cmd_buffer;
@@ -4840,7 +4824,7 @@ bail:
         {
             uint32_t tex_data_size;
             if (IsTextureFormatASTC(params.m_Format))
-                tex_data_size = params.m_DataSize * tex_layer_count;
+                tex_data_size = params.m_DataSize;
             else
                 tex_data_size = (int) ceil((float) tex_data_size_bpp / 8.0f);
 
@@ -4985,8 +4969,6 @@ bail:
 
         // Async texture uploading
         {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_LogicalDevice.m_AsyncUploadMutex);
-
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
             uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
@@ -4999,7 +4981,7 @@ bail:
             uint32_t tex_data_size;
             if (IsTextureFormatASTC(ap.m_Params.m_Format))
             {
-                tex_data_size = ap.m_Params.m_DataSize * tex_layer_count;
+                tex_data_size = ap.m_Params.m_DataSize;
             }
             else
             {
@@ -5043,12 +5025,7 @@ bail:
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
             VkFence fence;
-            VkResult res = SubmitCommandBuffer(
-                context->m_LogicalDevice.m_Device,
-                context->m_LogicalDevice.m_GraphicsQueue,
-                cmd_buffer,
-                &fence,
-                context->m_LogicalDevice.m_QueueMutex);
+            VkResult res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, &fence);
             CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
@@ -5367,12 +5344,7 @@ bail:
             1);
 
         VkFence fence;
-        res = SubmitCommandBuffer(
-            context->m_LogicalDevice.m_Device,
-            context->m_LogicalDevice.m_GraphicsQueue,
-            vk_command_buffer,
-            &fence,
-            context->m_LogicalDevice.m_QueueMutex);
+        res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, &fence);
         CHECK_VK_ERROR(res);
 
         // Wait for the copy command to finish
