@@ -185,7 +185,7 @@ namespace dmGraphics
 
         // imageArrayLayers: the number of views in a multiview/stereo surface.
         // For non-stereoscopic-3D applications, this value is 1
-        VkImageUsageFlags vk_image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        VkImageUsageFlags vk_image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         if (capabilities.m_SurfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
         {
             vk_image_usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
