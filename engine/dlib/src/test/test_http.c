@@ -158,6 +158,7 @@ typedef struct HttpTestResponse
     HttpResult     m_Result;
     uint32_t       m_HasContentLengthHeader;
     uint32_t       m_ContentLengthHeaderValue;
+    uint32_t       m_CancelOnDataEvent;
     TestAtomic32   m_Complete;
 } HttpTestResponse;
 
@@ -310,7 +311,7 @@ static int ParseHeaderUInt32(const HttpResponseInfo* response, const char* name,
     return 1;
 }
 
-static void HttpResponse(HttpRequest* request, void* user_data, const HttpResponseInfo* response)
+static HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, const HttpResponseInfo* response)
 {
     HttpTestResponse* test_response = (HttpTestResponse*) user_data;
     (void) request;
@@ -346,6 +347,11 @@ static void HttpResponse(HttpRequest* request, void* user_data, const HttpRespon
         memcpy(test_response->m_Data + test_response->m_DataSize, response->m_Data, size);
         test_response->m_DataSize += size;
         test_response->m_Data[test_response->m_DataSize] = 0;
+
+        if (test_response->m_CancelOnDataEvent)
+        {
+            return HTTP_CALLBACK_RESULT_CANCEL;
+        }
     }
     else if (response->m_Event == HTTP_RESPONSE_EVENT_COMPLETE)
     {
@@ -355,6 +361,8 @@ static void HttpResponse(HttpRequest* request, void* user_data, const HttpRespon
         test_response->m_CompleteDataEventCount = test_response->m_DataEventCount;
         TestAtomicStore32(&test_response->m_Complete, 1);
     }
+
+    return HTTP_CALLBACK_RESULT_CONTINUE;
 }
 
 static int WaitForComplete(HttpTestResponse* response, uint32_t timeout_seconds)
@@ -633,6 +641,49 @@ static int TestCancelRequest(const HttpTestServerConfig* server_config)
     return 0;
 }
 
+static int TestCancelFromCallback(const HttpTestServerConfig* server_config)
+{
+    HttpService* service = 0;
+    HttpRequest* request = 0;
+    HttpRequestHandle request_handle;
+    HttpTestResponse response;
+    char url[256];
+    int result;
+    const uint32_t response_size = 128 * 1024;
+
+    memset(&request_handle, 0, sizeof(request_handle));
+    memset(&response, 0, sizeof(response));
+    response.m_StatusCode = -1;
+    response.m_Result = HTTP_RESULT_UNKNOWN;
+    response.m_CancelOnDataEvent = 1;
+
+    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", server_config->m_ServerIP, server_config->m_ServerPort, response_size);
+
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
+    TEST_CHECK(service != 0);
+
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
+    TEST_CHECK(request != 0);
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
+    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+
+    result = WaitForComplete(&response, 10);
+    if (result != 0)
+    {
+        HttpDeleteServiceInternal(service);
+        return result;
+    }
+
+    HttpDeleteServiceInternal(service);
+
+    TEST_CHECK_GT_U32(response.m_DataEventCount, 0);
+    TEST_CHECK_EQ(HTTP_RESULT_INVAL, response.m_Result);
+    TEST_CHECK_EQ_U32(response.m_DataEventCount, response.m_CompleteDataEventCount);
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     HttpTestServerConfig server_config;
@@ -662,6 +713,7 @@ int main(int argc, char** argv)
     RUN_TEST("TestPushRequiresURL", TestPushRequiresURL());
     RUN_TEST("TestLargeResponseStreamsChunks", TestLargeResponseStreamsChunks(&server_config));
     RUN_TEST("TestCancelRequest", TestCancelRequest(&server_config));
+    RUN_TEST("TestCancelFromCallback", TestCancelFromCallback(&server_config));
 
     PrintTestStatus(TEST_COLOR_GREEN, "[  PASSED  ]", "test_http");
 

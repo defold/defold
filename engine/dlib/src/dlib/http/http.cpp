@@ -405,6 +405,14 @@ static HttpResult MapResult(dmHttpClient::Result result)
     return HTTP_RESULT_UNKNOWN;
 }
 
+static void HandleCallbackResult(HttpRequest* request, HttpCallbackResult result)
+{
+    if (result == HTTP_CALLBACK_RESULT_CANCEL && request->m_Owner && request->m_Handle != HTTP_REQUEST_HANDLE_INVALID)
+    {
+        HttpCancelRequest(request->m_Owner, request->m_Handle);
+    }
+}
+
 static void SendHeader(HttpRequest* request, int status, const char* header, uint32_t header_size)
 {
     if (request->m_Callback)
@@ -415,7 +423,7 @@ static void SendHeader(HttpRequest* request, int status, const char* header, uin
         response.m_StatusCode = status;
         response.m_Header = header;
         response.m_HeaderSize = header_size;
-        request->m_Callback(request, request->m_UserData, &response);
+        HandleCallbackResult(request, request->m_Callback(request, request->m_UserData, &response));
     }
 }
 
@@ -429,7 +437,7 @@ static void SendData(HttpRequest* request, int status, const char* data, uint32_
         response.m_StatusCode = status;
         response.m_Data = data;
         response.m_DataSize = data_size;
-        request->m_Callback(request, request->m_UserData, &response);
+        HandleCallbackResult(request, request->m_Callback(request, request->m_UserData, &response));
     }
 }
 
@@ -442,7 +450,7 @@ static void SendComplete(HttpRequest* request, HttpResult result, int status)
         response.m_Event = HTTP_RESPONSE_EVENT_COMPLETE;
         response.m_Result = result;
         response.m_StatusCode = status;
-        request->m_Callback(request, request->m_UserData, &response);
+        (void) request->m_Callback(request, request->m_UserData, &response);
     }
 }
 

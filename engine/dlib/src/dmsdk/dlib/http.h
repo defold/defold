@@ -41,7 +41,7 @@ extern "C" {
  *     int        m_Done;
  * } HttpExampleContext;
  *
- * static void HttpExampleCallback(HttpRequest* request, void* user_data, const HttpResponseInfo* response)
+ * static HttpCallbackResult HttpExampleCallback(HttpRequest* request, void* user_data, const HttpResponseInfo* response)
  * {
  *     HttpExampleContext* context = (HttpExampleContext*) user_data;
  *     (void) request;
@@ -63,6 +63,8 @@ extern "C" {
  *             context->m_Done = 1;
  *             break;
  *     }
+ *
+ *     return HTTP_CALLBACK_RESULT_CONTINUE;
  * }
  *
  * static HttpResult PushExampleGet(HttpService* service, HttpExampleContext* context, HttpRequestHandle* handle)
@@ -185,6 +187,19 @@ typedef enum HttpResponseEvent
     HTTP_RESPONSE_EVENT_COMPLETE,
 } HttpResponseEvent;
 
+/*# HTTP callback result
+ * Return value from HttpResponseCallback.
+ * @enum
+ * @name HttpCallbackResult
+ * @member HTTP_CALLBACK_RESULT_CONTINUE Continue processing the request.
+ * @member HTTP_CALLBACK_RESULT_CANCEL Cancel the request. Only meaningful for HTTP_RESPONSE_EVENT_HEADER and HTTP_RESPONSE_EVENT_DATA.
+ */
+typedef enum HttpCallbackResult
+{
+    HTTP_CALLBACK_RESULT_CONTINUE = 0,
+    HTTP_CALLBACK_RESULT_CANCEL   = 1,
+} HttpCallbackResult;
+
 /*# HTTP response information
  * Data passed to HttpResponseCallback.
  * @struct
@@ -213,14 +228,16 @@ typedef struct HttpResponseInfo
  * are sent as response chunks arrive; the receiver is responsible for
  * processing or copying them before returning. The receiver is also responsible
  * for synchronizing with other threads. Pointers in HttpResponseInfo are valid
- * only for the duration of the callback.
+ * only for the duration of the callback. Returning HTTP_CALLBACK_RESULT_CANCEL
+ * from header or data events cancels the request.
  * @typedef
  * @name HttpResponseCallback
  * @param request [type:HttpRequest*] Request object. Valid only for the duration of the callback.
  * @param user_data [type:void*] User data.
  * @param response [type:const HttpResponseInfo*] Response data.
+ * @return result [type:HttpCallbackResult] callback result.
  */
-typedef void (*HttpResponseCallback)(HttpRequest* request, void* user_data, const HttpResponseInfo* response);
+typedef HttpCallbackResult (*HttpResponseCallback)(HttpRequest* request, void* user_data, const HttpResponseInfo* response);
 
 /*# create a new HTTP request
  * @name HttpNewRequest
