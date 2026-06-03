@@ -42,6 +42,13 @@ extern "C" {
  */
 typedef struct ConfigFile* HConfigFile;
 
+/*# Config file extension context name
+ * Name used when registering the config file with the engine context registry.
+ * @constant
+ * @name CONFIGFILE_CONTEXT_NAME
+ */
+#define CONFIGFILE_CONTEXT_NAME "config"
+
 /*#
  *
  * Get config value as string, returns default if the key isn't found

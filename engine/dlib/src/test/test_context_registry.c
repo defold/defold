@@ -116,16 +116,19 @@ static int TestContextRegistry(void)
     int alpha = 1;
     int beta = 2;
 
+    TEST_CHECK(ContextRegistrySet(registry, "missing", 0) == 0);
+    TEST_CHECK(ContextRegistryGet(registry, "missing") == 0);
+
     TEST_CHECK(ContextRegistrySet(registry, "alpha", &alpha) == 0);
-    TEST_CHECK(ContextRegistryGetByName(registry, "alpha") == &alpha);
+    TEST_CHECK(ContextRegistryGet(registry, "alpha") == &alpha);
     TEST_CHECK(ContextRegistryGetByHash(registry, dmHashString64("alpha")) == &alpha);
 
     TEST_CHECK(ContextRegistrySetByHash(registry, dmHashString64("beta"), &beta) == 0);
-    TEST_CHECK(ContextRegistryGetByName(registry, "beta") == &beta);
+    TEST_CHECK(ContextRegistryGet(registry, "beta") == &beta);
     TEST_CHECK(ContextRegistryGetByHash(registry, dmHashString64("beta")) == &beta);
 
     TEST_CHECK(ContextRegistrySet(registry, "alpha", 0) == 0);
-    TEST_CHECK(ContextRegistryGetByName(registry, "alpha") == 0);
+    TEST_CHECK(ContextRegistryGet(registry, "alpha") == 0);
 
     TEST_CHECK(ContextRegistrySetByHash(registry, dmHashString64("beta"), 0) == 0);
     TEST_CHECK(ContextRegistryGetByHash(registry, dmHashString64("beta")) == 0);

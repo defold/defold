@@ -20,7 +20,9 @@
 
 #include <emscripten.h>
 
+#include <dmsdk/dlib/configfile.h>
 #include <dmsdk/gameobject/script.h>
+#include <dmsdk/script/script.h>
 #include <ddf/ddf.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -252,10 +254,12 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptHttpInitialize(dmExtension::Params* params)
     {
-        lua_State* L = dmExtension::GetContextAsType<lua_State*>(params, "lua");
+        HContextRegistry context_registry = ExtensionParamsGetContextRegistry((ExtensionParams*)params);
+
+        lua_State* L = (lua_State*) ContextRegistryGet(context_registry, LUA_CONTEXT_NAME);
         assert(L != 0);
 
-        dmConfigFile::HConfig config_file = dmExtension::GetContextAsType<dmConfigFile::HConfig>(params, "config");
+        dmConfigFile::HConfig config_file = (dmConfigFile::HConfig) ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
         assert(config_file != 0);
 
         int top = lua_gettop(L);

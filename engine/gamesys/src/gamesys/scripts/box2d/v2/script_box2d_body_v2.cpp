@@ -43,6 +43,11 @@ namespace dmGameSystem
 
     #define BOX2D_TYPE_NAME_BODY "b2body"
 
+    void PushWorld(struct lua_State* L, void* world)
+    {
+        lua_pushlightuserdata(L, world);
+    }
+
     struct B2DLuaBody
     {
         HOpaqueHandle             m_Handle;
@@ -1128,6 +1133,7 @@ namespace dmGameSystem
 
         lua_setfield(L, -2, "body");
 
+        ScriptBox2DInitializeWorld(L);
         ScriptBox2DInitializeJoint(L);
         ScriptBox2DInitializeFixture(L);
         ScriptBox2DInitializeShape(L);

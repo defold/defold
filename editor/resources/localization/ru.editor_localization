@@ -353,6 +353,11 @@ notification.fetch-libraries.problem.install-failed = не удалось уст
 notification.fetch-libraries.problem.unknown = неизвестная проблема — {problem}
 notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
+# Editor scripts notification
+
+notification.reload-editor-scripts = Скрипты редактора изменились. Перезагрузить их сейчас?
+notification.reload-editor-scripts.action.reload = Перезагрузить скрипты редактора
+
 # Open custom editor notifications
 
 notification.open-custom-editor-failed.error = Не удалось запустить внешний редактор «{editor}».\n\nИсходная ошибка ОС\:\n{error}
@@ -728,6 +733,7 @@ progress.updating-dependencies = Обновление зависимостей�
 progress.syncing-resources = Синхронизация ресурсов…
 progress.loading-project = Загрузка проекта…
 progress.loading-external-changes = Загрузка внешних изменений…
+progress.editor-scripts-reloaded = Скрипты редактора перезагружены в {time}
 progress.writing-files = Запись файлов…
 progress.caching-save-results = Кэширование результатов сохранения…
 progress.reading-timestamps = Чтение меток времени…

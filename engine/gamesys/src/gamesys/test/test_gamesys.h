@@ -25,6 +25,7 @@
 
 #include <sound/sound.h>
 #include <gameobject/component.h>
+#include <extension/extension.h>
 #include <extension/extension.hpp>
 #include <physics/physics.h>
 #include <rig/rig.h>
@@ -35,6 +36,10 @@
 #include "../components/comp_gui.h" // The GuiGetURLCallback et.al
 #include "../../../../graphics/src/graphics_private.h" // for unit test functions
 
+#include <dmsdk/dlib/configfile.h>
+#include <dmsdk/dlib/jobsystem.h>
+#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/render/render.h>
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
 
@@ -508,13 +513,13 @@ void GamesysTest<T>::SetupComponentCreateContext(dmGameObject::ComponentTypeCrea
     component_create_ctx.m_Register = m_Register;
     component_create_ctx.m_Factory = m_Factory;
     component_create_ctx.m_Config = m_Config;
-    ContextRegistrySet(m_ContextRegistry, "graphics", m_GraphicsContext);
-    ContextRegistrySet(m_ContextRegistry, "render", m_RenderContext);
+    ContextRegistrySet(m_ContextRegistry, GRAPHICS_CONTEXT_NAME, m_GraphicsContext);
+    ContextRegistrySet(m_ContextRegistry, RENDER_CONTEXT_NAME, m_RenderContext);
     ContextRegistrySet(m_ContextRegistry, "guic", m_GuiContext);
     ContextRegistrySet(m_ContextRegistry, "gui_scriptc", m_ScriptContext);
     component_create_ctx.m_Contexts.SetCapacity(3, 8);
-    component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), m_GraphicsContext);
-    component_create_ctx.m_Contexts.Put(dmHashString64("render"), m_RenderContext);
+    component_create_ctx.m_Contexts.Put(dmHashString64(GRAPHICS_CONTEXT_NAME), m_GraphicsContext);
+    component_create_ctx.m_Contexts.Put(dmHashString64(RENDER_CONTEXT_NAME), m_RenderContext);
     component_create_ctx.m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
     component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
 }
@@ -588,15 +593,16 @@ void GamesysTest<T>::SetUp()
     ExtensionAppParamsInitialize(&m_AppParams);
     ExtensionParamsInitialize(&m_Params);
     m_ContextRegistry = ContextRegistryCreate();
+    dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
     ExtensionAppParamsSetContextRegistry(&m_AppParams, m_ContextRegistry);
     ExtensionParamsSetContextRegistry(&m_Params, m_ContextRegistry);
 
     m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
     m_Params.m_ResourceFactory = m_Factory;
     m_Params.m_ConfigFile = m_Config;
-    ContextRegistrySet(m_ContextRegistry, "lua", dmScript::GetLuaState(m_ScriptContext));
-    ContextRegistrySet(m_ContextRegistry, "config", m_Config);
-    ContextRegistrySet(m_ContextRegistry, "jobs", m_JobContext);
+    ContextRegistrySet(m_ContextRegistry, LUA_CONTEXT_NAME, dmScript::GetLuaState(m_ScriptContext));
+    ContextRegistrySet(m_ContextRegistry, CONFIGFILE_CONTEXT_NAME, m_Config);
+    ContextRegistrySet(m_ContextRegistry, JOB_SYSTEM_CONTEXT_NAME, m_JobContext);
 
     dmExtension::AppInitialize(&m_AppParams);
     dmExtension::Initialize(&m_Params);

@@ -59,10 +59,10 @@ namespace dmGameObject
      */
     struct ComponentNewWorldParams
     {
-        void* m_Context;
-        uint8_t m_ComponentIndex;
+        void*    m_Context;
+        uint8_t  m_ComponentIndex;
         uint32_t m_MaxInstances;
-        void** m_World;
+        void**   m_World;
         uint32_t m_MaxComponentInstances;
     };
 
@@ -114,16 +114,16 @@ namespace dmGameObject
      */
     struct ComponentCreateParams
     {
-        HInstance           m_Instance;
-        dmVMath::Point3     m_Position;
-        dmVMath::Quat       m_Rotation;
-        dmVMath::Vector3    m_Scale;
-        PropertySet         m_PropertySet;
-        void*               m_Resource;
-        void*               m_World;
-        void*               m_Context;
-        uintptr_t*          m_UserData;
-        uint16_t            m_ComponentIndex;
+        HInstance        m_Instance;
+        dmVMath::Point3  m_Position;
+        dmVMath::Quat    m_Rotation;
+        dmVMath::Vector3 m_Scale;
+        PropertySet      m_PropertySet;
+        void*            m_Resource;
+        void*            m_World;
+        void*            m_Context;
+        uintptr_t*       m_UserData;
+        uint16_t         m_ComponentIndex;
     };
 
     /*#
@@ -149,10 +149,10 @@ namespace dmGameObject
     struct ComponentDestroyParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
-        void* m_World;
-        void* m_Context;
-        uintptr_t* m_UserData;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -177,10 +177,10 @@ namespace dmGameObject
     struct ComponentInitParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
-        void* m_World;
-        void* m_Context;
-        uintptr_t* m_UserData;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -205,10 +205,10 @@ namespace dmGameObject
     struct ComponentFinalParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
-        void* m_World;
-        void* m_Context;
-        uintptr_t* m_UserData;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -774,7 +774,13 @@ namespace dmGameObject
         dmHashTable64<void*>        m_Contexts; // deprecated
     };
 
-    HContextRegistry ComponentTypeCreateCtxGetContextRegistry(const ComponentTypeCreateCtx* ctx);
+    /*# get the context registry from the component type create context
+     * Use the returned registry with ContextRegistryGet and ContextRegistrySet to access named engine contexts.
+     * @name ComponentGetContextRegistry
+     * @param ctx [type: const ComponentTypeCreateCtx*] component type create context
+     * @return registry [type: HContextRegistry] engine context registry
+     */
+    HContextRegistry ComponentGetContextRegistry(const ComponentTypeCreateCtx* ctx);
 
     typedef Result (*ComponentTypeCreateFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);
     typedef Result (*ComponentTypeDestroyFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);

@@ -250,6 +250,21 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Joint_IsValid(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        B2DLuaJoint* luajoint = CheckJointInternal(L, 1);
+        lua_pushboolean(L, b2Joint_IsValid(luajoint->m_Joint));
+        return 1;
+    }
+
+    static int Joint_GetWorld(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        PushWorldId(L, b2Joint_GetWorld(CheckJoint(L, 1)));
+        return 1;
+    }
+
     static int Joint_GetType(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -1198,6 +1213,8 @@ namespace dmGameSystem
     static const luaL_reg Joint_functions[] =
     {
         {"destroy", Joint_Destroy},
+        {"is_valid", Joint_IsValid},
+        {"get_world", Joint_GetWorld},
         {"get_type", Joint_GetType},
         {"get_body_a", Joint_GetBodyA},
         {"get_body_b", Joint_GetBodyB},
@@ -1376,6 +1393,18 @@ namespace dmGameSystem
 /*# Destroy a joint created by `b2d.joint`.
  * @name b2d.joint.destroy
  * @param joint [type: b2Joint] joint
+ */
+
+/*# Validate a joint handle.
+ * @name b2d.joint.is_valid
+ * @param joint [type: b2Joint] joint
+ * @return valid [type: boolean] true if the joint handle still refers to a live Box2D joint
+ */
+
+/*# Get the world owning a joint.
+ * @name b2d.joint.get_world
+ * @param joint [type: b2Joint] joint
+ * @return world [type: b2World] owning world
  */
 
 /*# Get the joint type.

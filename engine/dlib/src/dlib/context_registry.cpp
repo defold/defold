@@ -16,8 +16,6 @@
 
 #include <dlib/hashtable.h>
 
-#include <assert.h>
-
 struct ContextRegistry
 {
     dmHashTable64<void*> m_Contexts;
@@ -43,19 +41,16 @@ void ContextRegistryDestroy(HContextRegistry registry)
 
 int ContextRegistrySet(HContextRegistry registry, const char* name, void* context)
 {
-    assert(registry);
-    assert(name);
     return ContextRegistrySetByHash(registry, dmHashString64(name), context);
 }
 
 int ContextRegistrySetByHash(HContextRegistry registry, dmhash_t name_hash, void* context)
 {
-    assert(registry);
-
-    EnsureSize(&registry->m_Contexts);
-
     if (context)
+    {
+        EnsureSize(&registry->m_Contexts);
         registry->m_Contexts.Put(name_hash, context);
+    }
     else
     {
         void** pvalue = registry->m_Contexts.Get(name_hash);
@@ -65,17 +60,13 @@ int ContextRegistrySetByHash(HContextRegistry registry, dmhash_t name_hash, void
     return 0;
 }
 
-void* ContextRegistryGetByName(HContextRegistry registry, const char* name)
+void* ContextRegistryGet(HContextRegistry registry, const char* name)
 {
-    assert(registry);
-    assert(name);
     return ContextRegistryGetByHash(registry, dmHashString64(name));
 }
 
 void* ContextRegistryGetByHash(HContextRegistry registry, dmhash_t name_hash)
 {
-    assert(registry);
-
     void** pcontext = registry->m_Contexts.Get(name_hash);
     if (pcontext != 0)
     {

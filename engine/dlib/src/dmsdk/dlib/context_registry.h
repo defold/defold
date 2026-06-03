@@ -59,12 +59,12 @@ int ContextRegistrySetByHash(HContextRegistry registry, dmhash_t name_hash, void
 
 /*#
  * Gets a context from the context registry using a specified name.
- * @name ContextRegistryGetByName
+ * @name ContextRegistryGet
  * @param registry [type:HContextRegistry] the context registry
  * @param name [type:const char*] the context name
  * @return context [type:void*] The context, if it exists
  */
-void* ContextRegistryGetByName(HContextRegistry registry, const char* name);
+void* ContextRegistryGet(HContextRegistry registry, const char* name);
 
 /*#
  * Gets a context from the context registry using a specified name hash.

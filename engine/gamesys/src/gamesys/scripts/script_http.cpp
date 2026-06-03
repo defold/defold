@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <dmsdk/dlib/configfile.h>
 #include <dmsdk/gameobject/script.h>
 
 #include <ddf/ddf.h>
@@ -59,6 +60,7 @@ namespace dmGameSystem
 
     static dmHttpService::HHttpService g_Service = 0;
     static uint64_t g_Timeout                    = 0;
+    static const char* SCRIPT_HTTP_SERVICE_CONTEXT_NAME = "http_service";
 
     struct ScriptHttpRequest
     {
@@ -461,32 +463,49 @@ namespace dmGameSystem
         g_Timeout = timeout;
     }
 
+    static dmExtension::Result ScriptHttpAppInitialize(dmExtension::AppParams* params)
+    {
+        HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)params);
+
+        dmConfigFile::HConfig config_file = (dmConfigFile::HConfig) ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
+        assert(config_file != 0);
+        assert(g_Service == 0);
+
+        dmHttpService::Params service_params;
+        service_params.m_ReportProgressCallback = ReportProgressCallback;
+
+        if (config_file)
+        {
+            service_params.m_ThreadCount = dmConfigFile::GetInt(config_file, "network.http_thread_count", service_params.m_ThreadCount);
+        }
+
+        service_params.m_HttpCache = (dmHttpCache::HCache) ContextRegistryGet(context_registry, "http_cache");
+
+        g_Service = dmHttpService::New(&service_params);
+        if (g_Service == 0)
+        {
+            return dmExtension::RESULT_INIT_ERROR;
+        }
+
+        dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
+        dmScript::RegisterDDFDecoder(dmHttpDDF::HttpRequestProgress::m_DDFDescriptor, &HttpRequestProgressDecoder);
+
+        ContextRegistrySet(context_registry, SCRIPT_HTTP_SERVICE_CONTEXT_NAME, g_Service);
+
+        return dmExtension::RESULT_OK;
+    }
+
     static dmExtension::Result ScriptHttpInitialize(dmExtension::Params* params)
     {
-        lua_State* L = dmExtension::GetContextAsType<lua_State*>(params, "lua");
+        HContextRegistry context_registry = ExtensionParamsGetContextRegistry((ExtensionParams*)params);
+
+        lua_State* L = (lua_State*) ContextRegistryGet(context_registry, LUA_CONTEXT_NAME);
         assert(L != 0);
 
-        dmConfigFile::HConfig config_file = dmExtension::GetContextAsType<dmConfigFile::HConfig>(params, "config");
+        dmConfigFile::HConfig config_file = (dmConfigFile::HConfig) ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
         assert(config_file != 0);
 
         int top = lua_gettop(L);
-
-        if (g_Service == 0)
-        {
-            dmHttpService::Params service_params;
-            service_params.m_ReportProgressCallback = ReportProgressCallback;
-
-            if (config_file)
-            {
-                service_params.m_ThreadCount = dmConfigFile::GetInt(config_file, "network.http_thread_count", service_params.m_ThreadCount);
-            }
-
-            service_params.m_HttpCache = dmExtension::GetContextAsType<dmHttpCache::HCache>(params, "http_cache");
-
-            g_Service = dmHttpService::New(&service_params);
-            dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
-            dmScript::RegisterDDFDecoder(dmHttpDDF::HttpRequestProgress::m_DDFDescriptor, &HttpRequestProgressDecoder);
-        }
 
         if (config_file)
         {
@@ -504,6 +523,15 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptHttpFinalize(dmExtension::Params* params)
     {
+        (void)params;
+        return dmExtension::RESULT_OK;
+    }
+
+    static dmExtension::Result ScriptHttpAppFinalize(dmExtension::AppParams* params)
+    {
+        HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry((ExtensionAppParams*)params);
+        ContextRegistrySet(context_registry, SCRIPT_HTTP_SERVICE_CONTEXT_NAME, 0);
+
         if (g_Service != 0)
         {
             dmHttpService::Delete(g_Service);
@@ -512,5 +540,5 @@ namespace dmGameSystem
         return dmExtension::RESULT_OK;
     }
 
-    DM_DECLARE_EXTENSION(ScriptHttp, "ScriptHttp", 0, 0, ScriptHttpInitialize, 0, 0, ScriptHttpFinalize);
+    DM_DECLARE_EXTENSION(ScriptHttp, "ScriptHttp", ScriptHttpAppInitialize, ScriptHttpAppFinalize, ScriptHttpInitialize, 0, 0, ScriptHttpFinalize);
 }

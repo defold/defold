@@ -14,6 +14,10 @@
 
 #include "../scripts/script_http.h" // to set the timeout
 
+#include <dmsdk/dlib/configfile.h>
+#include <dmsdk/render/render.h>
+#include <dmsdk/script/script.h>
+
 #include <script/test_script.h>
 #include <script/script.h>
 #include <testmain/testmain.h>
@@ -28,6 +32,7 @@
 #include <dlib/testutil.h>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
+#include <extension/extension.h>
 #include <extension/extension.hpp>
 #include <platform/window.hpp>
 
@@ -160,11 +165,12 @@ protected:
         m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
         m_Params.m_ConfigFile = m_ConfigFile;
         m_Params.m_ResourceFactory = m_Factory;
-        ContextRegistrySet(m_ContextRegistry, "lua", dmScript::GetLuaState(m_ScriptContext));
-        ContextRegistrySet(m_ContextRegistry, "config", m_ConfigFile);
-        ContextRegistrySet(m_ContextRegistry, "render", m_RenderContext);
+        ContextRegistrySet(m_ContextRegistry, LUA_CONTEXT_NAME, dmScript::GetLuaState(m_ScriptContext));
+        ContextRegistrySet(m_ContextRegistry, CONFIGFILE_CONTEXT_NAME, m_ConfigFile);
+        ContextRegistrySet(m_ContextRegistry, RENDER_CONTEXT_NAME, m_RenderContext);
 
         dmExtension::AppInitialize(&m_AppParams);
+        ASSERT_NE((void*)0, ContextRegistryGet(m_ContextRegistry, "http_service"));
         dmExtension::Initialize(&m_Params);
 
         L = dmScript::GetLuaState(m_ScriptContext);

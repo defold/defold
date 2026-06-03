@@ -41,6 +41,20 @@ namespace dmScript
      * @language C++
      */
 
+    /*# Script extension context name
+     * Name used when registering the script context with the engine context registry.
+     * @constant
+     * @name SCRIPT_CONTEXT_NAME
+     */
+    #define SCRIPT_CONTEXT_NAME "script"
+
+    /*# Lua extension context name
+     * Name used when registering the Lua state with the engine context registry.
+     * @constant
+     * @name LUA_CONTEXT_NAME
+     */
+    #define LUA_CONTEXT_NAME "lua"
+
     /*#
      * The script context
      * @typedef

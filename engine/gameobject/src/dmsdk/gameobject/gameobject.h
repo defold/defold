@@ -33,6 +33,13 @@
  * @language C++
  */
 
+/*# Game object extension context name
+ * Name used when registering the game object context with the engine context registry.
+ * @constant
+ * @name GAMEOBJECT_CONTEXT_NAME
+ */
+#define GAMEOBJECT_CONTEXT_NAME "register"
+
 namespace dmMessage
 {
     struct URL;

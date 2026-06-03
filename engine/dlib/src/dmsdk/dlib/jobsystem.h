@@ -37,6 +37,13 @@ extern "C" {
  * @language C
  */
 
+/*# Job system extension context name
+ * Name used when registering the job system with the engine context registry.
+ * @constant
+ * @name JOB_SYSTEM_CONTEXT_NAME
+ */
+#define JOB_SYSTEM_CONTEXT_NAME "jobs"
+
 /*# Job handle
  * @typedef
  * @name HJob

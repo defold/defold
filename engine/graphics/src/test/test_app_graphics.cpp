@@ -32,7 +32,8 @@
 
 #include "test_app_graphics_assets.h"
 
-#if defined(DM_PLATFORM_VENDOR)
+#if __has_include("test_app_graphics_assets_vendor.h")
+    #define DM_TEST_APP_GRAPHICS_HAS_VENDOR_ASSETS 1
     #include "test_app_graphics_assets_vendor.h"
 #endif
 
@@ -229,7 +230,7 @@ struct DrawTriangleTest : ITest
 
         dmGraphics::ShaderDesc* shader_desc = new dmGraphics::ShaderDesc();
 
-    #if defined(DM_PLATFORM_VENDOR)
+    #if defined(DM_TEST_APP_GRAPHICS_HAS_VENDOR_ASSETS)
         AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::vendor_vertex_program, sizeof(graphics_assets::vendor_vertex_program));
         AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::vendor_fragment_program, sizeof(graphics_assets::vendor_fragment_program));
     #else
