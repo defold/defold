@@ -31,6 +31,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.types]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.node :as in]
@@ -87,11 +88,67 @@
 (g/defnode TestCustomGuiNode
   (inherits gui/BoxNode)
 
-  (property test-custom-property-dynamics g/Any (default {})
-            (dynamic visible (g/constantly false)))
-  (output custom-property-dynamics g/Any
-          (g/fnk [test-custom-property-dynamics]
-            test-custom-property-dynamics)))
+  (property test-hash g/Str (default "")
+            (static custom-property {:id "test_hash"
+                                     :protobuf-type :type-hash})
+            (dynamic edit-type (gui/layout-property-edit-type test-hash {:type g/Str}))
+            (value (gui/layout-property-getter test-hash))
+            (set (gui/layout-property-setter test-hash)))
+  (property test-number g/Num (default 1.0)
+            (static custom-property {:id "test_number"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-number {:type g/Num}))
+            (value (gui/layout-property-getter test-number))
+            (set (gui/layout-property-setter test-number)))
+  (property test-quat editor.types/Vec4 (default [0.0 0.0 0.0 1.0])
+            (static custom-property {:id "test_quat"
+                                     :protobuf-type :type-quat})
+            (dynamic edit-type (gui/layout-property-edit-type test-quat {:type editor.types/Vec4}))
+            (value (gui/layout-property-getter test-quat))
+            (set (gui/layout-property-setter test-quat)))
+  (property test-resource g/Str (default "")
+            (static custom-property {:id "test_resource"
+                                     :protobuf-type :type-string
+                                     :resource-kind :test-gui-resource})
+            (dynamic edit-type (gui/layout-property-edit-type test-resource {:type g/Str}))
+            (value (gui/layout-property-getter test-resource))
+            (set (gui/layout-property-setter test-resource)))
+  (property test-vector3 editor.types/Vec3 (default [0.0 0.0 0.0])
+            (static custom-property {:id "test_vector3"
+                                     :protobuf-type :type-vector3})
+            (dynamic edit-type (gui/layout-property-edit-type test-vector3 {:type editor.types/Vec3}))
+            (value (gui/layout-property-getter test-vector3))
+            (set (gui/layout-property-setter test-vector3)))
+  (property test-vector4 editor.types/Vec4 (default [0.0 0.0 0.0 0.0])
+            (static custom-property {:id "test_vector4"
+                                     :protobuf-type :type-vector4})
+            (dynamic edit-type (gui/layout-property-edit-type test-vector4 {:type editor.types/Vec4}))
+            (value (gui/layout-property-getter test-vector4))
+            (set (gui/layout-property-setter test-vector4)))
+  (property test-dash g/Num (default 0.0)
+            (static custom-property {:id "test-dash"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-dash {:type g/Num}))
+            (value (gui/layout-property-getter test-dash))
+            (set (gui/layout-property-setter test-dash)))
+  (property test-underscore g/Num (default 0.0)
+            (static custom-property {:id "test_underscore"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-underscore {:type g/Num}))
+            (value (gui/layout-property-getter test-underscore))
+            (set (gui/layout-property-setter test-underscore)))
+  (property test-slash g/Num (default 0.0)
+            (static custom-property {:id "test/slash"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-slash {:type g/Num}))
+            (value (gui/layout-property-getter test-slash))
+            (set (gui/layout-property-setter test-slash)))
+  (property test-colon g/Num (default 0.0)
+            (static custom-property {:id "test:colon"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-colon {:type g/Num}))
+            (value (gui/layout-property-getter test-colon))
+            (set (gui/layout-property-setter test-colon))))
 
 (g/defnode TestGuiResourceNode
   (inherits outline/OutlineNode)
@@ -140,41 +197,7 @@
          :display-name "Test Custom"
          :custom-type-name "TestCustom"
          :icon "icons/32/Icons_40-GUI-Box-node.png"
-         :defaults gui/shape-base-node-defaults
-         :custom-properties [{:id "test_hash"
-                              :type g/Any
-                              :protobuf-type :type-hash
-                              :default ""}
-                             {:id "test_number"
-                              :type g/Num
-                              :default 1.0}
-                             {:id "test_quat"
-                              :type g/Any
-                              :protobuf-type :type-quat
-                              :default [0.0 0.0 0.0 1.0]}
-                             {:id "test_resource"
-                              :type g/Str
-                              :resource-kind :test-gui-resource}
-                             {:id "test_vector3"
-                              :type g/Any
-                              :protobuf-type :type-vector3
-                              :default [0.0 0.0 0.0]}
-                             {:id "test_vector4"
-                              :type g/Any
-                              :protobuf-type :type-vector4
-                              :default [0.0 0.0 0.0 0.0]}
-                             {:id "test-dash"
-                              :type g/Num
-                              :default 0.0}
-                             {:id "test_underscore"
-                              :type g/Num
-                              :default 0.0}
-                             {:id "test/slash"
-                              :type g/Num
-                              :default 0.0}
-                             {:id "test:colon"
-                              :type g/Num
-                              :default 0.0}]})
+         :defaults gui/shape-base-node-defaults})
       (gui/register-node-tree-attachment-node-type workspace TestCustomGuiNode)
       (gui/register-gui-resource-kind
         workspace
@@ -194,6 +217,21 @@
        :edit-type
        :options
        (mapv first)))
+
+(def ^:private test-custom-property-keys
+  [:test-hash
+   :test-number
+   :test-quat
+   :test-resource
+   :test-vector3
+   :test-vector4
+   :test-dash
+   :test-underscore
+   :test-slash
+   :test-colon])
+
+(defn- test-custom-property-values [node-id]
+  (select-keys (g/node-value node-id :prop->value) test-custom-property-keys))
 
 (deftest load-gui
   (test-util/with-loaded-project
@@ -257,17 +295,17 @@
               resource-outline (g/node-value resources-node :node-outline)
               save-value (g/node-value gui-scene :save-value)]
           (is (g/node-instance? TestCustomGuiNode custom-node))
-          (is (= {:__test_hash test-hash
-                  :__test-dash 0.0
-                  :__test:colon 0.0
-                  :__test_number 42.0
-                  :__test_quat test-quat
-                  :__test_resource "alpha"
-                  :__test_underscore 0.0
-                  :__test_vector3 test-vector3
-                  :__test_vector4 test-vector4
-                  (keyword nil "__test/slash") 0.0}
-                 (g/node-value custom-node :custom-properties)))
+          (is (= {:test-hash test-hash
+                  :test-dash 0.0
+                  :test-colon 0.0
+                  :test-number 42.0
+                  :test-quat test-quat
+                  :test-resource "alpha"
+                  :test-underscore 0.0
+                  :test-vector3 test-vector3
+                  :test-vector4 test-vector4
+                  :test-slash 0.0}
+                 (test-custom-property-values custom-node)))
           (is (= ["beta" "alpha"]
                  (mapv :node-outline-key (:children resource-outline))))
           (is (= source-resources (:resources save-value)))
@@ -298,8 +336,8 @@
 
           (testing "Generic custom resource property references are renamed in graph storage."
             (test-util/prop! (gui-test-gui-resource gui-scene "alpha") :name "renamed_alpha")
-            (is (= "renamed_alpha" (prop custom-node :__test_resource)))
-            (is (= "renamed_alpha" (:__test_resource (g/node-value custom-node :custom-properties))))))))))
+            (is (= "renamed_alpha" (prop custom-node :test-resource)))
+            (is (= "renamed_alpha" (:test-resource (test-custom-property-values custom-node))))))))))
 
 (deftest custom-gui-extension-build-output-test
   (test-util/with-scratch-project "test/resources/empty_project"
@@ -919,7 +957,7 @@
         ["button_particlefx"
          "button_particlefx1"])
       (check!
-        "button_spinescene" gui-spine-scenes "spine" :__spine_scene
+        "button_spinescene" gui-spine-scenes "spine" :spine-scene
         ["button_spinescene"
          "button_spinescene1"])
       (check!
@@ -1425,7 +1463,7 @@
             spine-scene
             (assoc :spine-scene spine-scene))))
 
-(deftest custom-gui-virtual-custom-properties-test
+(deftest custom-gui-custom-properties-test
   (test-util/with-scratch-project "test/resources/empty_project"
     (register-test-gui-extensions workspace)
     (let [custom-properties-pb-field-index (gui/prop-key->pb-field-index :custom-properties)
@@ -1448,77 +1486,48 @@
                                                                    :number 1.0}]}]}]})]
       (workspace/resource-sync! workspace)
       (let [gui-scene (test-util/resource-node project gui-resource)
-            custom-node (gui-node gui-scene "custom")
-            prop-error-message (fn [prop-kw]
-                                 (test-util/localization
-                                   (:message (test-util/prop-error custom-node prop-kw))))]
-        (testing "Properties panel exposes custom ids directly."
-          (is (= 2.0 (prop custom-node :__test_number)))
-          (is (= 2.0 (:__test_number (g/node-value custom-node :prop->value))))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :__test_number))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :__test-dash))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :__test_underscore))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) (keyword nil "__test/slash")))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :__test:colon))
+            custom-node (gui-node gui-scene "custom")]
+        (testing "Properties panel exposes custom properties as real graph properties."
+          (is (= 2.0 (prop custom-node :test-number)))
+          (is (= 2.0 (:test-number (g/node-value custom-node :prop->value))))
+          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-number))
+          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-dash))
+          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-underscore))
+          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-slash))
+          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-colon))
           (is (not (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :custom-properties))))
 
-        (testing "Custom property dynamics errors are local to affected custom properties."
-          (g/set-property! custom-node :test-custom-property-dynamics
-                           {"unknown" {:invalid true}
-                            "test_number" "not a map"
-                            "test-dash" {:unsupported true
-                                         42 true}})
-          (is (= 2.0 (prop custom-node :__test_number)))
-          (is (= 0.0 (prop custom-node :__test_underscore)))
-          (is (str/includes? (prop-error-message :__test_number) "must be a map"))
-          (is (str/includes? (prop-error-message :__test-dash) "unsupported keys"))
-          (is (str/includes? (prop-error-message :__test-dash) "42"))
-          (is (nil? (test-util/prop-error custom-node :__test_underscore))))
-
-        (testing "Custom property dynamics apply supported overlays."
-          (let [overlay-error (g/->error custom-node :__test_number :fatal nil "overlay error" {})]
-            (g/set-property! custom-node :test-custom-property-dynamics
-                             {"test_number" {:edit-type {:type g/Num
-                                                         :options [[2.0 "Two"]]}
-                                             :error overlay-error}})
-            (is (= [[2.0 "Two"]]
-                   (get-in (g/node-value custom-node :_properties) [:properties :__test_number :edit-type :options])))
-            (is (= "overlay error" (:message (test-util/prop-error custom-node :__test_number)))))
-          (g/set-property! custom-node :test-custom-property-dynamics "not a map")
-          (is (str/includes? (prop-error-message :__test_number) "must be a map"))
-          (g/set-property! custom-node :test-custom-property-dynamics {}))
-
-        (testing "Editor scripts can read custom ids containing slashes and colons."
+        (testing "Editor scripts use graph property names with regular snake_case conversion."
           (g/with-auto-evaluation-context evaluation-context
-            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "__test/slash" project evaluation-context))))
-            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "__test:colon" project evaluation-context))))
-            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "Landscape:__test/slash" project evaluation-context))))
-            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "Landscape:__test:colon" project evaluation-context))))))
+            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "test_slash" project evaluation-context))))
+            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "test_colon" project evaluation-context))))
+            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "Landscape:test_slash" project evaluation-context))))
+            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "Landscape:test_colon" project evaluation-context))))))
 
         (testing "Default-valued layout overrides are retained on load."
           (with-visible-layout! gui-scene "Landscape"
-            (is (= 1.0 (prop custom-node :__test_number)))
-            (is (test-util/prop-overridden? custom-node :__test_number))))
+            (is (= 1.0 (prop custom-node :test-number)))
+            (is (test-util/prop-overridden? custom-node :test-number))))
 
         (testing "Default layout edits update nested graph storage."
-          (prop! custom-node :__test_number 3.0)
-          (is (= {:__test_hash ""
-                  :__test-dash 0.0
-                  :__test:colon 0.0
-                  :__test_number 3.0
-                  :__test_quat [0.0 0.0 0.0 1.0]
-                  :__test_resource ""
-                  :__test_underscore 0.0
-                  :__test_vector3 [0.0 0.0 0.0]
-                  :__test_vector4 [0.0 0.0 0.0 0.0]
-                  (keyword nil "__test/slash") 0.0}
-                 (g/node-value custom-node :custom-properties))))
+          (prop! custom-node :test-number 3.0)
+          (is (= {:test-hash ""
+                  :test-dash 0.0
+                  :test-colon 0.0
+                  :test-number 3.0
+                  :test-quat [0.0 0.0 0.0 1.0]
+                  :test-resource ""
+                  :test-underscore 0.0
+                  :test-vector3 [0.0 0.0 0.0]
+                  :test-vector4 [0.0 0.0 0.0 0.0]
+                  :test-slash 0.0}
+                 (test-custom-property-values custom-node))))
 
         (testing "Default-valued layout overrides are saved per id."
           (with-visible-layout! gui-scene "Landscape"
-            (prop! custom-node :__test_number 1.0)
-            (is (= 1.0 (prop custom-node :__test_number)))
-            (is (test-util/prop-overridden? custom-node :__test_number)))
+            (prop! custom-node :test-number 1.0)
+            (is (= 1.0 (prop custom-node :test-number)))
+            (is (test-util/prop-overridden? custom-node :test-number)))
           (let [saved-layout-node (-> (g/node-value gui-scene :save-value) :layouts first :nodes first)]
             (is (= [custom-properties-pb-field-index] (:overridden-fields saved-layout-node)))
             (is (= 1.0 (saved-node-desc-custom-property-value saved-layout-node "test_number" :number)))))
@@ -1526,20 +1535,20 @@
         (testing "Editor scripts can list, set, and reset custom properties by id."
           (g/with-auto-evaluation-context evaluation-context
             (let [rt (rt/make)
-                  default-setter (ext-graph/ext-lua-value-setter custom-node "__test_number" rt project evaluation-context)
-                  layout-setter (ext-graph/ext-lua-value-setter custom-node "Landscape:__test_number" rt project evaluation-context)]
-              (is (coll/any? #(= "__test_number" %) (ext-graph/ext-readable-properties custom-node project evaluation-context)))
-              (is (coll/any? #(= "Landscape:__test_number" %) (ext-graph/ext-readable-properties custom-node project evaluation-context)))
+                  default-setter (ext-graph/ext-lua-value-setter custom-node "test_number" rt project evaluation-context)
+                  layout-setter (ext-graph/ext-lua-value-setter custom-node "Landscape:test_number" rt project evaluation-context)]
+              (is (coll/any? #(= "test_number" %) (ext-graph/ext-readable-properties custom-node project evaluation-context)))
+              (is (coll/any? #(= "Landscape:test_number" %) (ext-graph/ext-readable-properties custom-node project evaluation-context)))
               (g/transact (default-setter (rt/->varargs 4.0)))
               (g/transact (layout-setter (rt/->varargs 5.0)))
               (let [layout-resetter (((deref #'ext-graph/ext-property-resetter) :editor.gui/GuiNode)
                                      custom-node
-                                     "Landscape:__test_number"
+                                     "Landscape:test_number"
                                      evaluation-context)]
                 (g/transact (layout-resetter)))))
           (g/with-auto-evaluation-context evaluation-context
-            (is (= 4 ((ext-graph/ext-value-getter custom-node "__test_number" project evaluation-context))))
-            (is (= 4 ((ext-graph/ext-value-getter custom-node "Landscape:__test_number" project evaluation-context))))))))))
+            (is (= 4 ((ext-graph/ext-value-getter custom-node "test_number" project evaluation-context))))
+            (is (= 4 ((ext-graph/ext-value-getter custom-node "Landscape:test_number" project evaluation-context))))))))))
 
 (deftest custom-gui-template-override-transfer-test
   (test-util/with-scratch-project "test/resources/empty_project"
@@ -1565,18 +1574,18 @@
             referencing-gui-scene (test-util/resource-node project referencing-gui-resource)
             source-node (gui-node source-gui-scene "custom")
             override-node (gui-node referencing-gui-scene "template/custom")]
-        (prop! override-node :__test_number 7.0)
-        (is (= 7.0 (prop override-node :__test_number)))
-        (is (test-util/prop-overridden? override-node :__test_number))
+        (prop! override-node :test-number 7.0)
+        (is (= 7.0 (prop override-node :test-number)))
+        (is (test-util/prop-overridden? override-node :test-number))
         (g/with-auto-evaluation-context evaluation-context
-          (let [source-prop-infos-by-prop-kw (properties/transferred-properties override-node #{:__test_number} evaluation-context)
+          (let [source-prop-infos-by-prop-kw (properties/transferred-properties override-node #{:test-number} evaluation-context)
                 transfer-overrides-plan (-> (properties/pull-up-overrides-plan-alternatives override-node source-prop-infos-by-prop-kw evaluation-context)
                                             first)]
             (is (properties/can-transfer-overrides? transfer-overrides-plan))
             (properties/transfer-overrides! transfer-overrides-plan)))
-        (is (= 7.0 (prop source-node :__test_number)))
-        (is (= 7.0 (prop override-node :__test_number)))
-        (is (not (test-util/prop-overridden? override-node :__test_number)))
+        (is (= 7.0 (prop source-node :test-number)))
+        (is (= 7.0 (prop override-node :test-number)))
+        (is (not (test-util/prop-overridden? override-node :test-number)))
         (let [saved-source-node (-> (g/node-value source-gui-scene :save-value) :nodes first)
               saved-override-node (-> (g/node-value referencing-gui-scene :save-value) :nodes first)]
           (is (= 7.0 (saved-node-desc-custom-property-value saved-source-node "test_number" :number)))
