@@ -339,7 +339,7 @@
                   (console/append-console-line! "after")
                   (is (= "after" (deref (future (.readLine reader)) 2000 ::timeout)))
                   (console/clear-console!)
-                  (is (= "" (deref (future (.readLine reader)) 2000 ::timeout))))))
+                  (is (= "\u001b[2J\u001b[H" (deref (future (.readLine reader)) 2000 ::timeout))))))
             (let [{:keys [status]} @(http/request (str url "/command/") :as :string)]
               (is (= 404 status)))
             (let [{:keys [status headers body]} @(http/request (str url "/command/build-html5") :as :string)]

@@ -98,7 +98,8 @@
   "Clear the console. Callable from a background thread."
   []
   (let [subscribers (:stream-subscribers (swap! pending-atom assoc :clear true :entries [] :index 0))]
-    (run! #(% "\n") subscribers)))
+    ;; ESC [ 2 J clears the screen, ESC [ H moves the cursor to the home position.
+    (run! #(% "\u001b[2J\u001b[H\n") subscribers)))
 
 (def ^:private remote-log-pump-thread (atom nil))
 (def ^:private console-stream (atom nil))
