@@ -548,8 +548,8 @@
           custom-properties (->> (:custom-properties node-desc)
                                  (keep
                                    (fn [{:keys [id] :as custom-property}]
-                                     (when-some [custom-property-info (get-in type-info [:custom-property-protobuf-id->info id])]
-                                       (when-some [actual-pb-type (:type custom-property)]
+                                     (when-let [custom-property-info (get-in type-info [:custom-property-protobuf-id->info id])]
+                                       (when-let [actual-pb-type (:type custom-property)]
                                          (let [expected-pb-type (:protobuf-type custom-property-info)]
                                            (when-not (= expected-pb-type actual-pb-type)
                                              (throw (IllegalArgumentException.
@@ -568,7 +568,7 @@
 (defn- prop->pb-field-entries-for-type [type-info include-custom-property-defaults prop->value]
   (e/keep (fn [[prop-key prop-value :as entry]]
             (if (= :custom-properties prop-key)
-              (when-some [custom-properties (coll/not-empty prop-value)]
+              (when-let [custom-properties (coll/not-empty prop-value)]
                 (pair :custom-properties custom-properties))
               (prop-entry->pb-field-entry entry)))
           (collapse-custom-properties type-info prop->value include-custom-property-defaults)))
@@ -973,11 +973,6 @@
           (coll/any? custom-property-id->info (keys prop->override))
           (conj custom-properties-pb-field-index)))
 
-(defn- node-desc-overridden-pb-field-indices [gui-node type-info]
-  (prop->overridden-pb-field-indices
-    (gt/overridden-properties gui-node)
-    (:custom-property-id->info type-info)))
-
 (def ^:private override-retained-pb-fields
   ;; These pb-fields will always be kept on override nodes. Other fields will be
   ;; stripped out unless their values deviate from the original node.
@@ -1024,7 +1019,9 @@
           :enabled enabled
           :layer layer
           :parent parent
-          :overridden-fields (node-desc-overridden-pb-field-indices _this type-info))
+          :overridden-fields (prop->overridden-pb-field-indices
+                                (gt/overridden-properties _this)
+                                (:custom-property-id->info type-info)))
         (assoc
           :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
           :child-index child-index)))) ; Used to order sibling nodes in the SceneDesc.
@@ -5371,9 +5368,7 @@
 (defmethod ext-graph/init-attachment ::TemplateNode [evaluation-context rt project parent-node-id child-node-type child-node-id attachment]
   (init-gui-node-attachment evaluation-context rt project parent-node-id child-node-type child-node-id attachment template-node-id-base-name))
 
-(def ^:private custom-property-static-label :custom-property)
-
-(defn- normalize-custom-property-info [node-cls layout-property-names property-defaults prop-kw {:keys [id protobuf-type] :as custom-property-static}]
+(defn- normalize-custom-property-info [node-cls layout-property-keys property-defaults prop-kw {:keys [id protobuf-type] :as custom-property-static}]
   (when-not (and (string? id) (not (str/blank? id)))
     (throw (IllegalArgumentException.
              (format "GUI custom property does not specify a non-empty string :id. (node-type=%s, property=%s, custom-property-static=%s)"
@@ -5385,7 +5380,7 @@
   (when-not (contains? custom-property-pb-type->value-field protobuf-type)
     (throw (IllegalArgumentException.
              (format "Unsupported GUI custom property protobuf type. (type=%s)" protobuf-type))))
-  (when-not (contains? (set (vals layout-property-names)) prop-kw)
+  (when-not (contains? layout-property-keys prop-kw)
     (throw (IllegalArgumentException.
              (format "GUI custom property %s on %s is not a layout property."
                      prop-kw (:name @node-cls)))))
@@ -5401,11 +5396,12 @@
              (format "Plugin GUI node type %s specifies :custom-properties in registration. Declare custom properties with (static custom-property ...) on graph properties instead."
                      (:name @(:node-cls type-info))))))
   (let [node-cls (:node-cls type-info)
-        layout-property-names (node-type->layout-property-names node-cls)
+        layout-property-keys (coll/into-> (node-type->layout-property-names node-cls) #{}
+                               (map val))
         property-defaults (in/defaults node-cls)
-        custom-properties (coll/into-> (g/property-statics node-cls custom-property-static-label) []
+        custom-properties (coll/into-> (g/property-statics node-cls :custom-property) []
                             (map (fn [[prop-kw custom-property-static]]
-                                   (normalize-custom-property-info node-cls layout-property-names property-defaults prop-kw custom-property-static))))
+                                   (normalize-custom-property-info node-cls layout-property-keys property-defaults prop-kw custom-property-static))))
         duplicate-custom-property-ids (->> custom-properties
                                            (e/map :custom-property-id)
                                            frequencies

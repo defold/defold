@@ -28,60 +28,42 @@ JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' 
 # repl
 JVM_OPTS='-Ddefold.extension.spine.path=/Users/vlaaad/Projects/extension-spine' lein run -m clojure.main
 ```
+
+# Bob
+
+To compile and test bob, start a shell in defold (parent) folder:
+```sh
+./scripts/build.py shell
+```
+
+Then, in the shell, build:
+```sh
+DM_BOB_BUNDLERTEST_ONLY_HOST=1 ./scripts/build.py build_bob
+```
+
+
+Then, in the shell, in editor folder, do `lein init` so editor can use the new bob code. Then, `lein test` will use the new bob code (see note on required `JVM_OPTS` in PLAN.md)
+
 # Refactoring plan
 
-## Summary
+1. Add explicit regression tests for custom property override merging:
+   - Editor integration test: a templated custom GUI node has two non-default
+     custom properties in the source; the referencing scene overrides only one
+     property; saved/build output preserves the other property.
+   - Bob test: the same sparse template override case builds correctly without
+     replacing the whole `custom_properties` list.
 
-Refactor custom GUI properties from virtual `__...` properties backed by hidden `:custom-properties` storage into real layout graph properties declared on the custom node type. The protobuf/runtime custom property id remains explicit static metadata on each graph property. Since this branch is unreleased, remove branch-only compatibility paths such as `__spine_scene` editor-script aliases and `custom-property-dynamics`.
+2. Fix Bob override application if needed:
+   - Keep normal protobuf field override behavior for regular fields.
+   - Special-case `NodeDesc.custom_properties` field 50 to merge by custom
+     property id/hash, so one overridden custom property does not clear others.
 
-## Ordered implementation
+3. Re-run focused editor and Bob tests:
+   - Editor GUI/custom property tests with the Spine extension path in
+     `JVM_OPTS`.
+   - Bob GUI builder tests from the `./scripts/build.py shell` environment.
 
-1. Add a `static` directive to `g/defnode` properties and document it:
-   ```clojure
-   (static custom-property {:id "spine_scene"
-                            :protobuf-type :type-hash
-                            :resource-kind :spine-scene})
-   ```
-   Store it on the static property definition, readable from node type metadata without constructing a node.
-2. Add GUI helpers that collect custom property metadata from node type properties into `prop-kw -> info` and `id -> info`.
-3. Convert fake test custom GUI nodes and Spine GUI node declarations to real graph properties with `(static custom-property ...)`.
-4. Change `register-custom-node-type-info` to stop accepting `:custom-properties`; inspect `:node-cls` static metadata instead and validate duplicate protobuf ids.
-5. Replace save/load/build conversion to use real graph property keys plus static metadata.
-6. Remove hidden/virtual editor code: `:custom-properties` graph storage, `__...` exposure, `custom-property-dynamics`, special editor-script parsing, and attachment splitting.
-7. Add a `custom-property-values` output or equivalent dependency hook so `node-msg` invalidates when any real custom property changes.
-8. Do a diff pass against `dev` and remove leftovers whose only purpose was the virtual/aggregate model.
-
-## Behavior
-
-- Require `:id` and `:protobuf-type` in custom property metadata; do not derive or fall back for the protobuf id.
-- Use the graph property declaration for property type, default, label, edit type, error, and layout behavior.
-- Load `custom_properties` entries into real graph properties by metadata id.
-- Save/build real graph properties back into protobuf `custom_properties`.
-- Keep runtime/build conversion from string `id` to `id_hash`, including hash-valued property conversion.
-- Keep layout override serialization mapped to protobuf field `custom_properties` / field number 50.
-- Editor scripts use normal names like `spine_scene`; old `__spine_scene` names are intentionally unsupported.
-- Resource rename and template override transfer operate on real graph property keys, using metadata only for protobuf conversion.
-
-## Acceptance criteria
-
-- `gui.clj` diff against `dev` is smaller than the baseline at `8dc08cee83` (`bring back plan`), where `dev...HEAD` showed 1736 changed lines in `gui.clj`.
-- `gui.clj` no longer contains `custom-property-id-prefix`, `custom-property-dynamics`, virtual `__...` handling, or a `GuiNode` property named `custom-properties`.
-- Custom GUI project files still load/save with protobuf `custom_properties` string ids.
-- Editor build output still emits runtime custom properties with `id_hash`, not string `id`.
-- Default-valued custom property layout overrides round-trip and remain marked overridden.
-- Resource renames update custom resource-name properties in default layout and named layout overrides.
-- Editor scripts can list/get/set/reset custom GUI properties using normal names like `spine_scene`.
-- Template override transfer works for individual real custom graph properties.
-
-## Tests
-
-- Graph: add a `defnode` test for `(static custom-property ...)` metadata on `g/declared-properties`.
-- GUI editor: update custom GUI tests for load/save, sparse saves, layout overrides, template override transfer, resource rename, and editor-script access without `__`.
-- Spine: update integration expectations from `:__spine_scene` / `"__spine_scene"` to `:spine-scene` / `"spine_scene"`.
-- Save/build: keep coverage for legacy Spine field migration, readable project custom property ids, runtime `id_hash`, and hash-valued custom properties.
-
-## Assumptions
-
-- No compatibility is needed for APIs introduced only on this branch.
-- Existing released legacy Spine GUI fields still need migration support.
-- Public project/runtime wire format remains `custom_properties`; only editor graph representation changes.
+4. Do final cleanup pass:
+   - Remove planning-only or temporary branch artifacts if they should not ship.
+   - Re-check `git diff dev --stat` and ensure remaining changes map to the
+     refactor or its tests.
