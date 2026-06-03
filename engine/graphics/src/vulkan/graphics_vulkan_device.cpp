@@ -313,7 +313,10 @@ namespace dmGraphics
 
             vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
             vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
-            vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            if (pNextFeatures && vkGetPhysicalDeviceFeatures2)
+            {
+                vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            }
             vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
