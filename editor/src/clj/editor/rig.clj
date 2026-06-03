@@ -56,13 +56,13 @@
                             (resource/proj-path (get dep-resources resource resource)))
                           morph-target-textures)]
     (update mesh-set :models coll/mapv->
-            (update :meshes coll/mapv->
-                    (fn [mesh]
-                      (if-let [morph-target-texture (coll/not-empty (:morph-target-texture mesh))]
-                        (cond-> mesh
-                          (string/starts-with? morph-target-texture "__morph_target_texture_")
-                          (assoc :morph-target-texture (token->texture-resource-path morph-target-texture)))
-                        mesh))))))
+            update :meshes coll/mapv->
+            (fn [mesh]
+              (if-let [morph-target-texture (coll/not-empty (:morph-target-texture mesh))]
+                (cond-> mesh
+                  (string/starts-with? morph-target-texture "__morph_target_texture_")
+                  (assoc :morph-target-texture (token->texture-resource-path morph-target-texture)))
+                mesh)))))
 
 (defn- build-morph-target-texture
   [resource _dep-resources {:keys [packed-texture] :as _user-data}]
