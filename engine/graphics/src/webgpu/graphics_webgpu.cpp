@@ -372,6 +372,9 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
         WebGPUGetTextureStorageDimensions(texture->m_Base.m_Format, texture->m_Base.m_Width, texture->m_Base.m_Height, &storage_width, &storage_height);
 
         desc.usage                 = texture->m_UsageFlags | usage;
+        // Defold texture metadata keeps logical dimensions. WebGPU compressed
+        // texture descriptors must be block-aligned, so realize with the
+        // physical storage dimensions for these formats.
         desc.size                  = { storage_width, storage_height, dmMath::Max(1u, (uint32_t)depth) };
         desc.sampleCount           = sampleCount;
         desc.format                = texture->m_Format;
@@ -587,9 +590,9 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
                 const uint32_t block_columns = copy_width / block_size.m_Width;
                 const uint32_t block_rows    = copy_height / block_size.m_Height;
 
-                // WebGPU compressed texture copies operate on whole texel blocks.
-                // Texture descriptors stay in logical dimensions; copy extents use the
-                // physical block-rounded mip extent accepted by WebGPU validation.
+                // WebGPU compressed texture copies operate on whole texel blocks,
+                // matching the block-rounded storage dimensions used when the
+                // texture was realized.
                 // https://gpuweb.github.io/gpuweb/#abstract-opdef-physical-miplevel-specific-texture-extent
                 extent.width        = copy_width;
                 extent.height       = copy_height;
