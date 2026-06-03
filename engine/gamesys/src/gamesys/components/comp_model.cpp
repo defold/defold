@@ -597,12 +597,16 @@ namespace dmGameSystem
             {
                 dmHashUpdateBuffer32(state, &item.m_MorphTargetTexture, sizeof(item.m_MorphTargetTexture));
 
-                // Render script material overrides can change morph weights from an
-                // instance attribute to a uniform, so include weights conservatively.
-                const float* weights;
-                uint32_t weights_count;
-                GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
-                dmHashUpdateBuffer32(state, weights, sizeof(float) * weights_count);
+                // Uniform morph weights are render constants, so they still need to split
+                // instanced batches. Materials using the morph-target weight instance
+                // attribute carry the weights in the instance stream instead.
+                if (!dmRender::GetMaterialHasMorphTargetWeightsAttribute(material))
+                {
+                    const float* weights;
+                    uint32_t weights_count;
+                    GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
+                    dmHashUpdateBuffer32(state, weights, sizeof(float) * weights_count);
+                }
             }
 
             // If we use an override material, we don't need to hash the override values
@@ -1661,6 +1665,25 @@ namespace dmGameSystem
         return MorphTargetsNeedShaderData(render_item, material) && !dmRender::GetMaterialHasMorphTargetWeightsAttribute(material);
     }
 
+    static bool MorphTargetWeightsEqual(const MeshRenderItem* a, const MeshRenderItem* b)
+    {
+        const float* weights_a;
+        const float* weights_b;
+        uint32_t weights_count_a;
+        uint32_t weights_count_b;
+        GetRenderItemMorphWeights(a->m_Component, a, &weights_a, &weights_count_a);
+        GetRenderItemMorphWeights(b->m_Component, b, &weights_b, &weights_count_b);
+        if (weights_count_a != weights_count_b)
+        {
+            return false;
+        }
+        if (weights_count_a == 0 || weights_a == weights_b)
+        {
+            return true;
+        }
+        return memcmp(weights_a, weights_b, sizeof(float) * weights_count_a) == 0;
+    }
+
     static void ApplyMorphToRenderObject(ModelWorld* world, dmRender::RenderObject* ro, dmRender::HMaterial material,
         ModelComponent* component, const MeshRenderItem* render_item, dmGameObject::HInstance log_instance)
     {
@@ -2153,8 +2176,44 @@ namespace dmGameSystem
 
         if (inst_decl)
         {
-            RenderBatchLocalVSInstanced(world, render_context, render_context_material, material_index, component, buf, begin, end, inst_decl);
-            world->m_RenderBatchLocalVSInstancedCount++;
+            if (MorphTargetsNeedUniformWeights(render_item, material))
+            {
+                uint32_t* batch_begin = begin;
+
+                while (batch_begin != end)
+                {
+                    uint32_t* batch_end = batch_begin + 1;
+                    const MeshRenderItem* first = (MeshRenderItem*) buf[*batch_begin].m_UserData;
+                    while (batch_end != end)
+                    {
+                        const MeshRenderItem* next = (MeshRenderItem*) buf[*batch_end].m_UserData;
+                        if (!MorphTargetWeightsEqual(first, next))
+                        {
+                            break;
+                        }
+                        batch_end++;
+                    }
+
+                    const MeshRenderItem* batch_render_item = (MeshRenderItem*) buf[*batch_begin].m_UserData;
+                    RenderBatchLocalVSInstanced(world,
+                        render_context,
+                        render_context_material,
+                        batch_render_item->m_MaterialIndex,
+                        batch_render_item->m_Component,
+                        buf,
+                        batch_begin,
+                        batch_end,
+                        inst_decl);
+                    world->m_RenderBatchLocalVSInstancedCount++;
+
+                    batch_begin = batch_end;
+                }
+            }
+            else
+            {
+                RenderBatchLocalVSInstanced(world, render_context, render_context_material, material_index, component, buf, begin, end, inst_decl);
+                world->m_RenderBatchLocalVSInstancedCount++;
+            }
         }
         else
         {
