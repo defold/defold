@@ -64,7 +64,10 @@
 
 (defn- effective-command-bindings [state context command registered-bindings]
   (if-let [override-bindings (:bindings (get (:overrides state) [context command]))]
-    (mapv #(assoc %1 :binding %2) registered-bindings override-bindings)
+    (let [template (dissoc (first registered-bindings) :binding)]
+      (mapv #(assoc (get registered-bindings %1 template) :binding %2)
+            (range)
+            override-bindings))
     registered-bindings))
 
 (defn registered-command-bindings [context command]

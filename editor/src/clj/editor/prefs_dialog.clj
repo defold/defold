@@ -21,6 +21,7 @@
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
+            [cljfx.fx.toggle-group :as fx.toggle-group]
             [cljfx.fx.scene :as fx.scene]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.tab :as fx.tab]
@@ -376,7 +377,13 @@
               :key :draft-binding
               :swap-key :swap-draft-binding}
              {:fx/type fx/ext-state
-              :initial-state nil
+              :initial-state (when-let [sub-commands (:sub-commands (:row props))]
+                               (into {}
+                                     (map (fn [sc]
+                                            [(:command sc) (get-in (:current-override props)
+                                                                   [:sub-commands (:command sc)]
+                                                                   (:modifier sc))]))
+                                     sub-commands))
               :key :draft-sub-cmds
               :swap-key :swap-draft-sub-cmds}]}
   [{:keys [row binding-index binding current-override current-override-list
@@ -384,14 +391,7 @@
            swap-state update-mouse-bindings]}]
   (let [draft-binding (merge {:trigger :drag :modifiers []} binding draft-binding)
         selected-modifiers (set (:modifiers draft-binding))
-        {:keys [context command sub-commands]} row
-        draft-sub-cmds (or draft-sub-cmds
-                           (when sub-commands
-                             (into {}
-                                   (map (fn [sc]
-                                          [(:command sc) (get-in current-override [:sub-commands (:command sc)]
-                                                                 (:modifier sc))]))
-                                   sub-commands)))]
+        {:keys [context command sub-commands]} row]
     {:fx/type fxui/vertical
      :padding :medium
      :spacing :medium
@@ -404,17 +404,24 @@
                :children
                [{:fx/type fxui/label
                  :text "Mouse Button"}
-                {:fx/type fxui/horizontal
-                 :spacing :small
-                 :children (mapv (fn [button]
-                                   {:fx/type fxui/check-box
-                                    :text (mouse-binding/button->label button)
-                                    :selected (= button (:button draft-binding))
-                                    :on-selected-changed #(swap-draft-binding update :button (fn [_]
-                                                                                               (if %
-                                                                                                 button
-                                                                                                 (:button draft-binding))))})
-                                 mouse-binding/buttons)}]}
+                {:fx/type fx/ext-let-refs
+                 :fx/key ::mouse-button-toggle-group
+                 :refs {::mouse-button-toggle-group {:fx/type fx.toggle-group/lifecycle}}
+                 :desc
+                 {:fx/type fxui/horizontal
+                  :spacing :small
+                  :children (mapv (fn [button]
+                                    {:fx/type fx.radio-button/lifecycle
+                                     :fx/key button
+                                     :toggle-group {:fx/type fx/ext-get-ref
+                                                    :ref ::mouse-button-toggle-group}
+                                     :style-class ["radio-button" "ext-radio-button"]
+                                     :text (mouse-binding/button->label button)
+                                     :selected (= button (:button draft-binding))
+                                     :on-selected-changed (fn [selected]
+                                                            (when selected
+                                                              (swap-draft-binding assoc :button button)))})
+                                  mouse-binding/buttons)}}]}
               {:fx/type fxui/vertical
                :spacing :small
                :children
@@ -430,21 +437,29 @@
                                  mouse-binding/modifiers)}]}]
        sub-commands
        (into (mapv (fn [sc]
-                     {:fx/type fxui/vertical
-                      :spacing :small
-                      :children
-                      [{:fx/type fxui/label
-                        :text (:label sc)}
-                       {:fx/type fxui/horizontal
-                        :spacing :small
-                        :children (mapv (fn [modifier]
-                                          {:fx/type fx.radio-button/lifecycle
-                                           :text (mouse-binding/modifier->label modifier)
-                                           :selected (= modifier (get draft-sub-cmds (:command sc)))
-                                           :on-selected-changed (fn [selected]
+                     {:fx/type fx/ext-let-refs
+                      :fx/key (:command sc)
+                      :refs {::sub-command-toggle-group {:fx/type fx.toggle-group/lifecycle}}
+                      :desc
+                      {:fx/type fxui/vertical
+                       :spacing :small
+                       :children
+                       [{:fx/type fxui/label
+                         :text (:label sc)}
+                        {:fx/type fxui/horizontal
+                         :spacing :small
+                         :children (mapv (fn [modifier]
+                                           {:fx/type fx.radio-button/lifecycle
+                                            :fx/key modifier
+                                            :toggle-group {:fx/type fx/ext-get-ref
+                                                           :ref ::sub-command-toggle-group}
+                                            :style-class ["radio-button" "ext-radio-button"]
+                                            :text (mouse-binding/modifier->label modifier)
+                                            :selected (= modifier (get draft-sub-cmds (:command sc)))
+                                            :on-selected-changed (fn [selected]
                                                                    (when selected
                                                                      (swap-draft-sub-cmds assoc (:command sc) modifier)))})
-                                        mouse-binding/modifiers)}]})
+                                         mouse-binding/modifiers)}]}})
                    sub-commands))
        :always
        (conj
@@ -510,9 +525,6 @@
 (defn- handle-new-shortcut-action [swap-state command ^ActionEvent e]
   (show-new-shortcut-dialog! swap-state command (.getOwnerWindow (.getParentPopup ^MenuItem (.getSource e)))))
 
-(defn- handle-edit-mouse-binding-action [swap-state row binding-index ^ActionEvent e]
-  (show-mouse-binding-dialog! swap-state row binding-index (.getOwnerWindow (.getParentPopup ^MenuItem (.getSource e)))))
-
 (defn- show-binding-dialog-for-row! [swap-state row ^Window window]
   (case (:kind row)
     :mouse-binding (show-mouse-binding-dialog! swap-state row nil window)
@@ -568,7 +580,9 @@
       (e/cons
         {:fx/type fx.menu-item/lifecycle
          :text "Add Mouse Binding"
-         :on-action #(handle-edit-mouse-binding-action swap-state row nil %)}
+         :on-action (fn [^ActionEvent e]
+                      (show-mouse-binding-dialog! swap-state row nil
+                                                        (.getOwnerWindow (.getParentPopup ^MenuItem (.getSource e)))))}
         (e/concat
           (into [] (keep-indexed (fn [idx binding]
                                    (when binding
