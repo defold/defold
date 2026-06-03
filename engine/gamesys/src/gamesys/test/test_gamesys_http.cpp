@@ -49,6 +49,8 @@ TEST_F(ComponentTest, HTTPRequest)
 
     SetHttpAddress(L);
 
+    ASSERT_NE((void*)0, ContextRegistryGet(m_ContextRegistry, "http_service"));
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = ::Spawn(m_Factory, m_Collection, "/http/http_request.goc", dmHashString64("/http_request"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));

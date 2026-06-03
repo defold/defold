@@ -305,6 +305,10 @@ editor.create_resources({
           :type :function
           :parameters []
           :description "Persist any unsaved changes to disk"}
+         {:name "editor.fetch_libraries"
+          :type :function
+          :parameters []
+          :description "Download the latest version of the project library dependencies and reload library-provided editor scripts.\n\nThis function may replace library-provided editor commands, hooks, routes, and UI contributed by editor scripts, so it should typically be the last operation performed by a command."}
          {:name "editor.transact"
           :type :function
           :parameters [{:name "txs"
