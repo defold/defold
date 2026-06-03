@@ -175,8 +175,6 @@ namespace dmGraphics
 
         context->m_WindowWidth          = width;
         context->m_WindowHeight         = height;
-        context->m_BaseContext.m_Width  = width;
-        context->m_BaseContext.m_Height = height;
 
         if (dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window) != width ||
             dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window) != height)
@@ -186,6 +184,7 @@ namespace dmGraphics
 
         context->m_AndroidVulkanWindowWidth  = width;
         context->m_AndroidVulkanWindowHeight = height;
+
     }
 
     VkResult RecreateAndroidWindowSurface(void* ctx)
@@ -218,12 +217,31 @@ namespace dmGraphics
         android_app* app = dmAndroid::GetAndroidApp();
         ANativeWindow* native_window = app ? app->window : 0;
         ANativeWindow* context_native_window = (ANativeWindow*) context->m_AndroidVulkanWindow;
-        if (native_window && (native_window != context_native_window ||
-            window_width != context->m_AndroidVulkanWindowWidth ||
-            window_height != context->m_AndroidVulkanWindowHeight))
+        uint32_t target_window_width = window_width;
+        uint32_t target_window_height = window_height;
+
+        if (native_window)
         {
-            context->m_WindowWidth  = window_width;
-            context->m_WindowHeight = window_height;
+            int native_width = ANativeWindow_getWidth(native_window);
+            int native_height = ANativeWindow_getHeight(native_window);
+            if (native_width > 0 && native_height > 0)
+            {
+                target_window_width = (uint32_t) native_width;
+                target_window_height = (uint32_t) native_height;
+            }
+        }
+
+        if (native_window && (native_window != context_native_window ||
+            target_window_width != context->m_AndroidVulkanWindowWidth ||
+            target_window_height != context->m_AndroidVulkanWindowHeight))
+        {
+            if (window_width != target_window_width || window_height != target_window_height)
+            {
+                dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, target_window_width, target_window_height);
+            }
+
+            context->m_WindowWidth  = target_window_width;
+            context->m_WindowHeight = target_window_height;
             SwapChainChanged(context,
                 &context->m_WindowWidth,
                 &context->m_WindowHeight,
@@ -277,6 +295,10 @@ namespace dmGraphics
         vkGetPhysicalDeviceFormatProperties = (PFN_vkGetPhysicalDeviceFormatProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFormatProperties");
         vkGetPhysicalDeviceFeatures = (PFN_vkGetPhysicalDeviceFeatures) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures");
         vkGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures2");
+        if (!vkGetPhysicalDeviceFeatures2)
+        {
+            vkGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures2KHR");
+        }
         vkGetPhysicalDeviceQueueFamilyProperties = (PFN_vkGetPhysicalDeviceQueueFamilyProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceQueueFamilyProperties");
         vkGetPhysicalDeviceMemoryProperties = (PFN_vkGetPhysicalDeviceMemoryProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceMemoryProperties");
         vkCmdPipelineBarrier = (PFN_vkCmdPipelineBarrier) vkGetInstanceProcAddr(vk_instance, "vkCmdPipelineBarrier");

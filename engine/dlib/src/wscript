@@ -436,6 +436,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/context_registry.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dalloca.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
