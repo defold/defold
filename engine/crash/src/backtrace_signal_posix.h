@@ -31,6 +31,8 @@ namespace dmCrash
     void RaiseDefaultSignalHandler(int signum, const siginfo_t* si);
     void ChainSignalOrRaiseDefault(int signum, siginfo_t* si, void* sc, struct sigaction* previous_signal_actions, FSignalAction current_handler);
     bool InstallSignalHandler(int signum, FSignalAction handler, struct sigaction* previous_signal_actions);
+    bool BeginSignalHandler();
+    void EndSignalHandler();
 }
 
 #endif
