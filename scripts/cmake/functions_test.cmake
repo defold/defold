@@ -187,17 +187,25 @@ function(defold_finalize_xcode_run_tests)
   list(REMOVE_DUPLICATES _run_test_targets)
   list(SORT _run_test_targets)
 
+  _defold_find_python(_python)
+  _defold_cmake_quote(_quoted_python "${_python}")
+  _defold_cmake_quote(_quoted_interactive_runner "${DEFOLD_HOME}/scripts/cmake/run_interactive.py")
+
   get_property(_run_test_script_content GLOBAL PROPERTY DEFOLD_XCODE_RUN_TEST_SCRIPT_CONTENT)
   set(_run_test_script_preamble [=[
 function(_defold_run_test test_name)
   message(STATUS "Running ${test_name}")
-  execute_process(COMMAND ${ARGN} RESULT_VARIABLE _result)
+  execute_process(
+    COMMAND @DEFOLD_XCODE_TEST_PYTHON@ @DEFOLD_XCODE_TEST_RUNNER@ ${ARGN}
+    RESULT_VARIABLE _result)
   if(NOT _result EQUAL 0)
     message(FATAL_ERROR "${test_name} failed with exit code ${_result}")
   endif()
 endfunction()
 
 ]=])
+  string(REPLACE "@DEFOLD_XCODE_TEST_PYTHON@" "${_quoted_python}" _run_test_script_preamble "${_run_test_script_preamble}")
+  string(REPLACE "@DEFOLD_XCODE_TEST_RUNNER@" "${_quoted_interactive_runner}" _run_test_script_preamble "${_run_test_script_preamble}")
   set(_run_test_script "${CMAKE_BINARY_DIR}/defold_run_tests_$<CONFIG>.cmake")
   file(GENERATE OUTPUT "${_run_test_script}" CONTENT "${_run_test_script_preamble}${_run_test_script_content}")
 

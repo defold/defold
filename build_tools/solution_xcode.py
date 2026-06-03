@@ -322,12 +322,12 @@ def _get_scheme_targets(targets):
         if run_tests_targets:
             run_tests_scheme_target = dict(run_tests_targets[0])
             run_tests_scheme_target['scheme_name'] = 'Run Tests'
-            run_tests_scheme_target['launch_path'] = '/usr/bin/true'
+            run_tests_scheme_target['build_only'] = True
             scheme_targets.append(run_tests_scheme_target)
     elif run_tests_targets:
         run_tests_scheme_target = dict(run_tests_targets[0])
         run_tests_scheme_target['scheme_name'] = 'Run Tests'
-        run_tests_scheme_target['launch_path'] = '/usr/bin/true'
+        run_tests_scheme_target['build_only'] = True
         scheme_targets.append(run_tests_scheme_target)
     scheme_targets += test_targets
     return scheme_targets
@@ -442,7 +442,8 @@ def _make_scheme(project_container, target, build_configuration, defold_home, de
     runnable_reference = _buildable_reference(project_container, target, '            ')
     build_configuration_attr = quoteattr(build_configuration)
     parallelize_buildables = target.get('parallelize_buildables', 'YES')
-    is_runnable = target['product_type'] == 'com.apple.product-type.tool'
+    build_only = target.get('build_only', False)
+    is_runnable = target['product_type'] == 'com.apple.product-type.tool' and not build_only
     working_directory = target.get('working_directory')
     if working_directory:
         launch_working_directory_attributes = '\n'.join([
@@ -481,27 +482,9 @@ def _make_scheme(project_container, target, build_configuration, defold_home, de
          FilePath = {launch_path_attr}>
       </PathRunnable>
 '''
-
-    return f'''<?xml version="1.0" encoding="UTF-8"?>
-<Scheme
-   LastUpgradeVersion = "1600"
-   version = "1.3">
-   <BuildAction
-      parallelizeBuildables = {quoteattr(parallelize_buildables)}
-      buildImplicitDependencies = "YES">
-      <BuildActionEntries>
-{build_action_entries}
-      </BuildActionEntries>
-   </BuildAction>
-   <TestAction
-      buildConfiguration = {build_configuration_attr}
-      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES">
-      <Testables>
-      </Testables>
-   </TestAction>
-   <LaunchAction
+    launch_actions = ''
+    if not build_only:
+        launch_actions = f'''   <LaunchAction
       buildConfiguration = {build_configuration_attr}
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
@@ -523,6 +506,28 @@ def _make_scheme(project_container, target, build_configuration, defold_home, de
 {scheme_environment_variables}
 {profile_runnable.rstrip()}
    </ProfileAction>
+'''
+
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<Scheme
+   LastUpgradeVersion = "1600"
+   version = "1.3">
+   <BuildAction
+      parallelizeBuildables = {quoteattr(parallelize_buildables)}
+      buildImplicitDependencies = "YES">
+      <BuildActionEntries>
+{build_action_entries}
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction
+      buildConfiguration = {build_configuration_attr}
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <Testables>
+      </Testables>
+   </TestAction>
+{launch_actions.rstrip()}
    <AnalyzeAction
       buildConfiguration = {build_configuration_attr}>
    </AnalyzeAction>
