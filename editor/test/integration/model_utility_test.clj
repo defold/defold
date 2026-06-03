@@ -109,7 +109,7 @@
       (is (= [0.0 0.0] (:morph-base-weights mesh)))
       (is (= 1 (count morph-target-textures)))
       (is (string/starts-with? (:morph-target-texture mesh) "__morph_target_texture_"))
-      (is (false? (g/error? (g/node-value node-id :build-targets))))
+      (is (not (g/error? (g/node-value node-id :build-targets))))
       (let [mesh-set-build-target (g/node-value node-id :mesh-set-build-target)
             mesh-set-build-resource (:resource mesh-set-build-target)]
         (build-target! project mesh-set-build-target)
