@@ -27,6 +27,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TextureUtil;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
@@ -131,8 +132,9 @@ public class MeshsetBuilder extends Builder  {
             validateGltf(task, suffix);
         }
 
-        int morphTexW = Integer.parseInt(this.project.option("model-max-morph-target-texture-width", "1024"));
-        int morphTexH = Integer.parseInt(this.project.option("model-max-morph-target-texture-height", "1024"));
+        BobProjectProperties projectProperties = this.project.getProjectProperties();
+        int morphTexW = projectProperties.getIntValue("model", "max_morph_target_texture_width", 1024);
+        int morphTexH = projectProperties.getIntValue("model", "max_morph_target_texture_height", 1024);
 
         Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
