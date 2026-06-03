@@ -18,11 +18,8 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.model-loader :as model-loader]
-            [editor.pipeline :as pipeline]
-            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
@@ -34,22 +31,6 @@
   (let [resource (workspace/file-resource workspace file-path)
         node-id (project/get-resource-node project resource)]
     (model-loader/load-scene node-id resource (project/settings project))))
-
-(defn- build-target! [project build-target]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [workspace (project/workspace project evaluation-context)
-          old-artifact-map (workspace/artifact-map workspace)
-          flat-build-targets (build/resolve-dependencies [build-target] project evaluation-context)
-          build-results (pipeline/build! flat-build-targets
-                                         (workspace/build-path workspace)
-                                         old-artifact-map
-                                         evaluation-context
-                                         progress/null-render-progress!)]
-      (when-let [error (:error build-results)]
-        (throw (ex-info "Build produced an ErrorValue." {:error error})))
-      (workspace/artifact-map! workspace (:artifact-map build-results))
-      (workspace/etags! workspace (:etags build-results))
-      build-results)))
 
 (deftest mesh-normals
   (test-util/with-loaded-project
@@ -112,7 +93,7 @@
       (is (not (g/error? (g/node-value node-id :build-targets))))
       (let [mesh-set-build-target (g/node-value node-id :mesh-set-build-target)
             mesh-set-build-resource (:resource mesh-set-build-target)]
-        (build-target! project mesh-set-build-target)
+        (test-util/build-node! node-id)
         (let [built-mesh-set (protobuf/bytes->map-with-defaults
                               Rig$MeshSet
                               (Files/readAllBytes (.toPath (io/as-file mesh-set-build-resource))))
