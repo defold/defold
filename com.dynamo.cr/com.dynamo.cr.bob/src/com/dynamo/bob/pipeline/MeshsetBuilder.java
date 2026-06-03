@@ -66,7 +66,7 @@ public class MeshsetBuilder extends Builder  {
             int outputIndex = 3 + index;
             IResource output = task.output(outputIndex);
             outputs.add(output);
-            return BuilderUtil.getResourcePathFromOutput(project, output);
+            return BuilderUtil.getRelativePath(project, output);
         }
     }
 

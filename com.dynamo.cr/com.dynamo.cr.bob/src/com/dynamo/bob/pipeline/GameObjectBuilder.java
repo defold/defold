@@ -178,7 +178,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
             // TODO: We have to set content again here as distclean might have removed everything at this point (according to CollectionBuilder.java)
             genResource.setContent(data);
 
-            String relativePath = BuilderUtil.getResourcePathFromOutput(project, genResource);
+            String relativePath = BuilderUtil.getRelativePath(project, genResource);
 
             ComponentDesc.Builder b = ComponentDesc.newBuilder()
                     .setId(ec.getId())

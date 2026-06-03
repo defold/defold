@@ -53,7 +53,7 @@ public class BuilderUtil {
      * Converts a build output resource path to the runtime resource path stored in compiled resources.
      * For example, "build/default/main/generated.texturec" becomes "/main/generated.texturec".
      */
-    public static String getResourcePathFromOutput(Project project, IResource outputResource) {
+    public static String getRelativePath(Project project, IResource outputResource) {
         String path = outputResource.getPath();
         String buildDirectory = project.getBuildDirectory();
         String buildDirectoryPrefix = buildDirectory + "/";

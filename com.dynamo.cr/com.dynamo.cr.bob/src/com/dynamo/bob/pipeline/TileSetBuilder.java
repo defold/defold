@@ -130,7 +130,7 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
         TextureSetResult result = TileSetGenerator.generate(tileSet, image, collisionImage);
         TextureSet.Builder textureSetBuilder = result.builder;
 
-        String texturePath = BuilderUtil.getResourcePathFromOutput(project, task.output(1));
+        String texturePath = BuilderUtil.getRelativePath(project, task.output(1));
         TextureSet textureSet = textureSetBuilder.setTexture(texturePath).build();
 
         TextureGenerator.GenerateResult generateResult;

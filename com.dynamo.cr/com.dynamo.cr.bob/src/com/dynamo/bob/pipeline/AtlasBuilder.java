@@ -97,7 +97,7 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         TextureSetResult result            = AtlasUtil.generateTextureSet(this.project, task.firstInput(), builder);
         TextureImage.Type textureImageType = getTexureType(builder);
 
-        String texturePath      = BuilderUtil.getResourcePathFromOutput(project, task.output(1));
+        String texturePath      = BuilderUtil.getRelativePath(project, task.output(1));
         TextureSet textureSet   = result.builder.setPageCount(getPageCount(result.images, textureImageType))
                                                 .setTexture(texturePath)
                                                 .build();

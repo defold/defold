@@ -51,23 +51,18 @@
 (defn- replace-morph-target-texture-tokens
   [mesh-set morph-target-textures dep-resources]
   (let [token->texture-resource-path
-        (into {}
-              (map (fn [{:keys [token resource]}]
-                     [token (resource/proj-path (get dep-resources resource resource))]))
-              morph-target-textures)]
-    (update mesh-set :models
-            (fn [models]
-              (mapv (fn [model]
-                      (update model :meshes
-                              (fn [meshes]
-                                (mapv (fn [mesh]
-                                        (if-let [morph-target-texture (coll/not-empty (:morph-target-texture mesh))]
-                                          (if-not (string/starts-with? morph-target-texture "__morph_target_texture_")
-                                            mesh
-                                            (assoc mesh :morph-target-texture (token->texture-resource-path morph-target-texture)))
-                                          mesh))
-                                      meshes))))
-                    models)))))
+        (coll/pair-map-by :token
+                          (fn [{:keys [resource]}]
+                            (resource/proj-path (get dep-resources resource resource)))
+                          morph-target-textures)]
+    (update mesh-set :models coll/mapv->
+            (update :meshes coll/mapv->
+                    (fn [mesh]
+                      (if-let [morph-target-texture (coll/not-empty (:morph-target-texture mesh))]
+                        (cond-> mesh
+                          (string/starts-with? morph-target-texture "__morph_target_texture_")
+                          (assoc :morph-target-texture (token->texture-resource-path morph-target-texture)))
+                        mesh))))))
 
 (defn- build-morph-target-texture
   [resource _dep-resources {:keys [packed-texture] :as _user-data}]

@@ -597,16 +597,12 @@ namespace dmGameSystem
             {
                 dmHashUpdateBuffer32(state, &item.m_MorphTargetTexture, sizeof(item.m_MorphTargetTexture));
 
-                // Uniform morph weights are render constants, so they still need to split
-                // instanced batches. Materials using the morph-target weight instance
-                // attribute carry the weights in the instance stream instead.
-                if (!dmRender::GetMaterialHasMorphTargetWeightsAttribute(material))
-                {
-                    const float* weights;
-                    uint32_t weights_count;
-                    GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
-                    dmHashUpdateBuffer32(state, weights, sizeof(float) * weights_count);
-                }
+                // Render script material overrides can change morph weights from an
+                // instance attribute to a uniform, so include weights conservatively.
+                const float* weights;
+                uint32_t weights_count;
+                GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
+                dmHashUpdateBuffer32(state, weights, sizeof(float) * weights_count);
             }
 
             // If we use an override material, we don't need to hash the override values
