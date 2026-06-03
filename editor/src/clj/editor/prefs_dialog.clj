@@ -139,10 +139,9 @@
 (defn- mouse-binding-label [{:keys [context-path action]}]
   (coll/join-to-string " → " (conj (vec context-path) action)))
 
-(defn- mouse-binding-filterable-text [{:keys [context-path action binding]}]
-  (coll/join-to-string " " (conj (vec context-path)
-                                 action
-                                 (mouse-binding/binding-display-text binding))))
+(defn- mouse-binding-filterable-text [{:keys [context-path action bindings]}]
+  (coll/join-to-string " " (into (conj (vec context-path) action)
+                                 (map mouse-binding/binding-display-text bindings))))
 
 (defn- keyboard-row [command]
   {:kind :keyboard
@@ -151,11 +150,13 @@
 (defn- mouse-binding-key [{:keys [context command]}]
   [context command])
 
-(defn- mouse-binding-row [{:keys [binding binding-index] :as mouse-binding} mouse-bindings]
-  (let [override-list (get mouse-bindings (mouse-binding-key mouse-binding))]
+(defn- mouse-binding-row [{:keys [context command] :as mouse-binding} mouse-bindings]
+  (let [key (mouse-binding-key mouse-binding)
+        override-list (get mouse-bindings key)]
     (assoc mouse-binding
       :kind :mouse-binding
-      :binding (get override-list binding-index binding))))
+      :bindings (or override-list
+                    (mapv :binding (mouse-binding/registered-command-bindings context command))))))
 
 (defn- row-command [row]
   (:command row))
@@ -218,9 +219,11 @@
         :spacing :small
         :style-class "keymap-shortcuts"
         :children (if mouse-binding
-                    [{:fx/type fxui/label
-                      :style-class "keymap-shortcut"
-                      :text (mouse-binding/binding-display-text (:binding row))}]
+                    (mapv (fn [binding]
+                            {:fx/type fxui/label
+                             :style-class "keymap-shortcut"
+                             :text (mouse-binding/binding-display-text binding)})
+                          (:bindings row))
                     (->> shortcuts
                          (mapv (coll/pair-fn keymap/shortcut-distinct-display-text))
                          (sort-by key)
@@ -371,7 +374,7 @@
               :initial-state (:binding props)
               :key :draft-binding
               :swap-key :swap-draft-binding}]}
-  [{:keys [row binding current-override-list draft-binding swap-draft-binding swap-state update-mouse-bindings]}]
+  [{:keys [row binding-index binding current-override-list draft-binding swap-draft-binding swap-state update-mouse-bindings]}]
   (let [draft-binding (merge {:trigger :drag
                               :modifiers []}
                              binding
@@ -427,11 +430,17 @@
         {:fx/type fxui/button
          :text "Apply"
          :on-action (fn [_]
-                      (let [{:keys [context command binding-index]} row
+                      (let [{:keys [context command]} row
                             key (mouse-binding-key row)
                             registered (mapv :binding (mouse-binding/registered-command-bindings context command))
-                            current (or current-override-list registered)
-                            new-list (assoc (vec current) binding-index (when (:button draft-binding) draft-binding))]
+                            current (vec (or current-override-list registered))
+                            new-list (if (nil? binding-index)
+                                       (if (:button draft-binding)
+                                         (conj current draft-binding)
+                                         current)
+                                       (if (:button draft-binding)
+                                         (assoc current binding-index draft-binding)
+                                         (into [] (keep-indexed #(when (not= %1 binding-index) %2)) current)))]
                         (if (= new-list registered)
                           (update-mouse-bindings dissoc key)
                           (update-mouse-bindings assoc key new-list)))
@@ -444,22 +453,22 @@
         y (- (.getCenterY screen-bounds) (* 0.5 new-shortcut-popup-height))]
     (swap-state assoc :new-shortcut-popup {:command command :x x :y y})))
 
-(defn- show-mouse-binding-dialog! [swap-state row ^Window window]
+(defn- show-mouse-binding-dialog! [swap-state row binding-index ^Window window]
   (let [root (.getRoot (.getScene window))
         screen-bounds (.localToScreen root (.getBoundsInLocal root))
         x (- (.getCenterX screen-bounds) (* 0.5 mouse-binding-popup-width))
         y (- (.getCenterY screen-bounds) (* 0.5 mouse-binding-popup-height))]
-    (swap-state assoc :mouse-binding-popup {:row row :x x :y y})))
+    (swap-state assoc :mouse-binding-popup {:row row :binding-index binding-index :x x :y y})))
 
 (defn- handle-new-shortcut-action [swap-state command ^ActionEvent e]
   (show-new-shortcut-dialog! swap-state command (.getOwnerWindow (.getParentPopup ^MenuItem (.getSource e)))))
 
-(defn- handle-edit-mouse-binding-action [swap-state row ^ActionEvent e]
-  (show-mouse-binding-dialog! swap-state row (.getOwnerWindow (.getParentPopup ^MenuItem (.getSource e)))))
+(defn- handle-edit-mouse-binding-action [swap-state row binding-index ^ActionEvent e]
+  (show-mouse-binding-dialog! swap-state row binding-index (.getOwnerWindow (.getParentPopup ^MenuItem (.getSource e)))))
 
 (defn- show-binding-dialog-for-row! [swap-state row ^Window window]
   (case (:kind row)
-    :mouse-binding (show-mouse-binding-dialog! swap-state row window)
+    :mouse-binding (show-mouse-binding-dialog! swap-state row nil window)
     :keyboard (show-new-shortcut-dialog! swap-state (:command row) window)))
 
 (defn- handle-table-view-key-pressed [swap-state ^KeyEvent e]
@@ -505,21 +514,29 @@
                              :on-action #(handle-add-shortcut-action update-keymap command shortcut %)}))))))))))
 
 (defn- mouse-binding-context-menu-items [swap-state update-mouse-bindings mouse-bindings row]
-  (let [{:keys [context command binding-index]} row
+  (let [{:keys [context command bindings]} row
         key (mouse-binding-key row)
-        registered (mapv :binding (mouse-binding/registered-command-bindings context command))
-        reset-list (assoc (vec (or (get mouse-bindings key) registered))
-                          binding-index
-                          (get registered binding-index))]
-    [{:fx/type fx.menu-item/lifecycle
-      :text "Edit Mouse Binding"
-      :on-action #(handle-edit-mouse-binding-action swap-state row %)}
-     {:fx/type fx.menu-item/lifecycle
-      :text "Reset Mouse Binding"
-      :on-action (fn [_]
-                   (if (= reset-list registered)
-                     (update-mouse-bindings dissoc key)
-                     (update-mouse-bindings assoc key reset-list)))}]))
+        registered (mapv :binding (mouse-binding/registered-command-bindings context command))]
+    (vec
+      (e/cons
+        {:fx/type fx.menu-item/lifecycle
+         :text "Add Mouse Binding"
+         :on-action #(handle-edit-mouse-binding-action swap-state row nil %)}
+        (e/concat
+          (into [] (keep-indexed (fn [idx binding]
+                                   (when binding
+                                     {:fx/type fx.menu-item/lifecycle
+                                      :text (str "Remove " (mouse-binding/binding-display-text binding))
+                                      :on-action (fn [_]
+                                                   (let [current (vec (or (get mouse-bindings key) registered))
+                                                         new-list (into [] (keep-indexed #(when (not= %1 idx) %2)) current)]
+                                                     (if (= new-list registered)
+                                                       (update-mouse-bindings dissoc key)
+                                                       (update-mouse-bindings assoc key new-list))))})))
+                 bindings)
+          [{:fx/type fx.menu-item/lifecycle
+            :text "Reset to Defaults"
+            :on-action (fn [_] (update-mouse-bindings dissoc key))}])))))
 
 (fxui/defc keymap-view
   {:compose [{:fx/type fx/ext-watcher
@@ -595,8 +612,8 @@
                          :update-keymap update-keymap}]}]})
 
          mouse-binding-popup
-         (let [{:keys [row x y]} mouse-binding-popup
-               binding (:binding row)]
+         (let [{:keys [row binding-index x y]} mouse-binding-popup
+               binding (when (some? binding-index) (get (:bindings row) binding-index))]
            {:fx/type fx.popup/lifecycle
             :on-window true
             :showing true
@@ -611,6 +628,7 @@
                          :style-class "keymap-new-shortcut-background"}
                         {:fx/type mouse-binding-view
                          :row row
+                         :binding-index binding-index
                          :binding binding
                          :current-override-list (get mouse-bindings (mouse-binding-key row))
                          :swap-state swap-state

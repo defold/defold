@@ -74,14 +74,14 @@
   (let [state @bindings-atom]
     (into []
           (mapcat (fn [[context command->bindings]]
-                    (mapcat (fn [[command bindings]]
-                              (map-indexed (fn [binding-index mb]
-                                             (assoc mb
-                                               :context context
-                                               :command command
-                                               :binding-index binding-index))
-                                           (effective-command-bindings state context command bindings)))
-                            command->bindings)))
+                    (map (fn [[command bindings]]
+                           (let [effective (effective-command-bindings state context command bindings)
+                                 template (dissoc (first bindings) :binding)]
+                             (assoc template
+                               :context context
+                               :command command
+                               :bindings (mapv :binding effective))))
+                         command->bindings)))
           (:contexts state))))
 
 (defn bindings [context]
