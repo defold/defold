@@ -164,7 +164,13 @@
 (defn- tabs-view [{:keys [tabs]}]
   (cond-> {:fx/type fx.tab-pane/lifecycle
            :style-class ["tab-pane" "ext-tab-pane"]}
-          tabs (assoc :tabs (filterv identity tabs))))
+          tabs (assoc :tabs
+                      (into []
+                            (keep-indexed
+                              (fn [i desc]
+                                (when desc
+                                  (assoc desc :fx/key i))))
+                            tabs))))
 
 (fxui/defc tab-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
