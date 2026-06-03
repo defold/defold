@@ -191,16 +191,16 @@
               :mouse-bindings {:type :object-of
                                :key {:type :tuple
                                      :items [{:type :keyword} ;; context
-                                             {:type :keyword} ;; command
-                                             {:type :integer}]} ;; binding index
-                               :val {:type :object
-                                     :properties {:button {:type :enum
-                                                           :values [:primary :middle :secondary]}
-                                                  :trigger {:type :enum
-                                                            :values [:drag :press :click]}
-                                                  :modifiers {:type :array
-                                                              :item {:type :enum
-                                                                     :values [:shift :alt :control]}}}}}}}
+                                             {:type :keyword}]} ;; command
+                               :val {:type :array
+                                     :item {:type :object
+                                            :properties {:button {:type :enum
+                                                                  :values [:primary :middle :secondary]}
+                                                         :trigger {:type :enum
+                                                                   :values [:drag :press :click]}
+                                                         :modifiers {:type :array
+                                                                     :item {:type :enum
+                                                                            :values [:shift :alt :control]}}}}}}}}
     :workflow {:type :object
                :properties
                {:load-external-changes-on-app-focus {:type :boolean

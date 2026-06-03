@@ -39,7 +39,7 @@
 (defonce bindings-atom
   (atom {;; contexts: {context {command [mouse-binding]}}
          :contexts {}
-         ;; overrides: {[context command binding-index] binding}
+         ;; overrides: {[context command] [binding ...]}
          :overrides {}}))
 
 (defn- add-bindings [state context bindings]
@@ -62,28 +62,27 @@
   (swap! bindings-atom assoc :overrides overrides)
   nil)
 
-(defn- effective-binding [overrides context command binding-index mouse-binding]
-  (assoc mouse-binding :binding (get overrides [context command binding-index] (:binding mouse-binding))))
+(defn- effective-command-bindings [state context command registered-bindings]
+  (if-let [override-bindings (get (:overrides state) [context command])]
+    (mapv #(assoc %1 :binding %2) registered-bindings override-bindings)
+    registered-bindings))
 
-(defn- effective-command-bindings [state context command bindings]
-  (mapv (fn [binding-index mouse-binding]
-          (effective-binding (:overrides state) context command binding-index mouse-binding))
-        (range)
-        bindings))
+(defn registered-command-bindings [context command]
+  (get-in @bindings-atom [:contexts context command]))
 
 (defn all-bindings []
-  (let [{:keys [contexts overrides]} @bindings-atom]
+  (let [state @bindings-atom]
     (into []
           (mapcat (fn [[context command->bindings]]
                     (mapcat (fn [[command bindings]]
-                              (map-indexed (fn [binding-index mouse-binding]
-                                             (assoc (effective-binding overrides context command binding-index mouse-binding)
+                              (map-indexed (fn [binding-index mb]
+                                             (assoc mb
                                                :context context
                                                :command command
                                                :binding-index binding-index))
-                                           bindings))
+                                           (effective-command-bindings state context command bindings)))
                             command->bindings)))
-          contexts)))
+          (:contexts state))))
 
 (defn bindings [context]
   (let [state @bindings-atom]

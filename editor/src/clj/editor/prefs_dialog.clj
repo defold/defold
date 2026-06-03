@@ -148,13 +148,14 @@
   {:kind :keyboard
    :command command})
 
-(defn- mouse-binding-key [{:keys [context command binding-index]}]
-  [context command binding-index])
+(defn- mouse-binding-key [{:keys [context command]}]
+  [context command])
 
-(defn- mouse-binding-row [{:keys [binding] :as mouse-binding} mouse-bindings]
-  (assoc mouse-binding
-    :kind :mouse-binding
-    :binding (get mouse-bindings (mouse-binding-key mouse-binding) binding)))
+(defn- mouse-binding-row [{:keys [binding binding-index] :as mouse-binding} mouse-bindings]
+  (let [override-list (get mouse-bindings (mouse-binding-key mouse-binding))]
+    (assoc mouse-binding
+      :kind :mouse-binding
+      :binding (get override-list binding-index binding))))
 
 (defn- row-command [row]
   (:command row))
@@ -370,7 +371,7 @@
               :initial-state (:binding props)
               :key :draft-binding
               :swap-key :swap-draft-binding}]}
-  [{:keys [row binding draft-binding swap-draft-binding swap-state update-mouse-bindings]}]
+  [{:keys [row binding current-override-list draft-binding swap-draft-binding swap-state update-mouse-bindings]}]
   (let [draft-binding (merge {:trigger :drag
                               :modifiers []}
                              binding
@@ -426,10 +427,14 @@
         {:fx/type fxui/button
          :text "Apply"
          :on-action (fn [_]
-                      (let [binding-key (mouse-binding-key row)]
-                        (if (:button draft-binding)
-                          (update-mouse-bindings assoc binding-key draft-binding)
-                          (update-mouse-bindings dissoc binding-key)))
+                      (let [{:keys [context command binding-index]} row
+                            key (mouse-binding-key row)
+                            registered (mapv :binding (mouse-binding/registered-command-bindings context command))
+                            current (or current-override-list registered)
+                            new-list (assoc (vec current) binding-index (when (:button draft-binding) draft-binding))]
+                        (if (= new-list registered)
+                          (update-mouse-bindings dissoc key)
+                          (update-mouse-bindings assoc key new-list)))
                       (swap-state dissoc :mouse-binding-popup))}]}]}))
 
 (defn- show-new-shortcut-dialog! [swap-state command ^Window window]
@@ -499,13 +504,22 @@
                              :text (localization-state (localization/message "prefs.keymap.context-menu.add" {"shortcut" text}))
                              :on-action #(handle-add-shortcut-action update-keymap command shortcut %)}))))))))))
 
-(defn- mouse-binding-context-menu-items [swap-state update-mouse-bindings row]
-  [{:fx/type fx.menu-item/lifecycle
-    :text "Edit Mouse Binding"
-    :on-action #(handle-edit-mouse-binding-action swap-state row %)}
-   {:fx/type fx.menu-item/lifecycle
-    :text "Reset Mouse Binding"
-    :on-action (fn [_] (update-mouse-bindings dissoc (mouse-binding-key row)))}])
+(defn- mouse-binding-context-menu-items [swap-state update-mouse-bindings mouse-bindings row]
+  (let [{:keys [context command binding-index]} row
+        key (mouse-binding-key row)
+        registered (mapv :binding (mouse-binding/registered-command-bindings context command))
+        reset-list (assoc (vec (or (get mouse-bindings key) registered))
+                          binding-index
+                          (get registered binding-index))]
+    [{:fx/type fx.menu-item/lifecycle
+      :text "Edit Mouse Binding"
+      :on-action #(handle-edit-mouse-binding-action swap-state row %)}
+     {:fx/type fx.menu-item/lifecycle
+      :text "Reset Mouse Binding"
+      :on-action (fn [_]
+                   (if (= reset-list registered)
+                     (update-mouse-bindings dissoc key)
+                     (update-mouse-bindings assoc key reset-list)))}]))
 
 (fxui/defc keymap-view
   {:compose [{:fx/type fx/ext-watcher
@@ -598,6 +612,7 @@
                         {:fx/type mouse-binding-view
                          :row row
                          :binding binding
+                         :current-override-list (get mouse-bindings (mouse-binding-key row))
                          :swap-state swap-state
                          :update-mouse-bindings update-mouse-bindings}]}]})
 
@@ -605,7 +620,7 @@
          (let [{:keys [row x y]} context-menu
                command (:command row)
                items (case (:kind row)
-                       :mouse-binding (mouse-binding-context-menu-items swap-state update-mouse-bindings row)
+                       :mouse-binding (mouse-binding-context-menu-items swap-state update-mouse-bindings mouse-bindings row)
                        :keyboard (keyboard-context-menu-items localization-state update-keymap swap-state keymap command))]
            {:fx/type fx.context-menu/lifecycle
             :on-window true
