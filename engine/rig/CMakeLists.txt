@@ -18,6 +18,9 @@ set(RIG_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/rig")
 set(RIG_PROTO_PY "${RIG_PROTO_PY_DIR}/rig_ddf_pb2.py")
 set(RIG_PROTO_PY_INIT "${RIG_PROTO_PY_DIR}/__init__.py")
 set(RIG_BPROTO "${RIG_GEN_DIR}/rig_ddf.bproto")
+file(GLOB_RECURSE RIG_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${RIG_SRC_DIR}/dmsdk/*.h"
+  "${RIG_SRC_DIR}/dmsdk/*.hpp")
 
 defold_protoc_gen_cpp("${RIG_PROTO_CC}" "${RIG_PROTO}" INCLUDES "${RIG_PROTO_ROOT}")
 defold_protoc_gen_py("${RIG_PROTO_PY}" "${RIG_PROTO}" INCLUDES "${RIG_PROTO_ROOT}")
@@ -37,6 +40,7 @@ function(rig_configure_target target)
   if(TARGET graphics_proto)
     add_dependencies(${target} graphics_proto_header)
   endif()
+  add_dependencies(${target} graphics_sdk_headers)
 endfunction()
 
 defold_add_library(rig STATIC
@@ -87,10 +91,34 @@ if(TARGET rig_shared)
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 endif()
 
+defold_add_sdk_headers_target(rig_public_sdk_headers
+  DESTINATION include/rig
+  SOURCE_ROOT "${RIG_SRC_DIR}"
+  FILES "${RIG_SRC_DIR}/rig.h"
+  DEPENDS rig)
+defold_add_sdk_headers_target(rig_generated_sdk_headers
+  DESTINATION include/rig
+  SOURCE_ROOT "${RIG_GEN_DIR}"
+  FILES "${RIG_PROTO_H}"
+  DEPENDS rig)
+defold_add_sdk_headers_target(rig_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${RIG_SRC_DIR}/dmsdk"
+  FILES ${RIG_DMSDK_HEADERS}
+  DEPENDS rig)
+set(RIG_SDK_HEADER_TARGETS
+  rig_public_sdk_headers
+  rig_generated_sdk_headers
+  rig_dmsdk_sdk_headers
+  graphics_sdk_headers)
+add_custom_target(rig_sdk_headers
+  DEPENDS ${RIG_SDK_HEADER_TARGETS})
+
 install(FILES
   "${RIG_SRC_DIR}/rig.h"
   "${RIG_PROTO_H}"
   DESTINATION include/rig)
+install(DIRECTORY "${RIG_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 install(FILES "${RIG_PROTO}" DESTINATION share/proto)
 install(FILES "${RIG_BPROTO}" DESTINATION share/proto/rig)
 install(FILES "${RIG_PROTO_PY_INIT}" "${RIG_PROTO_PY}" DESTINATION lib/python/rig)

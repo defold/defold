@@ -12,17 +12,23 @@ set(CRASH_SRC_DIR "${CRASH_ROOT}/src")
 
 set(CRASH_LOAD_ADDRS_SOURCE "${CRASH_SRC_DIR}/load_addrs_null.cpp")
 set(CRASH_BACKTRACE_SOURCE "${CRASH_SRC_DIR}/backtrace_null.cpp")
+set(CRASH_SIGNAL_HANDLER_SOURCE)
+set(CRASH_SIGNAL_POLICY_SOURCE)
 set(CRASH_FILE_SOURCE "${CRASH_SRC_DIR}/file_null.cpp")
 set(CRASH_LINK_LIBS)
 
 if(TARGET_PLATFORM MATCHES "android")
   set(CRASH_LOAD_ADDRS_SOURCE "${CRASH_SRC_DIR}/load_addrs_proc_smap.cpp")
   set(CRASH_BACKTRACE_SOURCE "${CRASH_SRC_DIR}/backtrace_libunwind_ndk.cpp")
+  set(CRASH_SIGNAL_HANDLER_SOURCE "${CRASH_SRC_DIR}/backtrace_signal_posix.cpp")
+  set(CRASH_SIGNAL_POLICY_SOURCE "${CRASH_SRC_DIR}/backtrace_signal_policy_linux.cpp")
   set(CRASH_FILE_SOURCE "${CRASH_SRC_DIR}/file_posix.cpp")
   list(APPEND CRASH_LINK_LIBS unwind)
 elseif(TARGET_PLATFORM MATCHES "linux")
   set(CRASH_LOAD_ADDRS_SOURCE "${CRASH_SRC_DIR}/load_addrs_proc_smap.cpp")
   set(CRASH_BACKTRACE_SOURCE "${CRASH_SRC_DIR}/backtrace_execinfo.cpp")
+  set(CRASH_SIGNAL_HANDLER_SOURCE "${CRASH_SRC_DIR}/backtrace_signal_posix.cpp")
+  set(CRASH_SIGNAL_POLICY_SOURCE "${CRASH_SRC_DIR}/backtrace_signal_policy_linux.cpp")
   set(CRASH_FILE_SOURCE "${CRASH_SRC_DIR}/file_posix.cpp")
 elseif(TARGET_PLATFORM MATCHES "web$")
   set(CRASH_BACKTRACE_SOURCE "${CRASH_SRC_DIR}/backtrace_web.cpp")
@@ -34,11 +40,15 @@ elseif(TARGET_PLATFORM MATCHES "win32$")
   list(APPEND CRASH_LINK_LIBS dbghelp.lib psapi.lib)
 elseif(NOT TARGET_PLATFORM MATCHES "^(arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   set(CRASH_BACKTRACE_SOURCE "${CRASH_SRC_DIR}/backtrace_execinfo.cpp")
+  set(CRASH_SIGNAL_HANDLER_SOURCE "${CRASH_SRC_DIR}/backtrace_signal_posix.cpp")
+  set(CRASH_SIGNAL_POLICY_SOURCE "${CRASH_SRC_DIR}/backtrace_signal_policy_default.cpp")
   set(CRASH_FILE_SOURCE "${CRASH_SRC_DIR}/file_posix.cpp")
 endif()
 
 if(TARGET_PLATFORM MATCHES "macos|ios")
   set(CRASH_LOAD_ADDRS_SOURCE "${CRASH_SRC_DIR}/load_addrs_mach.cpp")
+  set(CRASH_SIGNAL_HANDLER_SOURCE "${CRASH_SRC_DIR}/backtrace_signal_posix.cpp")
+  set(CRASH_SIGNAL_POLICY_SOURCE "${CRASH_SRC_DIR}/backtrace_signal_policy_darwin.cpp")
 endif()
 if(TARGET_PLATFORM STREQUAL "x86_64-macos")
   set(CRASH_BACKTRACE_SOURCE "${CRASH_SRC_DIR}/backtrace_libunwind.cpp")
@@ -46,12 +56,18 @@ endif()
 if(TARGET_PLATFORM MATCHES "^(arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   set(CRASH_LOAD_ADDRS_SOURCE "${CRASH_SRC_DIR}/load_addrs_null.cpp")
   set(CRASH_BACKTRACE_SOURCE "${CRASH_SRC_DIR}/backtrace_null.cpp")
+  set(CRASH_SIGNAL_HANDLER_SOURCE)
+  set(CRASH_SIGNAL_POLICY_SOURCE)
   set(CRASH_FILE_SOURCE "${CRASH_SRC_DIR}/file_null.cpp")
 endif()
 
 function(crash_configure_target target)
   target_include_directories(${target} PUBLIC "${CRASH_SRC_DIR}")
   target_compile_definitions(${target} PRIVATE "DLIB_LOG_DOMAIN=\"CRASH\"")
+  add_dependencies(${target}
+    extension_sdk_headers
+    resource_sdk_headers
+    script_sdk_headers)
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}" SCOPE PUBLIC
     ddf
     dlib
@@ -78,6 +94,8 @@ defold_add_library(crashext STATIC
   "${CRASH_SRC_DIR}/script_crash.cpp"
   "${CRASH_LOAD_ADDRS_SOURCE}"
   "${CRASH_BACKTRACE_SOURCE}"
+  ${CRASH_SIGNAL_HANDLER_SOURCE}
+  ${CRASH_SIGNAL_POLICY_SOURCE}
   "${CRASH_FILE_SOURCE}")
 crash_configure_target(crashext)
 
@@ -85,6 +103,13 @@ defold_install_targets(TARGETS crashext crashext_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+defold_add_sdk_headers_target(crashext_sdk_headers
+  DESTINATION include/crash
+  SOURCE_ROOT "${CRASH_SRC_DIR}"
+  FILES "${CRASH_SRC_DIR}/crash.h"
+  DEPENDS crashext)
+
 install(FILES "${CRASH_SRC_DIR}/crash.h" DESTINATION include/crash)
 
 if(TARGET_PLATFORM MATCHES "macos|linux|win32$")

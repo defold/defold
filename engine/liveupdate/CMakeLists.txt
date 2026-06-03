@@ -16,6 +16,10 @@ list(FILTER LIVEUPDATE_SOURCES EXCLUDE REGEX "_null\\.cpp$")
 defold_add_library(liveupdate STATIC ${LIVEUPDATE_SOURCES})
 target_include_directories(liveupdate PUBLIC "${LIVEUPDATE_SRC_DIR}")
 target_compile_definitions(liveupdate PRIVATE "DLIB_LOG_DOMAIN=\"LIVEUPDATE\"")
+add_dependencies(liveupdate
+  extension_sdk_headers
+  resource_sdk_headers
+  script_sdk_headers)
 defold_target_link_libraries(liveupdate "${TARGET_PLATFORM}" SCOPE PUBLIC
   ddf
   dlib
@@ -36,6 +40,13 @@ defold_install_targets(TARGETS liveupdate liveupdate_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+defold_add_sdk_headers_target(liveupdate_sdk_headers
+  DESTINATION include/liveupdate
+  SOURCE_ROOT "${LIVEUPDATE_SRC_DIR}"
+  FILES "${LIVEUPDATE_SRC_DIR}/liveupdate.h"
+  DEPENDS liveupdate)
+
 install(FILES "${LIVEUPDATE_SRC_DIR}/liveupdate.h" DESTINATION include/liveupdate)
 
 if(BUILD_TESTS)

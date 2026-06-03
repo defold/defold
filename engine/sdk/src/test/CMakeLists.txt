@@ -85,6 +85,13 @@ function(sdk_apply_header_test_settings target)
     target_compile_options(${target} PRIVATE /FIdmsdk/dlib/safe_windows.h)
   endif()
   foreach(_sdk_header_dependency IN ITEMS
+      dlib_sdk_headers
+      engine_sdk_headers
+      extension_sdk_headers
+      graphics_sdk_headers
+      lua_sdk_headers
+      script_sdk_headers
+      sound_sdk_headers
       gameobject_proto_headers
       gamesys_proto_headers
       gamesys_model_proto_headers
@@ -92,8 +99,7 @@ function(sdk_apply_header_test_settings target)
       input_proto_headers
       particle_proto_headers
       render_proto_headers
-      rig_proto_headers
-      script_proto_headers)
+      rig_proto_headers)
     if(TARGET ${_sdk_header_dependency})
       add_dependencies(${target} ${_sdk_header_dependency})
     endif()

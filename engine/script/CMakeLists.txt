@@ -19,6 +19,12 @@ set(SCRIPT_PROTO_FILES
   "${SCRIPT_SRC_DIR}/script/lua_source_ddf.proto"
   "${SCRIPT_SRC_DIR}/script/script_doc_ddf.proto"
   "${SCRIPT_SRC_DIR}/script/sys_ddf.proto")
+set(SCRIPT_PUBLIC_HEADERS
+  "${SCRIPT_SRC_DIR}/script.h"
+  "${SCRIPT_SRC_DIR}/http_service.h")
+file(GLOB_RECURSE SCRIPT_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${SCRIPT_SRC_DIR}/dmsdk/*.h"
+  "${SCRIPT_SRC_DIR}/dmsdk/*.hpp")
 
 set(SCRIPT_PROTO_CC)
 set(SCRIPT_PROTO_HEADERS)
@@ -39,9 +45,10 @@ foreach(_proto IN LISTS SCRIPT_PROTO_FILES)
   list(APPEND SCRIPT_BPROTO "${_bproto}")
 endforeach()
 set(SCRIPT_PROTO_PY_INIT "${SCRIPT_PROTO_PY_DIR}/__init__.py")
-add_custom_target(script_proto_headers DEPENDS ${SCRIPT_PROTO_CC} ${SCRIPT_PROTO_HEADERS})
-add_custom_target(script_proto_py ALL DEPENDS ${SCRIPT_PROTO_PY} "${SCRIPT_PROTO_PY_INIT}")
-add_custom_target(script_bproto ALL DEPENDS ${SCRIPT_BPROTO})
+add_custom_target(script_proto_py DEPENDS ${SCRIPT_PROTO_PY} "${SCRIPT_PROTO_PY_INIT}")
+add_custom_target(script_bproto DEPENDS ${SCRIPT_BPROTO})
+add_custom_target(script_package_proto_files
+  DEPENDS script_proto_py script_bproto)
 
 file(GLOB SCRIPT_TOP_SOURCES CONFIGURE_DEPENDS "${SCRIPT_SRC_DIR}/*.cpp")
 set(SCRIPT_SOURCES ${SCRIPT_TOP_SOURCES} ${SCRIPT_PROTO_CC})
@@ -89,10 +96,14 @@ target_include_directories(script PUBLIC
 target_compile_definitions(script PRIVATE
   "DLIB_LOG_DOMAIN=\"SCRIPT\""
   "LUASOCKET_API=")
-add_dependencies(script script_proto_headers script_proto_py script_bproto)
 if(TARGET graphics_proto)
   add_dependencies(script graphics_proto_header)
 endif()
+add_dependencies(script
+  script_package_proto_files
+  graphics_sdk_headers
+  resource_sdk_headers
+  extension_sdk_headers)
 defold_target_link_libraries(script "${TARGET_PLATFORM}" SCOPE PUBLIC
   ddf
   dlib
@@ -109,11 +120,38 @@ defold_install_targets(TARGETS script
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
+defold_add_sdk_headers_target(script_public_sdk_headers
+  DESTINATION include/script
+  SOURCE_ROOT "${SCRIPT_SRC_DIR}"
+  FILES ${SCRIPT_PUBLIC_HEADERS}
+  DEPENDS script)
+defold_add_sdk_headers_target(script_generated_sdk_headers
+  DESTINATION include/script
+  SOURCE_ROOT "${SCRIPT_GEN_DIR}"
+  FILES ${SCRIPT_PROTO_HEADERS}
+  DEPENDS script)
+defold_add_sdk_headers_target(script_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${SCRIPT_SRC_DIR}/dmsdk"
+  FILES ${SCRIPT_DMSDK_HEADERS}
+  DEPENDS script)
+set(SCRIPT_SDK_HEADER_TARGETS
+  script_public_sdk_headers
+  script_generated_sdk_headers
+  script_dmsdk_sdk_headers
+  lua_sdk_headers
+  graphics_sdk_headers
+  resource_sdk_headers
+  extension_sdk_headers)
+add_custom_target(script_sdk_headers
+  DEPENDS ${SCRIPT_SDK_HEADER_TARGETS})
+
 install(FILES
   "${SCRIPT_SRC_DIR}/script.h"
   "${SCRIPT_SRC_DIR}/http_service.h"
   ${SCRIPT_PROTO_HEADERS}
   DESTINATION include/script)
+install(DIRECTORY "${SCRIPT_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 install(FILES
   "${SCRIPT_SRC_DIR}/script/ddf_script.proto"
   "${SCRIPT_SRC_DIR}/script/sys_ddf.proto"

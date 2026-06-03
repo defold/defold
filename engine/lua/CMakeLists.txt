@@ -8,6 +8,9 @@ project(defold_lua LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 set(LUA_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(LUA_SRC_DIR "${LUA_ROOT}/src")
 set(LUA_CORE_DIR "${LUA_SRC_DIR}/lua")
+file(GLOB_RECURSE LUA_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${LUA_SRC_DIR}/dmsdk/*.h"
+  "${LUA_SRC_DIR}/dmsdk/*.hpp")
 
 set(LUA_DEFINES LUA_ANSI DM_LUA_USE_LUA51)
 if(TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
@@ -102,6 +105,14 @@ install(FILES
   "${LUA_CORE_DIR}/luaconf.h"
   DESTINATION include/lua)
 
+defold_add_sdk_headers_target(lua_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${LUA_SRC_DIR}/dmsdk"
+  FILES ${LUA_DMSDK_HEADERS}
+  DEPENDS lua)
+add_custom_target(lua_sdk_headers
+  DEPENDS lua_dmsdk_sdk_headers)
+
 file(GLOB_RECURSE LUA_CSHARP_SDK_FILES CONFIGURE_DEPENDS
      RELATIVE "${LUA_SRC_DIR}/cs/dmsdk"
      "${LUA_SRC_DIR}/cs/dmsdk/*.cs")
@@ -113,6 +124,7 @@ foreach(_lua_cs_file IN LISTS LUA_CSHARP_SDK_FILES)
     install(FILES "${LUA_SRC_DIR}/cs/dmsdk/${_lua_cs_file}" DESTINATION sdk/cs/dmsdk)
   endif()
 endforeach()
+install(DIRECTORY "${LUA_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
 if(BUILD_TESTS)
   add_subdirectory(src/test)

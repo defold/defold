@@ -36,9 +36,9 @@ foreach(_pf IN LISTS GS_PROTO_FILES)
   list(APPEND GS_PROTO_CC "${_out_cc}")
   list(APPEND GS_PROTO_HEADERS "${_out_h}")
 endforeach()
-add_custom_target(gamesys_proto_headers DEPENDS ${GS_PROTO_HEADERS})
-
 add_custom_target(gamesys_proto_cpp DEPENDS ${GS_PROTO_CC} ${GS_PROTO_HEADERS})
+add_custom_target(gamesys_proto_headers)
+add_dependencies(gamesys_proto_headers gamesys_proto_cpp)
 
 # Generate Python protobuf modules required by content tooling
 set(GS_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto/gamesys")
@@ -135,8 +135,7 @@ foreach(_gamesys_dependency IN ITEMS
     graphics_proto_header
     input_proto_headers
     particle_proto_headers
-    render_proto_headers
-    script_proto_headers)
+    render_proto_headers)
   if(TARGET ${_gamesys_dependency})
     add_dependencies(gamesys ${_gamesys_dependency})
   endif()
@@ -176,8 +175,7 @@ foreach(_gamesys_model_dependency IN ITEMS
     input_proto_headers
     particle_proto_headers
     render_proto_headers
-    rig_proto_headers
-    script_proto_headers)
+    rig_proto_headers)
   if(TARGET ${_gamesys_model_dependency})
     add_dependencies(gamesys_model ${_gamesys_model_dependency})
   endif()
@@ -198,9 +196,6 @@ defold_add_library(gamesys_model_null STATIC
 target_include_directories(gamesys_model_null PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}")
 if(TARGET graphics_proto_header)
     add_dependencies(gamesys_model_null graphics_proto_header)
-endif()
-if(TARGET script_proto_headers)
-    add_dependencies(gamesys_model_null script_proto_headers)
 endif()
 if(TARGET render_proto_headers)
     add_dependencies(gamesys_model_null render_proto_headers)
@@ -243,9 +238,6 @@ add_dependencies(script_box2d gamesys_proto_headers)
 if(TARGET graphics_proto_header)
     add_dependencies(script_box2d graphics_proto_header)
 endif()
-if(TARGET script_proto_headers)
-    add_dependencies(script_box2d script_proto_headers)
-endif()
 if(TARGET particle_proto_headers)
     add_dependencies(script_box2d particle_proto_headers)
 endif()
@@ -275,9 +267,6 @@ target_include_directories(script_box2d_defold PUBLIC
 add_dependencies(script_box2d_defold gamesys_proto_headers)
 if(TARGET graphics_proto_header)
     add_dependencies(script_box2d_defold graphics_proto_header)
-endif()
-if(TARGET script_proto_headers)
-    add_dependencies(script_box2d_defold script_proto_headers)
 endif()
 if(TARGET particle_proto_headers)
     add_dependencies(script_box2d_defold particle_proto_headers)
@@ -318,6 +307,49 @@ defold_install_targets(TARGETS gamesys gamesys_model gamesys_model_null gamesys_
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+set(GAMESYS_PUBLIC_HEADERS
+    "${GS_SRC_DIR}/gamesys.h"
+    "${GS_SRC_DIR}/components/comp_gui.h"
+    "${GS_SRC_DIR}/fontgen/fontgen.h")
+file(GLOB_RECURSE GAMESYS_DMSDK_HEADERS CONFIGURE_DEPENDS
+    "${GS_ROOT}/src/dmsdk/*.h"
+    "${GS_ROOT}/src/dmsdk/*.hpp")
+defold_add_sdk_headers_target(gamesys_public_sdk_headers
+    DESTINATION include/gamesys
+    SOURCE_ROOT "${GS_SRC_DIR}"
+    FILES ${GAMESYS_PUBLIC_HEADERS}
+    DEPENDS gamesys)
+defold_add_sdk_headers_target(gamesys_generated_sdk_headers
+    DESTINATION include/gamesys
+    SOURCE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/gamesys"
+    FILES ${GS_PROTO_HEADERS} "${GS_MODEL_HEADER}"
+    DEPENDS gamesys gamesys_model)
+defold_add_sdk_headers_target(gamesys_dmsdk_sdk_headers
+    DESTINATION sdk/include/dmsdk
+    SOURCE_ROOT "${GS_ROOT}/src/dmsdk"
+    FILES ${GAMESYS_DMSDK_HEADERS}
+    DEPENDS gamesys)
+set(GAMESYS_SDK_HEADER_TARGETS
+    gamesys_public_sdk_headers
+    gamesys_generated_sdk_headers
+    gamesys_dmsdk_sdk_headers)
+list(APPEND GAMESYS_SDK_HEADER_TARGETS
+    extension_sdk_headers
+    font_sdk_headers
+    gameobject_sdk_headers
+    graphics_sdk_headers
+    gui_sdk_headers
+    input_sdk_headers
+    lua_sdk_headers
+    particle_sdk_headers
+    render_sdk_headers
+    resource_sdk_headers
+    rig_sdk_headers
+    script_sdk_headers
+    sound_sdk_headers)
+add_custom_target(gamesys_sdk_headers
+    DEPENDS ${GAMESYS_SDK_HEADER_TARGETS})
 
 install(FILES "${GS_SRC_DIR}/gamesys.h" DESTINATION include/gamesys)
 install(FILES "${GS_SRC_DIR}/components/comp_gui.h" DESTINATION include/gamesys/components)

@@ -84,6 +84,13 @@ defold_install_targets(TARGETS ${PROFILER_INSTALL_TARGETS}
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+defold_add_sdk_headers_target(profilerext_sdk_headers
+  DESTINATION include/profiler
+  SOURCE_ROOT "${PROFILER_SRC_DIR}"
+  FILES "${PROFILER_SRC_DIR}/profiler.h"
+  DEPENDS profilerext)
+
 install(FILES "${PROFILER_SRC_DIR}/profiler.h" DESTINATION include/profiler)
 
 if(BUILD_TESTS)

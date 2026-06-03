@@ -18,6 +18,9 @@ set(HID_PRIVATE_SRC_DIR "")
 if(DEFINED DEFOLD_PLATFORM_HID_SOURCE_DIR AND EXISTS "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
     set(HID_PRIVATE_SRC_DIR "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
 endif()
+file(GLOB_RECURSE HID_DMSDK_HEADERS CONFIGURE_DEPENDS
+    "${HID_SRC_DIR}/dmsdk/*.h"
+    "${HID_SRC_DIR}/dmsdk/*.hpp")
 
 # hid (native backend)
 set(hid_SOURCES
@@ -54,6 +57,8 @@ target_compile_definitions(hid PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
     target_link_libraries(hid PUBLIC "-framework GameController")
 endif()
+target_link_libraries(hid PUBLIC platform)
+add_dependencies(hid platform_sdk_headers)
 
 target_include_directories(hid PUBLIC
     "${HID_SRC_DIR}"
@@ -84,6 +89,8 @@ target_include_directories(hid_null PUBLIC
     "${HID_SRC_DIR}/default/src"
 )
 target_compile_definitions(hid_null PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
+target_link_libraries(hid_null PUBLIC platform_null)
+add_dependencies(hid_null platform_sdk_headers)
 
 if(HID_PRIVATE_SRC_DIR)
     target_include_directories(hid_null PUBLIC
@@ -185,6 +192,19 @@ defold_install_targets(TARGETS hid hid_null
 )
 
 # Install public headers
+defold_add_sdk_headers_target(hid_public_sdk_headers
+    DESTINATION include/hid
+    SOURCE_ROOT "${HID_SRC_DIR}"
+    FILES "${HID_SRC_DIR}/hid.h"
+    DEPENDS hid)
+defold_add_sdk_headers_target(hid_dmsdk_sdk_headers
+    DESTINATION sdk/include/dmsdk
+    SOURCE_ROOT "${HID_SRC_DIR}/dmsdk"
+    FILES ${HID_DMSDK_HEADERS}
+    DEPENDS hid)
+add_custom_target(hid_sdk_headers
+    DEPENDS hid_public_sdk_headers hid_dmsdk_sdk_headers)
+
 install(FILES "${HID_SRC_DIR}/hid.h" DESTINATION include/hid)
 
 # Install dmsdk headers for HID with folder structure preserved

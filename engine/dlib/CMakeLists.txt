@@ -9,6 +9,9 @@ set(DLIB_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(DLIB_SRC_DIR "${DLIB_ROOT}/src")
 set(DLIB_CORE_DIR "${DLIB_SRC_DIR}/dlib")
 set(DLIB_MBEDTLS_DIR "${DLIB_SRC_DIR}/mbedtls")
+file(GLOB_RECURSE DLIB_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${DLIB_SRC_DIR}/dmsdk/*.h"
+  "${DLIB_SRC_DIR}/dmsdk/*.hpp")
 
 function(dlib_append_unique out_var)
   set(_values ${${out_var}})
@@ -445,7 +448,7 @@ defold_install_targets(TARGETS ${DLIB_INSTALL_TARGETS}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION lib/${TARGET_PLATFORM})
 
-install(FILES
+set(DLIB_PUBLIC_HEADERS
   "${DLIB_CORE_DIR}/align.h"
   "${DLIB_CORE_DIR}/array.h"
   "${DLIB_CORE_DIR}/atomic.h"
@@ -504,8 +507,32 @@ install(FILES
   "${DLIB_CORE_DIR}/webserver.h"
   "${DLIB_CORE_DIR}/zlib.h"
   "${DLIB_CORE_DIR}/zip.h"
-  "${DLIB_CORE_DIR}/testutil.h"
-  DESTINATION include/dlib)
+  "${DLIB_CORE_DIR}/testutil.h")
+
+defold_add_sdk_headers_target(dlib_public_sdk_headers
+  DESTINATION include/dlib
+  FILES ${DLIB_PUBLIC_HEADERS}
+  DEPENDS dlib)
+
+defold_add_sdk_headers_target(dlib_profile_sdk_headers
+  DESTINATION include/dlib/profile
+  FILES "${DLIB_CORE_DIR}/profile/profile.h"
+  DEPENDS dlib)
+
+set(DLIB_SDK_HEADER_TARGETS
+  dlib_public_sdk_headers
+  dlib_profile_sdk_headers
+  dlib_dmsdk_sdk_headers)
+defold_add_sdk_headers_target(dlib_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${DLIB_SRC_DIR}/dmsdk"
+  FILES ${DLIB_DMSDK_HEADERS}
+  DEPENDS dlib)
+
+add_custom_target(dlib_sdk_headers
+  DEPENDS ${DLIB_SDK_HEADER_TARGETS})
+
+install(FILES ${DLIB_PUBLIC_HEADERS} DESTINATION include/dlib)
 
 install(FILES "${DLIB_CORE_DIR}/profile/profile.h" DESTINATION include/dlib/profile)
 install(DIRECTORY "${DLIB_SRC_DIR}/stb/" DESTINATION ext/include/stb FILES_MATCHING PATTERN "*.h")

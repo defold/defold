@@ -169,6 +169,21 @@ function(defold_target_link_libraries target platform)
     target_link_libraries(${target} ${DLIB_SCOPE} ${_MAPPED_LIBS})
   endif()
 
+  foreach(_lib IN LISTS _LIBS)
+    if(NOT _lib MATCHES "^\\$<")
+      set(_sdk_headers_target)
+      if(TARGET "${_lib}_sdk_headers")
+        set(_sdk_headers_target "${_lib}_sdk_headers")
+      elseif(TARGET "${_lib}")
+        get_target_property(_sdk_headers_target "${_lib}" DEFOLD_SDK_HEADERS_TARGET)
+      endif()
+
+      if(_sdk_headers_target)
+        add_dependencies(${target} "${_sdk_headers_target}")
+      endif()
+    endif()
+  endforeach()
+
   if(_PLAT_OS STREQUAL "macos" OR _PLAT_OS STREQUAL "ios")
     list(FIND _LIBS "dlib" _dlib_idx)
     if(NOT _dlib_idx EQUAL -1)
@@ -260,6 +275,45 @@ function(defold_install_targets)
   endforeach()
 endfunction()
 
+function(defold_add_sdk_headers_target target_name)
+  set(options)
+  set(oneValueArgs DESTINATION SOURCE_ROOT)
+  set(multiValueArgs FILES DEPENDS)
+  cmake_parse_arguments(SDK_HEADERS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(NOT SDK_HEADERS_DESTINATION)
+    message(FATAL_ERROR "defold_add_sdk_headers_target: DESTINATION is required")
+  endif()
+  if(NOT SDK_HEADERS_FILES)
+    add_custom_target(${target_name} DEPENDS ${SDK_HEADERS_DEPENDS})
+    return()
+  endif()
+
+  set(_outputs)
+  set(_commands)
+  foreach(_file IN LISTS SDK_HEADERS_FILES)
+    if(SDK_HEADERS_SOURCE_ROOT)
+      file(RELATIVE_PATH _relative_file "${SDK_HEADERS_SOURCE_ROOT}" "${_file}")
+    else()
+      get_filename_component(_relative_file "${_file}" NAME)
+    endif()
+
+    set(_output "${DEFOLD_SDK_ROOT}/${SDK_HEADERS_DESTINATION}/${_relative_file}")
+    get_filename_component(_output_dir "${_output}" DIRECTORY)
+    list(APPEND _outputs "${_output}")
+    list(APPEND _commands
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_output_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_file}" "${_output}")
+  endforeach()
+
+  add_custom_command(
+    OUTPUT ${_outputs}
+    ${_commands}
+    DEPENDS ${SDK_HEADERS_DEPENDS} ${SDK_HEADERS_FILES}
+    VERBATIM)
+  add_custom_target(${target_name} DEPENDS ${_outputs})
+endfunction()
+
 function(defold_get_box2d_library out_var)
   defold_feature_enabled(box2dv3 _with_box2dv3)
   defold_feature_enabled(simd _with_simd)
@@ -279,7 +333,7 @@ function(defold_get_physics_libraries out_var)
     set(_physics_libs physics_null)
   elseif(_with_box2dv3)
     defold_get_box2d_library(_box2d_lib)
-    set(_physics_libs physics_2d BulletDynamics BulletCollision LinearMath ${_box2d_lib})
+    set(_physics_libs physics BulletDynamics BulletCollision LinearMath ${_box2d_lib})
   else()
     set(_physics_libs physics BulletDynamics BulletCollision LinearMath box2d_defold)
   endif()

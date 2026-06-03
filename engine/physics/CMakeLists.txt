@@ -22,6 +22,7 @@ set(PHYSICS_NULL_3D_SOURCE "${PHYSICS_SRC_DIR}/physics_3d_null.cpp")
 file(GLOB PHYSICS_BOX2D_SOURCES CONFIGURE_DEPENDS "${PHYSICS_SRC_DIR}/box2d/*.cpp")
 file(GLOB PHYSICS_BOX2D_DEFOLD_SOURCES CONFIGURE_DEPENDS "${PHYSICS_SRC_DIR}/box2d_defold/*.cpp")
 defold_get_box2d_library(PHYSICS_BOX2D_LIB)
+defold_feature_enabled(box2dv3 PHYSICS_WITH_BOX2D_V3)
 
 function(physics_configure_library target)
   target_include_directories(${target} PUBLIC
@@ -30,13 +31,27 @@ function(physics_configure_library target)
   target_compile_definitions(${target} PRIVATE "DLIB_LOG_DOMAIN=\"PHYSICS\"")
 endfunction()
 
+if(PHYSICS_WITH_BOX2D_V3)
+  set(PHYSICS_FULL_2D_SOURCES ${PHYSICS_BOX2D_SOURCES})
+  set(PHYSICS_FULL_2D_LIB ${PHYSICS_BOX2D_LIB})
+else()
+  set(PHYSICS_FULL_2D_SOURCES ${PHYSICS_BOX2D_DEFOLD_SOURCES})
+  set(PHYSICS_FULL_2D_LIB box2d_defold)
+endif()
+
 defold_add_library(physics STATIC
   ${PHYSICS_COMMON_SOURCES}
   ${PHYSICS_BULLET_SOURCES}
-  ${PHYSICS_BOX2D_DEFOLD_SOURCES})
+  ${PHYSICS_FULL_2D_SOURCES})
 physics_configure_library(physics)
-target_include_directories(physics PUBLIC "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold")
-defold_target_link_libraries(physics "${TARGET_PLATFORM}" dlib box2d_defold)
+if(PHYSICS_WITH_BOX2D_V3)
+  target_compile_definitions(physics PUBLIC DM_PHYSICS_BOX2D_V3)
+  target_include_directories(physics PUBLIC "${DEFOLD_EXT_INCLUDE_DIR}/box2d")
+  target_include_directories(physics BEFORE PUBLIC "${DEFOLD_EXT_INCLUDE_DIR}/box2d/..")
+else()
+  target_include_directories(physics PUBLIC "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold")
+endif()
+defold_target_link_libraries(physics "${TARGET_PLATFORM}" dlib ${PHYSICS_FULL_2D_LIB})
 defold_target_link_bullet3d(physics "${TARGET_PLATFORM}" SCOPE PUBLIC)
 
 defold_add_library(physics_null STATIC
@@ -52,6 +67,7 @@ defold_add_library(physics_2d STATIC
   "${PHYSICS_NULL_3D_SOURCE}"
   ${PHYSICS_BOX2D_SOURCES})
 physics_configure_library(physics_2d)
+target_compile_definitions(physics_2d PUBLIC DM_PHYSICS_BOX2D_V3)
 target_include_directories(physics_2d PUBLIC "${DEFOLD_EXT_INCLUDE_DIR}/box2d")
 target_include_directories(physics_2d BEFORE PUBLIC "${DEFOLD_EXT_INCLUDE_DIR}/box2d/..")
 defold_target_link_libraries(physics_2d "${TARGET_PLATFORM}" dlib ${PHYSICS_BOX2D_LIB})

@@ -35,6 +35,7 @@ target_include_directories(particle PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(particle PRIVATE "DLIB_LOG_DOMAIN=\"PARTICLE\"")
 add_dependencies(particle particle_proto_headers particle_proto_py particle_bproto)
+add_dependencies(particle graphics_sdk_headers)
 if(TARGET graphics_proto)
   add_dependencies(particle graphics_proto_header)
 endif()
@@ -51,6 +52,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
     "${CMAKE_CURRENT_BINARY_DIR}")
   target_compile_definitions(particle_shared PRIVATE "DLIB_LOG_DOMAIN=\"PARTICLE\"")
   add_dependencies(particle_shared particle_proto_headers particle_proto_py particle_bproto)
+  add_dependencies(particle_shared graphics_sdk_headers)
   defold_target_link_libraries(particle_shared "${TARGET_PLATFORM}"
     ddf_noasan
     dlib_noasan
@@ -72,6 +74,21 @@ if(TARGET particle_shared)
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION lib/${TARGET_PLATFORM})
 endif()
+
+defold_add_sdk_headers_target(particle_public_sdk_headers
+  DESTINATION include/particle
+  SOURCE_ROOT "${PARTICLE_SRC_DIR}"
+  FILES "${PARTICLE_SRC_DIR}/particle.h"
+  DEPENDS particle)
+defold_add_sdk_headers_target(particle_generated_sdk_headers
+  DESTINATION include/particle
+  SOURCE_ROOT "${PARTICLE_GEN_DIR}"
+  FILES "${PARTICLE_PROTO_H}"
+  DEPENDS particle)
+set(PARTICLE_SDK_HEADER_TARGETS particle_public_sdk_headers particle_generated_sdk_headers)
+list(APPEND PARTICLE_SDK_HEADER_TARGETS graphics_sdk_headers)
+add_custom_target(particle_sdk_headers
+  DEPENDS ${PARTICLE_SDK_HEADER_TARGETS})
 
 install(FILES
   "${PARTICLE_SRC_DIR}/particle.h"

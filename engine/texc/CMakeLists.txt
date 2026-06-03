@@ -53,6 +53,8 @@ if(TEXC_IS_DESKTOP)
       "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
       "${TEXC_SRC_DIR}/texc.h"
     COMMENT "Generating Java/JNI bindings for texc.h")
+  add_custom_target(texc_generated_bindings
+    DEPENDS "${TEXC_GENERATED_JAVA}" "${TEXC_GENERATED_CPP}" "${TEXC_GENERATED_H}")
 
   defold_add_library(texc STATIC ${TEXC_CORE_SOURCES})
   target_include_directories(texc PUBLIC "${TEXC_SRC_DIR}")
@@ -63,6 +65,7 @@ if(TEXC_IS_DESKTOP)
   target_include_directories(texc_bindings PRIVATE "${TEXC_SRC_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${TEXC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
   target_link_libraries(texc_bindings PRIVATE jni_noasan)
   set_target_properties(texc_bindings PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  add_dependencies(texc_bindings texc_generated_bindings)
 
   add_library(texc_shared SHARED
     ${TEXC_CORE_SOURCES}
@@ -91,10 +94,16 @@ if(TEXC_IS_DESKTOP)
             "${TEXC_GENERATED_JAVA}"
             "${TEXC_SRC_DIR}/java/com/dynamo/bob/pipeline/TexcLibraryJni.java"
     COMMAND "${Java_JAR_EXECUTABLE}" cf "${TEXC_JAR}" -C "${TEXC_CLASSES_DIR}" .
-    DEPENDS texc_bindings "${TEXC_SRC_DIR}/java/com/dynamo/bob/pipeline/TexcLibraryJni.java"
+    DEPENDS
+      texc_generated_bindings
+      texc_bindings
+      "${TEXC_GENERATED_JAVA}"
+      "${TEXC_GENERATED_CPP}"
+      "${TEXC_GENERATED_H}"
+      "${TEXC_SRC_DIR}/java/com/dynamo/bob/pipeline/TexcLibraryJni.java"
     COMMENT "Packaging texturecompiler.jar")
   add_custom_target(texturecompiler_jar ALL DEPENDS "${TEXC_JAR}")
-  add_dependencies(texturecompiler_jar texc_bindings)
+  add_dependencies(texturecompiler_jar texc_generated_bindings texc_bindings)
 
   defold_install_targets(TARGETS texc texc_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}

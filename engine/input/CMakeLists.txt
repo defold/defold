@@ -35,6 +35,7 @@ target_compile_definitions(input PRIVATE "DLIB_LOG_DOMAIN=\"INPUT\"")
 target_include_directories(input PUBLIC ${INPUT_SRC_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 # just to make sure the extra dependency is actually built
 add_dependencies(input input_proto_headers input_proto_py)
+add_dependencies(input hid_sdk_headers)
 
 # Add GLFW3-specific compile define when applicable
 defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")
@@ -57,6 +58,19 @@ defold_install_targets(TARGETS input
 )
 
 # Install public headers
+defold_add_sdk_headers_target(input_public_sdk_headers
+    DESTINATION include/input
+    SOURCE_ROOT "${INPUT_SRC_DIR}"
+    FILES "${INPUT_SRC_DIR}/input.h"
+    DEPENDS input)
+defold_add_sdk_headers_target(input_generated_sdk_headers
+    DESTINATION include/input
+    SOURCE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/input"
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.h"
+    DEPENDS input)
+add_custom_target(input_sdk_headers
+    DEPENDS input_public_sdk_headers input_generated_sdk_headers)
+
 install(FILES "${INPUT_SRC_DIR}/input.h" DESTINATION include/input)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.h" DESTINATION include/input)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/python/input/__init__.py" DESTINATION lib/python/input)

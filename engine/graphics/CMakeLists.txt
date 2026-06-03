@@ -18,12 +18,22 @@ set(GRAPHICS_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/graphics")
 set(GRAPHICS_PROTO_PY "${GRAPHICS_PROTO_PY_DIR}/graphics_ddf_pb2.py")
 set(GRAPHICS_PROTO_PY_INIT "${GRAPHICS_PROTO_PY_DIR}/__init__.py")
 set(GRAPHICS_BPROTO "${GRAPHICS_GEN_DIR}/graphics_ddf.bproto")
+set(GRAPHICS_PUBLIC_HEADERS
+  "${GRAPHICS_SRC_DIR}/graphics.h"
+  "${GRAPHICS_SRC_DIR}/graphics_util.h"
+  "${GRAPHICS_SRC_DIR}/graphics_native.h"
+  "${GRAPHICS_SRC_DIR}/opengl/win32/glext.h"
+  "${GRAPHICS_SRC_DIR}/opengl/graphics_opengl_defines.h")
+file(GLOB_RECURSE GRAPHICS_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${GRAPHICS_SRC_DIR}/dmsdk/*.h"
+  "${GRAPHICS_SRC_DIR}/dmsdk/*.hpp")
 
 defold_protoc_gen_cpp("${GRAPHICS_PROTO_CC}" "${GRAPHICS_PROTO}" INCLUDES "${GRAPHICS_PROTO_ROOT}")
 defold_protoc_gen_py("${GRAPHICS_PROTO_PY}" "${GRAPHICS_PROTO}" PYTHON_ROOT "${CMAKE_CURRENT_BINARY_DIR}/python" INCLUDES "${GRAPHICS_PROTO_ROOT}")
 defold_protoc_gen_bproto("${GRAPHICS_BPROTO}" "${GRAPHICS_PROTO}" INCLUDES "${GRAPHICS_PROTO_ROOT}")
 add_custom_target(graphics_proto_py ALL DEPENDS "${GRAPHICS_PROTO_PY}" "${GRAPHICS_PROTO_PY_INIT}")
 add_custom_target(graphics_bproto ALL DEPENDS "${GRAPHICS_BPROTO}")
+add_custom_target(graphics_proto_sources DEPENDS "${GRAPHICS_PROTO_CC}" "${GRAPHICS_PROTO_H}")
 
 defold_add_library(graphics_proto_generated OBJECT "${GRAPHICS_PROTO_CC}")
 target_include_directories(graphics_proto_generated PUBLIC
@@ -31,6 +41,7 @@ target_include_directories(graphics_proto_generated PUBLIC
   "${GRAPHICS_PROTO_ROOT}"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(graphics_proto_generated PRIVATE "DLIB_LOG_DOMAIN=\"GRAPHICS\"")
+add_dependencies(graphics_proto_generated graphics_proto_sources)
 
 defold_add_library(graphics_proto_generated_noasan OBJECT "${GRAPHICS_PROTO_CC}")
 target_include_directories(graphics_proto_generated_noasan PUBLIC
@@ -38,9 +49,10 @@ target_include_directories(graphics_proto_generated_noasan PUBLIC
   "${GRAPHICS_PROTO_ROOT}"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(graphics_proto_generated_noasan PRIVATE "DLIB_LOG_DOMAIN=\"GRAPHICS\"")
+add_dependencies(graphics_proto_generated_noasan graphics_proto_sources)
 
 add_custom_target(graphics_proto_header)
-add_dependencies(graphics_proto_header graphics_proto_generated graphics_proto_generated_noasan)
+add_dependencies(graphics_proto_header graphics_proto_sources)
 
 function(graphics_target_os out_var)
   if(TARGET_PLATFORM MATCHES "win32$")
@@ -244,6 +256,24 @@ defold_install_targets(TARGETS ${GRAPHICS_INSTALL_TARGETS}
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+defold_add_sdk_headers_target(graphics_public_sdk_headers
+  DESTINATION include/graphics
+  SOURCE_ROOT "${GRAPHICS_SRC_DIR}"
+  FILES ${GRAPHICS_PUBLIC_HEADERS}
+  DEPENDS graphics_proto)
+defold_add_sdk_headers_target(graphics_generated_sdk_headers
+  DESTINATION include/graphics
+  SOURCE_ROOT "${GRAPHICS_GEN_DIR}"
+  FILES "${GRAPHICS_PROTO_H}"
+  DEPENDS graphics_proto_header)
+defold_add_sdk_headers_target(graphics_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${GRAPHICS_SRC_DIR}/dmsdk"
+  FILES ${GRAPHICS_DMSDK_HEADERS}
+  DEPENDS graphics_proto)
+add_custom_target(graphics_sdk_headers
+  DEPENDS graphics_public_sdk_headers graphics_generated_sdk_headers graphics_dmsdk_sdk_headers)
 
 install(FILES
   "${GRAPHICS_SRC_DIR}/graphics.h"

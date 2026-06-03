@@ -9,6 +9,9 @@ add_compile_definitions(DLIB_LOG_DOMAIN="SOUND")
 
 set(SOUND_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(SOUND_SRC_DIR "${SOUND_ROOT}/src")
+file(GLOB_RECURSE SOUND_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${SOUND_SRC_DIR}/dmsdk/*.h"
+  "${SOUND_SRC_DIR}/dmsdk/*.hpp")
 
 set(SOUND_BASE_SOURCES
   "${SOUND_SRC_DIR}/sound_codec.cpp"
@@ -92,13 +95,15 @@ endfunction()
 
 defold_add_library(decoder_wav STATIC "${SOUND_SRC_DIR}/decoders/decoder_wav.cpp")
 target_include_directories(decoder_wav PUBLIC "${SOUND_SRC_DIR}")
+defold_target_link_libraries(decoder_wav "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
 
 defold_add_library(decoder_ogg STATIC ${SOUND_DECODER_OGG_SOURCES})
 target_include_directories(decoder_ogg PUBLIC "${SOUND_SRC_DIR}")
+defold_target_link_libraries(decoder_ogg "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
 
 defold_add_library(decoder_opus STATIC "${SOUND_SRC_DIR}/decoders/decoder_opus.cpp")
 target_include_directories(decoder_opus PUBLIC "${SOUND_SRC_DIR}")
-defold_target_link_libraries(decoder_opus "${TARGET_PLATFORM}" SCOPE PUBLIC opus)
+defold_target_link_libraries(decoder_opus "${TARGET_PLATFORM}" SCOPE PUBLIC dlib opus)
 
 defold_add_library(sound STATIC ${SOUND_SOURCES})
 sound_configure_target(sound)
@@ -142,7 +147,23 @@ defold_install_targets(TARGETS ${SOUND_INSTALL_TARGETS}
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+defold_add_sdk_headers_target(sound_public_sdk_headers
+  DESTINATION include/sound
+  SOURCE_ROOT "${SOUND_SRC_DIR}"
+  FILES "${SOUND_SRC_DIR}/sound.h"
+  DEPENDS sound)
+defold_add_sdk_headers_target(sound_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${SOUND_SRC_DIR}/dmsdk"
+  FILES ${SOUND_DMSDK_HEADERS}
+  DEPENDS sound)
+set(SOUND_SDK_HEADER_TARGETS sound_public_sdk_headers sound_dmsdk_sdk_headers)
+add_custom_target(sound_sdk_headers
+  DEPENDS ${SOUND_SDK_HEADER_TARGETS})
+
 install(FILES "${SOUND_SRC_DIR}/sound.h" DESTINATION include/sound)
+install(DIRECTORY "${SOUND_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
 if(BUILD_TESTS)
   add_subdirectory(src/test)

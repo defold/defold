@@ -16,6 +16,18 @@ set(RESOURCE_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/resource")
 set(RESOURCE_PROTO_FILES
   "${RESOURCE_PROTO_ROOT}/resource/resource_ddf.proto"
   "${RESOURCE_PROTO_ROOT}/resource/liveupdate_ddf.proto")
+set(RESOURCE_PUBLIC_HEADERS
+  "${RESOURCE_SRC_DIR}/resource.h"
+  "${RESOURCE_SRC_DIR}/resource_archive.h"
+  "${RESOURCE_SRC_DIR}/resource_chunk_cache.h"
+  "${RESOURCE_SRC_DIR}/resource_manifest.h"
+  "${RESOURCE_SRC_DIR}/resource_mounts.h"
+  "${RESOURCE_SRC_DIR}/resource_util.h"
+  "${RESOURCE_SRC_DIR}/resource_verify.h"
+  "${RESOURCE_SRC_DIR}/providers/provider.h")
+file(GLOB_RECURSE RESOURCE_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${RESOURCE_SRC_DIR}/dmsdk/*.h"
+  "${RESOURCE_SRC_DIR}/dmsdk/*.hpp")
 
 set(RESOURCE_PROTO_CC)
 set(RESOURCE_PROTO_HEADERS)
@@ -80,6 +92,24 @@ defold_install_targets(TARGETS resource
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
+defold_add_sdk_headers_target(resource_public_sdk_headers
+  DESTINATION include/resource
+  SOURCE_ROOT "${RESOURCE_SRC_DIR}"
+  FILES ${RESOURCE_PUBLIC_HEADERS}
+  DEPENDS resource)
+defold_add_sdk_headers_target(resource_generated_sdk_headers
+  DESTINATION include/resource
+  SOURCE_ROOT "${RESOURCE_GEN_DIR}"
+  FILES ${RESOURCE_PROTO_HEADERS}
+  DEPENDS resource)
+defold_add_sdk_headers_target(resource_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${RESOURCE_SRC_DIR}/dmsdk"
+  FILES ${RESOURCE_DMSDK_HEADERS}
+  DEPENDS resource)
+add_custom_target(resource_sdk_headers
+  DEPENDS resource_public_sdk_headers resource_generated_sdk_headers resource_dmsdk_sdk_headers)
+
 install(FILES
   "${RESOURCE_SRC_DIR}/resource.h"
   "${RESOURCE_SRC_DIR}/resource_archive.h"
@@ -91,6 +121,7 @@ install(FILES
   ${RESOURCE_PROTO_HEADERS}
   DESTINATION include/resource)
 install(FILES "${RESOURCE_SRC_DIR}/providers/provider.h" DESTINATION include/resource/providers)
+install(DIRECTORY "${RESOURCE_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 install(FILES "${RESOURCE_SRC_DIR}/waf_resource.py" DESTINATION lib/python)
 install(FILES "${RESOURCE_SRC_DIR}/arcc.py" DESTINATION bin)
 install(FILES ${RESOURCE_PROTO_FILES} DESTINATION share/proto/resource)

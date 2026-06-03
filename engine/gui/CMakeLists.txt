@@ -9,6 +9,12 @@ add_compile_definitions(DLIB_LOG_DOMAIN="GUI")
 
 set(GUI_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GUI_SRC_DIR "${GUI_ROOT}/src")
+set(GUI_PUBLIC_HEADERS
+  "${GUI_SRC_DIR}/gui.h"
+  "${GUI_SRC_DIR}/gui_script.h")
+file(GLOB_RECURSE GUI_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${GUI_SRC_DIR}/dmsdk/*.h"
+  "${GUI_SRC_DIR}/dmsdk/*.hpp")
 
 function(gui_configure_target target)
   target_include_directories(${target} PUBLIC "${GUI_SRC_DIR}")
@@ -17,7 +23,6 @@ function(gui_configure_target target)
       graphics_proto_header
       particle_proto_headers
       rig_proto_headers
-      script_proto_headers
       render_proto_headers)
     if(TARGET ${_gui_dependency})
       add_dependencies(${target} ${_gui_dependency})
@@ -48,10 +53,32 @@ defold_install_targets(TARGETS gui gui_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+defold_add_sdk_headers_target(gui_public_sdk_headers
+  DESTINATION include/gui
+  SOURCE_ROOT "${GUI_SRC_DIR}"
+  FILES ${GUI_PUBLIC_HEADERS}
+  DEPENDS gui)
+defold_add_sdk_headers_target(gui_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${GUI_SRC_DIR}/dmsdk"
+  FILES ${GUI_DMSDK_HEADERS}
+  DEPENDS gui)
+set(GUI_SDK_HEADER_TARGETS gui_public_sdk_headers gui_dmsdk_sdk_headers)
+list(APPEND GUI_SDK_HEADER_TARGETS
+  hid_sdk_headers
+  particle_sdk_headers
+  render_sdk_headers
+  rig_sdk_headers
+  script_sdk_headers)
+add_custom_target(gui_sdk_headers
+  DEPENDS ${GUI_SDK_HEADER_TARGETS})
+
 install(FILES
   "${GUI_SRC_DIR}/gui.h"
   "${GUI_SRC_DIR}/gui_script.h"
   DESTINATION include/gui)
+install(DIRECTORY "${GUI_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
 if(BUILD_TESTS)
   add_subdirectory(src/test)

@@ -160,8 +160,7 @@ foreach(_engine_service_dependency IN ITEMS
     graphics_proto_header
     input_proto_headers
     particle_proto_headers
-    render_proto_headers
-    script_proto_headers)
+    render_proto_headers)
   if(TARGET ${_engine_service_dependency})
     add_dependencies(engine_service ${_engine_service_dependency})
   endif()
@@ -214,12 +213,15 @@ foreach(_engine_dependency IN ITEMS
     graphics_proto_header
     input_proto_headers
     particle_proto_headers
-    render_proto_headers
-    script_proto_headers)
+    render_proto_headers)
   if(TARGET ${_engine_dependency})
     add_dependencies(engine ${_engine_dependency})
   endif()
 endforeach()
+add_dependencies(engine
+  profilerext_sdk_headers
+  crashext_sdk_headers
+  liveupdate_sdk_headers)
 defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC
   gameobject
   gamesys
@@ -246,12 +248,15 @@ foreach(_engine_dependency IN ITEMS
     graphics_proto_header
     input_proto_headers
     particle_proto_headers
-    render_proto_headers
-    script_proto_headers)
+    render_proto_headers)
   if(TARGET ${_engine_dependency})
     add_dependencies(engine_release ${_engine_dependency})
   endif()
 endforeach()
+add_dependencies(engine_release
+  profilerext_sdk_headers
+  crashext_sdk_headers
+  liveupdate_sdk_headers)
 defold_target_link_libraries(engine_release "${TARGET_PLATFORM}" SCOPE PUBLIC
   gameobject
   gamesys
@@ -498,6 +503,37 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
       endforeach()
     endforeach()")
 endif()
+
+file(GLOB_RECURSE ENGINE_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${ENGINE_ROOT}/src/dmsdk/*.h"
+  "${ENGINE_ROOT}/src/dmsdk/*.hpp")
+defold_add_sdk_headers_target(engine_public_sdk_headers
+  DESTINATION include/engine
+  SOURCE_ROOT "${ENGINE_SRC_DIR}"
+  FILES "${ENGINE_SRC_DIR}/engine.h"
+  DEPENDS engine)
+defold_add_sdk_headers_target(engine_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${ENGINE_ROOT}/src/dmsdk"
+  FILES ${ENGINE_DMSDK_HEADERS}
+  DEPENDS engine)
+set(ENGINE_SDK_HEADER_TARGETS engine_public_sdk_headers engine_dmsdk_sdk_headers)
+list(APPEND ENGINE_SDK_HEADER_TARGETS
+  crashext_sdk_headers
+  extension_sdk_headers
+  gameobject_sdk_headers
+  gamesys_sdk_headers
+  graphics_sdk_headers
+  gui_sdk_headers
+  input_sdk_headers
+  liveupdate_sdk_headers
+  particle_sdk_headers
+  profilerext_sdk_headers
+  render_sdk_headers
+  resource_sdk_headers
+  script_sdk_headers)
+add_custom_target(engine_sdk_headers
+  DEPENDS ${ENGINE_SDK_HEADER_TARGETS})
 
 install(FILES "${ENGINE_SRC_DIR}/engine.h" DESTINATION include/engine)
 install(FILES "${ENGINE_PROTO_DIR}/engine/engine_ddf.proto" DESTINATION share/proto/engine)

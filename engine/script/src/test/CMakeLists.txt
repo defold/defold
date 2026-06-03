@@ -12,10 +12,6 @@ set(SCRIPT_TEST_PROTO "${SCRIPT_TEST_ROOT}/test_ddf.proto")
 set(SCRIPT_TEST_PROTO_CC "${SCRIPT_TEST_GEN_DIR}/test_ddf.cpp")
 set(SCRIPT_TEST_PROTO_H "${SCRIPT_TEST_GEN_DIR}/test_ddf.h")
 set(SCRIPT_TEST_PROTO_PY "${CMAKE_CURRENT_BINARY_DIR}/python/test_ddf_pb2.py")
-set(SCRIPT_TEST_PUBLIC_INCLUDE_DIR "${DEFOLD_BUILD_INCLUDE_DIR}")
-
-file(MAKE_DIRECTORY "${SCRIPT_TEST_PUBLIC_INCLUDE_DIR}/script")
-configure_file("${SCRIPT_TEST_ROOT}/test_script.h" "${SCRIPT_TEST_PUBLIC_INCLUDE_DIR}/script/test_script.h" COPYONLY)
 
 defold_protoc_gen_cpp("${SCRIPT_TEST_PROTO_CC}" "${SCRIPT_TEST_PROTO}" INCLUDES "${SCRIPT_TEST_ROOT}" "${SCRIPT_SRC_DIR}" "${DEFOLD_SDK_ROOT}/share/proto")
 defold_protoc_gen_py("${SCRIPT_TEST_PROTO_PY}" "${SCRIPT_TEST_PROTO}" INCLUDES "${SCRIPT_TEST_ROOT}" "${SCRIPT_SRC_DIR}" "${DEFOLD_SDK_ROOT}/share/proto")
@@ -50,8 +46,7 @@ defold_add_library(test_script STATIC
   "${SCRIPT_TEST_ROOT}/test_script_private.cpp")
 target_include_directories(test_script PUBLIC
   "${SCRIPT_TEST_ROOT}"
-  "${SCRIPT_SRC_DIR}"
-  "${SCRIPT_TEST_PUBLIC_INCLUDE_DIR}")
+  "${SCRIPT_SRC_DIR}")
 defold_target_link_libraries(test_script "${TARGET_PLATFORM}" dlib script)
 defold_target_link_lua(test_script "${TARGET_PLATFORM}" SCOPE PUBLIC)
 

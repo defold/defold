@@ -14,6 +14,15 @@ set(RENDER_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/render")
 set(RENDER_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/render")
 
 file(GLOB RENDER_PROTO_FILES CONFIGURE_DEPENDS "${RENDER_PROTO_ROOT}/render/*.proto")
+set(RENDER_PUBLIC_HEADERS
+  "${RENDER_SRC_DIR}/render/display_profiles.h"
+  "${RENDER_SRC_DIR}/render/render.h"
+  "${RENDER_SRC_DIR}/render/font/fontmap.h"
+  "${RENDER_SRC_DIR}/render/font/font_glyphbank.h"
+  "${RENDER_SRC_DIR}/render/font/font_renderer.h")
+file(GLOB_RECURSE RENDER_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${RENDER_SRC_DIR}/dmsdk/*.h"
+  "${RENDER_SRC_DIR}/dmsdk/*.hpp")
 set(RENDER_PROTO_CC)
 set(RENDER_PROTO_HEADERS)
 set(RENDER_PROTO_PY)
@@ -55,6 +64,10 @@ target_include_directories(render PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(render PRIVATE "DLIB_LOG_DOMAIN=\"RENDER\"")
 add_dependencies(render render_proto_headers render_proto_py render_bproto)
+add_dependencies(render
+  graphics_sdk_headers
+  font_sdk_headers
+  script_sdk_headers)
 defold_target_link_libraries(render "${TARGET_PLATFORM}" SCOPE PUBLIC
   ddf
   dlib
@@ -78,9 +91,10 @@ add_dependencies(render_font_default render_proto_headers render_proto_py render
 if(TARGET graphics_proto)
   add_dependencies(render_font_default graphics_proto_header)
 endif()
-if(TARGET script_proto_headers)
-  add_dependencies(render_font_default script_proto_headers)
-endif()
+add_dependencies(render_font_default
+  graphics_sdk_headers
+  font_sdk_headers
+  script_sdk_headers)
 defold_target_link_libraries(render_font_default "${TARGET_PLATFORM}" SCOPE PUBLIC
   ddf
   dlib
@@ -92,6 +106,31 @@ defold_install_targets(TARGETS render render_font_default
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
+defold_add_sdk_headers_target(render_public_sdk_headers
+  DESTINATION include/render
+  SOURCE_ROOT "${RENDER_SRC_DIR}/render"
+  FILES ${RENDER_PUBLIC_HEADERS}
+  DEPENDS render)
+defold_add_sdk_headers_target(render_generated_sdk_headers
+  DESTINATION include/render
+  SOURCE_ROOT "${RENDER_GEN_DIR}"
+  FILES ${RENDER_PROTO_HEADERS}
+  DEPENDS render)
+defold_add_sdk_headers_target(render_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${RENDER_SRC_DIR}/dmsdk"
+  FILES ${RENDER_DMSDK_HEADERS}
+  DEPENDS render)
+set(RENDER_SDK_HEADER_TARGETS
+  render_public_sdk_headers
+  render_generated_sdk_headers
+  render_dmsdk_sdk_headers
+  graphics_sdk_headers
+  font_sdk_headers
+  script_sdk_headers)
+add_custom_target(render_sdk_headers
+  DEPENDS ${RENDER_SDK_HEADER_TARGETS})
+
 install(FILES
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
@@ -102,6 +141,7 @@ install(FILES
   "${RENDER_SRC_DIR}/render/font/font_glyphbank.h"
   "${RENDER_SRC_DIR}/render/font/font_renderer.h"
   DESTINATION include/render/font)
+install(DIRECTORY "${RENDER_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 install(FILES "${RENDER_SRC_DIR}/waf_render.py" DESTINATION lib/python)
 install(FILES
   "${RENDER_PROTO_ROOT}/render/material_ddf.proto"

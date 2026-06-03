@@ -184,6 +184,8 @@ unset(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
 unset(_DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS)
 unset(_DEFOLD_BOB_LIGHT_LIB)
 
+defold_xcode_organize_project()
+
 # ===================== CMake package export =====================
 # Export defold_sdk so external projects can find_package(Defold)
 include(CMakePackageConfigHelpers)

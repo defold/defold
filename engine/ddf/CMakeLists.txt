@@ -167,10 +167,7 @@ endforeach()
 
 add_custom_target(ddf_proto_py ALL DEPENDS ${DDF_PROTO_PY} "${DDF_PROTO_PY_INIT}")
 
-set(DDF_PROTOC_PLUGIN_PY_DEPS
-  "${DDF_PLUGIN_PY}"
-  "${DDF_PROTO_PY_DIR}/ddf_extensions_pb2.py"
-  "${DDF_PROTO_PY_INIT}")
+set(DDF_PROTOC_PLUGIN_PY_DEPS ddf_plugin_py ddf_proto_py)
 
 foreach(_proto IN LISTS DDF_PROTO_FILES)
   get_filename_component(_base "${_proto}" NAME_WE)
@@ -183,6 +180,8 @@ foreach(_proto IN LISTS DDF_PROTO_FILES)
   list(APPEND DDF_PROTO_HEADERS "${_h}")
   list(APPEND DDF_PROTO_PBCC "${_pbcc}")
 endforeach()
+
+add_custom_target(ddf_generated_sources DEPENDS ${DDF_PROTO_CC} ${DDF_PROTO_HEADERS})
 
 set(DDF_SOURCES
   "${DDF_PROTO_DIR}/ddf.cpp"
@@ -200,7 +199,7 @@ target_include_directories(ddf_generated PUBLIC
   "${DDF_PROTO_DIR}/.."
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ddf_generated PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
-add_dependencies(ddf_generated ddf_proto_py ddf_plugin_py)
+add_dependencies(ddf_generated ddf_generated_sources ddf_proto_py ddf_plugin_py)
 
 defold_add_library(ddf_generated_noasan OBJECT ${DDF_PROTO_CC})
 target_include_directories(ddf_generated_noasan PUBLIC
@@ -208,7 +207,7 @@ target_include_directories(ddf_generated_noasan PUBLIC
   "${DDF_PROTO_DIR}/.."
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ddf_generated_noasan PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
-add_dependencies(ddf_generated_noasan ddf_proto_py ddf_plugin_py)
+add_dependencies(ddf_generated_noasan ddf_generated_sources ddf_proto_py ddf_plugin_py)
 
 defold_add_library(ddf_proto_core_generated OBJECT ${DDF_PROTO_PBCC})
 target_include_directories(ddf_proto_core_generated PUBLIC

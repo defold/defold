@@ -49,6 +49,9 @@ endif()
 defold_register_test_target(test_particle ON "${PARTICLE_ROOT}"
   STAGE_FILES
     "build/src/test" "build/src/test")
+if(CMAKE_GENERATOR STREQUAL "Xcode")
+  add_dependencies(prepare_test_particle particle_test_data)
+endif()
 if(TARGET run_test_particle)
   add_dependencies(run_test_particle particle_test_data)
 endif()

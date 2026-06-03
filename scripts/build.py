@@ -34,6 +34,7 @@ import release_to_egs
 import BuildUtility
 import http_cache
 import sdk_merge
+import solution_xcode
 from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
@@ -687,7 +688,6 @@ class Configuration(object):
         # Build directory per target platform inside solutions/<platform>
         if not build_dir:
             build_dir = os.path.join(self.defold_root, 'solutions', tp)
-        self._mkdirs(build_dir)
 
         cmake_cmd = [
             'cmake', '-S', self.defold_root, '-B', build_dir,
@@ -701,10 +701,27 @@ class Configuration(object):
         if arch_args:
             cmake_cmd += arch_args
 
+        cmake_configure_state = self._cmake_configure_state(build_dir, cmake_cmd)
+        cmake_configure_state_path = join(build_dir, '.defold_cmake_configure.json')
+        previous_cmake_configure_state = None
+        if os.path.exists(cmake_configure_state_path):
+            with open(cmake_configure_state_path, 'r') as f:
+                previous_cmake_configure_state = json.load(f)
+
+        cmake_cache = join(build_dir, 'CMakeCache.txt')
+        if os.path.exists(cmake_cache) and not (
+                self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, False)
+                and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)):
+            self._clean_cmake_builddir(build_dir)
+
+        self._mkdirs(build_dir)
+
         # Generate solution
         self._log(f'CMake solution settings: platform={tp}, build_type={build_type}, build_tests={build_tests}')
         self._log('Generating solution with command: %s' % ' '.join(cmake_cmd))
         run.env_command(self._form_env(), cmake_cmd)
+        with open(cmake_configure_state_path, 'w') as f:
+            json.dump(cmake_configure_state, f, indent=2, sort_keys=True)
 
         # Report absolute path to the generated solution files
         old_project_name = 'defold_libraries'
@@ -736,6 +753,16 @@ class Configuration(object):
                     final_path = old_path
             else:
                 final_path = new_path
+
+        if generator == 'Xcode' and os.path.exists(final_path):
+            solution_xcode.configure_project(
+                final_path,
+                build_type,
+                tp,
+                self.defold_home,
+                self.defold,
+                self.dynamo_home,
+                self._log)
 
         self._log(f'Solution generated: {final_path}')
 
@@ -774,6 +801,7 @@ class Configuration(object):
         self._remove_tree(join(self.defold_root, 'share/extender/build'))
         self._remove_tree(join(self.defold_root, 'build', 'cmake'))
         self._remove_tree(join(self.defold_root, 'engine', 'build'))
+        self._remove_tree(join(self.defold_root, 'solutions'))
 
         # remove engine test dir specifically
         self._remove_tree(join(self.defold_root, 'engine/engine/src/test/build'))

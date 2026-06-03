@@ -14,7 +14,7 @@
 
 #include "../scripts/script_http.h" // to set the timeout
 
-#include <script/test_script.h>
+#include <test_script.h>
 #include <script/script.h>
 #include <testmain/testmain.h>
 #include <dlib/configfile.h>
