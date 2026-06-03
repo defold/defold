@@ -23,6 +23,8 @@
             [cljfx.fx.row-constraints :as fx.row-constraints]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
+            [cljfx.fx.tab :as fx.tab]
+            [cljfx.fx.tab-pane :as fx.tab-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -158,6 +160,25 @@
 (defn- scroll-view [{:keys [content]}]
   {:fx/type fxui/scroll
    :content content})
+
+(defn- tabs-view [{:keys [tabs]}]
+  (cond-> {:fx/type fx.tab-pane/lifecycle
+           :style-class ["tab-pane" "ext-tab-pane"]}
+          tabs (assoc :tabs (filterv identity tabs))))
+
+(fxui/defc tab-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [text content icon enabled localization-state]
+    :or {enabled true}}]
+  (cond-> {:fx/type fx.tab/lifecycle
+           :text (localization-state text)
+           :closable false
+           :disable (not enabled)}
+          content (assoc :content content)
+          icon (assoc :graphic {:fx/type fx.stack-pane/lifecycle
+                                :style-class ["ext-tab-icon"]
+                                :alignment :center
+                                :children [icon]})))
 
 (defn- apply-constraints [props props-key lifecycle grow-key constraints]
   (assoc props props-key (mapv (fn [maybe-constraint]
@@ -1294,6 +1315,7 @@
             [ui-docs/grid-component grid-view]
             [ui-docs/separator-component separator-view]
             [ui-docs/scroll-component scroll-view]
+            [ui-docs/tabs-component tabs-view]
             [ui-docs/label-component label-view]
             [ui-docs/paragraph-component paragraph-view]
             [ui-docs/heading-component heading-view]
@@ -1310,6 +1332,7 @@
             [ui-docs/integer-field-component integer-field-view]
             [ui-docs/number-field-component number-field-view]
             [ui-docs/dialog-button-component dialog-button-view]
+            [ui-docs/tab-component tab-view]
             [ui-docs/dialog-component dialog-view]])
          (eduction
            (map (fn [[script-doc lua-fn]]

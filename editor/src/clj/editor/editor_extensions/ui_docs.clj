@@ -219,6 +219,13 @@
                     :doc "content component")]
         read-only-common-props))
 
+(def ^:private tabs-props
+  (into [(make-prop :tabs
+                    :coerce children-coercer
+                    :types ["component[]"]
+                    :doc "array of <code>editor.ui.tab(...)</code> components")]
+        read-only-common-props))
+
 (def ^:private label-without-color-specific-props
   [(make-prop :text :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc "the text, either a string or a localization message")
    (enum-prop :text_alignment :enum :text-alignment :doc "text alignment within paragraph bounds")])
@@ -359,6 +366,24 @@
               :coerce coerce/boolean
               :doc "determines if the button can be interacted with")])
 
+(def ^:private tab-props
+  [(make-prop :text
+              :coerce string-or-message-pattern-coercer
+              :required true
+              :types ["string" "message"]
+              :doc "tab header text, either a string or a localization message")
+   (make-prop :content
+              :coerce child-coercer
+              :types ["component"]
+              :doc "tab content component")
+   (make-prop :icon
+              :coerce child-coercer
+              :types ["component"]
+              :doc "tab header icon component")
+   (make-prop :enabled
+              :coerce coerce/boolean
+              :doc "determines if the tab can be selected")])
+
 (def ^:private dialog-props
   [(make-prop :title
               :coerce string-or-message-pattern-coercer
@@ -478,6 +503,12 @@
     :description "Layout container that optionally shows scroll bars if child contents overflow the assigned bounds"
     :props scroll-props))
 
+(def tabs-component
+  (component
+    "tabs"
+    :description "Layout container that shows one selected tab content at a time"
+    :props tabs-props))
+
 (def label-component
   (component
     "label"
@@ -561,6 +592,12 @@
     "dialog_button"
     :props dialog-button-props
     :description "Dialog button shown in the footer of a dialog"))
+
+(def tab-component
+  (component
+    "tab"
+    :props tab-props
+    :description "Tab used in the <code>tabs</code> prop of <code>editor.ui.tabs(...)</code>"))
 
 (def dialog-component
   (component
@@ -769,6 +806,7 @@ end)</code></pre>"})
               grid-component
               separator-component
               scroll-component
+              tabs-component
               label-component
               paragraph-component
               heading-component
@@ -785,6 +823,7 @@ end)</code></pre>"})
               integer-field-component
               number-field-component
               dialog-button-component
+              tab-component
               dialog-component])
            [show-dialog-doc
             function-component-doc
