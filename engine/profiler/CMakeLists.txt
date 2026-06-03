@@ -9,6 +9,23 @@ add_compile_definitions(DLIB_LOG_DOMAIN="PROFILER")
 
 set(PROFILER_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(PROFILER_SRC_DIR "${PROFILER_ROOT}/src")
+set(PROFILER_DEPENDENCIES
+  dlib
+  zip
+  mbedtls
+  ddf
+  resource
+  extension
+  script
+  graphics_null
+  image
+  graphics_proto
+  render
+  render_font_default
+  font
+  lua)
+set(PROFILER_BASIC_DEPENDENCIES dlib)
+set(PROFILER_JS_DEPENDENCIES dlib script)
 
 set(PROFILER_SOURCES
   "${PROFILER_SRC_DIR}/profiler.cpp"
@@ -36,21 +53,7 @@ endif()
 defold_add_library(profilerext STATIC ${PROFILER_SOURCES})
 target_include_directories(profilerext PUBLIC "${PROFILER_SRC_DIR}")
 target_compile_definitions(profilerext PRIVATE "DLIB_LOG_DOMAIN=\"PROFILER\"")
-defold_target_link_libraries(profilerext "${TARGET_PLATFORM}" SCOPE PUBLIC
-  dlib
-  zip
-  mbedtls
-  ddf
-  resource
-  extension
-  script
-  graphics_null
-  image
-  graphics_proto
-  render
-  render_font_default
-  font
-  lua)
+defold_target_link_libraries(profilerext "${TARGET_PLATFORM}" SCOPE PUBLIC ${PROFILER_DEPENDENCIES})
 if(TARGET_PLATFORM MATCHES "win32")
   target_link_libraries(profilerext PUBLIC Psapi.lib)
 endif()
@@ -58,7 +61,8 @@ endif()
 defold_add_library(profilerext_null STATIC "${PROFILER_SRC_DIR}/profiler_null.cpp")
 target_include_directories(profilerext_null PUBLIC "${PROFILER_SRC_DIR}")
 target_compile_definitions(profilerext_null PRIVATE "DLIB_LOG_DOMAIN=\"PROFILER\"")
-defold_target_link_libraries(profilerext_null "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+defold_target_link_libraries(profilerext_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${PROFILER_BASIC_DEPENDENCIES})
+set_target_properties(profilerext_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET profilerext_sdk_headers)
 
 set(PROFILER_INSTALL_TARGETS profilerext profilerext_null)
 if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
@@ -67,7 +71,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps
     "${PROFILER_SRC_DIR}/remotery/lib/Remotery.c")
   target_include_directories(profiler_remotery PUBLIC "${PROFILER_SRC_DIR}")
   target_compile_definitions(profiler_remotery PRIVATE "DLIB_LOG_DOMAIN=\"PROFILER\"")
-  defold_target_link_libraries(profiler_remotery "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+  defold_target_link_libraries(profiler_remotery "${TARGET_PLATFORM}" SCOPE PUBLIC ${PROFILER_BASIC_DEPENDENCIES})
   list(APPEND PROFILER_INSTALL_TARGETS profiler_remotery)
 endif()
 
@@ -75,7 +79,7 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   defold_add_library(profiler_js STATIC "${PROFILER_SRC_DIR}/js/profiler_js.cpp")
   target_include_directories(profiler_js PUBLIC "${PROFILER_SRC_DIR}")
   target_compile_definitions(profiler_js PRIVATE "DLIB_LOG_DOMAIN=\"PROFILER\"")
-  defold_target_link_libraries(profiler_js "${TARGET_PLATFORM}" SCOPE PUBLIC dlib script)
+  defold_target_link_libraries(profiler_js "${TARGET_PLATFORM}" SCOPE PUBLIC ${PROFILER_JS_DEPENDENCIES})
   list(APPEND PROFILER_INSTALL_TARGETS profiler_js)
   defold_install_js_library("${PROFILER_SRC_DIR}/js/library_profile.js")
 endif()

@@ -12,6 +12,12 @@ set(RESOURCE_SRC_DIR "${RESOURCE_ROOT}/src")
 set(RESOURCE_PROTO_ROOT "${RESOURCE_ROOT}/proto")
 set(RESOURCE_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/resource")
 set(RESOURCE_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/resource")
+set(RESOURCE_DEPENDENCIES
+  ddf
+  dlib
+  image
+  zip
+  mbedtls)
 
 set(RESOURCE_PROTO_FILES
   "${RESOURCE_PROTO_ROOT}/resource/resource_ddf.proto"
@@ -80,11 +86,7 @@ target_include_directories(resource PUBLIC
 target_compile_definitions(resource PRIVATE "DLIB_LOG_DOMAIN=\"RESOURCE\"")
 add_dependencies(resource resource_proto_py resource_bproto)
 defold_target_link_libraries(resource "${TARGET_PLATFORM}" SCOPE PUBLIC
-  ddf
-  dlib
-  image
-  zip
-  mbedtls)
+  ${RESOURCE_DEPENDENCIES})
 defold_target_link_socket(resource "${TARGET_PLATFORM}" PUBLIC)
 
 defold_install_targets(TARGETS resource
@@ -108,7 +110,12 @@ defold_add_sdk_headers_target(resource_dmsdk_sdk_headers
   FILES ${RESOURCE_DMSDK_HEADERS}
   DEPENDS resource)
 add_custom_target(resource_sdk_headers
-  DEPENDS resource_public_sdk_headers resource_generated_sdk_headers resource_dmsdk_sdk_headers)
+  DEPENDS
+    resource_public_sdk_headers
+    resource_generated_sdk_headers
+    resource_dmsdk_sdk_headers
+    ddf_sdk_headers
+    dlib_sdk_headers)
 
 install(FILES
   "${RESOURCE_SRC_DIR}/resource.h"

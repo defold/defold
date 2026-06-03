@@ -12,10 +12,11 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import sys, os, http.client
-sys.path.append(os.path.join(os.environ['DYNAMO_HOME'], 'lib', 'python', 'gameobject'))
-sys.path.append(os.path.join(os.environ['DYNAMO_HOME'], 'lib', 'python', 'engine'))
-sys.path.append(os.path.join('build', 'proto', 'engine'))
+import sys
+import http.client
+from test_python_paths import add_engine_test_proto_paths
+
+add_engine_test_proto_paths()
 import engine_ddf_pb2, lua_ddf_pb2
 
 m = engine_ddf_pb2.RunScript()

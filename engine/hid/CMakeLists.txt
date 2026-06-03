@@ -14,6 +14,12 @@ add_compile_definitions(DLIB_LOG_DOMAIN="HID")
 
 # Sources
 set(HID_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
+set(HID_DEPENDENCIES
+    dlib
+    platform)
+set(HID_NULL_DEPENDENCIES
+    dlib
+    platform_null)
 set(HID_PRIVATE_SRC_DIR "")
 if(DEFINED DEFOLD_PLATFORM_HID_SOURCE_DIR AND EXISTS "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
     set(HID_PRIVATE_SRC_DIR "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
@@ -57,8 +63,7 @@ target_compile_definitions(hid PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
     target_link_libraries(hid PUBLIC "-framework GameController")
 endif()
-target_link_libraries(hid PUBLIC platform)
-add_dependencies(hid platform_sdk_headers)
+defold_target_link_libraries(hid "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_DEPENDENCIES})
 
 target_include_directories(hid PUBLIC
     "${HID_SRC_DIR}"
@@ -89,8 +94,8 @@ target_include_directories(hid_null PUBLIC
     "${HID_SRC_DIR}/default/src"
 )
 target_compile_definitions(hid_null PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
-target_link_libraries(hid_null PUBLIC platform_null)
-add_dependencies(hid_null platform_sdk_headers)
+defold_target_link_libraries(hid_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_NULL_DEPENDENCIES})
+set_target_properties(hid_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET hid_sdk_headers)
 
 if(HID_PRIVATE_SRC_DIR)
     target_include_directories(hid_null PUBLIC

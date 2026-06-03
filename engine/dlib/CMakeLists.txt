@@ -9,6 +9,10 @@ set(DLIB_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(DLIB_SRC_DIR "${DLIB_ROOT}/src")
 set(DLIB_CORE_DIR "${DLIB_SRC_DIR}/dlib")
 set(DLIB_MBEDTLS_DIR "${DLIB_SRC_DIR}/mbedtls")
+set(DLIB_DEPENDENCIES zip mbedtls)
+set(DLIB_NOASAN_DEPENDENCIES zip_noasan mbedtls_noasan)
+set(DLIB_SHARED_DEPENDENCIES profile_null_noasan mbedtls_noasan zip_noasan)
+set(DLIB_BASIS_TRANSCODER_DEPENDENCIES dlib)
 file(GLOB_RECURSE DLIB_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${DLIB_SRC_DIR}/dmsdk/*.h"
   "${DLIB_SRC_DIR}/dmsdk/*.hpp")
@@ -321,7 +325,7 @@ target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
 target_compile_definitions(dlib
   PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
-target_link_libraries(dlib PUBLIC zip mbedtls)
+target_link_libraries(dlib PUBLIC ${DLIB_DEPENDENCIES})
 defold_target_link_socket(dlib "${TARGET_PLATFORM}" SCOPE PUBLIC)
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
   foreach(_fw IN ITEMS CFNetwork Security)
@@ -334,7 +338,8 @@ target_include_directories(dlib_noasan PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
 target_compile_definitions(dlib_noasan
   PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
-target_link_libraries(dlib_noasan PUBLIC zip_noasan mbedtls_noasan)
+target_link_libraries(dlib_noasan PUBLIC ${DLIB_NOASAN_DEPENDENCIES})
+set_target_properties(dlib_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 defold_target_link_socket(dlib_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC)
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
   foreach(_fw IN ITEMS CFNetwork Security)
@@ -349,14 +354,17 @@ target_compile_definitions(image PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
 defold_add_library(image_noasan STATIC "${DLIB_CORE_DIR}/image.cpp")
 target_include_directories(image_noasan PUBLIC "${DLIB_SRC_DIR}")
 target_compile_definitions(image_noasan PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+set_target_properties(image_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(image_null STATIC "${DLIB_CORE_DIR}/image_null.cpp")
 target_include_directories(image_null PUBLIC "${DLIB_SRC_DIR}")
 target_compile_definitions(image_null PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+set_target_properties(image_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(image_null_noasan STATIC "${DLIB_CORE_DIR}/image_null.cpp")
 target_include_directories(image_null_noasan PUBLIC "${DLIB_SRC_DIR}")
 target_compile_definitions(image_null_noasan PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+set_target_properties(image_null_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(profile_null STATIC "${DLIB_CORE_DIR}/profile/profile_null.cpp")
 target_include_directories(profile_null PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
@@ -365,6 +373,7 @@ target_compile_definitions(profile_null PUBLIC ${DLIB_EXTRA_DEFINES})
 defold_add_library(profile_null_noasan STATIC "${DLIB_CORE_DIR}/profile/profile_null.cpp")
 target_include_directories(profile_null_noasan PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
 target_compile_definitions(profile_null_noasan PUBLIC ${DLIB_EXTRA_DEFINES})
+set_target_properties(profile_null_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(profile STATIC "${DLIB_CORE_DIR}/profile/profile.cpp")
 target_include_directories(profile PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
@@ -373,6 +382,7 @@ target_compile_definitions(profile PUBLIC ${DLIB_EXTRA_DEFINES})
 defold_add_library(profile_noasan STATIC "${DLIB_CORE_DIR}/profile/profile.cpp")
 target_include_directories(profile_noasan PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
 target_compile_definitions(profile_noasan PUBLIC ${DLIB_EXTRA_DEFINES})
+set_target_properties(profile_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
   defold_add_library(dlib_shared SHARED ${DLIB_SOURCES})
@@ -381,7 +391,8 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x8
   target_compile_definitions(dlib_shared
     PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
     PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
-  target_link_libraries(dlib_shared PRIVATE profile_null_noasan mbedtls_noasan zip_noasan)
+  target_link_libraries(dlib_shared PRIVATE ${DLIB_SHARED_DEPENDENCIES})
+  set_target_properties(dlib_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
   defold_target_link_socket(dlib_shared "${TARGET_PLATFORM}" PRIVATE)
   if(TARGET_PLATFORM MATCHES "macos$")
     foreach(_fw IN ITEMS CFNetwork Security)
@@ -412,7 +423,7 @@ target_compile_definitions(basis_transcoder PUBLIC
   BASISD_SUPPORT_KTX2=0
   MINIZ_NO_STDIO
   ${DLIB_BASIS_FLAGS})
-target_link_libraries(basis_transcoder PUBLIC dlib)
+target_link_libraries(basis_transcoder PUBLIC ${DLIB_BASIS_TRANSCODER_DEPENDENCIES})
 
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
   file(GLOB_RECURSE DLIB_BASIS_ENCODER_SOURCES CONFIGURE_DEPENDS

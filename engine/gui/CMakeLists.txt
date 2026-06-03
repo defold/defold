@@ -12,6 +12,18 @@ set(GUI_SRC_DIR "${GUI_ROOT}/src")
 set(GUI_PUBLIC_HEADERS
   "${GUI_SRC_DIR}/gui.h"
   "${GUI_SRC_DIR}/gui_script.h")
+set(GUI_DEPENDENCIES
+  ddf
+  dlib
+  font
+  gameobject
+  hid
+  lua
+  particle
+  render
+  rig
+  script
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 file(GLOB_RECURSE GUI_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${GUI_SRC_DIR}/dmsdk/*.h"
   "${GUI_SRC_DIR}/dmsdk/*.hpp")
@@ -29,16 +41,7 @@ function(gui_configure_target target)
     endif()
   endforeach()
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}" SCOPE PUBLIC
-    ddf
-    dlib
-    font
-    hid
-    lua
-    particle
-    render
-    rig
-    script
-    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+    ${GUI_DEPENDENCIES})
 endfunction()
 
 defold_add_library(gui STATIC
@@ -48,6 +51,7 @@ gui_configure_target(gui)
 
 defold_add_library(gui_null STATIC "${GUI_SRC_DIR}/gui_null.cpp")
 gui_configure_target(gui_null)
+set_target_properties(gui_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET gui_sdk_headers)
 
 defold_install_targets(TARGETS gui gui_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
@@ -66,7 +70,12 @@ defold_add_sdk_headers_target(gui_dmsdk_sdk_headers
   DEPENDS gui)
 set(GUI_SDK_HEADER_TARGETS gui_public_sdk_headers gui_dmsdk_sdk_headers)
 list(APPEND GUI_SDK_HEADER_TARGETS
+  ddf_sdk_headers
+  dlib_sdk_headers
+  font_sdk_headers
+  gameobject_sdk_headers
   hid_sdk_headers
+  lua_sdk_headers
   particle_sdk_headers
   render_sdk_headers
   rig_sdk_headers

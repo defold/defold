@@ -12,12 +12,12 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import os, sys
-sys.path = [
-    os.path.join(os.environ.get('DYNAMO_HOME', '../../tmp/dynamo_home'), 'lib', 'python', 'script'),
-    '../script/build/src/script'
-] + sys.path
-import sys_ddf_pb2, http.client
+import sys
+import http.client
+from test_python_paths import add_engine_test_proto_paths
+
+add_engine_test_proto_paths()
+import sys_ddf_pb2
 
 m = sys_ddf_pb2.Exit()
 m.code = 6

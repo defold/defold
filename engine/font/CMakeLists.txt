@@ -13,6 +13,13 @@ set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/font.h"
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/text_layout.h")
+set(FONT_DEPENDENCIES dlib)
+set(FONT_SKRIBIDI_DEPENDENCIES
+  dlib
+  harfbuzz
+  sheenbidi
+  unibreak
+  skribidi)
 file(GLOB_RECURSE FONT_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${FONT_SRC_DIR}/dmsdk/*.h"
   "${FONT_SRC_DIR}/dmsdk/*.hpp")
@@ -22,6 +29,7 @@ file(GLOB FONT_SOURCES CONFIGURE_DEPENDS "${FONT_SRC_DIR}/*.cpp")
 defold_add_library(font STATIC ${FONT_SOURCES})
 target_include_directories(font PUBLIC "${FONT_SRC_DIR}" "${FONT_ROOT}")
 target_compile_definitions(font PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
+defold_target_link_libraries(font "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_DEPENDENCIES})
 
 defold_add_library(font_skribidi STATIC ${FONT_SOURCES})
 target_include_directories(font_skribidi PUBLIC "${FONT_SRC_DIR}" "${FONT_ROOT}")
@@ -29,13 +37,8 @@ target_compile_definitions(font_skribidi PRIVATE
   "DLIB_LOG_DOMAIN=\"FONT\""
   FONT_USE_HARFBUZZ
   FONT_USE_SKRIBIDI)
-defold_target_link_libraries(font_skribidi "${TARGET_PLATFORM}"
-  harfbuzz
-  sheenbidi
-  unibreak
-  skribidi)
-add_dependencies(font dlib_sdk_headers)
-add_dependencies(font_skribidi dlib_sdk_headers)
+defold_target_link_libraries(font_skribidi "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_SKRIBIDI_DEPENDENCIES})
+set_target_properties(font_skribidi PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
 
 defold_install_targets(TARGETS font font_skribidi
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
@@ -52,7 +55,10 @@ defold_add_sdk_headers_target(font_dmsdk_sdk_headers
   SOURCE_ROOT "${FONT_SRC_DIR}/dmsdk"
   FILES ${FONT_DMSDK_HEADERS}
   DEPENDS font)
-set(FONT_SDK_HEADER_TARGETS font_public_sdk_headers font_dmsdk_sdk_headers)
+set(FONT_SDK_HEADER_TARGETS
+  font_public_sdk_headers
+  font_dmsdk_sdk_headers
+  dlib_sdk_headers)
 add_custom_target(font_sdk_headers
   DEPENDS ${FONT_SDK_HEADER_TARGETS})
 

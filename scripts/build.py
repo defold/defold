@@ -1853,6 +1853,11 @@ class Configuration(object):
             skip_build_tests.append('--skip-build-tests')
         cwd = join(self.defold_root, '%s/%s' % (directory, lib))
         waf_args = list(args)
+        # Propagate the ``--with-waf`` flag so that waf sees it and can
+        # skip the CMake check.  The flag is added only when the build
+        # configuration requested a pure‑Waf build.
+        if self._build_engine_with_waf():
+            waf_args.append('--with-waf')
         if not self._has_waf_configure_state(cwd) and 'configure' not in waf_args and 'build' in waf_args:
             waf_args.insert(waf_args.index('build'), 'configure')
         plf_args = ['--platform=%s' % platform]

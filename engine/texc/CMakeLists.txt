@@ -9,6 +9,16 @@ add_compile_definitions(DLIB_LOG_DOMAIN="TEXC")
 
 set(TEXC_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(TEXC_SRC_DIR "${TEXC_ROOT}/src")
+set(TEXC_DEPENDENCIES dlib zip mbedtls basis_encoder astcenc)
+set(TEXC_BINDINGS_DEPENDENCIES jni_noasan)
+set(TEXC_SHARED_DEPENDENCIES
+  dlib_noasan
+  zip_noasan
+  mbedtls_noasan
+  profile_null_noasan
+  jni_noasan
+  basis_encoder_noasan
+  astcenc)
 
 set(TEXC_IS_DESKTOP OFF)
 if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
@@ -58,12 +68,12 @@ if(TEXC_IS_DESKTOP)
 
   defold_add_library(texc STATIC ${TEXC_CORE_SOURCES})
   target_include_directories(texc PUBLIC "${TEXC_SRC_DIR}")
-  defold_target_link_libraries(texc "${TARGET_PLATFORM}" SCOPE PUBLIC dlib zip mbedtls basis_encoder astcenc)
+  defold_target_link_libraries(texc "${TARGET_PLATFORM}" SCOPE PUBLIC ${TEXC_DEPENDENCIES})
 
   add_library(texc_bindings OBJECT "${TEXC_GENERATED_CPP}")
   defold_target_skip_sanitizer(texc_bindings)
   target_include_directories(texc_bindings PRIVATE "${TEXC_SRC_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${TEXC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
-  target_link_libraries(texc_bindings PRIVATE jni_noasan)
+  defold_target_link_libraries(texc_bindings "${TARGET_PLATFORM}" SCOPE PRIVATE ${TEXC_BINDINGS_DEPENDENCIES})
   set_target_properties(texc_bindings PROPERTIES POSITION_INDEPENDENT_CODE ON)
   add_dependencies(texc_bindings texc_generated_bindings)
 
@@ -75,13 +85,7 @@ if(TEXC_IS_DESKTOP)
   target_include_directories(texc_shared PRIVATE "${TEXC_SRC_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${TEXC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
   add_dependencies(texc_shared texc_bindings)
   defold_target_link_libraries(texc_shared "${TARGET_PLATFORM}"
-    dlib_noasan
-    zip_noasan
-    mbedtls_noasan
-    profile_null_noasan
-    jni_noasan
-    basis_encoder_noasan
-    astcenc)
+    ${TEXC_SHARED_DEPENDENCIES})
   defold_target_link_app(texc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
 
   set(TEXC_JAR "${CMAKE_CURRENT_BINARY_DIR}/texturecompiler.jar")
@@ -109,6 +113,10 @@ if(TEXC_IS_DESKTOP)
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION lib/${TARGET_PLATFORM})
+  defold_add_sdk_headers_target(texc_sdk_headers
+    DESTINATION include/texc
+    FILES "${TEXC_SRC_DIR}/texc.h"
+    DEPENDS texc dlib_sdk_headers)
   install(FILES "${TEXC_SRC_DIR}/texc.h" DESTINATION include/texc)
   install(FILES "${TEXC_JAR}" DESTINATION share/java)
 

@@ -9,18 +9,7 @@ add_compile_definitions(DLIB_LOG_DOMAIN="LIVEUPDATE")
 
 set(LIVEUPDATE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(LIVEUPDATE_SRC_DIR "${LIVEUPDATE_ROOT}/src")
-
-file(GLOB LIVEUPDATE_SOURCES CONFIGURE_DEPENDS "${LIVEUPDATE_SRC_DIR}/*.cpp")
-list(FILTER LIVEUPDATE_SOURCES EXCLUDE REGEX "_null\\.cpp$")
-
-defold_add_library(liveupdate STATIC ${LIVEUPDATE_SOURCES})
-target_include_directories(liveupdate PUBLIC "${LIVEUPDATE_SRC_DIR}")
-target_compile_definitions(liveupdate PRIVATE "DLIB_LOG_DOMAIN=\"LIVEUPDATE\"")
-add_dependencies(liveupdate
-  extension_sdk_headers
-  resource_sdk_headers
-  script_sdk_headers)
-defold_target_link_libraries(liveupdate "${TARGET_PLATFORM}" SCOPE PUBLIC
+set(LIVEUPDATE_DEPENDENCIES
   ddf
   dlib
   image
@@ -30,11 +19,21 @@ defold_target_link_libraries(liveupdate "${TARGET_PLATFORM}" SCOPE PUBLIC
   script
   extension
   lua)
+set(LIVEUPDATE_NULL_DEPENDENCIES dlib)
+
+file(GLOB LIVEUPDATE_SOURCES CONFIGURE_DEPENDS "${LIVEUPDATE_SRC_DIR}/*.cpp")
+list(FILTER LIVEUPDATE_SOURCES EXCLUDE REGEX "_null\\.cpp$")
+
+defold_add_library(liveupdate STATIC ${LIVEUPDATE_SOURCES})
+target_include_directories(liveupdate PUBLIC "${LIVEUPDATE_SRC_DIR}")
+target_compile_definitions(liveupdate PRIVATE "DLIB_LOG_DOMAIN=\"LIVEUPDATE\"")
+defold_target_link_libraries(liveupdate "${TARGET_PLATFORM}" SCOPE PUBLIC ${LIVEUPDATE_DEPENDENCIES})
 
 defold_add_library(liveupdate_null STATIC "${LIVEUPDATE_SRC_DIR}/liveupdate_null.cpp")
 target_include_directories(liveupdate_null PUBLIC "${LIVEUPDATE_SRC_DIR}")
 target_compile_definitions(liveupdate_null PRIVATE "DLIB_LOG_DOMAIN=\"LIVEUPDATE\"")
-defold_target_link_libraries(liveupdate_null "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+defold_target_link_libraries(liveupdate_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${LIVEUPDATE_NULL_DEPENDENCIES})
+set_target_properties(liveupdate_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET liveupdate_sdk_headers)
 
 defold_install_targets(TARGETS liveupdate liveupdate_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}

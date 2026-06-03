@@ -9,6 +9,7 @@ project(defold_platform LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
 # Sources
 set(PLAT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
+set(PLATFORM_DEPENDENCIES dlib)
 
 file(GLOB _DEFOLD_PLATFORM_HEADERS "${PLAT_SRC_DIR}/platform_*.h")
 list(APPEND _DEFOLD_PLATFORM_HEADERS
@@ -72,6 +73,7 @@ endif()
 defold_add_library(platform STATIC ${_platform_glfw_sources})
 target_include_directories(platform PUBLIC "${PLAT_SRC_DIR}")
 target_compile_definitions(platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+defold_target_link_libraries(platform "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
 
 if (PLATFORM_USE_GLFW3)
     target_compile_definitions(platform PUBLIC DM_INPUT_USE_GLFW3)
@@ -83,6 +85,7 @@ defold_add_library(platform_null STATIC
     "${PLAT_SRC_DIR}/platform_window_null.cpp")
 target_include_directories(platform_null PUBLIC "${PLAT_SRC_DIR}")
 target_compile_definitions(platform_null PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+defold_target_link_libraries(platform_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
 set_target_properties(platform_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk_headers)
 
 # platform_vulkan (adds Vulkan-capable window integration on top of GLFW3)
@@ -92,6 +95,7 @@ if (PLATFORM_USE_GLFW3)
     defold_add_library(platform_vulkan STATIC ${_platform_vulkan_sources})
     target_include_directories(platform_vulkan PUBLIC "${PLAT_SRC_DIR}")
     target_compile_definitions(platform_vulkan PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+    defold_target_link_libraries(platform_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
     set_target_properties(platform_vulkan PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk_headers)
 endif()
 

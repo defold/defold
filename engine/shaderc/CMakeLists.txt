@@ -9,6 +9,30 @@ add_compile_definitions(DLIB_LOG_DOMAIN="SHADERC")
 
 set(SHADERC_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(SHADERC_SRC_DIR "${SHADERC_ROOT}/src")
+set(SHADERC_COMMON_DEPENDENCIES
+  dlib
+  zip
+  mbedtls
+  profile
+  spirv-cross-c
+  spirv-cross-core
+  spirv-cross-glsl
+  spirv-cross-hlsl
+  spirv-cross-msl
+  spirv-cross-reflect)
+set(SHADERC_BINDINGS_DEPENDENCIES jni_noasan)
+set(SHADERC_SHARED_DEPENDENCIES
+  dlib_noasan
+  zip_noasan
+  mbedtls_noasan
+  profile_null_noasan
+  jni_noasan
+  spirv-cross-c
+  spirv-cross-core
+  spirv-cross-glsl
+  spirv-cross-hlsl
+  spirv-cross-msl
+  spirv-cross-reflect)
 
 set(SHADERC_IS_DESKTOP OFF)
 if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
@@ -65,23 +89,14 @@ if(SHADERC_IS_DESKTOP)
   target_include_directories(shaderc PUBLIC "${SHADERC_SRC_DIR}" "${SHADERC_SRC_DIR}/shader" ${SHADERC_EXTRA_INCLUDES})
   target_compile_definitions(shaderc PRIVATE ${SHADERC_DEFINES})
   defold_target_link_libraries(shaderc "${TARGET_PLATFORM}" SCOPE PUBLIC
-    dlib
-    zip
-    mbedtls
-    profile
-    spirv-cross-c
-    spirv-cross-core
-    spirv-cross-glsl
-    spirv-cross-hlsl
-    spirv-cross-msl
-    spirv-cross-reflect
+    ${SHADERC_COMMON_DEPENDENCIES}
     ${SHADERC_EXTRA_LIBS})
 
   add_library(shaderc_bindings OBJECT "${SHADERC_GENERATED_CPP}")
   defold_target_skip_sanitizer(shaderc_bindings)
   target_include_directories(shaderc_bindings PRIVATE "${SHADERC_SRC_DIR}" "${SHADERC_SRC_DIR}/shader" "${SHADERC_JNI_DIR}" ${SHADERC_EXTRA_INCLUDES} ${JNI_INCLUDE_DIRS})
   target_compile_definitions(shaderc_bindings PRIVATE ${SHADERC_DEFINES})
-  target_link_libraries(shaderc_bindings PRIVATE jni_noasan)
+  defold_target_link_libraries(shaderc_bindings "${TARGET_PLATFORM}" SCOPE PRIVATE ${SHADERC_BINDINGS_DEPENDENCIES})
   set_target_properties(shaderc_bindings PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
   add_library(shaderc_shared SHARED
@@ -93,17 +108,7 @@ if(SHADERC_IS_DESKTOP)
   target_compile_definitions(shaderc_shared PRIVATE ${SHADERC_DEFINES})
   add_dependencies(shaderc_shared shaderc_bindings)
   defold_target_link_libraries(shaderc_shared "${TARGET_PLATFORM}"
-    dlib_noasan
-    zip_noasan
-    mbedtls_noasan
-    profile_null_noasan
-    jni_noasan
-    spirv-cross-c
-    spirv-cross-core
-    spirv-cross-glsl
-    spirv-cross-hlsl
-    spirv-cross-msl
-    spirv-cross-reflect
+    ${SHADERC_SHARED_DEPENDENCIES}
     ${SHADERC_EXTRA_LIBS})
   defold_target_link_app(shaderc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
 
@@ -128,6 +133,10 @@ if(SHADERC_IS_DESKTOP)
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}
           RUNTIME DESTINATION lib/${TARGET_PLATFORM})
+  defold_add_sdk_headers_target(shaderc_sdk_headers
+    DESTINATION include/shaderc
+    FILES "${SHADERC_SRC_DIR}/shaderc.h"
+    DEPENDS shaderc dlib_sdk_headers)
   defold_install_targets(TARGETS shaderc_standalone
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})
   install(FILES "${SHADERC_JAR}" DESTINATION share/java)

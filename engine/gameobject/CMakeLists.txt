@@ -13,6 +13,15 @@ set(GAMEOBJECT_PROTO_ROOT "${GAMEOBJECT_ROOT}/proto")
 set(GAMEOBJECT_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/src/proto/gameobject")
 set(GAMEOBJECT_PROTO_PY_ROOT "${CMAKE_CURRENT_BINARY_DIR}/proto")
 set(GAMEOBJECT_PROTO_PY_DIR "${GAMEOBJECT_PROTO_PY_ROOT}/gameobject")
+set(GAMEOBJECT_DEPENDENCIES
+  lua
+  ddf
+  dlib
+  hid
+  resource
+  script
+  extension
+  rig)
 
 file(GLOB GAMEOBJECT_PROTO_FILES CONFIGURE_DEPENDS "${GAMEOBJECT_PROTO_ROOT}/gameobject/*.proto")
 set(GAMEOBJECT_PUBLIC_HEADERS
@@ -57,13 +66,7 @@ target_include_directories(gameobject PUBLIC
 target_compile_definitions(gameobject PRIVATE "DLIB_LOG_DOMAIN=\"GAMEOBJECT\"")
 add_dependencies(gameobject gameobject_proto_headers gameobject_proto_py)
 defold_target_link_libraries(gameobject "${TARGET_PLATFORM}" SCOPE PUBLIC
-  lua
-  ddf
-  dlib
-  resource
-  script
-  extension
-  rig)
+  ${GAMEOBJECT_DEPENDENCIES})
 
 defold_install_targets(TARGETS gameobject
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
@@ -90,6 +93,8 @@ set(GAMEOBJECT_SDK_HEADER_TARGETS
   gameobject_generated_sdk_headers
   gameobject_dmsdk_sdk_headers)
 list(APPEND GAMEOBJECT_SDK_HEADER_TARGETS
+  ddf_sdk_headers
+  dlib_sdk_headers
   hid_sdk_headers
   lua_sdk_headers
   resource_sdk_headers

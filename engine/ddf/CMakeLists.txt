@@ -16,6 +16,12 @@ set(DDF_PLUGIN_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/plugin")
 set(DDF_PLUGIN_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python")
 set(DDF_MAJOR_VERSION 1)
 set(DDF_MINOR_VERSION 0)
+set(DDF_DEPENDENCIES dlib)
+set(DDF_NOASAN_DEPENDENCIES dlib_noasan)
+
+file(GLOB_RECURSE DDF_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${DDF_SRC_DIR}/dmsdk/*.h"
+  "${DDF_SRC_DIR}/dmsdk/*.hpp")
 
 string(CONCAT _ddf_config_h
   "#define DDF_MAJOR_VERSION ${DDF_MAJOR_VERSION}\n"
@@ -200,6 +206,7 @@ target_include_directories(ddf_generated PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ddf_generated PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
 add_dependencies(ddf_generated ddf_generated_sources ddf_proto_py ddf_plugin_py)
+defold_target_link_libraries(ddf_generated "${TARGET_PLATFORM}" SCOPE PUBLIC ${DDF_DEPENDENCIES})
 
 defold_add_library(ddf_generated_noasan OBJECT ${DDF_PROTO_CC})
 target_include_directories(ddf_generated_noasan PUBLIC
@@ -208,6 +215,7 @@ target_include_directories(ddf_generated_noasan PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ddf_generated_noasan PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
 add_dependencies(ddf_generated_noasan ddf_generated_sources ddf_proto_py ddf_plugin_py)
+defold_target_link_libraries(ddf_generated_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ${DDF_NOASAN_DEPENDENCIES})
 
 defold_add_library(ddf_proto_core_generated OBJECT ${DDF_PROTO_PBCC})
 target_include_directories(ddf_proto_core_generated PUBLIC
@@ -216,6 +224,7 @@ target_include_directories(ddf_proto_core_generated PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ddf_proto_core_generated PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
 add_dependencies(ddf_proto_core_generated ddf_proto_py ddf_plugin_py)
+defold_target_link_libraries(ddf_proto_core_generated "${TARGET_PLATFORM}" SCOPE PUBLIC ${DDF_DEPENDENCIES})
 
 defold_add_library(ddf STATIC
   ${DDF_SOURCES}
@@ -227,6 +236,7 @@ target_include_directories(ddf PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ddf PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
 add_dependencies(ddf ddf_generated ddf_proto_core_generated ddf_proto_py ddf_plugin_py)
+defold_target_link_libraries(ddf "${TARGET_PLATFORM}" SCOPE PUBLIC ${DDF_DEPENDENCIES})
 
 defold_add_library(ddf_noasan STATIC
   ${DDF_SOURCES}
@@ -237,11 +247,30 @@ target_include_directories(ddf_noasan PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ddf_noasan PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
 add_dependencies(ddf_noasan ddf_generated_noasan ddf_proto_py ddf_plugin_py)
+defold_target_link_libraries(ddf_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ${DDF_NOASAN_DEPENDENCIES})
+set_target_properties(ddf_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET ddf_sdk_headers)
 
 defold_install_targets(TARGETS ddf ddf_noasan
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+defold_add_sdk_headers_target(ddf_public_sdk_headers
+  DESTINATION include/ddf
+  FILES "${DDF_PROTO_DIR}/ddf.h"
+  DEPENDS ddf)
+defold_add_sdk_headers_target(ddf_generated_sdk_headers
+  DESTINATION include/ddf
+  SOURCE_ROOT "${DDF_GEN_DIR}"
+  FILES ${DDF_PROTO_HEADERS}
+  DEPENDS ddf)
+defold_add_sdk_headers_target(ddf_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${DDF_SRC_DIR}/dmsdk"
+  FILES ${DDF_DMSDK_HEADERS}
+  DEPENDS ddf)
+add_custom_target(ddf_sdk_headers
+  DEPENDS ddf_public_sdk_headers ddf_generated_sdk_headers ddf_dmsdk_sdk_headers)
 
 install(FILES "${DDF_PROTO_DIR}/ddf.h" ${DDF_PROTO_HEADERS} DESTINATION include/ddf)
 install(FILES "${DDF_SRC_DIR}/waf_ddf.py" DESTINATION lib/python)

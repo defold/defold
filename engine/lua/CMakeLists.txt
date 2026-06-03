@@ -98,20 +98,25 @@ if(TARGET luac)
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 endif()
 
-install(FILES
+set(LUA_PUBLIC_HEADERS
   "${LUA_CORE_DIR}/lua.h"
   "${LUA_CORE_DIR}/lauxlib.h"
   "${LUA_CORE_DIR}/lualib.h"
-  "${LUA_CORE_DIR}/luaconf.h"
-  DESTINATION include/lua)
+  "${LUA_CORE_DIR}/luaconf.h")
 
+install(FILES ${LUA_PUBLIC_HEADERS} DESTINATION include/lua)
+
+defold_add_sdk_headers_target(lua_public_sdk_headers
+  DESTINATION include/lua
+  FILES ${LUA_PUBLIC_HEADERS}
+  DEPENDS lua)
 defold_add_sdk_headers_target(lua_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk
   SOURCE_ROOT "${LUA_SRC_DIR}/dmsdk"
   FILES ${LUA_DMSDK_HEADERS}
   DEPENDS lua)
 add_custom_target(lua_sdk_headers
-  DEPENDS lua_dmsdk_sdk_headers)
+  DEPENDS lua_public_sdk_headers lua_dmsdk_sdk_headers)
 
 file(GLOB_RECURSE LUA_CSHARP_SDK_FILES CONFIGURE_DEPENDS
      RELATIVE "${LUA_SRC_DIR}/cs/dmsdk"

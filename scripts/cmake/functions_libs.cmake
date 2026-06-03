@@ -126,6 +126,7 @@ function(defold_target_link_libraries target platform)
   # Remaining unparsed arguments are libraries to link. A plain "lua" entry
   # mirrors Waf's LUA uselib and resolves to the platform runtime, not
   # necessarily the vanilla lua target.
+  set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
   set(_LIBS)
   foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
     if(_lib STREQUAL "lua" AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
@@ -169,7 +170,7 @@ function(defold_target_link_libraries target platform)
     target_link_libraries(${target} ${DLIB_SCOPE} ${_MAPPED_LIBS})
   endif()
 
-  foreach(_lib IN LISTS _LIBS)
+  foreach(_lib IN LISTS _SDK_LIBS)
     if(NOT _lib MATCHES "^\\$<")
       set(_sdk_headers_target)
       if(TARGET "${_lib}_sdk_headers")
@@ -178,7 +179,7 @@ function(defold_target_link_libraries target platform)
         get_target_property(_sdk_headers_target "${_lib}" DEFOLD_SDK_HEADERS_TARGET)
       endif()
 
-      if(_sdk_headers_target)
+      if(_sdk_headers_target AND TARGET "${_sdk_headers_target}")
         add_dependencies(${target} "${_sdk_headers_target}")
       endif()
     endif()

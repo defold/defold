@@ -12,6 +12,10 @@ add_compile_definitions(DLIB_LOG_DOMAIN="INPUT")
 
 # Sources
 set(INPUT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
+set(INPUT_DEPENDENCIES
+    ddf
+    dlib
+    hid)
 
 defold_protoc_gen_py("${CMAKE_CURRENT_BINARY_DIR}/python/input/input_ddf_pb2.py"
                           "${CMAKE_CURRENT_SOURCE_DIR}/proto/input/input_ddf.proto"
@@ -33,9 +37,8 @@ add_library(input STATIC
 target_compile_definitions(input PRIVATE "DLIB_LOG_DOMAIN=\"INPUT\"")
 
 target_include_directories(input PUBLIC ${INPUT_SRC_DIR} ${CMAKE_CURRENT_BINARY_DIR})
-# just to make sure the extra dependency is actually built
+defold_target_link_libraries(input "${TARGET_PLATFORM}" SCOPE PUBLIC ${INPUT_DEPENDENCIES})
 add_dependencies(input input_proto_headers input_proto_py)
-add_dependencies(input hid_sdk_headers)
 
 # Add GLFW3-specific compile define when applicable
 defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")

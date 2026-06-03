@@ -9,6 +9,8 @@ add_compile_definitions(DLIB_LOG_DOMAIN="RECORD")
 
 set(RECORD_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(RECORD_SRC_DIR "${RECORD_ROOT}/src/record")
+set(RECORD_NULL_DEPENDENCIES dlib)
+set(RECORD_DEPENDENCIES dlib vpx)
 
 set(RECORD_IS_DESKTOP OFF)
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
@@ -22,7 +24,8 @@ defold_add_library(record_null STATIC
   "${RECORD_SRC_DIR}/record_common.cpp")
 target_include_directories(record_null PUBLIC "${RECORD_SRC_DIR}" "${RECORD_ROOT}/src")
 target_compile_definitions(record_null PRIVATE "DLIB_LOG_DOMAIN=\"RECORD\"")
-defold_target_link_libraries(record_null "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+defold_target_link_libraries(record_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${RECORD_NULL_DEPENDENCIES})
+set_target_properties(record_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET record_sdk_headers)
 
 defold_feature_disabled(record RECORD_FEATURE_DISABLED)
 if(RECORD_IS_DESKTOP AND NOT RECORD_FEATURE_DISABLED)
@@ -31,7 +34,7 @@ if(RECORD_IS_DESKTOP AND NOT RECORD_FEATURE_DISABLED)
     "${RECORD_SRC_DIR}/record_common.cpp")
   target_include_directories(record PUBLIC "${RECORD_SRC_DIR}" "${RECORD_ROOT}/src")
   target_compile_definitions(record PRIVATE "DLIB_LOG_DOMAIN=\"RECORD\"")
-  defold_target_link_libraries(record "${TARGET_PLATFORM}" SCOPE PUBLIC dlib vpx)
+  defold_target_link_libraries(record "${TARGET_PLATFORM}" SCOPE PUBLIC ${RECORD_DEPENDENCIES})
   list(APPEND RECORD_INSTALL_TARGETS record)
 endif()
 
@@ -39,6 +42,10 @@ defold_install_targets(TARGETS ${RECORD_INSTALL_TARGETS}
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+defold_add_sdk_headers_target(record_sdk_headers
+  DESTINATION include/record
+  FILES "${RECORD_SRC_DIR}/record.h"
+  DEPENDS record_null dlib_sdk_headers)
 install(FILES "${RECORD_SRC_DIR}/record.h" DESTINATION include/record)
 
 if(BUILD_TESTS)

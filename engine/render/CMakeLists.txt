@@ -12,6 +12,24 @@ set(RENDER_SRC_DIR "${RENDER_ROOT}/src")
 set(RENDER_PROTO_ROOT "${RENDER_ROOT}/proto")
 set(RENDER_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/render")
 set(RENDER_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/render")
+set(RENDER_DEPENDENCIES
+  ddf
+  dlib
+  extension
+  font
+  graphics
+  graphics_proto
+  image
+  lua
+  resource
+  script)
+set(RENDER_FONT_DEFAULT_DEPENDENCIES
+  ddf
+  dlib
+  font
+  graphics
+  script
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
 file(GLOB RENDER_PROTO_FILES CONFIGURE_DEPENDS "${RENDER_PROTO_ROOT}/render/*.proto")
 set(RENDER_PUBLIC_HEADERS
@@ -64,20 +82,8 @@ target_include_directories(render PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(render PRIVATE "DLIB_LOG_DOMAIN=\"RENDER\"")
 add_dependencies(render render_proto_headers render_proto_py render_bproto)
-add_dependencies(render
-  graphics_sdk_headers
-  font_sdk_headers
-  script_sdk_headers)
 defold_target_link_libraries(render "${TARGET_PLATFORM}" SCOPE PUBLIC
-  ddf
-  dlib
-  resource
-  graphics
-  image
-  graphics_proto
-  script
-  extension
-  lua)
+  ${RENDER_DEPENDENCIES})
 defold_target_link_socket(render "${TARGET_PLATFORM}" PUBLIC)
 
 defold_add_library(render_font_default STATIC
@@ -91,15 +97,8 @@ add_dependencies(render_font_default render_proto_headers render_proto_py render
 if(TARGET graphics_proto)
   add_dependencies(render_font_default graphics_proto_header)
 endif()
-add_dependencies(render_font_default
-  graphics_sdk_headers
-  font_sdk_headers
-  script_sdk_headers)
 defold_target_link_libraries(render_font_default "${TARGET_PLATFORM}" SCOPE PUBLIC
-  ddf
-  dlib
-  script
-  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+  ${RENDER_FONT_DEFAULT_DEPENDENCIES})
 
 defold_install_targets(TARGETS render render_font_default
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
@@ -125,8 +124,11 @@ set(RENDER_SDK_HEADER_TARGETS
   render_public_sdk_headers
   render_generated_sdk_headers
   render_dmsdk_sdk_headers
+  ddf_sdk_headers
+  dlib_sdk_headers
   graphics_sdk_headers
   font_sdk_headers
+  lua_sdk_headers
   script_sdk_headers)
 add_custom_target(render_sdk_headers
   DEPENDS ${RENDER_SDK_HEADER_TARGETS})

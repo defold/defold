@@ -16,6 +16,28 @@ set(CRASH_SIGNAL_HANDLER_SOURCE)
 set(CRASH_SIGNAL_POLICY_SOURCE)
 set(CRASH_FILE_SOURCE "${CRASH_SRC_DIR}/file_null.cpp")
 set(CRASH_LINK_LIBS)
+set(CRASH_DEPENDENCIES
+  ddf
+  dlib
+  image
+  zip
+  mbedtls
+  resource
+  extension
+  script
+  lua)
+set(CRASHTOOL_DEPENDENCIES
+  script
+  extension
+  resource
+  ddf
+  dlib
+  image
+  zip
+  mbedtls
+  profile_null
+  lua
+  crashext)
 
 if(TARGET_PLATFORM MATCHES "android")
   set(CRASH_LOAD_ADDRS_SOURCE "${CRASH_SRC_DIR}/load_addrs_proc_smap.cpp")
@@ -64,20 +86,8 @@ endif()
 function(crash_configure_target target)
   target_include_directories(${target} PUBLIC "${CRASH_SRC_DIR}")
   target_compile_definitions(${target} PRIVATE "DLIB_LOG_DOMAIN=\"CRASH\"")
-  add_dependencies(${target}
-    extension_sdk_headers
-    resource_sdk_headers
-    script_sdk_headers)
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}" SCOPE PUBLIC
-    ddf
-    dlib
-    image
-    zip
-    mbedtls
-    resource
-    extension
-    script
-    lua
+    ${CRASH_DEPENDENCIES}
     ${CRASH_LINK_LIBS})
 endfunction()
 
@@ -88,6 +98,7 @@ defold_add_library(crashext_null STATIC
   "${CRASH_SRC_DIR}/backtrace_null.cpp"
   "${CRASH_SRC_DIR}/file_null.cpp")
 crash_configure_target(crashext_null)
+set_target_properties(crashext_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET crashext_sdk_headers)
 
 defold_add_library(crashext STATIC
   "${CRASH_SRC_DIR}/crash.cpp"
@@ -120,17 +131,7 @@ if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
   defold_add_executable(crashtool${_crashtool_suffix} "${CRASH_SRC_DIR}/tool/crashtool.cpp")
   target_include_directories(crashtool${_crashtool_suffix} PRIVATE "${CRASH_SRC_DIR}")
   defold_target_link_libraries(crashtool${_crashtool_suffix} "${TARGET_PLATFORM}"
-    script
-    extension
-    resource
-    ddf
-    dlib
-    image
-    zip
-    mbedtls
-    profile_null
-    lua
-    crashext
+    ${CRASHTOOL_DEPENDENCIES}
     ${CRASH_LINK_LIBS})
   if(TARGET_PLATFORM MATCHES "linux")
     target_link_libraries(crashtool${_crashtool_suffix} PRIVATE dl)

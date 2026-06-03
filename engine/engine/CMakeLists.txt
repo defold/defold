@@ -11,6 +11,45 @@ set(ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(ENGINE_SRC_DIR "${ENGINE_ROOT}/src")
 set(ENGINE_PROTO_DIR "${ENGINE_ROOT}/proto")
 set(ENGINE_CONTENT_DIR "${ENGINE_ROOT}/content")
+set(ENGINE_DDF_GENERATED_DEPENDENCIES gameobject)
+set(ENGINE_SERVICE_DEPENDENCIES gameobject gamesys gui)
+set(ENGINE_DEPENDENCIES
+  gameobject
+  gamesys
+  gui
+  input
+  lua
+  particle
+  render
+  script)
+set(ENGINE_EXECUTABLE_PREFIX_DEPENDENCIES
+  gameobject
+  ddf
+  liveupdate
+  resource)
+set(ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES
+  render
+  render_font_default
+  script
+  extension
+  input
+  particle
+  rig
+  dlib
+  zip
+  mbedtls
+  gui
+  crashext)
+set(ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES
+  record_null
+  graphics_null
+  image
+  graphics_transcoder_null
+  hid_null
+  platform_null
+  sound_null)
+set(ENGINE_RECORD_EXECUTABLE_DEPENDENCIES record vpx hid)
+set(ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES record_null hid)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(Java REQUIRED COMPONENTS Runtime)
@@ -51,7 +90,7 @@ target_include_directories(engine_ddf_generated PUBLIC
   "${DEFOLD_HOME}/engine/record/src"
   "${DEFOLD_GAMEOBJECT_BINARY_DIR}/src/proto"
   "${CMAKE_CURRENT_BINARY_DIR}")
-target_link_libraries(engine_ddf_generated PUBLIC gameobject)
+defold_target_link_libraries(engine_ddf_generated "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_DDF_GENERATED_DEPENDENCIES})
 if(TARGET gameobject_proto_headers)
   add_dependencies(engine_ddf_generated gameobject_proto_headers)
 endif()
@@ -165,7 +204,7 @@ foreach(_engine_service_dependency IN ITEMS
     add_dependencies(engine_service ${_engine_service_dependency})
   endif()
 endforeach()
-target_link_libraries(engine_service PUBLIC gameobject gamesys gui)
+defold_target_link_libraries(engine_service "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_SERVICE_DEPENDENCIES})
 
 defold_add_library(engine_service_null STATIC "${ENGINE_SRC_DIR}/engine_service_null.cpp")
 target_include_directories(engine_service_null PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
@@ -222,15 +261,7 @@ add_dependencies(engine
   profilerext_sdk_headers
   crashext_sdk_headers
   liveupdate_sdk_headers)
-defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC
-  gameobject
-  gamesys
-  gui
-  input
-  lua
-  particle
-  render
-  script)
+defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_DEPENDENCIES})
 target_link_libraries(engine PUBLIC engine_service)
 
 defold_add_library(engine_release STATIC ${ENGINE_COMMON_SOURCES} $<TARGET_OBJECTS:engine_ddf_generated>)
@@ -257,15 +288,8 @@ add_dependencies(engine_release
   profilerext_sdk_headers
   crashext_sdk_headers
   liveupdate_sdk_headers)
-defold_target_link_libraries(engine_release "${TARGET_PLATFORM}" SCOPE PUBLIC
-  gameobject
-  gamesys
-  gui
-  input
-  lua
-  particle
-  render
-  script)
+defold_target_link_libraries(engine_release "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_DEPENDENCIES})
+set_target_properties(engine_release PROPERTIES DEFOLD_SDK_HEADERS_TARGET engine_sdk_headers)
 target_link_libraries(engine_release PUBLIC engine_service_null)
 
 defold_feature_enabled(box2dv3 ENGINE_WITH_BOX2DV3)
@@ -351,23 +375,9 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     ${engine_lib}
     ${engine_service_lib}
     ${profile_libs}
-    gameobject
-    ddf
-    liveupdate
-    resource
+    ${ENGINE_EXECUTABLE_PREFIX_DEPENDENCIES}
     ${ENGINE_GAMESYS_LIBS}
-    render
-    render_font_default
-    script
-    extension
-    input
-    particle
-    rig
-    dlib
-    zip
-    mbedtls
-    gui
-    crashext
+    ${ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES}
     ${ENGINE_EXTRA_LIBS})
   defold_get_physics_libraries(_engine_physics_libs)
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${_engine_physics_libs})
@@ -377,21 +387,15 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   defold_target_link_app(${target} "${TARGET_PLATFORM}")
   if(graphics_mode STREQUAL "null")
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
-      record_null
-      graphics_null
-      image
-      graphics_transcoder_null
-      hid_null
-      platform_null
-      sound_null)
+      ${ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES})
     if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
     endif()
   else()
     if(TARGET record)
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record vpx hid ${ENGINE_SOUND_LIBS})
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
     else()
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record_null hid ${ENGINE_SOUND_LIBS})
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
     endif()
     defold_target_link_platform(${target} "${TARGET_PLATFORM}")
     defold_target_link_graphics(${target} "${TARGET_PLATFORM}")

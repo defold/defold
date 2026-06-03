@@ -9,6 +9,12 @@ add_compile_definitions(DLIB_LOG_DOMAIN="EXTENSION")
 
 set(EXTENSION_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(EXTENSION_SRC_DIR "${EXTENSION_ROOT}/src")
+set(EXTENSION_DEPENDENCIES
+  dlib
+  image
+  lua
+  mbedtls
+  resource)
 file(GLOB_RECURSE EXTENSION_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${EXTENSION_SRC_DIR}/dmsdk/*.h"
   "${EXTENSION_SRC_DIR}/dmsdk/*.hpp")
@@ -27,9 +33,7 @@ target_include_directories(extension PUBLIC
   "${EXTENSION_ROOT}")
 target_compile_definitions(extension PRIVATE "DLIB_LOG_DOMAIN=\"EXTENSION\"")
 defold_target_link_libraries(extension "${TARGET_PLATFORM}" SCOPE PUBLIC
-  dlib
-  image
-  mbedtls)
+  ${EXTENSION_DEPENDENCIES})
 
 defold_install_targets(TARGETS extension
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
@@ -39,7 +43,9 @@ defold_install_targets(TARGETS extension
 defold_add_sdk_headers_target(extension_public_sdk_headers
   DESTINATION include/extension
   SOURCE_ROOT "${EXTENSION_SRC_DIR}"
-  FILES "${EXTENSION_SRC_DIR}/extension.hpp"
+  FILES
+    "${EXTENSION_SRC_DIR}/extension.h"
+    "${EXTENSION_SRC_DIR}/extension.hpp"
   DEPENDS extension)
 defold_add_sdk_headers_target(extension_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk
@@ -54,7 +60,7 @@ set(EXTENSION_SDK_HEADER_TARGETS
 add_custom_target(extension_sdk_headers
   DEPENDS ${EXTENSION_SDK_HEADER_TARGETS})
 
-install(FILES "${EXTENSION_SRC_DIR}/extension.hpp" DESTINATION include/extension)
+install(FILES "${EXTENSION_SRC_DIR}/extension.h" "${EXTENSION_SRC_DIR}/extension.hpp" DESTINATION include/extension)
 install(DIRECTORY "${EXTENSION_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
 file(GLOB_RECURSE EXTENSION_CSHARP_SDK_FILES CONFIGURE_DEPENDS

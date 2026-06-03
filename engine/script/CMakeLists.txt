@@ -12,6 +12,14 @@ set(SCRIPT_SRC_DIR "${SCRIPT_ROOT}/src")
 set(SCRIPT_PROTO_ROOT "${SCRIPT_SRC_DIR}")
 set(SCRIPT_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/script")
 set(SCRIPT_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/script")
+set(SCRIPT_DEPENDENCIES
+  ddf
+  dlib
+  zip
+  mbedtls
+  resource
+  extension
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 
 set(SCRIPT_PROTO_FILES
   "${SCRIPT_SRC_DIR}/script/ddf_script.proto"
@@ -101,17 +109,9 @@ if(TARGET graphics_proto)
 endif()
 add_dependencies(script
   script_package_proto_files
-  graphics_sdk_headers
-  resource_sdk_headers
-  extension_sdk_headers)
+  graphics_sdk_headers)
 defold_target_link_libraries(script "${TARGET_PLATFORM}" SCOPE PUBLIC
-  ddf
-  dlib
-  zip
-  mbedtls
-  resource
-  extension
-  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+  ${SCRIPT_DEPENDENCIES})
 defold_target_link_lua(script "${TARGET_PLATFORM}" SCOPE PUBLIC)
 defold_target_link_socket(script "${TARGET_PLATFORM}" PUBLIC)
 
@@ -139,6 +139,8 @@ set(SCRIPT_SDK_HEADER_TARGETS
   script_public_sdk_headers
   script_generated_sdk_headers
   script_dmsdk_sdk_headers
+  ddf_sdk_headers
+  dlib_sdk_headers
   lua_sdk_headers
   graphics_sdk_headers
   resource_sdk_headers

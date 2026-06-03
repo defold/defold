@@ -18,6 +18,19 @@ set(RIG_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/rig")
 set(RIG_PROTO_PY "${RIG_PROTO_PY_DIR}/rig_ddf_pb2.py")
 set(RIG_PROTO_PY_INIT "${RIG_PROTO_PY_DIR}/__init__.py")
 set(RIG_BPROTO "${RIG_GEN_DIR}/rig_ddf.bproto")
+set(RIG_DEPENDENCIES
+  ddf
+  dlib
+  graphics
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+set(RIG_SHARED_DEPENDENCIES
+  ddf_noasan
+  dlib_noasan
+  profile_null_noasan
+  platform_null
+  graphics_null_noasan
+  image_noasan
+  graphics_proto_noasan)
 file(GLOB_RECURSE RIG_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${RIG_SRC_DIR}/dmsdk/*.h"
   "${RIG_SRC_DIR}/dmsdk/*.hpp")
@@ -40,7 +53,6 @@ function(rig_configure_target target)
   if(TARGET graphics_proto)
     add_dependencies(${target} graphics_proto_header)
   endif()
-  add_dependencies(${target} graphics_sdk_headers)
 endfunction()
 
 defold_add_library(rig STATIC
@@ -48,9 +60,7 @@ defold_add_library(rig STATIC
   "${RIG_PROTO_CC}")
 rig_configure_target(rig)
 defold_target_link_libraries(rig "${TARGET_PLATFORM}" SCOPE PUBLIC
-  ddf
-  dlib
-  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+  ${RIG_DEPENDENCIES})
 defold_target_link_socket(rig "${TARGET_PLATFORM}" PUBLIC)
 
 defold_add_library(rig_null STATIC
@@ -58,9 +68,8 @@ defold_add_library(rig_null STATIC
   "${RIG_PROTO_CC}")
 rig_configure_target(rig_null)
 defold_target_link_libraries(rig_null "${TARGET_PLATFORM}" SCOPE PUBLIC
-  ddf
-  dlib
-  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+  ${RIG_DEPENDENCIES})
+set_target_properties(rig_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET rig_sdk_headers)
 defold_target_link_socket(rig_null "${TARGET_PLATFORM}" PUBLIC)
 
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
@@ -70,13 +79,8 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x8
   defold_target_skip_sanitizer(rig_shared)
   rig_configure_target(rig_shared)
   defold_target_link_libraries(rig_shared "${TARGET_PLATFORM}"
-    ddf_noasan
-    dlib_noasan
-    profile_null_noasan
-    platform_null
-    graphics_null_noasan
-    image_noasan
-    graphics_proto_noasan)
+    ${RIG_SHARED_DEPENDENCIES})
+  set_target_properties(rig_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET rig_sdk_headers)
   defold_target_link_socket(rig_shared "${TARGET_PLATFORM}" PRIVATE)
 endif()
 
@@ -110,6 +114,8 @@ set(RIG_SDK_HEADER_TARGETS
   rig_public_sdk_headers
   rig_generated_sdk_headers
   rig_dmsdk_sdk_headers
+  ddf_sdk_headers
+  dlib_sdk_headers
   graphics_sdk_headers)
 add_custom_target(rig_sdk_headers
   DEPENDS ${RIG_SDK_HEADER_TARGETS})

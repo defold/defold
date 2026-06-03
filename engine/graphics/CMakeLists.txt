@@ -18,6 +18,13 @@ set(GRAPHICS_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/graphics")
 set(GRAPHICS_PROTO_PY "${GRAPHICS_PROTO_PY_DIR}/graphics_ddf_pb2.py")
 set(GRAPHICS_PROTO_PY_INIT "${GRAPHICS_PROTO_PY_DIR}/__init__.py")
 set(GRAPHICS_BPROTO "${GRAPHICS_GEN_DIR}/graphics_ddf.bproto")
+set(GRAPHICS_CORE_DEPENDENCIES ddf dlib image)
+set(GRAPHICS_CORE_NOASAN_DEPENDENCIES ddf dlib image_noasan)
+set(GRAPHICS_NULL_DEPENDENCIES ${GRAPHICS_CORE_DEPENDENCIES} platform_null)
+set(GRAPHICS_NULL_NOASAN_DEPENDENCIES ${GRAPHICS_CORE_NOASAN_DEPENDENCIES} platform_null)
+set(GRAPHICS_DEPENDENCIES ${GRAPHICS_CORE_DEPENDENCIES} platform)
+set(GRAPHICS_TRANSCODER_NULL_DEPENDENCIES dlib)
+set(GRAPHICS_TRANSCODER_BASISU_DEPENDENCIES dlib basis_transcoder)
 set(GRAPHICS_PUBLIC_HEADERS
   "${GRAPHICS_SRC_DIR}/graphics.h"
   "${GRAPHICS_SRC_DIR}/graphics_util.h"
@@ -42,6 +49,7 @@ target_include_directories(graphics_proto_generated PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(graphics_proto_generated PRIVATE "DLIB_LOG_DOMAIN=\"GRAPHICS\"")
 add_dependencies(graphics_proto_generated graphics_proto_sources)
+defold_target_link_libraries(graphics_proto_generated "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_CORE_DEPENDENCIES})
 
 defold_add_library(graphics_proto_generated_noasan OBJECT "${GRAPHICS_PROTO_CC}")
 target_include_directories(graphics_proto_generated_noasan PUBLIC
@@ -50,6 +58,7 @@ target_include_directories(graphics_proto_generated_noasan PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(graphics_proto_generated_noasan PRIVATE "DLIB_LOG_DOMAIN=\"GRAPHICS\"")
 add_dependencies(graphics_proto_generated_noasan graphics_proto_sources)
+defold_target_link_libraries(graphics_proto_generated_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_CORE_NOASAN_DEPENDENCIES})
 
 add_custom_target(graphics_proto_header)
 add_dependencies(graphics_proto_header graphics_proto_sources)
@@ -101,12 +110,13 @@ set(GRAPHICS_PROTO_NOASAN_SOURCES "${GRAPHICS_SRC_DIR}/graphics_proto.cpp" ${GRA
 
 defold_add_library(graphics_proto STATIC ${GRAPHICS_PROTO_SOURCES})
 graphics_common_setup(graphics_proto)
-defold_target_link_libraries(graphics_proto "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image)
+defold_target_link_libraries(graphics_proto "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_CORE_DEPENDENCIES})
 
 defold_add_library(graphics_proto_noasan STATIC ${GRAPHICS_PROTO_NOASAN_SOURCES})
 graphics_common_setup(graphics_proto_noasan)
 add_dependencies(graphics_proto_noasan graphics_proto_generated_noasan)
-defold_target_link_libraries(graphics_proto_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image_noasan)
+defold_target_link_libraries(graphics_proto_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_CORE_NOASAN_DEPENDENCIES})
+set_target_properties(graphics_proto_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
 
 file(GLOB GRAPHICS_CORE_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/*.cpp")
 file(GLOB GRAPHICS_NULL_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/null/*.cpp")
@@ -119,14 +129,16 @@ defold_add_library(graphics_null STATIC ${GRAPHICS_NULL_ALL_SOURCES})
 graphics_common_setup(graphics_null)
 target_include_directories(graphics_null PUBLIC "${GRAPHICS_SRC_DIR}/null")
 target_compile_definitions(graphics_null PUBLIC DM_GRAPHICS_NULL)
-defold_target_link_libraries(graphics_null "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform_null)
+defold_target_link_libraries(graphics_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_NULL_DEPENDENCIES})
+set_target_properties(graphics_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
 
 defold_add_library(graphics_null_noasan STATIC ${GRAPHICS_NULL_NOASAN_ALL_SOURCES})
 graphics_common_setup(graphics_null_noasan)
 add_dependencies(graphics_null_noasan graphics_proto_generated_noasan)
 target_include_directories(graphics_null_noasan PUBLIC "${GRAPHICS_SRC_DIR}/null")
 target_compile_definitions(graphics_null_noasan PUBLIC DM_GRAPHICS_NULL)
-defold_target_link_libraries(graphics_null_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image_noasan platform_null)
+defold_target_link_libraries(graphics_null_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_NULL_NOASAN_DEPENDENCIES})
+set_target_properties(graphics_null_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
 
 set(GRAPHICS_INSTALL_TARGETS graphics_proto graphics_proto_noasan graphics_null graphics_null_noasan)
 
@@ -163,7 +175,7 @@ if(GRAPHICS_PLATFORM_SUPPORTS_OPENGL)
     target_compile_definitions(graphics PRIVATE GL_GLEXT_PROTOTYPES)
   endif()
   target_compile_definitions(graphics PUBLIC DM_GRAPHICS_USE_OPENGL)
-  defold_target_link_libraries(graphics "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform)
+  defold_target_link_libraries(graphics "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_DEPENDENCIES})
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics)
 endif()
 
@@ -172,7 +184,8 @@ if(GRAPHICS_PLATFORM_SUPPORTS_OPENGLES)
   graphics_common_setup(graphics_opengles)
   target_include_directories(graphics_opengles PUBLIC "${GRAPHICS_SRC_DIR}/opengl")
   target_compile_definitions(graphics_opengles PUBLIC DM_GRAPHICS_USE_OPENGLES DM_HAVE_OPENGL_COMPUTE_SUPPORT)
-  defold_target_link_libraries(graphics_opengles "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform)
+  defold_target_link_libraries(graphics_opengles "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_DEPENDENCIES})
+  set_target_properties(graphics_opengles PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics_opengles)
 endif()
 
@@ -188,7 +201,8 @@ if(GRAPHICS_PLATFORM_SUPPORTS_WEBGPU)
     graphics_common_setup(${_webgpu_target})
     target_include_directories(${_webgpu_target} PUBLIC "${GRAPHICS_SRC_DIR}/webgpu")
     target_compile_definitions(${_webgpu_target} PUBLIC ${_webgpu_define})
-    defold_target_link_libraries(${_webgpu_target} "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image)
+    defold_target_link_libraries(${_webgpu_target} "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_CORE_DEPENDENCIES})
+    set_target_properties(${_webgpu_target} PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
     list(APPEND GRAPHICS_INSTALL_TARGETS ${_webgpu_target})
   endforeach()
   target_compile_options(graphics_webgpu_wagyu PRIVATE "--use-port=${DEFOLD_SDK_ROOT}/ext/wagyu-port/webgpu-port.py:wagyu=true")
@@ -222,10 +236,11 @@ if(GRAPHICS_PLATFORM_SUPPORTS_VULKAN)
     target_compile_definitions(graphics_vulkan PUBLIC DM_VULKAN_VALIDATION=1)
   endif()
   if(TARGET platform_vulkan)
-    defold_target_link_libraries(graphics_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform_vulkan)
+    defold_target_link_libraries(graphics_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_CORE_DEPENDENCIES} platform_vulkan)
   else()
-    defold_target_link_libraries(graphics_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform)
+    defold_target_link_libraries(graphics_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_DEPENDENCIES})
   endif()
+  set_target_properties(graphics_vulkan PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics_vulkan)
 endif()
 
@@ -236,19 +251,20 @@ if(GRAPHICS_PLATFORM_SUPPORTS_DX12)
   target_include_directories(graphics_dx12 PUBLIC
     "${GRAPHICS_SRC_DIR}/dx12"
     "${DEFOLD_EXT_INCLUDE_DIR}/directx")
-  defold_target_link_libraries(graphics_dx12 "${TARGET_PLATFORM}" SCOPE PUBLIC ddf dlib image platform)
+  defold_target_link_libraries(graphics_dx12 "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_DEPENDENCIES})
+  set_target_properties(graphics_dx12 PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics_dx12)
 endif()
 
 defold_add_library(graphics_transcoder_null STATIC "${GRAPHICS_SRC_DIR}/transcoder/graphics_transcoder_null.cpp")
 target_include_directories(graphics_transcoder_null PUBLIC "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
 add_dependencies(graphics_transcoder_null graphics_proto_header)
-defold_target_link_libraries(graphics_transcoder_null "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+defold_target_link_libraries(graphics_transcoder_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_TRANSCODER_NULL_DEPENDENCIES})
 
 defold_add_library(graphics_transcoder_basisu STATIC "${GRAPHICS_SRC_DIR}/transcoder/graphics_transcoder_basisu.cpp")
 target_include_directories(graphics_transcoder_basisu PUBLIC "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
 add_dependencies(graphics_transcoder_basisu graphics_proto_header)
-defold_target_link_libraries(graphics_transcoder_basisu "${TARGET_PLATFORM}" SCOPE PUBLIC dlib basis_transcoder)
+defold_target_link_libraries(graphics_transcoder_basisu "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_TRANSCODER_BASISU_DEPENDENCIES})
 
 list(APPEND GRAPHICS_INSTALL_TARGETS graphics_transcoder_null graphics_transcoder_basisu)
 
@@ -273,7 +289,12 @@ defold_add_sdk_headers_target(graphics_dmsdk_sdk_headers
   FILES ${GRAPHICS_DMSDK_HEADERS}
   DEPENDS graphics_proto)
 add_custom_target(graphics_sdk_headers
-  DEPENDS graphics_public_sdk_headers graphics_generated_sdk_headers graphics_dmsdk_sdk_headers)
+  DEPENDS
+    graphics_public_sdk_headers
+    graphics_generated_sdk_headers
+    graphics_dmsdk_sdk_headers
+    ddf_sdk_headers
+    dlib_sdk_headers)
 
 install(FILES
   "${GRAPHICS_SRC_DIR}/graphics.h"

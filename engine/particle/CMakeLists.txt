@@ -18,6 +18,19 @@ set(PARTICLE_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/particle")
 set(PARTICLE_PROTO_PY "${PARTICLE_PROTO_PY_DIR}/particle_ddf_pb2.py")
 set(PARTICLE_PROTO_PY_INIT "${PARTICLE_PROTO_PY_DIR}/__init__.py")
 set(PARTICLE_BPROTO "${PARTICLE_GEN_DIR}/particle_ddf.bproto")
+set(PARTICLE_DEPENDENCIES
+  ddf
+  dlib
+  graphics
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+set(PARTICLE_SHARED_DEPENDENCIES
+  ddf_noasan
+  dlib_noasan
+  profile_null_noasan
+  platform_null
+  graphics_null_noasan
+  image_noasan
+  graphics_proto_noasan)
 
 defold_protoc_gen_cpp("${PARTICLE_PROTO_CC}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
 defold_protoc_gen_py("${PARTICLE_PROTO_PY}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
@@ -35,11 +48,10 @@ target_include_directories(particle PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(particle PRIVATE "DLIB_LOG_DOMAIN=\"PARTICLE\"")
 add_dependencies(particle particle_proto_headers particle_proto_py particle_bproto)
-add_dependencies(particle graphics_sdk_headers)
 if(TARGET graphics_proto)
   add_dependencies(particle graphics_proto_header)
 endif()
-defold_target_link_libraries(particle "${TARGET_PLATFORM}" ddf dlib $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+defold_target_link_libraries(particle "${TARGET_PLATFORM}" SCOPE PUBLIC ${PARTICLE_DEPENDENCIES})
 
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
   defold_add_library(particle_shared SHARED
@@ -52,15 +64,9 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
     "${CMAKE_CURRENT_BINARY_DIR}")
   target_compile_definitions(particle_shared PRIVATE "DLIB_LOG_DOMAIN=\"PARTICLE\"")
   add_dependencies(particle_shared particle_proto_headers particle_proto_py particle_bproto)
-  add_dependencies(particle_shared graphics_sdk_headers)
   defold_target_link_libraries(particle_shared "${TARGET_PLATFORM}"
-    ddf_noasan
-    dlib_noasan
-    profile_null_noasan
-    platform_null
-    graphics_null_noasan
-    image_noasan
-    graphics_proto_noasan)
+    ${PARTICLE_SHARED_DEPENDENCIES})
+  set_target_properties(particle_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET particle_sdk_headers)
 endif()
 
 defold_install_targets(TARGETS particle
@@ -86,7 +92,11 @@ defold_add_sdk_headers_target(particle_generated_sdk_headers
   FILES "${PARTICLE_PROTO_H}"
   DEPENDS particle)
 set(PARTICLE_SDK_HEADER_TARGETS particle_public_sdk_headers particle_generated_sdk_headers)
-list(APPEND PARTICLE_SDK_HEADER_TARGETS graphics_sdk_headers)
+list(APPEND PARTICLE_SDK_HEADER_TARGETS
+  ddf_sdk_headers
+  dlib_sdk_headers
+  graphics_sdk_headers
+  lua_sdk_headers)
 add_custom_target(particle_sdk_headers
   DEPENDS ${PARTICLE_SDK_HEADER_TARGETS})
 

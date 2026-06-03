@@ -9,6 +9,8 @@ add_compile_definitions(DLIB_LOG_DOMAIN="SOUND")
 
 set(SOUND_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(SOUND_SRC_DIR "${SOUND_ROOT}/src")
+set(SOUND_DEPENDENCIES dlib)
+set(SOUND_DECODER_OPUS_DEPENDENCIES dlib opus)
 file(GLOB_RECURSE SOUND_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${SOUND_SRC_DIR}/dmsdk/*.h"
   "${SOUND_SRC_DIR}/dmsdk/*.hpp")
@@ -59,7 +61,7 @@ endif()
 function(sound_configure_target target)
   target_include_directories(${target} PUBLIC "${SOUND_SRC_DIR}")
   target_compile_definitions(${target} PRIVATE "DLIB_LOG_DOMAIN=\"SOUND\"")
-  defold_target_link_libraries(${target} "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+  defold_target_link_libraries(${target} "${TARGET_PLATFORM}" SCOPE PUBLIC ${SOUND_DEPENDENCIES})
   if(TARGET_PLATFORM_OS STREQUAL "win32")
     target_compile_definitions(${target} PRIVATE _XBOX)
     target_link_libraries(${target} PUBLIC ole32.lib)
@@ -95,15 +97,15 @@ endfunction()
 
 defold_add_library(decoder_wav STATIC "${SOUND_SRC_DIR}/decoders/decoder_wav.cpp")
 target_include_directories(decoder_wav PUBLIC "${SOUND_SRC_DIR}")
-defold_target_link_libraries(decoder_wav "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+defold_target_link_libraries(decoder_wav "${TARGET_PLATFORM}" SCOPE PUBLIC ${SOUND_DEPENDENCIES})
 
 defold_add_library(decoder_ogg STATIC ${SOUND_DECODER_OGG_SOURCES})
 target_include_directories(decoder_ogg PUBLIC "${SOUND_SRC_DIR}")
-defold_target_link_libraries(decoder_ogg "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+defold_target_link_libraries(decoder_ogg "${TARGET_PLATFORM}" SCOPE PUBLIC ${SOUND_DEPENDENCIES})
 
 defold_add_library(decoder_opus STATIC "${SOUND_SRC_DIR}/decoders/decoder_opus.cpp")
 target_include_directories(decoder_opus PUBLIC "${SOUND_SRC_DIR}")
-defold_target_link_libraries(decoder_opus "${TARGET_PLATFORM}" SCOPE PUBLIC dlib opus)
+defold_target_link_libraries(decoder_opus "${TARGET_PLATFORM}" SCOPE PUBLIC ${SOUND_DECODER_OPUS_DEPENDENCIES})
 
 defold_add_library(sound STATIC ${SOUND_SOURCES})
 sound_configure_target(sound)
@@ -111,17 +113,20 @@ sound_apply_simd_flags(sound OFF)
 
 defold_add_library(sound_openal STATIC ${SOUND_OPENAL_SOURCES})
 sound_configure_target(sound_openal)
+set_target_properties(sound_openal PROPERTIES DEFOLD_SDK_HEADERS_TARGET sound_sdk_headers)
 
 defold_add_library(sound_null STATIC
   "${SOUND_SRC_DIR}/devices/device_null.cpp"
   "${SOUND_SRC_DIR}/sound_null.cpp")
 sound_configure_target(sound_null)
+set_target_properties(sound_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET sound_sdk_headers)
 
 set(SOUND_INSTALL_TARGETS decoder_wav decoder_ogg decoder_opus sound sound_openal sound_null)
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   defold_add_library(sound_nosimd STATIC ${SOUND_SOURCES})
   sound_configure_target(sound_nosimd)
   sound_apply_simd_flags(sound_nosimd ON)
+  set_target_properties(sound_nosimd PROPERTIES DEFOLD_SDK_HEADERS_TARGET sound_sdk_headers)
   list(APPEND SOUND_INSTALL_TARGETS sound_nosimd)
 endif()
 
@@ -158,7 +163,10 @@ defold_add_sdk_headers_target(sound_dmsdk_sdk_headers
   SOURCE_ROOT "${SOUND_SRC_DIR}/dmsdk"
   FILES ${SOUND_DMSDK_HEADERS}
   DEPENDS sound)
-set(SOUND_SDK_HEADER_TARGETS sound_public_sdk_headers sound_dmsdk_sdk_headers)
+set(SOUND_SDK_HEADER_TARGETS
+  sound_public_sdk_headers
+  sound_dmsdk_sdk_headers
+  dlib_sdk_headers)
 add_custom_target(sound_sdk_headers
   DEPENDS ${SOUND_SDK_HEADER_TARGETS})
 

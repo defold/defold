@@ -52,106 +52,11 @@ class waf_dynamo_vendor(object):
     def transform_runnable_path(cls, platform, path):
         return call_hook('waf_dynamo', platform, 'transform_runnable_path', path, platform, path)
 
-EXACT_WINDOWS_STATIC_LIBS = set('''
-    basis_encoder
-    basis_encoder_noasan
-    basis_transcoder
-    ddf
-    ddf_noasan
-    dlib
-    dlib_noasan
-    extension
-    font
-    font_skribidi
-    gameobject
-    gamesys
-    gamesys_model
-    gamesys_model_null
-    gamesys_rig
-    gamesys_rig_null
-    graphics
-    graphics_dx12
-    graphics_null
-    graphics_null_noasan
-    graphics_opengles
-    graphics_proto
-    graphics_proto_noasan
-    graphics_transcoder_basisu
-    graphics_transcoder_null
-    graphics_vulkan
-    graphics_webgpu
-    graphics_webgpu_wagyu
-    gui
-    gui_null
-    hid
-    hid_null
-    image
-    image_noasan
-    image_null
-    image_null_noasan
-    input
-    liveupdate
-    liveupdate_null
-    lua
-    crashext
-    crashext_null
-    decoder_ogg
-    decoder_opus
-    decoder_wav
-    launcherutil
-    mbedtls
-    mbedtls_noasan
-    particle
-    physics
-    physics_2d
-    physics_2d_defold
-    physics_3d
-    physics_null
-    platform
-    platform_null
-    platform_vulkan
-    profile
-    profile_noasan
-    profile_null
-    profile_null_noasan
-    profiler_js
-    profiler_remotery
-    profilerext
-    profilerext_null
-    record
-    record_null
-    render
-    render_font_default
-    resource
-    rig
-    rig_null
-    script
-    script_box2d
-    script_box2d_defold
-    sound
-    sound_nosimd
-    sound_null
-    sound_openal
-    testmain
-    zip
-    zip_noasan
-'''.split())
-
-def _normalize_exact_windows_static_libs(env, uselib):
-    if env.PLATFORM not in ['win32', 'x86_64-win32']:
-        return
-
-    stlib_key = 'STLIB_%s' % uselib
-    libs = Utils.to_list(env[stlib_key])
-    if not libs:
-        return
-
-    exact_libs = [lib for lib in libs if lib in EXACT_WINDOWS_STATIC_LIBS]
-    if not exact_libs:
-        return
-
-    env[stlib_key] = [lib for lib in libs if lib not in EXACT_WINDOWS_STATIC_LIBS]
-    env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in exact_libs])
+# The branch never mixes Waf with CMake, so the special handling for exact
+# Windows static libraries is unnecessary. The logic that depended on
+# ``EXACT_WINDOWS_STATIC_LIBS`` and ``_normalize_exact_windows_static_libs``
+# has been removed. Existing callers are updated to use the generic
+# ``static_libs`` helper directly.
 
 def static_libs(conf, uselib, libs, exact_windows_libs = None):
     # Waf expands STLIB entries to lib%s.lib on Windows. Libraries built outside Waf
@@ -167,9 +72,14 @@ def static_libs(conf, uselib, libs, exact_windows_libs = None):
 @feature('c', 'cxx', 'uselib')
 @before('propagate_uselib_vars')
 def normalize_exact_windows_static_libs(self):
-    for key in self.env.keys():
-        if key.startswith('STLIB_'):
-            _normalize_exact_windows_static_libs(self.env, key[6:])
+    """No‑op: legacy Windows static lib handling removed.
+
+    Historically this feature normalized ``STLIB_`` entries for Windows by
+    separating exact .lib names from the standard build paths.  The pure‑Waf
+    branch no longer needs this logic, so the function simply exists for
+    compatibility and performs no work.
+    """
+    return
 
 
 def is_platform_private(platform):
@@ -237,6 +147,12 @@ def _has_waf_configure_state(path):
     return False
 
 def _fail_if_unconfigured_cmake_library():
+    # Skip the CMake check when the user explicitly requested a pure‑Waf
+    # build via ``--with-waf``.  The flag is exposed as
+    # ``Options.options.with_waf`` by the command line parser.
+    if getattr(Options.options, 'with_waf', False):
+        return
+
     if not set(Options.commands).intersection(['build', 'clean', 'install', 'uninstall', 'list', 'step']):
         return
 
@@ -2430,6 +2346,8 @@ def options(opt):
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
+    # Flag to indicate that the build should use pure Waf (skip CMake checks)
+    opt.add_option('--with-waf', action='store_true', dest='with_waf', help='Build using Waf only (skip CMake checks)')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
     opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
     opt.add_option('--with-msan', action='store_true', default=False, dest='with_msan', help='Enables memory sanitizer')

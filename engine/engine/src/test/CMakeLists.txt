@@ -128,7 +128,12 @@ defold_add_executable(test_engine
   "${ENGINE_TEST_ROOT}/test_engine.cpp"
   "${ENGINE_TEST_ROOT}/test_engine_service.cpp"
   "${ENGINE_TEST_EXPORTS_CPP}")
-add_dependencies(test_engine engine_test_content)
+add_dependencies(test_engine
+  engine_test_content
+  ddf_proto_py
+  engine_proto_py
+  gameobject_proto_py
+  script_proto_py)
 target_include_directories(test_engine PRIVATE
   "${ENGINE_TEST_ROOT}"
   "${ENGINE_SRC_DIR}"
