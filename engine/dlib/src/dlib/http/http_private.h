@@ -25,7 +25,7 @@ namespace dmHttpService
 {
     struct HttpService;
     typedef HttpService* HHttpService;
-}
+} // namespace dmHttpService
 
 enum HttpRequestState
 {
@@ -56,27 +56,37 @@ struct HttpRequest
 {
     HttpRequest();
 
-    char*                         m_URL;
-    char*                         m_Method;
-    char**                        m_Headers;
-    uint32_t                      m_HeaderCount;
-    uint32_t                      m_HeaderCapacity;
-    HttpResponseCallback          m_Callback;
-    void*                         m_UserData;
-    dmHttpService::HHttpService   m_Service;
-    HttpService*                  m_Owner;
-    HttpRequestHandle             m_Handle;
-    uint32_t                      m_Timeout;
-    int                           m_CancelFlag;
-    HttpRequestState              m_State;
+    char*                       m_URL;
+    char*                       m_Method;
+    char**                      m_Headers;
+    uint32_t                    m_HeaderCount;
+    uint32_t                    m_HeaderCapacity;
+    char*                       m_Body;
+    uint32_t                    m_BodyLength;
+    char*                       m_Path;
+    char*                       m_Proxy;
+    HttpResponseCallback        m_Callback;
+    void*                       m_UserData;
+    dmHttpService::HHttpService m_Service;
+    HttpService*                m_Owner;
+    HttpRequestHandle           m_Handle;
+    uint32_t                    m_Timeout;
+    int                         m_IgnoreCache;
+    int                         m_ChunkedTransfer;
+    int                         m_ReportProgress;
+    int                         m_CancelFlag;
+    uint32_t                    m_RangeStart;
+    uint32_t                    m_RangeEnd;
+    uint32_t                    m_DocumentSize;
+    HttpRequestState            m_State;
 };
 
 namespace dmHttpService
 {
     void DirectRequestHeader(HttpRequest* request, int status, const char* key, const char* value);
-    void DirectRequestContent(HttpRequest* request, int status, const void* content_data, uint32_t content_data_size);
-    void CompleteDirectRequest(HttpRequest* request, dmHttpClient::Result result, int status,
-                               const char* headers, uint32_t headers_length);
-}
+    void DirectRequestContent(HttpRequest* request, int status, const void* content_data, uint32_t content_data_size, int32_t content_length, uint32_t range_start, uint32_t range_end, uint32_t document_size);
+    void DirectRequestProgress(HttpRequest* request, uint32_t bytes_sent, uint32_t bytes_received, int32_t bytes_total);
+    void CompleteDirectRequest(HttpRequest* request, dmHttpClient::Result result, int status, const char* headers, uint32_t headers_length);
+} // namespace dmHttpService
 
 #endif // DM_HTTP_PRIVATE_H

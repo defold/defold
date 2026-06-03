@@ -20,11 +20,13 @@
 #include <dmsdk/dlib/http.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-HttpResult HttpNewServiceInternal(uint32_t max_concurrent_requests, HttpService** service);
-void HttpDeleteServiceInternal(HttpService* service);
+    HttpResult HttpNewServiceInternal(uint32_t max_concurrent_requests, HttpService** service);
+    HttpResult HttpNewServiceWithCacheInternal(uint32_t max_concurrent_requests, void* http_cache, HttpService** service);
+    void       HttpDeleteServiceInternal(HttpService* service);
 
 #ifdef __cplusplus
 }

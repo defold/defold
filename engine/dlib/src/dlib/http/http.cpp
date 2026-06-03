@@ -25,9 +25,9 @@
 #include "http_private.h"
 #include "http_service.h"
 
-static const uint32_t REQUEST_HANDLE_INDEX_MASK = 0xffff;
-static const uint32_t REQUEST_HANDLE_GENERATION_SHIFT = 16;
-static const uint32_t REQUEST_HANDLE_MAX_SLOT_COUNT = 0xffff;
+static const uint32_t    REQUEST_HANDLE_INDEX_MASK = 0xffff;
+static const uint32_t    REQUEST_HANDLE_GENERATION_SHIFT = 16;
+static const uint32_t    REQUEST_HANDLE_MAX_SLOT_COUNT = 0xffff;
 
 static HttpRequestHandle InvalidRequestHandle()
 {
@@ -85,13 +85,23 @@ HttpRequest::HttpRequest()
     m_Headers = 0;
     m_HeaderCount = 0;
     m_HeaderCapacity = 0;
+    m_Body = 0;
+    m_BodyLength = 0;
+    m_Path = 0;
+    m_Proxy = 0;
     m_Callback = 0;
     m_UserData = 0;
     m_Service = 0;
     m_Owner = 0;
     m_Handle = InvalidRequestHandle();
     m_Timeout = 0;
+    m_IgnoreCache = 0;
+    m_ChunkedTransfer = 1;
+    m_ReportProgress = 0;
     m_CancelFlag = 0;
+    m_RangeStart = 0;
+    m_RangeEnd = 0;
+    m_DocumentSize = 0;
     m_State = HTTP_REQUEST_STATE_CREATED;
 }
 
@@ -105,7 +115,7 @@ static bool EnsureHeaderCapacity(HttpRequest* request)
     if (request->m_HeaderCount == request->m_HeaderCapacity)
     {
         uint32_t capacity = request->m_HeaderCapacity == 0 ? 4 : request->m_HeaderCapacity * 2;
-        char** headers = (char**)realloc(request->m_Headers, sizeof(char*) * capacity);
+        char**   headers = (char**)realloc(request->m_Headers, sizeof(char*) * capacity);
         if (!headers)
         {
             return false;
@@ -141,6 +151,9 @@ static void DestroyRequest(HttpRequest* request)
     {
         free(request->m_URL);
         free(request->m_Method);
+        free(request->m_Body);
+        free(request->m_Path);
+        free(request->m_Proxy);
         FreeHeaders(request);
         delete request;
     }
@@ -191,7 +204,7 @@ static HttpResult RegisterRequest(HttpService* service, HttpRequest* request, Ht
     uint16_t generation = NextRequestGeneration(service);
 
     uint32_t index = 0;
-    bool found = false;
+    bool     found = false;
     for (uint32_t i = 0; i < service->m_RequestSlotCount; ++i)
     {
         if (service->m_RequestSlots[i].m_Request == 0)
@@ -213,8 +226,8 @@ static HttpResult RegisterRequest(HttpService* service, HttpRequest* request, Ht
 
         if (service->m_RequestSlotCount == service->m_RequestSlotCapacity)
         {
-            uint32_t old_capacity = service->m_RequestSlotCapacity;
-            uint32_t capacity = old_capacity == 0 ? 8 : old_capacity * 2;
+            uint32_t         old_capacity = service->m_RequestSlotCapacity;
+            uint32_t         capacity = old_capacity == 0 ? 8 : old_capacity * 2;
             HttpRequestSlot* slots = (HttpRequestSlot*)realloc(service->m_RequestSlots, sizeof(HttpRequestSlot) * capacity);
             if (!slots)
             {
@@ -292,6 +305,18 @@ static HttpResult SetString(char** field, const char* value)
     return HTTP_RESULT_OK;
 }
 
+static HttpResult SetOptionalString(char** field, const char* value)
+{
+    if (!value)
+    {
+        free(*field);
+        *field = 0;
+        return HTTP_RESULT_OK;
+    }
+
+    return SetString(field, value);
+}
+
 static bool IsHeaderName(const char* header, const char* name)
 {
     const char* h = header;
@@ -332,7 +357,7 @@ static void RemoveHeader(HttpRequest* request, const char* name)
 static HttpResult AddFormattedHeader(HttpRequest* request, const char* prefix, const char* value)
 {
     uint32_t header_len = (uint32_t)(strlen(prefix) + strlen(value) + 1);
-    char* header = (char*)malloc(header_len);
+    char*    header = (char*)malloc(header_len);
     if (!header)
     {
         return HTTP_RESULT_IO_ERROR;
@@ -353,8 +378,8 @@ static char* Base64Encode(const char* data, uint32_t data_size)
 {
     static const char* TABLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-    uint32_t output_size = ((data_size + 2) / 3) * 4;
-    char* output = (char*)malloc(output_size + 1);
+    uint32_t           output_size = ((data_size + 2) / 3) * 4;
+    char*              output = (char*)malloc(output_size + 1);
     if (!output)
     {
         return 0;
@@ -388,19 +413,32 @@ static HttpResult MapResult(dmHttpClient::Result result)
 {
     switch (result)
     {
-        case dmHttpClient::RESULT_NOT_200_OK: return HTTP_RESULT_NOT_200_OK;
-        case dmHttpClient::RESULT_OK: return HTTP_RESULT_OK;
-        case dmHttpClient::RESULT_SOCKET_ERROR: return HTTP_RESULT_SOCKET_ERROR;
-        case dmHttpClient::RESULT_HTTP_HEADERS_ERROR: return HTTP_RESULT_HTTP_HEADERS_ERROR;
-        case dmHttpClient::RESULT_INVALID_RESPONSE: return HTTP_RESULT_INVALID_RESPONSE;
-        case dmHttpClient::RESULT_PARTIAL_CONTENT: return HTTP_RESULT_PARTIAL_CONTENT;
-        case dmHttpClient::RESULT_UNSUPPORTED_TRANSFER_ENCODING: return HTTP_RESULT_UNSUPPORTED_TRANSFER_ENCODING;
-        case dmHttpClient::RESULT_INVAL_ERROR: return HTTP_RESULT_INVAL_ERROR;
-        case dmHttpClient::RESULT_UNEXPECTED_EOF: return HTTP_RESULT_UNEXPECTED_EOF;
-        case dmHttpClient::RESULT_IO_ERROR: return HTTP_RESULT_IO_ERROR;
-        case dmHttpClient::RESULT_HANDSHAKE_FAILED: return HTTP_RESULT_HANDSHAKE_FAILED;
-        case dmHttpClient::RESULT_INVAL: return HTTP_RESULT_INVAL;
-        case dmHttpClient::RESULT_UNKNOWN: return HTTP_RESULT_UNKNOWN;
+        case dmHttpClient::RESULT_NOT_200_OK:
+            return HTTP_RESULT_NOT_200_OK;
+        case dmHttpClient::RESULT_OK:
+            return HTTP_RESULT_OK;
+        case dmHttpClient::RESULT_SOCKET_ERROR:
+            return HTTP_RESULT_SOCKET_ERROR;
+        case dmHttpClient::RESULT_HTTP_HEADERS_ERROR:
+            return HTTP_RESULT_HTTP_HEADERS_ERROR;
+        case dmHttpClient::RESULT_INVALID_RESPONSE:
+            return HTTP_RESULT_INVALID_RESPONSE;
+        case dmHttpClient::RESULT_PARTIAL_CONTENT:
+            return HTTP_RESULT_PARTIAL_CONTENT;
+        case dmHttpClient::RESULT_UNSUPPORTED_TRANSFER_ENCODING:
+            return HTTP_RESULT_UNSUPPORTED_TRANSFER_ENCODING;
+        case dmHttpClient::RESULT_INVAL_ERROR:
+            return HTTP_RESULT_INVAL_ERROR;
+        case dmHttpClient::RESULT_UNEXPECTED_EOF:
+            return HTTP_RESULT_UNEXPECTED_EOF;
+        case dmHttpClient::RESULT_IO_ERROR:
+            return HTTP_RESULT_IO_ERROR;
+        case dmHttpClient::RESULT_HANDSHAKE_FAILED:
+            return HTTP_RESULT_HANDSHAKE_FAILED;
+        case dmHttpClient::RESULT_INVAL:
+            return HTTP_RESULT_INVAL;
+        case dmHttpClient::RESULT_UNKNOWN:
+            return HTTP_RESULT_UNKNOWN;
     }
     return HTTP_RESULT_UNKNOWN;
 }
@@ -413,12 +451,22 @@ static void HandleCallbackResult(HttpRequest* request, HttpCallbackResult result
     }
 }
 
+static void PopulateResponseInfo(HttpRequest* request, HttpResponseInfo* response)
+{
+    response->m_Url = request->m_URL;
+    response->m_Path = request->m_Path;
+    response->m_RangeStart = request->m_RangeStart;
+    response->m_RangeEnd = request->m_RangeEnd;
+    response->m_DocumentSize = request->m_DocumentSize;
+}
+
 static void SendHeader(HttpRequest* request, int status, const char* header, uint32_t header_size)
 {
     if (request->m_Callback)
     {
         HttpResponseInfo response;
         memset(&response, 0, sizeof(response));
+        PopulateResponseInfo(request, &response);
         response.m_Event = HTTP_RESPONSE_EVENT_HEADER;
         response.m_StatusCode = status;
         response.m_Header = header;
@@ -433,10 +481,26 @@ static void SendData(HttpRequest* request, int status, const char* data, uint32_
     {
         HttpResponseInfo response;
         memset(&response, 0, sizeof(response));
+        PopulateResponseInfo(request, &response);
         response.m_Event = HTTP_RESPONSE_EVENT_DATA;
         response.m_StatusCode = status;
         response.m_Data = data;
         response.m_DataSize = data_size;
+        HandleCallbackResult(request, request->m_Callback(request, request->m_UserData, &response));
+    }
+}
+
+static void SendProgress(HttpRequest* request, uint32_t bytes_sent, uint32_t bytes_received, int32_t bytes_total)
+{
+    if (request->m_Callback)
+    {
+        HttpResponseInfo response;
+        memset(&response, 0, sizeof(response));
+        PopulateResponseInfo(request, &response);
+        response.m_Event = HTTP_RESPONSE_EVENT_PROGRESS;
+        response.m_BytesSent = bytes_sent;
+        response.m_BytesReceived = bytes_received;
+        response.m_BytesTotal = bytes_total;
         HandleCallbackResult(request, request->m_Callback(request, request->m_UserData, &response));
     }
 }
@@ -447,253 +511,336 @@ static void SendComplete(HttpRequest* request, HttpResult result, int status)
     {
         HttpResponseInfo response;
         memset(&response, 0, sizeof(response));
+        PopulateResponseInfo(request, &response);
         response.m_Event = HTTP_RESPONSE_EVENT_COMPLETE;
         response.m_Result = result;
         response.m_StatusCode = status;
-        (void) request->m_Callback(request, request->m_UserData, &response);
+        (void)request->m_Callback(request, request->m_UserData, &response);
     }
 }
 
 extern "C"
 {
-
-HttpResult HttpNewServiceInternal(uint32_t max_concurrent_requests, HttpService** service)
-{
-    if (!service)
+    HttpResult HttpNewServiceWithCacheInternal(uint32_t max_concurrent_requests, void* http_cache, HttpService** service)
     {
-        return HTTP_RESULT_INVAL;
-    }
-
-    *service = 0;
-
-    dmHttpService::Params service_params;
-    service_params.m_ThreadCount = max_concurrent_requests == 0 ? 1 : max_concurrent_requests;
-    if (service_params.m_ThreadCount > 15)
-    {
-        service_params.m_ThreadCount = 15;
-    }
-
-    dmHttpService::HHttpService http_service = dmHttpService::New(&service_params);
-    if (!http_service)
-    {
-        return HTTP_RESULT_IO_ERROR;
-    }
-
-    HttpService* public_service = new HttpService();
-    if (!public_service || !public_service->m_RequestMutex)
-    {
-        dmHttpService::Delete(http_service);
-        delete public_service;
-        return HTTP_RESULT_IO_ERROR;
-    }
-
-    public_service->m_Service = http_service;
-    *service = public_service;
-    return HTTP_RESULT_OK;
-}
-
-void HttpDeleteServiceInternal(HttpService* service)
-{
-    if (service)
-    {
-        dmHttpService::Delete(ToHttpService(service));
-        delete service;
-    }
-}
-
-HttpResult HttpNewRequest(HttpRequest** request)
-{
-    if (!request)
-    {
-        return HTTP_RESULT_INVAL;
-    }
-
-    *request = new HttpRequest();
-    if (!*request || !(*request)->m_Method)
-    {
-        DestroyRequest(*request);
-        *request = 0;
-        return HTTP_RESULT_IO_ERROR;
-    }
-
-    return HTTP_RESULT_OK;
-}
-
-void HttpDeleteRequest(HttpRequest* request)
-{
-    if (request && request->m_State == HTTP_REQUEST_STATE_CREATED && request->m_Service == 0)
-    {
-        DestroyRequest(request);
-    }
-}
-
-HttpResult HttpSetURL(HttpRequest* request, const char* url)
-{
-    if (!CanModifyRequest(request))
-    {
-        return HTTP_RESULT_INVAL;
-    }
-    return SetString(&request->m_URL, url);
-}
-
-HttpResult HttpSetMethod(HttpRequest* request, const char* method)
-{
-    if (!CanModifyRequest(request))
-    {
-        return HTTP_RESULT_INVAL;
-    }
-    return SetString(&request->m_Method, method);
-}
-
-HttpResult HttpAddHeader(HttpRequest* request, const char* header)
-{
-    if (!CanModifyRequest(request) || !header)
-    {
-        return HTTP_RESULT_INVAL;
-    }
-
-    if (!strchr(header, ':'))
-    {
-        uint32_t len = (uint32_t)strlen(header);
-        if (len == 0 || header[len - 1] != ';')
+        if (!service)
         {
             return HTTP_RESULT_INVAL;
         }
-    }
 
-    char* copy = DuplicateString(header);
-    if (!copy)
-    {
-        return HTTP_RESULT_IO_ERROR;
-    }
+        *service = 0;
 
-    if (!EnsureHeaderCapacity(request))
-    {
-        free(copy);
-        return HTTP_RESULT_IO_ERROR;
-    }
-
-    request->m_Headers[request->m_HeaderCount++] = copy;
-    return HTTP_RESULT_OK;
-}
-
-HttpResult HttpSetBasicAuth(HttpRequest* request, const char* username, const char* password)
-{
-    if (!CanModifyRequest(request) || !username || !password)
-    {
-        return HTTP_RESULT_INVAL;
-    }
-
-    uint32_t credentials_size = (uint32_t)(strlen(username) + 1 + strlen(password));
-    char* credentials = (char*)malloc(credentials_size + 1);
-    if (!credentials)
-    {
-        return HTTP_RESULT_IO_ERROR;
-    }
-
-    dmSnPrintf(credentials, credentials_size + 1, "%s:%s", username, password);
-    char* encoded = Base64Encode(credentials, credentials_size);
-    free(credentials);
-
-    if (!encoded)
-    {
-        return HTTP_RESULT_IO_ERROR;
-    }
-
-    RemoveHeader(request, "Authorization");
-    HttpResult result = AddFormattedHeader(request, "Authorization: Basic ", encoded);
-    free(encoded);
-    return result;
-}
-
-HttpResult HttpSetBearerAuth(HttpRequest* request, const char* token)
-{
-    if (!CanModifyRequest(request) || !token)
-    {
-        return HTTP_RESULT_INVAL;
-    }
-
-    RemoveHeader(request, "Authorization");
-    return AddFormattedHeader(request, "Authorization: Bearer ", token);
-}
-
-HttpResult HttpSetTimeout(HttpRequest* request, uint32_t timeout_us)
-{
-    if (!CanModifyRequest(request))
-    {
-        return HTTP_RESULT_INVAL;
-    }
-
-    request->m_Timeout = timeout_us;
-    return HTTP_RESULT_OK;
-}
-
-HttpResult HttpSetResponseCallback(HttpRequest* request, HttpResponseCallback callback, void* user_data)
-{
-    if (!CanModifyRequest(request))
-    {
-        return HTTP_RESULT_INVAL;
-    }
-
-    request->m_Callback = callback;
-    request->m_UserData = user_data;
-    return HTTP_RESULT_OK;
-}
-
-HttpResult HttpPushRequest(HttpService* service, HttpRequest* request, HttpRequestHandle* request_handle)
-{
-    dmHttpService::HHttpService http_service = ToHttpService(service);
-    if (request_handle)
-    {
-        *request_handle = InvalidRequestHandle();
-    }
-
-    if (!http_service || !request || !request_handle || !request->m_URL || request->m_State != HTTP_REQUEST_STATE_CREATED || request->m_Service != 0)
-    {
-        return HTTP_RESULT_INVAL;
-    }
-
-    HttpResult result = RegisterRequest(service, request, request_handle);
-    if (result != HTTP_RESULT_OK)
-    {
-        return result;
-    }
-
-    result = dmHttpService::PushRequest(http_service, request);
-    if (result != HTTP_RESULT_OK)
-    {
-        UnregisterRequest(request);
-        *request_handle = InvalidRequestHandle();
-    }
-
-    return result;
-}
-
-HttpResult HttpCancelRequest(HttpService* service, HttpRequestHandle request_handle)
-{
-    dmHttpService::HHttpService http_service = ToHttpService(service);
-    uint32_t index;
-    uint16_t generation;
-    if (!http_service || !DecodeRequestHandle(request_handle, &index, &generation) || !service->m_RequestMutex)
-    {
-        return HTTP_RESULT_INVAL;
-    }
-
-    dmMutex::Lock(service->m_RequestMutex);
-
-    HttpResult result = HTTP_RESULT_INVAL;
-    if (index < service->m_RequestSlotCount)
-    {
-        HttpRequestSlot* slot = &service->m_RequestSlots[index];
-        if (slot->m_Request && slot->m_Generation == generation)
+        dmHttpService::Params service_params;
+        service_params.m_ThreadCount = max_concurrent_requests == 0 ? 1 : max_concurrent_requests;
+        if (service_params.m_ThreadCount > 15)
         {
-            result = dmHttpService::CancelRequest(http_service, slot->m_Request);
+            service_params.m_ThreadCount = 15;
+        }
+        service_params.m_HttpCache = (dmHttpCache::HCache)http_cache;
+
+        dmHttpService::HHttpService http_service = dmHttpService::New(&service_params);
+        if (!http_service)
+        {
+            return HTTP_RESULT_IO_ERROR;
+        }
+
+        HttpService* public_service = new HttpService();
+        if (!public_service || !public_service->m_RequestMutex)
+        {
+            dmHttpService::Delete(http_service);
+            delete public_service;
+            return HTTP_RESULT_IO_ERROR;
+        }
+
+        public_service->m_Service = http_service;
+        *service = public_service;
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpNewServiceInternal(uint32_t max_concurrent_requests, HttpService** service)
+    {
+        return HttpNewServiceWithCacheInternal(max_concurrent_requests, 0, service);
+    }
+
+    void HttpDeleteServiceInternal(HttpService* service)
+    {
+        if (service)
+        {
+            dmHttpService::Delete(ToHttpService(service));
+            delete service;
         }
     }
 
-    dmMutex::Unlock(service->m_RequestMutex);
-    return result;
-}
+    HttpResult HttpNewRequest(HttpRequest** request)
+    {
+        if (!request)
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        *request = new HttpRequest();
+        if (!*request || !(*request)->m_Method)
+        {
+            DestroyRequest(*request);
+            *request = 0;
+            return HTTP_RESULT_IO_ERROR;
+        }
+
+        return HTTP_RESULT_OK;
+    }
+
+    void HttpDeleteRequest(HttpRequest* request)
+    {
+        if (request && request->m_State == HTTP_REQUEST_STATE_CREATED && request->m_Service == 0)
+        {
+            DestroyRequest(request);
+        }
+    }
+
+    HttpResult HttpSetURL(HttpRequest* request, const char* url)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+        return SetString(&request->m_URL, url);
+    }
+
+    HttpResult HttpSetMethod(HttpRequest* request, const char* method)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+        return SetString(&request->m_Method, method);
+    }
+
+    HttpResult HttpAddHeader(HttpRequest* request, const char* header)
+    {
+        if (!CanModifyRequest(request) || !header)
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        if (!strchr(header, ':'))
+        {
+            uint32_t len = (uint32_t)strlen(header);
+            if (len == 0 || header[len - 1] != ';')
+            {
+                return HTTP_RESULT_INVAL;
+            }
+        }
+
+        char* copy = DuplicateString(header);
+        if (!copy)
+        {
+            return HTTP_RESULT_IO_ERROR;
+        }
+
+        if (!EnsureHeaderCapacity(request))
+        {
+            free(copy);
+            return HTTP_RESULT_IO_ERROR;
+        }
+
+        request->m_Headers[request->m_HeaderCount++] = copy;
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpSetRequestBody(HttpRequest* request, const void* body, uint32_t body_size)
+    {
+        if (!CanModifyRequest(request) || (!body && body_size > 0))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        char* copy = 0;
+        if (body_size > 0)
+        {
+            copy = (char*)malloc(body_size);
+            if (!copy)
+            {
+                return HTTP_RESULT_IO_ERROR;
+            }
+            memcpy(copy, body, body_size);
+        }
+
+        free(request->m_Body);
+        request->m_Body = copy;
+        request->m_BodyLength = body_size;
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpSetResponsePath(HttpRequest* request, const char* path)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        return SetOptionalString(&request->m_Path, path);
+    }
+
+    HttpResult HttpSetProxy(HttpRequest* request, const char* proxy)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        return SetOptionalString(&request->m_Proxy, proxy);
+    }
+
+    HttpResult HttpSetIgnoreCache(HttpRequest* request, int ignore_cache)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        request->m_IgnoreCache = ignore_cache != 0;
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpSetChunkedTransfer(HttpRequest* request, int chunked_transfer)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        request->m_ChunkedTransfer = chunked_transfer != 0;
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpSetReportProgress(HttpRequest* request, int report_progress)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        request->m_ReportProgress = report_progress != 0;
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpSetBasicAuth(HttpRequest* request, const char* username, const char* password)
+    {
+        if (!CanModifyRequest(request) || !username || !password)
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        uint32_t credentials_size = (uint32_t)(strlen(username) + 1 + strlen(password));
+        char*    credentials = (char*)malloc(credentials_size + 1);
+        if (!credentials)
+        {
+            return HTTP_RESULT_IO_ERROR;
+        }
+
+        dmSnPrintf(credentials, credentials_size + 1, "%s:%s", username, password);
+        char* encoded = Base64Encode(credentials, credentials_size);
+        free(credentials);
+
+        if (!encoded)
+        {
+            return HTTP_RESULT_IO_ERROR;
+        }
+
+        RemoveHeader(request, "Authorization");
+        HttpResult result = AddFormattedHeader(request, "Authorization: Basic ", encoded);
+        free(encoded);
+        return result;
+    }
+
+    HttpResult HttpSetBearerAuth(HttpRequest* request, const char* token)
+    {
+        if (!CanModifyRequest(request) || !token)
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        RemoveHeader(request, "Authorization");
+        return AddFormattedHeader(request, "Authorization: Bearer ", token);
+    }
+
+    HttpResult HttpSetTimeout(HttpRequest* request, uint32_t timeout_us)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        request->m_Timeout = timeout_us;
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpSetResponseCallback(HttpRequest* request, HttpResponseCallback callback, void* user_data)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        request->m_Callback = callback;
+        request->m_UserData = user_data;
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpPushRequest(HttpService* service, HttpRequest* request, HttpRequestHandle* request_handle)
+    {
+        dmHttpService::HHttpService http_service = ToHttpService(service);
+        if (request_handle)
+        {
+            *request_handle = InvalidRequestHandle();
+        }
+
+        if (!http_service || !request || !request_handle || !request->m_URL || request->m_State != HTTP_REQUEST_STATE_CREATED || request->m_Service != 0)
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        HttpResult result = RegisterRequest(service, request, request_handle);
+        if (result != HTTP_RESULT_OK)
+        {
+            return result;
+        }
+
+        result = dmHttpService::PushRequest(http_service, request);
+        if (result != HTTP_RESULT_OK)
+        {
+            UnregisterRequest(request);
+            *request_handle = InvalidRequestHandle();
+        }
+
+        return result;
+    }
+
+    HttpResult HttpCancelRequest(HttpService* service, HttpRequestHandle request_handle)
+    {
+        dmHttpService::HHttpService http_service = ToHttpService(service);
+        uint32_t                    index;
+        uint16_t                    generation;
+        if (!http_service || !DecodeRequestHandle(request_handle, &index, &generation) || !service->m_RequestMutex)
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        dmMutex::Lock(service->m_RequestMutex);
+
+        HttpResult result = HTTP_RESULT_INVAL;
+        if (index < service->m_RequestSlotCount)
+        {
+            HttpRequestSlot* slot = &service->m_RequestSlots[index];
+            if (slot->m_Request && slot->m_Generation == generation)
+            {
+                result = dmHttpService::CancelRequest(http_service, slot->m_Request);
+            }
+        }
+
+        dmMutex::Unlock(service->m_RequestMutex);
+        return result;
+    }
 
 } // extern "C"
 
@@ -709,7 +856,7 @@ namespace dmHttpService
         uint32_t key_length = (uint32_t)strlen(key);
         uint32_t value_length = (uint32_t)strlen(value);
         uint32_t header_length = key_length + value_length + 1;
-        char* header = (char*)malloc(header_length + 1);
+        char*    header = (char*)malloc(header_length + 1);
         if (!header)
         {
             return;
@@ -724,18 +871,32 @@ namespace dmHttpService
         free(header);
     }
 
-    void DirectRequestContent(HttpRequest* request, int status, const void* content_data, uint32_t content_data_size)
+    void DirectRequestContent(HttpRequest* request, int status, const void* content_data, uint32_t content_data_size, int32_t content_length, uint32_t range_start, uint32_t range_end, uint32_t document_size)
     {
         if (!request)
         {
             return;
         }
 
+        request->m_RangeStart = range_start;
+        request->m_RangeEnd = range_end;
+        request->m_DocumentSize = document_size;
+        (void)content_length;
+
         SendData(request, status, (const char*)content_data, content_data_size);
     }
 
-    void CompleteDirectRequest(HttpRequest* request, dmHttpClient::Result result, int status,
-                               const char* headers, uint32_t headers_length)
+    void DirectRequestProgress(HttpRequest* request, uint32_t bytes_sent, uint32_t bytes_received, int32_t bytes_total)
+    {
+        if (!request)
+        {
+            return;
+        }
+
+        SendProgress(request, bytes_sent, bytes_received, bytes_total);
+    }
+
+    void CompleteDirectRequest(HttpRequest* request, dmHttpClient::Result result, int status, const char* headers, uint32_t headers_length)
     {
         if (!request)
         {
@@ -773,4 +934,4 @@ namespace dmHttpService
         DestroyRequest(request);
     }
 
-}
+} // namespace dmHttpService

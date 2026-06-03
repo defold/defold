@@ -22,28 +22,28 @@
 #include <dlib/http/http_internal.h>
 
 #if defined(_WIN32)
-    #include <io.h>
-    #include <windows.h>
-    #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
-        #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
-    #endif
+#include <io.h>
+#include <windows.h>
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
 #else
-    #include <unistd.h>
+#include <unistd.h>
 #endif
 
 #define TEST_COLOR_RESET "\033[0m"
-#define TEST_COLOR_RED   "\033[31m"
+#define TEST_COLOR_RED "\033[31m"
 #define TEST_COLOR_GREEN "\033[32m"
-#define TEST_COLOR_CYAN  "\033[36m"
+#define TEST_COLOR_CYAN "\033[36m"
 
 typedef volatile int32_t TestAtomic32;
 
-static int g_TestColorOutput = 0;
+static int               g_TestColorOutput = 0;
 
-static void TestAtomicStore32(TestAtomic32* ptr, int32_t value)
+static void              TestAtomicStore32(TestAtomic32* ptr, int32_t value)
 {
 #if defined(_WIN32)
-    InterlockedExchange((volatile long*) ptr, (long) value);
+    InterlockedExchange((volatile long*)ptr, (long)value);
 #else
     __sync_lock_test_and_set(ptr, value);
 #endif
@@ -52,7 +52,7 @@ static void TestAtomicStore32(TestAtomic32* ptr, int32_t value)
 static int32_t TestAtomicGet32(TestAtomic32* ptr)
 {
 #if defined(_WIN32)
-    return (int32_t)InterlockedCompareExchange((volatile long*) ptr, 0, 0);
+    return (int32_t)InterlockedCompareExchange((volatile long*)ptr, 0, 0);
 #else
     return __sync_fetch_and_add(ptr, 0);
 #endif
@@ -62,7 +62,7 @@ static int32_t TestAtomicGet32(TestAtomic32* ptr)
 static int TestEnableVirtualTerminalProcessing(void)
 {
     HANDLE stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD mode = 0;
+    DWORD  mode = 0;
 
     if (stdout_handle == INVALID_HANDLE_VALUE)
     {
@@ -129,13 +129,82 @@ static void PrintTestFailed(const char* name, int result)
     }
 }
 
-#define TEST_CHECK(_EXPR) do { if (!(_EXPR)) { fprintf(stderr, "TEST_CHECK failed at line %s:%d: %s\n", __FILE__, __LINE__, #_EXPR); return __LINE__; } } while (0)
-#define TEST_CHECK_EQ(_EXPECTED, _ACTUAL) do { int expected = (int)(_EXPECTED); int actual = (int)(_ACTUAL); if (actual != expected) { fprintf(stderr, "TEST_CHECK_EQ failed at line %s:%d: expected %s == %d, got %s == %d\n", __FILE__, __LINE__, #_EXPECTED, expected, #_ACTUAL, actual); return __LINE__; } } while (0)
-#define TEST_CHECK_EQ_U32(_EXPECTED, _ACTUAL) do { uint32_t expected = (uint32_t)(_EXPECTED); uint32_t actual = (uint32_t)(_ACTUAL); if (actual != expected) { fprintf(stderr, "TEST_CHECK_EQ_U32 failed at line %s:%d: expected %s == %u, got %s == %u\n", __FILE__, __LINE__, #_EXPECTED, expected, #_ACTUAL, actual); return __LINE__; } } while (0)
-#define TEST_CHECK_GT_U32(_ACTUAL, _MINIMUM) do { uint32_t actual = (uint32_t)(_ACTUAL); uint32_t minimum = (uint32_t)(_MINIMUM); if (actual <= minimum) { fprintf(stderr, "TEST_CHECK_GT_U32 failed at line %s:%d: expected %s == %u > %s == %u\n", __FILE__, __LINE__, #_ACTUAL, actual, #_MINIMUM, minimum); return __LINE__; } } while (0)
-#define TEST_CHECK_NE_U32(_UNEXPECTED, _ACTUAL) do { uint32_t unexpected = (uint32_t)(_UNEXPECTED); uint32_t actual = (uint32_t)(_ACTUAL); if (actual == unexpected) { fprintf(stderr, "TEST_CHECK_NE_U32 failed at line %s:%d: expected %s != %u, got %s == %u\n", __FILE__, __LINE__, #_UNEXPECTED, unexpected, #_ACTUAL, actual); return __LINE__; } } while (0)
-#define TEST_CHECK_STREQ(_EXPECTED, _ACTUAL) do { const char* expected = (_EXPECTED); const char* actual = (_ACTUAL); if (strcmp(expected, actual) != 0) { fprintf(stderr, "TEST_CHECK_STREQ failed at line %s:%d: expected %s == '%s', got %s == '%s'\n", __FILE__, __LINE__, #_EXPECTED, expected, #_ACTUAL, actual); return __LINE__; } } while (0)
-#define RUN_TEST(_NAME, _CALL) do { PrintTestStatus(TEST_COLOR_CYAN, "[ RUN      ]", (_NAME)); result = (_CALL); if (result != 0) { PrintTestFailed((_NAME), result); return result; } PrintTestStatus(TEST_COLOR_GREEN, "[       OK ]", (_NAME)); } while (0)
+#define TEST_CHECK(_EXPR) \
+    do \
+    { \
+        if (!(_EXPR)) \
+        { \
+            fprintf(stderr, "TEST_CHECK failed at line %s:%d: %s\n", __FILE__, __LINE__, #_EXPR); \
+            return __LINE__; \
+        } \
+    } while (0)
+#define TEST_CHECK_EQ(_EXPECTED, _ACTUAL) \
+    do \
+    { \
+        int expected = (int)(_EXPECTED); \
+        int actual = (int)(_ACTUAL); \
+        if (actual != expected) \
+        { \
+            fprintf(stderr, "TEST_CHECK_EQ failed at line %s:%d: expected %s == %d, got %s == %d\n", __FILE__, __LINE__, #_EXPECTED, expected, #_ACTUAL, actual); \
+            return __LINE__; \
+        } \
+    } while (0)
+#define TEST_CHECK_EQ_U32(_EXPECTED, _ACTUAL) \
+    do \
+    { \
+        uint32_t expected = (uint32_t)(_EXPECTED); \
+        uint32_t actual = (uint32_t)(_ACTUAL); \
+        if (actual != expected) \
+        { \
+            fprintf(stderr, "TEST_CHECK_EQ_U32 failed at line %s:%d: expected %s == %u, got %s == %u\n", __FILE__, __LINE__, #_EXPECTED, expected, #_ACTUAL, actual); \
+            return __LINE__; \
+        } \
+    } while (0)
+#define TEST_CHECK_GT_U32(_ACTUAL, _MINIMUM) \
+    do \
+    { \
+        uint32_t actual = (uint32_t)(_ACTUAL); \
+        uint32_t minimum = (uint32_t)(_MINIMUM); \
+        if (actual <= minimum) \
+        { \
+            fprintf(stderr, "TEST_CHECK_GT_U32 failed at line %s:%d: expected %s == %u > %s == %u\n", __FILE__, __LINE__, #_ACTUAL, actual, #_MINIMUM, minimum); \
+            return __LINE__; \
+        } \
+    } while (0)
+#define TEST_CHECK_NE_U32(_UNEXPECTED, _ACTUAL) \
+    do \
+    { \
+        uint32_t unexpected = (uint32_t)(_UNEXPECTED); \
+        uint32_t actual = (uint32_t)(_ACTUAL); \
+        if (actual == unexpected) \
+        { \
+            fprintf(stderr, "TEST_CHECK_NE_U32 failed at line %s:%d: expected %s != %u, got %s == %u\n", __FILE__, __LINE__, #_UNEXPECTED, unexpected, #_ACTUAL, actual); \
+            return __LINE__; \
+        } \
+    } while (0)
+#define TEST_CHECK_STREQ(_EXPECTED, _ACTUAL) \
+    do \
+    { \
+        const char* expected = (_EXPECTED); \
+        const char* actual = (_ACTUAL); \
+        if (strcmp(expected, actual) != 0) \
+        { \
+            fprintf(stderr, "TEST_CHECK_STREQ failed at line %s:%d: expected %s == '%s', got %s == '%s'\n", __FILE__, __LINE__, #_EXPECTED, expected, #_ACTUAL, actual); \
+            return __LINE__; \
+        } \
+    } while (0)
+#define RUN_TEST(_NAME, _CALL) \
+    do \
+    { \
+        PrintTestStatus(TEST_COLOR_CYAN, "[ RUN      ]", (_NAME)); \
+        result = (_CALL); \
+        if (result != 0) \
+        { \
+            PrintTestFailed((_NAME), result); \
+            return result; \
+        } \
+        PrintTestStatus(TEST_COLOR_GREEN, "[       OK ]", (_NAME)); \
+    } while (0)
 
 typedef struct HttpTestServerConfig
 {
@@ -145,21 +214,25 @@ typedef struct HttpTestServerConfig
 
 typedef struct HttpTestResponse
 {
-    char           m_Data[256];
-    uint32_t       m_DataSize;
-    uint32_t       m_HeaderEventCount;
-    uint32_t       m_HeaderBeforeDataEventCount;
-    uint32_t       m_CompleteHeaderEventCount;
-    uint32_t       m_TotalDataSize;
-    uint32_t       m_DataEventCount;
-    uint32_t       m_CompleteDataEventCount;
-    int            m_StatusCode;
-    int            m_HeaderStatusCode;
-    HttpResult     m_Result;
-    uint32_t       m_HasContentLengthHeader;
-    uint32_t       m_ContentLengthHeaderValue;
-    uint32_t       m_CancelOnDataEvent;
-    TestAtomic32   m_Complete;
+    char         m_Data[256];
+    uint32_t     m_DataSize;
+    uint32_t     m_HeaderEventCount;
+    uint32_t     m_HeaderBeforeDataEventCount;
+    uint32_t     m_CompleteHeaderEventCount;
+    uint32_t     m_TotalDataSize;
+    uint32_t     m_DataEventCount;
+    uint32_t     m_CompleteDataEventCount;
+    uint32_t     m_ProgressEventCount;
+    uint32_t     m_BytesSent;
+    uint32_t     m_BytesReceived;
+    int32_t      m_BytesTotal;
+    int          m_StatusCode;
+    int          m_HeaderStatusCode;
+    HttpResult   m_Result;
+    uint32_t     m_HasContentLengthHeader;
+    uint32_t     m_ContentLengthHeaderValue;
+    uint32_t     m_CancelOnDataEvent;
+    TestAtomic32 m_Complete;
 } HttpTestResponse;
 
 static void TestSleep(uint32_t milliseconds)
@@ -190,8 +263,8 @@ static char* Trim(char* value)
 
 static int ReadServerConfig(const char* path, HttpTestServerConfig* config)
 {
-    char line[256];
-    char section[64] = "";
+    char  line[256];
+    char  section[64] = "";
     FILE* file = fopen(path, "r");
     if (!file)
     {
@@ -282,10 +355,10 @@ static int HeaderNameEquals(const HttpResponseInfo* response, const char* name)
 
 static int ParseHeaderUInt32(const HttpResponseInfo* response, const char* name, uint32_t* value)
 {
-    char value_buffer[32];
-    uint32_t name_size = (uint32_t)strlen(name);
+    char        value_buffer[32];
+    uint32_t    name_size = (uint32_t)strlen(name);
     const char* value_start;
-    uint32_t value_size;
+    uint32_t    value_size;
 
     if (!HeaderNameEquals(response, name))
     {
@@ -313,8 +386,8 @@ static int ParseHeaderUInt32(const HttpResponseInfo* response, const char* name,
 
 static HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, const HttpResponseInfo* response)
 {
-    HttpTestResponse* test_response = (HttpTestResponse*) user_data;
-    (void) request;
+    HttpTestResponse* test_response = (HttpTestResponse*)user_data;
+    (void)request;
 
     if (response->m_Event == HTTP_RESPONSE_EVENT_HEADER)
     {
@@ -353,6 +426,13 @@ static HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, co
             return HTTP_CALLBACK_RESULT_CANCEL;
         }
     }
+    else if (response->m_Event == HTTP_RESPONSE_EVENT_PROGRESS)
+    {
+        test_response->m_ProgressEventCount++;
+        test_response->m_BytesSent = response->m_BytesSent;
+        test_response->m_BytesReceived = response->m_BytesReceived;
+        test_response->m_BytesTotal = response->m_BytesTotal;
+    }
     else if (response->m_Event == HTTP_RESPONSE_EVENT_COMPLETE)
     {
         test_response->m_Result = response->m_Result;
@@ -389,6 +469,12 @@ static int TestRequestConfiguration(void)
     TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetMethod(request, "GET"));
     TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, "https://example.com/items"));
     TEST_CHECK_EQ(HTTP_RESULT_OK, HttpAddHeader(request, "Accept: application/json"));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetRequestBody(request, "request-body", 12));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponsePath(request, "/tmp/response.bin"));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetProxy(request, "http://127.0.0.1:8080"));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetIgnoreCache(request, 1));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetChunkedTransfer(request, 0));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetReportProgress(request, 1));
     TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetBasicAuth(request, "user", "password"));
     TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetBearerAuth(request, "token"));
     TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetTimeout(request, 1000));
@@ -398,14 +484,103 @@ static int TestRequestConfiguration(void)
     return 0;
 }
 
+static int TestPostSendsData(const HttpTestServerConfig* server_config)
+{
+    HttpService*      service = 0;
+    HttpRequest*      request = 0;
+    HttpRequestHandle request_handle;
+    HttpTestResponse  response;
+    char              url[256];
+    int               result;
+    const char*       body = "abc";
+
+    memset(&request_handle, 0, sizeof(request_handle));
+    memset(&response, 0, sizeof(response));
+    response.m_StatusCode = -1;
+    response.m_Result = HTTP_RESULT_UNKNOWN;
+
+    snprintf(url, sizeof(url), "http://%s:%d/post", server_config->m_ServerIP, server_config->m_ServerPort);
+
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
+    TEST_CHECK(service != 0);
+
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
+    TEST_CHECK(request != 0);
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetMethod(request, "POST"));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetRequestBody(request, body, (uint32_t)strlen(body)));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
+    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+
+    result = WaitForComplete(&response, 10);
+    if (result != 0)
+    {
+        HttpDeleteServiceInternal(service);
+        return result;
+    }
+
+    HttpDeleteServiceInternal(service);
+
+    TEST_CHECK_EQ(HTTP_RESULT_OK, response.m_Result);
+    TEST_CHECK_EQ(200, response.m_StatusCode);
+    TEST_CHECK_EQ(294, strtol(response.m_Data, 0, 10));
+    return 0;
+}
+
+static int TestProgressEvents(const HttpTestServerConfig* server_config)
+{
+    HttpService*      service = 0;
+    HttpRequest*      request = 0;
+    HttpRequestHandle request_handle;
+    HttpTestResponse  response;
+    char              url[256];
+    int               result;
+    const uint32_t    response_size = 1024;
+
+    memset(&request_handle, 0, sizeof(request_handle));
+    memset(&response, 0, sizeof(response));
+    response.m_StatusCode = -1;
+    response.m_Result = HTTP_RESULT_UNKNOWN;
+
+    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", server_config->m_ServerIP, server_config->m_ServerPort, response_size);
+
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
+    TEST_CHECK(service != 0);
+
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
+    TEST_CHECK(request != 0);
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetReportProgress(request, 1));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
+    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
+    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+
+    result = WaitForComplete(&response, 10);
+    if (result != 0)
+    {
+        HttpDeleteServiceInternal(service);
+        return result;
+    }
+
+    HttpDeleteServiceInternal(service);
+
+    TEST_CHECK_EQ(HTTP_RESULT_OK, response.m_Result);
+    TEST_CHECK_EQ(200, response.m_StatusCode);
+    TEST_CHECK_GT_U32(response.m_ProgressEventCount, 0);
+    TEST_CHECK_EQ_U32(response_size, response.m_BytesReceived);
+    TEST_CHECK_EQ(response_size, response.m_BytesTotal);
+    return 0;
+}
+
 static int TestGetReturnsData(const HttpTestServerConfig* server_config)
 {
-    HttpService* service = 0;
-    HttpRequest* request = 0;
+    HttpService*      service = 0;
+    HttpRequest*      request = 0;
     HttpRequestHandle request_handle;
-    HttpTestResponse response;
-    char url[256];
-    int result;
+    HttpTestResponse  response;
+    char              url[256];
+    int               result;
 
     memset(&request_handle, 0, sizeof(request_handle));
     memset(&response, 0, sizeof(response));
@@ -445,12 +620,12 @@ static int TestGetReturnsData(const HttpTestServerConfig* server_config)
 
 static int TestAddReturnsData(const HttpTestServerConfig* server_config)
 {
-    HttpService* service = 0;
-    HttpRequest* request = 0;
+    HttpService*      service = 0;
+    HttpRequest*      request = 0;
     HttpRequestHandle request_handle;
-    HttpTestResponse response;
-    char url[256];
-    int result;
+    HttpTestResponse  response;
+    char              url[256];
+    int               result;
 
     memset(&request_handle, 0, sizeof(request_handle));
     memset(&response, 0, sizeof(response));
@@ -488,13 +663,13 @@ static int TestAddReturnsData(const HttpTestServerConfig* server_config)
 
 static int TestResponseHeaders(const HttpTestServerConfig* server_config)
 {
-    HttpService* service = 0;
-    HttpRequest* request = 0;
+    HttpService*      service = 0;
+    HttpRequest*      request = 0;
     HttpRequestHandle request_handle;
-    HttpTestResponse response;
-    char url[256];
-    int result;
-    const uint32_t response_size = 123;
+    HttpTestResponse  response;
+    char              url[256];
+    int               result;
+    const uint32_t    response_size = 123;
 
     memset(&request_handle, 0, sizeof(request_handle));
     memset(&response, 0, sizeof(response));
@@ -537,13 +712,13 @@ static int TestResponseHeaders(const HttpTestServerConfig* server_config)
 
 static int TestLargeResponseStreamsChunks(const HttpTestServerConfig* server_config)
 {
-    HttpService* service = 0;
-    HttpRequest* request = 0;
+    HttpService*      service = 0;
+    HttpRequest*      request = 0;
     HttpRequestHandle request_handle;
-    HttpTestResponse response;
-    char url[256];
-    int result;
-    const uint32_t response_size = 128 * 1024;
+    HttpTestResponse  response;
+    char              url[256];
+    int               result;
+    const uint32_t    response_size = 128 * 1024;
 
     memset(&request_handle, 0, sizeof(request_handle));
     memset(&response, 0, sizeof(response));
@@ -581,8 +756,8 @@ static int TestLargeResponseStreamsChunks(const HttpTestServerConfig* server_con
 
 static int TestPushRequiresURL(void)
 {
-    HttpService* service = 0;
-    HttpRequest* request = 0;
+    HttpService*      service = 0;
+    HttpRequest*      request = 0;
     HttpRequestHandle request_handle;
 
     memset(&request_handle, 0, sizeof(request_handle));
@@ -603,12 +778,12 @@ static int TestPushRequiresURL(void)
 
 static int TestCancelRequest(const HttpTestServerConfig* server_config)
 {
-    HttpService* service = 0;
-    HttpRequest* request = 0;
+    HttpService*      service = 0;
+    HttpRequest*      request = 0;
     HttpRequestHandle request_handle;
-    HttpTestResponse response;
-    char url[256];
-    int result;
+    HttpTestResponse  response;
+    char              url[256];
+    int               result;
 
     memset(&request_handle, 0, sizeof(request_handle));
     memset(&response, 0, sizeof(response));
@@ -643,13 +818,13 @@ static int TestCancelRequest(const HttpTestServerConfig* server_config)
 
 static int TestCancelFromCallback(const HttpTestServerConfig* server_config)
 {
-    HttpService* service = 0;
-    HttpRequest* request = 0;
+    HttpService*      service = 0;
+    HttpRequest*      request = 0;
     HttpRequestHandle request_handle;
-    HttpTestResponse response;
-    char url[256];
-    int result;
-    const uint32_t response_size = 128 * 1024;
+    HttpTestResponse  response;
+    char              url[256];
+    int               result;
+    const uint32_t    response_size = 128 * 1024;
 
     memset(&request_handle, 0, sizeof(request_handle));
     memset(&response, 0, sizeof(response));
@@ -687,8 +862,8 @@ static int TestCancelFromCallback(const HttpTestServerConfig* server_config)
 int main(int argc, char** argv)
 {
     HttpTestServerConfig server_config;
-    char server_status[192];
-    int result;
+    char                 server_status[192];
+    int                  result;
 
     if (argc < 2)
     {
@@ -708,8 +883,10 @@ int main(int argc, char** argv)
 
     RUN_TEST("TestRequestConfiguration", TestRequestConfiguration());
     RUN_TEST("TestGetReturnsData", TestGetReturnsData(&server_config));
+    RUN_TEST("TestPostSendsData", TestPostSendsData(&server_config));
     RUN_TEST("TestAddReturnsData", TestAddReturnsData(&server_config));
     RUN_TEST("TestResponseHeaders", TestResponseHeaders(&server_config));
+    RUN_TEST("TestProgressEvents", TestProgressEvents(&server_config));
     RUN_TEST("TestPushRequiresURL", TestPushRequiresURL());
     RUN_TEST("TestLargeResponseStreamsChunks", TestLargeResponseStreamsChunks(&server_config));
     RUN_TEST("TestCancelRequest", TestCancelRequest(&server_config));
