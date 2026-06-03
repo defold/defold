@@ -2171,6 +2171,8 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
     }
 }
 
+// Compressed texture uploads need block dimensions and byte sizes to translate
+// logical texture dimensions into physical storage/copy extents.
 TEST_F(dmGraphicsTest, TestTextureFormatCompressedBlockSize)
 {
     dmGraphics::TextureFormatCompressedBlockSize block_size;

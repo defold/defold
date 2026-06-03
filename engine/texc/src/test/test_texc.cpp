@@ -471,6 +471,7 @@ TEST_P(TexcCompileTest, EncodeBasisU)
 INSTANTIATE_TEST_CASE_P(TexcCompileTest, TexcCompileTest, jc_test_values_in(compile_info));
 
 // We use a smaller texture to test ASTC with, so encoding is a bit faster.
+// Verify each ASTC block format reports ceil-divided block storage size.
 TEST(TexcCompileTestASTC, Encode)
 {
     const char* path = "src/test/data/a_small.png";

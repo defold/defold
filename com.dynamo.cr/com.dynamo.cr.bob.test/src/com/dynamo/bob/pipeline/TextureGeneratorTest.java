@@ -506,6 +506,8 @@ public class TextureGeneratorTest {
         assertEquals(8, result.textureImage.getAlternatives(0).getHeight());
     }
 
+    // ASTC texture metadata should keep the logical image size even though the
+    // compressed payload covers ceil-divided texel blocks.
     @Test
     public void testTextureProfilesASTCKeepsLogicalDimensions() throws TextureGeneratorException, IOException {
         TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X6;
@@ -528,6 +530,8 @@ public class TextureGeneratorTest {
         assertEquals(TextureCompressorASTC.getCompressedDataSize(textureFormat, 128, 64), image.getDataSize());
     }
 
+    // Max-size handling and mip metadata must be based on logical dimensions,
+    // not the larger ASTC block coverage used for byte-size calculations.
     @Test
     public void testTextureProfilesASTCMaxSizeDoesNotUseBlockCoverageAsDimensions() throws TextureGeneratorException, IOException {
         TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X6;
@@ -561,6 +565,8 @@ public class TextureGeneratorTest {
         assertEquals(offset, image.getDataSize());
     }
 
+    // Non-square ASTC blocks must use independent block widths and heights
+    // when calculating compressed mip sizes.
     @Test
     public void testTextureProfilesASTCAsymmetricBlockSize() throws TextureGeneratorException, IOException {
         TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X5;
