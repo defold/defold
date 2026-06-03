@@ -192,15 +192,20 @@
                                :key {:type :tuple
                                      :items [{:type :keyword} ;; context
                                              {:type :keyword}]} ;; command
-                               :val {:type :array
-                                     :item {:type :object
-                                            :properties {:button {:type :enum
-                                                                  :values [:primary :middle :secondary]}
-                                                         :trigger {:type :enum
-                                                                   :values [:drag :press :click]}
-                                                         :modifiers {:type :array
-                                                                     :item {:type :enum
-                                                                            :values [:shift :alt :control]}}}}}}}}
+                               :val {:type :object
+                                     :properties {:bindings {:type :array
+                                                             :item {:type :object
+                                                                    :properties {:button {:type :enum
+                                                                                          :values [:primary :middle :secondary]}
+                                                                                 :trigger {:type :enum
+                                                                                           :values [:drag :press :click]}
+                                                                                 :modifiers {:type :array
+                                                                                             :item {:type :enum
+                                                                                                    :values [:shift :alt :control]}}}}}
+                                                  :sub-commands {:type :object-of
+                                                                 :key {:type :keyword}
+                                                                 :val {:type :enum
+                                                                       :values [:shift :alt :control]}}}}}}}
     :workflow {:type :object
                :properties
                {:load-external-changes-on-app-focus {:type :boolean

@@ -39,7 +39,7 @@
 (defonce bindings-atom
   (atom {;; contexts: {context {command [mouse-binding]}}
          :contexts {}
-         ;; overrides: {[context command] [binding ...]}
+         ;; overrides: {[context command] {:bindings [binding ...] :sub-commands {sub-cmd modifier}}}
          :overrides {}}))
 
 (defn- add-bindings [state context bindings]
@@ -59,11 +59,11 @@
   nil)
 
 (defn set-overrides! [overrides]
-  (swap! bindings-atom assoc :overrides overrides)
+  (swap! bindings-atom assoc :overrides (or overrides {}))
   nil)
 
 (defn- effective-command-bindings [state context command registered-bindings]
-  (if-let [override-bindings (get (:overrides state) [context command])]
+  (if-let [override-bindings (:bindings (get (:overrides state) [context command]))]
     (mapv #(assoc %1 :binding %2) registered-bindings override-bindings)
     registered-bindings))
 
@@ -108,6 +108,14 @@
                         (effective-command-bindings state context command bindings))
               command))
           (get-in state [:contexts context]))))
+
+(defn sub-command-active? [context command sub-cmd input-state]
+  (let [state @bindings-atom
+        registered-sub-cmds (some :sub-commands (get-in state [:contexts context command]))
+        default-modifier (some #(when (= (:command %) sub-cmd) (:modifier %)) registered-sub-cmds)
+        effective-modifier (get-in state [:overrides [context command] :sub-commands sub-cmd] default-modifier)]
+    (boolean (when effective-modifier
+               (contains? (:modifiers input-state) effective-modifier)))))
 
 (defn binding-display-text [{selected-modifiers :modifiers
                              :keys [button]}]

@@ -27,6 +27,7 @@
             [cljfx.fx.tab-pane :as fx.tab-pane]
             [cljfx.fx.table-cell :as fx.table-cell]
             [cljfx.fx.table-column :as fx.table-column]
+            [cljfx.fx.radio-button :as fx.radio-button]
             [cljfx.fx.table-view :as fx.table-view]
             [clojure.java.io :as io]
             [clojure.set :as set]
@@ -152,10 +153,10 @@
 
 (defn- mouse-binding-row [{:keys [context command] :as mouse-binding} mouse-bindings]
   (let [key (mouse-binding-key mouse-binding)
-        override-list (get mouse-bindings key)]
+        override-bindings (:bindings (get mouse-bindings key))]
     (assoc mouse-binding
       :kind :mouse-binding
-      :bindings (or override-list
+      :bindings (or override-bindings
                     (mapv :binding (mouse-binding/registered-command-bindings context command))))))
 
 (defn- row-command [row]
@@ -279,7 +280,7 @@
 (def ^:private ^:const new-shortcut-popup-width 400)
 (def ^:private ^:const new-shortcut-popup-height 200)
 (def ^:private ^:const mouse-binding-popup-width 400)
-(def ^:private ^:const mouse-binding-popup-height 260)
+(def ^:private ^:const mouse-binding-popup-height 380)
 (def ^:private enter-shortcut (KeyCombination/valueOf "Enter"))
 (def ^:private escape-shortcut (KeyCombination/valueOf "Esc"))
 
@@ -373,78 +374,123 @@
   {:compose [{:fx/type fx/ext-state
               :initial-state (:binding props)
               :key :draft-binding
-              :swap-key :swap-draft-binding}]}
-  [{:keys [row binding-index binding current-override-list draft-binding swap-draft-binding swap-state update-mouse-bindings]}]
-  (let [draft-binding (merge {:trigger :drag
-                              :modifiers []}
-                             binding
-                             draft-binding)
-        selected-modifiers (set (:modifiers draft-binding))]
+              :swap-key :swap-draft-binding}
+             {:fx/type fx/ext-state
+              :initial-state nil
+              :key :draft-sub-cmds
+              :swap-key :swap-draft-sub-cmds}]}
+  [{:keys [row binding-index binding current-override current-override-list
+           draft-binding swap-draft-binding draft-sub-cmds swap-draft-sub-cmds
+           swap-state update-mouse-bindings]}]
+  (let [draft-binding (merge {:trigger :drag :modifiers []} binding draft-binding)
+        selected-modifiers (set (:modifiers draft-binding))
+        {:keys [context command sub-commands]} row
+        draft-sub-cmds (or draft-sub-cmds
+                           (when sub-commands
+                             (into {}
+                                   (map (fn [sc]
+                                          [(:command sc) (get-in current-override [:sub-commands (:command sc)]
+                                                                 (:modifier sc))]))
+                                   sub-commands)))]
     {:fx/type fxui/vertical
      :padding :medium
      :spacing :medium
      :children
-     [{:fx/type fxui/label
-       :alignment :center
-       :text (row-display-label row)}
-      {:fx/type fxui/vertical
-       :spacing :small
-       :children
-       [{:fx/type fxui/label
-         :text "Mouse Button"}
-        {:fx/type fxui/horizontal
-         :spacing :small
-         :children (mapv (fn [button]
-                           {:fx/type fxui/check-box
-                            :text (mouse-binding/button->label button)
-                            :selected (= button (:button draft-binding))
-                            :on-selected-changed #(swap-draft-binding update :button (fn [_]
-                                                                                       (if %
-                                                                                         button
-                                                                                         (:button draft-binding))))})
-                         mouse-binding/buttons)}]}
-      {:fx/type fxui/vertical
-       :spacing :small
-       :children
-       [{:fx/type fxui/label
-         :text "Modifiers"}
-        {:fx/type fxui/horizontal
-         :spacing :small
-         :children (mapv (fn [modifier]
-                           {:fx/type fxui/check-box
-                            :text (mouse-binding/modifier->label modifier)
-                            :selected (contains? selected-modifiers modifier)
-                            :on-selected-changed #(swap-draft-binding set-mouse-binding-modifier modifier %)})
-                         mouse-binding/modifiers)}]}
-      {:fx/type fxui/label
-       :alignment :center
-       :style-class "keymap-mouse-binding-preview"
-       :text (mouse-binding/binding-display-text draft-binding)}
-      {:fx/type fxui/horizontal
-       :alignment :center-right
-       :spacing :small
-       :children
-       [{:fx/type fxui/button
-         :text "Cancel"
-         :on-action (fn [_] (swap-state dissoc :mouse-binding-popup))}
-        {:fx/type fxui/button
-         :text "Apply"
-         :on-action (fn [_]
-                      (let [{:keys [context command]} row
-                            key (mouse-binding-key row)
-                            registered (mapv :binding (mouse-binding/registered-command-bindings context command))
-                            current (vec (or current-override-list registered))
-                            new-list (if (nil? binding-index)
-                                       (if (:button draft-binding)
-                                         (conj current draft-binding)
-                                         current)
-                                       (if (:button draft-binding)
-                                         (assoc current binding-index draft-binding)
-                                         (into [] (keep-indexed #(when (not= %1 binding-index) %2)) current)))]
-                        (if (= new-list registered)
-                          (update-mouse-bindings dissoc key)
-                          (update-mouse-bindings assoc key new-list)))
-                      (swap-state dissoc :mouse-binding-popup))}]}]}))
+     (cond-> [{:fx/type fxui/label
+               :alignment :center
+               :text (row-display-label row)}
+              {:fx/type fxui/vertical
+               :spacing :small
+               :children
+               [{:fx/type fxui/label
+                 :text "Mouse Button"}
+                {:fx/type fxui/horizontal
+                 :spacing :small
+                 :children (mapv (fn [button]
+                                   {:fx/type fxui/check-box
+                                    :text (mouse-binding/button->label button)
+                                    :selected (= button (:button draft-binding))
+                                    :on-selected-changed #(swap-draft-binding update :button (fn [_]
+                                                                                               (if %
+                                                                                                 button
+                                                                                                 (:button draft-binding))))})
+                                 mouse-binding/buttons)}]}
+              {:fx/type fxui/vertical
+               :spacing :small
+               :children
+               [{:fx/type fxui/label
+                 :text "Modifiers"}
+                {:fx/type fxui/horizontal
+                 :spacing :small
+                 :children (mapv (fn [modifier]
+                                   {:fx/type fxui/check-box
+                                    :text (mouse-binding/modifier->label modifier)
+                                    :selected (contains? selected-modifiers modifier)
+                                    :on-selected-changed #(swap-draft-binding set-mouse-binding-modifier modifier %)})
+                                 mouse-binding/modifiers)}]}]
+       sub-commands
+       (into (mapv (fn [sc]
+                     {:fx/type fxui/vertical
+                      :spacing :small
+                      :children
+                      [{:fx/type fxui/label
+                        :text (:label sc)}
+                       {:fx/type fxui/horizontal
+                        :spacing :small
+                        :children (mapv (fn [modifier]
+                                          {:fx/type fx.radio-button/lifecycle
+                                           :text (mouse-binding/modifier->label modifier)
+                                           :selected (= modifier (get draft-sub-cmds (:command sc)))
+                                           :on-selected-changed (fn [selected]
+                                                                   (when selected
+                                                                     (swap-draft-sub-cmds assoc (:command sc) modifier)))})
+                                        mouse-binding/modifiers)}]})
+                   sub-commands))
+       :always
+       (conj
+         {:fx/type fxui/label
+          :alignment :center
+          :style-class "keymap-mouse-binding-preview"
+          :text (mouse-binding/binding-display-text draft-binding)}
+         {:fx/type fxui/horizontal
+          :alignment :center-right
+          :spacing :small
+          :children
+          [{:fx/type fxui/button
+            :text "Cancel"
+            :on-action (fn [_] (swap-state dissoc :mouse-binding-popup))}
+           {:fx/type fxui/button
+            :text "Apply"
+            :on-action (fn [_]
+                         (let [key (mouse-binding-key row)
+                               registered (mapv :binding (mouse-binding/registered-command-bindings context command))
+                               current (vec (or current-override-list registered))
+                               new-bindings (if (nil? binding-index)
+                                              (if (:button draft-binding)
+                                                (conj current draft-binding)
+                                                current)
+                                              (if (:button draft-binding)
+                                                (assoc current binding-index draft-binding)
+                                                (into [] (keep-indexed #(when (not= %1 binding-index) %2)) current)))]
+                           (update-mouse-bindings
+                             (fn [current-map]
+                               (let [override (or current-override {})
+                                     new-override (cond-> override
+                                                    (= new-bindings registered) (dissoc :bindings)
+                                                    (not= new-bindings registered) (assoc :bindings new-bindings))
+                                     new-override (if sub-commands
+                                                    (reduce (fn [m sc]
+                                                              (let [draft-mod (get draft-sub-cmds (:command sc) (:modifier sc))]
+                                                                (if (= draft-mod (:modifier sc))
+                                                                  (update m :sub-commands dissoc (:command sc))
+                                                                  (update m :sub-commands assoc (:command sc) draft-mod))))
+                                                            new-override
+                                                            sub-commands)
+                                                    new-override)]
+                                 (if (and (nil? (:bindings new-override)) (empty? (:sub-commands new-override)))
+                                   (dissoc current-map key)
+                                   (assoc current-map key new-override))))))
+                         (swap-state dissoc :mouse-binding-popup))}]}))}))
 
 (defn- show-new-shortcut-dialog! [swap-state command ^Window window]
   (let [root (.getRoot (.getScene window))
@@ -457,7 +503,8 @@
   (let [root (.getRoot (.getScene window))
         screen-bounds (.localToScreen root (.getBoundsInLocal root))
         x (- (.getCenterX screen-bounds) (* 0.5 mouse-binding-popup-width))
-        y (- (.getCenterY screen-bounds) (* 0.5 mouse-binding-popup-height))]
+        h (if (:sub-commands row) mouse-binding-popup-height (- mouse-binding-popup-height 120))
+        y (- (.getCenterY screen-bounds) (* 0.5 h))]
     (swap-state assoc :mouse-binding-popup {:row row :binding-index binding-index :x x :y y})))
 
 (defn- handle-new-shortcut-action [swap-state command ^ActionEvent e]
@@ -528,11 +575,17 @@
                                      {:fx/type fx.menu-item/lifecycle
                                       :text (str "Remove " (mouse-binding/binding-display-text binding))
                                       :on-action (fn [_]
-                                                   (let [current (vec (or (get mouse-bindings key) registered))
-                                                         new-list (into [] (keep-indexed #(when (not= %1 idx) %2)) current)]
-                                                     (if (= new-list registered)
-                                                       (update-mouse-bindings dissoc key)
-                                                       (update-mouse-bindings assoc key new-list))))})))
+                                                   (update-mouse-bindings
+                                                     (fn [current-map]
+                                                       (let [override (get current-map key {})
+                                                             current-bindings (or (:bindings override) registered)
+                                                             new-bindings (into [] (keep-indexed #(when (not= %1 idx) %2)) current-bindings)
+                                                             new-override (if (= new-bindings registered)
+                                                                            (dissoc override :bindings)
+                                                                            (assoc override :bindings new-bindings))]
+                                                         (if (and (nil? (:bindings new-override)) (empty? (:sub-commands new-override)))
+                                                           (dissoc current-map key)
+                                                           (assoc current-map key new-override))))))})))
                  bindings)
           [{:fx/type fx.menu-item/lifecycle
             :text "Reset to Defaults"
@@ -630,7 +683,8 @@
                          :row row
                          :binding-index binding-index
                          :binding binding
-                         :current-override-list (get mouse-bindings (mouse-binding-key row))
+                         :current-override (get mouse-bindings (mouse-binding-key row))
+                         :current-override-list (:bindings (get mouse-bindings (mouse-binding-key row)))
                          :swap-state swap-state
                          :update-mouse-bindings update-mouse-bindings}]}]})
 
@@ -745,6 +799,7 @@
                           :update-keymap (fn/partial prefs/update! prefs [:window :keymap])
                           :mouse-bindings (prefs/get prefs-state prefs [:window :mouse-bindings])
                           :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}}))}}})
+
 
 (defn open!
   "Show the prefs dialog and block the thread until the dialog is closed"

@@ -1120,12 +1120,12 @@
       (if free-cam-mode
         (let [current-camera (g/node-value self :local-camera evaluation-context)
               prefs (g/node-value self :prefs evaluation-context)
-              {:keys [modifiers pressed-keys]} input-state
-              shift (contains? modifiers :shift)
-              alt (contains? modifiers :alt)
+              {:keys [pressed-keys]} input-state
               speed (* ^double camera-speed
-                       (double (cond shift camera-speed-boost
-                                     alt camera-speed-precision
+                       (double (cond (mouse-binding/sub-command-active? ::scene-camera-perspective :scene.camera.free-look :speed-boost input-state)
+                                     camera-speed-boost
+                                     (mouse-binding/sub-command-active? ::scene-camera-perspective :scene.camera.free-look :speed-precision input-state)
+                                     camera-speed-precision
                                      :else 1.0))
                        (double (prefs/get prefs prefs-key-move-speed)))
               walking-mode (prefs/get prefs prefs-key-walking-mode)
@@ -1272,7 +1272,9 @@
    {:command :scene.camera.free-look
     :context-path ["Scene 3D Camera"]
     :action "Free Look"
-    :binding {:button :secondary :trigger :drag :modifiers []}}
+    :binding {:button :secondary :trigger :drag :modifiers []}
+    :sub-commands [{:command :speed-boost :label "Speed Boost" :modifier :shift}
+                   {:command :speed-precision :label "Speed Precision" :modifier :alt}]}
    {:command :scene.camera.orbit
     :context-path ["Scene 3D Camera"]
     :action "Orbit"
