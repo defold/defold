@@ -572,7 +572,7 @@
                              :text (localization-state (localization/message "prefs.keymap.context-menu.add" {"shortcut" text}))
                              :on-action #(handle-add-shortcut-action update-keymap command shortcut %)}))))))))))
 
-(defn- mouse-binding-context-menu-items [swap-state update-mouse-bindings mouse-bindings row]
+(defn- mouse-binding-context-menu-items [swap-state update-mouse-bindings row]
   (let [{:keys [context command bindings]} row
         key (mouse-binding-key row)
         registered (mapv :binding (mouse-binding/registered-command-bindings context command))]
@@ -630,26 +630,7 @@
      :padding :medium
      :spacing :medium
      :children
-     [{:fx/type fxui/horizontal
-       :spacing :small
-       :children
-       [{:fx/type fxui.combo-box/view
-         :min-width 180
-         :value "Select Scene Presets..."
-         :items ["Defold" "Unity" "Godot" "Blender"]
-         :on-value-changed (constantly nil)}
-        {:fx/type fxui.combo-box/view
-         :min-width 220
-         :value "Select Code Editor Presets..."
-         :items ["Defold" "VSCode" "Sublime Text" "Emacs"]
-         :on-value-changed (constantly nil)}
-        {:fx/type fx.region/lifecycle
-         :h-box/hgrow :always}
-        {:fx/type fxui/button
-         :text "Export..."}
-        {:fx/type fxui/button
-         :text "Import..."}]}
-      {:fx/type fxui/text-field
+     [{:fx/type fxui/text-field
        :prompt-text (localization-state (localization/message "prefs.keymap.filter.prompt"))
        :text filter-text
        :on-text-changed #(swap-state assoc :filter-text %)}
@@ -706,7 +687,7 @@
          (let [{:keys [row x y]} context-menu
                command (:command row)
                items (case (:kind row)
-                       :mouse-binding (mouse-binding-context-menu-items swap-state update-mouse-bindings mouse-bindings row)
+                       :mouse-binding (mouse-binding-context-menu-items swap-state update-mouse-bindings row)
                        :keyboard (keyboard-context-menu-items localization-state update-keymap swap-state keymap command))]
            {:fx/type fx.context-menu/lifecycle
             :on-window true

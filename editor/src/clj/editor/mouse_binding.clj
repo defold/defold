@@ -14,12 +14,13 @@
 
 (ns editor.mouse-binding
   (:require [clojure.string :as string]
-            [editor.input :as i]))
+            [editor.input :as i]
+            [editor.os :as os]))
 
 (set! *warn-on-reflection* true)
 
 (def buttons [:primary :middle :secondary])
-(def modifiers [:shift :alt :control])
+(def modifiers [:shift :control :alt])
 
 (def button->label
   {:primary "Left"
@@ -28,7 +29,7 @@
 
 (def modifier->label
   {:shift "Shift"
-   :alt "Alt/Opt"
+   :alt (if (os/is-mac-os?) "Opt" "Alt")
    :control "Ctrl"})
 
 (def trigger->label
