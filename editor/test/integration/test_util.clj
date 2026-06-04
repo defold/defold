@@ -1389,32 +1389,16 @@
           (is (= (dissoc (get-in scene-data (conj gpu-texture-path :params)) :default-tex-params)
                  (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 
-(defn- build-node-result! [resource-node]
+(defn- build-node-result! [resource-node opts]
   (let [project (project/get-project resource-node)
         workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)]
     (g/with-auto-evaluation-context evaluation-context
-      (build/build-project! project resource-node old-artifact-map nil evaluation-context))))
+      (build/build-project! project resource-node old-artifact-map opts evaluation-context))))
 
-(defn build-target! [project build-target]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [workspace (project/workspace project evaluation-context)
-          old-artifact-map (workspace/artifact-map workspace)
-          flat-build-targets (build/resolve-dependencies [build-target] project evaluation-context)
-          build-results (build/build-build-targets! flat-build-targets
-                                                    workspace
-                                                    old-artifact-map
-                                                    progress/null-render-progress!
-                                                    evaluation-context)]
-      (when-some [error (:error build-results)]
-        (throw (ex-info "Build produced an ErrorValue." {:error error})))
-      (workspace/artifact-map! workspace (:artifact-map build-results))
-      (workspace/etags! workspace (:etags build-results))
-      build-results)))
-
-(defn build-node! [resource-node]
-  (let [build-result (build-node-result! resource-node)]
-    (when-some [error (:error build-result)]
+(defn build-node! [resource-node opts]
+  (let [build-result (build-node-result! resource-node opts)]
+    (when-let [error (:error build-result)]
       (throw (ex-info "Build produced an ErrorValue."
                       {:resource resource
                        :node-type-kw (g/node-type-kw resource-node)
@@ -1426,14 +1410,14 @@
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)]
-    (build-node! resource-node)
+    (build-node! resource-node nil)
     (make-directory-deleter build-directory)))
 
 (defn build-error! [resource-node]
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)
-        build-result (build-node-result! resource-node)]
+        build-result (build-node-result! resource-node nil)]
     (fs/delete-directory! build-directory {:fail :silently})
     (:error build-result)))
 

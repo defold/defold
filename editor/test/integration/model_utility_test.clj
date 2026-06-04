@@ -93,7 +93,7 @@
       (is (not (g/error? (g/node-value node-id :build-targets))))
       (let [mesh-set-build-target (g/node-value node-id :mesh-set-build-target)
             mesh-set-build-resource (:resource mesh-set-build-target)]
-        (test-util/build-target! project mesh-set-build-target)
+        (test-util/build-node! node-id {:extra-build-targets [mesh-set-build-target]})
         (let [built-mesh-set (protobuf/bytes->map-with-defaults
                               Rig$MeshSet
                               (Files/readAllBytes (.toPath (io/as-file mesh-set-build-resource))))
