@@ -17,11 +17,6 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 /*# HTTP API documentation
  * HTTP service and request functions.
  *
@@ -112,27 +107,27 @@ extern "C"
  */
 #define HTTP_SERVICE_CONTEXT_NAME "http_service"
 
-    /*# HTTP service object
-     * HTTP service context provided by the engine.
-     * @typedef
-     * @name HttpService
-     */
-    typedef struct HttpService HttpService;
+/*# HTTP service object
+ * HTTP service context provided by the engine.
+ * @typedef
+ * @name HttpService
+ */
+typedef struct HttpService HttpService;
 
-    /*# HTTP request object
-     * The caller owns the request until HttpPushRequest() succeeds.
-     * @typedef
-     * @name HttpRequest
-     */
-    typedef struct HttpRequest HttpRequest;
+/*# HTTP request object
+ * The caller owns the request until HttpPushRequest() succeeds.
+ * @typedef
+ * @name HttpRequest
+ */
+typedef struct HttpRequest HttpRequest;
 
-    /*# HTTP request handle
-     * Opaque service-local value identifying a request after ownership has been
-     * transferred to the HTTP service.
-     * @typedef
-     * @name HttpRequestHandle
-     */
-    typedef uint32_t HttpRequestHandle;
+/*# HTTP request handle
+ * Opaque service-local value identifying a request after ownership has been
+ * transferred to the HTTP service.
+ * @typedef
+ * @name HttpRequestHandle
+ */
+typedef uint32_t HttpRequestHandle;
 
 /*# invalid HTTP request handle
  * @constant
@@ -140,123 +135,128 @@ extern "C"
  */
 #define HTTP_REQUEST_HANDLE_INVALID ((HttpRequestHandle)0)
 
-    /*# HTTP result values
-     * @enum
-     * @name HttpResult
-     * @member HTTP_RESULT_NOT_200_OK = 1
-     * @member HTTP_RESULT_OK = 0
-     * @member HTTP_RESULT_SOCKET_ERROR = -1
-     * @member HTTP_RESULT_HTTP_HEADERS_ERROR = -2
-     * @member HTTP_RESULT_INVALID_RESPONSE = -3
-     * @member HTTP_RESULT_PARTIAL_CONTENT = -4
-     * @member HTTP_RESULT_UNSUPPORTED_TRANSFER_ENCODING = -5
-     * @member HTTP_RESULT_INVAL_ERROR = -6
-     * @member HTTP_RESULT_UNEXPECTED_EOF = -7
-     * @member HTTP_RESULT_IO_ERROR = -8
-     * @member HTTP_RESULT_HANDSHAKE_FAILED = -9
-     * @member HTTP_RESULT_INVAL = -10
-     * @member HTTP_RESULT_UNKNOWN = -1000
-     */
-    typedef enum HttpResult
-    {
-        HTTP_RESULT_NOT_200_OK = 1,
-        HTTP_RESULT_OK = 0,
-        HTTP_RESULT_SOCKET_ERROR = -1,
-        HTTP_RESULT_HTTP_HEADERS_ERROR = -2,
-        HTTP_RESULT_INVALID_RESPONSE = -3,
-        HTTP_RESULT_PARTIAL_CONTENT = -4,
-        HTTP_RESULT_UNSUPPORTED_TRANSFER_ENCODING = -5,
-        HTTP_RESULT_INVAL_ERROR = -6,
-        HTTP_RESULT_UNEXPECTED_EOF = -7,
-        HTTP_RESULT_IO_ERROR = -8,
-        HTTP_RESULT_HANDSHAKE_FAILED = -9,
-        HTTP_RESULT_INVAL = -10,
-        HTTP_RESULT_UNKNOWN = -1000,
-    } HttpResult;
+/*# HTTP result values
+ * @enum
+ * @name HttpResult
+ * @member HTTP_RESULT_NOT_200_OK = 1
+ * @member HTTP_RESULT_OK = 0
+ * @member HTTP_RESULT_SOCKET_ERROR = -1
+ * @member HTTP_RESULT_HTTP_HEADERS_ERROR = -2
+ * @member HTTP_RESULT_INVALID_RESPONSE = -3
+ * @member HTTP_RESULT_PARTIAL_CONTENT = -4
+ * @member HTTP_RESULT_UNSUPPORTED_TRANSFER_ENCODING = -5
+ * @member HTTP_RESULT_INVAL_ERROR = -6
+ * @member HTTP_RESULT_UNEXPECTED_EOF = -7
+ * @member HTTP_RESULT_IO_ERROR = -8
+ * @member HTTP_RESULT_HANDSHAKE_FAILED = -9
+ * @member HTTP_RESULT_INVAL = -10
+ * @member HTTP_RESULT_UNKNOWN = -1000
+ */
+typedef enum HttpResult
+{
+    HTTP_RESULT_NOT_200_OK = 1,
+    HTTP_RESULT_OK = 0,
+    HTTP_RESULT_SOCKET_ERROR = -1,
+    HTTP_RESULT_HTTP_HEADERS_ERROR = -2,
+    HTTP_RESULT_INVALID_RESPONSE = -3,
+    HTTP_RESULT_PARTIAL_CONTENT = -4,
+    HTTP_RESULT_UNSUPPORTED_TRANSFER_ENCODING = -5,
+    HTTP_RESULT_INVAL_ERROR = -6,
+    HTTP_RESULT_UNEXPECTED_EOF = -7,
+    HTTP_RESULT_IO_ERROR = -8,
+    HTTP_RESULT_HANDSHAKE_FAILED = -9,
+    HTTP_RESULT_INVAL = -10,
+    HTTP_RESULT_UNKNOWN = -1000,
+} HttpResult;
 
-    /*# HTTP response event
-     * @enum
-     * @name HttpResponseEvent
-     * @member HTTP_RESPONSE_EVENT_HEADER Response header data is available.
-     * @member HTTP_RESPONSE_EVENT_DATA Response body data is available.
-     * @member HTTP_RESPONSE_EVENT_COMPLETE Request completed.
-     * @member HTTP_RESPONSE_EVENT_PROGRESS Request progress data is available.
-     */
-    typedef enum HttpResponseEvent
-    {
-        HTTP_RESPONSE_EVENT_HEADER = 0,
-        HTTP_RESPONSE_EVENT_DATA = 1,
-        HTTP_RESPONSE_EVENT_COMPLETE = 2,
-        HTTP_RESPONSE_EVENT_PROGRESS = 3,
-    } HttpResponseEvent;
+/*# HTTP response event
+ * @enum
+ * @name HttpResponseEvent
+ * @member HTTP_RESPONSE_EVENT_HEADER Response header data is available.
+ * @member HTTP_RESPONSE_EVENT_DATA Response body data is available.
+ * @member HTTP_RESPONSE_EVENT_COMPLETE Request completed.
+ * @member HTTP_RESPONSE_EVENT_PROGRESS Request progress data is available.
+ */
+typedef enum HttpResponseEvent
+{
+    HTTP_RESPONSE_EVENT_HEADER = 0,
+    HTTP_RESPONSE_EVENT_DATA = 1,
+    HTTP_RESPONSE_EVENT_COMPLETE = 2,
+    HTTP_RESPONSE_EVENT_PROGRESS = 3,
+} HttpResponseEvent;
 
-    /*# HTTP callback result
-     * Return value from HttpResponseCallback.
-     * @enum
-     * @name HttpCallbackResult
-     * @member HTTP_CALLBACK_RESULT_CONTINUE Continue processing the request.
-     * @member HTTP_CALLBACK_RESULT_CANCEL Cancel the request. Ignored for HTTP_RESPONSE_EVENT_COMPLETE.
-     */
-    typedef enum HttpCallbackResult
-    {
-        HTTP_CALLBACK_RESULT_CONTINUE = 0,
-        HTTP_CALLBACK_RESULT_CANCEL = 1,
-    } HttpCallbackResult;
+/*# HTTP callback result
+ * Return value from HttpResponseCallback.
+ * @enum
+ * @name HttpCallbackResult
+ * @member HTTP_CALLBACK_RESULT_CONTINUE Continue processing the request.
+ * @member HTTP_CALLBACK_RESULT_CANCEL Cancel the request. Ignored for HTTP_RESPONSE_EVENT_COMPLETE.
+ */
+typedef enum HttpCallbackResult
+{
+    HTTP_CALLBACK_RESULT_CONTINUE = 0,
+    HTTP_CALLBACK_RESULT_CANCEL = 1,
+} HttpCallbackResult;
 
-    /*# HTTP response information
-     * Data passed to HttpResponseCallback.
-     * @struct
-     * @name HttpResponseInfo
-     * @member m_Event [type:HttpResponseEvent] Event type.
-     * @member m_Result [type:HttpResult] Transfer result. Valid for HTTP_RESPONSE_EVENT_COMPLETE.
-     * @member m_StatusCode [type:int] HTTP status code, eg 200.
-     * @member m_Header [type:const char*] Header line, including name and value. Valid for HTTP_RESPONSE_EVENT_HEADER.
-     * @member m_HeaderSize [type:uint32_t] Header line size. Valid for HTTP_RESPONSE_EVENT_HEADER.
-     * @member m_Data [type:const void*] Response body chunk data. Valid for HTTP_RESPONSE_EVENT_DATA.
-     * @member m_DataSize [type:uint32_t] Response body chunk size. Valid for HTTP_RESPONSE_EVENT_DATA.
-     * @member m_Url [type:const char*] Request URL.
-     * @member m_Path [type:const char*] User supplied response path.
-     * @member m_RangeStart [type:uint32_t] Start offset into the requested file, when known.
-     * @member m_RangeEnd [type:uint32_t] End offset into the requested file, when known.
-     * @member m_DocumentSize [type:uint32_t] Full size of the requested file, when known.
-     * @member m_BytesSent [type:uint32_t] Sent byte count. Valid for HTTP_RESPONSE_EVENT_PROGRESS.
-     * @member m_BytesReceived [type:uint32_t] Received byte count. Valid for HTTP_RESPONSE_EVENT_PROGRESS.
-     * @member m_BytesTotal [type:int32_t] Total byte count, or -1 if unknown. Valid for HTTP_RESPONSE_EVENT_PROGRESS.
-     */
-    typedef struct HttpResponseInfo
-    {
-        HttpResponseEvent m_Event;
-        HttpResult        m_Result;
-        int               m_StatusCode;
-        const char*       m_Header;
-        uint32_t          m_HeaderSize;
-        const void*       m_Data;
-        uint32_t          m_DataSize;
-        const char*       m_Url;
-        const char*       m_Path;
-        uint32_t          m_RangeStart;
-        uint32_t          m_RangeEnd;
-        uint32_t          m_DocumentSize;
-        uint32_t          m_BytesSent;
-        uint32_t          m_BytesReceived;
-        int32_t           m_BytesTotal;
-    } HttpResponseInfo;
+/*# HTTP response information
+ * Data passed to HttpResponseCallback.
+ * @struct
+ * @name HttpResponseInfo
+ * @member m_Event [type:HttpResponseEvent] Event type.
+ * @member m_Result [type:HttpResult] Transfer result. Valid for HTTP_RESPONSE_EVENT_COMPLETE.
+ * @member m_StatusCode [type:int] HTTP status code, eg 200.
+ * @member m_Header [type:const char*] Header line, including name and value. Valid for HTTP_RESPONSE_EVENT_HEADER.
+ * @member m_HeaderSize [type:uint32_t] Header line size. Valid for HTTP_RESPONSE_EVENT_HEADER.
+ * @member m_Data [type:const void*] Response body chunk data. Valid for HTTP_RESPONSE_EVENT_DATA.
+ * @member m_DataSize [type:uint32_t] Response body chunk size. Valid for HTTP_RESPONSE_EVENT_DATA.
+ * @member m_Url [type:const char*] Request URL.
+ * @member m_Path [type:const char*] User supplied response path.
+ * @member m_RangeStart [type:uint32_t] Start offset into the requested file, when known.
+ * @member m_RangeEnd [type:uint32_t] End offset into the requested file, when known.
+ * @member m_DocumentSize [type:uint32_t] Full size of the requested file, when known.
+ * @member m_BytesSent [type:uint32_t] Sent byte count. Valid for HTTP_RESPONSE_EVENT_PROGRESS.
+ * @member m_BytesReceived [type:uint32_t] Received byte count. Valid for HTTP_RESPONSE_EVENT_PROGRESS.
+ * @member m_BytesTotal [type:int32_t] Total byte count, or -1 if unknown. Valid for HTTP_RESPONSE_EVENT_PROGRESS.
+ */
+typedef struct HttpResponseInfo
+{
+    HttpResponseEvent m_Event;
+    HttpResult        m_Result;
+    int               m_StatusCode;
+    const char*       m_Header;
+    uint32_t          m_HeaderSize;
+    const void*       m_Data;
+    uint32_t          m_DataSize;
+    const char*       m_Url;
+    const char*       m_Path;
+    uint32_t          m_RangeStart;
+    uint32_t          m_RangeEnd;
+    uint32_t          m_DocumentSize;
+    uint32_t          m_BytesSent;
+    uint32_t          m_BytesReceived;
+    int32_t           m_BytesTotal;
+} HttpResponseInfo;
 
-    /*# HTTP response callback
-     * Called from the HTTP client worker thread. HTTP_RESPONSE_EVENT_DATA events
-     * are sent as response chunks arrive; the receiver is responsible for
-     * processing or copying them before returning. The receiver is also responsible
-     * for synchronizing with other threads. Pointers in HttpResponseInfo are valid
-     * only for the duration of the callback. Returning HTTP_CALLBACK_RESULT_CANCEL
-     * from header, data, or progress events cancels the request.
-     * @typedef
-     * @name HttpResponseCallback
-     * @param request [type:HttpRequest*] Request object. Valid only for the duration of the callback.
-     * @param user_data [type:void*] User data.
-     * @param response [type:const HttpResponseInfo*] Response data.
-     * @return result [type:HttpCallbackResult] callback result.
-     */
-    typedef HttpCallbackResult (*HttpResponseCallback)(HttpRequest* request, void* user_data, const HttpResponseInfo* response);
+/*# HTTP response callback
+ * Called from the HTTP client worker thread. HTTP_RESPONSE_EVENT_DATA events
+ * are sent as response chunks arrive; the receiver is responsible for
+ * processing or copying them before returning. The receiver is also responsible
+ * for synchronizing with other threads. Pointers in HttpResponseInfo are valid
+ * only for the duration of the callback. Returning HTTP_CALLBACK_RESULT_CANCEL
+ * from header, data, or progress events cancels the request.
+ * @typedef
+ * @name HttpResponseCallback
+ * @param request [type:HttpRequest*] Request object. Valid only for the duration of the callback.
+ * @param user_data [type:void*] User data.
+ * @param response [type:const HttpResponseInfo*] Response data.
+ * @return result [type:HttpCallbackResult] callback result.
+ */
+typedef HttpCallbackResult (*HttpResponseCallback)(HttpRequest* request, void* user_data, const HttpResponseInfo* response);
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
     /*# create a new HTTP request
      * @name HttpNewRequest
