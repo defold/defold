@@ -199,6 +199,7 @@ namespace dmGameObject
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultInputStackCapacity;
+        HContextRegistry            m_ContextRegistry;
 
         Register();
         ~Register();

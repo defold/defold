@@ -3168,6 +3168,8 @@
       (when-let [handler+context (handler/active command [_context] false)]
         (handler/run handler+context)))))
 
+(declare ^:private fetch-libraries)
+
 (defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs localization web-server]
   (extensions/reload!
     project kind
@@ -3209,6 +3211,8 @@
                             (catch Throwable e (error-reporting/report-exception! e)))
                           (future/complete! f nil))
                         f))
+    :fetch-libraries! (fn fetch-libraries! []
+                        (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server))
     :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
                    (let [f (future/make)]
                      (fx/on-fx-thread
@@ -3247,20 +3251,24 @@
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
   (let [library-uris (project/project-dependencies project)]
-    (future
-      (error-reporting/catch-all!
+    (future/io
+      (try
         (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
           (let [lib-results (library/fetch! (workspace/project-directory workspace) library-uris render-fetch-progress!)
                 render-install-progress! (make-render-task-progress :resource-sync)]
             (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
-            (ui/run-later
-              (workspace/set-project-dependencies! workspace lib-results)
-              (disk/async-reload!
-                render-install-progress! workspace [] changes-view
-                (fn [success]
-                  (when success
-                    (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                    (project/update-fetch-libraries-notification! project)))))))))))
+            (ui/run-now (workspace/set-project-dependencies! workspace lib-results))
+            (if-not (let [reload-completed (promise)]
+                      (disk/async-reload! render-install-progress! workspace [] changes-view reload-completed)
+                      @reload-completed)
+              [lib-results false]
+              (ui/run-now
+                (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
+                (project/update-fetch-libraries-notification! project)
+                [lib-results true]))))
+        (catch Throwable error
+          (error-reporting/report-exception! error)
+          (throw error))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))

@@ -20,6 +20,7 @@
 #include <dmsdk/gameobject/gameobject.h>
 
 #include <dlib/easing.h>
+#include <dlib/context_registry.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
@@ -89,6 +90,9 @@ namespace dmGameObject
      * @return Default capacity
      */
     uint32_t GetCollectionDefaultCapacity(HRegister regist);
+
+    void SetContextRegistry(HRegister regist, HContextRegistry context_registry);
+    HContextRegistry GetContextRegistry(HRegister regist);
 
     /**
      * Set default input stack capacity of collections in this register. This does not affect existing collections.

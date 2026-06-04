@@ -21,6 +21,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/jobsystem.h>
 #include <dlib/message.h>
+#include <dlib/context_registry.h>
 #include <dlib/http_cache.h>
 
 #include <resource/resource.h>
@@ -154,6 +155,7 @@ namespace dmEngine
         dmInput::HBinding                           m_GameInputBinding;
         dmRender::HDisplayProfiles                  m_DisplayProfiles;
         dmHttpCache::HCache                         m_HttpCache;
+        HContextRegistry                            m_ContextRegistry;
 
         dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 

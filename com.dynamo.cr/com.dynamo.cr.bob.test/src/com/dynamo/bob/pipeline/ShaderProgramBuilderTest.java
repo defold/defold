@@ -147,13 +147,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private ShaderDesc compileShaderWithCompiler(IShaderCompiler shaderCompiler, String shaderAdapters, String outputResource) throws Exception {
+        return compileShaderWithCompiler(shaderCompiler, shaderAdapters, outputResource, fp);
+    }
+
+    private ShaderDesc compileShaderWithCompiler(IShaderCompiler shaderCompiler, String shaderAdapters, String outputResource, String source) throws Exception {
         IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
         compileOptions.shaderAdapters = shaderAdapters;
 
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules = new ArrayList<>();
         ShaderCompilePipeline.ShaderModuleDesc shaderModule = new ShaderCompilePipeline.ShaderModuleDesc();
         shaderModule.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
-        shaderModule.source = fp;
+        shaderModule.source = source;
         shaderModule.resourcePath = "/" + outputResource + ".fp";
         shaderModules.add(shaderModule);
 
@@ -492,6 +496,23 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64Win32, shaderAdapters, "manifest_win32_vulkan"),
             ShaderDesc.Language.LANGUAGE_SPIRV);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.WasmWeb, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterWebGPU"))));
+        String samplerSource =
+            "#version 140\n" +
+            "in vec2 var_texcoord0;\n" +
+            "out vec4 color_out;\n" +
+            "uniform sampler2D texture_sampler;\n" +
+            "void main()\n" +
+            "{\n" +
+            "   color_out = texture(texture_sampler, var_texcoord0.xy);\n" +
+            "}\n";
+        checkOnlyExpectedLanguages(
+            compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource),
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_GLES_SM100,
+            ShaderDesc.Language.LANGUAGE_WGSL);
 
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings("excludeSymbols", List.of("GraphicsAdapterVulkan"))));

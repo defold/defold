@@ -385,8 +385,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 goCount++;
             }
 
-            int buildDirLen = project.getBuildDirectory().length();
-            String path = genResource.getPath().substring(buildDirLen);
+            String path = BuilderUtil.getRelativePath(project, genResource);
 
             InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder();
             instBuilder.setId(desc.getId())
