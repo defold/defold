@@ -5396,10 +5396,6 @@
     :default (get property-defaults prop-kw)))
 
 (defn- normalize-node-type-info [type-info]
-  (when (contains? type-info :custom-properties)
-    (throw (IllegalArgumentException.
-             (format "Plugin GUI node type %s specifies :custom-properties in registration. Declare custom properties with (static custom-property ...) on graph properties instead."
-                     (:name @(:node-cls type-info))))))
   (let [node-cls (:node-cls type-info)
         layout-property-keys (coll/into-> (node-type->layout-property-names node-cls) #{}
                                (map val))
