@@ -545,6 +545,70 @@ http.server.route(
   end
 )
 ```"}
+         {:name "image"
+          :type :module
+          :description "Module for reading image files from editor scripts"}
+         {:name "image.load_file"
+          :type :function
+          :description "Load an image file for reading"
+          :parameters [{:name "path"
+                        :types ["string"]
+                        :doc "External file path, resolved against project root if relative"}]
+          :returnvalues [{:name "image"
+                          :types ["image"]
+                          :doc "image userdata"}]}
+         {:name "image.size"
+          :type :function
+          :description "Return the width and height of an image.\n\nWhen called with a file path, reads only the image metadata. When called with an image userdata returned by <code>image.load_file()</code>, returns the size of the loaded image."
+          :parameters [{:name "image_or_path"
+                        :types ["image" "string"]
+                        :doc "Image userdata or image file path"}]
+          :returnvalues [{:name "width"
+                          :types ["integer"]
+                          :doc "image width in pixels"}
+                         {:name "height"
+                          :types ["integer"]
+                          :doc "image height in pixels"}]}
+         {:name "image.pixel"
+          :type :function
+          :description "Return the color of a pixel from a loaded image.\n\nCoordinates are 1-based, with <code>1, 1</code> at the top-left corner."
+          :parameters [{:name "image"
+                        :types ["image"]
+                        :doc "image userdata returned by <code>image.load_file()</code>"}
+                       {:name "x"
+                        :types ["integer"]
+                        :doc "1-based horizontal pixel coordinate"}
+                       {:name "y"
+                        :types ["integer"]
+                        :doc "1-based vertical pixel coordinate"}]
+          :returnvalues [{:name "r"
+                          :types ["integer"]
+                          :doc "red channel, 0-255"}
+                         {:name "g"
+                          :types ["integer"]
+                          :doc "green channel, 0-255"}
+                         {:name "b"
+                          :types ["integer"]
+                          :doc "blue channel, 0-255"}
+                         {:name "a"
+                          :types ["integer"]
+                          :doc "alpha channel, 0-255"}]}
+         {:name "image.pixels"
+          :type :function
+          :description "Iterate over pixels in a loaded image.\n\nThe iterator returns pixels row by row from top-left to bottom-right. Coordinates are 1-based."
+          :parameters [{:name "image"
+                        :types ["image"]
+                        :doc "image userdata returned by <code>image.load_file()</code>"}]
+          :returnvalues [{:name "iterator"
+                          :types ["function"]
+                          :doc "iterator function returning <code>x, y, r, g, b, a</code> for each pixel"}]
+          :examples "```
+local img = image.load_file(\"assets/source.png\")
+local width, height = image.size(img)
+for x, y, r, g, b, a in image.pixels(img) do
+  print(x, y, r, g, b, a)
+end
+```"}
          {:name "json"
           :type :module
           :description "Module for encoding or decoding values in JSON format"}
