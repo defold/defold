@@ -25,8 +25,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- resolve-existing-image-path
-  [project-path path-string]
+(defn- resolve-existing-image-path [project-path path-string]
   (let [path (path/resolve-normalized project-path path-string)]
     (when-not (path/exists? path)
       (throw (LuaError. (str "Image file does not exist: " path-string))))
@@ -54,7 +53,8 @@
                    (with-open [source-stream (io/input-stream path)
                                image-stream (ImageIO/createImageInputStream source-stream)]
                      (let [readers (ImageIO/getImageReaders image-stream)]
-                       (if (.hasNext readers)
+                       (if-not (.hasNext readers)
+                         (throw (LuaError. (str "Unsupported image file: " path-string)))
                          (let [^ImageReader reader (.next readers)]
                            (try
                              (.setInput reader image-stream true true)
@@ -62,8 +62,7 @@
                                (LuaValue/valueOf (.getWidth reader 0))
                                (LuaValue/valueOf (.getHeight reader 0)))
                              (finally
-                               (.dispose reader))))
-                         (throw (LuaError. (str "Unsupported image file: " path-string)))))))
+                               (.dispose reader))))))))
                  (let [^BufferedImage image (.checkuserdata lua-source BufferedImage)]
                    (LuaValue/varargsOf
                      (LuaValue/valueOf (.getWidth image))
