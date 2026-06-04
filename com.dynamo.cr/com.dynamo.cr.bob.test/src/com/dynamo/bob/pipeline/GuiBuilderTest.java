@@ -531,6 +531,43 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(MurmurHash.hash64("readable_hash"), property.getHash());
     }
 
+    // Mirrors integration.gui-test/custom-gui-template-custom-property-override-preserves-base-properties-test.
+    // A sparse template override of one custom property must preserve other non-default base custom properties.
+    @Test
+    public void testTemplateCustomPropertyOverridePreservesBaseProperties() throws Exception {
+        StringBuilder templateSrc = createGui();
+        startCustomNode(templateSrc, "typed", "Typed");
+        templateSrc.append("  custom_properties {\n");
+        templateSrc.append("    id: \"hash\"\n");
+        templateSrc.append("    type: TYPE_HASH\n");
+        templateSrc.append("    string_value: \"base_hash\"\n");
+        templateSrc.append("  }\n");
+        templateSrc.append("  custom_properties {\n");
+        templateSrc.append("    id: \"number\"\n");
+        templateSrc.append("    type: TYPE_NUMBER\n");
+        templateSrc.append("    number: 2.0\n");
+        templateSrc.append("  }\n");
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder referencingSrc = createGui();
+        addTemplateNode(referencingSrc, "template", "", "/template.gui");
+        startOverriddenNode(referencingSrc, NodeDesc.Type.TYPE_CUSTOM, "template/typed", "template", true, List.of(NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER));
+        referencingSrc.append("  custom_properties {\n");
+        referencingSrc.append("    id: \"number\"\n");
+        referencingSrc.append("    type: TYPE_NUMBER\n");
+        referencingSrc.append("    number: 7.0\n");
+        referencingSrc.append("  }\n");
+        finishNode(referencingSrc);
+
+        Gui.SceneDesc gui = buildGui(referencingSrc, "/test.gui");
+        NodeDesc node = findNode(gui, "", "template/typed");
+
+        Assert.assertNotNull(node);
+        Assert.assertEquals(MurmurHash.hash64("base_hash"), findCustomProperty(node, "hash").getHash());
+        Assert.assertEquals(7.0f, findCustomProperty(node, "number").getNumber(), EPSILON);
+    }
+
     // https://github.com/defold/defold/issues/6151
     @Test
     public void testDefaultLayoutOverridesPriorityOverTemplateValues() throws Exception {

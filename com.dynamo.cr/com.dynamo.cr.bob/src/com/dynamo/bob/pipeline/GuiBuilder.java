@@ -285,9 +285,13 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         Descriptors.Descriptor typeDesc = NodeDesc.getDescriptor();
 
         for (int fieldNumber : overrideNode.getOverriddenFieldsList()) {
-            FieldDescriptor fieldDesc = typeDesc.findFieldByNumber(fieldNumber);
-            assert fieldDesc != null;
-            targetBuilder.setField(fieldDesc, overrideNode.getField(fieldDesc));
+            if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
+                mergeCustomPropertiesByIdHash(targetBuilder, overrideNode);
+            } else {
+                FieldDescriptor fieldDesc = typeDesc.findFieldByNumber(fieldNumber);
+                assert fieldDesc != null;
+                targetBuilder.setField(fieldDesc, overrideNode.getField(fieldDesc));
+            }
         }
 
         return targetBuilder;
@@ -362,6 +366,37 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         propertyBuilder.clearId();
         return propertyBuilder.build();
+    }
+
+    private static void mergeCustomPropertiesByIdHash(NodeDesc.Builder targetBuilder, NodeDesc overrideNode) {
+        Map<Long, Integer> customPropertyIndices = new HashMap<>();
+        List<Property> customProperties = new ArrayList<>(targetBuilder.getCustomPropertiesCount() + overrideNode.getCustomPropertiesCount());
+
+        for (Property property : targetBuilder.getCustomPropertiesList()) {
+            Property canonicalProperty = canonicalizeCustomProperty(property);
+            if (canonicalProperty.hasIdHash()) {
+                customPropertyIndices.put(canonicalProperty.getIdHash(), customProperties.size());
+            }
+            customProperties.add(canonicalProperty);
+        }
+
+        for (Property property : overrideNode.getCustomPropertiesList()) {
+            Property canonicalProperty = canonicalizeCustomProperty(property);
+            if (canonicalProperty.hasIdHash()) {
+                Integer propertyIndex = customPropertyIndices.get(canonicalProperty.getIdHash());
+                if (propertyIndex != null) {
+                    customProperties.set(propertyIndex, canonicalProperty);
+                } else {
+                    customPropertyIndices.put(canonicalProperty.getIdHash(), customProperties.size());
+                    customProperties.add(canonicalProperty);
+                }
+            } else {
+                customProperties.add(canonicalProperty);
+            }
+        }
+
+        targetBuilder.clearCustomProperties();
+        targetBuilder.addAllCustomProperties(customProperties);
     }
 
     private static void putLegacySpineProperties(NodeDesc node, Map<String, Object> properties) {

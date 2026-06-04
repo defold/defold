@@ -1592,6 +1592,43 @@
           (is (not (contains? saved-override-node :custom-properties)))
           (is (not (contains? (set (:overridden-fields saved-override-node)) custom-properties-pb-field-index))))))))
 
+;; Mirrors GuiBuilderTest.testTemplateCustomPropertyOverridePreservesBaseProperties.
+;; A sparse template override of one custom property must preserve other non-default base custom properties.
+(deftest custom-gui-template-custom-property-override-preserves-base-properties-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (register-test-gui-extensions workspace)
+    (test-util/make-resource!
+      workspace
+      "/custom_template_source.gui"
+      {:nodes [{:type :type-custom
+                :custom-type-name "TestCustom"
+                :id "custom"
+                :custom-properties [{:id "test_hash"
+                                     :type :type-hash
+                                     :string-value "base_hash"}
+                                    {:id "test_number"
+                                     :type :type-number
+                                     :number 2.0}]}]})
+    (test-util/make-resource!
+      workspace
+      "/custom_template_referencing.gui"
+      {:nodes [{:type :type-template
+                :id "template"
+                :template "/custom_template_source.gui"}]})
+    (workspace/resource-sync! workspace)
+    (let [referencing-gui-scene (project/get-resource-node project "/custom_template_referencing.gui")]
+      (prop! (gui-node referencing-gui-scene "template/custom") :test-number 7.0)
+      (let [built-custom-properties (-> (g/valid-node-value referencing-gui-scene :build-targets)
+                                        (get-in [0 :user-data :pb :nodes])
+                                        (->> (coll/first-where #(= "template/custom" (:id %))))
+                                        :custom-properties)]
+        (is (= (murmur/hash64 "base_hash")
+               (:hash (coll/first-where #(= (murmur/hash64 "test_hash") (:id-hash %))
+                                        built-custom-properties))))
+        (is (= 7.0
+               (:number (coll/first-where #(= (murmur/hash64 "test_number") (:id-hash %))
+                                          built-custom-properties))))))))
+
 (defn has-successor?
   ([source-id+source-label target-id+target-label]
    (has-successor? (g/now) source-id+source-label target-id+target-label))
