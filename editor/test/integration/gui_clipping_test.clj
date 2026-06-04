@@ -30,9 +30,9 @@
                    (into {}))]
     (id->node id)))
 
-(defn- gui-node-type-info [project node-cls]
+(defn- gui-node-type-info [project node-type]
   (get-in (get (workspace/get-resource-type-map (project/workspace project) :editable) "gui")
-          [:gui-node-type-registry :node-cls->type-info node-cls]))
+          [:gui-node-type-registry :node-type->type-info node-type]))
 
 (defn- add-box! [project scene parent]
   (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) (gui-node-type-info project gui/BoxNode) nil))

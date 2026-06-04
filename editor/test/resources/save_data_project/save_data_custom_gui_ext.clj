@@ -72,7 +72,7 @@
     (concat
       (gui/register-custom-node-type-info
         workspace
-        {:node-cls SaveDataCustomGuiNode
+        {:node-type SaveDataCustomGuiNode
          :display-name "Save Data Custom"
          :custom-type-name "SaveDataCustom"
          :icon "icons/32/Icons_40-GUI-Box-node.png"

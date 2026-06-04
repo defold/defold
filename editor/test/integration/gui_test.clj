@@ -194,7 +194,7 @@
     (concat
       (gui/register-custom-node-type-info
         workspace
-        {:node-cls TestCustomGuiNode
+        {:node-type TestCustomGuiNode
          :display-name "Test Custom"
          :custom-type-name "TestCustom"
          :icon "icons/32/Icons_40-GUI-Box-node.png"
@@ -255,7 +255,7 @@
                     node-type-info (get-in gui-resource-type [:gui-node-type-registry :custom-type-name->type-info "TestCustom"])
                     resource-kind-info (get-in gui-resource-type [:gui-resource-kind-registry :test-gui-resource])]]
         (is (= custom-type (:custom-type node-type-info)))
-        (is (= "TestCustom" (get-in gui-resource-type [:gui-node-type-registry :node-cls->type-info TestCustomGuiNode :custom-type-name])))
+        (is (= "TestCustom" (get-in gui-resource-type [:gui-node-type-registry :node-type->type-info TestCustomGuiNode :custom-type-name])))
         (is (= ["testguiresource"] (:exts resource-kind-info))))
       (doseq [proj-path ["/alpha.testguiresource" "/beta.testguiresource"]]
         (let [file (test-util/file workspace proj-path)]
@@ -803,9 +803,9 @@
       (use 'editor.gui :reload)
       (is (= -100.0 (get-in (g/node-value template :_properties) [:properties :template :value :overrides "box" :position 0]))))))
 
-(defn- gui-node-type-info [workspace node-cls]
+(defn- gui-node-type-info [workspace node-type]
   (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
-          [:gui-node-type-registry :node-cls->type-info node-cls]))
+          [:gui-node-type-registry :node-type->type-info node-type]))
 
 (deftest gui-template-add
   (test-util/with-loaded-project

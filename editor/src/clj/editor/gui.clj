@@ -450,7 +450,7 @@
       (if-some [custom-type-name (coll/not-empty (:custom-type-name node-desc))]
         (or (get-in gui-node-type-registry [:custom-type-name->type-info custom-type-name])
             (throw (IllegalStateException.
-                     (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, custom-type-name=%s, node-type-infos=%s)"
+                     (format "Unable to locate GUI node type info. Extension not loaded? (type=%s, custom-type-name=%s, node-type-infos=%s)"
                              type
                              custom-type-name
                              (keys (:custom-type-name->type-info gui-node-type-registry))))))
@@ -467,10 +467,10 @@
   (let [type (:type node-desc default-pb-node-type)]
     (when-some [custom-type-name (when (= :type-custom type)
                                    (coll/not-empty (:custom-type-name node-desc)))]
-      (when-not (= type (:node-type type-info))
+      (when-not (= type (:type type-info))
         (throw (IllegalArgumentException.
                  (format "GUI node custom_type_name '%s' belongs to node type %s, expected %s."
-                         custom-type-name (:node-type type-info) type))))
+                         custom-type-name (:type type-info) type))))
       (when (and (contains? node-desc :custom-type)
                  (not= (:custom-type type-info) (:custom-type node-desc)))
         (throw (IllegalArgumentException.
@@ -485,7 +485,7 @@
     (dissoc node-desc :custom-type-name :custom-type)))
 
 (defn- node-desc->node-type [gui-node-type-registry node-desc]
-  (:node-cls (node-desc->node-type-info gui-node-type-registry node-desc)))
+  (:node-type (node-desc->node-type-info gui-node-type-registry node-desc)))
 
 (def ^:private custom-property-pb-type->value-field
   {:type-boolean :boolean
@@ -1382,7 +1382,7 @@
                                                                      (vec (sort-by :child-index child-outlines))))
   (output node-outline-reqs g/Any :cached (g/fnk [gui-node-type-registry]
                                             (mapv (fn [type-info]
-                                                    {:node-type (:node-cls type-info)
+                                                    {:node-type (:node-type type-info)
                                                      :tx-attach-fn gui-node-attach-fn})
                                                   (get-registered-node-type-infos gui-node-type-registry))))
 
@@ -3020,7 +3020,7 @@
              :order 0
              :read-only true
              :child-reqs (mapv (fn [type-info]
-                                  {:node-type (:node-cls type-info)
+                                  {:node-type (:node-type type-info)
                                    :tx-attach-fn gui-node-attach-fn})
                                (get-registered-node-type-infos gui-node-type-registry))
              :children (vec (sort-by :child-index child-outlines))}))
@@ -4113,9 +4113,9 @@
 (defn add-gui-node-with-props! [scene parent node-type-info props select-fn]
   (-> (g/with-auto-evaluation-context evaluation-context
         (let [node-tree (g/node-value scene :node-tree evaluation-context)
-              def-node-type (:node-cls node-type-info)
+              def-node-type (:node-type node-type-info)
               id-base (or (some-> (node-types/->name def-node-type) extension-type-name->id)
-                          (subs (name (:node-type node-type-info)) 5))
+                          (subs (name (:type node-type-info)) 5))
               id (or (:id props)
                      (id/resolve id-base
                                  (g/node-value node-tree :id-counts evaluation-context)))
@@ -4123,7 +4123,7 @@
               node-properties (assoc props
                                 :id id
                                 :child-index next-index
-                                :type (:node-type node-type-info))
+                                :type (:type node-type-info))
               node-properties (cond-> node-properties
                                 (coll/not-empty (:custom-type-name node-type-info))
                                 (assoc :custom-type-name (:custom-type-name node-type-info)))]
@@ -4192,7 +4192,7 @@
                                       node)]
                          (mapv (fn [info]
                                  (if-not (:deprecated info)
-                                   (let [add-handler (if (= (:node-type info) :type-template)
+                                   (let [add-handler (if (= (:type info) :type-template)
                                                        add-template-gui-node-handler
                                                        add-gui-node-handler)]
                                      (make-add-handler scene parent (:display-name info) (:icon info)
@@ -4602,9 +4602,9 @@
     node-desc))
 
 (defn- sanitize-node-fields [gui-node-type-registry node-desc]
-  (let [node-type (:type node-desc default-pb-node-type)
+  (let [type (:type node-desc default-pb-node-type)
         node-type-info (node-desc->node-type-info gui-node-type-registry node-desc)
-        node-desc (assoc node-desc :type node-type) ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
+        node-desc (assoc node-desc :type type) ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
         node-desc (if-some [convert-fn (:convert-fn node-type-info)]
                     (convert-fn node-type-info node-desc)
                     node-desc)
@@ -5112,34 +5112,34 @@
     :size-mode :size-mode-auto))
 
 (def ^:private base-node-type-infos
-  [{:node-type :type-box
-    :node-cls BoxNode
+  [{:type :type-box
+    :node-type BoxNode
     :display-name outline-box-message
     :custom-type 0
     :icon box-icon
     :defaults shape-base-node-defaults}
-   {:node-type :type-pie
-    :node-cls PieNode
+   {:type :type-pie
+    :node-type PieNode
     :display-name outline-pie-message
     :custom-type 0
     :icon pie-icon
     :defaults shape-base-node-defaults}
-   {:node-type :type-text
-    :node-cls TextNode
+   {:type :type-text
+    :node-type TextNode
     :display-name outline-text-message
     :custom-type 0
     :icon text-icon
     :defaults (assoc visual-base-node-defaults
                 :manual-size default-manual-size
                 :text "<text>")}
-   {:node-type :type-template
-    :node-cls TemplateNode
+   {:type :type-template
+    :node-type TemplateNode
     :display-name outline-template-message
     :custom-type 0
     :icon template-icon
     :defaults gui-base-node-defaults}
-   {:node-type :type-particlefx
-    :node-cls ParticleFXNode
+   {:type :type-particlefx
+    :node-type ParticleFXNode
     :display-name outline-particlefx-message
     :custom-type 0
     :icon particlefx/particle-fx-icon
@@ -5147,30 +5147,30 @@
 
 (def ^:private empty-node-type-registry
   {;; graph-node-type -> non-deprecated info
-   :node-cls->type-info {}
+   :node-type->type-info {}
    ;; custom type name -> non-deprecated info
    :custom-type-name->type-info {}
-   ;; node-desc-type keyword -> custom-type -> info
-   :node-type->custom-type->type-info {}
+   ;; type keyword -> custom-type -> info
+   :type->custom-type->type-info {}
    ;; flat list
    :type-infos []})
 
-(defn- add-node-type-info [state {:keys [node-cls node-type custom-type-name deprecated] :as type-info}]
+(defn- add-node-type-info [state {:keys [node-type type custom-type-name deprecated] :as type-info}]
   (let [custom-type (or (:custom-type type-info)
                         (murmur/hash32 custom-type-name))
         type-info (assoc type-info :custom-type custom-type)]
-    (when-let [old-node-cls (-> state :node-type->custom-type->type-info (get node-type) (get custom-type) :node-cls)]
-      (when-not (= old-node-cls node-cls)
+    (when-let [old-node-type (-> state :type->custom-type->type-info (get type) (get custom-type) :node-type)]
+      (when-not (= old-node-type node-type)
         (throw (IllegalArgumentException.
                  (format "Plugin GUI node type %s custom-type %s conflicts with %s."
-                         (:name @node-cls)
+                         (:name @node-type)
                          custom-type
-                         (:name @old-node-cls))))))
+                         (:name @old-node-type))))))
     (-> state
-        (assoc-in [:node-type->custom-type->type-info node-type custom-type] type-info)
+        (assoc-in [:type->custom-type->type-info type custom-type] type-info)
         (update :type-infos conj type-info)
         (cond-> (not deprecated)
-          (update :node-cls->type-info assoc node-cls type-info)
+          (update :node-type->type-info assoc node-type type-info)
           (and (not deprecated) custom-type-name) (assoc-in [:custom-type-name->type-info custom-type-name] type-info)))))
 
 (defn- gui-resource-type-from-resource-types [resource-types]
@@ -5207,27 +5207,27 @@
   (:type-infos gui-node-type-registry))
 
 (defn- get-registered-node-type-info
-  ([gui-node-type-registry node-cls]
-   {:pre [(g/node-type? node-cls)]}
+  ([gui-node-type-registry node-type]
+   {:pre [(g/node-type? node-type)]}
    (or (-> gui-node-type-registry
-         :node-cls->type-info
-         (get node-cls))
+         :node-type->type-info
+         (get node-type))
      (throw (IllegalStateException.
-              (format "Unable to locate GUI node type info. Extension not loaded? (node-cls=%s, node-type-infos=%s)"
-                      (:k node-cls)
-                      (keys (:node-cls->type-info gui-node-type-registry)))))))
-  ([gui-node-type-registry node-type custom-type]
-   {:pre [(keyword? node-type)
+              (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, node-type-infos=%s)"
+                      (:k node-type)
+                      (keys (:node-type->type-info gui-node-type-registry)))))))
+  ([gui-node-type-registry type custom-type]
+   {:pre [(keyword? type)
           (integer? custom-type)]}
    (or (-> gui-node-type-registry
-         :node-type->custom-type->type-info
-         (get node-type)
+         :type->custom-type->type-info
+         (get type)
          (get custom-type))
      (throw (IllegalStateException.
-              (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, custom-type=%s, node-type-infos=%s)"
-                      node-type
+              (format "Unable to locate GUI node type info. Extension not loaded? (type=%s, custom-type=%s, type-infos=%s)"
+                      type
                       custom-type
-                      (:node-type->custom-type->type-info gui-node-type-registry)))))))
+                      (:type->custom-type->type-info gui-node-type-registry)))))))
 
 (defn- extension-type-name->id [s]
   (if-let [i (str/last-index-of s \-)]
@@ -5340,14 +5340,14 @@
   (let [workspace (project/workspace project evaluation-context)
         resource-types (resource/resource-types-by-type-ext basis workspace :editable)
         gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
-        {:keys [node-type custom-type-name defaults] :as type-info} (get-registered-node-type-info gui-node-type-registry child-node-type)
+        {:keys [type custom-type-name defaults] :as type-info} (get-registered-node-type-info gui-node-type-registry child-node-type)
         [attachment custom-properties] (split-custom-property-attachment type-info rt project evaluation-context attachment)
         node-tree-or-gui-node (if (g/node-instance? basis GuiSceneNode parent-node-id)
                                 (gui-attachment/scene-node->node-tree basis parent-node-id)
                                 parent-node-id)
         props (cond-> (assoc defaults
                         :child-index (gui-attachment/next-child-index node-tree-or-gui-node evaluation-context)
-                        :type node-type)
+                        :type type)
                 custom-properties (merge custom-properties)
                 custom-type-name (assoc :custom-type-name custom-type-name))]
     (concat
@@ -5373,36 +5373,36 @@
 (defmethod ext-graph/init-attachment ::TemplateNode [evaluation-context rt project parent-node-id child-node-type child-node-id attachment]
   (init-gui-node-attachment evaluation-context rt project parent-node-id child-node-type child-node-id attachment template-node-id-base-name))
 
-(defn- normalize-custom-property-info [node-cls layout-property-keys property-defaults prop-kw {:keys [id protobuf-type] :as custom-property-static}]
+(defn- normalize-custom-property-info [node-type layout-property-keys property-defaults prop-kw {:keys [id protobuf-type] :as custom-property-static}]
   (when-not (and (string? id) (not (str/blank? id)))
     (throw (IllegalArgumentException.
              (format "GUI custom property does not specify a non-empty string :id. (node-type=%s, property=%s, custom-property-static=%s)"
-                     (:name @node-cls) prop-kw custom-property-static))))
+                     (:name @node-type) prop-kw custom-property-static))))
   (when-not (contains? custom-property-static :protobuf-type)
     (throw (IllegalArgumentException.
              (format "GUI custom property does not specify :protobuf-type. (node-type=%s, property=%s, custom-property-static=%s)"
-                     (:name @node-cls) prop-kw custom-property-static))))
+                     (:name @node-type) prop-kw custom-property-static))))
   (when-not (contains? custom-property-pb-type->value-field protobuf-type)
     (throw (IllegalArgumentException.
              (format "Unsupported GUI custom property protobuf type. (type=%s)" protobuf-type))))
   (when-not (contains? layout-property-keys prop-kw)
     (throw (IllegalArgumentException.
              (format "GUI custom property %s on %s is not a layout property."
-                     prop-kw (:name @node-cls)))))
+                     prop-kw (:name @node-type)))))
   (assoc custom-property-static
     :id prop-kw
     :custom-property-id id
-    :type (in/property-type node-cls prop-kw)
+    :type (in/property-type node-type prop-kw)
     :default (get property-defaults prop-kw)))
 
 (defn- normalize-node-type-info [type-info]
-  (let [node-cls (:node-cls type-info)
-        layout-property-keys (coll/into-> (node-type->layout-property-names node-cls) #{}
+  (let [node-type (:node-type type-info)
+        layout-property-keys (coll/into-> (node-type->layout-property-names node-type) #{}
                                (map val))
-        property-defaults (in/defaults node-cls)
-        custom-properties (coll/into-> (g/property-statics node-cls :custom-property) []
+        property-defaults (in/defaults node-type)
+        custom-properties (coll/into-> (g/property-statics node-type :custom-property) []
                             (map (fn [[prop-kw custom-property-static]]
-                                   (normalize-custom-property-info node-cls layout-property-keys property-defaults prop-kw custom-property-static))))
+                                   (normalize-custom-property-info node-type layout-property-keys property-defaults prop-kw custom-property-static))))
         duplicate-custom-property-ids (->> custom-properties
                                            (e/map :custom-property-id)
                                            frequencies
@@ -5423,7 +5423,7 @@
     (when duplicate-custom-property-ids
       (throw (IllegalArgumentException.
                (format "Plugin GUI node type %s custom property ids are not unique: %s"
-                       (:name @(:node-cls type-info))
+                       (:name @(:node-type type-info))
                        (str/join ", " duplicate-custom-property-ids)))))
     (-> type-info
         (assoc
@@ -5436,16 +5436,16 @@
 (def ^:private base-node-type-registry
   (reduce add-node-type-info empty-node-type-registry (mapv normalize-node-type-info base-node-type-infos)))
 
-(defn- validate-node-type-info! [{:keys [custom-type-name node-cls] :as type-info}]
+(defn- validate-node-type-info! [{:keys [custom-type-name node-type] :as type-info}]
   (when (or (not (string? custom-type-name))
             (str/blank? custom-type-name))
     (throw (IllegalArgumentException.
              (format "Plugin GUI node type %s does not specify a valid custom type name."
-                     (:name @node-cls)))))
-  (when-some [abstract-output-labels (not-empty (g/abstract-output-labels node-cls))]
+                     (:name @node-type)))))
+  (when-some [abstract-output-labels (not-empty (g/abstract-output-labels node-type))]
     (throw (IllegalArgumentException.
              (format "Plugin GUI node type %s does not implement required outputs: %s"
-                     (:name @node-cls)
+                     (:name @node-type)
                      (->> abstract-output-labels
                           (sort)
                           (map name)
@@ -5453,7 +5453,7 @@
   (when-not (map? (:defaults type-info))
     (throw (IllegalArgumentException.
              (format "Plugin GUI node type %s does not specify :defaults as a map of {:node-prop default-value}."
-                     (:name @node-cls))))))
+                     (:name @node-type))))))
 
 ;; SDK api (internal, extension-spine legacy file loading only; use register-custom-node-type-info for new custom GUI nodes)
 (defn register-node-type-info [workspace type-info]
@@ -5475,7 +5475,7 @@
       The workspace node id.
     type-info
       Map describing the custom GUI node type, with these keys:
-        :node-cls
+        :node-type
           Graph node type implementing the custom GUI node. It is used when
           constructing new nodes and when loading saved :type-custom node
           descriptions with the matching :custom-type-name.
@@ -5516,10 +5516,10 @@
 
     (register-custom-node-type-info
       workspace
-      {:node-cls SpineNode
+      {:node-type SpineNode
        :custom-type-name \"Spine\"
        :display-name \"Spine\"
        :icon spine-scene-icon
        :defaults visual-base-node-defaults})"
   [workspace type-info]
-  (register-node-type-info workspace (assoc type-info :node-type :type-custom)))
+  (register-node-type-info workspace (assoc type-info :type :type-custom)))

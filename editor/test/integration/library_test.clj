@@ -104,9 +104,9 @@
                               (settings-core/settings-with-value)
                               (settings-core/settings->str game-project-core/meta-settings :multi-line-list)))))
 
-(defn- gui-node-type-info [workspace node-cls]
+(defn- gui-node-type-info [workspace node-type]
   (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
-          [:gui-node-type-registry :node-cls->type-info node-cls]))
+          [:gui-node-type-registry :node-type->type-info node-type]))
 
 (deftest open-project
   (with-clean-system
