@@ -1603,7 +1603,6 @@
    {:command :scene.tile-map.erase
     :context-path ["Tile Map Editor"]
     :action "Erase"
-    ;; :binding {:button :primary :trigger :drag :modifiers [:shift :alt]}}
     :binding {:button :secondary :trigger :drag :modifiers []}}
    {:command :scene.tile-map.cut
     :context-path ["Tile Map Editor"]
@@ -1615,13 +1614,6 @@
    {:command :scene.camera.pan
     :context-path ["Tile Map Editor"]
     :action "Pan"}
-   {:command :scene.camera.pan
-    :context-path ["Tile Map Editor"]
-    :action "Pan"}
-   #_{:command :scene.camera.pan
-    :context-path ["Tile Map Editor"]
-    :action "Pan"
-    :binding {:button :secondary :trigger :drag :modifiers []}}
    {:command :scene.camera.zoom
     :context-path ["Tile Map Editor"]
     :action "Zoom"}])
