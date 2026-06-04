@@ -98,12 +98,14 @@ namespace dmCrash
 
     static void Handler(const int signo, siginfo_t* const si, void *const sc)
     {
+        bool first_signal_handler = BeginSignalHandler();
+
         // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
         ResetToDefaultSignalHandler(signo);
 
-        if (g_CrashDumpEnabled)
+        if (g_CrashDumpEnabled && first_signal_handler)
         {
             AppState* state = GetAppState();
 
@@ -129,7 +131,11 @@ namespace dmCrash
             dLib::SetDebugMode(is_debug_mode);
         }
 
-        ChainSignalOrRaiseDefault(signo, si, sc, g_PreviousSignalActions, Handler);
+        if (first_signal_handler)
+        {
+            ChainSignalOrRaiseDefault(signo, si, sc, g_PreviousSignalActions, Handler);
+            EndSignalHandler();
+        }
     }
 
     void WriteDump()
