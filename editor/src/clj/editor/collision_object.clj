@@ -772,7 +772,9 @@
   (collision-groups/color collision-groups-data group))
 
 (defn- tilemap-collision-shape? [collision-shape]
-  (contains? #{"tilemap" "tilegrid"} (resource/type-ext collision-shape)))
+  (boolean
+    (when collision-shape
+      (contains? #{"tilemap" "tilegrid"} (resource/type-ext collision-shape)))))
 
 (g/defnode CollisionObjectNode
   (inherits resource-node/ResourceNode)
