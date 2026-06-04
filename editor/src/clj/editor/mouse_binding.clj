@@ -43,16 +43,18 @@
          ;; overrides: {[context command] {:bindings [binding ...] :sub-commands {sub-cmd modifier}}}
          :overrides {}}))
 
-(defn- add-bindings [state context bindings]
-  (assoc-in state [:contexts context] (group-by :command bindings)))
+(defn- add-bindings [state context context-path bindings]
+  (assoc-in state
+            [:contexts context]
+            (group-by :command (mapv #(assoc % :context-path context-path) bindings))))
 
 (defn- remove-bindings [state context]
   (update state :contexts dissoc context))
 
-(defn register! [context bindings]
+(defn register! [context context-path bindings]
   (swap! bindings-atom #(-> %
                             (remove-bindings context)
-                            (add-bindings context bindings)))
+                            (add-bindings context context-path bindings)))
   nil)
 
 (defn unregister! [context]

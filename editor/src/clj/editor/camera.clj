@@ -1238,57 +1238,47 @@
 
 (mouse-binding/register!
   ::scene-camera-orthographic
+  "Scene 2D Camera"
   [{:command :scene.camera.drag-select
-    :context-path ["Scene 2D Camera"]
     :action "Drag Select"
     :binding {:button :primary :trigger :drag :modifiers []}}
    {:command :scene.camera.orbit
-    :context-path ["Scene 2D Camera"]
     :action "Orbit"
     :binding {:button :primary :trigger :drag :modifiers [:control]}}
    {:command :scene.camera.pan
-    :context-path ["Scene 2D Camera"]
     :action "Pan"
     :binding {:button :primary :trigger :drag :modifiers [:alt]}}
    {:command :scene.camera.pan
-    :context-path ["Scene 2D Camera"]
     :action "Pan"
     :binding {:button :middle :trigger :drag :modifiers []}}
    {:command :scene.camera.pan
-    :context-path ["Scene 2D Camera"]
     :action "Pan"
     :binding {:button :secondary :trigger :drag :modifiers []}}
    {:command :scene.camera.zoom
-    :context-path ["Scene 2D Camera"]
     :action "Zoom"
     :binding {:button :primary :trigger :drag :modifiers [:control :alt]}}])
 
 (mouse-binding/register!
   ::scene-camera-perspective
+  "Scene 3D Camera"
   [{:command :scene.camera.drag-select
-    :context-path ["Scene 3D Camera"]
     :action "Drag Select"
     :binding {:button :primary :trigger :drag :modifiers []}}
    {:command :scene.camera.free-look
-    :context-path ["Scene 3D Camera"]
     :action "Free Look"
     :binding {:button :secondary :trigger :drag :modifiers []}
     :sub-commands [{:command :speed-boost :label "Speed Boost" :modifier :shift}
                    {:command :speed-precision :label "Speed Precision" :modifier :alt}]}
    {:command :scene.camera.orbit
-    :context-path ["Scene 3D Camera"]
     :action "Orbit"
     :binding {:button :primary :trigger :drag :modifiers [:control]}}
    {:command :scene.camera.pan
-    :context-path ["Scene 3D Camera"]
     :action "Pan"
     :binding {:button :primary :trigger :drag :modifiers [:alt]}}
    {:command :scene.camera.pan
-    :context-path ["Scene 3D Camera"]
     :action "Pan"
     :binding {:button :middle :trigger :drag :modifiers []}}
    {:command :scene.camera.zoom
-    :context-path ["Scene 3D Camera"]
     :action "Zoom"
     :binding {:button :primary :trigger :drag :modifiers [:control :alt]}}])
 

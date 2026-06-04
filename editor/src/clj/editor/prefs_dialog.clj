@@ -139,10 +139,10 @@
        (coll/join-to-string " ")))
 
 (defn- mouse-binding-label [{:keys [context-path action]}]
-  (coll/join-to-string " → " (conj (vec context-path) action)))
+  (coll/join-to-string " → " [context-path action]))
 
 (defn- mouse-binding-filterable-text [{:keys [context-path action bindings]}]
-  (coll/join-to-string " " (into (conj (vec context-path) action)
+  (coll/join-to-string " " (into [context-path action]
                                  (map mouse-binding/binding-display-text bindings))))
 
 (defn- keyboard-row [command]
@@ -181,7 +181,7 @@
 (defn- row-display-label [row]
   (case (:kind row)
     :mouse-binding (mouse-binding-label row)
-    :mouse-sub-binding (coll/join-to-string " → " (conj (vec (:context-path row)) (:action row) (:sub-cmd-label row)))
+    :mouse-sub-binding (coll/join-to-string " → " [(:context-path row) (:action row) (:sub-cmd-label row)])
     :keyboard (command-label (:command row))))
 
 (defn- describe-command-cell [keymap row]
@@ -192,8 +192,8 @@
                        (not= (keymap/shortcuts keymap command)
                              (keymap/shortcuts (keymap/default) command)))
           parts (case kind
-                  :mouse-binding (conj (vec (:context-path row)) (:action row))
-                  :mouse-sub-binding (conj (vec (:context-path row)) (:action row) (:sub-cmd-label row))
+                  :mouse-binding [(:context-path row) (:action row)]
+                  :mouse-sub-binding [(:context-path row) (:action row) (:sub-cmd-label row)]
                   :keyboard (string/split (name command) #"\."))]
       {:graphic {:fx/type fxui/horizontal
                  :style-class "keymap-command"
@@ -273,11 +273,11 @@
   (case (:kind row)
     :mouse-binding (text-util/includes-ignore-case? (mouse-binding-filterable-text row) filter-text)
     :mouse-sub-binding (text-util/includes-ignore-case?
-                   (coll/join-to-string " " (-> (vec (:context-path row))
-                                                (conj (:action row))
-                                                (conj (:sub-cmd-label row))
-                                                (conj (mouse-binding/modifier->label (:modifier row)))))
-                   filter-text)
+                        (coll/join-to-string " " [(:context-path row)
+                                                  (:action row)
+                                                  (:sub-cmd-label row)
+                                                  (mouse-binding/modifier->label (:modifier row))])
+                        filter-text)
     :keyboard (or (text-util/includes-ignore-case? (filterable-command-label (:command row)) filter-text)
                   (coll/some #(text-util/includes-ignore-case? (keymap/shortcut-filterable-text %) filter-text) shortcuts))))
 
@@ -508,7 +508,7 @@
      :children
      [{:fx/type fxui/label
        :alignment :center
-       :text (coll/join-to-string " → " (conj (vec context-path) action sub-cmd-label))}
+       :text (coll/join-to-string " → " [context-path action sub-cmd-label])}
       {:fx/type fx/ext-let-refs
        :refs {::modifier-toggle-group {:fx/type fx.toggle-group/lifecycle}}
        :desc

@@ -137,12 +137,11 @@
     (with-mouse-bindings
       (mouse-binding/register!
         ::tile-map/tile-map-editor
+        "Tile Map Editor"
         [{:command :scene.tile-map.paint
-          :context-path ["Tile Map Editor"]
           :action "Paint"
           :binding {:button :primary :trigger :drag :modifiers []}}
          {:command :scene.tile-map.erase
-          :context-path ["Tile Map Editor"]
           :action "Erase"
           :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
       (is (= :scene.tile-map.erase
@@ -192,8 +191,8 @@
     (with-mouse-bindings
       (mouse-binding/register!
         ::camera/scene-camera-orthographic
+        "Scene 2D Camera"
         [{:command :scene.camera.pan
-          :context-path ["Scene 2D Camera"]
           :action "Pan"
           :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
       (let [[_collection-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
@@ -218,14 +217,14 @@
     (with-mouse-bindings
       (mouse-binding/register!
         ::camera/scene-camera-orthographic
+        "Scene 2D Camera"
         [{:command :scene.camera.pan
-          :context-path ["Scene 2D Camera"]
           :action "Pan"
           :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
       (mouse-binding/register!
         ::tile-map/tile-map-editor
+        "Tile Map Editor"
         [{:command :scene.tile-map.erase
-          :context-path ["Tile Map Editor"]
           :action "Erase"
           :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)

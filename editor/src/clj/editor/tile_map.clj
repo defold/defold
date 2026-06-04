@@ -1592,30 +1592,24 @@
 
 (mouse-binding/register!
   ::tile-map-editor
+  "Tile Map Editor"
   [{:command :scene.tile-map.paint
-    :context-path ["Tile Map Editor"]
     :action "Paint"
     :binding {:button :primary :trigger :drag :modifiers []}}
    {:command :scene.tile-map.select-brush
-    :context-path ["Tile Map Editor"]
     :action "Select Brush"
     :binding {:button :primary :trigger :drag :modifiers [:shift]}}
    {:command :scene.tile-map.erase
-    :context-path ["Tile Map Editor"]
     :action "Erase"
     :binding {:button :secondary :trigger :drag :modifiers []}}
    {:command :scene.tile-map.cut
-    :context-path ["Tile Map Editor"]
     :action "Cut"
     :binding {:button :middle :trigger :drag :modifiers [:shift :control]}}
    {:command :scene.camera.orbit
-    :context-path ["Tile Map Editor"]
     :action "Orbit"}
    {:command :scene.camera.pan
-    :context-path ["Tile Map Editor"]
     :action "Pan"}
    {:command :scene.camera.zoom
-    :context-path ["Tile Map Editor"]
     :action "Zoom"}])
 
 (g/defnode TileMapGrid
