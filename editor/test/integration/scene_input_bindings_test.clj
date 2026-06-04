@@ -246,3 +246,36 @@
           (dispatch-action! view input-state (action :mouse-released (first screen-pos) (second screen-pos) :primary [:shift])))
         (is (nil? (cell-at layer-node tile)))
         (is (= initial-camera (g/node-value view :camera)))))))
+
+(deftest empty-tool-camera-binding-falls-through-to-camera-context
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/register!
+        ::camera/scene-camera-orthographic
+        "Scene 2D Camera"
+        [{:command :scene.camera.pan
+          :action "Pan"
+          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
+      (mouse-binding/register!
+        ::tile-map/tile-map-editor
+        "Tile Map Editor"
+        [{:command :scene.camera.pan
+          :action "Pan"}])
+      (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
+            layer-node (layer-node tile-map-node)
+            camera-controller (camera-controller view)
+            initial-camera (g/node-value view :camera)]
+        (app-view/select! app-view [layer-node])
+        (refresh-selection! view)
+        (is camera-controller)
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :primary [:shift])
+                             (action :mouse-pressed 64.0 64.0 :primary [:shift])
+                             (action :drag-detected 64.0 64.0 :primary [:shift])])]
+          (is (= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
+          (let [input-state (dispatch-action! view input-state (action :mouse-moved 80.0 64.0 :primary [:shift]))
+                input-state (update-tick! view input-state 2)]
+            (dispatch-action! view input-state (action :mouse-released 80.0 64.0 :primary [:shift]))))
+        (is (not= initial-camera (g/node-value view :camera)))))))

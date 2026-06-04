@@ -26,6 +26,7 @@
             [editor.gl.vertex :as vtx]
             [editor.grid :as grid]
             [editor.handler :as handler]
+            [editor.mouse-binding :as mouse-binding]
             [editor.properties :as properties]
             [editor.rulers :as rulers]
             [editor.scene :as scene]
@@ -51,6 +52,14 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
+
+(mouse-binding/register!
+  ::curve-view-camera
+  "Curve Editor"
+  [{:command :scene.camera.pan
+    :action "Pan"}
+   {:command :scene.camera.zoom
+    :action "Zoom"}])
 
 ; Line shader
 
@@ -520,6 +529,7 @@
   (output cp-renderables g/Any :cached produce-cp-renderables)
   (output picking-selection g/Any :cached produce-picking-selection)
   (output selected-tool-renderables g/Any :cached (g/fnk [] {}))
+  (output mouse-binding-context g/Keyword (g/constantly ::curve-view-camera))
   (output sub-selection-map g/Any :cached (g/fnk [sub-selection]
                                             (sub-selection->map sub-selection)))
   (output aabb AABB :cached produce-aabb)
