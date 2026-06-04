@@ -2138,6 +2138,33 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
     }
 }
 
+// Compressed texture uploads need block dimensions and byte sizes to translate
+// logical texture dimensions into physical storage/copy extents.
+TEST_F(dmGraphicsTest, TestTextureFormatCompressedBlockSize)
+{
+    dmGraphics::TextureFormatCompressedBlockSize block_size;
+
+    ASSERT_TRUE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_6X6, &block_size));
+    ASSERT_EQ(6u, block_size.m_Width);
+    ASSERT_EQ(6u, block_size.m_Height);
+    ASSERT_EQ(16u, block_size.m_ByteSize);
+
+    const uint32_t block_columns = (4096 + block_size.m_Width - 1) / block_size.m_Width;
+    const uint32_t block_rows    = (4096 + block_size.m_Height - 1) / block_size.m_Height;
+    ASSERT_EQ(683u, block_columns);
+    ASSERT_EQ(683u, block_rows);
+    ASSERT_EQ(4098u, block_columns * block_size.m_Width);
+    ASSERT_EQ(4098u, block_rows * block_size.m_Height);
+    ASSERT_EQ(10928u, block_columns * block_size.m_ByteSize);
+
+    ASSERT_TRUE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2, &block_size));
+    ASSERT_EQ(4u, block_size.m_Width);
+    ASSERT_EQ(4u, block_size.m_Height);
+    ASSERT_EQ(16u, block_size.m_ByteSize);
+
+    ASSERT_FALSE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA, &block_size));
+}
+
 TEST_F(dmGraphicsTest, TestGetTextureParams)
 {
     const uint32_t texture_width  = 16;
