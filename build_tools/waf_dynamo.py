@@ -52,12 +52,6 @@ class waf_dynamo_vendor(object):
     def transform_runnable_path(cls, platform, path):
         return call_hook('waf_dynamo', platform, 'transform_runnable_path', path, platform, path)
 
-# The branch never mixes Waf with CMake, so the special handling for exact
-# Windows static libraries is unnecessary. The logic that depended on
-# ``EXACT_WINDOWS_STATIC_LIBS`` and ``_normalize_exact_windows_static_libs``
-# has been removed. Existing callers are updated to use the generic
-# ``static_libs`` helper directly.
-
 def static_libs(conf, uselib, libs, exact_windows_libs = None):
     # Waf expands STLIB entries to lib%s.lib on Windows. Libraries built outside Waf
     # may need their exact .lib filename instead, while keeping the usual STLIB path elsewhere.
@@ -68,18 +62,6 @@ def static_libs(conf, uselib, libs, exact_windows_libs = None):
         conf.env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in libs if lib in exact_windows_libs])
     else:
         conf.env['STLIB_%s' % uselib] = libs
-
-@feature('c', 'cxx', 'uselib')
-@before('propagate_uselib_vars')
-def normalize_exact_windows_static_libs(self):
-    """No‑op: legacy Windows static lib handling removed.
-
-    Historically this feature normalized ``STLIB_`` entries for Windows by
-    separating exact .lib names from the standard build paths.  The pure‑Waf
-    branch no longer needs this logic, so the function simply exists for
-    compatibility and performs no work.
-    """
-    return
 
 
 def is_platform_private(platform):
