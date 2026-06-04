@@ -771,6 +771,9 @@
   [collision-groups-data group]
   (collision-groups/color collision-groups-data group))
 
+(defn- tilemap-collision-shape? [collision-shape]
+  (contains? #{"tilemap" "tilegrid"} (some-> collision-shape resource/resource-type :ext)))
+
 (g/defnode CollisionObjectNode
   (inherits resource-node/ResourceNode)
 
@@ -849,8 +852,11 @@
             (dynamic tooltip (properties/tooltip-dynamic :collision-object :event-trigger)))
 
   (property group g/Str ; Required protobuf field.
+            (dynamic read-only? (g/fnk [collision-shape] (tilemap-collision-shape? collision-shape)))
             (dynamic label (properties/label-dynamic :collision-object :group))
-            (dynamic tooltip (properties/tooltip-dynamic :collision-object :group)))
+            (dynamic tooltip (g/fnk [collision-shape]
+                               (when (tilemap-collision-shape? collision-shape)
+                                 (localization/message "property.collision-object.group.tilemap.tooltip")))))
   (property mask g/Str ; Nil is valid default.
             (dynamic label (properties/label-dynamic :collision-object :mask))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object :mask)))
