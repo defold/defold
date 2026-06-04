@@ -39,7 +39,8 @@
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.murmur :as murmur])
-  (:import [com.dynamo.gamesys.proto Gui$NodeDesc]))
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
+           [java.io StringReader]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -409,6 +410,15 @@
                                                   :custom-type-name "TestCustom"
                                                   :custom-type (murmur/hash32 "TestCustom")
                                                   :id "box"}]
+      (is (= {:type :type-custom
+              :custom-type-name "TestCustom"
+              :id "custom"}
+             (-> (with-open [reader (StringReader.
+                                      (format "nodes { type: TYPE_CUSTOM custom_type: %d id: \"custom\" }"
+                                              (murmur/hash32 "TestCustom")))]
+                   ((:read-fn gui-resource-type) reader))
+                 (get-in [:nodes 0])
+                 (select-keys [:type :custom-type-name :custom-type :id]))))
       (is (thrown-with-msg?
             IllegalArgumentException
             #"custom_type_name 'TestCustom' resolves to custom_type"

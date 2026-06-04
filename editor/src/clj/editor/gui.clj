@@ -4650,6 +4650,10 @@
         (protobuf/assign-repeated :resources merged-resource-descs)
         (update :material fn/or default-material-proj-path))))
 
+(defn- make-gui-read-fn [gui-node-type-registry]
+  (comp (partial sanitize-scene gui-node-type-registry)
+        (partial protobuf/read-map-without-defaults (:pb-class pb-def))))
+
 (declare gui-resource-kind-node)
 
 (defn- drop-target-node-id+unique-name [gui-scene-node-id target-node-id-label base-name evaluation-context]
@@ -4711,7 +4715,7 @@
           :ddf-type (:pb-class def)
           :load-fn load-gui-scene
           :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.
-          :sanitize-fn (partial sanitize-scene base-node-type-registry)
+          :read-fn (make-gui-read-fn base-node-type-registry)
           :icon (:icon def)
           :icon-class (:icon-class def)
           :category (localization/message "resource.category.components")
@@ -5187,8 +5191,9 @@
   (let [resource-type (apply f resource-type args)
         gui-node-type-registry (:gui-node-type-registry resource-type)]
     (assoc resource-type
-      :read-fn (comp (partial sanitize-scene gui-node-type-registry)
-                     (partial protobuf/read-map-without-defaults (:pb-class pb-def))))))
+      ;; GUI read-time sanitization resolves custom node types, so the read-fn
+      ;; must be rebuilt whenever extensions update the node type registry.
+      :read-fn (make-gui-read-fn gui-node-type-registry))))
 
 (defn- update-gui-resource-type-map [resource-types f & args]
   (apply update resource-types (:ext pb-def) update-gui-resource-type f args))
