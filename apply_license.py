@@ -91,6 +91,8 @@ excluded_files = [
     "engine/liveupdate/src/ringbuffer.h",
     "engine/dlib/src/remotery/lib/Remotery.c",
     "engine/dlib/src/remotery/lib/RemoteryMetal.mm",
+    "engine/hid/src/external/glfw/mappings.h",
+    "engine/hid/src/external/sdl/joystick/usb_ids.h",
 ]
 
 excluded_paths = [

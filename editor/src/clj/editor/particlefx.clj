@@ -1157,8 +1157,8 @@
             ;; should never change
             (let [basis (:basis _evaluation-context)
                   outlines (group-by #(g/node-instance? basis ModifierNode (:node-id %)) child-outlines)
-                  mod-outlines (get outlines true)
-                  emitter-outlines (get outlines false)]
+                  mod-outlines (get outlines true [])
+                  emitter-outlines (get outlines false [])]
               {:node-id _node-id
                :node-outline-key "ParticleFX"
                :label (localization/message "outline.particlefx")

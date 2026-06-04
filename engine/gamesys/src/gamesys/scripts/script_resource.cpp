@@ -273,44 +273,6 @@ struct ResourceModule
     dmOpaqueHandleContainer<SetTextureAsyncRequest> m_LoadRequests;
 } g_ResourceModule;
 
-static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
-{
-    char msg[256];
-    const char* format = 0;
-    switch(result)
-    {
-    case dmResource::RESULT_RESOURCE_NOT_FOUND: format = "The resource was not found (%d): %llu, %s"; break;
-    case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation (%d): %llu, %s"; break;
-    default:                                    format = "The resource was not updated (%d): %llu, %s"; break;
-    }
-    dmSnPrintf(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
-    return luaL_error(L, "%s", msg);
-}
-
-static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
-{
-    HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
-    if (!rd) {
-        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
-        return 0;
-    }
-
-    HResourceType expected_resource_type;
-    dmResource::Result r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
-    HResourceType resource_type = dmResource::GetType(rd);
-    if (resource_type != expected_resource_type) {
-        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
-        return 0;
-    }
-
-    return dmResource::GetResource(rd);
-}
-
 static dmhash_t GetCanonicalPathHash(const char* path)
 {
     char canonical_path[dmResource::RESOURCE_PATH_MAX];
@@ -912,8 +874,8 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *         width  = 32,
  *         height = 32,
  *         depth  = 32,
- *         format = resource.TEXTURE_FORMAT_RGBA32F,
- *         flags  = resource.TEXTURE_USAGE_FLAG_STORAGE + resource.TEXTURE_USAGE_FLAG_SAMPLE,
+ *         format = graphics.TEXTURE_FORMAT_RGBA32F,
+ *         flags  = graphics.TEXTURE_USAGE_FLAG_STORAGE + graphics.TEXTURE_USAGE_FLAG_SAMPLE,
  *     })
  * 
  *     -- pass the backing texture to the render script
@@ -1486,7 +1448,7 @@ static int ReleaseResource(lua_State* L)
  *         width  = 8,
  *         height = 8,
  *         depth  = 8,
- *         format = resource.TEXTURE_FORMAT_RGBA32F
+ *         format = graphics.TEXTURE_FORMAT_RGBA32F
  *     }
  *      
  *     -- This expects that the texture resource "/my_3d_texture.texturec" already exists
@@ -1674,52 +1636,6 @@ static int SetTexture(lua_State* L)
  * end
  * ```
  */
-
-static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
-{
-    uint32_t texture_width               = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint32_t texture_height              = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint32_t texture_depth               = dmGraphics::GetTextureDepth(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(g_ResourceModule.m_GraphicsContext, texture_handle);
-    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(g_ResourceModule.m_GraphicsContext, texture_handle);
-    uint8_t  page_count                  = dmGraphics::GetTexturePageCount(texture_handle);
-
-    lua_pushnumber(L, texture_handle);
-    lua_setfield(L, -2, "handle");
-
-    lua_pushinteger(L, texture_width);
-    lua_setfield(L, -2, "width");
-
-    lua_pushinteger(L, texture_height);
-    lua_setfield(L, -2, "height");
-
-    lua_pushinteger(L, texture_mipmaps);
-    lua_setfield(L, -2, "mipmaps");
-
-    lua_pushinteger(L, texture_type);
-    lua_setfield(L, -2, "type");
-
-    lua_pushinteger(L, texture_flags);
-    lua_setfield(L, -2, "flags");
-
-    lua_pushinteger(L, page_count);
-    lua_setfield(L, -2, "page_count");
-
-    // JG: We use depth to indicate the sides of a cube map, but the actual texture depth is 1,
-    //     since it's not a 3D texture. This is a technicality that should't matter for now at least.
-    if (texture_type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
-    {
-        lua_pushinteger(L, 6);
-        lua_setfield(L, -2, "depth");
-    }
-    else
-    {
-        lua_pushinteger(L, texture_depth);
-        lua_setfield(L, -2, "depth");
-    }
-}
-
 static int GetTextureInfo(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -1751,7 +1667,7 @@ static int GetTextureInfo(lua_State* L)
     }
 
     lua_newtable(L);
-    PushTextureInfo(L, texture_handle);
+    PushTextureInfo(L, g_ResourceModule.m_GraphicsContext, texture_handle, 0);
 
     assert((top + 1) == lua_gettop(L));
     return 1;
@@ -1887,7 +1803,7 @@ static int GetRenderTargetInfo(lua_State* L)
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
             lua_newtable(L);
 
-            PushTextureInfo(L, t);
+            PushTextureInfo(L, g_ResourceModule.m_GraphicsContext, t, 0);
 
             lua_pushinteger(L, buffer_type);
             lua_setfield(L, -2, "buffer_type");
@@ -3672,83 +3588,6 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 {
     int top = lua_gettop(L);
     luaL_register(L, "resource", Module_methods);
-
-    ////////////////////////////////////////////////////////////////////
-    // DEPRECATED!
-    // -----------
-    // The graphics enums are now exposed in script_graphics.cpp instead
-    // DO NOT add any more graphics enums in this file
-    ////////////////////////////////////////////////////////////////////
-
-#define SETGRAPHICS_ENUM(name) \
-    lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-    lua_setfield(L, -2, #name);
-
-    SETGRAPHICS_ENUM(TEXTURE_TYPE_2D);
-    SETGRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
-    SETGRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
-    SETGRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
-
-    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR0_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR1_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR2_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR3_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_DEPTH_BIT);
-    SETGRAPHICS_ENUM(BUFFER_TYPE_STENCIL_BIT);
-
-    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_SAMPLE);
-    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_MEMORYLESS);
-    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_STORAGE);
-#undef SETGRAPHICS_ENUM
-
-#define SETTEXTUREFORMAT_IF_SUPPORTED(name) \
-    if (graphics_context != 0 && dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::name)) \
-    { \
-        lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-        lua_setfield(L, -2, #name); \
-    }
-
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_LUMINANCE);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_DEPTH);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_STENCIL);
-
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_ETC1);
-
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ETC2);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ASTC_4X4);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_BC1);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_BC3);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R_BC4);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG_BC5);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_BC7);
-
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB16F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB32F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA16F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA32F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R16F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG16F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R32F);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG32F);
-
-#undef SETTEXTUREFORMAT_IF_SUPPORTED
-
-
-#define SETCOMPRESSIONTYPE(name) \
-    lua_pushnumber(L, (lua_Number) dmGraphics::TextureImage:: name); \
-    lua_setfield(L, -2, #name);
-
-    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_DEFAULT);
-    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_UASTC);
-
-#undef SETCOMPRESSIONTYPE
-
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
 }

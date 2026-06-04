@@ -142,6 +142,11 @@ extern "C"
         return dmPlatform::GetJoystickDeviceName(window, joystick_index);
     }
 
+    const char* WindowGetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
+    {
+        return dmPlatform::GetJoystickDeviceGuid(window, joystick_index);
+    }
+
     uint32_t WindowGetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
     {
         return dmPlatform::GetJoystickAxes(window, joystick_index, values, values_capacity);

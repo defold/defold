@@ -2643,8 +2643,8 @@
   [{:command :edit.cut :label (localization/message "command.edit.cut")}
    {:command :edit.copy :label (localization/message "command.edit.copy")}
    {:command :edit.paste :label (localization/message "command.edit.paste")}
-   {:command :code.duplicate-selection :label (localization/message "command.code.duplicate-selection")}
    {:command :code.select-all :label (localization/message "command.code.select-all")}
+   (menu-items/separator-with-id :editor.code-view/context-menu-end)
    (menu-items/separator-with-id :editor.app-view/edit-end)])
 
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]

@@ -353,6 +353,11 @@ notification.fetch-libraries.problem.install-failed = не удалось уст
 notification.fetch-libraries.problem.unknown = неизвестная проблема — {problem}
 notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
+# Editor scripts notification
+
+notification.reload-editor-scripts = Скрипты редактора изменились. Перезагрузить их сейчас?
+notification.reload-editor-scripts.action.reload = Перезагрузить скрипты редактора
+
 # Open custom editor notifications
 
 notification.open-custom-editor-failed.error = Не удалось запустить внешний редактор «{editor}».\n\nИсходная ошибка ОС\:\n{error}
@@ -728,6 +733,7 @@ progress.updating-dependencies = Обновление зависимостей�
 progress.syncing-resources = Синхронизация ресурсов…
 progress.loading-project = Загрузка проекта…
 progress.loading-external-changes = Загрузка внешних изменений…
+progress.editor-scripts-reloaded = Скрипты редактора перезагружены в {time}
 progress.writing-files = Запись файлов…
 progress.caching-save-results = Кэширование результатов сохранения…
 progress.reading-timestamps = Чтение меток времени…
@@ -1070,9 +1076,27 @@ scene-popup.grid.plane = Плоскость
 scene-popup.grid.color = Цвет
 scene-popup.grid.opacity = Прозрачность
 scene-popup.camera.move-speed = Скорость движения
-scene-popup.camera.look-sensitivity = Чувствительность камеры
+scene-popup.camera.look-sensitivity = Скорость движения
+scene-popup.camera.fov = Поле зрения
 scene-popup.camera.invert-y = Инвертировать Y
 scene-popup.camera.walking-mode = Режим ходьбы
+scene-popup.scene-visibility.visibility-filters = Фильтры видимости
+scene-popup.scene-visibility.collision-shapes = Формы столкновения
+scene-popup.scene-visibility.camera = Камера
+scene-popup.scene-visibility.gui-bounds = GUI границы
+scene-popup.scene-visibility.gui-shapes = GUI формы
+scene-popup.scene-visibility.gui-particle-effects = GUI эффекты частиц
+scene-popup.scene-visibility.gui-spine-scenes = GUI Spine-сцены
+scene-popup.scene-visibility.gui-text = GUI текст
+scene-popup.scene-visibility.models = Модели
+scene-popup.scene-visibility.particle-effects = Эффекты частиц
+scene-popup.scene-visibility.skeletons = Скелеты
+scene-popup.scene-visibility.spine-scenes = Spine-сцены
+scene-popup.scene-visibility.sprites = Спрайты
+scene-popup.scene-visibility.text = Текст
+scene-popup.scene-visibility.tile-maps = Карты тайлов
+scene-popup.scene-visibility.component-guides = Направляющие компонентов
+scene-popup.scene-visibility.scene-visibility-bounds = Границы видимости сцены
 
 # Properties
 
@@ -1119,6 +1143,8 @@ property.appmanifest.graphics = Графика
 property.appmanifest.graphics.tooltip = Vulkan поддерживается только на настольных и мобильных платформах
 property.appmanifest.graphics-osx = Графика (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan является рендерером по умолчанию для macOS
+property.appmanifest.graphics-android = Графика (Android)
+property.appmanifest.graphics-android.tooltip = OpenGL+Vulkan используется по умолчанию на Android
 property.appmanifest.graphics-web = Графика (HTML5)
 property.appmanifest.graphics-web.tooltip = Поддержка WebGPU находится в бета-версии (веб-платформы)
 property.appmanifest.use-font-layout = Полная система текста
@@ -2004,6 +2030,8 @@ form.label.project.profiler = Профайлер
 form.help.project.profiler = Настройки встроенного профайлера
 form.label.project.profiler.track_cpu = CPU в релизе
 form.help.project.profiler.track_cpu = Включить сбор CPU-профиля в релизной сборке
+form.label.project.profiler.track_detailed_memory = Подробная память
+form.help.project.profiler.track_detailed_memory = Включить подробное профилирование памяти. Может заметно снижать производительность на HTML5.
 form.label.project.profiler.enabled = Включено
 form.help.project.profiler.enabled = Включить профайлер в игре; для активации из кода вызовите profiler.enable()
 form.label.project.profiler.sleep_between_server_updates = Пауза сервера
@@ -2053,8 +2081,6 @@ form.label.project.liveupdate = Live Update
 form.help.project.liveupdate = Настройки Live Update
 form.label.project.liveupdate.enabled = Включено
 form.help.project.liveupdate.enabled = Включает использование Live Update
-form.label.project.liveupdate.exclude_entries_from_main_manifest = Убирать записи Live Update из основного манифеста
-form.help.project.liveupdate.exclude_entries_from_main_manifest = Если включено, ресурсы только для Live Update не попадают в упакованный game.dmanifest. Публикуемый liveupdate.game.dmanifest при этом остаётся полным.
 form.label.project.liveupdate.settings = Настройки
 form.help.project.liveupdate.settings = Файл настроек Live Update
 

@@ -47,6 +47,7 @@
   (:import [com.defold.control DefoldStringConverter ExtendedTreeViewSkin ListCell LongField TreeCell]
            [com.sun.javafx.event DirectEvent]
            [com.sun.javafx.scene NodeHelper]
+           [com.sun.javafx.scene.control ContextMenuContent]
            [com.sun.javafx.scene.control.skin Utils]
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
@@ -1475,6 +1476,70 @@
   {:control control
    :menu-id menu-id})
 
+(defn- focusable-menu-item? [^MenuItem menu-item]
+  (and (.isVisible menu-item)
+       (not (.isDisable menu-item))
+       (not (instance? CustomMenuItem menu-item))))
+
+(defn- current-menu-item? [^MenuItem menu-item ^EventTarget target-node]
+  (let [node (.getStyleableNode menu-item)]
+    (or (and node (.isFocused node))
+        (and node (nodes-along-path? target-node node nil)))))
+
+(defn- focus-traverse-menu-item! [^ContextMenu context-menu ^KeyEvent event forward]
+  (let [items (.getItems context-menu)]
+    (when (pos? (.size items))
+      (let [target-node (.getTarget event)
+            item-count (.size items)
+            menu-item (loop [index (if forward 0 (dec item-count))
+                             fallback nil
+                             current-found false]
+                        (if (or (and forward       (< index item-count))
+                                (and (not forward) (<= 0 index)))
+                          (let [menu-item ^MenuItem (.get items index)
+                                current (current-menu-item? menu-item target-node)
+                                focusable (focusable-menu-item? menu-item)]
+                            (cond
+                              (and current (instance? CustomMenuItem menu-item))
+                              ::custom-menu-item
+
+                              (and current-found focusable)
+                              menu-item
+
+                              :else
+                              (recur (if forward (inc index) (dec index))
+                                     (or fallback (when focusable menu-item))
+                                     (or current-found current))))
+                          fallback))]
+        (when-not (= ::custom-menu-item menu-item)
+          (.consume event)
+          (when menu-item
+            (let [context-menu-content ^ContextMenuContent (.getNode (.getSkin context-menu))]
+              (.requestFocusOnIndex context-menu-content (.indexOf (.getItems context-menu) menu-item))))
+          true)))))
+
+(defn- install-disabled-menu-item-focus-filter! [^ContextMenu context-menu]
+  (let [properties (.getProperties context-menu)]
+    (when-not (or (coll/any? #(user-data % ::skip-disabled-menu-item-focus-filter)
+                             (.getItems context-menu))
+                  (.containsKey properties ::disabled-menu-item-focus-filter))
+      (let [event-filter (event-handler event
+                           (condp = (.getCode ^KeyEvent event)
+                             KeyCode/DOWN (focus-traverse-menu-item! context-menu event true)
+                             KeyCode/UP (focus-traverse-menu-item! context-menu event false)
+                             KeyCode/TAB (let [forward (not (.isShiftDown ^KeyEvent event))]
+                                           (focus-traverse-menu-item! context-menu event forward))
+                             nil))]
+        (.addEventFilter context-menu KeyEvent/KEY_PRESSED event-filter)
+        (.put properties ::disabled-menu-item-focus-filter event-filter)))))
+
+(defn- install-disabled-menu-item-focus-filters! []
+  ;; JavaFX creates submenu and MenuButton ContextMenus internally, so they do
+  ;; not pass through `make-context-menu`.
+  (doseq [window (Window/getWindows)]
+    (when (instance? ContextMenu window)
+      (install-disabled-menu-item-focus-filter! window))))
+
 (defn- make-submenu [id label localization icon ^Collection style-classes menu-items on-open]
   (when (seq menu-items)
     (let [menu (Menu.)]
@@ -1482,6 +1547,8 @@
       (user-data! menu ::menu-item-id id)
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
+      (.setOnShown menu
+        (event-handler _ (install-disabled-menu-item-focus-filters!)))
       (when icon
         (.setGraphic menu (icons/get-image-view icon 16)))
       (when style-classes
@@ -1538,7 +1605,7 @@
       (let [handler (->MenuEventHandler scene command user-data false)]
         (.setOnMenuValidation menu-item handler)
         (.setOnAction menu-item handler))
-      (.setOnAction menu-item (event-handler event (invoke-handler (contexts scene true) command user-data))))
+      (.setOnAction menu-item (event-handler _ (invoke-handler (contexts scene true) command user-data))))
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
@@ -1655,12 +1722,14 @@
         (let [label (or (handler/label handler-ctx evaluation-context) label)
               enabled? (handler/enabled? handler-ctx evaluation-context)
               key-combo (first (keymap/shortcuts keymap command))
-              options (handler/options handler-ctx evaluation-context)]
+              options (when (not (false? (:expand item)))
+                        (handler/options handler-ctx evaluation-context))]
           (if (or (nil? options)
                   (and key-combo (not (:expand item))))
             (make-menu-command scene id label localization icon style key-combo user-data command enabled? check)
             (if (some-> options meta :layout (= :grid))
               (let [grid-menu (make-grid-menu scene localization options command-contexts evaluation-context)]
+                (user-data! grid-menu ::skip-disabled-menu-item-focus-filter true)
                 (make-submenu id label localization icon style [grid-menu] #(focus-first-grid-menu-item grid-menu)))
               (make-submenu id label localization icon style
                             (make-menu-items scene (localization/sort-if-annotated @localization options)
@@ -1676,6 +1745,7 @@
   (let [context-menu (doto (ContextMenu.)
                        (.setConsumeAutoHidingEvents true))]
     (.addAll (.getItems context-menu) (to-array menu-items))
+    (install-disabled-menu-item-focus-filter! context-menu)
     context-menu))
 
 (declare refresh-separator-visibility)
@@ -1732,6 +1802,8 @@
 
 (defn register-button-menu
   [^MenuButton menu-button menu-location]
+  (.setOnShown menu-button
+    (event-handler _ (install-disabled-menu-item-focus-filters!)))
   (.setOnShowing
     menu-button
     (event-handler event

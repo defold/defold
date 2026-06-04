@@ -49,6 +49,8 @@ DM_PROPERTY_U32(rmtp_GODeleted, 0, PROFILE_PROPERTY_FRAME_RESET, "# deleted inst
 
 namespace dmGameObject
 {
+    DM_STATIC_ASSERT(sizeof(InputAction) == 344, Invalid_Struct_Size); // to avoid it accidentally growing
+
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
     const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
@@ -212,6 +214,7 @@ namespace dmGameObject
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
+        m_ContextRegistry = 0;
         m_Mutex = dmMutex::New();
     }
 
@@ -287,6 +290,16 @@ namespace dmGameObject
     {
         assert(regist != 0x0);
         return regist->m_DefaultCollectionCapacity;
+    }
+
+    void SetContextRegistry(HRegister regist, HContextRegistry context_registry)
+    {
+        regist->m_ContextRegistry = context_registry;
+    }
+
+    HContextRegistry GetContextRegistry(HRegister regist)
+    {
+        return regist->m_ContextRegistry;
     }
 
     void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity)
@@ -404,7 +417,7 @@ namespace dmGameObject
         {
             instances_in_collection = dmMath::Min(max_instances, instances_in_collection);
         }
-        Collection* collection = new Collection(0, 0, instances_in_collection, GetInputStackDefaultCapacity(regist));
+        Collection* collection = new Collection(0, regist, instances_in_collection, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)

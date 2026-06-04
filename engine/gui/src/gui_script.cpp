@@ -2853,31 +2853,6 @@ namespace dmGui
         lua_rawset(L, -3);
     }
 
-    /* DEPRECATED in favor of resource.get_text_metrics
-     */
-    static int LuaGetTextMetricsFromNode(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        (void) top;
-
-        Scene* scene = GuiScriptInstance_Check(L);
-
-        HNode hnode;
-        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
-        (void)n;
-
-        dmhash_t font_id_hash = dmGui::GetNodeFontId(scene, hnode);
-        const char* text = dmGui::GetNodeText(scene, hnode);
-        float width = dmGui::GetNodeProperty(scene, hnode, PROPERTY_SIZE).getX();
-        bool line_break = dmGui::GetNodeLineBreak(scene, hnode);
-        float leading = dmGui::GetNodeTextLeading(scene, hnode);
-        float tracking = dmGui::GetNodeTextTracking(scene, hnode);
-        PushTextMetrics(L, scene, font_id_hash, text, width, line_break, leading, tracking);
-
-        assert(top + 1 == lua_gettop(L));
-        return 1;
-    }
-
     static inline float LuaUtilGetDefaultFloat(lua_State* L, int index, float defaultvalue)
     {
         if( lua_isnoneornil(L, index) )
@@ -2894,35 +2869,6 @@ namespace dmGui
             return defaultvalue;
         }
         return lua_toboolean(L, index);
-    }
-
-    /* DEPRECATED in favor of resource.get_text_metrics
-     */
-    static int LuaGetTextMetrics(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        (void) top;
-
-        Scene* scene = GuiScriptInstance_Check(L);
-
-        dmhash_t font_id_hash = 0;
-        if (lua_isstring(L, 1)) {
-            const char* font_id = luaL_checkstring(L, 1);
-            font_id_hash = dmHashString64(font_id);
-        } else {
-            font_id_hash = dmScript::CheckHash(L, 1);
-        }
-
-        const char* text = luaL_checkstring(L, 2);
-
-        float width     = LuaUtilGetDefaultFloat(L, 3, FLT_MAX);
-        bool line_break = LuaUtilGetDefaultBool(L, 4, false);
-        float leading   = LuaUtilGetDefaultFloat(L, 5, 1.0f);
-        float tracking  = LuaUtilGetDefaultFloat(L, 6, 0.0f);
-        PushTextMetrics(L, scene, font_id_hash, text, width, line_break, leading, tracking);
-
-        assert(top + 1 == lua_gettop(L));
-        return 1;
     }
 
     /*# gets the x-anchor of a node
@@ -5060,7 +5006,6 @@ namespace dmGui
         {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
-        {"cancel_animation",    LuaCancelAnimations}, // deprecated Lua function name
         {"cancel_animations",   LuaCancelAnimations},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
@@ -5096,8 +5041,6 @@ namespace dmGui
         {"get_layout",        LuaGetLayout},
         {"set_layout",        LuaSetLayout},
         {"get_layouts",       LuaGetLayouts},
-        {"get_text_metrics",LuaGetTextMetrics},
-        {"get_text_metrics_from_node",LuaGetTextMetricsFromNode},
         {"get_xanchor",     LuaGetXAnchor},
         {"set_xanchor",     LuaSetXAnchor},
         {"get_yanchor",     LuaGetYAnchor},

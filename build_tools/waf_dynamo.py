@@ -14,13 +14,14 @@
 
 import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
-from waflib import Utils, Build, Options, Task, Logs, Errors
+from waflib import Utils, Build, Options, Task, Logs, Errors, Scripting
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
-from cross import get_platform_file_fallback_tags, get_platform_file_tags, get_platform_roots, get_repo_root
+from cross_build import find_feature_files, find_platform_file, get_configured_platforms, get_private_library_paths, get_private_path_mirrors, remove_source_files
+from private_hooks import call_hook, get_hook_modules
 import sdk
 import wasm_runner
 
@@ -28,49 +29,32 @@ if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
 
-def import_lib(module_name, path):
-    import importlib
-    # Normally a finder would get you the loader and spec.
-    loader = importlib.machinery.SourceFileLoader(module_name, path)
-    spec = importlib.machinery.ModuleSpec(module_name, loader, origin=path)
-    # Basically what import does when there is no loader.create_module().
-    module = importlib.util.module_from_spec(spec)
-    # Now is the time to put the module in sys.modules if you want.
-    # How import initializes the module.
-    loader.exec_module(module)
+class waf_dynamo_vendor(object):
+    @classmethod
+    def options(cls, opt):
+        for module in get_hook_modules('waf_dynamo'):
+            if hasattr(module, 'options'):
+                module.options(opt)
 
-# import the vendor specific build setup
-script_dir = os.path.dirname(__file__)
-path = os.path.join(script_dir, 'waf_dynamo_vendor.py')
-if os.path.exists(path):
-    sys.dont_write_bytecode = True
-    import_lib('waf_dynamo_vendor', path)
-    print("Imported %s from %s" % ('waf_dynamo_vendor', path))
-    import waf_dynamo_vendor
-    sys.dont_write_bytecode = False
+    @classmethod
+    def setup_tools(cls, ctx, build_util):
+        return call_hook('waf_dynamo', build_util.get_target_platform(), 'setup_tools', None, ctx, build_util)
 
-if 'waf_dynamo_vendor' not in sys.modules:
-    class waf_dynamo_vendor(object):
-        @classmethod
-        def options(cls, opt):
-            pass
-        @classmethod
-        def setup_tools(cls, ctx, build_util):
-            pass
-        @classmethod
-        def setup_vars(cls, ctx, build_util):
-            pass
-        @classmethod
-        def supports_feature(cls, platform, feature, data):
-            return True
-        @classmethod
-        def transform_runnable_path(cls, platform, path):
-            return path
-    globals()['waf_dynamo_vendor'] = waf_dynamo_vendor
+    @classmethod
+    def setup_vars(cls, ctx, build_util):
+        return call_hook('waf_dynamo', build_util.get_target_platform(), 'setup_vars', None, ctx, build_util)
+
+    @classmethod
+    def supports_feature(cls, platform, feature, data):
+        return call_hook('waf_dynamo', platform, 'supports_feature', True, platform, feature, data)
+
+    @classmethod
+    def transform_runnable_path(cls, platform, path):
+        return call_hook('waf_dynamo', platform, 'transform_runnable_path', path, platform, path)
 
 
 def is_platform_private(platform):
-    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
+    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'] or platform in get_configured_platforms()
 
 def feature_enabled(feature):
     return feature in getattr(Options.options, 'enable_features', [])
@@ -87,7 +71,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengl_compute':
         return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
@@ -101,138 +85,120 @@ def platform_setup_vars(ctx, build_util):
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
 
-def find_platform_file(bld, platform, path, public_fallback = True, private_roots = True):
-    repo_root = get_repo_root()
-    base_path = os.path.relpath(bld.path.abspath(), repo_root)
-    if private_roots:
-        for root in get_platform_roots(platform):
-            absolute_path = os.path.join(root, base_path, path)
-            if os.path.exists(absolute_path):
-                node = bld.root.find_node(absolute_path)
-                if node:
-                    return node
-                return absolute_path
+def _default_cmake_target_platform():
+    try:
+        machine = os.uname().machine
+    except AttributeError:
+        machine = os.environ.get('PROCESSOR_ARCHITECTURE', 'x86_64').lower()
+        if machine == 'amd64':
+            machine = 'x86_64'
 
-    if public_fallback:
-        return bld.path.find_node(path)
-    return None
+    if sys.platform == 'darwin':
+        return '%s-macos' % machine
+    if sys.platform.startswith('linux'):
+        return '%s-linux' % machine
+    if sys.platform == 'win32':
+        return '%s-win32' % machine
+    return '<platform>'
 
-def source_file_path(source):
-    if hasattr(source, 'abspath'):
-        return source.abspath()
-    return source
+def _has_waf_configure_state(path):
+    if os.path.exists(os.path.join(path, 'build', 'c4che', '_cache.py')):
+        return True
 
-def remove_source_files(sources, remove_sources):
-    remove_paths = set(source_file_path(x) for x in remove_sources)
-    return [x for x in sources if source_file_path(x) not in remove_paths]
+    for lock_path in glob.glob(os.path.join(path, '.lock-waf*')):
+        try:
+            with open(lock_path, 'r') as f:
+                for line in f:
+                    match = re.match(r"out_dir = ['\"]([^'\"]+)['\"]", line)
+                    if match and os.path.exists(os.path.join(match.group(1), 'c4che', '_cache.py')):
+                        return True
+        except IOError:
+            pass
 
-def get_feature_extra_tags(platform, extra_tags):
-    if not extra_tags:
-        return []
+    return False
 
-    target = platform
-    if '-' in platform:
-        target = platform.split('-')[-1]
+def _fail_if_unconfigured_cmake_library():
+    if not set(Options.commands).intersection(['build', 'clean', 'install', 'uninstall', 'list', 'step']):
+        return
 
-    if isinstance(extra_tags, dict):
-        if platform in extra_tags:
-            extra_tags = extra_tags[platform]
-        elif target in extra_tags:
-            extra_tags = extra_tags[target]
-        else:
-            extra_tags = extra_tags.get('*', [])
-    if isinstance(extra_tags, str):
-        extra_tags = [extra_tags]
+    cwd = os.getcwd()
+    if not os.path.exists(os.path.join(cwd, 'CMakeLists.txt')):
+        return
+    if _has_waf_configure_state(cwd):
+        return
 
-    tags = []
-    def append_tag(tag):
-        if tag and tag not in tags:
-            tags.append(tag)
+    platform = _default_cmake_target_platform()
+    raise Errors.WafError('''\
+This library has CMakeLists.txt and has not been configured by Waf.
+Use CMake/Ninja for this library instead:
 
-    for tag in extra_tags:
-        append_tag(tag)
-    return tags
+  Configure with tests:
+    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=ON
 
-def find_feature_files(bld, feature_name, platform, extra_tags = None, preferred_tags = None):
-    """Return (selected_files, feature_files) for feature_name.
+  Configure without tests:
+    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=OFF
 
-    Rules:
-    * feature_files contains <feature>.<ext> and <feature>_*.ext when found.
-    * selected_files contains all <feature>.<ext> core files when found.
-    * selected_files contains all matching <feature>_<tag>.ext files for the platform.
-    * preferred_tags may be a list for all platforms, or a dict where platform/target override '*'.
-    * preferred tag matches replace platform tag matches when found.
-    * extra_tags may be a list for all platforms, or a dict where platform/target override '*'.
-    * extra tag matches are appended to platform tag matches before fallback tags.
-    * fallback tags and default are used only when no platform tag matched.
-    * platform roots are searched before the public repo for platform tag matches.
-    * missing feature files or missing selected files fail the build.
-    """
-    files = []
-    feature_files = []
+  Build after configuring with tests:
+    ninja -C build all build_tests install
 
-    def find_file(path, public_fallback = True, private_roots = True):
-        return find_platform_file(bld, platform, path, public_fallback, private_roots)
+  Build after configuring without tests:
+    ninja -C build all install
 
-    def append_file(files, node):
-        if node and source_file_path(node) not in [source_file_path(x) for x in files]:
-            files.append(node)
+  Run tests:
+    ninja -C build run_tests
+''' % (platform, platform))
 
-    feature_base, extension = os.path.splitext(feature_name)
-    extensions = ['.cpp', '.c', '.cc', '.cxx', '.mm', '.m']
-    if extension:
-        extensions = [extension]
+_cmake_library_guard_installed = False
 
-    feature_patterns = []
-    for extension in extensions:
-        feature_patterns += [feature_base + extension,
-                             feature_base + '_*' + extension]
-    for node in bld.path.ant_glob(feature_patterns):
-        append_file(feature_files, node)
+def _install_unconfigured_cmake_library_guard():
+    global _cmake_library_guard_installed
+    if _cmake_library_guard_installed:
+        return
 
-    # Core implementation: <feature>.<ext> is shared by all platforms.
-    for extension in extensions:
-        node = find_file(feature_base + extension, True, False)
-        if node:
-            append_file(files, node)
-            append_file(feature_files, node)
+    run_command = Scripting.run_command
 
-    # Preferred tags: explicit feature choices such as mbedtls override platform tags.
-    tag_files = []
-    for tag in get_feature_extra_tags(platform, preferred_tags):
-        for extension in extensions:
-            node = find_file('%s_%s%s' % (feature_base, tag, extension))
-            if node:
-                append_file(tag_files, node)
-                append_file(feature_files, node)
+    def run_command_with_cmake_library_guard(cmd_name):
+        if cmd_name == 'init':
+            _fail_if_unconfigured_cmake_library()
+        return run_command(cmd_name)
 
-    # Platform tags: target-specific files, optionally extended with feature tags.
-    if not tag_files:
-        for tag in get_platform_file_tags(platform) + get_feature_extra_tags(platform, extra_tags):
-            for extension in extensions:
-                node = find_file('%s_%s%s' % (feature_base, tag, extension))
-                if node:
-                    append_file(tag_files, node)
-                    append_file(feature_files, node)
+    Scripting.run_command = run_command_with_cmake_library_guard
+    _cmake_library_guard_installed = True
 
-    # Fallback tags: public shared implementations used when no platform file matched.
-    if not tag_files:
-        for tag in get_platform_file_fallback_tags(platform) + ['default']:
-            for extension in extensions:
-                node = find_file('%s_%s%s' % (feature_base, tag, extension), True, False)
-                if node:
-                    append_file(tag_files, node)
-                    append_file(feature_files, node)
+_install_unconfigured_cmake_library_guard()
 
-    for node in tag_files:
-        append_file(files, node)
+def prepend_unique_paths(env, name, paths):
+    current_paths = env[name] if name in env else []
+    if not isinstance(current_paths, list):
+        current_paths = [current_paths]
 
-    if not feature_files:
-        bld.fatal('Could not find any source files for feature %s' % feature_name)
-    if not files:
-        bld.fatal('Could not find selected source files for feature %s on platform %s' % (feature_name, platform))
+    result = []
+    seen = set()
+    for path in paths + current_paths:
+        if not path:
+            continue
+        key = os.path.normcase(os.path.normpath(path))
+        if key not in seen:
+            seen.add(key)
+            result.append(path)
+    env[name] = result
 
-    return files, feature_files
+def prepend_private_search_paths(env, platform):
+    prepend_unique_paths(env, 'LIBPATH', get_private_library_paths(platform))
+
+def include_path_contains_dmsdk(path):
+    path = os.path.normpath(path)
+    return os.path.basename(path) == 'dmsdk' or os.path.isdir(os.path.join(path, 'dmsdk'))
+
+def prepend_private_task_paths(task_gen, platform):
+    for name in ('includes', 'libpath'):
+        if hasattr(task_gen, name):
+            current_paths = task_gen.to_list(getattr(task_gen, name))
+            private_paths = get_private_path_mirrors(platform, task_gen.path.abspath(), current_paths)
+            if private_paths:
+                if name == 'includes':
+                    private_paths = [path for path in private_paths if not include_path_contains_dmsdk(path)]
+                setattr(task_gen, name, private_paths + current_paths)
 
 def platform_glfw_version(platform):
     if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux']:
@@ -267,6 +233,9 @@ def platform_graphics_libs_and_symbols(platform):
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
+    elif platform in ('armv7-android', 'arm64-android'):
+        use_opengles = Options.options.with_opengl or not Options.options.with_vulkan
+        use_vulkan = Options.options.with_vulkan or not Options.options.with_opengl
     else:
         use_opengl = True
         use_vulkan = Options.options.with_vulkan
@@ -280,7 +249,10 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_lib_symbols += ['GraphicsAdapterOpenGL']
 
     if use_vulkan:
-        graphics_libs += ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
+        glfw_lib = 'DMGLFW'
+        if platform in ('armv7-android', 'arm64-android') and not use_opengles:
+            glfw_lib = 'DMGLFW_VULKAN'
+        graphics_libs += ['GRAPHICS_VULKAN', glfw_lib, 'VULKAN']
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
     if Options.options.with_dx12 and platform_supports_feature(platform, 'dx12', {}):
@@ -428,8 +400,10 @@ after('process_source')(apply_framework)
 @before('process_source')
 def default_flags(self):
     build_util = create_build_utility(self.env)
+    target_platform = build_util.get_target_platform()
     target_os = build_util.get_target_os()
     target_arch = build_util.get_target_architecture()
+    prepend_private_task_paths(self, target_platform)
 
     use_cl_exe = target_os in [TargetOS.WINDOWS, TargetOS.XBONE]
 
@@ -487,6 +461,9 @@ def default_flags(self):
         self.env.append_value('DEFINES', 'DM_PLATFORM_64BIT')
     else:
         self.env.append_value('DEFINES', 'DM_PLATFORM_32BIT')
+
+    if platform_supports_feature(build_util.get_target_platform(), 'compute', None):
+        self.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
 
     if not hasattr(self, 'sdkinfo'):
         self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
@@ -739,7 +716,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', emflags_link)
         self.env.append_value('LINKFLAGS', linkflags)
 
-    elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
+    elif target_platform in ['win32', 'x86_64-win32']:
         for f in ['CFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
@@ -758,6 +735,7 @@ def default_flags(self):
         self.env.cxxstlib_PATTERN = 'lib%s.lib'
 
     platform_setup_vars(self, build_util)
+    prepend_private_search_paths(self.env, target_platform)
 
     hostfs = ''
     if 'DM_HOSTFS' in self.env:
@@ -1048,7 +1026,13 @@ def codesign(task):
     if not hasattr(task.generator, 'sdkinfo'):
         task.generator.sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env['PLATFORM'])
 
-    ret = bld.exec_command('CODESIGN_ALLOCATE=%s/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (sdk.get_toolchain_root(task.generator.sdkinfo, bld.env['PLATFORM']), identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
+    codesign_allocate = os.path.join(sdk.get_toolchain_root(task.generator.sdkinfo, bld.env['PLATFORM']), 'usr', 'bin', 'codesign_allocate')
+    ret = bld.exec_command('CODESIGN_ALLOCATE=%s codesign -f -s %s --resource-rules=%s --entitlements %s %s' % (
+        shlex.quote(codesign_allocate),
+        shlex.quote(identity),
+        shlex.quote(resource_rules_plist_file),
+        shlex.quote(entitlements_path),
+        shlex.quote(signed_exe_dir)))
     if ret != 0:
         error('Error running codesign')
         return 1
@@ -1138,7 +1122,7 @@ def _strip_executable(bld, platform, target_arch, path):
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
     strip = sdk.get_strip_executable(platform, sdkinfo)
 
-    return bld.exec_command("%s %s" % (strip, path))
+    return bld.exec_command([strip, path])
 
 AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
 
@@ -1517,7 +1501,10 @@ def embed_file(self):
     source_nodes = []
     for x in Utils.to_list(self.source):
         if type(x) == str:
-            source_nodes.append(self.path.find_node(x))
+            node = self.bld.root.find_node(x) if os.path.isabs(x) else self.path.find_node(x)
+            if node is None:
+                raise Errors.WafError("Source '%s' was not found for target '%s' in %s" % (x, self.target, self.path.abspath()))
+            source_nodes.append(node)
         else:
             source_nodes.append(x)
 
@@ -1733,10 +1720,14 @@ def js_web_web_link_flags(self):
                 js = os.path.join(jsLibHome, lib)
             self.env.append_value('LINKFLAGS', ['--js-library', js])
 
-Task.task_factory('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
+def dsym(task):
+    dsymutil = Utils.to_list(task.env.DSYMUTIL)[0]
+    return task.exec_command([dsymutil, '-o', task.outputs[0].abspath(), task.inputs[0].abspath()])
+
+Task.task_factory('dSYM',
+                      func=dsym,
                       color='YELLOW',
-                      after='link_task',
-                      shell=True)
+                      after='link_task')
 
 Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
                       color='BROWN',
@@ -1868,8 +1859,8 @@ def detect(conf):
 
         conf.env['CC']      = '%s/clang' % bin_dir
         conf.env['CXX']     = '%s/clang++' % bin_dir
-        conf.env['LINK_CC'] = '%s/clang' % bin_dir
-        conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+        conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+        conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
         conf.env['CPP']     = '%s/clang -E' % bin_dir
         conf.env['AR']      = '%s/%sar' % (bin_dir, llvm_prefix)
         conf.env['RANLIB']  = '%s/%sranlib' % (bin_dir, llvm_prefix)
@@ -1882,8 +1873,8 @@ def detect(conf):
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
-            conf.env['LINK_CC'] = '%s/clang' % bin_dir
-            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+            conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
             conf.env['CPP']     = '%s/clang -E' % bin_dir
             conf.env['AR']      = '%s/llvm-ar' % bin_dir
             conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
@@ -1893,8 +1884,8 @@ def detect(conf):
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
-            conf.env['LINK_CC'] = '%s/clang' % bin_dir
-            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+            conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
             conf.env['CPP']     = '%s/clang -E' % bin_dir
             conf.env['AR']      = '%s/ar' % bin_dir
             conf.env['RANLIB']  = '%s/ranlib' % bin_dir
@@ -1929,7 +1920,7 @@ def detect(conf):
 
         conf.env['CC']       = f'{bintools}{sep}{clang_name}{cmd_suffix}'
         conf.env['CXX']      = f'{bintools}{sep}{clang_name}++{cmd_suffix}'
-        conf.env['LINK_CXX'] = f'{bintools}{sep}{clang_name}++{cmd_suffix}'
+        conf.env['LINK_CXX'] = [f'{bintools}{sep}{clang_name}++{cmd_suffix}']
         conf.env['CPP']      = f'{bintools}{sep}{clang_name}{cmd_suffix} -E'
 
         conf.env['AR']       = f'{bintools}{sep}llvm-ar{exe_suffix}'
@@ -1950,8 +1941,8 @@ def detect(conf):
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
             conf.env['CPP']     = '%s/clang -E' % bin_dir
-            conf.env['LINK_CC'] = '%s/clang' % bin_dir
-            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+            conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
             conf.env['AR']      = '%s/llvm-ar' % bin_dir
             conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
 
@@ -1999,6 +1990,8 @@ def detect(conf):
 
             conf.load('compiler_c')
             conf.load('compiler_cxx')
+
+    prepend_private_search_paths(conf.env, platform)
 
     # Since we're using an old waf version, we remove unused arguments
     remove_flag(conf.env['shlib_CFLAGS'], '-compatibility_version', 1)
@@ -2051,8 +2044,8 @@ def detect(conf):
 
         conf.env['CC'] = f'{bin_dir}/emcc'
         conf.env['CXX'] = f'{bin_dir}/em++'
-        conf.env['LINK_CC'] = f'{bin_dir}/emcc'
-        conf.env['LINK_CXX'] = f'{bin_dir}/em++'
+        conf.env['LINK_CC'] = [f'{bin_dir}/emcc']
+        conf.env['LINK_CXX'] = [f'{bin_dir}/em++']
         conf.env['CPP'] = f'{bin_dir}/em++'
         conf.env['AR'] = f'{bin_dir}/emar'
         conf.env['RANLIB'] = f'{bin_dir}/emranlib'
@@ -2150,7 +2143,7 @@ def detect(conf):
 
     conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
     if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
-        conf.env['STLIB_DLIB'].append('mbedtls')
+        conf.env['STLIB_DLIB'].append('dmbedtls')
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
 
@@ -2195,6 +2188,7 @@ def detect(conf):
         conf.env['STLIB_DMGLFW'] = 'glfw3'
     else:
         conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW_VULKAN'] = 'dmglfw_vulkan'
 
     # ***********************************************************
     # Vulkan
@@ -2213,7 +2207,7 @@ def detect(conf):
             conf.env.append_value('LIB_VULKAN', ['VkLayer_khronos_validation'])
 
     elif TargetOS.ANDROID == target_os:
-        conf.env['SHLIB_VULKAN'] = ['vulkan']
+        conf.env['SHLIB_VULKAN'] = []
     elif TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
@@ -2251,6 +2245,9 @@ def detect(conf):
         conf.env['STLIB_PLATFORM']          = ['platform']
         conf.env['STLIB_PLATFORM_VULKAN']   = ['platform_vulkan']
         conf.env['STLIB_PLATFORM_NULL']     = ['platform_null']
+
+    if target_os in [TargetOS.MACOS, TargetOS.IOS]:
+        conf.env['FRAMEWORK_HID'] = ['GameController']
 
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'

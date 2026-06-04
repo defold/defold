@@ -58,7 +58,7 @@
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if you can get this property so `editor.get()` won't throw an error"}
+          :description "Check whether this property is exposed for reading on the supplied node or resource."}
          {:name "editor.properties"
           :type :function
           :parameters [node-param]
@@ -70,22 +70,22 @@
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if `editor.tx.add()` (as well as `editor.tx.clear()` and `editor.tx.remove()`) transaction with this property won't throw an error"}
+          :description "Check whether this list property supports add, clear, and remove operations on the supplied node."}
          {:name "editor.can_set"
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if `editor.tx.set()` transaction with this property won't throw an error"}
+          :description "Check whether this property is exposed for setting on the supplied node."}
          {:name "editor.can_reorder"
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if `editor.tx.reorder()` transaction with this property won't throw an error"}
+          :description "Check whether this list property supports reordering on the supplied node."}
          {:name "editor.can_reset"
           :type :function
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
-          :description "Check if `editor.tx.reset()` transaction with this property won't throw an error"}
+          :description "Check whether this property supports reset on the supplied node."}
          {:name "editor.command"
           :type :function
           :description "Create an editor command"
@@ -98,7 +98,7 @@
                                       :doc "required, user-visible command name, either a string or a localization message"}
                                      {:name "locations"
                                       :types ["string[]"]
-                                      :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), or <code>\"Outline\"</code> (the outline pane)"}
+                                      :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), <code>\"Outline\"</code> (the outline pane), <code>\"Scene\"</code> (the scene view), or <code>\"Code\"</code> (the code editor)"}
                                      {:name "query"
                                       :types ["table"]
                                       :doc (str "optional, a query that both controls the command availability and provides additional information to the command handler functions; a table with the following keys:"
@@ -109,7 +109,7 @@
                                                               (lua-completion/args-doc-html
                                                                 [{:name "type"
                                                                   :types ["string"]
-                                                                  :doc "either <code>\"resource\"</code> (selected resource) or <code>\"outline\"</code> (selected outline node)"}
+                                                                  :doc "either <code>\"resource\"</code> (selected resource), <code>\"outline\"</code> (selected outline node), or <code>\"scene\"</code> (selected scene node)"}
                                                                  {:name "cardinality"
                                                                   :types ["string"]
                                                                   :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}
@@ -305,6 +305,10 @@ editor.create_resources({
           :type :function
           :parameters []
           :description "Persist any unsaved changes to disk"}
+         {:name "editor.fetch_libraries"
+          :type :function
+          :parameters []
+          :description "Download the latest version of the project library dependencies and reload library-provided editor scripts.\n\nThis function may replace library-provided editor commands, hooks, routes, and UI contributed by editor scripts, so it should typically be the last operation performed by a command."}
          {:name "editor.transact"
           :type :function
           :parameters [{:name "txs"

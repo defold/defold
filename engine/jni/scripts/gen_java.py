@@ -187,6 +187,27 @@ def l(s):
     global out_lines
     out_lines += s + '\n'
 
+def detect_newline(path):
+    if not os.path.exists(path):
+        return '\n'
+    with open(path, 'rb') as f_inp:
+        line = f_inp.readline()
+    if b'\r\n' in line:
+        return '\r\n'
+    if b'\r' in line:
+        return '\r'
+    return '\n'
+
+def write_generated(path, text):
+    newline = detect_newline(path)
+    data = text.replace('\n', newline).encode('utf-8')
+    if os.path.exists(path):
+        with open(path, 'rb') as f_inp:
+            if f_inp.read() == data:
+                return
+    with open(path, 'wb') as f_outp:
+        f_outp.write(data)
+
 def as_zig_prim_type(s):
     return prim_types[s]
 
@@ -1240,19 +1261,16 @@ def generate(header_path, namespace, package_name, includes, java_outdir, jni_ou
 
     gen_java_source(ir, module_name, package_name)
 
-    with open(output_java_path, 'w', newline='\n') as f_outp:
-        f_outp.write(out_lines)
+    write_generated(output_java_path, out_lines)
     print("Wrote", output_java_path)
 
     reset_lines()
     gen_jni_source(ir, module_name, os.path.basename(output_jni_h_path), package_name)
 
-    with open(output_jni_cpp_path, 'w', newline='\n') as f_outp:
-        f_outp.write(out_lines)
+    write_generated(output_jni_cpp_path, out_lines)
     print("Wrote", output_jni_cpp_path)
 
     reset_lines()
     gen_jni_header(ir, module_name, package_name)
-    with open(output_jni_h_path, 'w', newline='\n') as f_outp:
-        f_outp.write(out_lines)
+    write_generated(output_jni_h_path, out_lines)
     print("Wrote", output_jni_h_path)

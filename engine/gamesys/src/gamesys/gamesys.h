@@ -249,9 +249,6 @@ namespace dmGameSystem
         uint32_t                    m_MaxModelCount;
         uint16_t                    m_MaxBoneMatrixTextureWidth;
         uint16_t                    m_MaxBoneMatrixTextureHeight;
-        /// Max width/height in pixels for each mesh morph-target delta texture (see `model.max_morph_target_texture_*` in game.project).
-        uint16_t                    m_MaxMorphTargetTextureWidth;
-        uint16_t                    m_MaxMorphTargetTextureHeight;
     };
 
     struct ScriptLibContext

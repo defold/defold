@@ -1,6 +1,6 @@
 name: "custom_attributes_many_streams"
 vertex_program: "/material/attributes_many_streams.vp"
-fragment_program: "/fragment_program/valid.fp"
+fragment_program: "/material/fragment_program_valid.fp"
 
 attributes {
   name: "position"

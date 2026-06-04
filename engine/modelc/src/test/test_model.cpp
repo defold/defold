@@ -163,6 +163,32 @@ TEST(ModelGLTF, MorphWeightsAnimationChannel)
     dmModelImporter::DestroyScene(scene);
 }
 
+TEST(ModelGLTF, SparseMorphTarget)
+{
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = LoadScene("./src/test/assets/sparse_morph_target.gltf", options);
+    ASSERT_NE((void*)0, scene);
+
+    ASSERT_EQ(1u, scene->m_Models.Size());
+    ASSERT_EQ(1u, scene->m_Models[0].m_Meshes.Size());
+
+    dmModelImporter::Mesh* mesh = &scene->m_Models[0].m_Meshes[0];
+    ASSERT_EQ(1u, mesh->m_MorphTargets.Size());
+    ASSERT_EQ(9u, mesh->m_MorphTargets[0].m_Positions.Size());
+
+    ASSERT_NEAR(0.0f, mesh->m_MorphTargets[0].m_Positions[0], 1e-6f);
+    ASSERT_NEAR(0.0f, mesh->m_MorphTargets[0].m_Positions[1], 1e-6f);
+    ASSERT_NEAR(0.0f, mesh->m_MorphTargets[0].m_Positions[2], 1e-6f);
+    ASSERT_NEAR(0.0f, mesh->m_MorphTargets[0].m_Positions[3], 1e-6f);
+    ASSERT_NEAR(1.0f, mesh->m_MorphTargets[0].m_Positions[4], 1e-6f);
+    ASSERT_NEAR(0.0f, mesh->m_MorphTargets[0].m_Positions[5], 1e-6f);
+    ASSERT_NEAR(0.0f, mesh->m_MorphTargets[0].m_Positions[6], 1e-6f);
+    ASSERT_NEAR(0.0f, mesh->m_MorphTargets[0].m_Positions[7], 1e-6f);
+    ASSERT_NEAR(0.0f, mesh->m_MorphTargets[0].m_Positions[8], 1e-6f);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 TEST(ModelGLTF, LoadSkeleton)
 {
     const char* path = "./src/test/assets/skeleton1.gltf";

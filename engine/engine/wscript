@@ -13,6 +13,7 @@ from waflib import Logs
 import waflib.Options
 import TestContext
 from build_constants import TargetOS
+from cross_build import get_private_platform_sha1
 
 test_context = None
 
@@ -33,6 +34,7 @@ namespace dmEngineVersion
     static const char* PLATFORM = "%(platform)s";
     static const char* VERSION = "%(version)s";
     static const char* VERSION_SHA1 = "%(sha1)s";
+    static const char* PRIVATE_VERSION_SHA1 = "%(private_sha1)s";
 }
 """
     full = self.outputs[0].abspath()
@@ -44,10 +46,11 @@ namespace dmEngineVersion
     full = os.path.normpath(full)
 
     sha1 = self.env['ENGINE_SHA1']
+    private_sha1 = self.env['ENGINE_PRIVATE_SHA1']
     platform = self.env['ENGINE_PLATFORM']
     version = self.env['ENGINE_VERSION']
     with open(full, 'w') as f:
-        f.write(engine_version % {"version": version, "sha1": sha1, "platform": platform})
+        f.write(engine_version % {"version": version, "sha1": sha1, "private_sha1": private_sha1, "platform": platform})
 
 
 def configure(conf):
@@ -114,7 +117,10 @@ def configure(conf):
         if waflib.Options.options.with_vulkan and architecture == 'arm64':
             conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal', '-framework', 'IOSurface'])
     elif target_os == TargetOS.ANDROID:
-        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
+        # Vulkan is loaded at runtime with dlopen("libvulkan.so").
+        if waflib.Options.options.with_opengl or not waflib.Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2'])
+        conf.env.append_value('LINKFLAGS', ['-landroid', '-Wl,-soname=libdmengine.so'])
         conf.env['STLIB_CPP_RUNTIME'] = 'c++_static'
 
     elif target_os == TargetOS.WINDOWS:
@@ -133,9 +139,13 @@ def configure(conf):
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
     if 'box2dv3' in waflib.Options.options.enable_features:
-        conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
+        gamesys_libs = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
     else:
-        conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
+        gamesys_libs = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
+    if target_os == TargetOS.WINDOWS:
+        conf.env['LINKFLAGS_GAMESYS'] = ['%s.lib' % lib for lib in gamesys_libs]
+    else:
+        conf.env['STLIB_GAMESYS'] = gamesys_libs
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_DMGLFW'] = glfw_lib
@@ -195,9 +205,14 @@ def build(bld):
 
     b = bld(rule = create_engine_version,
             target = 'engine_version.h',
-            vars = ['ENGINE_SHA1', 'ENGINE_PLATFORM', 'ENGINE_VERSION'])
+            vars = ['ENGINE_SHA1', 'ENGINE_PRIVATE_SHA1', 'ENGINE_PLATFORM', 'ENGINE_VERSION'])
     b.env['ENGINE_SHA1'] = build_util.git_sha1()
-    b.env['ENGINE_PLATFORM'] = build_util.get_target_platform()
+    target_platform = build_util.get_target_platform()
+    try:
+        b.env['ENGINE_PRIVATE_SHA1'] = get_private_platform_sha1(target_platform)
+    except subprocess.CalledProcessError as ex:
+        bld.fatal('Could not resolve private engine sha1 for %s: %s' % (target_platform, ex))
+    b.env['ENGINE_PLATFORM'] = target_platform
     b.env['ENGINE_VERSION'] = build_util.get_defold_version()
 
     bld.add_group()

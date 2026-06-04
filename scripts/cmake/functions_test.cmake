@@ -199,6 +199,9 @@ function(defold_register_test_target target_name)
   if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
     target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=1)
   endif()
+  if(DEFINED DEFOLD_PLATFORM_TEST_DEFINES)
+    target_compile_definitions(${target_name} PRIVATE ${DEFOLD_PLATFORM_TEST_DEFINES})
+  endif()
 
   # Keep tests out of the default 'all' build. They are built via build_tests
   # or when directly requested. This mirrors typical Waf behavior.

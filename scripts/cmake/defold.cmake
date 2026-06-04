@@ -18,6 +18,8 @@ if(_defold_cmake_idx EQUAL -1)
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
 endif()
 
+include("${CMAKE_CURRENT_LIST_DIR}/private_repos.cmake")
+
 set(DEFOLD_SDK_ROOT "$ENV{DYNAMO_HOME}" CACHE PATH "Path to Defold SDK (e.g. defold/tmp/dynamo_home)")
 if(NOT DEFOLD_SDK_ROOT)
   if(EXISTS "${DEFOLD_HOME}/tmp/dynamo_home")
@@ -192,6 +194,14 @@ set(DEFOLD_EXT_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include")
 set(DEFOLD_EXT_PLATFORM_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include/${TARGET_PLATFORM}")
 set(DEFOLD_DMSDK_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/sdk/include")
 
+file(GLOB _DEFOLD_DMSDK_DIRS CONFIGURE_DEPENDS "${DEFOLD_HOME}/engine/*/src/dmsdk")
+set(DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS)
+foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
+  get_filename_component(_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR "${_DEFOLD_DMSDK_DIR}/.." ABSOLUTE)
+  list(APPEND DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS "${_DEFOLD_DMSDK_SOURCE_INCLUDE_DIR}")
+endforeach()
+list(REMOVE_DUPLICATES DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS)
+
 set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
 set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
 
@@ -211,7 +221,8 @@ endif()
 # Core include dirs (non-system)
 target_include_directories(defold_sdk INTERFACE
   "${DEFOLD_INCLUDE_DIR}"
-  "${DEFOLD_DMSDK_INCLUDE_DIR}")
+  "${DEFOLD_DMSDK_INCLUDE_DIR}"
+  ${DEFOLD_DMSDK_SOURCE_INCLUDE_DIRS})
 # External/platform include dirs as SYSTEM to reduce warnings
 target_include_directories(defold_sdk SYSTEM INTERFACE
   "${DEFOLD_EXT_INCLUDE_DIR}"
@@ -239,3 +250,13 @@ link_libraries(defold_sdk)
 # Install into DEFOLD_SDK_ROOT
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
 defold_log("Install prefix set to DEFOLD_SDK_ROOT: ${CMAKE_INSTALL_PREFIX}")
+
+# CMake libraries may be built before every Waf library has populated its
+# dmsdk compatibility headers. Mirror Waf's dmsdk_add_files convention here.
+foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
+  install(DIRECTORY "${_DEFOLD_DMSDK_DIR}/"
+          DESTINATION sdk/include/dmsdk
+          FILES_MATCHING
+          PATTERN "*.h"
+          PATTERN "*.hpp")
+endforeach()

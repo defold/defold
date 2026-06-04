@@ -433,6 +433,22 @@ namespace dmHID
         GetGamepadDeviceNameInternal(context, gamepad_index, name);
     }
 
+    static bool GetGamepadDeviceGuidInternal(HContext context, int glfw_id, GamepadGuid* guid)
+    {
+        const char* device_guid = dmPlatform::GetJoystickDeviceGuid(context->m_Window, glfw_id);
+        if (device_guid != 0x0)
+        {
+            return ParseGamepadGuid(device_guid, guid);
+        }
+        return false;
+    }
+
+    static bool GLFWGamepadDriverGetGamepadDeviceGuid(HContext context, GamepadDriver* driver, HGamepad gamepad, GamepadGuid* guid)
+    {
+        uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, 0);
+        return GetGamepadDeviceGuidInternal(context, gamepad_index, guid);
+    }
+
     static bool GLFWGamepadDriverInitialize(HContext context, GamepadDriver* driver)
     {
         if (!dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
@@ -461,6 +477,7 @@ namespace dmHID
         driver->m_Update               = GLFWGamepadDriverUpdate;
         driver->m_DetectDevices        = GLFWGamepadDriverDetectDevices;
         driver->m_GetGamepadDeviceName = GLFWGamepadDriverGetGamepadDeviceName;
+        driver->m_GetGamepadDeviceGuid = GLFWGamepadDriverGetGamepadDeviceGuid;
 
         assert(g_GLFWGamepadDriver == 0);
         g_GLFWGamepadDriver               = driver;

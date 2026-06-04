@@ -25,8 +25,8 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#if defined(DM_PLATFORM_VENDOR)
-    #include "graphics_dx12_vendor.h"
+#if __has_include("graphics_dx12_xbox.h")
+    #include "graphics_dx12_xbox.h"
 #else
     #include <d3d12.h>
     #include <d3dx12.h>
@@ -150,21 +150,12 @@ namespace dmGraphics
 
     struct DX12RenderTarget
     {
+        RenderTarget          m_Base;
         ID3D12Resource*       m_Resource;
         ID3D12DescriptorHeap* m_ColorAttachmentDescriptorHeap;
         ID3D12DescriptorHeap* m_DepthStencilDescriptorHeap;
-
-        TextureParams         m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
-        TextureParams         m_DepthStencilTextureParams;
-
-        HTexture              m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture              m_TextureDepthStencil;
-
         DXGI_FORMAT           m_Format;
         DXGI_SAMPLE_DESC      m_SampleDesc;
-
-        uint16_t              m_Id;
-        uint32_t              m_IsBound : 1;
     };
 
     struct DX12DescriptorPool

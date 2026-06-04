@@ -71,6 +71,7 @@ namespace dmRender
     const dmhash_t VERTEX_STREAM_BONE_INDICES         = dmHashString64("bone_indices");
     const dmhash_t VERTEX_STREAM_ANIMATION_DATA       = dmHashString64("animation_data");
     const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D = dmHashString64("texture_transform_2d");
+    const dmhash_t VERTEX_STREAM_MORPH_TARGET_WEIGHTS = dmHashString64("morph_targets_weights");
     const dmhash_t SAMPLER_POSE_MATRIX_CACHE          = dmHashString64("pose_matrix_cache");
     const dmhash_t SAMPLER_MORPH_TARGETS              = dmHashString64("morph_targets");
     const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS     = dmHashString64("morph_targets_weights");
@@ -1311,14 +1312,6 @@ namespace dmRender
             return RESULT_INVALID_CONTEXT;
         }
         return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options, SORT_BACK_TO_FRONT);
-    }
-
-    Result DrawDebug2d(HRenderContext context) // Deprecated
-    {
-        if (!context->m_DebugRenderer.m_RenderContext) {
-            return RESULT_INVALID_CONTEXT;
-        }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0, SORT_BACK_TO_FRONT);
     }
 
     HPredicate NewPredicate()

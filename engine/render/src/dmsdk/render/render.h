@@ -36,6 +36,13 @@ namespace dmIntersection
  * @language C++
  */
 
+/*# Render extension context name
+ * Name used when registering the render context with the engine context registry.
+ * @constant
+ * @name RENDER_CONTEXT_NAME
+ */
+#define RENDER_CONTEXT_NAME "render"
+
 namespace dmRender
 {
     /*#
