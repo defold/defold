@@ -52,6 +52,25 @@ struct HttpService
     uint16_t                    m_NextRequestGeneration;
 };
 
+struct HttpResponseInfo
+{
+    HttpResponseEvent m_Event;
+    HttpResult        m_Result;
+    int               m_StatusCode;
+    const char*       m_Header;
+    uint32_t          m_HeaderSize;
+    const void*       m_Data;
+    uint32_t          m_DataSize;
+    const char*       m_Url;
+    const char*       m_Path;
+    uint32_t          m_RangeStart;
+    uint32_t          m_RangeEnd;
+    uint32_t          m_DocumentSize;
+    uint32_t          m_BytesSent;
+    uint32_t          m_BytesReceived;
+    int32_t           m_BytesTotal;
+};
+
 struct HttpRequest
 {
     HttpRequest();

@@ -334,17 +334,19 @@ static int ReadServerConfig(const char* path, HttpTestServerConfig* config)
 
 static int HeaderNameEquals(const HttpResponseInfo* response, const char* name)
 {
-    uint32_t i;
-    uint32_t name_size = (uint32_t)strlen(name);
+    uint32_t    i;
+    uint32_t    name_size = (uint32_t)strlen(name);
+    const char* header = HttpResponseGetHeader(response);
+    uint32_t    header_size = HttpResponseGetHeaderSize(response);
 
-    if (!response->m_Header || response->m_HeaderSize <= name_size || response->m_Header[name_size] != ':')
+    if (!header || header_size <= name_size || header[name_size] != ':')
     {
         return 0;
     }
 
     for (i = 0; i < name_size; ++i)
     {
-        if (tolower((unsigned char)response->m_Header[i]) != tolower((unsigned char)name[i]))
+        if (tolower((unsigned char)header[i]) != tolower((unsigned char)name[i]))
         {
             return 0;
         }
@@ -357,6 +359,8 @@ static int ParseHeaderUInt32(const HttpResponseInfo* response, const char* name,
 {
     char        value_buffer[32];
     uint32_t    name_size = (uint32_t)strlen(name);
+    const char* header = HttpResponseGetHeader(response);
+    uint32_t    header_size = HttpResponseGetHeaderSize(response);
     const char* value_start;
     uint32_t    value_size;
 
@@ -365,8 +369,8 @@ static int ParseHeaderUInt32(const HttpResponseInfo* response, const char* name,
         return 0;
     }
 
-    value_start = response->m_Header + name_size + 1;
-    value_size = response->m_HeaderSize - name_size - 1;
+    value_start = header + name_size + 1;
+    value_size = header_size - name_size - 1;
     while (value_size > 0 && isspace((unsigned char)*value_start))
     {
         ++value_start;
@@ -389,13 +393,13 @@ static HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, co
     HttpTestResponse* test_response = (HttpTestResponse*)user_data;
     (void)request;
 
-    if (response->m_Event == HTTP_RESPONSE_EVENT_HEADER)
+    if (HttpResponseGetEvent(response) == HTTP_RESPONSE_EVENT_HEADER)
     {
         uint32_t content_length = 0;
 
         if (test_response->m_HeaderEventCount == 0)
         {
-            test_response->m_HeaderStatusCode = response->m_StatusCode;
+            test_response->m_HeaderStatusCode = HttpResponseGetStatusCode(response);
         }
 
         test_response->m_HeaderEventCount++;
@@ -410,14 +414,17 @@ static HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, co
             test_response->m_ContentLengthHeaderValue = content_length;
         }
     }
-    else if (response->m_Event == HTTP_RESPONSE_EVENT_DATA)
+    else if (HttpResponseGetEvent(response) == HTTP_RESPONSE_EVENT_DATA)
     {
-        test_response->m_TotalDataSize += response->m_DataSize;
+        uint32_t    data_size = HttpResponseGetDataSize(response);
+        const void* data = HttpResponseGetData(response);
+
+        test_response->m_TotalDataSize += data_size;
         test_response->m_DataEventCount++;
 
         uint32_t remaining = (uint32_t)sizeof(test_response->m_Data) - test_response->m_DataSize - 1;
-        uint32_t size = response->m_DataSize < remaining ? response->m_DataSize : remaining;
-        memcpy(test_response->m_Data + test_response->m_DataSize, response->m_Data, size);
+        uint32_t size = data_size < remaining ? data_size : remaining;
+        memcpy(test_response->m_Data + test_response->m_DataSize, data, size);
         test_response->m_DataSize += size;
         test_response->m_Data[test_response->m_DataSize] = 0;
 
@@ -426,17 +433,17 @@ static HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, co
             return HTTP_CALLBACK_RESULT_CANCEL;
         }
     }
-    else if (response->m_Event == HTTP_RESPONSE_EVENT_PROGRESS)
+    else if (HttpResponseGetEvent(response) == HTTP_RESPONSE_EVENT_PROGRESS)
     {
         test_response->m_ProgressEventCount++;
-        test_response->m_BytesSent = response->m_BytesSent;
-        test_response->m_BytesReceived = response->m_BytesReceived;
-        test_response->m_BytesTotal = response->m_BytesTotal;
+        test_response->m_BytesSent = HttpResponseGetBytesSent(response);
+        test_response->m_BytesReceived = HttpResponseGetBytesReceived(response);
+        test_response->m_BytesTotal = HttpResponseGetBytesTotal(response);
     }
-    else if (response->m_Event == HTTP_RESPONSE_EVENT_COMPLETE)
+    else if (HttpResponseGetEvent(response) == HTTP_RESPONSE_EVENT_COMPLETE)
     {
-        test_response->m_Result = response->m_Result;
-        test_response->m_StatusCode = response->m_StatusCode;
+        test_response->m_Result = HttpResponseGetResult(response);
+        test_response->m_StatusCode = HttpResponseGetStatusCode(response);
         test_response->m_CompleteHeaderEventCount = test_response->m_HeaderEventCount;
         test_response->m_CompleteDataEventCount = test_response->m_DataEventCount;
         TestAtomicStore32(&test_response->m_Complete, 1);

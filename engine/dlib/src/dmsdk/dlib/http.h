@@ -42,20 +42,20 @@
  *     HttpExampleContext* context = (HttpExampleContext*) user_data;
  *     (void) request;
  *
- *     switch (response->m_Event)
+ *     switch (HttpResponseGetEvent(response))
  *     {
  *         case HTTP_RESPONSE_EVENT_HEADER:
- *             // response->m_Header points to "Name:Value".
+ *             // HttpResponseGetHeader(response) points to "Name:Value".
  *             // Copy it here if it is needed after the callback returns.
  *             break;
  *
  *         case HTTP_RESPONSE_EVENT_DATA:
- *             // Process or copy response->m_Data before returning.
- *             context->m_TotalBytes += response->m_DataSize;
+ *             // Process or copy HttpResponseGetData(response) before returning.
+ *             context->m_TotalBytes += HttpResponseGetDataSize(response);
  *             break;
  *
  *         case HTTP_RESPONSE_EVENT_COMPLETE:
- *             context->m_Result = response->m_Result;
+ *             context->m_Result = HttpResponseGetResult(response);
  *             context->m_Done = 1;
  *             break;
  *     }
@@ -199,43 +199,11 @@ typedef enum HttpCallbackResult
 } HttpCallbackResult;
 
 /*# HTTP response information
- * Data passed to HttpResponseCallback.
- * @struct
+ * Opaque data passed to HttpResponseCallback.
+ * @typedef
  * @name HttpResponseInfo
- * @member m_Event [type:HttpResponseEvent] Event type.
- * @member m_Result [type:HttpResult] Transfer result. Valid for HTTP_RESPONSE_EVENT_COMPLETE.
- * @member m_StatusCode [type:int] HTTP status code, eg 200.
- * @member m_Header [type:const char*] Header line, including name and value. Valid for HTTP_RESPONSE_EVENT_HEADER.
- * @member m_HeaderSize [type:uint32_t] Header line size. Valid for HTTP_RESPONSE_EVENT_HEADER.
- * @member m_Data [type:const void*] Response body chunk data. Valid for HTTP_RESPONSE_EVENT_DATA.
- * @member m_DataSize [type:uint32_t] Response body chunk size. Valid for HTTP_RESPONSE_EVENT_DATA.
- * @member m_Url [type:const char*] Request URL.
- * @member m_Path [type:const char*] User supplied response path.
- * @member m_RangeStart [type:uint32_t] Start offset into the requested file, when known.
- * @member m_RangeEnd [type:uint32_t] End offset into the requested file, when known.
- * @member m_DocumentSize [type:uint32_t] Full size of the requested file, when known.
- * @member m_BytesSent [type:uint32_t] Sent byte count. Valid for HTTP_RESPONSE_EVENT_PROGRESS.
- * @member m_BytesReceived [type:uint32_t] Received byte count. Valid for HTTP_RESPONSE_EVENT_PROGRESS.
- * @member m_BytesTotal [type:int32_t] Total byte count, or -1 if unknown. Valid for HTTP_RESPONSE_EVENT_PROGRESS.
  */
-typedef struct HttpResponseInfo
-{
-    HttpResponseEvent m_Event;
-    HttpResult        m_Result;
-    int               m_StatusCode;
-    const char*       m_Header;
-    uint32_t          m_HeaderSize;
-    const void*       m_Data;
-    uint32_t          m_DataSize;
-    const char*       m_Url;
-    const char*       m_Path;
-    uint32_t          m_RangeStart;
-    uint32_t          m_RangeEnd;
-    uint32_t          m_DocumentSize;
-    uint32_t          m_BytesSent;
-    uint32_t          m_BytesReceived;
-    int32_t           m_BytesTotal;
-} HttpResponseInfo;
+typedef struct HttpResponseInfo HttpResponseInfo;
 
 /*# HTTP response callback
  * Called from the HTTP client worker thread. HTTP_RESPONSE_EVENT_DATA events
@@ -257,6 +225,122 @@ typedef HttpCallbackResult (*HttpResponseCallback)(HttpRequest* request, void* u
 extern "C"
 {
 #endif
+
+    /*# get response event
+     * @name HttpResponseGetEvent
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return event [type:HttpResponseEvent] Event type.
+     */
+    HttpResponseEvent HttpResponseGetEvent(const HttpResponseInfo* response);
+
+    /*# get response result
+     * Valid for HTTP_RESPONSE_EVENT_COMPLETE.
+     * @name HttpResponseGetResult
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return result [type:HttpResult] Transfer result.
+     */
+    HttpResult HttpResponseGetResult(const HttpResponseInfo* response);
+
+    /*# get response status code
+     * @name HttpResponseGetStatusCode
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return status_code [type:int] HTTP status code, eg 200.
+     */
+    int HttpResponseGetStatusCode(const HttpResponseInfo* response);
+
+    /*# get response header
+     * Valid for HTTP_RESPONSE_EVENT_HEADER. Returns the raw response header line
+     * as "Name:Value", without a trailing newline. The returned pointer is valid
+     * only for the duration of the callback. Use HttpResponseGetHeaderSize() for
+     * the number of bytes in the header line.
+     * @name HttpResponseGetHeader
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return header [type:const char*] Header line, including name and value.
+     */
+    const char* HttpResponseGetHeader(const HttpResponseInfo* response);
+
+    /*# get response header size
+     * Valid for HTTP_RESPONSE_EVENT_HEADER.
+     * @name HttpResponseGetHeaderSize
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return size [type:uint32_t] Number of bytes returned by HttpResponseGetHeader(), excluding any null terminator.
+     */
+    uint32_t HttpResponseGetHeaderSize(const HttpResponseInfo* response);
+
+    /*# get response data
+     * Valid for HTTP_RESPONSE_EVENT_DATA.
+     * @name HttpResponseGetData
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return data [type:const void*] Response body chunk data.
+     */
+    const void* HttpResponseGetData(const HttpResponseInfo* response);
+
+    /*# get response data size
+     * Valid for HTTP_RESPONSE_EVENT_DATA.
+     * @name HttpResponseGetDataSize
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return size [type:uint32_t] Response body chunk size.
+     */
+    uint32_t HttpResponseGetDataSize(const HttpResponseInfo* response);
+
+    /*# get response URL
+     * @name HttpResponseGetURL
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return url [type:const char*] Request URL.
+     */
+    const char* HttpResponseGetURL(const HttpResponseInfo* response);
+
+    /*# get response path
+     * @name HttpResponseGetPath
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return path [type:const char*] User supplied response path.
+     */
+    const char* HttpResponseGetPath(const HttpResponseInfo* response);
+
+    /*# get response range start
+     * @name HttpResponseGetRangeStart
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return range_start [type:uint32_t] Start offset into the requested file, when known.
+     */
+    uint32_t HttpResponseGetRangeStart(const HttpResponseInfo* response);
+
+    /*# get response range end
+     * @name HttpResponseGetRangeEnd
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return range_end [type:uint32_t] End offset into the requested file, when known.
+     */
+    uint32_t HttpResponseGetRangeEnd(const HttpResponseInfo* response);
+
+    /*# get response document size
+     * @name HttpResponseGetDocumentSize
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return document_size [type:uint32_t] Full size of the requested file, when known.
+     */
+    uint32_t HttpResponseGetDocumentSize(const HttpResponseInfo* response);
+
+    /*# get progress bytes sent
+     * Valid for HTTP_RESPONSE_EVENT_PROGRESS.
+     * @name HttpResponseGetBytesSent
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return bytes_sent [type:uint32_t] Sent byte count.
+     */
+    uint32_t HttpResponseGetBytesSent(const HttpResponseInfo* response);
+
+    /*# get progress bytes received
+     * Valid for HTTP_RESPONSE_EVENT_PROGRESS.
+     * @name HttpResponseGetBytesReceived
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return bytes_received [type:uint32_t] Received byte count.
+     */
+    uint32_t HttpResponseGetBytesReceived(const HttpResponseInfo* response);
+
+    /*# get progress byte total
+     * Valid for HTTP_RESPONSE_EVENT_PROGRESS.
+     * @name HttpResponseGetBytesTotal
+     * @param response [type:const HttpResponseInfo*] Response data.
+     * @return bytes_total [type:int32_t] Total byte count, or -1 if unknown.
+     */
+    int32_t HttpResponseGetBytesTotal(const HttpResponseInfo* response);
 
     /*# create a new HTTP request
      * @name HttpNewRequest

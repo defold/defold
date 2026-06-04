@@ -150,14 +150,17 @@ namespace dmGameSystem
 
     static void PostResponse(ScriptHttpRequest* request, const HttpResponseInfo* response)
     {
+        const char*             path = HttpResponseGetPath(response);
+        const char*             url = HttpResponseGetURL(response);
+
         dmHttpDDF::HttpResponse resp;
         memset(&resp, 0, sizeof(resp));
-        resp.m_Status = response->m_StatusCode;
+        resp.m_Status = HttpResponseGetStatusCode(response);
         resp.m_HeadersLength = request->m_ResponseHeaders.Size();
         resp.m_ResponseLength = request->m_Response.Size();
-        resp.m_RangeStart = response->m_RangeStart;
-        resp.m_RangeEnd = response->m_RangeEnd;
-        resp.m_DocumentSize = response->m_DocumentSize;
+        resp.m_RangeStart = HttpResponseGetRangeStart(response);
+        resp.m_RangeEnd = HttpResponseGetRangeEnd(response);
+        resp.m_DocumentSize = HttpResponseGetDocumentSize(response);
 
         if (!CopyBuffer(request->m_ResponseHeaders, &resp.m_Headers))
         {
@@ -172,9 +175,9 @@ namespace dmGameSystem
             return;
         }
 
-        resp.m_Path = DuplicateString(response->m_Path);
-        resp.m_Url = DuplicateString(response->m_Url);
-        if ((response->m_Path && !resp.m_Path) || (response->m_Url && !resp.m_Url))
+        resp.m_Path = DuplicateString(path);
+        resp.m_Url = DuplicateString(url);
+        if ((path && !resp.m_Path) || (url && !resp.m_Url))
         {
             FreeHttpResponse(&resp);
             dmLogWarning("Failed to allocate http-response strings.");
@@ -191,10 +194,10 @@ namespace dmGameSystem
     static void PostProgress(ScriptHttpRequest* request, const HttpResponseInfo* response)
     {
         dmHttpDDF::HttpRequestProgress msg = {};
-        msg.m_BytesSent = response->m_BytesSent;
-        msg.m_BytesReceived = response->m_BytesReceived;
-        msg.m_BytesTotal = response->m_BytesTotal;
-        msg.m_Url = response->m_Url;
+        msg.m_BytesSent = HttpResponseGetBytesSent(response);
+        msg.m_BytesReceived = HttpResponseGetBytesReceived(response);
+        msg.m_BytesTotal = HttpResponseGetBytesTotal(response);
+        msg.m_Url = HttpResponseGetURL(response);
 
         if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(&msg, 0, &request->m_Sender, request->m_Callback, false))
         {
@@ -207,18 +210,18 @@ namespace dmGameSystem
         ScriptHttpRequest* request = (ScriptHttpRequest*)user_data;
         (void)http_request;
 
-        switch (response->m_Event)
+        switch (HttpResponseGetEvent(response))
         {
             case HTTP_RESPONSE_EVENT_HEADER:
             {
-                AppendBytes(request->m_ResponseHeaders, response->m_Header, response->m_HeaderSize);
+                AppendBytes(request->m_ResponseHeaders, HttpResponseGetHeader(response), HttpResponseGetHeaderSize(response));
                 char newline = '\n';
                 AppendBytes(request->m_ResponseHeaders, &newline, 1);
             }
             break;
 
             case HTTP_RESPONSE_EVENT_DATA:
-                AppendBytes(request->m_Response, response->m_Data, response->m_DataSize);
+                AppendBytes(request->m_Response, HttpResponseGetData(response), HttpResponseGetDataSize(response));
                 break;
 
             case HTTP_RESPONSE_EVENT_PROGRESS:

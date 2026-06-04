@@ -521,6 +521,81 @@ static void SendComplete(HttpRequest* request, HttpResult result, int status)
 
 extern "C"
 {
+    HttpResponseEvent HttpResponseGetEvent(const HttpResponseInfo* response)
+    {
+        return response ? response->m_Event : HTTP_RESPONSE_EVENT_HEADER;
+    }
+
+    HttpResult HttpResponseGetResult(const HttpResponseInfo* response)
+    {
+        return response ? response->m_Result : HTTP_RESULT_INVAL;
+    }
+
+    int HttpResponseGetStatusCode(const HttpResponseInfo* response)
+    {
+        return response ? response->m_StatusCode : 0;
+    }
+
+    const char* HttpResponseGetHeader(const HttpResponseInfo* response)
+    {
+        return response ? response->m_Header : 0;
+    }
+
+    uint32_t HttpResponseGetHeaderSize(const HttpResponseInfo* response)
+    {
+        return response ? response->m_HeaderSize : 0;
+    }
+
+    const void* HttpResponseGetData(const HttpResponseInfo* response)
+    {
+        return response ? response->m_Data : 0;
+    }
+
+    uint32_t HttpResponseGetDataSize(const HttpResponseInfo* response)
+    {
+        return response ? response->m_DataSize : 0;
+    }
+
+    const char* HttpResponseGetURL(const HttpResponseInfo* response)
+    {
+        return response ? response->m_Url : 0;
+    }
+
+    const char* HttpResponseGetPath(const HttpResponseInfo* response)
+    {
+        return response ? response->m_Path : 0;
+    }
+
+    uint32_t HttpResponseGetRangeStart(const HttpResponseInfo* response)
+    {
+        return response ? response->m_RangeStart : 0;
+    }
+
+    uint32_t HttpResponseGetRangeEnd(const HttpResponseInfo* response)
+    {
+        return response ? response->m_RangeEnd : 0;
+    }
+
+    uint32_t HttpResponseGetDocumentSize(const HttpResponseInfo* response)
+    {
+        return response ? response->m_DocumentSize : 0;
+    }
+
+    uint32_t HttpResponseGetBytesSent(const HttpResponseInfo* response)
+    {
+        return response ? response->m_BytesSent : 0;
+    }
+
+    uint32_t HttpResponseGetBytesReceived(const HttpResponseInfo* response)
+    {
+        return response ? response->m_BytesReceived : 0;
+    }
+
+    int32_t HttpResponseGetBytesTotal(const HttpResponseInfo* response)
+    {
+        return response ? response->m_BytesTotal : -1;
+    }
+
     HttpResult HttpNewServiceWithCacheInternal(uint32_t max_concurrent_requests, void* http_cache, HttpService** service)
     {
         if (!service)
