@@ -52,11 +52,17 @@ protected:
 
     void SetupContextAndWorld(float physics_scale)
     {
+        SetupContextAndWorld(physics_scale, 0);
+    }
+
+    void SetupContextAndWorld(float physics_scale, uint8_t allow_dynamic_transforms)
+    {
         dmPhysics::NewContextParams context_params = dmPhysics::NewContextParams();
         context_params.m_Scale = physics_scale;
         context_params.m_RayCastLimit2D = 64;
         context_params.m_RayCastLimit3D = 128;
         context_params.m_TriggerOverlapCapacity = 16;
+        context_params.m_AllowDynamicTransforms = allow_dynamic_transforms;
         m_Context = (*m_Test.m_NewContextFunc)(context_params);
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
@@ -74,6 +80,13 @@ protected:
         m_StepWorldContext.m_Box2DVelocityIterations = 10;
         m_StepWorldContext.m_Box2DPositionIterations = 10;
         m_StepWorldContext.m_Box2DSubStepCount = 10;
+    }
+
+    void RecreateContextAndWorld(float physics_scale, uint8_t allow_dynamic_transforms)
+    {
+        (*m_Test.m_DeleteWorldFunc)(m_Context, m_World);
+        (*m_Test.m_DeleteContextFunc)(m_Context);
+        SetupContextAndWorld(physics_scale, allow_dynamic_transforms);
     }
 
     void TearDown() override

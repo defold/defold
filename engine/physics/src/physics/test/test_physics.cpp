@@ -451,6 +451,247 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
+#if defined(PHYSICS_TEST_BOX2D) || defined(PHYSICS_TEST_BOX2D_DEFOLD)
+TYPED_TEST(PhysicsTest, DynamicTransformUpdatesBodyPositionAndPreservesVelocity)
+{
+    /*
+     * Intent:
+     * Verify the Box2D dynamic-transform sync path used by StepWorld2D when
+     * physics.allow_dynamic_transforms is enabled. Updating the external game
+     * object transform should move the dynamic body without resetting velocity.
+     *
+     * Setup:
+     * Recreate the 2D physics world with m_AllowDynamicTransforms enabled,
+     * create one dynamic body backed by a VisualObject transform callback, set
+     * non-zero linear and angular velocities, then change the VisualObject
+     * position and rotation before stepping with dt = 0.
+     *
+     * Expected results:
+     * The body's Box2D transform is updated from the external transform, and
+     * both linear and angular velocity remain unchanged.
+     */
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, 1);
+    TestFixture::m_StepWorldContext.m_DT = 0.0f;
+    const float POSITION_EPSILON = 0.000001f;
+    const float VELOCITY_EPSILON = 0.000001f;
+    const float ROTATION_EPSILON = 0.001f;
+
+    VisualObject vo;
+    vo.m_Position = Point3(1.0f, 2.0f, 0.0f);
+    vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
+
+    dmPhysics::CollisionObjectData data;
+    data.m_UserData = &vo;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.5f));
+    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    Vector3 linear_velocity(3.0f, -2.0f, 0.0f);
+    Vector3 angular_velocity(0.0f, 0.0f, 1.75f);
+    (*TestFixture::m_Test.m_SetLinearVelocityFunc)(TestFixture::m_Context, co, linear_velocity);
+    (*TestFixture::m_Test.m_SetAngularVelocityFunc)(TestFixture::m_Context, co, angular_velocity);
+
+    Point3 new_position(4.0f, 7.0f, 0.0f);
+    Quat new_rotation = Quat::rotationZ(0.5f);
+    vo.m_Position = new_position;
+    vo.m_Rotation = new_rotation;
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    Point3 body_position = (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, co);
+    for (int i = 0; i < 3; ++i)
+    {
+        ASSERT_NEAR(new_position.getElem(i), body_position.getElem(i), POSITION_EPSILON);
+        ASSERT_NEAR(new_position.getElem(i), vo.m_Position.getElem(i), POSITION_EPSILON);
+    }
+
+    Quat body_rotation = (*TestFixture::m_Test.m_GetWorldRotationFunc)(TestFixture::m_Context, co);
+    for (int i = 0; i < 4; ++i)
+    {
+        ASSERT_NEAR(new_rotation.getElem(i), body_rotation.getElem(i), ROTATION_EPSILON);
+        ASSERT_NEAR(new_rotation.getElem(i), vo.m_Rotation.getElem(i), ROTATION_EPSILON);
+    }
+
+    Vector3 body_linear_velocity = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(TestFixture::m_Context, co);
+    Vector3 body_angular_velocity = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(TestFixture::m_Context, co);
+    for (int i = 0; i < 3; ++i)
+    {
+        ASSERT_NEAR(linear_velocity.getElem(i), body_linear_velocity.getElem(i), VELOCITY_EPSILON);
+        ASSERT_NEAR(angular_velocity.getElem(i), body_angular_velocity.getElem(i), VELOCITY_EPSILON);
+    }
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+}
+
+TYPED_TEST(PhysicsTest, DynamicTransformSyncAllowsSleeping)
+{
+    /*
+     * Intent:
+     * Verify that repeated Box2D dynamic-transform sync wakes the body without
+     * disabling sleep. A dynamic body that is externally repositioned while it
+     * has no velocity should still be able to accumulate sleep time.
+     *
+     * Setup:
+     * Recreate the 2D physics world with m_AllowDynamicTransforms enabled,
+     * disable gravity, create one idle dynamic body backed by a VisualObject
+     * transform callback, then move the VisualObject by more than the sync
+     * epsilon before every step.
+     *
+     * Expected results:
+     * The body reaches a sleeping state within the sleep timeout even though the
+     * dynamic-transform sync path updated its Box2D transform every step.
+     */
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, 1);
+    (*TestFixture::m_Test.m_SetGravityFunc)(TestFixture::m_World, Vector3(0.0f, 0.0f, 0.0f));
+
+    VisualObject vo;
+    vo.m_Position = Point3(0.0f, 0.0f, 0.0f);
+    vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
+
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_UserData = &vo;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.5f));
+    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+    ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(co));
+
+    const float position_delta = 0.001f;
+    const float sleep_timeout = 2.1f;
+    int steps = (int)(sleep_timeout / TestFixture::m_StepWorldContext.m_DT);
+    bool slept = false;
+    for (int i = 0; i < steps; ++i)
+    {
+        vo.m_Position += Vector3(position_delta, 0.0f, 0.0f);
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+        if ((*TestFixture::m_Test.m_IsSleepingFunc)(co))
+        {
+            slept = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(slept);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+}
+
+TYPED_TEST(PhysicsTest, DynamicTransformScaleNoiseDoesNotWakeSleepingBody)
+{
+    /*
+     * Intent:
+     * Verify that Box2D dynamic-transform scale sync wakes sleeping bodies only
+     * for meaningful scale changes. Tiny scale noise should not keep a sleeping
+     * body awake, but an actual scale update should wake it.
+     *
+     * Setup:
+     * Recreate the 2D physics world with m_AllowDynamicTransforms enabled,
+     * disable gravity, create one idle dynamic body backed by a VisualObject
+     * transform callback, and step until the body sleeps. Then apply sub-epsilon
+     * scale noise followed by a larger scale change.
+     *
+     * Expected results:
+     * The sleeping body remains asleep after the sub-epsilon scale change, and
+     * wakes when the scale changes by more than the scale epsilon.
+     */
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, 1);
+    (*TestFixture::m_Test.m_SetGravityFunc)(TestFixture::m_World, Vector3(0.0f, 0.0f, 0.0f));
+
+    VisualObject vo;
+    vo.m_Position = Point3(0.0f, 0.0f, 0.0f);
+    vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    vo.m_Scale = 1.0f;
+
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_UserData = &vo;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.5f));
+    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+    ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(co));
+
+    const float sleep_timeout = 2.1f;
+    int steps = (int)(sleep_timeout / TestFixture::m_StepWorldContext.m_DT);
+    for (int i = 0; i < steps; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+    ASSERT_TRUE((*TestFixture::m_Test.m_IsSleepingFunc)(co));
+
+    vo.m_Scale += 0.0000005f;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_TRUE((*TestFixture::m_Test.m_IsSleepingFunc)(co));
+
+    vo.m_Scale += 0.001f;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(co));
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+}
+
+TYPED_TEST(PhysicsTest, DynamicBodyOnGroundSleepsWithDynamicTransformSync)
+{
+    /*
+     * Intent:
+     * Verify that a normal dynamic body can come to rest and sleep while
+     * Box2D dynamic-transform sync is enabled.
+     *
+     * Setup:
+     * Recreate the 2D physics world with m_AllowDynamicTransforms enabled,
+     * create one static ground body and one dynamic box above it, then step the
+     * world long enough for the dynamic body to settle on the ground.
+     *
+     * Expected results:
+     * The dynamic body reaches Box2D's sleeping state.
+     */
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, 1);
+
+    VisualObject ground_vo;
+    ground_vo.m_Position = Point3(0.0f, -1.0f, 0.0f);
+    ground_vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
+
+    dmPhysics::CollisionObjectData ground_data;
+    ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    ground_data.m_Mass = 0.0f;
+    ground_data.m_UserData = &ground_vo;
+    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(10.0f, 0.5f, 0.5f));
+    typename TypeParam::CollisionObjectType ground_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, ground_data, &ground_shape, 1u);
+
+    VisualObject box_vo;
+    box_vo.m_Position = Point3(0.0f, 2.0f, 0.0f);
+    box_vo.m_Rotation = Quat(0.0f, 0.0f, 0.0f, 1.0f);
+
+    dmPhysics::CollisionObjectData box_data;
+    box_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    box_data.m_UserData = &box_vo;
+    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.5f));
+    typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, box_data, &box_shape, 1u);
+    ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box_co));
+
+    const float sleep_timeout = 4.0f;
+    int steps = (int)(sleep_timeout / TestFixture::m_StepWorldContext.m_DT);
+    bool slept = false;
+    for (int i = 0; i < steps; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+        if ((*TestFixture::m_Test.m_IsSleepingFunc)(box_co))
+        {
+            slept = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(slept);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box_shape);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, ground_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(ground_shape);
+}
+#endif
+
 TYPED_TEST(PhysicsTest, GroundBoxCollision)
 {
     float ground_height_half_ext = 1.0f;

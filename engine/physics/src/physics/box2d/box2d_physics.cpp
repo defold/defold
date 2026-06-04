@@ -549,11 +549,7 @@ namespace dmPhysics
 
                         b2Rot b2_rot = b2MakeRot(angle);
                         b2Body_SetTransform(body_id, b2_position, b2_rot);
-                        b2Body_EnableSleep(body_id, false);
-                    }
-                    else
-                    {
-                        b2Body_EnableSleep(body_id, true);
+                        b2Body_SetAwake(body_id, true);
                     }
                 }
 
