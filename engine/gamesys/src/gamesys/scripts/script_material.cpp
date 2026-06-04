@@ -145,6 +145,7 @@ namespace dmGameSystem
      *   - `graphics.SEMANTIC_TYPE_BONE_WEIGHTS`
      *   - `graphics.SEMANTIC_TYPE_BONE_INDICES`
      *   - `graphics.SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D`
+     *   - `graphics.SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS`
      *
      * @examples
      * Get the vertex attributes from a material specified as a resource property
@@ -491,6 +492,7 @@ namespace dmGameSystem
      *   - `graphics.SEMANTIC_TYPE_BONE_WEIGHTS`
      *   - `graphics.SEMANTIC_TYPE_BONE_INDICES`
      *   - `graphics.SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D`
+     *   - `graphics.SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS`
      *
      *
      * @examples

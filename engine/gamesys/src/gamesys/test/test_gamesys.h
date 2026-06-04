@@ -699,8 +699,6 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_MaxModelCount = 128;
     m_ModelContext.m_MaxBoneMatrixTextureWidth = 1024;
     m_ModelContext.m_MaxBoneMatrixTextureHeight = 1024;
-    m_ModelContext.m_MaxMorphTargetTextureWidth = 1024;
-    m_ModelContext.m_MaxMorphTargetTextureHeight = 1024;
 
     dmBuffer::NewContext(); // ???
 
