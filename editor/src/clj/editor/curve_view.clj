@@ -59,7 +59,13 @@
   [{:command :scene.camera.pan
     :action "Pan"}
    {:command :scene.camera.zoom
-    :action "Zoom"}])
+    :action "Zoom"}
+   {:command :curve-view.add-control-point
+    :action "Add Control Point"
+    :binding {:trigger :press :modifiers []}}
+   {:command :curve-view.delete-control-point
+    :action "Delete Control Point"
+    :binding {:trigger :press :modifiers []}}])
 
 ; Line shader
 
@@ -272,21 +278,38 @@
         op-seq (g/node-value self :op-seq)
         handle (g/node-value self :handle)
         sub-selection (g/node-value self :sub-selection)
+        mouse-binding-command (when (= :mouse-pressed (:type action))
+                                (mouse-binding/command-for-action ::curve-view-camera
+                                                                  (assoc action :type :press)))
         ^Point3d cursor-pos (:world-pos action)]
     (case (:type action)
       :mouse-pressed (let [handled? (when-let [[handle data] (g/node-value self :curve-handle)]
-                                      (if (and (= 2 (:click-count action))
-                                               (or (= handle :control-point) (= handle :curve)))
+                                      (if-let [edit-command (cond
+                                                              (and (= handle :control-point)
+                                                                   (= mouse-binding-command :curve-view.delete-control-point))
+                                                              :curve-view.delete-control-point
+
+                                                              (and (= handle :curve)
+                                                                   (= mouse-binding-command :curve-view.add-control-point))
+                                                              :curve-view.add-control-point
+
+                                                              (and (= 2 (:click-count action))
+                                                                   (= handle :control-point))
+                                                              :curve-view.delete-control-point
+
+                                                              (and (= 2 (:click-count action))
+                                                                   (= handle :curve))
+                                                              :curve-view.add-control-point)]
                                         (do
                                           (g/transact
                                             (concat
                                               (g/operation-sequence op-seq)
-                                              (case handle
-                                                :control-point
+                                              (case edit-command
+                                                :curve-view.delete-control-point
                                                 (let [[nid property id] data]
                                                   (g/update-property nid property types/geom-delete [id]))
 
-                                                :curve
+                                                :curve-view.add-control-point
                                                 (let [[nid property ^Point3d p] data
                                                       p [(.x p) (.y p) (.z p)]
                                                       new-curve (-> (g/node-value nid property)
