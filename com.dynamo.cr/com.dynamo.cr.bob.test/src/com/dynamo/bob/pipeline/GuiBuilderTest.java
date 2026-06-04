@@ -442,6 +442,32 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals("jump", findCustomProperty(node, "spine_default_animation").getStringValue());
     }
 
+    // Legacy Spine template child overrides use old Spine field numbers. When the
+    // node is migrated to a custom Spine node, those overrides must become custom
+    // property overrides so the template value does not win.
+    @Test
+    public void testTemplateSpineOverridesAreMigrated() throws Exception {
+        StringBuilder templateSrc = createGui();
+        addSpineResource(templateSrc, "spineboy");
+        startLegacySpineNode(templateSrc, "spine");
+        addLegacySpineProperties(templateSrc);
+        finishNode(templateSrc);
+        addFile("/template.gui", templateSrc.toString());
+
+        StringBuilder referencingSrc = createGui();
+        addTemplateNode(referencingSrc, "template", "", "/template.gui");
+        startOverriddenNode(referencingSrc, NodeDesc.Type.TYPE_CUSTOM, "template/spine", "template", true, List.of(NodeDesc.SPINE_DEFAULT_ANIMATION_FIELD_NUMBER));
+        referencingSrc.append("  spine_default_animation: \"jump\"\n");
+        finishNode(referencingSrc);
+
+        Gui.SceneDesc gui = buildGui(referencingSrc, "/test.gui");
+        NodeDesc node = findNode(gui, "", "template/spine");
+
+        Assert.assertNotNull(node);
+        Assert.assertFalse(node.hasSpineDefaultAnimation());
+        Assert.assertEquals("jump", findCustomProperty(node, "spine_default_animation").getStringValue());
+    }
+
     @Test
     public void testCustomPropertyDefaultsUseRegisteredTypes() throws Exception {
         StringBuilder src = createGui();

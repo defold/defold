@@ -442,37 +442,69 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             throw new CompileExceptionError(resource, 0, message);
         }
 
-        Map<String, Object> migratedProperties = new LinkedHashMap<String, Object>();
+        var migratedProperties = new LinkedHashMap<String, Object>();
         putLegacySpineProperties(node, migratedProperties);
+        var legacyPropertyNames = new HashSet<String>(migratedProperties.keySet());
         customType.migrateProperties(migratedProperties);
 
-        Set<Long> existingPropertyHashes = new HashSet<Long>();
-        List<Property> customProperties = new ArrayList<Property>(node.getCustomPropertiesCount() + customType.getProperties().size());
+        var overriddenFields = new ArrayList<Integer>(node.getOverriddenFieldsCount());
+        var addedCustomPropertiesField = false;
+        for (int fieldNumber : node.getOverriddenFieldsList()) {
+            var customPropertyName = switch (fieldNumber) {
+                case NodeDesc.SPINE_SCENE_FIELD_NUMBER -> "spine_scene";
+                case NodeDesc.SPINE_DEFAULT_ANIMATION_FIELD_NUMBER -> "spine_default_animation";
+                case NodeDesc.SPINE_SKIN_FIELD_NUMBER -> "spine_skin";
+                case NodeDesc.SPINE_NODE_CHILD_FIELD_NUMBER -> "spine_node_child";
+                case NodeDesc.SPINE_CREATE_BONES_FIELD_NUMBER -> "spine_create_bones";
+                default -> null;
+            };
+            if (customPropertyName == null || !legacyPropertyNames.contains(customPropertyName)) {
+                overriddenFields.add(fieldNumber);
+            } else if (migratedProperties.containsKey(customPropertyName)) {
+                addedCustomPropertiesField = true;
+            }
+        }
+        if (addedCustomPropertiesField && !overriddenFields.contains(NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER)) {
+            overriddenFields.add(NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER);
+        }
+
+        var migratedPropertyHashes = new HashSet<Long>();
+        for (String propertyName : migratedProperties.keySet()) {
+            migratedPropertyHashes.add(hashPropertyName(propertyName));
+        }
+
+        var existingPropertyHashes = new HashSet<Long>();
+        var customProperties = new ArrayList<Property>(node.getCustomPropertiesCount() + customType.getProperties().size());
         for (Property property : node.getCustomPropertiesList()) {
-            Property canonicalProperty = canonicalizeCustomProperty(property);
+            var canonicalProperty = canonicalizeCustomProperty(property);
             if (canonicalProperty.hasIdHash()) {
+                if (!property.hasId() && migratedPropertyHashes.contains(canonicalProperty.getIdHash())) {
+                    continue;
+                }
                 existingPropertyHashes.add(canonicalProperty.getIdHash());
             }
             customProperties.add(canonicalProperty);
         }
 
         for (GuiCustomTypeRegistry.Property property : customType.getProperties()) {
-            long propertyNameHash = property.getNameHash();
+            var propertyNameHash = property.getNameHash();
             if (existingPropertyHashes.contains(propertyNameHash)) {
                 continue;
             }
 
-            Object value = migratedProperties.containsKey(property.getName()) ? migratedProperties.get(property.getName()) : property.getDefaultValue();
+            var value = migratedProperties.containsKey(property.getName()) ? migratedProperties.get(property.getName()) : property.getDefaultValue();
             customProperties.add(buildCustomProperty(property.getName(), value, property.getPropertyType()).build());
             existingPropertyHashes.add(propertyNameHash);
         }
 
-        NodeDesc.Builder nodeBuilder = node.toBuilder();
+        var nodeBuilder = node.toBuilder();
         nodeBuilder.setType(Type.TYPE_CUSTOM);
         nodeBuilder.setCustomType(customType.getNameHash());
         nodeBuilder.clearCustomTypeName();
         nodeBuilder.clearCustomProperties();
         nodeBuilder.addAllCustomProperties(customProperties);
+        nodeBuilder.clearOverriddenFields();
+        nodeBuilder.addAllOverriddenFields(overriddenFields);
         nodeBuilder.clearSpineScene();
         nodeBuilder.clearSpineDefaultAnimation();
         nodeBuilder.clearSpineSkin();
