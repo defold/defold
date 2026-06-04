@@ -816,6 +816,38 @@ namespace dmGraphics
         return 0;
     }
 
+    bool GetTextureFormatCompressedBlockSize(TextureFormat format, TextureFormatCompressedBlockSize* out)
+    {
+        assert(format <= TEXTURE_FORMAT_COUNT);
+        assert(out);
+
+        switch (format)
+        {
+            case TEXTURE_FORMAT_RGB_ETC1:        *out = { 4, 4,  8 }; return true;
+            case TEXTURE_FORMAT_RGBA_ETC2:       *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGB_BC1:         *out = { 4, 4,  8 }; return true;
+            case TEXTURE_FORMAT_R_BC4:           *out = { 4, 4,  8 }; return true;
+            case TEXTURE_FORMAT_RGBA_BC3:        *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RG_BC5:          *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_BC7:        *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:   *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_5X4:   *out = { 5, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_5X5:   *out = { 5, 5, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_6X5:   *out = { 6, 5, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_6X6:   *out = { 6, 6, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X5:   *out = { 8, 5, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X6:   *out = { 8, 6, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X8:   *out = { 8, 8, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X5:  *out = { 10,  5, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X6:  *out = { 10,  6, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X8:  *out = { 10,  8, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X10: *out = { 10, 10, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_12X10: *out = { 12, 10, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_12X12: *out = { 12, 12, 16 }; return true;
+            default:                             *out = { 0, 0,  0 }; return false;
+        }
+    }
+
     Type GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type)
     {
         switch(shader_type)

@@ -278,7 +278,15 @@ namespace dmGraphics
         }
     };
 
+    struct TextureFormatCompressedBlockSize
+    {
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_ByteSize;
+    };
+
     uint32_t                   GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    bool                       GetTextureFormatCompressedBlockSize(TextureFormat format, TextureFormatCompressedBlockSize* out);
     uint32_t                   GetGraphicsTypeDataSize(Type type);
     void                       InstallAdapterVendor();
     PipelineState              GetDefaultPipelineState();
