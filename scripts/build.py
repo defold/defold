@@ -2265,14 +2265,20 @@ class Configuration(object):
         self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
         python_cmd = ' '.join(self.get_python())
+        doc_dir = join(self.dynamo_home, 'share', 'doc')
+        ref_doc_zip = join(self.dynamo_home, 'share', 'ref-doc.zip')
+        if os.path.exists(doc_dir):
+            shutil.rmtree(doc_dir)
+        if os.path.exists(ref_doc_zip):
+            os.remove(ref_doc_zip)
         commands = 'build install'
         if not self.incremental:
             commands = "distclean configure " + commands
         cmd = '%s %s/ext/bin/waf configure --prefix=%s %s %s' % (python_cmd, self.dynamo_home, self.dynamo_home, skip_tests, commands)
         run.env_command(self._form_env(), [python_cmd, './scripts/bundle.py', 'docs', '--docs-dir', cwd], cwd = join(self.defold_root, 'editor'))
         run.env_command(self._form_env(), cmd.split() + self.waf_options, cwd = cwd)
-        with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
-            self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
+        with open(ref_doc_zip, 'wb') as f:
+            self._ziptree(doc_dir, outfile = f, directory = join(self.dynamo_home, 'share'))
 
 
 # ------------------------------------------------------------
