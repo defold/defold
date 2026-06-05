@@ -328,6 +328,7 @@ static bool OpenGLValidateASTCSupport()
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture_binding);
     OpenGLClearGLError();
 
+    dmLogInfo("Checking ASTC support. May produce GL error.");
     GLuint texture = 0;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -363,6 +364,8 @@ static bool OpenGLValidateASTCArraySupport()
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 
     };
+
+    dmLogInfo("Checking ASTC Array support. May produce GL error.");
 
     GLint previous_texture_binding = 0;
     glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &previous_texture_binding);
