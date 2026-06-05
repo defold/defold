@@ -171,14 +171,36 @@
   (coll/into-> binding->cmds {}
     (filter #(> (count (val %)) 1))))
 
-(defn- add-binding-warnings [conflicts {:keys [context command bindings] :as row}]
-  (if (= :mouse-binding (:kind row))
+(defn- mouse-sub-binding->cmds
+  "Returns {[context command modifier] -> #{sub-cmd-label ...}}"
+  [mouse-binding-rows]
+  (reduce
+    (fn [acc {:keys [context command sub-cmd-label modifier kind]}]
+      (if (and (= :mouse-sub-binding kind) modifier)
+        (update acc [context command modifier] (fnil conj #{}) sub-cmd-label)
+        acc))
+    {}
+    mouse-binding-rows))
+
+(defn- mouse-sub-binding-conflicts
+  "Returns {[context command modifier] -> #{sub-cmd-label ...}} for entries with 2+ sub-cmds."
+  [sub-binding->cmds]
+  (coll/into-> sub-binding->cmds {}
+    (filter #(> (count (val %)) 1))))
+
+(defn- add-binding-warnings [conflicts sub-binding-conflicts {:keys [context command bindings modifier] :as row}]
+  (case (:kind row)
+    :mouse-binding
     (assoc row :binding-warnings
            (mapv (fn [b]
                    (when (:button b)
                      (when-let [conflicting (seq (disj (get conflicts [context (normalize-binding b)] #{}) command))]
                        (mapv #(hash-map :type :conflict :command %) conflicting))))
                  bindings))
+    :mouse-sub-binding
+    (if-let [conflicting (seq (disj (get sub-binding-conflicts [context command modifier] #{}) (:sub-cmd-label row)))]
+      (assoc row :binding-warnings conflicting)
+      row)
     row))
 
 (defn- keyboard-row [command]
@@ -299,9 +321,16 @@
         :style-class "keymap-shortcuts"
         :children (case kind
                     :mouse-sub-binding
-                    [{:fx/type fxui/label
-                      :style-class "keymap-shortcut"
-                      :text (mouse-binding/modifier->label (:modifier row))}]
+                    (let [warnings (:binding-warnings row)]
+                      [(cond-> {:fx/type fxui/label
+                                :style-class "keymap-shortcut"
+                                :text (mouse-binding/modifier->label (:modifier row))}
+                         (seq warnings)
+                         (assoc :pseudo-classes #{:warning}
+                                :tooltip (localization-state
+                                           (localization/message
+                                             "prefs.keymap.warning.conflicts"
+                                             {"shortcuts" (->> warnings sort vec localization/and-list)}))))])
 
                     :mouse-binding
                     (let [inherited? (= :inherited (:binding-source row))
@@ -603,42 +632,50 @@
               :initial-state (:modifier (:row props))
               :key :draft-modifier
               :swap-key :swap-draft-modifier}]}
-  [{:keys [row draft-modifier swap-draft-modifier swap-state update-mouse-bindings]}]
+  [{:keys [row draft-modifier swap-draft-modifier sub-binding->cmds localization-state swap-state update-mouse-bindings]}]
   (let [{:keys [context command sub-cmd context-path action sub-cmd-label default-modifier]} row
-        parent-key [context command]]
+        parent-key [context command]
+        warnings (when draft-modifier
+                   (seq (disj (get sub-binding->cmds [context command draft-modifier] #{}) sub-cmd-label)))]
     {:fx/type fxui/vertical
      :padding :medium
      :spacing :medium
      :children
-     [{:fx/type fxui/label
-       :alignment :center
-       :text (coll/join-to-string " → " [context-path action sub-cmd-label])}
-      {:fx/type fx/ext-let-refs
-       :refs {::modifier-toggle-group {:fx/type fx.toggle-group/lifecycle}}
-       :desc
-       {:fx/type fxui/horizontal
-        :spacing :small
-        :children (mapv (fn [modifier]
-                          {:fx/type fx.radio-button/lifecycle
-                           :fx/key modifier
-                           :toggle-group {:fx/type fx/ext-get-ref
-                                          :ref ::modifier-toggle-group}
-                           :style-class ["radio-button" "ext-radio-button"]
-                           :text (mouse-binding/modifier->label modifier)
-                           :selected (= modifier draft-modifier)
-                           :on-selected-changed (fn [selected]
-                                                  (when selected
-                                                    (swap-draft-modifier (constantly modifier))))})
-                        mouse-binding/modifiers)}}
-      {:fx/type fxui/horizontal
-       :alignment :center-right
-       :spacing :small
-       :children
-       [{:fx/type fxui/button
-         :text "Cancel"
-         :on-action (fn [_] (swap-state dissoc :mouse-sub-binding-popup))}
-        {:fx/type fxui/button
-         :text "Apply"
+     (-> [{:fx/type fxui/label
+           :alignment :center
+           :text (coll/join-to-string " → " [context-path action sub-cmd-label])}
+          {:fx/type fx/ext-let-refs
+           :refs {::modifier-toggle-group {:fx/type fx.toggle-group/lifecycle}}
+           :desc
+           {:fx/type fxui/horizontal
+            :spacing :small
+            :children (mapv (fn [modifier]
+                              {:fx/type fx.radio-button/lifecycle
+                               :fx/key modifier
+                               :toggle-group {:fx/type fx/ext-get-ref
+                                              :ref ::modifier-toggle-group}
+                               :style-class ["radio-button" "ext-radio-button"]
+                               :text (mouse-binding/modifier->label modifier)
+                               :selected (= modifier draft-modifier)
+                               :on-selected-changed (fn [selected]
+                                                      (when selected
+                                                        (swap-draft-modifier (constantly modifier))))})
+                            mouse-binding/modifiers)}}]
+         (cond-> warnings
+           (conj {:fx/type fxui/paragraph
+                  :text (localization-state
+                          (localization/message
+                            "prefs.keymap.warning.conflicts"
+                            {"shortcuts" (->> warnings sort vec localization/and-list)}))}))
+         (conj {:fx/type fxui/horizontal
+                :alignment :center-right
+                :spacing :small
+                :children
+                [{:fx/type fxui/button
+                  :text "Cancel"
+                  :on-action (fn [_] (swap-state dissoc :mouse-sub-binding-popup))}
+                 {:fx/type fxui/button
+                  :text "Apply"
          :on-action (fn [_]
                       (update-mouse-bindings
                         (fn [current-map]
@@ -651,7 +688,7 @@
                             (if (and (nil? (:bindings new-override)) (empty? (:sub-commands new-override)))
                               (util/dissoc-in current-map parent-key)
                               (assoc-in current-map parent-key new-override)))))
-                      (swap-state dissoc :mouse-sub-binding-popup))}]}]}))
+                      (swap-state dissoc :mouse-sub-binding-popup))}]}))}))
 
 (defn- show-new-shortcut-dialog! [swap-state command ^Window window]
   (let [root (.getRoot (.getScene window))
@@ -804,7 +841,8 @@
                                  (mouse-binding/all-bindings))
         binding->cmds (mouse-binding->cmds mouse-binding-rows)
         conflicts (mouse-binding-conflicts binding->cmds)
-        mouse-binding-rows (mapv (partial add-binding-warnings conflicts) mouse-binding-rows)
+        sub-binding-conflicts (mouse-sub-binding-conflicts (mouse-sub-binding->cmds mouse-binding-rows))
+        mouse-binding-rows (mapv (partial add-binding-warnings conflicts sub-binding-conflicts) mouse-binding-rows)
         rows (concat keyboard-rows mouse-binding-rows)
         rows (if (= filter-text "")
                rows
@@ -885,6 +923,8 @@
                          :style-class "keymap-new-shortcut-background"}
                         {:fx/type mouse-sub-binding-modifier-view
                          :row row
+                         :sub-binding->cmds (mouse-sub-binding->cmds mouse-binding-rows)
+                         :localization-state localization-state
                          :swap-state swap-state
                          :update-mouse-bindings update-mouse-bindings}]}]})
 
