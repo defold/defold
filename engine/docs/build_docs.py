@@ -118,6 +118,8 @@ def strip_comment_stars(value):
 def parse_comment(source):
     stripped = strip_comment_stars(source)
     matches = re.findall(r"^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)", stripped, re.MULTILINE)
+    if not matches:
+        return None
     comment = {
         "is_document": False,
         "namespace": None,
@@ -143,39 +145,46 @@ def parse_source(source_path, defold_root):
         source = in_file.read()
 
     default_namespace = None
-    for comment_str in re.findall(r"/(\*#.*?)\*/", source, re.DOTALL):
+    document_found = False
+    for comment_str in re.findall(r"/(\*[\*#].*?)\*/", source, re.DOTALL):
         comment = parse_comment(comment_str)
-        namespace = comment.get("namespace")
-        if comment["is_document"]:
-            comment_path = comment.get("path")
-            if not comment_path:
-                print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
-                comment_str = comment_str + ("* @path %s\n" % relative_path)
-            else:
-                print("Replacing @path in '%s' with '%s'" % (resource_path, relative_path))
-                comment_str = comment_str.replace("@path " + comment_path, "@path " + relative_path)
+        if comment:
+            namespace = comment.get("namespace")
+            if comment["is_document"]:
+                document_found = True
+                comment_path = comment.get("path")
+                if not comment_path:
+                    print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
+                    comment_str = comment_str + ("* @path %s\n" % relative_path)
+                else:
+                    print("Replacing @path in '%s' with '%s'" % (resource_path, relative_path))
+                    comment_str = comment_str.replace("@path " + comment_path, "@path " + relative_path)
 
-            comment_file = comment.get("file")
-            if not comment_file:
-                print("Missing @file in '%s', adding '%s'" % (resource_path, resource_file))
-                comment_str = comment_str + ("* @file %s\n" % resource_file)
-            elif comment_file != resource_file:
-                print("Replacing @file in '%s' with '%s'" % (resource_path, resource_file))
-                comment_str = comment_str.replace("@file " + comment_file, "@file " + resource_file)
+                comment_file = comment.get("file")
+                if not comment_file:
+                    print("Missing @file in '%s', adding '%s'" % (resource_path, resource_file))
+                    comment_str = comment_str + ("* @file %s\n" % resource_file)
+                elif comment_file != resource_file:
+                    print("Replacing @file in '%s' with '%s'" % (resource_path, resource_file))
+                    comment_str = comment_str.replace("@file " + comment_file, "@file " + resource_file)
 
-            if not comment.get("language"):
-                print("Missing @language in %s, assuming C++" % resource_path)
-                comment_str = comment_str + "* @language C++\n"
+                if not comment.get("language"):
+                    print("Missing @language in %s, assuming C++" % resource_path)
+                    comment_str = comment_str + "* @language C++\n"
 
-            if namespace:
-                default_namespace = namespace
+                if namespace:
+                    default_namespace = namespace
 
-        if not namespace:
-            namespace = default_namespace
-            comment["namespace"] = default_namespace
+            if not namespace:
+                namespace = default_namespace
+                comment["namespace"] = default_namespace
 
-        key = namespace if namespace else resource_path
-        elements.setdefault(key, []).append("/" + comment_str + "*/")
+            key = namespace if namespace else resource_path
+            elements.setdefault(key, []).append("/" + comment_str + "*/")
+
+    # ScriptDoc Document.info has required fields populated from @document.
+    if not document_found:
+        elements = {}
 
     return elements
 
@@ -193,7 +202,7 @@ def convert_apidoc(docs_dir, apidoc, output_dir, key, formats, pythonpath):
     doc_str = Path(apidoc).read_text(encoding="utf-8")
     output_specs = [(target_format, str(output_dir / ("%s_doc.%s" % (key, target_format)))) for target_format in formats]
 
-    if "/*#" not in doc_str:
+    if not re.search(r"/\*[\*#]", doc_str):
         for _, output in output_specs:
             write_if_changed(output, "")
         log("Skipped empty API doc: %s" % key)

@@ -20,6 +20,8 @@
 
 namespace dmCrash
 {
+    static volatile sig_atomic_t g_SignalHandlerActive = 0;
+
     static struct sigaction* GetPreviousSignalAction(int signum, struct sigaction* previous_signal_actions)
     {
         return IsValidSignal(signum) && previous_signal_actions ? &previous_signal_actions[signum] : 0;
@@ -153,5 +155,21 @@ namespace dmCrash
         sa.sa_flags = SA_SIGINFO;
 
         return sigaction(signum, &sa, previous_signal_action) == 0;
+    }
+
+    bool BeginSignalHandler()
+    {
+        if (g_SignalHandlerActive)
+        {
+            return false;
+        }
+
+        g_SignalHandlerActive = 1;
+        return true;
+    }
+
+    void EndSignalHandler()
+    {
+        g_SignalHandlerActive = 0;
     }
 }

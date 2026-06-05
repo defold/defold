@@ -1532,8 +1532,6 @@ namespace dmEngine
         engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
         engine->m_ModelContext.m_MaxBoneMatrixTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_width", 1024);
         engine->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_height", 1024);
-        engine->m_ModelContext.m_MaxMorphTargetTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_morph_target_texture_width", 1024);
-        engine->m_ModelContext.m_MaxMorphTargetTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_morph_target_texture_height", 1024);
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);

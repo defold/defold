@@ -101,17 +101,23 @@ namespace dmCrash
 
     static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
+        bool first_signal_handler = BeginSignalHandler();
+
         // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
         ResetToDefaultSignalHandler(signum);
 
-        if (g_CrashDumpEnabled)
+        if (g_CrashDumpEnabled && first_signal_handler)
         {
             OnCrash(signum);
         }
 
-        ChainSignalOrRaiseDefault(signum, si, sc, g_PreviousSignalActions, Handler);
+        if (first_signal_handler)
+        {
+            ChainSignalOrRaiseDefault(signum, si, sc, g_PreviousSignalActions, Handler);
+            EndSignalHandler();
+        }
     }
 
     void InstallOnSignal(int signum)

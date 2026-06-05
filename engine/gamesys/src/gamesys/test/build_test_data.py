@@ -8,8 +8,27 @@ import tempfile
 from pathlib import Path
 
 
+PREBUILT_MARKER = ".prebuilt_"
+
+
+def prebuilt_output_path(path):
+    marker_index = path.name.rfind(PREBUILT_MARKER)
+    if marker_index <= 0:
+        return None
+
+    suffix = path.name[marker_index + len(PREBUILT_MARKER):]
+    if not suffix:
+        return None
+
+    return path.with_name(path.name[:marker_index] + "." + suffix)
+
+
+def is_prebuilt_source_file(path):
+    return prebuilt_output_path(path) is not None
+
+
 def ignored_source_file(path):
-    return path.name == ".DS_Store" or path.name.startswith(".prebuilt_")
+    return path.name == ".DS_Store" or path.name.startswith(".prebuilt_") or is_prebuilt_source_file(path)
 
 
 def ignore_source_tree(dir, names):
@@ -59,6 +78,21 @@ def copy_raw_outputs(stage_root, output_root, build_inputs):
 
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
+
+
+def copy_prebuilt_outputs(src, output_root):
+    for path in src.rglob("*"):
+        if not path.is_file() or not is_prebuilt_source_file(path):
+            continue
+
+        output_path = prebuilt_output_path(path)
+        rel_output_path = output_path.relative_to(src)
+        if "build" in rel_output_path.parts:
+            continue
+        dst = output_root / rel_output_path
+
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, dst)
 
 
 def copy_optional_project_file(src, dst):
@@ -178,6 +212,7 @@ def main():
     output_root = Path(args.output_root).resolve()
     stamp = Path(args.stamp).resolve()
     bob_light = Path(args.bob_light).resolve()
+    build_inputs = read_build_inputs(inputs)
 
     if not folder or "/" in folder or "\\" in folder or folder == ".." or folder.startswith("../"):
         raise SystemExit("Expected a top-level test data folder, got: %s" % args.folder)
@@ -192,7 +227,6 @@ def main():
 
     bob_output = Path("build") / "bob-test-data"
     bob_output_abs = stage_root / bob_output
-    cmd = build_bob_command(bob_light, inputs, stage_root, bob_output, args.platform)
 
     env = os.environ.copy()
     bob_root = get_bob_root(output_root, env, folder)
@@ -201,7 +235,6 @@ def main():
     copy_optional_ogg_tools(dynamo_home, bob_root)
     env["DM_BOB_ROOTFOLDER"] = str(bob_root)
 
-    build_inputs = read_build_inputs(inputs)
     print("Building gamesys test data folder %s" % folder, flush=True)
     print("  Bob staged root: %s" % stage_root, flush=True)
     print("  Bob output: %s" % bob_output_abs, flush=True)
@@ -209,21 +242,30 @@ def main():
     for build_input in build_inputs:
         print("  Input: %s" % build_input, flush=True)
 
-    try:
-        subprocess.check_call(cmd, env=env)
-    except subprocess.CalledProcessError as e:
-        print("Failed building gamesys test data folder %s" % folder, flush=True)
-        print("  build.inputs: %s" % inputs, flush=True)
-        for build_input in build_inputs:
-            print("  Input: %s" % build_input, flush=True)
-        raise SystemExit(e.returncode)
-
-    src = bob_output_abs / folder
     dst = output_root / folder
-    replace_tree(src, dst)
-    copy_optional_output_tree(bob_output_abs, output_root, "lua")
-    copy_immediate_outputs(bob_output_abs, output_root)
-    copy_raw_outputs(stage_root, output_root, build_inputs)
+    if build_inputs:
+        cmd = build_bob_command(bob_light, inputs, stage_root, bob_output, args.platform)
+
+        try:
+            subprocess.check_call(cmd, env=env)
+        except subprocess.CalledProcessError as e:
+            print("Failed building gamesys test data folder %s" % folder, flush=True)
+            print("  build.inputs: %s" % inputs, flush=True)
+            for build_input in build_inputs:
+                print("  Input: %s" % build_input, flush=True)
+            raise SystemExit(e.returncode)
+
+        replace_tree(bob_output_abs / folder, dst)
+        copy_optional_output_tree(bob_output_abs, output_root, "lua")
+        copy_immediate_outputs(bob_output_abs, output_root)
+        copy_raw_outputs(stage_root, output_root, build_inputs)
+    else:
+        print("  No Bob inputs; copying prebuilt outputs only", flush=True)
+        if dst.exists():
+            shutil.rmtree(dst)
+        dst.mkdir(parents=True, exist_ok=True)
+
+    copy_prebuilt_outputs(root / folder, dst)
 
     stamp.parent.mkdir(parents=True, exist_ok=True)
     stamp.write_text("ok\n", encoding="utf-8")

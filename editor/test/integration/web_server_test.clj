@@ -339,7 +339,11 @@
                   (console/append-console-line! "after")
                   (is (= "after" (deref (future (.readLine reader)) 2000 ::timeout)))
                   (console/clear-console!)
-                  (is (= "" (deref (future (.readLine reader)) 2000 ::timeout))))))
+                  (is (= "" (deref (future (.readLine reader)) 2000 ::timeout)))
+                  (let [buffer (char-array 11)
+                        read-count (deref (future (.read reader buffer 0 (alength buffer))) 2000 ::timeout)]
+                    (is (= (alength buffer) read-count))
+                    (is (= "\u001b[3J\u001b[H\u001b[2J" (String. buffer)))))))
             (let [{:keys [status]} @(http/request (str url "/command/") :as :string)]
               (is (= 404 status)))
             (let [{:keys [status headers body]} @(http/request (str url "/command/build-html5") :as :string)]
