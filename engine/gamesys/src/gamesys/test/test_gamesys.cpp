@@ -488,7 +488,7 @@ TEST_F(ResourceTest, LightResourcePrototype)
     // Test point light
     /////////////////////////////////
     dmGameSystem::LightResource* res = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_point.lightc", (void**)&res));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_point.point_light.lightc", (void**)&res));
     ASSERT_NE((void*)0, res); 
 
     dmRender::HLightPrototype light_prototype = dmGameSystem::GetLightPrototype(res);
@@ -506,7 +506,7 @@ TEST_F(ResourceTest, LightResourcePrototype)
     /////////////////////////////////
     // Test directional light
     /////////////////////////////////
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_directional_light.lightc", (void**)&res));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_directional_light.directional_light.lightc", (void**)&res));
     ASSERT_NE((void*)0, res);
 
     light_prototype = dmGameSystem::GetLightPrototype(res);
@@ -522,7 +522,7 @@ TEST_F(ResourceTest, LightResourcePrototype)
     /////////////////////////////////
     // Test ambient light
     /////////////////////////////////
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_ambient_light.lightc", (void**)&res));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_ambient_light.ambient_light.lightc", (void**)&res));
     ASSERT_NE((void*)0, res);
 
     light_prototype = dmGameSystem::GetLightPrototype(res);
@@ -538,7 +538,7 @@ TEST_F(ResourceTest, LightResourcePrototype)
     /////////////////////////////////
     // Test spot light
     /////////////////////////////////
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_spot_light.lightc", (void**)&res));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_spot_light.spot_light.lightc", (void**)&res));
     ASSERT_NE((void*)0, res);
 
     light_prototype = dmGameSystem::GetLightPrototype(res);
@@ -676,8 +676,8 @@ TEST_F(ResourceTest, LightComponentUsesWorldTransform)
 
 TEST_F(ResourceTest, ReloadLightResourceTest)
 {
-    const char* valid_light_a = "/light/valid_point.lightc";
-    const char* valid_light_b = "/light/valid_directional_light.lightc";
+    const char* valid_light_a = "/light/valid_point.point_light.lightc";
+    const char* valid_light_b = "/light/valid_directional_light.directional_light.lightc";
     const char* tmp_path      = "/light/tmp.lightc";
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -6276,19 +6276,19 @@ INSTANTIATE_TEST_CASE_P(Data, ResourceFailTest, jc_test_values_in(invalid_data_r
 /* Light */
 
 const char* valid_light_resources[] = {
-    "/light/valid_point.lightc",
-    "/light/valid_directional_light.lightc",
-    "/light/valid_spot_light.lightc",
-    "/light/valid_ambient_light.lightc"
+    "/light/valid_point.point_light.lightc",
+    "/light/valid_directional_light.directional_light.lightc",
+    "/light/valid_spot_light.spot_light.lightc",
+    "/light/valid_ambient_light.ambient_light.lightc"
 };
 INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resources));
 
 ResourceFailParams invalid_light_resources[] =
 {
-    {"/light/valid_point.lightc", "/light/invalid_point_missing_range.lightc"},
-    {"/light/valid_directional_light.lightc", "/light/invalid_directional_missing_intensity.lightc"},
-    {"/light/valid_spot_light.lightc", "/light/invalid_spot_missing_outer_cone_angle.lightc"},
-    {"/light/valid_ambient_light.lightc", "/light/invalid_ambient_missing_intensity.lightc"}
+    {"/light/valid_point.point_light.lightc", "/light/invalid_point_missing_range.point_light.lightc"},
+    {"/light/valid_directional_light.directional_light.lightc", "/light/invalid_directional_missing_intensity.directional_light.lightc"},
+    {"/light/valid_spot_light.spot_light.lightc", "/light/invalid_spot_missing_outer_cone_angle.spot_light.lightc"},
+    {"/light/valid_ambient_light.ambient_light.lightc", "/light/invalid_ambient_missing_intensity.ambient_light.lightc"}
 };
 INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, jc_test_values_in(invalid_light_resources));
 
