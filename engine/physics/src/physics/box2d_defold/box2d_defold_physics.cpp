@@ -388,6 +388,8 @@ namespace dmPhysics
         return dmMath::Min(v[0], v[1]);
     }
 
+    static const float SCALE_EPSILON = 0.000001f;
+
     static void UpdateScale(HWorld2D world, b2Body* body)
     {
         dmTransform::Transform world_transform;
@@ -396,16 +398,16 @@ namespace dmPhysics
         float object_scale = GetUniformScale2D(world_transform);
 
         b2Fixture* fix = body->GetFixtureList();
-        bool scale_changed = true;
+        bool scale_changed = false;
         while( fix )
         {
             b2Shape* shape = fix->GetShape();
-            if (shape->m_lastScale == object_scale )
+            if (fabsf(shape->m_lastScale - object_scale) <= SCALE_EPSILON )
             {
                 break;
             }
             shape->m_lastScale = object_scale;
-            scale_changed = false;
+            scale_changed = true;
 
             if (fix->GetShape()->GetType() == b2Shape::e_circle) {
                 // creation scale for circles, is the initial radius
@@ -428,7 +430,7 @@ namespace dmPhysics
             fix = fix->GetNext();
         }
 
-        if (!scale_changed)
+        if (scale_changed)
         {
             body->SetAwake(true);
         }
