@@ -140,15 +140,14 @@
         "Tile Map Editor"
         [{:command :scene.tile-map.paint
           :action "Paint"
-          :binding {:button :primary :trigger :drag :modifiers []}}
+          :binding {:button :primary :modifiers []}}
          {:command :scene.tile-map.erase
           :action "Erase"
-          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers [:shift]}}])
       (is (= :scene.tile-map.erase
              (mouse-binding/command-for-action
                ::tile-map/tile-map-editor
-               {:type :drag
-                :button :primary
+               {:button :primary
                 :shift true})))
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
@@ -194,7 +193,7 @@
         "Scene 2D Camera"
         [{:command :scene.camera.pan
           :action "Pan"
-          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers [:shift]}}])
       (let [[_collection-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
             camera-controller (camera-controller view)
             initial-camera (g/node-value view :camera)
@@ -220,13 +219,13 @@
         "Scene 2D Camera"
         [{:command :scene.camera.pan
           :action "Pan"
-          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers [:shift]}}])
       (mouse-binding/register!
         ::tile-map/tile-map-editor
         "Tile Map Editor"
         [{:command :scene.tile-map.erase
           :action "Erase"
-          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers [:shift]}}])
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
             tile [-2 -2]
@@ -255,7 +254,7 @@
         "Scene 2D Camera"
         [{:command :scene.camera.pan
           :action "Pan"
-          :binding {:button :primary :trigger :drag :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers [:shift]}}])
       (mouse-binding/register!
         ::tile-map/tile-map-editor
         "Tile Map Editor"

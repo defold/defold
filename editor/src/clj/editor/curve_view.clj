@@ -62,10 +62,10 @@
     :action "Zoom"}
    {:command :curve-view.add-control-point
     :action "Add Control Point"
-    :binding {:trigger :press :modifiers []}}
+    :binding {:modifiers []}}
    {:command :curve-view.delete-control-point
     :action "Delete Control Point"
-    :binding {:trigger :press :modifiers []}}])
+    :binding {:modifiers []}}])
 
 ; Line shader
 

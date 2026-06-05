@@ -413,7 +413,7 @@
   [{:keys [row binding-index binding current-override current-override-list
            draft-binding swap-draft-binding
            swap-state update-mouse-bindings]}]
-  (let [draft-binding (merge {:trigger :drag :modifiers []} binding draft-binding)
+  (let [draft-binding (merge {:modifiers []} binding draft-binding)
         selected-modifiers (set (:modifiers draft-binding))
         {:keys [context command]} row]
     {:fx/type fxui/vertical

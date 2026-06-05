@@ -1294,8 +1294,7 @@
                   (case (:type action)
                     (:key-pressed :key-released :mouse-moved)
                     (some #(mouse-binding/command-for-action ::tile-map-editor
-                                                             {:type :drag
-                                                              :button %
+                                                             {:button %
                                                               :shift (contains? modifiers :shift)
                                                               :alt (contains? modifiers :alt)
                                                               :control (contains? modifiers :control)})
@@ -1595,16 +1594,16 @@
   "Tile Map Editor"
   [{:command :scene.tile-map.paint
     :action "Paint"
-    :binding {:button :primary :trigger :drag :modifiers []}}
+    :binding {:button :primary :modifiers []}}
    {:command :scene.tile-map.select-brush
     :action "Select Brush"
-    :binding {:button :primary :trigger :drag :modifiers [:shift]}}
+    :binding {:button :primary :modifiers [:shift]}}
    {:command :scene.tile-map.erase
     :action "Erase"
-    :binding {:button :secondary :trigger :drag :modifiers []}}
+    :binding {:button :secondary :modifiers []}}
    {:command :scene.tile-map.cut
     :action "Cut"
-    :binding {:button :middle :trigger :drag :modifiers [:shift :control]}}
+    :binding {:button :middle :modifiers [:shift :control]}}
    {:command :scene.camera.orbit
     :action "Orbit"}
    {:command :scene.camera.pan

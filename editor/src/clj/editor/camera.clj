@@ -970,7 +970,7 @@
                      (camera-command->movement mouse-binding-command)
                      (= type :mouse-pressed)
                      (let [command (mouse-binding/command-for-action (camera-mouse-binding-context local-cam)
-                                                                     (assoc action :type :drag))
+                                                                     action)
                            movement (camera-command->movement command)]
                        (or (and movement (movements-enabled movement) movement)
                            :idle))
@@ -1241,46 +1241,46 @@
   "Scene 2D Camera"
   [{:command :scene.camera.drag-select
     :action "Drag Select"
-    :binding {:button :primary :trigger :drag :modifiers []}}
+    :binding {:button :primary :modifiers []}}
    {:command :scene.camera.orbit
     :action "Orbit"
-    :binding {:button :primary :trigger :drag :modifiers [:control]}}
+    :binding {:button :primary :modifiers [:control]}}
    {:command :scene.camera.pan
     :action "Pan"
-    :binding {:button :primary :trigger :drag :modifiers [:alt]}}
+    :binding {:button :primary :modifiers [:alt]}}
    {:command :scene.camera.pan
     :action "Pan"
-    :binding {:button :middle :trigger :drag :modifiers []}}
+    :binding {:button :middle :modifiers []}}
    {:command :scene.camera.pan
     :action "Pan"
-    :binding {:button :secondary :trigger :drag :modifiers []}}
+    :binding {:button :secondary :modifiers []}}
    {:command :scene.camera.zoom
     :action "Zoom"
-    :binding {:button :primary :trigger :drag :modifiers [:control :alt]}}])
+    :binding {:button :primary :modifiers [:control :alt]}}])
 
 (mouse-binding/register!
   ::scene-camera-perspective
   "Scene 3D Camera"
   [{:command :scene.camera.drag-select
     :action "Drag Select"
-    :binding {:button :primary :trigger :drag :modifiers []}}
+    :binding {:button :primary :modifiers []}}
    {:command :scene.camera.free-look
     :action "Free Look"
-    :binding {:button :secondary :trigger :drag :modifiers []}
+    :binding {:button :secondary :modifiers []}
     :sub-commands [{:command :speed-boost :label "Speed Boost" :modifier :shift}
                    {:command :speed-precision :label "Speed Precision" :modifier :alt}]}
    {:command :scene.camera.orbit
     :action "Orbit"
-    :binding {:button :primary :trigger :drag :modifiers [:control]}}
+    :binding {:button :primary :modifiers [:control]}}
    {:command :scene.camera.pan
     :action "Pan"
-    :binding {:button :primary :trigger :drag :modifiers [:alt]}}
+    :binding {:button :primary :modifiers [:alt]}}
    {:command :scene.camera.pan
     :action "Pan"
-    :binding {:button :middle :trigger :drag :modifiers []}}
+    :binding {:button :middle :modifiers []}}
    {:command :scene.camera.zoom
     :action "Zoom"
-    :binding {:button :primary :trigger :drag :modifiers [:control :alt]}}])
+    :binding {:button :primary :modifiers [:control :alt]}}])
 
 (defn show-settings! [camera-node ^Parent owner prefs keymap localization]
   (let [persp-fov-fn

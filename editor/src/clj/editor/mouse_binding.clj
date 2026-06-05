@@ -32,11 +32,6 @@
    :alt (if (os/is-mac-os?) "Opt" "Alt")
    :control "Ctrl"})
 
-(def trigger->label
-  {:drag "Drag"
-   :press "Press"
-   :click "Click"})
-
 (defonce bindings-atom
   (atom {;; contexts: {context {command [mouse-binding]}}
          :contexts {}
@@ -144,8 +139,7 @@
                     :cursor-pos [0.0 0.0]
                     :view-pos [0.0 0.0]
                     :scroll-delta [0.0 0.0]})
-  (command-for-action :editor.tile-map/tile-map {:type :drag
-                                                 :button :primary
+  (command-for-action :editor.tile-map/tile-map {:button :primary
                                                  :shift true
                                                  :alt true})
   :-)

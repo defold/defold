@@ -197,8 +197,6 @@
                                                              :item {:type :object
                                                                     :properties {:button {:type :enum
                                                                                           :values [:primary :middle :secondary]}
-                                                                                 :trigger {:type :enum
-                                                                                           :values [:drag :press :click]}
                                                                                  :modifiers {:type :array
                                                                                              :item {:type :enum
                                                                                                     :values [:shift :alt :control]}}}}}

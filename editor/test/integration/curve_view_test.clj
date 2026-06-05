@@ -188,10 +188,10 @@
         "Curve Editor"
         [{:command :curve-view.add-control-point
           :action "Add Control Point"
-          :binding {:button :middle :trigger :press :modifiers []}}
+          :binding {:button :middle :modifiers []}}
          {:command :curve-view.delete-control-point
           :action "Delete Control Point"
-          :binding {:button :secondary :trigger :press :modifiers []}}])
+          :binding {:button :secondary :modifiers []}}])
       (let [view (make-curve-view! app-view 800 400)
             node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
             emitter (:node-id (test-util/outline node-id [0]))
