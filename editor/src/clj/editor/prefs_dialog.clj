@@ -150,11 +150,11 @@
   (update binding :modifiers #(vec (sort %))))
 
 (defn- mouse-binding->cmds
-  "Returns {[context normalized-binding] -> #{command ...}}"
+  "Returns {[context normalized-binding] -> #{command ...}} excluding inherited rows."
   [mouse-binding-rows]
   (reduce
-    (fn [acc {:keys [context command bindings kind]}]
-      (if (= :mouse-binding kind)
+    (fn [acc {:keys [context command bindings kind binding-source]}]
+      (if (and (= :mouse-binding kind) (not= :inherited binding-source))
         (reduce (fn [acc b]
                   (if (:button b)
                     (update acc [context (normalize-binding b)] (fnil conj #{}) command)
@@ -190,11 +190,30 @@
 
 (defn- mouse-binding-row [{:keys [context command] :as mouse-binding} mouse-bindings]
   (let [key (mouse-binding-key mouse-binding)
-        override-bindings (:bindings (get-in mouse-bindings key))]
+        override-bindings (:bindings (get-in mouse-bindings key))
+        registered (mapv :binding (mouse-binding/registered-command-bindings context command))
+        has-direct-binding? (or (some :button override-bindings) (some :button registered))
+        fallback-ctx (when-not has-direct-binding? (mouse-binding/fallback-context context))
+        fallback-registered (when fallback-ctx
+                              (mapv :binding (mouse-binding/registered-command-bindings fallback-ctx command)))
+        fallback-override-bindings (when fallback-ctx
+                                     (:bindings (get-in mouse-bindings [fallback-ctx command])))
+        inherited-bindings (when fallback-ctx
+                             (let [bs (or fallback-override-bindings fallback-registered)]
+                               (when (some :button bs) bs)))
+        fallback-context-path (when inherited-bindings
+                                (some :context-path (mouse-binding/registered-command-bindings fallback-ctx command)))]
     (assoc mouse-binding
       :kind :mouse-binding
-      :bindings (or override-bindings
-                    (mapv :binding (mouse-binding/registered-command-bindings context command))))))
+      :binding-source (cond
+                        override-bindings :custom
+                        inherited-bindings :inherited
+                        :else :default)
+      :fallback-context-path fallback-context-path
+      :bindings (cond
+                  override-bindings override-bindings
+                  inherited-bindings inherited-bindings
+                  :else (filterv some? registered)))))
 
 (defn- mouse-sub-binding-row [mb sc mouse-bindings]
   (let [{:keys [context command context-path action]} mb
@@ -281,18 +300,30 @@
                       :text (mouse-binding/modifier->label (:modifier row))}]
 
                     :mouse-binding
-                    (mapv (fn [binding warnings]
-                            (cond-> {:fx/type fxui/label
-                                     :style-class "keymap-shortcut"
-                                     :text (mouse-binding/binding-display-text binding)}
-                              warnings
-                              (assoc :pseudo-classes #{:warning}
-                                     :tooltip (->> warnings
-                                                   warnings-messages
-                                                   (e/map localization-state)
-                                                   (coll/join-to-string "\n")))))
-                          (:bindings row)
-                          (concat (:binding-warnings row) (repeat nil)))
+                    (let [inherited? (= :inherited (:binding-source row))
+                          custom? (= :custom (:binding-source row))
+                          inherited-tooltip (when inherited?
+                                              (str "Inherited from " (:fallback-context-path row)))]
+                      (mapv (fn [binding warnings]
+                              (let [pseudo-classes (cond
+                                                     warnings #{:warning}
+                                                     inherited? #{:inherited}
+                                                     custom? #{:overridden}
+                                                     :else #{})]
+                                (cond-> {:fx/type fxui/label
+                                         :style-class "keymap-shortcut"
+                                         :text (mouse-binding/binding-display-text binding)}
+                                  (seq pseudo-classes)
+                                  (assoc :pseudo-classes pseudo-classes)
+                                  warnings
+                                  (assoc :tooltip (->> warnings
+                                                       warnings-messages
+                                                       (e/map localization-state)
+                                                       (coll/join-to-string "\n")))
+                                  (and inherited-tooltip (not warnings))
+                                  (assoc :tooltip inherited-tooltip))))
+                            (:bindings row)
+                            (concat (:binding-warnings row) (repeat nil))))
 
                     (let [shortcuts (keymap/shortcuts keymap command)]
                       (->> shortcuts
@@ -691,9 +722,10 @@
                              :on-action #(handle-add-shortcut-action update-keymap command shortcut %)}))))))))))
 
 (defn- mouse-binding-context-menu-items [swap-state update-mouse-bindings row]
-  (let [{:keys [context command bindings]} row
+  (let [{:keys [context command bindings binding-source]} row
         key (mouse-binding-key row)
-        registered (mapv :binding (mouse-binding/registered-command-bindings context command))]
+        registered (mapv :binding (mouse-binding/registered-command-bindings context command))
+        inherited? (= :inherited binding-source)]
     (vec
       (e/cons
         {:fx/type fx.menu-item/lifecycle
@@ -702,8 +734,9 @@
                       (show-mouse-binding-dialog! swap-state row nil
                                                         (.getOwnerWindow (.getParentPopup ^MenuItem (.getSource e)))))}
         (e/concat
-          (into [] (keep-indexed (fn [idx binding]
-                                   (when binding
+          (when-not inherited?
+            (into [] (keep-indexed (fn [idx binding]
+                                     (when binding
                                      {:fx/type fx.menu-item/lifecycle
                                       :text (str "Remove " (mouse-binding/binding-display-text binding))
                                       :on-action (fn [_]
@@ -721,7 +754,7 @@
                  bindings)
           [{:fx/type fx.menu-item/lifecycle
             :text "Reset to Defaults"
-            :on-action (fn [_] (update-mouse-bindings util/dissoc-in key))}])))))
+            :on-action (fn [_] (update-mouse-bindings util/dissoc-in key))}]))))))
 
 (defn- mouse-sub-binding-context-menu-items [swap-state update-mouse-bindings row]
   (let [{:keys [context command sub-cmd]} row

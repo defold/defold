@@ -65,7 +65,8 @@
     :binding {:modifiers []}}
    {:command :curve-view.delete-control-point
     :action "Delete Control Point"
-    :binding {:modifiers []}}])
+    :binding {:modifiers []}}]
+  {:fallback-context :editor.camera/scene-camera-orthographic})
 
 ; Line shader
 

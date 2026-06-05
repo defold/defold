@@ -84,7 +84,8 @@
    {:command :scene.camera.pan
     :action "Pan"}
    {:command :scene.camera.zoom
-    :action "Zoom"}])
+    :action "Zoom"}]
+  {:fallback-context :editor.camera/scene-camera-orthographic})
 
 (g/deftype ^:private NameCounts {s/Str s/Int})
 

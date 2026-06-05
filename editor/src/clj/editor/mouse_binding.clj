@@ -35,27 +35,38 @@
 (defonce bindings-atom
   (atom {;; contexts: {context {command [mouse-binding]}}
          :contexts {}
+         ;; context-meta: {context {:fallback-context context-keyword}}
+         :context-meta {}
          ;; overrides: {[context command] {:bindings [binding ...] :sub-commands {sub-cmd modifier}}}
          ;; (flattened from prefs storage {context {command ...}})
          :overrides {}}))
 
-(defn- add-bindings [state context context-path bindings]
-  (assoc-in state
-            [:contexts context]
-            (group-by :command (mapv #(assoc % :context-path context-path) bindings))))
+(defn- add-bindings [state context context-path bindings opts]
+  (cond-> (assoc-in state [:contexts context]
+                    (group-by :command (mapv #(assoc % :context-path context-path) bindings)))
+    (:fallback-context opts)
+    (assoc-in [:context-meta context :fallback-context] (:fallback-context opts))))
 
 (defn- remove-bindings [state context]
-  (update state :contexts dissoc context))
+  (-> state
+      (update :contexts dissoc context)
+      (update :context-meta dissoc context)))
 
-(defn register! [context context-path bindings]
-  (swap! bindings-atom #(-> %
-                            (remove-bindings context)
-                            (add-bindings context context-path bindings)))
-  nil)
+(defn register!
+  ([context context-path bindings]
+   (register! context context-path bindings nil))
+  ([context context-path bindings opts]
+   (swap! bindings-atom #(-> %
+                             (remove-bindings context)
+                             (add-bindings context context-path bindings opts)))
+   nil))
 
 (defn unregister! [context]
   (swap! bindings-atom remove-bindings context)
   nil)
+
+(defn fallback-context [context]
+  (get-in @bindings-atom [:context-meta context :fallback-context]))
 
 (defn set-overrides! [overrides]
   (swap! bindings-atom assoc :overrides

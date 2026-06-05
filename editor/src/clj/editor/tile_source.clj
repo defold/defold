@@ -75,7 +75,8 @@
    {:command :scene.camera.pan
     :action "Pan"}
    {:command :scene.camera.zoom
-    :action "Zoom"}])
+    :action "Zoom"}]
+  {:fallback-context :editor.camera/scene-camera-orthographic})
 
 (def texture-params
   {:min-filter gl/nearest
