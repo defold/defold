@@ -19,25 +19,21 @@
   (:import [com.defold.editor.luart DefoldOneArgLuaFn DefoldVarargsLuaFn]
            [java.awt.image BufferedImage]
            [java.util.concurrent.atomic AtomicInteger]
-           [javax.imageio ImageIO ImageReader]
-           [org.luaj.vm2 LuaError LuaString LuaValue Varargs]))
+           [javax.imageio ImageIO]
+           [org.luaj.vm2 LuaError LuaValue Varargs]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(defn- resolve-existing-image-path [project-path path-string]
-  (let [path (path/resolve-normalized project-path path-string)]
-    (when-not (path/exists? path)
-      (throw (LuaError. (str "Image file does not exist: " path-string))))
-    (when (path/directory? path)
-      (throw (LuaError. (str "Image path is a directory: " path-string))))
-    path))
 
 (defn env [project-path]
   {"load_file" (DefoldOneArgLuaFn.
                 (fn image-load-file [^LuaValue lua-path]
                   (let [path-string (.checkjstring lua-path)
-                        path (resolve-existing-image-path project-path path-string)]
+                        path (path/resolve-normalized project-path path-string)]
+                    (when-not (path/exists? path)
+                      (throw (LuaError. (str "Image file does not exist: " path-string))))
+                    (when (path/directory? path)
+                      (throw (LuaError. (str "Image path is a directory: " path-string))))
                     (with-open [stream (io/input-stream path)]
                       (rt/wrap-userdata
                         (or (ImageIO/read stream)
@@ -46,27 +42,10 @@
 
    "size" (DefoldVarargsLuaFn.
            (fn image-size [^Varargs args]
-             (let [lua-source (.arg1 args)]
-               (if (instance? LuaString lua-source)
-                 (let [path-string (.tojstring ^LuaString lua-source)
-                       path (resolve-existing-image-path project-path path-string)]
-                   (with-open [source-stream (io/input-stream path)
-                               image-stream (ImageIO/createImageInputStream source-stream)]
-                     (let [readers (ImageIO/getImageReaders image-stream)]
-                       (if-not (.hasNext readers)
-                         (throw (LuaError. (str "Unsupported image file: " path-string)))
-                         (let [^ImageReader reader (.next readers)]
-                           (try
-                             (.setInput reader image-stream true true)
-                             (LuaValue/varargsOf
-                               (LuaValue/valueOf (.getWidth reader 0))
-                               (LuaValue/valueOf (.getHeight reader 0)))
-                             (finally
-                               (.dispose reader))))))))
-                 (let [^BufferedImage image (.checkuserdata lua-source BufferedImage)]
-                   (LuaValue/varargsOf
-                     (LuaValue/valueOf (.getWidth image))
-                     (LuaValue/valueOf (.getHeight image))))))))
+             (let [^BufferedImage image (.checkuserdata (.arg1 args) BufferedImage)]
+               (LuaValue/varargsOf
+                 (LuaValue/valueOf (.getWidth image))
+                 (LuaValue/valueOf (.getHeight image))))))
 
    "pixel" (DefoldVarargsLuaFn.
             (fn image-pixel [^Varargs args]

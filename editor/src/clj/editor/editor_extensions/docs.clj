@@ -559,10 +559,10 @@ http.server.route(
                           :doc "image userdata"}]}
          {:name "image.size"
           :type :function
-          :description "Return the width and height of an image.\n\nWhen called with a file path, reads only the image metadata. When called with an image userdata returned by <code>image.load_file()</code>, returns the size of the loaded image."
-          :parameters [{:name "image_or_path"
-                        :types ["image" "string"]
-                        :doc "Image userdata or image file path"}]
+          :description "Return the width and height of a loaded image."
+          :parameters [{:name "image"
+                        :types ["image"]
+                        :doc "image userdata returned by <code>image.load_file()</code>"}]
           :returnvalues [{:name "width"
                           :types ["integer"]
                           :doc "image width in pixels"}

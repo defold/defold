@@ -17,11 +17,8 @@ function M.get_commands()
             locations = {"Edit"},
             id = "defold.test",
             run = function()
-                local w, h = image.size("assets/source.png")
-                print(("size path: %d,%d"):format(w, h))
-
                 local img = image.load_file("assets/source.png")
-                w, h = image.size(img)
+                local w, h = image.size(img)
                 print(("size image: %d,%d"):format(w, h))
 
                 print_pixel("top-left", img, 1, 1)
@@ -39,7 +36,6 @@ function M.get_commands()
 
                 expect_error("load_file missing", image.load_file, "assets/missing.png")
                 expect_error("load_file unsupported", image.load_file, "assets/not_image.txt")
-                expect_error("size unsupported", image.size, "assets/not_image.txt")
                 expect_error("pixel x low", image.pixel, img, 0, 1)
                 expect_error("pixel x high", image.pixel, img, 33, 1)
                 expect_error("pixel y low", image.pixel, img, 1, 0)

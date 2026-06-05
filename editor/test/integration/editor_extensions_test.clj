@@ -1458,8 +1458,7 @@ openapi route has 200 => true
         (expect-script-output expected-http-server-test-output out)))))
 
 (def ^:private expected-image-test-output
-  "size path: 32,32
-size image: 32,32
+  "size image: 32,32
 top-left: 255,0,0,255
 top-right: 0,255,0,255
 bottom-left: 0,0,255,255
@@ -1467,7 +1466,6 @@ bottom-right: 255,255,255,128
 pixels: count=1024 checksum=620288
 load_file missing: Image file does not exist: assets/missing.png
 load_file unsupported: Unsupported image file: assets/not_image.txt
-size unsupported: Unsupported image file: assets/not_image.txt
 pixel x low: Pixel coordinate out of bounds: 0, 1
 pixel x high: Pixel coordinate out of bounds: 33, 1
 pixel y low: Pixel coordinate out of bounds: 1, 0
