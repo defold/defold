@@ -217,9 +217,9 @@ message GamepadMapEntry
 message GamepadGuid
 {
     // See dmHID::GamepadGuid in hid.h
-    required uint32 bus_crc = 1;                            // u16 + u16
-    required uint32 vendor_product = 2;                     // u16 + u16
-    required uint32 version_driversignature_driverdata = 3; // u16 + u8 + u8
+    optional uint32 bus_crc = 1 [default = 0];                            // u16 + u16
+    optional uint32 vendor_product = 2 [default = 0];                     // u16 + u16
+    optional uint32 version_driversignature_driverdata = 3 [default = 0]; // u16 + u8 + u8
 };
 
 message GamepadMap

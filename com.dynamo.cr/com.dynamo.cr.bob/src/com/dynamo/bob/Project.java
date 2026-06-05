@@ -133,7 +133,7 @@ public class Project {
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
-    private HashMap<String, Task> tasks;
+    private HashMap<String, Task> tasks = new HashMap<String, Task>();
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
     private String rootDirectory = ".";

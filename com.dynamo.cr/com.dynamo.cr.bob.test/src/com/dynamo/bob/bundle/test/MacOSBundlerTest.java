@@ -73,6 +73,7 @@ public class MacOSBundlerTest {
         createFile(contentRoot, "builtins/render/default.display_profiles", "");
         createFile(contentRoot, "builtins/graphics/default.texture_profiles", "");
         createFile(contentRoot, "builtins/input/default.gamepads", "");
+        createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", "");
         createFile(contentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", "");

@@ -51,6 +51,7 @@ import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.liveupdate.proto.Manifest;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
@@ -120,6 +121,7 @@ public class ProjectBuildTest {
         count++;
         createFile(contentRoot, "builtins/input/default.gamepads", "");
         count++;
+        createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", "");
         createFile(contentRoot, "input/game.input_binding", "");
         count++;
 
@@ -146,6 +148,54 @@ public class ProjectBuildTest {
     public void testBuild() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createDefaultFiles();
         build();
+    }
+
+    @Test
+    public void testGamepadProjectPropertiesCreateCombinedGamepadTask() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", ""
+                + "[display]\n"
+                + "width=640\n"
+                + "height=480\n"
+                + "[input]\n"
+                + "gamepads=/input/custom.gamepadsc\n"
+                + "gamepad_database=/input/gamecontrollerdb.txt\n");
+        createFile(contentRoot, "input/custom.gamepads", ""
+                + "driver {\n"
+                + "  device: \"Manual Project Pad\"\n"
+                + "  platform: \"macos\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Manual Project Pad\"\n"
+                + "  platform: \"linux\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Manual Project Pad\"\n"
+                + "  platform: \"windows\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n");
+        createFile(contentRoot, "input/gamecontrollerdb.txt", ""
+                + "03000000000000000000000000000001,SDL Project Pad,a:b1,platform:Mac OS X,\n"
+                + "03000000000000000000000000000002,SDL Project Pad,a:b1,platform:Linux,\n"
+                + "03000000000000000000000000000003,SDL Project Pad,a:b1,platform:Windows,\n"
+                + "03000000000000000000000000000004,SDL Project Pad,a:b1,platform:iOS,\n"
+                + "03000000000000000000000000000005,SDL Project Pad,a:b1,platform:Android,\n"
+                + "03000000000000000000000000000006,SDL Project Pad,a:b1,platform:Web,\n");
+
+        build();
+
+        File output = new File(contentRoot, "build/input/custom.gamepadsc");
+        assertTrue(output.exists());
+        GamepadMaps maps = GamepadMaps.parseFrom(FileUtils.readFileToByteArray(output));
+        assertEquals(2, maps.getDriverCount());
+        assertEquals("SDL Project Pad", maps.getDriver(0).getDevice());
+        assertEquals("Manual Project Pad", maps.getDriver(1).getDevice());
+        assertEquals(maps.getDriver(0).getPlatform(), maps.getDriver(1).getPlatform());
     }
 
     static private void checkProjectSetting(BobProjectProperties properties, String category, String key, String expectedValue)

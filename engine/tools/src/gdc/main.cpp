@@ -56,7 +56,6 @@ struct Driver
 {
     const char* m_Guid;
     const char* m_Device;
-    const char* m_DeviceSDL;
     const char* m_Platform;
     float m_DeadZone;
     Trigger m_Triggers[dmInputDDF::MAX_GAMEPAD_COUNT];
@@ -246,15 +245,12 @@ static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
         char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
         dmHID::GetGamepadDeviceName(g_HidContext, pad, device_name);
 
-        char device_name_sdl[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-        dmHID::GetGamepadDeviceNameSDL(g_HidContext, pad, device_name_sdl);
-
         dmHID::GamepadGuid guid;
         dmHID::GetGamepadDeviceGuid(g_HidContext, pad, &guid);
         char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
         dmHID::FormatGamepadGuid(&guid, guid_string);
 
-        dmLogInfo("Gamepad %u connected: '%s' - '%s' '%s'", gamepad_index, device_name, device_name_sdl, guid_string);
+        dmLogInfo("Gamepad %u connected: '%s' - '%s'", gamepad_index, device_name, guid_string);
     }
     else
     {
@@ -396,9 +392,7 @@ retry:
     }
 
     char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-    char device_name_sdl[dmHID::MAX_GAMEPAD_NAME_LENGTH];
     dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name);
-    dmHID::GetGamepadDeviceNameSDL(g_HidContext, gamepad, device_name_sdl);
 
     dmHID::GamepadGuid guid;
     dmHID::GetGamepadDeviceGuid(g_HidContext, gamepad, &guid);
@@ -411,7 +405,6 @@ retry:
     memset(&driver, 0, sizeof(Driver));
     driver.m_Guid = guid_string;
     driver.m_Device = device_name;
-    driver.m_DeviceSDL = device_name_sdl;
     driver.m_Platform = DM_PLATFORM;
     driver.m_DeadZone = 0.2f;
 
@@ -697,7 +690,7 @@ void DumpSDLEntry(FILE* out, Driver* driver)
     };
 
     fprintf(out, "%s,", driver->m_Guid);
-    DumpSDLDeviceName(out, driver->m_DeviceSDL);
+    DumpSDLDeviceName(out, driver->m_Device);
 
     for (uint32_t i = 0; i < sizeof(binding_order) / sizeof(binding_order[0]); ++i)
     {

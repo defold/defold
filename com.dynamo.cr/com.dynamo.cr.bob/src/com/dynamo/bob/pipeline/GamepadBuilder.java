@@ -22,13 +22,13 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.input.proto.Input.GamepadMap;
 import com.dynamo.input.proto.Input.GamepadMaps;
 
 /**
  * Builder that combines Defold .gamepads and an optional SDL gamecontrollerdb.txt into binary .gamepadsc.
  */
-@BuilderParams(name = "Gamepad", inExts = {".gamepads"}, outExt = ".gamepadsc",
-        paramsForSignature = {"platform"})
+@BuilderParams(name = "Gamepad", inExts = {}, outExt = ".gamepadsc", paramsForSignature = {"platform"})
 public class GamepadBuilder extends Builder {
 
     private static final String EXT_SDL = ".txt";
@@ -47,10 +47,7 @@ public class GamepadBuilder extends Builder {
     public void build(Task task) throws IOException, CompileExceptionError {
         IResource output = task.output(0);
 
-        String platform = project.option("platform", null);
-        if (platform == null) {
-            throw new CompileExceptionError("Platform option not set for GamepadBuilder");
-        }
+        String platform = project.getPlatform().getPair();
 
         GamepadMaps.Builder gamepadMapsBuilder = GamepadMaps.newBuilder();
 
@@ -64,11 +61,24 @@ public class GamepadBuilder extends Builder {
             }
         }
 
-        GamepadMaps gamepadMaps = gamepadMapsBuilder.build();
+        GamepadMaps gamepadMaps = filterPlatform(gamepadMapsBuilder.buildPartial(), platform);
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
         gamepadMaps.writeTo(out);
         out.close();
         output.setContent(out.toByteArray());
+    }
+
+    private GamepadMaps filterPlatform(GamepadMaps gamepadMaps, String platform) {
+        String normalizedPlatform = GamepadConverter.normalizePlatform(platform);
+        GamepadMaps.Builder filtered = GamepadMaps.newBuilder();
+        for (GamepadMap driver : gamepadMaps.getDriverList()) {
+            if (GamepadConverter.platformMatches(driver.getPlatform(), normalizedPlatform)) {
+                filtered.addDriver(GamepadMap.newBuilder(driver)
+                        .setPlatform(normalizedPlatform)
+                        .build());
+            }
+        }
+        return filtered.build();
     }
 
     /**

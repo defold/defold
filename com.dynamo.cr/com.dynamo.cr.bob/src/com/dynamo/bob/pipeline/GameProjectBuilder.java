@@ -155,11 +155,10 @@ public class GameProjectBuilder extends Builder {
 
                 IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, path);
                 res.disableMinifyPath();
+
                 if (field.equals("input.gamepads")) {
-                    IResource gamepadDb = null;
-                    String gamepadDbPath = project.getProjectProperties().getStringValue("input", "gamepaddb", "");
-                    if (gamepadDbPath != null && gamepadDbPath.trim().length() > 0) {
-                        gamepadDb = BuilderUtil.checkResource(project, builder.firstInput(), "input.gamepaddb", gamepadDbPath);
+                    IResource gamepadDb = project.getResource("input", "gamepad_database");
+                    if (gamepadDb != null) {
                         gamepadDb.disableMinifyPath();
                     }
                     builder.addInputsFromOutputs(project.createGamepadTask(gamepadDb, res));

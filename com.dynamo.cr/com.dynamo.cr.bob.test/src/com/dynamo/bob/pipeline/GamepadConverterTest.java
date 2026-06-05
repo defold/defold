@@ -43,6 +43,10 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         GamepadMap driver = maps.getDriver(0);
         assertEquals("Test Pad", driver.getDevice());
         assertEquals("macos", driver.getPlatform());
+        assertTrue(driver.hasGuid());
+        assertEquals(3L, Integer.toUnsignedLong(driver.getGuid().getBusCrc()));
+        assertEquals(0L, Integer.toUnsignedLong(driver.getGuid().getVendorProduct()));
+        assertEquals(16777216L, Integer.toUnsignedLong(driver.getGuid().getVersionDriversignatureDriverdata()));
 
         GamepadMapEntry a = find(driver, Gamepad.GAMEPAD_RPAD_DOWN);
         assertEquals(GamepadType.GAMEPAD_TYPE_BUTTON, a.getType());
@@ -97,8 +101,16 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
                 + "  platform: \"macos\"\n"
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Ignored Manual Pad\"\n"
+                + "  platform: \"windows\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n";
-        String gamepadDb = "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n";
+        String gamepadDb = ""
+                + "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
+                + "03000000000000000000000000000002,Ignored SDL Pad,a:b2,platform:Linux,\n";
 
         addFile("/pad.gamepads", gamepads);
         addFile("/gamecontrollerdb.txt", gamepadDb);
@@ -116,6 +128,8 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         assertEquals(2, maps.getDriverCount());
         assertEquals("SDL Pad", maps.getDriver(0).getDevice());
         assertEquals("Manual Pad", maps.getDriver(1).getDevice());
+        assertEquals("macos", maps.getDriver(0).getPlatform());
+        assertEquals("macos", maps.getDriver(1).getPlatform());
         assertEquals(1, find(maps.getDriver(0), Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
     }
 

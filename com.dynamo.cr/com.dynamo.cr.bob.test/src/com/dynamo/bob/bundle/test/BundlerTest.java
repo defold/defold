@@ -402,6 +402,7 @@ public class BundlerTest {
         count++;
         createFile(outputContentRoot, "builtins/input/default.gamepads", "");
         count++;
+        createFile(outputContentRoot, "builtins/input/gamecontrollerdb.txt", "");
         createFile(outputContentRoot, "input/game.input_binding", "key_trigger { input: KEY_SPACE action: \"\" }");
         count++;
 

@@ -478,10 +478,6 @@ namespace dmInput
     {
         if (strcmp(DM_PLATFORM, platform) == 0)
             return true;
-#if defined(__APPLE__)
-        if (strcmp("osx", platform) == 0)
-            return true;
-#endif
         return false;
     }
 

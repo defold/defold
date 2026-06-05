@@ -59,10 +59,6 @@ def build(bld):
         'builtins/scripts/**/*'],
         excl = ['**/*.ttf', '**/*.texture_profiles', '**/*.md', '**/*.txt', '**/LICENSE', '**/*.vp', '**/*.fp', '**/*.cp'])
 
-    gamecontrollerdb = bld.path.find_node('builtins/input/gamecontrollerdb.txt')
-    if gamecontrollerdb:
-        builtins_sources.append(gamecontrollerdb)
-
     bld(features='barchive',
        source_root='default/content',
        content_root='../content',

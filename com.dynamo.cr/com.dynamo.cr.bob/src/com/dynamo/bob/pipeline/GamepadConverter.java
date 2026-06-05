@@ -87,6 +87,32 @@ public final class GamepadConverter {
 
     private GamepadConverter() {}
 
+    private static final class SdlMapping {
+        final String guid;
+        final String name;
+        final String mappings;
+        final String platform;
+
+        SdlMapping(String guid, String name, String mappings, String platform) {
+            this.guid = guid;
+            this.name = name;
+            this.mappings = mappings;
+            this.platform = platform;
+        }
+    }
+
+    private static final class GamepadGuidFields {
+        final long busCrc;
+        final long vendorProduct;
+        final long versionDriverSignatureDriverData;
+
+        GamepadGuidFields(long busCrc, long vendorProduct, long versionDriverSignatureDriverData) {
+            this.busCrc = busCrc;
+            this.vendorProduct = vendorProduct;
+            this.versionDriverSignatureDriverData = versionDriverSignatureDriverData;
+        }
+    }
+
     /**
      * Get the SDL axis type identifier.
      */
@@ -133,20 +159,24 @@ public final class GamepadConverter {
      */
     public static String convertToDefoldFormat(String sdlContent, String platform) {
         String defoldPlatform = normalizePlatform(platform);
-        List<String[]> mappings = parseSdlMappings(sdlContent, defoldPlatform);
+        List<SdlMapping> mappings = parseSdlMappings(sdlContent, defoldPlatform);
 
         StringBuilder sb = new StringBuilder();
-        for (String[] mapping : mappings) {
-            String name = mapping[0];
-            String sdlMappingStr = mapping[1];
-
+        for (SdlMapping mapping : mappings) {
             sb.append("driver\n");
             sb.append("{\n");
-            sb.append("    device: \"").append(escapeDefoldString(name)).append("\"\n");
+            sb.append("    device: \"").append(escapeDefoldString(mapping.name)).append("\"\n");
             sb.append("    platform: \"").append(escapeDefoldString(defoldPlatform)).append("\"\n");
             sb.append("    dead_zone: 0.2\n");
+            GamepadGuidFields guid = parseGuidFields(mapping.guid);
+            if (guid != null) {
+                sb.append("    guid { bus_crc: ").append(guid.busCrc)
+                        .append(" vendor_product: ").append(guid.vendorProduct)
+                        .append(" version_driversignature_driverdata: ").append(guid.versionDriverSignatureDriverData)
+                        .append(" }\n");
+            }
 
-            List<String> mapEntries = convertSdlMappingToDefoldMap(sdlMappingStr);
+            List<String> mapEntries = convertSdlMappingToDefoldMap(mapping.mappings);
             for (String mapEntry : mapEntries) {
                 sb.append("    ").append(mapEntry).append("\n");
             }
@@ -157,8 +187,8 @@ public final class GamepadConverter {
         return sb.toString();
     }
 
-    private static List<String[]> parseSdlMappings(String content, String platform) {
-        List<String[]> result = new ArrayList<>();
+    private static List<SdlMapping> parseSdlMappings(String content, String platform) {
+        List<SdlMapping> result = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(new StringReader(content))) {
             String line;
@@ -168,9 +198,9 @@ public final class GamepadConverter {
                     continue;
                 }
 
-                String[] parsed = parseSdlLine(line);
-                if (parsed != null && platformMatches(parsed[2], platform)) {
-                    result.add(new String[] { parsed[0], parsed[1] });
+                SdlMapping parsed = parseSdlLine(line);
+                if (parsed != null && platformMatches(parsed.platform, platform)) {
+                    result.add(parsed);
                 }
             }
         } catch (IOException e) {
@@ -180,9 +210,14 @@ public final class GamepadConverter {
         return result;
     }
 
-    private static String[] parseSdlLine(String line) {
+    private static SdlMapping parseSdlLine(String line) {
         int firstComma = line.indexOf(',');
         if (firstComma == -1) {
+            return null;
+        }
+
+        String guid = line.substring(0, firstComma).trim();
+        if (!isValidGuid(guid)) {
             return null;
         }
 
@@ -196,7 +231,7 @@ public final class GamepadConverter {
         String name = rest.substring(0, secondComma).trim();
         String mappings = rest.substring(secondComma + 1);
 
-        return new String[] { name, mappings, extractPlatform(mappings) };
+        return new SdlMapping(guid, name, mappings, extractPlatform(mappings));
     }
 
     private static String extractPlatform(String mappings) {
@@ -210,7 +245,7 @@ public final class GamepadConverter {
         return "Windows"; // Default per SDL spec
     }
 
-    private static boolean platformMatches(String mappingPlatform, String targetPlatform) {
+    static boolean platformMatches(String mappingPlatform, String targetPlatform) {
         if (targetPlatform == null) {
             return false;
         }
@@ -221,7 +256,7 @@ public final class GamepadConverter {
         return normalizedTarget.equals(normalizedMapping);
     }
 
-    private static String normalizePlatform(String platform) {
+    static String normalizePlatform(String platform) {
         if (platform == null) {
             return "";
         }
@@ -233,6 +268,7 @@ public final class GamepadConverter {
             case "win64":
                 return "windows";
             case "mac os x":
+            case "osx":
             case "mac":
             case "macos":
                 return "macos";
@@ -249,7 +285,7 @@ public final class GamepadConverter {
                 if (normalized.endsWith("-win32") || normalized.endsWith("-win64") || normalized.endsWith("-windows")) {
                     return "windows";
                 }
-                if (normalized.endsWith("-macos")) {
+                if (normalized.endsWith("-macos") || normalized.endsWith("-osx")) {
                     return "macos";
                 }
                 if (normalized.endsWith("-linux")) {
@@ -264,8 +300,51 @@ public final class GamepadConverter {
                 if (normalized.endsWith("-web") || normalized.endsWith("-html5") || normalized.endsWith("-js-web") || normalized.endsWith("-wasm-web")) {
                     return "web";
                 }
+                if (normalized.endsWith("-nx64")) {
+                    return "switch";
+                }
+                if (normalized.endsWith("-ps4") || normalized.endsWith("-ps5")) {
+                    return "playstation";
+                }
                 return normalized;
         }
+    }
+
+    private static boolean isValidGuid(String guid) {
+        return guid != null && guid.matches("[0-9a-fA-F]{32}");
+    }
+
+    private static GamepadGuidFields parseGuidFields(String guid) {
+        if (!isValidGuid(guid)) {
+            return null;
+        }
+
+        byte[] bytes = new byte[16];
+        for (int i = 0; i < bytes.length; ++i) {
+            int hi = Character.digit(guid.charAt(i * 2), 16);
+            int lo = Character.digit(guid.charAt(i * 2 + 1), 16);
+            if (hi < 0 || lo < 0) {
+                return null;
+            }
+            bytes[i] = (byte)((hi << 4) | lo);
+        }
+
+        long bus = readUint16LE(bytes, 0);
+        long crc = readUint16LE(bytes, 2);
+        long vendor = readUint16LE(bytes, 4);
+        long product = readUint16LE(bytes, 8);
+        long version = readUint16LE(bytes, 12);
+        long driverSignature = bytes[14] & 0xffL;
+        long driverData = bytes[15] & 0xffL;
+
+        return new GamepadGuidFields(
+                bus | (crc << 16),
+                vendor | (product << 16),
+                version | (driverSignature << 16) | (driverData << 24));
+    }
+
+    private static long readUint16LE(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xffL) | ((bytes[offset + 1] & 0xffL) << 8);
     }
 
     private static List<String> convertSdlMappingToDefoldMap(String sdlMappings) {
