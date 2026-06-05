@@ -232,10 +232,10 @@
                         inherited-bindings :inherited
                         :else :default)
       :fallback-context-path fallback-context-path
-      :bindings (cond
-                  override-bindings override-bindings
-                  inherited-bindings inherited-bindings
-                  :else (filterv some? registered)))))
+      :bindings (filterv :button (cond
+                                   override-bindings override-bindings
+                                   inherited-bindings inherited-bindings
+                                   :else registered)))))
 
 (defn- mouse-sub-binding-row [mb sc mouse-bindings]
   (let [{:keys [context command context-path action]} mb
@@ -265,9 +265,11 @@
   (if-let [command (row-command row)]
     (let [kind (:kind row)
           badge? (or (= kind :mouse-binding) (= kind :mouse-sub-binding))
-          changed (and (not badge?)
-                       (not= (keymap/shortcuts keymap command)
-                             (keymap/shortcuts (keymap/default) command)))
+          changed (case kind
+                    :mouse-binding (= :custom (:binding-source row))
+                    :mouse-sub-binding (not= (:modifier row) (:default-modifier row))
+                    (not= (keymap/shortcuts keymap command)
+                          (keymap/shortcuts (keymap/default) command)))
           parts (case kind
                   :mouse-binding [(:context-path row) (:action row)]
                   :mouse-sub-binding [(:context-path row) (:action row) (:sub-cmd-label row)]
@@ -334,14 +336,12 @@
 
                     :mouse-binding
                     (let [inherited? (= :inherited (:binding-source row))
-                          custom? (= :custom (:binding-source row))
                           inherited-tooltip (when inherited?
                                               (str "Inherited from " (:fallback-context-path row)))]
                       (mapv (fn [binding warnings]
                               (let [pseudo-classes (cond
                                                      warnings #{:warning}
                                                      inherited? #{:inherited}
-                                                     custom? #{:overridden}
                                                      :else #{})]
                                 (cond-> {:fx/type fxui/label
                                          :style-class "keymap-shortcut"
@@ -605,7 +605,7 @@
                   :on-action (fn [_]
                                (let [key (mouse-binding-key row)
                                      registered (mapv :binding (mouse-binding/registered-command-bindings context command))
-                                     current (vec (or current-override-list registered))
+                                     current (vec (or current-override-list (filterv some? registered)))
                                      new-bindings (if (nil? binding-index)
                                                     (if (:button draft-binding)
                                                       (let [normalized (normalize-binding draft-binding)]
@@ -780,7 +780,7 @@
                                                      (let [override (get-in current-map key {})
                                                            current-bindings (or (:bindings override) registered)
                                                            new-bindings (into [] (keep-indexed #(when (not= %1 idx) %2)) current-bindings)
-                                                           new-override (if (= new-bindings registered)
+                                                           new-override (if (or (empty? new-bindings) (= new-bindings registered))
                                                                           (dissoc override :bindings)
                                                                           (assoc override :bindings new-bindings))]
                                                        (if (and (nil? (:bindings new-override)) (empty? (:sub-commands new-override)))
