@@ -14,7 +14,7 @@ set(GS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_DIR "${GS_ROOT}/src/gamesys")
 set(GS_DMSDK_SRC_DIR "${GS_ROOT}/src")
 set(GS_PROTO_DIR "${GS_ROOT}/proto/gamesys")
-set(GS_BUILD_DIR "${GS_ROOT}/build")
+set(GS_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 
 # ========= Protobuf (DDF) =========
 # Mirror wscript: include all proto files under proto/gamesys except model_ddf.proto
@@ -36,6 +36,8 @@ foreach(_pf IN LISTS GS_PROTO_FILES)
   list(APPEND GS_PROTO_CC "${_out_cc}")
   list(APPEND GS_PROTO_HEADERS "${_out_h}")
 endforeach()
+
+add_custom_target(gamesys_proto_cpp DEPENDS ${GS_PROTO_CC} ${GS_PROTO_HEADERS})
 
 # Generate Python protobuf modules required by content tooling
 set(GS_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto/gamesys")
@@ -125,8 +127,7 @@ target_include_directories(gamesys PUBLIC
     "${GS_SRC_DIR}"
     "${GS_DMSDK_SRC_DIR}"
     "${GS_ROOT}/src"
-    "${GS_ROOT}/proto"
-    "${CMAKE_CURRENT_BINARY_DIR}")
+    "${GS_ROOT}/proto")
 
 # ========= gamesys_model =========
 set(GS_MODEL_PROTO "${GS_PROTO_DIR}/model_ddf.proto")
@@ -139,7 +140,7 @@ defold_add_library(gamesys_model STATIC
     "${GS_SRC_DIR}/components/comp_model.cpp"
     "${GS_SRC_DIR}/scripts/script_model.cpp"
     "${GS_MODEL_CC}")
-target_include_directories(gamesys_model PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}" "${GS_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}")
+target_include_directories(gamesys_model PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}" "${GS_ROOT}/proto")
 
 defold_add_library(gamesys_model_null STATIC
     "${GS_SRC_DIR}/resources/res_model_null.cpp"
@@ -157,14 +158,15 @@ target_include_directories(gamesys_rig_null PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_S
 defold_add_library(script_box2d STATIC
     "${GS_SRC_DIR}/scripts/box2d/script_box2d.cpp"
     "${GS_SRC_DIR}/scripts/box2d/v3/script_box2d_body_v3.cpp"
+    "${GS_SRC_DIR}/scripts/box2d/v3/script_box2d_chain_v3.cpp"
     "${GS_SRC_DIR}/scripts/box2d/v3/script_box2d_joint_v3.cpp"
-    "${GS_SRC_DIR}/scripts/box2d/v3/script_box2d_shape_v3.cpp")
+    "${GS_SRC_DIR}/scripts/box2d/v3/script_box2d_shape_v3.cpp"
+    "${GS_SRC_DIR}/scripts/box2d/v3/script_box2d_world_v3.cpp")
 # Default to the Defold-provided Box2D headers
 target_include_directories(script_box2d PUBLIC
     "${GS_SRC_DIR}"
     "${GS_DMSDK_SRC_DIR}"
-    "${DEFOLD_EXT_INCLUDE_DIR}/box2d"
-    "${GS_BUILD_DIR}")
+    "${DEFOLD_EXT_INCLUDE_DIR}/box2d")
 
 
 
@@ -173,12 +175,17 @@ defold_add_library(script_box2d_defold STATIC
     "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_body_v2.cpp"
     "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_fixture_v2.cpp"
     "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_joint_v2.cpp"
-    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_shape_v2.cpp")
+    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_shape_v2.cpp"
+    "${GS_SRC_DIR}/scripts/box2d/v2/script_box2d_world_v2.cpp")
 target_include_directories(script_box2d_defold PUBLIC
     "${GS_SRC_DIR}"
     "${GS_DMSDK_SRC_DIR}"
-    "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold"
-    "${GS_BUILD_DIR}")
+    "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold")
+
+foreach(_target IN ITEMS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold)
+    add_dependencies(${_target} gamesys_proto_cpp)
+    target_include_directories(${_target} PUBLIC "${GS_GENERATED_INCLUDE_DIR}")
+endforeach()
 
 # ========= Android Java (optional) =========
 if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")

@@ -7,7 +7,8 @@ from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
                 extra_includes = None, extra_defines = None, extra_source = None,
-                skip_run = False, extra_local_libs = None, exclude_libs = None, target_name = None):
+                skip_run = False, extra_local_libs = None, exclude_libs = None, target_name = None,
+                source = None, c_only = False):
 
     # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
@@ -22,7 +23,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if 'DM_IPV6_UNSUPPORTED' in os.environ:
         req_defines += ['DM_IPV6_UNSUPPORTED']
 
-    req_features = ['cxx', 'cprogram']
+    req_features = ['cxx', 'c', 'cprogram'] if c_only else ['cxx', 'cprogram']
     req_includes = ['../../src']
     req_embed = None
 
@@ -75,11 +76,15 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     if extra_source is None:
         extra_source = []
+    if source is None:
+        source = (name + '.cpp').split()
+    elif isinstance(source, str):
+        source = source.split()
 
     use_lib_list = '%s %s %s' % (' '.join(req_libs), ' '.join(local_libs), ' '.join(extra_local_libs))
     task_args = {
         'features': ' '.join(req_features),
-        'source': extra_source + (name + '.cpp').split() + platform_source,
+        'source': extra_source + source + platform_source,
         'use': use_lib_list,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
@@ -161,6 +166,7 @@ def build(bld):
     create_test(bld, 'test_indexpool')
     create_test(bld, 'test_dlib', extra_libs = ['THREAD'], extra_features = ['c'], extra_source = ['test_endian.c'])
     create_test(bld, 'test_hash', extra_libs = ['THREAD'], extra_features = ['c'], extra_source = ['test_hash.c'])
+    create_test(bld, 'test_context_registry', source = 'test_context_registry.c', c_only = True)
 
     create_test(bld, 'test_time')
 

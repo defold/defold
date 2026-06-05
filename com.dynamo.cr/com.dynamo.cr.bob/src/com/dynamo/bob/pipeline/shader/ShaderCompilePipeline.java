@@ -40,6 +40,8 @@ public class ShaderCompilePipeline {
     public static class Options {
         public boolean splitTextureSamplers;
         public ArrayList<String> defines = new ArrayList<>();
+        public String externalToolPath;
+        public String externalToolArgs;
         public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
     }

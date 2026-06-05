@@ -70,7 +70,7 @@ def build(bld):
        source = builtins_sources,
        use_compression=True)
 
-    for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts', 'docs', 'ca-certificates']:
+    for d in ['input', 'render', 'materials', 'graphics', 'scripts', 'docs', 'ca-certificates']:
         excl = ['**/*.md', '**/*.txt'] if d == 'input' else []
         bld.install_files('${PREFIX}/content/builtins/%s' % d, bld.path.ant_glob('builtins/%s/*' % d, excl = excl))
 

@@ -18,7 +18,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -41,8 +40,6 @@ import com.dynamo.rig.proto.Rig.RigScene;
 @ProtoParams(srcClass = ModelDesc.class, messageClass = Model.class)
 @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
 public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
-
-    private static Logger logger = Logger.getLogger(ModelBuilder.class.getName());
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
@@ -126,7 +123,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         // Model
         IResource resource = task.firstInput();
         Model.Builder model = Model.newBuilder();
-        model.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
+        model.setRigScene(BuilderUtil.getRelativePath(this.project, task.output(1)));
 
         if (modelDescBuilder.getMaterialsCount() > 0)
         {

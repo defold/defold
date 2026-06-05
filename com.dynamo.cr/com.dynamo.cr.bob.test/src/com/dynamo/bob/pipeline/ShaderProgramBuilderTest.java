@@ -18,8 +18,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import com.dynamo.bob.util.MurmurHash;
 import org.junit.Before;
@@ -27,6 +32,8 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
@@ -74,6 +81,14 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         return ShaderDesc.Language.LANGUAGE_GLSL_SM330;
     }
 
+    private static ShaderDesc.Language getDefaultPlatformShaderLanguage() {
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
+            return ShaderDesc.Language.LANGUAGE_SPIRV;
+        }
+        return getPlatformGLSLLanguage();
+    }
+
     private static int getPlatformGLSLVersion() {
         return 330;
     }
@@ -93,6 +108,61 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             }
             assertTrue(found);
         }
+    }
+
+    private void checkOnlyExpectedLanguages(ShaderDesc shader, ShaderDesc.Language... expectedLanguages) {
+        Set<ShaderDesc.Language> expected = new HashSet<>();
+        for (ShaderDesc.Language language : expectedLanguages) {
+            expected.add(language);
+        }
+
+        Set<ShaderDesc.Language> actual = new HashSet<>();
+        for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {
+            assertNotNull(shaderDesc.getSource());
+            actual.add(shaderDesc.getLanguage());
+        }
+        assertEquals(expected, actual);
+    }
+
+    private ShaderDesc buildShaderForPlatform(String platform, String architectures, String outputResource) throws Exception {
+        getProject().setOption("platform", platform);
+        if (architectures != null) {
+            getProject().setOption("architectures", architectures);
+        }
+        return addAndBuildShaderDesc("/" + outputResource + ".fp", fp, "/" + outputResource + ".shbundle");
+    }
+
+    private Map<String, Object> platformSettings(Object... contextEntries) {
+        Map<String, Object> context = new HashMap<>();
+        for (int i = 0; i < contextEntries.length; i += 2) {
+            context.put((String) contextEntries[i], contextEntries[i + 1]);
+        }
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("context", context);
+        return settings;
+    }
+
+    private ShaderDesc compileShaderForPlatform(Platform platform, String shaderAdapters, String outputResource) throws Exception {
+        return compileShaderWithCompiler(getProject().getShaderCompiler(platform), shaderAdapters, outputResource);
+    }
+
+    private ShaderDesc compileShaderWithCompiler(IShaderCompiler shaderCompiler, String shaderAdapters, String outputResource) throws Exception {
+        return compileShaderWithCompiler(shaderCompiler, shaderAdapters, outputResource, fp);
+    }
+
+    private ShaderDesc compileShaderWithCompiler(IShaderCompiler shaderCompiler, String shaderAdapters, String outputResource, String source) throws Exception {
+        IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+        compileOptions.shaderAdapters = shaderAdapters;
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules = new ArrayList<>();
+        ShaderCompilePipeline.ShaderModuleDesc shaderModule = new ShaderCompilePipeline.ShaderModuleDesc();
+        shaderModule.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+        shaderModule.source = source;
+        shaderModule.resourcePath = "/" + outputResource + ".fp";
+        shaderModules.add(shaderModule);
+
+        ShaderProgramBuilder.ShaderCompileResult compileResult = shaderCompiler.compile(shaderModules, "/" + outputResource + ".spc", compileOptions);
+        return ShaderProgramBuilder.buildResultsToShaderDescBuildResults(compileResult).shaderDesc;
     }
 
     private void doTest(ShaderDesc.Language[] expectedLanguages, String outputResource) throws Exception {
@@ -363,19 +433,110 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testShaderPrograms() throws Exception {
-        ShaderDesc.Language firstLanguage = getPlatformGLSLLanguage();
-        ShaderDesc.Language secondLanguage = ShaderDesc.Language.LANGUAGE_SPIRV;
-        ShaderDesc.Language[] expectedLanguages = new ShaderDesc.Language[] { firstLanguage };
+        ShaderDesc.Language[] expectedLanguages = new ShaderDesc.Language[] { getDefaultPlatformShaderLanguage() };
 
         doTest(expectedLanguages, "/test_shader.shbundle");
         doTestEs3(expectedLanguages, "/test_shader_es3.shbundle");
 
-        expectedLanguages = new ShaderDesc.Language[] { firstLanguage, secondLanguage };
+        expectedLanguages = new ShaderDesc.Language[] { getPlatformGLSLLanguage(), ShaderDesc.Language.LANGUAGE_SPIRV };
 
         getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", true);
         getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
         doTest(expectedLanguages, "/test_shader_secondary.shbundle");
         doTestEs3(expectedLanguages, "/test_shader_secondary_es3.shbundle");
+    }
+
+    @Test
+    public void testDefaultShaderLanguagesForPlatforms() throws Exception {
+        Object[][] platformLanguages = new Object[][] {
+            { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.X86Win32,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
+            { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
+            { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
+            { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.X86_64Ios,      new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.Arm64Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.WasmWeb,        new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.WasmPthreadWeb, new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+        };
+
+        for (Object[] platformLanguage : platformLanguages) {
+            Platform platform = (Platform) platformLanguage[0];
+            ShaderDesc.Language[] expectedLanguages = (ShaderDesc.Language[]) platformLanguage[1];
+            checkOnlyExpectedLanguages(
+                buildShaderForPlatform(platform.getPair(), platform.getPair(), "default_" + platform.getPair().replace("-", "_")),
+                expectedLanguages);
+        }
+    }
+
+    @Test
+    public void testManifestShaderLanguages() throws Exception {
+        String shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterOpenGL"))));
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_both"),
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            ShaderDesc.Language.LANGUAGE_SPIRV);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings(
+                "symbols", List.of("GraphicsAdapterOpenGL"),
+                "excludeLibs", List.of("graphics_vulkan"))));
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_gl"),
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings(
+                "symbols", List.of("GraphicsAdapterVulkan"),
+                "excludeSymbols", List.of("GraphicsAdapterOpenGL"))));
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64Win32, shaderAdapters, "manifest_win32_vulkan"),
+            ShaderDesc.Language.LANGUAGE_SPIRV);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.WasmWeb, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterWebGPU"))));
+        String samplerSource =
+            "#version 140\n" +
+            "in vec2 var_texcoord0;\n" +
+            "out vec4 color_out;\n" +
+            "uniform sampler2D texture_sampler;\n" +
+            "void main()\n" +
+            "{\n" +
+            "   color_out = texture(texture_sampler, var_texcoord0.xy);\n" +
+            "}\n";
+        checkOnlyExpectedLanguages(
+            compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource),
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_GLES_SM100,
+            ShaderDesc.Language.LANGUAGE_WGSL);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings("excludeSymbols", List.of("GraphicsAdapterVulkan"))));
+        assertEquals("", shaderAdapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_no_adapters"));
+    }
+
+    @Test
+    public void testShaderLanguageOverrides() throws Exception {
+        getProject().setOption("debug-output-spirv", "true");
+        checkOnlyExpectedLanguages(
+            buildShaderForPlatform(Platform.X86_64Linux.getPair(), Platform.X86_64Linux.getPair(), "debug_spirv_linux"),
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            ShaderDesc.Language.LANGUAGE_SPIRV);
+    }
+
+    @Test
+    public void testExcludeGlesSm100() throws Exception {
+        getProject().getProjectProperties().putBooleanValue("shader", "exclude_gles_sm100", true);
+        checkOnlyExpectedLanguages(
+            buildShaderForPlatform(Platform.Armv7Android.getPair(), Platform.Armv7Android.getPair(), "exclude_gles100_android"),
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_SPIRV);
     }
 
     private void testOutput(String expected, String source) {
@@ -388,6 +549,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testIncludes() throws Exception {
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", true);
+
         String shader_base =
             "#include \"%s\"\n" +
             "void main(){\n" +

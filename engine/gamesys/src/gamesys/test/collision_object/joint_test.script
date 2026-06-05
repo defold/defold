@@ -44,6 +44,424 @@ end
 -- reusable zero point
 local zp = vmath.vector3(0)
 
+local function test_native_b2d_world_and_chains(body_a, body_b, body_c)
+    local world = b2d.get_world()
+    assert(world ~= nil)
+    assert(world == b2d.body.get_world(body_a))
+    assert(world == b2d.body.get_world(body_b))
+    assert(world == b2d.body.get_world(body_c))
+    assert(b2d.world.is_valid(world))
+    assert(not b2d.world.is_locked(world))
+
+    local original_gravity = b2d.world.get_gravity(world)
+    b2d.world.set_gravity(world, vmath.vector3(0, -123, 0))
+    assert_vec3_near(b2d.world.get_gravity(world), vmath.vector3(0, -123, 0))
+    b2d.world.set_gravity(world, original_gravity)
+
+    local sleeping_enabled = b2d.world.is_sleeping_enabled(world)
+    b2d.world.enable_sleeping(world, not sleeping_enabled)
+    assert(b2d.world.is_sleeping_enabled(world) == not sleeping_enabled)
+    b2d.world.enable_sleeping(world, sleeping_enabled)
+
+    local continuous_enabled = b2d.world.is_continuous_enabled(world)
+    b2d.world.enable_continuous(world, not continuous_enabled)
+    assert(b2d.world.is_continuous_enabled(world) == not continuous_enabled)
+    b2d.world.enable_continuous(world, continuous_enabled)
+
+    local warm_starting_enabled = b2d.world.is_warm_starting_enabled(world)
+    b2d.world.enable_warm_starting(world, not warm_starting_enabled)
+    assert(b2d.world.is_warm_starting_enabled(world) == not warm_starting_enabled)
+    b2d.world.enable_warm_starting(world, warm_starting_enabled)
+
+    local restitution_threshold = b2d.world.get_restitution_threshold(world)
+    b2d.world.set_restitution_threshold(world, restitution_threshold + 1)
+    assert_near(b2d.world.get_restitution_threshold(world), restitution_threshold + 1)
+    b2d.world.set_restitution_threshold(world, restitution_threshold)
+
+    local hit_event_threshold = b2d.world.get_hit_event_threshold(world)
+    b2d.world.set_hit_event_threshold(world, hit_event_threshold + 1)
+    assert_near(b2d.world.get_hit_event_threshold(world), hit_event_threshold + 1)
+    b2d.world.set_hit_event_threshold(world, hit_event_threshold)
+
+    local max_linear_speed = b2d.world.get_maximum_linear_speed(world)
+    b2d.world.set_maximum_linear_speed(world, max_linear_speed + 10)
+    assert_near(b2d.world.get_maximum_linear_speed(world), max_linear_speed + 10)
+    b2d.world.set_maximum_linear_speed(world, max_linear_speed)
+
+    b2d.world.set_contact_tuning(world, 30, 10, 3)
+    b2d.world.set_joint_tuning(world, 60, 2)
+    assert(type(b2d.world.get_awake_body_count(world)) == "number")
+
+    local profile = b2d.world.get_profile(world)
+    assert(type(profile) == "table")
+    assert(type(profile.step) == "number")
+
+    local counters = b2d.world.get_counters(world)
+    assert(type(counters) == "table")
+    assert(type(counters.body_count) == "number")
+    assert(type(counters.color_counts) == "table")
+
+    b2d.world.explode(world, {
+        position = vmath.vector3(100000, 100000, 0),
+        radius = 1,
+        falloff = 1,
+        impulse_per_length = 1,
+    })
+    b2d.world.rebuild_static_tree(world)
+    b2d.world.enable_speculative(world, false)
+    b2d.world.enable_speculative(world, true)
+
+    assert(b2d.body.is_valid(body_a))
+    b2d.body.set_name(body_a, "joint-test-a")
+    assert(b2d.body.get_name(body_a) == "joint-test-a")
+    local body_position = b2d.body.get_position(body_a)
+    local body_angle = b2d.body.get_angle(body_a)
+    b2d.body.set_target_transform(body_a, body_position, body_angle, 1 / 60)
+    b2d.body.apply_linear_impulse_to_center(body_a, zp)
+    local sleep_threshold = b2d.body.get_sleep_threshold(body_a)
+    b2d.body.set_sleep_threshold(body_a, sleep_threshold + 1)
+    assert_near(b2d.body.get_sleep_threshold(body_a), sleep_threshold + 1)
+    b2d.body.set_sleep_threshold(body_a, sleep_threshold)
+    b2d.body.enable_contact_events(body_a, true)
+    b2d.body.enable_hit_events(body_a, true)
+    assert(type(b2d.body.get_contact_data(body_a)) == "table")
+
+    local material_shape = b2d.body.create_shape(body_a, {
+        type = b2d.shape.SHAPE_TYPE_CIRCLE,
+        center = vmath.vector3(100000, 100000, 0),
+        radius = 1,
+        density = 0,
+        material = 13,
+    })
+    assert(material_shape.material == 13)
+    assert(material_shape.shape_id ~= nil)
+    assert(b2d.shape.get_type(material_shape.shape_id) == b2d.shape.SHAPE_TYPE_CIRCLE)
+    assert(b2d.shape.get_shape(material_shape.shape_id).type == b2d.shape.SHAPE_TYPE_CIRCLE)
+    assert(b2d.shape.get_material(material_shape.shape_id) == 13)
+    b2d.shape.set_material(material_shape.shape_id, 17)
+    assert(b2d.shape.get_material(material_shape.shape_id) == 17)
+    local material_shape_info = b2d.body.get_shapes(body_a)[material_shape.index]
+    assert(material_shape_info.shape_id == material_shape.shape_id)
+    assert(material_shape_info.material == 17)
+    assert(b2d.shape.is_valid(material_shape.shape_id))
+    assert(b2d.shape.get_body(material_shape.shape_id) == body_a)
+    assert(b2d.shape.get_world(material_shape.shape_id) == world)
+    b2d.shape.enable_sensor_events(material_shape.shape_id, true)
+    assert(b2d.shape.are_sensor_events_enabled(material_shape.shape_id))
+    b2d.shape.enable_contact_events(material_shape.shape_id, true)
+    assert(b2d.shape.are_contact_events_enabled(material_shape.shape_id))
+    b2d.shape.enable_pre_solve_events(material_shape.shape_id, true)
+    assert(b2d.shape.are_pre_solve_events_enabled(material_shape.shape_id))
+    b2d.shape.enable_hit_events(material_shape.shape_id, true)
+    assert(b2d.shape.are_hit_events_enabled(material_shape.shape_id))
+    local shape_ray_hit = b2d.shape.ray_cast(material_shape.shape_id, vmath.vector3(100000, 99998, 0), vmath.vector3(0, 4, 0))
+    assert(shape_ray_hit ~= nil)
+    assert_vec3_near(shape_ray_hit.point, vmath.vector3(100000, 99999, 0), 0.1)
+    assert_near(shape_ray_hit.fraction, 0.25, 0.01)
+    assert(type(shape_ray_hit.iterations) == "number")
+    assert(type(b2d.shape.get_contact_capacity(material_shape.shape_id)) == "number")
+    assert(type(b2d.shape.get_contact_data(material_shape.shape_id)) == "table")
+    assert(type(b2d.shape.get_sensor_capacity(material_shape.shape_id)) == "number")
+    assert(type(b2d.shape.get_sensor_overlaps(material_shape.shape_id)) == "table")
+    local shape_mass_data = b2d.shape.get_mass_data(material_shape.shape_id)
+    assert(type(shape_mass_data.mass) == "number")
+    assert_vec3_near(b2d.shape.get_closest_point(material_shape.shape_id, vmath.vector3(100004, 100000, 0)), vmath.vector3(100001, 100000, 0), 0.1)
+    local material_body_aabb = b2d.body.compute_aabb(body_a)
+    assert(material_body_aabb.lower.x <= material_body_aabb.upper.x)
+    assert(material_body_aabb.lower.y <= material_body_aabb.upper.y)
+    b2d.body.destroy_shape(body_a, material_shape.index)
+    assert(not b2d.shape.is_valid(material_shape.shape_id))
+    assert_error(function() b2d.shape.get_type(material_shape.shape_id) end)
+
+    local chain, segments = b2d.body.create_chain(body_c, {
+        vertices = {
+            vmath.vector3(-16, 20, 0),
+            vmath.vector3(0, 28, 0),
+            vmath.vector3(16, 20, 0),
+        },
+        prev_vertex = vmath.vector3(-24, 12, 0),
+        next_vertex = vmath.vector3(24, 12, 0),
+        friction = 0.2,
+        restitution = 0.1,
+        material = 7,
+        filter = {
+            category_bits = 1,
+            mask_bits = 1,
+            group_index = 0,
+        },
+        enable_sensor_events = true,
+    })
+    assert(chain ~= nil)
+    assert(b2d.chain.is_valid(chain))
+    assert(b2d.chain.get_world(chain) == world)
+    assert(#segments == 2)
+    assert(b2d.chain.get_segment_count(chain) == #segments)
+    assert(segments[1].type == b2d.shape.SHAPE_TYPE_SEGMENT)
+    assert(segments[1].shape_id ~= nil)
+    assert(segments[1].is_chain_segment)
+
+    local segment_snapshot = b2d.shape.get_shape(segments[1].shape_id)
+    assert(segment_snapshot.type == b2d.shape.SHAPE_TYPE_SEGMENT)
+    assert(segment_snapshot.v0 ~= nil)
+    assert(segment_snapshot.v1 ~= nil)
+    assert(segment_snapshot.v2 ~= nil)
+    assert(segment_snapshot.v3 ~= nil)
+    assert_error(function() b2d.shape.set_shape(segments[1].shape_id, segment_snapshot) end)
+
+    local chain_from_shape = b2d.chain.from_shape(segments[1].shape_id)
+    assert(chain_from_shape == chain)
+    assert(b2d.chain.from_shape(body_a, 1) == nil)
+
+    local chain_segments = b2d.chain.get_segments(chain)
+    assert(#chain_segments == 2)
+    assert(chain_segments[2].is_chain_segment)
+
+    local geometry = b2d.chain.get_geometry(chain)
+    assert(not geometry.loop)
+    assert(#geometry.vertices == 3)
+    assert_vec3_near(geometry.prev_vertex, vmath.vector3(-24, 12, 0))
+    assert_vec3_near(geometry.next_vertex, vmath.vector3(24, 12, 0))
+
+    assert_near(b2d.chain.get_friction(chain), 0.2)
+    assert_near(b2d.chain.get_restitution(chain), 0.1)
+    assert(b2d.chain.get_material(chain) == 7)
+    b2d.chain.set_friction(chain, 0.4)
+    b2d.chain.set_restitution(chain, 0.3)
+    b2d.chain.set_material(chain, 11)
+    assert_near(b2d.chain.get_friction(chain), 0.4)
+    assert_near(b2d.chain.get_restitution(chain), 0.3)
+    assert(b2d.chain.get_material(chain) == 11)
+
+    local hits, stats = b2d.world.overlap_aabb(world, {
+        lower = vmath.vector3(-20, -84, 0),
+        upper = vmath.vector3(20, -68, 0),
+    }, {}, 16)
+    assert(type(hits) == "table")
+    assert(#hits > 0)
+    assert(type(stats.node_visits) == "number")
+    assert(type(stats.leaf_visits) == "number")
+
+    local shape_hits, shape_stats = b2d.world.overlap_shape(world, {
+        type = b2d.shape.SHAPE_TYPE_CIRCLE,
+        center = vmath.vector3(8, -76, 0),
+        radius = 3,
+    }, nil, 16)
+    assert(type(shape_hits) == "table")
+    assert(#shape_hits > 0)
+    assert(type(shape_stats.node_visits) == "number")
+
+    local expected_cast_shape_index = segments[2].index
+    local expected_cast_point = vmath.vector3(8, -76, 0)
+    local expected_ray_fraction = 12 / 60
+    local function find_hit_for_shape(hits, shape_index)
+        for _, hit in ipairs(hits) do
+            if hit.shape and hit.shape.index == shape_index then
+                return hit
+            end
+        end
+        return nil
+    end
+
+    local ray_hits, ray_stats = b2d.world.cast_ray(world, vmath.vector3(8, -88, 0), vmath.vector3(0, 60, 0), nil, 16)
+    assert(type(ray_hits) == "table")
+    assert(#ray_hits > 0)
+    assert(type(ray_stats.leaf_visits) == "number")
+    local ray_chain_hit = find_hit_for_shape(ray_hits, expected_cast_shape_index)
+    assert(ray_chain_hit ~= nil)
+    assert(ray_chain_hit.shape.shape_id == segments[2].shape_id)
+    assert(ray_chain_hit.shape.is_chain_segment)
+    assert_vec3_near(ray_chain_hit.point, expected_cast_point, 0.1)
+    assert_near(ray_chain_hit.fraction, expected_ray_fraction, 0.01)
+
+    local closest = b2d.world.cast_ray_closest(world, vmath.vector3(8, -88, 0), vmath.vector3(0, 60, 0))
+    assert(closest ~= nil)
+    assert(closest.shape.index == expected_cast_shape_index)
+    assert(closest.shape.shape_id == segments[2].shape_id)
+    assert(closest.shape.is_chain_segment)
+    assert_vec3_near(closest.point, expected_cast_point, 0.1)
+    assert_near(closest.fraction, expected_ray_fraction, 0.01)
+    assert(type(closest.node_visits) == "number")
+    assert(type(closest.leaf_visits) == "number")
+
+    local cast_hits, cast_stats = b2d.world.cast_shape(world, {
+        type = b2d.shape.SHAPE_TYPE_CIRCLE,
+        center = vmath.vector3(8, -88, 0),
+        radius = 1,
+    }, vmath.vector3(0, 60, 0), nil, 16)
+    assert(type(cast_hits) == "table")
+    assert(#cast_hits > 0)
+    assert(type(cast_stats.node_visits) == "number")
+    local shape_chain_hit = find_hit_for_shape(cast_hits, expected_cast_shape_index)
+    assert(shape_chain_hit ~= nil)
+    assert(shape_chain_hit.shape.shape_id == segments[2].shape_id)
+    assert(shape_chain_hit.shape.is_chain_segment)
+    assert_vec3_near(shape_chain_hit.point, expected_cast_point, 2.0)
+    assert(shape_chain_hit.fraction > 0.15 and shape_chain_hit.fraction < 0.25)
+
+    local mover_fraction = b2d.world.cast_mover(world, {
+        center1 = vmath.vector3(6, -88, 0),
+        center2 = vmath.vector3(10, -88, 0),
+        radius = 1,
+    }, vmath.vector3(0, 60, 0))
+    assert(type(mover_fraction) == "number")
+    assert(mover_fraction > 0.15 and mover_fraction < 0.25)
+
+    local planes = b2d.world.collide_mover(world, {
+        center1 = vmath.vector3(6, -76, 0),
+        center2 = vmath.vector3(10, -76, 0),
+        radius = 2,
+    }, nil, 16)
+    assert(type(planes) == "table")
+    if #planes > 0 then
+        assert(planes[1].shape ~= nil)
+        assert(planes[1].normal ~= nil)
+        assert(type(planes[1].offset) == "number")
+        assert(type(planes[1].hit) == "boolean")
+    end
+
+    b2d.chain.destroy(chain)
+    assert(not b2d.chain.is_valid(chain))
+    assert_error(function() b2d.chain.get_segment_count(chain) end)
+
+    local loop_chain, loop_segments = b2d.body.create_chain(body_c, {
+        loop = true,
+        vertices = {
+            vmath.vector3(-4, 40, 0),
+            vmath.vector3(4, 40, 0),
+            vmath.vector3(4, 48, 0),
+            vmath.vector3(-4, 48, 0),
+        },
+    })
+    assert(loop_chain ~= nil)
+    assert(#loop_segments == 4)
+    local loop_geometry = b2d.chain.get_geometry(loop_chain)
+    assert(loop_geometry.loop)
+    assert(#loop_geometry.vertices == 4)
+
+    b2d.body.destroy_shape(body_c, loop_segments[1].index)
+    assert_error(function() b2d.chain.get_segment_count(loop_chain) end)
+
+    assert_error(function()
+        b2d.body.create_chain(body_c, {
+            loop = true,
+            vertices = {
+                vmath.vector3(0, 0, 0),
+                vmath.vector3(1, 0, 0),
+                vmath.vector3(1, 1, 0),
+            },
+        })
+    end)
+
+    assert_error(function()
+        b2d.body.create_chain(body_c, {
+            loop = true,
+            prev_vertex = vmath.vector3(-1, 0, 0),
+            vertices = {
+                vmath.vector3(0, 0, 0),
+                vmath.vector3(1, 0, 0),
+                vmath.vector3(1, 1, 0),
+                vmath.vector3(0, 1, 0),
+            },
+        })
+    end)
+
+    assert_error(function()
+        b2d.body.create_chain(body_c, {
+            vertices = {
+                vmath.vector3(0, 0, 0),
+            },
+        })
+    end)
+end
+
+local function test_native_b2d_v2_world_queries(body_a)
+    local world = b2d.get_world()
+    assert(world ~= nil)
+    assert(world == b2d.body.get_world(body_a))
+    assert(b2d.world ~= nil)
+
+    local target = vmath.vector3(100000, 100000, 0)
+    local query_filter = {
+        category_bits = 2,
+        mask_bits = 2,
+        group_index = 0,
+    }
+    local fixture = b2d.body.create_fixture(body_a, {
+        density = 0,
+        shape = {
+            type = b2d.shape.SHAPE_TYPE_CIRCLE,
+            center = target,
+            radius = 1,
+        },
+        filter = query_filter,
+    })
+    assert(fixture ~= nil)
+
+    local function find_fixture_hit(hits, body, fixture_index)
+        for _, hit in ipairs(hits) do
+            local fixture_info = hit.fixture or hit.shape or hit
+            if fixture_info.body == body and fixture_info.index == fixture_index then
+                return hit
+            end
+        end
+        return nil
+    end
+
+    local overlap_hits, overlap_stats = b2d.world.overlap_aabb(world, {
+        lower = target - vmath.vector3(2, 2, 0),
+        upper = target + vmath.vector3(2, 2, 0),
+    }, query_filter, 8)
+    assert(type(overlap_hits) == "table")
+    assert(type(overlap_stats.node_visits) == "number")
+    assert(type(overlap_stats.leaf_visits) == "number")
+    local overlap_hit = find_fixture_hit(overlap_hits, body_a, fixture.index)
+    assert(overlap_hit ~= nil)
+    assert(overlap_hit.type == b2d.shape.SHAPE_TYPE_CIRCLE)
+    assert(overlap_hit.child_index == 1)
+
+    local shape_hits, shape_stats = b2d.world.overlap_shape(world, {
+        type = b2d.shape.SHAPE_TYPE_CIRCLE,
+        center = target,
+        radius = 0.5,
+    }, query_filter, 8)
+    assert(type(shape_hits) == "table")
+    assert(type(shape_stats.leaf_visits) == "number")
+    local shape_overlap_hit = find_fixture_hit(shape_hits, body_a, fixture.index)
+    assert(shape_overlap_hit ~= nil)
+    assert(shape_overlap_hit.type == b2d.shape.SHAPE_TYPE_CIRCLE)
+
+    local ray_origin = target + vmath.vector3(0, -2, 0)
+    local ray_translation = vmath.vector3(0, 4, 0)
+    local ray_hits, ray_stats = b2d.world.cast_ray(world, ray_origin, ray_translation, query_filter, 8)
+    assert(type(ray_hits) == "table")
+    assert(type(ray_stats.leaf_visits) == "number")
+    local ray_hit = find_fixture_hit(ray_hits, body_a, fixture.index)
+    assert(ray_hit ~= nil)
+    assert_vec3_near(ray_hit.point, target + vmath.vector3(0, -1, 0), 0.1)
+    assert_near(ray_hit.fraction, 0.25, 0.01)
+
+    local closest = b2d.world.cast_ray_closest(world, ray_origin, ray_translation, query_filter)
+    assert(closest ~= nil)
+    assert(closest.fixture.body == body_a)
+    assert(closest.fixture.index == fixture.index)
+    assert_vec3_near(closest.point, target + vmath.vector3(0, -1, 0), 0.1)
+    assert_near(closest.fraction, 0.25, 0.01)
+
+    local cast_hits, cast_stats = b2d.world.cast_shape(world, {
+        type = b2d.shape.SHAPE_TYPE_CIRCLE,
+        center = ray_origin,
+        radius = 0.5,
+    }, ray_translation, query_filter, 8)
+    assert(type(cast_hits) == "table")
+    assert(type(cast_stats.node_visits) == "number")
+    local cast_hit = find_fixture_hit(cast_hits, body_a, fixture.index)
+    assert(cast_hit ~= nil)
+    assert_vec3_near(cast_hit.point, target + vmath.vector3(0, -1, 0), 0.2)
+    assert_near(cast_hit.fraction, 0.125, 0.02)
+
+    b2d.body.destroy_fixture(body_a, fixture.index)
+end
+
 local function test_native_b2d_joints(self)
     if b2d == nil then
         return
@@ -51,8 +469,10 @@ local function test_native_b2d_joints(self)
 
     local body_a = b2d.get_body(self.a_coll)
     local body_b = b2d.get_body(self.b_coll)
+    local body_c = b2d.get_body(self.c_coll)
     assert(body_a ~= nil)
     assert(body_b ~= nil)
+    assert(body_c ~= nil)
 
     local managed_joint_id = "native_managed_joint"
     physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, managed_joint_id, zp, self.b_coll, zp)
@@ -86,6 +506,8 @@ local function test_native_b2d_joints(self)
     assert(found)
 
     if PHYSICS == "box2dv3" then
+        assert(b2d.joint.is_valid(joint))
+        assert(b2d.joint.get_world(joint) == b2d.body.get_world(body_a))
         b2d.joint.set_collide_connected(joint, true)
         assert(b2d.joint.get_collide_connected(joint))
         b2d.joint.wake_bodies(joint)
@@ -231,8 +653,14 @@ local function test_native_b2d_joints(self)
         assert_near(b2d.joint.get_ratio(pulley_joint), 1.5)
         b2d.joint.destroy(pulley_joint)
 
+        local invalid_gear_revolute_joint = b2d.joint.create_revolute(body_a, body_b)
+        local invalid_gear_prismatic_joint = b2d.joint.create_prismatic(body_a, body_b)
+        assert_error(function() b2d.joint.create_gear(invalid_gear_revolute_joint, invalid_gear_prismatic_joint) end)
+        b2d.joint.destroy(invalid_gear_prismatic_joint)
+        b2d.joint.destroy(invalid_gear_revolute_joint)
+
         local gear_revolute_joint = b2d.joint.create_revolute(body_a, body_b)
-        local gear_prismatic_joint = b2d.joint.create_prismatic(body_a, body_b)
+        local gear_prismatic_joint = b2d.joint.create_prismatic(body_a, body_c)
         local gear_joint = b2d.joint.create_gear(gear_revolute_joint, gear_prismatic_joint, {
             ratio = 2,
         })
@@ -246,6 +674,9 @@ local function test_native_b2d_joints(self)
     end
 
     b2d.joint.destroy(joint)
+    if PHYSICS == "box2dv3" then
+        assert(not b2d.joint.is_valid(joint))
+    end
     assert_error(function() b2d.joint.get_type(joint) end)
 end
 
@@ -257,6 +688,8 @@ function init(self)
     self.a_coll = self.a .. "#collisionobject"
     self.b = "joint_test_b"
     self.b_coll = self.b .. "#collisionobject"
+    self.c = "joint_test_c"
+    self.c_coll = self.c .. "#joint_test_static_floor"
     self.joint_id = "test_joint"
 
     test_native_b2d_joints(self)

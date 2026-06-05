@@ -1,3 +1,5 @@
+@use "sass:string";
+
 $ext-spacing-small: 4px;
 $ext-spacing-medium: 8px;
 $ext-spacing-large: 16px;
@@ -540,5 +542,16 @@ $ext-line-height: 26px;
                 & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-fatal; }
             }
         }
+    }
+    &-tab-pane {
+        & > .tab-content-area {
+            -fx-background-color: string.unquote("null");
+        }
+    }
+    &-tab-icon {
+        -fx-min-width: 16px;
+        -fx-max-width: 16px;
+        -fx-min-height: 16px;
+        -fx-max-height: 16px;
     }
 }

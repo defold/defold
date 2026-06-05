@@ -173,6 +173,7 @@ foobar
  * @param param_x [type:string|number|boolean|function|nil|userdata|thread|file] DOCX
  * @param param_y [type:vector|vector3|vector4|matrix4|quaternion|hash|url|node|resource|buffer] DOCY
  * @param param_z [type:constant|any] DOCZ
+ * @param param_b2 [type:b2World|b2Body|b2BodyType|b2Shape|b2Chain] DOCB2
  */
 """
         elements = script_doc.parse_document(doc).elements
@@ -327,6 +328,25 @@ foobar
         self.assertEqual(u'MY_DESC @test', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
         self.assertEqual(u'example:\nMY_EXAMPLE @test', elements[0].examples)
+
+    def test_detection(self):
+        doc1= """
+/*#
+ * @name MY_MESSAGE1
+ */
+"""
+        doc2= """
+/*#
+ * @name MY_MESSAGE2
+ */
+"""
+        elements = script_doc.parse_document(doc1).elements
+        self.assertEqual(1, len(elements))
+        self.assertEqual('MY_MESSAGE1', elements[0].name)
+
+        elements = script_doc.parse_document(doc2).elements
+        self.assertEqual(1, len(elements))
+        self.assertEqual('MY_MESSAGE2', elements[0].name)
 
 if __name__ == '__main__':
     unittest.main()

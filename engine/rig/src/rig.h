@@ -68,6 +68,13 @@ namespace dmRig
      * @return True if the instance is currently animating
      */
     bool IsAnimating(HRigInstance instance);
+
+    /**
+     * Checks if the instance pose matrix cache contains a pose produced by animation playback.
+     * @param instance The rig instance
+     * @return True if the pose matrix cache contains an animated pose
+     */
+    bool HasPoseMatrixCacheAnimatedPose(HRigInstance instance);
 }
 
 #endif // DM_RIG_H
