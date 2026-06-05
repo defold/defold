@@ -1239,10 +1239,7 @@
 (mouse-binding/register!
   ::scene-camera-orthographic
   "Scene 2D Camera"
-  [{:command :scene.camera.drag-select
-    :action "Drag Select"
-    :binding {:button :primary :modifiers []}}
-   {:command :scene.camera.orbit
+  [{:command :scene.camera.orbit
     :action "Orbit"
     :binding {:button :primary :modifiers [:control]}}
    {:command :scene.camera.pan
@@ -1261,10 +1258,7 @@
 (mouse-binding/register!
   ::scene-camera-perspective
   "Scene 3D Camera"
-  [{:command :scene.camera.drag-select
-    :action "Drag Select"
-    :binding {:button :primary :modifiers []}}
-   {:command :scene.camera.free-look
+  [{:command :scene.camera.free-look
     :action "Free Look"
     :binding {:button :secondary :modifiers []}
     :sub-commands [{:command :speed-boost :label "Speed Boost" :modifier :shift}

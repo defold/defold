@@ -146,6 +146,41 @@
   (coll/join-to-string " " (into [context-path action]
                                  (map mouse-binding/binding-display-text bindings))))
 
+(defn- normalize-binding [binding]
+  (update binding :modifiers #(vec (sort %))))
+
+(defn- mouse-binding->cmds
+  "Returns {[context normalized-binding] -> #{command ...}}"
+  [mouse-binding-rows]
+  (reduce
+    (fn [acc {:keys [context command bindings kind]}]
+      (if (= :mouse-binding kind)
+        (reduce (fn [acc b]
+                  (if (:button b)
+                    (update acc [context (normalize-binding b)] (fnil conj #{}) command)
+                    acc))
+                acc
+                bindings)
+        acc))
+    {}
+    mouse-binding-rows))
+
+(defn- mouse-binding-conflicts
+  "Returns {[context normalized-binding] -> #{command ...}} for entries with 2+ commands."
+  [binding->cmds]
+  (coll/into-> binding->cmds {}
+    (filter #(> (count (val %)) 1))))
+
+(defn- add-binding-warnings [conflicts {:keys [context command bindings] :as row}]
+  (if (= :mouse-binding (:kind row))
+    (assoc row :binding-warnings
+           (mapv (fn [b]
+                   (when (:button b)
+                     (when-let [conflicting (seq (disj (get conflicts [context (normalize-binding b)] #{}) command))]
+                       (mapv #(hash-map :type :conflict :command %) conflicting))))
+                 bindings))
+    row))
+
 (defn- keyboard-row [command]
   {:kind :keyboard
    :command command})
@@ -246,11 +281,18 @@
                       :text (mouse-binding/modifier->label (:modifier row))}]
 
                     :mouse-binding
-                    (mapv (fn [binding]
-                            {:fx/type fxui/label
-                             :style-class "keymap-shortcut"
-                             :text (mouse-binding/binding-display-text binding)})
-                          (:bindings row))
+                    (mapv (fn [binding warnings]
+                            (cond-> {:fx/type fxui/label
+                                     :style-class "keymap-shortcut"
+                                     :text (mouse-binding/binding-display-text binding)}
+                              warnings
+                              (assoc :pseudo-classes #{:warning}
+                                     :tooltip (->> warnings
+                                                   warnings-messages
+                                                   (e/map localization-state)
+                                                   (coll/join-to-string "\n")))))
+                          (:bindings row)
+                          (concat (:binding-warnings row) (repeat nil)))
 
                     (let [shortcuts (keymap/shortcuts keymap command)]
                       (->> shortcuts
@@ -412,88 +454,102 @@
               :key :draft-binding
               :swap-key :swap-draft-binding}]}
   [{:keys [row binding-index binding current-override current-override-list
-           draft-binding swap-draft-binding
+           draft-binding swap-draft-binding binding->cmds localization-state
            swap-state update-mouse-bindings]}]
   (let [draft-binding (merge {:modifiers []} binding draft-binding)
         selected-modifiers (set (:modifiers draft-binding))
-        {:keys [context command]} row]
+        {:keys [context command]} row
+        warnings (when (:button draft-binding)
+                   ;; (println (normalize-binding draft-binding))
+                   ;; (println (get binding->cmds [context (normalize-binding draft-binding)]))
+                   (seq (disj (get binding->cmds [context (normalize-binding draft-binding)] #{}) command)))]
     {:fx/type fxui/vertical
      :padding :medium
      :spacing :medium
      :children
-     [{:fx/type fxui/label
-       :alignment :center
-       :text (row-display-label row)}
-      {:fx/type fxui/vertical
-       :spacing :small
-       :children
-       [{:fx/type fxui/label
-         :text "Mouse Button"}
-        {:fx/type fx/ext-let-refs
-         :fx/key ::mouse-button-toggle-group
-         :refs {::mouse-button-toggle-group {:fx/type fx.toggle-group/lifecycle}}
-         :desc
-         {:fx/type fxui/horizontal
-          :spacing :small
-          :children (mapv (fn [button]
-                            {:fx/type fx.radio-button/lifecycle
-                             :fx/key button
-                             :toggle-group {:fx/type fx/ext-get-ref
-                                            :ref ::mouse-button-toggle-group}
-                             :style-class ["radio-button" "ext-radio-button"]
-                             :text (mouse-binding/button->label button)
-                             :selected (= button (:button draft-binding))
-                             :on-selected-changed (fn [selected]
-                                                    (when selected
-                                                      (swap-draft-binding assoc :button button)))})
-                          mouse-binding/buttons)}}]}
-      {:fx/type fxui/vertical
-       :spacing :small
-       :children
-       [{:fx/type fxui/label
-         :text "Modifiers"}
-        {:fx/type fxui/horizontal
-         :spacing :small
-         :children (mapv (fn [modifier]
-                           {:fx/type fxui/check-box
-                            :text (mouse-binding/modifier->label modifier)
-                            :selected (contains? selected-modifiers modifier)
-                            :on-selected-changed #(swap-draft-binding set-mouse-binding-modifier modifier %)})
-                         mouse-binding/modifiers)}]}
-      {:fx/type fxui/label
-       :alignment :center
-       :style-class "keymap-mouse-binding-preview"
-       :text (mouse-binding/binding-display-text draft-binding)}
-      {:fx/type fxui/horizontal
-       :alignment :center-right
-       :spacing :small
-       :children
-       [{:fx/type fxui/button
-         :text "Cancel"
-         :on-action (fn [_] (swap-state dissoc :mouse-binding-popup))}
-        {:fx/type fxui/button
-         :text "Apply"
-         :on-action (fn [_]
-                      (let [key (mouse-binding-key row)
-                            registered (mapv :binding (mouse-binding/registered-command-bindings context command))
-                            current (vec (or current-override-list registered))
-                            new-bindings (if (nil? binding-index)
-                                           (if (:button draft-binding)
-                                             (conj current draft-binding)
-                                             current)
-                                           (if (:button draft-binding)
-                                             (assoc current binding-index draft-binding)
-                                             (into [] (keep-indexed #(when (not= %1 binding-index) %2)) current)))]
-                        (update-mouse-bindings
-                          (fn [current-map]
-                            (let [override (or current-override {})
-                                  new-override (cond-> override
-                                                 (= new-bindings registered) (dissoc :bindings)
-                                                 (not= new-bindings registered) (assoc :bindings new-bindings))]
-                              (if (and (nil? (:bindings new-override)) (empty? (:sub-commands new-override)))
-                                (util/dissoc-in current-map key)
-                                (assoc-in current-map key new-override))))))
-                      (swap-state dissoc :mouse-binding-popup))}]}]}))
+     (-> [{:fx/type fxui/label
+           :alignment :center
+           :text (row-display-label row)}
+          {:fx/type fxui/vertical
+           :spacing :small
+           :children
+           [{:fx/type fxui/label
+             :text "Mouse Button"}
+            {:fx/type fx/ext-let-refs
+             :fx/key ::mouse-button-toggle-group
+             :refs {::mouse-button-toggle-group {:fx/type fx.toggle-group/lifecycle}}
+             :desc
+             {:fx/type fxui/horizontal
+              :spacing :small
+              :children (mapv (fn [button]
+                                {:fx/type fx.radio-button/lifecycle
+                                 :fx/key button
+                                 :toggle-group {:fx/type fx/ext-get-ref
+                                                :ref ::mouse-button-toggle-group}
+                                 :style-class ["radio-button" "ext-radio-button"]
+                                 :text (mouse-binding/button->label button)
+                                 :selected (= button (:button draft-binding))
+                                 :on-selected-changed (fn [selected]
+                                                        (when selected
+                                                          (swap-draft-binding assoc :button button)))})
+                              mouse-binding/buttons)}}]}
+          {:fx/type fxui/vertical
+           :spacing :small
+           :children
+           [{:fx/type fxui/label
+             :text "Modifiers"}
+            {:fx/type fxui/horizontal
+             :spacing :small
+             :children (mapv (fn [modifier]
+                               {:fx/type fxui/check-box
+                                :text (mouse-binding/modifier->label modifier)
+                                :selected (contains? selected-modifiers modifier)
+                                :on-selected-changed #(swap-draft-binding set-mouse-binding-modifier modifier %)})
+                             mouse-binding/modifiers)}]}
+          {:fx/type fxui/label
+           :alignment :center
+           :style-class "keymap-mouse-binding-preview"
+           :text (mouse-binding/binding-display-text draft-binding)}]
+         (cond-> warnings
+           (conj {:fx/type fxui/paragraph
+                  :text (localization-state
+                          (localization/message
+                            "prefs.keymap.warnings"
+                            {"warnings" (->> warnings
+                                             (map #(hash-map :type :conflict :command %))
+                                             warnings-messages
+                                             (e/map #(localization-state (localization/message "prefs.keymap.warning" {"warning" %})))
+                                             (coll/join-to-string ""))}))}))
+         (conj {:fx/type fxui/horizontal
+                :alignment :center-right
+                :spacing :small
+                :children
+                [{:fx/type fxui/button
+                  :text "Cancel"
+                  :on-action (fn [_] (swap-state dissoc :mouse-binding-popup))}
+                 {:fx/type fxui/button
+                  :text "Apply"
+                  :on-action (fn [_]
+                               (let [key (mouse-binding-key row)
+                                     registered (mapv :binding (mouse-binding/registered-command-bindings context command))
+                                     current (vec (or current-override-list registered))
+                                     new-bindings (if (nil? binding-index)
+                                                    (if (:button draft-binding)
+                                                      (conj current draft-binding)
+                                                      current)
+                                                    (if (:button draft-binding)
+                                                      (assoc current binding-index draft-binding)
+                                                      (into [] (keep-indexed #(when (not= %1 binding-index) %2)) current)))]
+                                 (update-mouse-bindings
+                                   (fn [current-map]
+                                     (let [override (or current-override {})
+                                           new-override (cond-> override
+                                                          (= new-bindings registered) (dissoc :bindings)
+                                                          (not= new-bindings registered) (assoc :bindings new-bindings))]
+                                       (if (and (nil? (:bindings new-override)) (empty? (:sub-commands new-override)))
+                                         (util/dissoc-in current-map key)
+                                         (assoc-in current-map key new-override))))))
+                               (swap-state dissoc :mouse-binding-popup))}]}))}))
 
 (fxui/defc mouse-sub-binding-modifier-view
   {:compose [{:fx/type fx/ext-state
@@ -697,6 +753,9 @@
                                                (into [row] (map #(mouse-sub-binding-row mb % mouse-bindings)) sub-cmds)
                                                [row]))))
                                  (mouse-binding/all-bindings))
+        binding->cmds (mouse-binding->cmds mouse-binding-rows)
+        conflicts (mouse-binding-conflicts binding->cmds)
+        mouse-binding-rows (mapv (partial add-binding-warnings conflicts) mouse-binding-rows)
         rows (concat keyboard-rows mouse-binding-rows)
         rows (if (= filter-text "")
                rows
@@ -756,6 +815,8 @@
                          :binding binding
                          :current-override (get-in mouse-bindings (mouse-binding-key row))
                          :current-override-list (:bindings (get-in mouse-bindings (mouse-binding-key row)))
+                         :binding->cmds binding->cmds
+                         :localization-state localization-state
                          :swap-state swap-state
                          :update-mouse-bindings update-mouse-bindings}]}]})
 
