@@ -2,18 +2,24 @@
 
 .radio-button {
     &:hover {
-        .radio {
-            -fx-background-color: -df-background;
-            -fx-border-color: -df-text-dark;
-        }
+        -fx-text-fill: -df-text-selected;
+    }
+    &:focused:selected {
+        -fx-text-fill: -df-text-selected;
     }
     &:selected {
+        .radio {
+            -fx-border-color: transparent transparent -df-defold-orange transparent;
+        }
         .dot {
-            -fx-background-color: -df-text-dark;
+            -fx-background-color: -df-text;
         }
         &:hover {
+            .radio {
+                -fx-border-color: transparent transparent -df-defold-orange transparent;
+            }
             .dot {
-                -fx-background-color: -df-text;
+                -fx-background-color: -df-text-selected;
             }
         }
     }
@@ -23,7 +29,7 @@
         -fx-border-radius: 50%;
         -fx-background-image: string.unquote("null");
         -fx-background-color: -df-background;
-        -fx-border-width: 1;
+        -fx-border-width: 2;
         -fx-border-color: -df-background-lighter;
     }
 
