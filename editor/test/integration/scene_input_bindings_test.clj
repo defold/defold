@@ -17,11 +17,13 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.camera :as camera]
+            [editor.curve-view :as curve-view]
             [editor.input :as input]
             [editor.mouse-binding :as mouse-binding]
             [editor.scene :as scene]
             [editor.tile-map :as tile-map]
             [editor.tile-map-common :as tile-map-common]
+            [editor.types :as types]
             [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d]))
 
@@ -274,6 +276,138 @@
                              (action :mouse-pressed 64.0 64.0 :primary [:shift])
                              (action :drag-detected 64.0 64.0 :primary [:shift])])]
           (is (= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
+          (let [input-state (dispatch-action! view input-state (action :mouse-moved 80.0 64.0 :primary [:shift]))
+                input-state (update-tick! view input-state 2)]
+            (dispatch-action! view input-state (action :mouse-released 80.0 64.0 :primary [:shift]))))
+        (is (not= initial-camera (g/node-value view :camera)))))))
+
+(deftest persisted-camera-override-runs-camera-action
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/set-overrides!
+        {::camera/scene-camera-orthographic
+         {:scene.camera.pan
+          {:bindings [{:button :primary :modifiers [:shift]}]}}})
+      (let [[_collection-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
+            camera-controller (camera-controller view)
+            initial-camera (g/node-value view :camera)]
+        (is camera-controller)
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :primary [:shift])
+                             (action :mouse-pressed 64.0 64.0 :primary [:shift])
+                             (action :drag-detected 64.0 64.0 :primary [:shift])])]
+          (is (= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
+          (let [input-state (dispatch-action! view input-state (action :mouse-moved 80.0 64.0 :primary [:shift]))
+                input-state (update-tick! view input-state 2)]
+            (dispatch-action! view input-state (action :mouse-released 80.0 64.0 :primary [:shift]))))
+        (is (not= initial-camera (g/node-value view :camera)))))))
+
+(deftest persisted-tile-map-override-runs-tile-map-action
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/set-overrides!
+        {::tile-map/tile-map-editor
+         {:scene.tile-map.erase
+          {:bindings [{:button :middle :modifiers []}]}}})
+      (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
+            layer-node (layer-node tile-map-node)
+            tile [-2 -2]
+            screen-pos (tile-screen-center-pos view tile-map-node tile)]
+        (app-view/select! app-view [layer-node])
+        (refresh-selection! view)
+        (is (cell-at layer-node tile))
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved (first screen-pos) (second screen-pos) :middle [])
+                             (action :mouse-pressed (first screen-pos) (second screen-pos) :middle [])])]
+          (is (= :select (g/node-value (tile-map-controller view) :op)))
+          (dispatch-action! view input-state (action :mouse-released (first screen-pos) (second screen-pos) :middle [])))
+        (is (nil? (cell-at layer-node tile)))))))
+
+(deftest persisted-camera-override-works-in-tile-map-view
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/set-overrides!
+        {::camera/scene-camera-orthographic
+         {:scene.camera.pan
+          {:bindings [{:button :middle :modifiers [:control]}]}}})
+      (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
+            layer-node (layer-node tile-map-node)
+            camera-controller (camera-controller view)
+            initial-camera (g/node-value view :camera)]
+        (app-view/select! app-view [layer-node])
+        (refresh-selection! view)
+        (is camera-controller)
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :middle [:control])
+                             (action :mouse-pressed 64.0 64.0 :middle [:control])
+                             (action :drag-detected 64.0 64.0 :middle [:control])])]
+          (is (= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
+          (let [input-state (dispatch-action! view input-state (action :mouse-moved 80.0 64.0 :middle [:control]))
+                input-state (update-tick! view input-state 2)]
+            (dispatch-action! view input-state (action :mouse-released 80.0 64.0 :middle [:control]))))
+        (is (not= initial-camera (g/node-value view :camera)))))))
+
+(deftest persisted-camera-override-appended-binding-runs-camera-action
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/set-overrides!
+        {::camera/scene-camera-orthographic
+         {:scene.camera.pan
+          {:bindings [{:button :primary :modifiers [:shift]}
+                      {:button :middle :modifiers [:control]}]}}})
+      (let [[_collection-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
+            camera-controller (camera-controller view)
+            initial-camera (g/node-value view :camera)]
+        (is camera-controller)
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :middle [:control])
+                             (action :mouse-pressed 64.0 64.0 :middle [:control])
+                             (action :drag-detected 64.0 64.0 :middle [:control])])]
+          (is (= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
+          (let [input-state (dispatch-action! view input-state (action :mouse-moved 80.0 64.0 :middle [:control]))
+                input-state (update-tick! view input-state 2)]
+            (dispatch-action! view input-state (action :mouse-released 80.0 64.0 :middle [:control]))))
+        (is (not= initial-camera (g/node-value view :camera)))))))
+
+(deftest fallback-context-registered-with-context-meta
+  (with-mouse-bindings
+    (mouse-binding/register! ::camera/scene-camera-orthographic "Scene 2D Camera"
+                             [{:command :scene.camera.pan :action "Pan"
+                               :binding {:button :primary :modifiers [:shift]}}])
+    (mouse-binding/register! ::tile-map/tile-map-editor "Tile Map Editor"
+                             [{:command :scene.camera.pan :action "Pan"}]
+                             {:fallback-context ::camera/scene-camera-orthographic})
+    (is (= ::camera/scene-camera-orthographic
+           (mouse-binding/fallback-context ::tile-map/tile-map-editor)))
+    (is (nil? (mouse-binding/fallback-context ::camera/scene-camera-orthographic)))))
+
+(deftest persisted-camera-override-works-in-curve-view
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/set-overrides!
+        {::camera/scene-camera-orthographic
+         {:scene.camera.pan
+          {:bindings [{:button :primary :modifiers [:shift]}]}}})
+      (let [view (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
+                   (g/set-property! :viewport (types/->Region 0 128 0 128)))
+            camera-ctrl (camera-controller view)
+            initial-camera (g/node-value view :camera)]
+        (is camera-ctrl)
+        (let [input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :primary [:shift])
+                             (action :mouse-pressed 64.0 64.0 :primary [:shift])
+                             (action :drag-detected 64.0 64.0 :primary [:shift])])]
+          (is (= :track (:movement (g/user-data camera-ctrl :editor.camera/camera-state))))
           (let [input-state (dispatch-action! view input-state (action :mouse-moved 80.0 64.0 :primary [:shift]))
                 input-state (update-tick! view input-state 2)]
             (dispatch-action! view input-state (action :mouse-released 80.0 64.0 :primary [:shift]))))
