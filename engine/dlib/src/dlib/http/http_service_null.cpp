@@ -16,6 +16,7 @@
 #include <dlib/message.h>
 #include <dmsdk/dlib/http.h>
 
+#include "http_internal.h"
 #include "http_service.h"
 
 namespace dmHttpService
@@ -40,18 +41,27 @@ namespace dmHttpService
         return HTTP_RESULT_INVAL;
     }
 
-    HttpResult PushRequest(HHttpService http_service, HttpRequest* request)
+    HttpResult PushRequest(HHttpService http_service, HttpRequest* request, HttpRequestHandle* request_handle)
     {
         (void) http_service;
         (void) request;
+        if (request_handle)
+        {
+            *request_handle = HTTP_REQUEST_HANDLE_INVALID;
+        }
         return HTTP_RESULT_INVAL;
     }
 
-    HttpResult CancelRequest(HHttpService http_service, HttpRequest* request)
+    HttpResult CancelRequest(HHttpService http_service, HttpRequestHandle request_handle)
     {
         (void) http_service;
-        (void) request;
+        (void) request_handle;
         return HTTP_RESULT_INVAL;
+    }
+
+    void UnregisterRequest(HttpRequest* request)
+    {
+        (void) request;
     }
 
     void Delete(HHttpService http_service)
@@ -62,14 +72,20 @@ namespace dmHttpService
 
 extern "C"
 {
-    HttpResult HttpNewServiceInternal(uint32_t max_concurrent_requests, HttpService** service)
+    HttpResult HttpNewServiceWithCacheInternal(uint32_t max_concurrent_requests, void* http_cache, HttpService** service)
     {
         (void) max_concurrent_requests;
+        (void) http_cache;
         if (service)
         {
             *service = 0;
         }
         return HTTP_RESULT_INVAL;
+    }
+
+    HttpResult HttpNewServiceInternal(uint32_t max_concurrent_requests, HttpService** service)
+    {
+        return HttpNewServiceWithCacheInternal(max_concurrent_requests, 0, service);
     }
 
     void HttpDeleteServiceInternal(HttpService* service)

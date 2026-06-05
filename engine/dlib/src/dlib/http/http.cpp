@@ -19,63 +19,13 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
-#include <dlib/message.h>
 
-#include "http_internal.h"
 #include "http_private.h"
 #include "http_service.h"
-
-static const uint32_t    REQUEST_HANDLE_INDEX_MASK = 0xffff;
-static const uint32_t    REQUEST_HANDLE_GENERATION_SHIFT = 16;
-static const uint32_t    REQUEST_HANDLE_MAX_SLOT_COUNT = 0xffff;
 
 static HttpRequestHandle InvalidRequestHandle()
 {
     return HTTP_REQUEST_HANDLE_INVALID;
-}
-
-static HttpRequestHandle MakeRequestHandle(uint32_t index, uint16_t generation)
-{
-    return (HttpRequestHandle)(((uint32_t)generation << REQUEST_HANDLE_GENERATION_SHIFT) | (index + 1));
-}
-
-static bool DecodeRequestHandle(HttpRequestHandle handle, uint32_t* index, uint16_t* generation)
-{
-    if (handle == HTTP_REQUEST_HANDLE_INVALID)
-    {
-        return false;
-    }
-
-    uint32_t decoded_index = handle & REQUEST_HANDLE_INDEX_MASK;
-    uint16_t decoded_generation = (uint16_t)(handle >> REQUEST_HANDLE_GENERATION_SHIFT);
-    if (decoded_index == 0 || decoded_generation == 0)
-    {
-        return false;
-    }
-
-    *index = decoded_index - 1;
-    *generation = decoded_generation;
-    return true;
-}
-
-static uint16_t NextRequestGeneration(HttpService* service)
-{
-    uint16_t generation = service->m_NextRequestGeneration++;
-    if (service->m_NextRequestGeneration == 0)
-    {
-        service->m_NextRequestGeneration = 1;
-    }
-    return generation;
-}
-
-HttpService::HttpService()
-{
-    m_Service = 0;
-    m_RequestMutex = dmMutex::New();
-    m_RequestSlots = 0;
-    m_RequestSlotCount = 0;
-    m_RequestSlotCapacity = 0;
-    m_NextRequestGeneration = 1;
 }
 
 HttpRequest::HttpRequest()
@@ -103,11 +53,6 @@ HttpRequest::HttpRequest()
     m_RangeEnd = 0;
     m_DocumentSize = 0;
     m_State = HTTP_REQUEST_STATE_CREATED;
-}
-
-static dmHttpService::HHttpService ToHttpService(HttpService* service)
-{
-    return service ? service->m_Service : 0;
 }
 
 static bool EnsureHeaderCapacity(HttpRequest* request)
@@ -145,7 +90,7 @@ static void FreeHeaders(HttpRequest* request)
     request->m_HeaderCapacity = 0;
 }
 
-static void DestroyRequest(HttpRequest* request)
+void DestroyRequest(HttpRequest* request)
 {
     if (request)
     {
@@ -159,132 +104,9 @@ static void DestroyRequest(HttpRequest* request)
     }
 }
 
-HttpService::~HttpService()
-{
-    for (uint32_t i = 0; i < m_RequestSlotCount; ++i)
-    {
-        if (m_RequestSlots[i].m_Request)
-        {
-            m_RequestSlots[i].m_Request->m_Owner = 0;
-            m_RequestSlots[i].m_Request->m_Service = 0;
-            m_RequestSlots[i].m_Request->m_Handle = InvalidRequestHandle();
-            DestroyRequest(m_RequestSlots[i].m_Request);
-            m_RequestSlots[i].m_Request = 0;
-        }
-    }
-
-    free(m_RequestSlots);
-    m_RequestSlots = 0;
-    m_RequestSlotCount = 0;
-    m_RequestSlotCapacity = 0;
-
-    if (m_RequestMutex)
-    {
-        dmMutex::Delete(m_RequestMutex);
-        m_RequestMutex = 0;
-    }
-}
-
 static bool CanModifyRequest(HttpRequest* request)
 {
     return request && request->m_State == HTTP_REQUEST_STATE_CREATED && request->m_Service == 0;
-}
-
-static HttpResult RegisterRequest(HttpService* service, HttpRequest* request, HttpRequestHandle* request_handle)
-{
-    if (!service || !request || !request_handle || !service->m_RequestMutex)
-    {
-        return HTTP_RESULT_INVAL;
-    }
-
-    *request_handle = InvalidRequestHandle();
-
-    dmMutex::Lock(service->m_RequestMutex);
-
-    uint16_t generation = NextRequestGeneration(service);
-
-    uint32_t index = 0;
-    bool     found = false;
-    for (uint32_t i = 0; i < service->m_RequestSlotCount; ++i)
-    {
-        if (service->m_RequestSlots[i].m_Request == 0)
-        {
-            index = i;
-            found = true;
-            break;
-        }
-    }
-
-    if (!found)
-    {
-        index = service->m_RequestSlotCount;
-        if (index >= REQUEST_HANDLE_MAX_SLOT_COUNT)
-        {
-            dmMutex::Unlock(service->m_RequestMutex);
-            return HTTP_RESULT_INVAL;
-        }
-
-        if (service->m_RequestSlotCount == service->m_RequestSlotCapacity)
-        {
-            uint32_t         old_capacity = service->m_RequestSlotCapacity;
-            uint32_t         capacity = old_capacity == 0 ? 8 : old_capacity * 2;
-            HttpRequestSlot* slots = (HttpRequestSlot*)realloc(service->m_RequestSlots, sizeof(HttpRequestSlot) * capacity);
-            if (!slots)
-            {
-                dmMutex::Unlock(service->m_RequestMutex);
-                return HTTP_RESULT_IO_ERROR;
-            }
-
-            service->m_RequestSlots = slots;
-            service->m_RequestSlotCapacity = capacity;
-
-            for (uint32_t i = old_capacity; i < capacity; ++i)
-            {
-                service->m_RequestSlots[i].m_Request = 0;
-                service->m_RequestSlots[i].m_Generation = 0;
-            }
-        }
-
-        service->m_RequestSlotCount++;
-    }
-
-    HttpRequestHandle handle = MakeRequestHandle(index, generation);
-
-    service->m_RequestSlots[index].m_Request = request;
-    service->m_RequestSlots[index].m_Generation = generation;
-    request->m_Owner = service;
-    request->m_Handle = handle;
-    *request_handle = handle;
-
-    dmMutex::Unlock(service->m_RequestMutex);
-    return HTTP_RESULT_OK;
-}
-
-static void UnregisterRequest(HttpRequest* request)
-{
-    HttpService* service = request ? request->m_Owner : 0;
-    if (!service || !service->m_RequestMutex)
-    {
-        return;
-    }
-
-    dmMutex::Lock(service->m_RequestMutex);
-
-    uint32_t index;
-    uint16_t generation;
-    if (DecodeRequestHandle(request->m_Handle, &index, &generation) && index < service->m_RequestSlotCount)
-    {
-        HttpRequestSlot* slot = &service->m_RequestSlots[index];
-        if (slot->m_Request == request && slot->m_Generation == generation)
-        {
-            slot->m_Request = 0;
-        }
-    }
-
-    request->m_Owner = 0;
-    request->m_Handle = InvalidRequestHandle();
-
-    dmMutex::Unlock(service->m_RequestMutex);
 }
 
 static HttpResult SetString(char** field, const char* value)
@@ -596,56 +418,6 @@ extern "C"
         return response ? response->m_BytesTotal : -1;
     }
 
-    HttpResult HttpNewServiceWithCacheInternal(uint32_t max_concurrent_requests, void* http_cache, HttpService** service)
-    {
-        if (!service)
-        {
-            return HTTP_RESULT_INVAL;
-        }
-
-        *service = 0;
-
-        dmHttpService::Params service_params;
-        service_params.m_ThreadCount = max_concurrent_requests == 0 ? 1 : max_concurrent_requests;
-        if (service_params.m_ThreadCount > 15)
-        {
-            service_params.m_ThreadCount = 15;
-        }
-        service_params.m_HttpCache = (dmHttpCache::HCache)http_cache;
-
-        dmHttpService::HHttpService http_service = dmHttpService::New(&service_params);
-        if (!http_service)
-        {
-            return HTTP_RESULT_IO_ERROR;
-        }
-
-        HttpService* public_service = new HttpService();
-        if (!public_service || !public_service->m_RequestMutex)
-        {
-            dmHttpService::Delete(http_service);
-            delete public_service;
-            return HTTP_RESULT_IO_ERROR;
-        }
-
-        public_service->m_Service = http_service;
-        *service = public_service;
-        return HTTP_RESULT_OK;
-    }
-
-    HttpResult HttpNewServiceInternal(uint32_t max_concurrent_requests, HttpService** service)
-    {
-        return HttpNewServiceWithCacheInternal(max_concurrent_requests, 0, service);
-    }
-
-    void HttpDeleteServiceInternal(HttpService* service)
-    {
-        if (service)
-        {
-            dmHttpService::Delete(ToHttpService(service));
-            delete service;
-        }
-    }
-
     HttpResult HttpNewRequest(HttpRequest** request)
     {
         if (!request)
@@ -864,57 +636,27 @@ extern "C"
 
     HttpResult HttpPushRequest(HttpService* service, HttpRequest* request, HttpRequestHandle* request_handle)
     {
-        dmHttpService::HHttpService http_service = ToHttpService(service);
         if (request_handle)
         {
             *request_handle = InvalidRequestHandle();
         }
 
-        if (!http_service || !request || !request_handle || !request->m_URL || request->m_State != HTTP_REQUEST_STATE_CREATED || request->m_Service != 0)
+        if (!service || !request || !request_handle || !request->m_URL || request->m_State != HTTP_REQUEST_STATE_CREATED || request->m_Service != 0)
         {
             return HTTP_RESULT_INVAL;
         }
 
-        HttpResult result = RegisterRequest(service, request, request_handle);
-        if (result != HTTP_RESULT_OK)
-        {
-            return result;
-        }
-
-        result = dmHttpService::PushRequest(http_service, request);
-        if (result != HTTP_RESULT_OK)
-        {
-            UnregisterRequest(request);
-            *request_handle = InvalidRequestHandle();
-        }
-
-        return result;
+        return dmHttpService::PushRequest(service, request, request_handle);
     }
 
     HttpResult HttpCancelRequest(HttpService* service, HttpRequestHandle request_handle)
     {
-        dmHttpService::HHttpService http_service = ToHttpService(service);
-        uint32_t                    index;
-        uint16_t                    generation;
-        if (!http_service || !DecodeRequestHandle(request_handle, &index, &generation) || !service->m_RequestMutex)
+        if (!service)
         {
             return HTTP_RESULT_INVAL;
         }
 
-        dmMutex::Lock(service->m_RequestMutex);
-
-        HttpResult result = HTTP_RESULT_INVAL;
-        if (index < service->m_RequestSlotCount)
-        {
-            HttpRequestSlot* slot = &service->m_RequestSlots[index];
-            if (slot->m_Request && slot->m_Generation == generation)
-            {
-                result = dmHttpService::CancelRequest(http_service, slot->m_Request);
-            }
-        }
-
-        dmMutex::Unlock(service->m_RequestMutex);
-        return result;
+        return dmHttpService::CancelRequest(service, request_handle);
     }
 
 } // extern "C"

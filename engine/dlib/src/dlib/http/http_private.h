@@ -23,33 +23,13 @@
 
 namespace dmHttpService
 {
-    struct HttpService;
-    typedef HttpService* HHttpService;
+    typedef ::HttpService* HHttpService;
 } // namespace dmHttpService
 
 enum HttpRequestState
 {
     HTTP_REQUEST_STATE_CREATED,
     HTTP_REQUEST_STATE_QUEUED,
-};
-
-struct HttpRequestSlot
-{
-    HttpRequest* m_Request;
-    uint16_t     m_Generation;
-};
-
-struct HttpService
-{
-    HttpService();
-    ~HttpService();
-
-    dmHttpService::HHttpService m_Service;
-    dmMutex::HMutex             m_RequestMutex;
-    HttpRequestSlot*            m_RequestSlots;
-    uint32_t                    m_RequestSlotCount;
-    uint32_t                    m_RequestSlotCapacity;
-    uint16_t                    m_NextRequestGeneration;
 };
 
 struct HttpResponseInfo
@@ -99,6 +79,8 @@ struct HttpRequest
     uint32_t                    m_DocumentSize;
     HttpRequestState            m_State;
 };
+
+void DestroyRequest(HttpRequest* request);
 
 namespace dmHttpService
 {

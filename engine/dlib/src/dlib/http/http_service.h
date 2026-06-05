@@ -19,17 +19,12 @@
 #include <dlib/http/http_cache.h>
 #include <dlib/http/http_client.h>
 #include <dlib/message.h>
-
-namespace dmHttpService
-{
-    struct HttpService;
-    typedef HttpService* HHttpService;
-}
-
 #include <dmsdk/dlib/http.h>
 
 namespace dmHttpService
 {
+    typedef ::HttpService* HHttpService;
+
     struct Request;
 
     struct Response
@@ -114,8 +109,9 @@ namespace dmHttpService
     HHttpService New(const Params* params);
     dmMessage::HSocket GetSocket(HHttpService http_service);
     HttpResult PushRequest(HHttpService http_service, Request* request);
-    HttpResult PushRequest(HHttpService http_service, HttpRequest* request);
-    HttpResult CancelRequest(HHttpService http_service, HttpRequest* request);
+    HttpResult PushRequest(HHttpService http_service, HttpRequest* request, HttpRequestHandle* request_handle);
+    HttpResult CancelRequest(HHttpService http_service, HttpRequestHandle request_handle);
+    void UnregisterRequest(HttpRequest* request);
     void Delete(HHttpService http_service);
 
 }  // namespace dmHttpService
