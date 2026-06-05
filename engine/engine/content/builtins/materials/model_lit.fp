@@ -1,4 +1,5 @@
 #version 140
+#extension GL_EXT_control_flow_attributes : require
 
 in highp vec4 var_position;
 in mediump vec3 var_normal;
@@ -19,26 +20,15 @@ uniform fs_uniforms
 
 vec3 evaluate_lighting(vec3 normal, vec3 view_position)
 {
-    int  count = int(light_info.w);
+    int  light_count = int(light_info.w);
     vec3 total = light_info.xyz;
 
-    // Unrolled so each index is a compile-time constant.
-    if (0 < count)
-        total += calculate_light(0, normal, view_position);
-    if (1 < count)
-        total += calculate_light(1, normal, view_position);
-    if (2 < count)
-        total += calculate_light(2, normal, view_position);
-    if (3 < count)
-        total += calculate_light(3, normal, view_position);
-    if (4 < count)
-        total += calculate_light(4, normal, view_position);
-    if (5 < count)
-        total += calculate_light(5, normal, view_position);
-    if (6 < count)
-        total += calculate_light(6, normal, view_position);
-    if (7 < count)
-        total += calculate_light(7, normal, view_position);
+    [[unroll]]
+    for (int i = 0; i < MAX_LIGHTS; ++i)
+    {
+        if (i < light_count)
+            total += calculate_light(i, normal, view_position);
+    }
 
     return total;
 }
