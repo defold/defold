@@ -26,6 +26,7 @@
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/http_ddf.h>
 #include <dlib/http/http_cache.h>
 #include <dlib/http/http_internal.h>
 #include <dlib/log.h>
@@ -33,7 +34,6 @@
 #include <dlib/uri.h>
 
 #include <script/script.h>
-#include <script/http_ddf.h>
 
 #include <extension/extension.hpp>
 

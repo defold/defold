@@ -255,7 +255,7 @@ extern "C"
      * the number of bytes in the header line.
      * @name HttpResponseGetHeader
      * @param response [type:const HttpResponseInfo*] Response data.
-     * @return header [type:const char*] Header line, including name and value.
+     * @return header [type:const char*] Raw header line in "Name:Value" form.
      */
     const char* HttpResponseGetHeader(const HttpResponseInfo* response);
 
@@ -263,7 +263,8 @@ extern "C"
      * Valid for HTTP_RESPONSE_EVENT_HEADER.
      * @name HttpResponseGetHeaderSize
      * @param response [type:const HttpResponseInfo*] Response data.
-     * @return size [type:uint32_t] Number of bytes returned by HttpResponseGetHeader(), excluding any null terminator.
+     * @return size [type:uint32_t] Number of bytes returned by
+     * HttpResponseGetHeader(), excluding any null terminator.
      */
     uint32_t HttpResponseGetHeaderSize(const HttpResponseInfo* response);
 

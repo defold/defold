@@ -251,6 +251,8 @@ def build(bld):
     dmbedtls_noasan.source = [x for x in dmbedtls.source]
     dmbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
+    bld.install_files('${PREFIX}/share/proto/dlib', '../proto/dlib/http_ddf.proto')
+
     libzip_dirs = ['zip/**/*.c']
 
     libzip = bld.stlib(features    = 'c cxx',
