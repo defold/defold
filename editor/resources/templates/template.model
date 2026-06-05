@@ -1,3 +1,6 @@
 mesh: ""
-material: ""
 name: "{{NAME}}"
+materials {
+  name: "default"
+  material: "/builtins/materials/model_lit.material"
+}
