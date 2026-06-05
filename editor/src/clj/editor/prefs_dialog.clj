@@ -460,9 +460,15 @@
         selected-modifiers (set (:modifiers draft-binding))
         {:keys [context command]} row
         warnings (when (:button draft-binding)
-                   ;; (println (normalize-binding draft-binding))
-                   ;; (println (get binding->cmds [context (normalize-binding draft-binding)]))
-                   (seq (disj (get binding->cmds [context (normalize-binding draft-binding)] #{}) command)))]
+                   (seq (disj (get binding->cmds [context (normalize-binding draft-binding)] #{}) command)))
+        duplicate? (when (:button draft-binding)
+                     (let [normalized (normalize-binding draft-binding)
+                           registered (mapv :binding (mouse-binding/registered-command-bindings context command))
+                           existing (mapv normalize-binding (or current-override-list registered))]
+                       (some #(= normalized %)
+                             (if binding-index
+                               (keep-indexed #(when (not= %1 binding-index) %2) existing)
+                               existing))))]
     {:fx/type fxui/vertical
      :padding :medium
      :spacing :medium
@@ -520,6 +526,9 @@
                                              warnings-messages
                                              (e/map #(localization-state (localization/message "prefs.keymap.warning" {"warning" %})))
                                              (coll/join-to-string ""))}))}))
+         (cond-> duplicate?
+           (conj {:fx/type fxui/paragraph
+                  :text (localization-state (localization/message "prefs.keymap.warning.duplicate"))}))
          (conj {:fx/type fxui/horizontal
                 :alignment :center-right
                 :spacing :small
@@ -535,7 +544,10 @@
                                      current (vec (or current-override-list registered))
                                      new-bindings (if (nil? binding-index)
                                                     (if (:button draft-binding)
-                                                      (conj current draft-binding)
+                                                      (let [normalized (normalize-binding draft-binding)]
+                                                        (if (some #(= normalized (normalize-binding %)) current)
+                                                          current
+                                                          (conj current draft-binding)))
                                                       current)
                                                     (if (:button draft-binding)
                                                       (assoc current binding-index draft-binding)

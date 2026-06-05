@@ -706,6 +706,7 @@ prefs.keymap.warnings = Warnings:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)
 prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
+prefs.keymap.warning.duplicate = Binding already exists, will be ignored
 
 # Progress
 
