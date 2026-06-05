@@ -28,9 +28,13 @@
    :secondary "Right"})
 
 (def modifier->label
-  {:shift "Shift"
-   :alt (if (os/is-mac-os?) "Opt" "Alt")
-   :control "Ctrl"})
+  (if (os/is-mac-os?)
+    {:shift "⇧"
+     :alt "⌥"
+     :control "⌃"}
+    {:shift "Shift"
+     :alt "Alt"
+     :control "Ctrl"}))
 
 (defonce bindings-atom
   (atom {;; contexts: {context {command [mouse-binding]}}
