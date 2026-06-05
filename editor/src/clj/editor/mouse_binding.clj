@@ -36,6 +36,7 @@
   (atom {;; contexts: {context {command [mouse-binding]}}
          :contexts {}
          ;; overrides: {[context command] {:bindings [binding ...] :sub-commands {sub-cmd modifier}}}
+         ;; (flattened from prefs storage {context {command ...}})
          :overrides {}}))
 
 (defn- add-bindings [state context context-path bindings]
@@ -57,7 +58,12 @@
   nil)
 
 (defn set-overrides! [overrides]
-  (swap! bindings-atom assoc :overrides (or overrides {}))
+  (swap! bindings-atom assoc :overrides
+         (reduce-kv (fn [acc ctx cmds]
+                      (reduce-kv (fn [acc cmd val]
+                                   (assoc acc [ctx cmd] val))
+                                 acc cmds))
+                    {} (or overrides {})))
   nil)
 
 (defn- effective-command-bindings [state context command registered-bindings]

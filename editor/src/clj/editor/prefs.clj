@@ -189,21 +189,21 @@
                                           ;; built-in shortcuts to remove from keymap
                                           :remove {:type :set :item {:type :string}}}}}
               :mouse-bindings {:type :object-of
-                               :key {:type :tuple
-                                     :items [{:type :keyword} ;; context
-                                             {:type :keyword}]} ;; command
-                               :val {:type :object
-                                     :properties {:bindings {:type :array
-                                                             :item {:type :object
-                                                                    :properties {:button {:type :enum
-                                                                                          :values [:primary :middle :secondary]}
-                                                                                 :modifiers {:type :array
-                                                                                             :item {:type :enum
-                                                                                                    :values [:shift :alt :control]}}}}}
-                                                  :sub-commands {:type :object-of
-                                                                 :key {:type :keyword}
-                                                                 :val {:type :enum
-                                                                       :values [:shift :alt :control]}}}}}}}
+                               :key {:type :keyword} ;; context
+                               :val {:type :object-of
+                                     :key {:type :keyword} ;; command
+                                     :val {:type :object
+                                           :properties {:bindings {:type :array
+                                                                    :item {:type :object
+                                                                           :properties {:button {:type :enum
+                                                                                                 :values [:primary :middle :secondary]}
+                                                                                        :modifiers {:type :array
+                                                                                                    :item {:type :enum
+                                                                                                           :values [:shift :alt :control]}}}}}
+                                                        :sub-commands {:type :object-of
+                                                                       :key {:type :keyword}
+                                                                       :val {:type :enum
+                                                                             :values [:shift :alt :control]}}}}}}}}
     :workflow {:type :object
                :properties
                {:load-external-changes-on-app-focus {:type :boolean
