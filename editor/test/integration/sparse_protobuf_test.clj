@@ -212,7 +212,12 @@
                                   :type "factory"
                                   :data embedded-component-data}]})]
 
-    {"atlas"
+    {"ambient_light"
+     {:data {:struct {:fields
+                      {"intensity" {:number 1.0}
+                       "color" light-color}}}}
+
+     "atlas"
      {:images {:image image-proj-path}
       :animations {:id "animation_id"
                    :images {:image image-proj-path}}}

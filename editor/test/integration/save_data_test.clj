@@ -508,7 +508,8 @@
    ;; Light component data uses dmStructDDF.Value for struct fields; in practice only
    ;; struct / number / list variants appear. Other oneof branches are never written.
    'dmStructDDF.Value
-   {[["point_light" "data"]
+   {[["ambient_light" "data"]
+     ["point_light" "data"]
      ["directional_light" "data"]
      ["spot_light" "data"]]
     {"null" :unused
@@ -516,14 +517,16 @@
      "number" :unused
      "string" :unused
      "list" :unused}
-    [["point_light" "data" "struct" "fields" "value"]
+    [["ambient_light" "data" "struct" "fields" "value"]
+     ["point_light" "data" "struct" "fields" "value"]
      ["directional_light" "data" "struct" "fields" "value"]
      ["spot_light" "data" "struct" "fields" "value"]]
     {"null" :unused
      "bool" :unused
      "string" :unused
      "struct" :unused}
-    [["point_light" "data" "struct" "fields" "value" "list" "values"]
+    [["ambient_light" "data" "struct" "fields" "value" "list" "values"]
+     ["point_light" "data" "struct" "fields" "value" "list" "values"]
      ["directional_light" "data" "struct" "fields" "value" "list" "values"]
      ["spot_light" "data" "struct" "fields" "value" "list" "values"]]
     {"null" :unused
@@ -531,7 +534,8 @@
      "string" :unused
      "struct" :unused
      "list" :unused}
-    [["point_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+    [["ambient_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["point_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
      ["directional_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
      ["spot_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]]
     {"null" :unused
