@@ -123,7 +123,7 @@ def apidoc_extract_task(bld, root, paths):
 
         with open(resource_path, encoding='utf8') as in_f:
             source = in_f.read()
-            lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
+            lst = re.findall('/(\*[\*#].*?)\*/', source, re.DOTALL)
             default_namespace = None
             for comment_str in lst:
                 comment = _parse_comment(comment_str)
@@ -238,7 +238,6 @@ def build(bld):
     apidoc_extract_task(bld, "../gamesys/proto/",               ["gamesys"])
     apidoc_extract_task(bld, "../gamesys/src/",                 ["dmsdk"])
     apidoc_extract_task(bld, "../gamesys/src/gamesys/",         ["scripts"])
-    apidoc_extract_task(bld, "../gamesys/src/",                 ["gamesys/box2d"])
     apidoc_extract_task(bld, "../graphics/src/",                ["dmsdk"])
     apidoc_extract_task(bld, "../gui/src/",                     ["gui_script.cpp"])
     apidoc_extract_task(bld, "../gui/src/",                     ["dmsdk"])
