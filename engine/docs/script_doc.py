@@ -422,10 +422,11 @@ LUA_TYPES = [
     "string", "number", "boolean", "table", "userdata", "nil", "function", "thread",
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
     "constant", "resource", "buffer", "any", "file",
-    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "bufferstream" ]
+    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData", "bufferstream" ]
 CPP_TYPES = [
     "string", "float", "double", "long", "int", "bool", "char", "void",
     "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
+    "uintptr_t",
     "size_t",
     "jobject", "JNIEnv",
     "lua_State",
@@ -507,7 +508,7 @@ def validate_cpp_type(t, doc):
 
 def parse_document(doc_str, file=None):
     doc = script_doc_ddf_pb2.Document()
-    lst = re.findall(r'/\*#(.*?)\*/', doc_str, re.DOTALL)
+    lst = re.findall(r'/\*[\*#](.*?)\*/', doc_str, re.DOTALL)
     element_list = []
     doc_info = None
     for comment_str in lst:
