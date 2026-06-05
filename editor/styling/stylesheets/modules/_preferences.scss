@@ -13,7 +13,7 @@
     &-command:overridden > .label { -fx-text-fill: -df-defold-blue-light; }
     &-command-arrow { -fx-opacity: 0.6; }
     &-mouse-binding-badge {
-        -fx-background-color: -df-component-light;
+        -fx-background-color: derive(-df-background-light, 5%);
         -fx-background-radius: 4px;
         -fx-padding: 0px 5px;
         -fx-text-fill: -df-text-selected;

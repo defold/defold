@@ -239,7 +239,7 @@
     :mouse-sub-binding (coll/join-to-string " → " [(:context-path row) (:action row) (:sub-cmd-label row)])
     :keyboard (command-label (:command row))))
 
-(defn- describe-command-cell [keymap row]
+(defn- describe-command-cell [keymap localization-state row]
   (if-let [command (row-command row)]
     (let [kind (:kind row)
           badge? (or (= kind :mouse-binding) (= kind :mouse-sub-binding))
@@ -269,7 +269,11 @@
                                       :style-class (if (= kind :mouse-sub-binding)
                                                      ["keymap-mouse-binding-badge" "keymap-mouse-modifier-badge"]
                                                      "keymap-mouse-binding-badge")
-                                      :text (if (= kind :mouse-sub-binding) "MM" "MB")}]))}})
+                                      :text (if (= kind :mouse-sub-binding) "MM" "MB")
+                                      :tooltip (localization-state (localization/message
+                                                                     (if (= kind :mouse-sub-binding)
+                                                                       "prefs.keymap.badge.mouse-modifier"
+                                                                       "prefs.keymap.badge.mouse-binding")))}]))}})
     {}))
 
 (defn- warnings-messages [warnings]
@@ -909,7 +913,7 @@
                    :text (localization-state (localization/message "prefs.keymap.command"))
                    :cell-value-factory identity
                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                                  :describe (fn/partial #'describe-command-cell keymap)}}
+                                  :describe (fn/partial #'describe-command-cell keymap localization-state)}}
                   {:fx/type fx.table-column/lifecycle
                    :reorderable false
                    :sortable false
