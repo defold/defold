@@ -52,6 +52,29 @@ function(gamesys_collect_raw_inputs out_var)
   set(${out_var} ${_raw_inputs} PARENT_SCOPE)
 endfunction()
 
+function(gamesys_collect_prebuilt_outputs out_commands out_sources source_root output_root)
+  set(_commands)
+  set(_sources)
+  foreach(_source IN LISTS ARGN)
+    get_filename_component(_name "${_source}" NAME)
+    if(NOT _name MATCHES "^.+\\.prebuilt_.+$")
+      continue()
+    endif()
+
+    string(REGEX REPLACE "\\.prebuilt_([^/]*)$" ".\\1" _output_source "${_source}")
+    file(RELATIVE_PATH _output_rel "${source_root}" "${_output_source}")
+    set(_output "${output_root}/${_output_rel}")
+    get_filename_component(_output_dir "${_output}" DIRECTORY)
+    list(APPEND _commands
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_output_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_source}" "${_output}")
+    list(APPEND _sources "${_source}")
+  endforeach()
+
+  set(${out_commands} ${_commands} PARENT_SCOPE)
+  set(${out_sources} ${_sources} PARENT_SCOPE)
+endfunction()
+
 # ---------------------------------------------------------------------------
 # Test content setup
 # Build the runtime test content tree under the platform build root.
@@ -153,6 +176,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
         "${GS_TEST_ROOT}/${_raw_input}"
         "${GS_TEST_RUNTIME_DIR}/${_folder}/${_raw_input}c")
   endforeach()
+  gamesys_collect_prebuilt_outputs(_prebuilt_copy_commands _prebuilt_sources "${GS_TEST_ROOT}" "${GS_TEST_RUNTIME_DIR}/${_folder}" ${_folder_sources})
 
   set(_bob_root "${_GS_BOB_ROOT_BASE}/${_folder}")
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
@@ -176,9 +200,10 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${GS_TEST_RUNTIME_DIR}/${_folder}"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BOB_STAGE_ROOT}/build/${_folder}" "${GS_TEST_RUNTIME_DIR}/${_folder}"
     ${_raw_copy_commands}
+    ${_prebuilt_copy_commands}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
-    DEPENDS "${_GS_BOB_STAGE_STAMP}" "${_GS_BOB_LIGHT}" "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES}
+    DEPENDS "${_GS_BOB_STAGE_STAMP}" "${_GS_BOB_LIGHT}" "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES} ${_prebuilt_sources}
     WORKING_DIRECTORY "${_GS_BOB_STAGE_ROOT}"
     COMMENT "Building gamesys test data folder ${_folder}"
     VERBATIM)
