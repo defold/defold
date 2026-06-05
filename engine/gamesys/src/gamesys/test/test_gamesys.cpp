@@ -8633,17 +8633,17 @@ TEST_F(MaterialTest, TestUniformBuffersLayout)
 
     dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
 
-    dmGraphics::UniformBufferLayout layout;
-    dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types), &layout);
+    dmGraphics::UniformBufferLayout layout = dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types));
+    uint32_t layout_size = dmGraphics::GetUniformBufferTypeSize(0, types, DM_ARRAY_SIZE(types));
 
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
     const dmGraphics::ShaderMeta* program_meta = dmGraphics::GetShaderMeta(program);
 
-    dmGraphics::UniformBufferLayout built_layout;
-    dmGraphics::GetUniformBufferLayout(0, program_meta->m_TypeInfos.Begin(), program_meta->m_TypeInfos.Size(), &built_layout);
+    dmGraphics::UniformBufferLayout built_layout = dmGraphics::GetUniformBufferLayout(0, program_meta->m_TypeInfos.Begin(), program_meta->m_TypeInfos.Size());
+    uint32_t built_layout_size = dmGraphics::GetUniformBufferTypeSize(0, program_meta->m_TypeInfos.Begin(), program_meta->m_TypeInfos.Size());
 
-    ASSERT_EQ(layout.m_Size, built_layout.m_Size);
-    ASSERT_EQ(layout.m_Hash, built_layout.m_Hash);
+    ASSERT_EQ(layout_size, built_layout_size);
+    ASSERT_EQ(layout, built_layout);
 
     dmResource::Release(m_Factory, material_res);
 }
@@ -8662,6 +8662,7 @@ TEST_F(MaterialTest, TestLightBuffer)
     // Set and binding are assigned from the shader's uniform block; ensure they are initialized
     ASSERT_LT(material->m_LightBufferSet, 8u);
     ASSERT_LT(material->m_LightBufferBinding, 32u);
+    ASSERT_EQ(32u, material->m_LightBufferCapacity);
 
     // Verify the material's program declares a LightBuffer with the expected layout
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
@@ -8690,6 +8691,24 @@ TEST_F(MaterialTest, TestLightBuffer)
         }
     }
     ASSERT_TRUE(found_light_buffer);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
+TEST_F(MaterialTest, TestLightBufferSmallerThanProjectMax)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/light_buffer_small.materialc", (void**)&material_res);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    ASSERT_TRUE(material->m_HasLightBuffer);
+    ASSERT_LT(material->m_LightBufferSet, 8u);
+    ASSERT_LT(material->m_LightBufferBinding, 32u);
+    ASSERT_EQ(4u, material->m_LightBufferCapacity);
 
     dmResource::Release(m_Factory, material_res);
 }
@@ -8752,6 +8771,19 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUbo)
     ASSERT_LE(light_data_offset + light_data_bytes, ubo->m_BufferSize);
     ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferScratch.Begin(), light_data_bytes));
 
+    dmGameSystem::MaterialResource* small_material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer_small.materialc", (void**) &small_material_res));
+    ASSERT_NE((void*)0, small_material_res);
+    dmRender::HMaterial small_material = small_material_res->m_Material;
+    ASSERT_NE((void*)0, small_material);
+    ASSERT_TRUE(small_material->m_HasLightBuffer);
+    ASSERT_EQ(4u, small_material->m_LightBufferCapacity);
+
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, small_material);
+    memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
+    ASSERT_VEC4(Vector4(0.5f, 1.0f, 1.5f, 10.0f), light_info_written);
+
+    dmResource::Release(m_Factory, (void*) small_material_res);
     dmResource::Release(m_Factory, (void*) material_res);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -9112,6 +9144,7 @@ TEST_F(ShaderTest, ComputeLightBuffer)
     ASSERT_TRUE(compute_program->m_HasLightBuffer);
     ASSERT_LT(compute_program->m_LightBufferSet, 8u);
     ASSERT_LT(compute_program->m_LightBufferBinding, 32u);
+    ASSERT_EQ(32u, compute_program->m_LightBufferCapacity);
 
     dmGraphics::HProgram program = dmRender::GetComputeProgram(compute_program);
     ASSERT_NE((dmGraphics::HProgram)0, program);

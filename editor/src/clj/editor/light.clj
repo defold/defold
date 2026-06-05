@@ -15,6 +15,7 @@
 (ns editor.light
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.camera :as camera]
             [editor.colors :as colors]
             [editor.data :as data]
             [editor.geom :as geom]
@@ -37,7 +38,7 @@
             [util.array :as array]
             [util.coll :as coll])
   (:import [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector3d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -270,6 +271,21 @@
   (and (Double/isFinite x)
        (pos? x)))
 
+(defn- camera-projectable? [camera ^Tuple3d point]
+  (or (not= :perspective (:type camera))
+      (let [to-point (doto (Vector3d. point)
+                       (.sub (types/position camera)))
+            view-depth (math/dot (camera/camera-forward-vector camera) to-point)]
+        (not= 0.0 view-depth))))
+
+(defn- light-gizmo-scale-factor [camera viewport ^Tuple3d reference-point]
+  ;; camera-project asserts when a perspective-projected point ends up with
+  ;; w == 0. That happens for points on the camera plane, so skip those gizmos
+  ;; for this pass instead of letting a light icon take down scene rendering.
+  (if (camera-projectable? camera reference-point)
+    (scene-tools/scale-factor camera viewport reference-point)
+    Double/NaN))
+
 (defn- light-icon-render-color [renderable]
   (or (colors/selection-color (:selected renderable))
       (:color (:user-data renderable))))
@@ -281,7 +297,7 @@
   (persistent!
     (reduce (fn [vbuf renderable]
               (let [^Vector3d world-translation (:world-translation renderable)
-                    sf (scene-tools/scale-factor camera viewport world-translation)
+                    sf (light-gizmo-scale-factor camera viewport world-translation)
                     h (* 2.0 (double sf) (double light-icon-pixels))]
                 (if (and (finite-positive? sf)
                          (finite-positive? h))
@@ -372,7 +388,7 @@
                   (let [[cr cg cb] (colors/renderable-outline-color renderable)
                         ^Vector3d p (:world-translation renderable)
                         d (world-dir-from-light renderable)
-                        sf (scene-tools/scale-factor camera viewport p)
+                        sf (light-gizmo-scale-factor camera viewport p)
                         total-len (* (double sf) gizmo-target-pixels)]
                     (when (finite-positive? total-len)
                       (vbuf-push-directional-arrow! vbuf arrow-mode p d cr cg cb total-len 1.0))

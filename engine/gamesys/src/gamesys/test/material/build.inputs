@@ -11,6 +11,7 @@
 /material/attributes_texture_transform_valid.material
 /material/attributes_valid.material
 /material/light_buffer.material
+/material/light_buffer_small.material
 /material/local_vertexspace.material
 /material/material.go
 /material/material_constant_array.material

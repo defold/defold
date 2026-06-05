@@ -103,6 +103,7 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
         uint16_t                                    m_LightBufferSet;
         uint16_t                                    m_LightBufferBinding;
+        uint16_t                                    m_LightBufferCapacity;
         uint8_t                                     m_HasLightBuffer : 1;
         uint8_t                                     m_InstancingSupported : 1;
         uint8_t                                     m_HasSkinnedAttributes : 1;
@@ -120,6 +121,7 @@ namespace dmRender
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         uint16_t                                    m_LightBufferSet;
         uint16_t                                    m_LightBufferBinding;
+        uint16_t                                    m_LightBufferCapacity;
         uint8_t                                     m_HasLightBuffer : 1;
     };
 
@@ -417,7 +419,7 @@ namespace dmRender
 
     // Lights
     void FinalizeLightData(HRenderContext render_context);
-    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding);
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding, uint16_t* out_capacity);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
     void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program);
 

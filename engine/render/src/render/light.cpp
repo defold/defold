@@ -201,7 +201,7 @@ namespace dmRender
     // Light buffer
     ////////////////////////////////
 
-    static void GenerateUniformBuffer(HRenderContext render_context, int max_lights)
+    static dmGraphics::UniformBufferLayout GetLightBufferLayout(uint32_t light_count, uint32_t* out_size, uint32_t* out_info_offset, uint32_t* out_data_offset)
     {
         /*
         struct Light
@@ -240,7 +240,7 @@ namespace dmRender
         light_buffer_members[1].m_Name                 = (char*)"lights";
         light_buffer_members[1].m_NameHash             = dmHashString64("lights");
         light_buffer_members[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
-        light_buffer_members[1].m_ElementCount         = max_lights;
+        light_buffer_members[1].m_ElementCount         = light_count;
         light_buffer_members[1].m_Type.m_TypeIndex     = 1; // index into ShaderResourceTypeInfo[]
         light_buffer_members[1].m_Type.m_UseTypeIndex  = 1;
 
@@ -280,13 +280,33 @@ namespace dmRender
         light_types[1].m_Members     = light_members;
         light_types[1].m_MemberCount = DM_ARRAY_SIZE(light_members);
 
-        dmGraphics::UniformBufferLayout layout;
         dmGraphics::UpdateShaderTypesOffsets(light_types, DM_ARRAY_SIZE(light_types));
-        dmGraphics::GetUniformBufferLayout(0, light_types, DM_ARRAY_SIZE(light_types), &layout);
 
-        render_context->m_LightUniformBuffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, layout);
-        render_context->m_LightBufferInfoWriteStart = light_buffer_members[0].m_Offset;
-        render_context->m_LightBufferDataWriteStart = light_buffer_members[1].m_Offset;
+        if (out_size)
+        {
+            *out_size = dmGraphics::GetUniformBufferTypeSize(0, light_types, DM_ARRAY_SIZE(light_types));
+        }
+        if (out_info_offset)
+        {
+            *out_info_offset = light_buffer_members[0].m_Offset;
+        }
+        if (out_data_offset)
+        {
+            *out_data_offset = light_buffer_members[1].m_Offset;
+        }
+
+        // The engine owns the LightBuffer contract and writes a buffer sized by
+        // game.project. Shaders may declare a smaller lights[] array, so the
+        // light-specific layout hash intentionally ignores only that array size.
+        light_buffer_members[1].m_ElementCount = 1;
+        return dmGraphics::GetUniformBufferLayout(0, light_types, DM_ARRAY_SIZE(light_types));
+    }
+
+    static void GenerateUniformBuffer(HRenderContext render_context, int max_lights)
+    {
+        uint32_t buffer_size = 0;
+        dmGraphics::UniformBufferLayout layout = GetLightBufferLayout((uint32_t) max_lights, &buffer_size, &render_context->m_LightBufferInfoWriteStart, &render_context->m_LightBufferDataWriteStart);
+        render_context->m_LightUniformBuffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, layout, buffer_size);
     }
 
     static inline void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light)
@@ -529,11 +549,27 @@ namespace dmRender
         bool           m_HasLightBuffer;
         uint16_t       m_Set;
         uint16_t       m_Binding;
+        uint16_t       m_Capacity;
     };
 
-    static void LightBufferBindingCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, void* user_data)
+    static dmGraphics::UniformBufferLayout GetShaderLightBufferLayout(const dmGraphics::ShaderResourceTypeInfo* types, uint32_t num_types, uint32_t root_type_index, uint32_t lights_member_index)
+    {
+        dmGraphics::ShaderResourceTypeInfo* type_infos = (dmGraphics::ShaderResourceTypeInfo*) dmAlloca(sizeof(dmGraphics::ShaderResourceTypeInfo) * num_types);
+        memcpy(type_infos, types, sizeof(dmGraphics::ShaderResourceTypeInfo) * num_types);
+
+        const dmGraphics::ShaderResourceTypeInfo& root_type = types[root_type_index];
+        dmGraphics::ShaderResourceMember* root_members = (dmGraphics::ShaderResourceMember*) dmAlloca(sizeof(dmGraphics::ShaderResourceMember) * root_type.m_MemberCount);
+        memcpy(root_members, root_type.m_Members, sizeof(dmGraphics::ShaderResourceMember) * root_type.m_MemberCount);
+        root_members[lights_member_index].m_ElementCount = 1;
+        type_infos[root_type_index].m_Members = root_members;
+
+        return dmGraphics::GetUniformBufferLayout(root_type_index, type_infos, num_types);
+    }
+
+    static void LightBufferBindingCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* types, uint32_t num_types, uint32_t root_type_index, dmGraphics::UniformBufferLayout* layout, void* user_data)
     {
         LightBufferBindingCallbackContext* cb_ctx = (LightBufferBindingCallbackContext*) user_data;
+        const dmGraphics::ShaderResourceTypeInfo* root_type = &types[root_type_index];
 
         if (cb_ctx->m_HasLightBuffer || root_type->m_NameHash != LIGHT_BUFFER_TYPE)
         {
@@ -541,37 +577,57 @@ namespace dmRender
         }
 
         uint32_t ubo_light_count = 0;
+        uint32_t lights_member_index = UINT32_MAX;
         for (uint32_t i = 0; i < root_type->m_MemberCount; ++i)
         {
             if (root_type->m_Members[i].m_NameHash == LIGHT_MEMBER_TYPE)
             {
                 ubo_light_count = root_type->m_Members[i].m_ElementCount;
+                lights_member_index = i;
                 break;
             }
         }
 
-        if (cb_ctx->m_Context->m_MaxLightCount != ubo_light_count)
+        if (ubo_light_count == 0)
         {
-            dmLogOnceWarning("The size of the light buffer must match the project configuration. You should use the same size everywhere for the uniform buffer!");
+            dmLogOnceWarning("The light buffer must declare a lights array with at least one element.");
             return;
         }
+
+        if (ubo_light_count > cb_ctx->m_Context->m_MaxLightCount)
+        {
+            dmLogOnceWarning("The light buffer lights array is larger than the max light count in the project configuration.");
+            return;
+        }
+
+        dmGraphics::UniformBufferLayout light_buffer_layout = GetLightBufferLayout(1, 0, 0, 0);
+        if (GetShaderLightBufferLayout(types, num_types, root_type_index, lights_member_index) != light_buffer_layout)
+        {
+            dmLogOnceWarning("The light buffer must use the built-in LightBuffer layout.");
+            return;
+        }
+
+        *layout = light_buffer_layout;
 
         cb_ctx->m_HasLightBuffer = true;
         cb_ctx->m_Set            = set;
         cb_ctx->m_Binding        = binding;
+        cb_ctx->m_Capacity       = (uint16_t) ubo_light_count;
     }
 
-    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding)
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding, uint16_t* out_capacity)
     {
         LightBufferBindingCallbackContext cb_ctx;
         cb_ctx.m_Context         = render_context;
         cb_ctx.m_HasLightBuffer  = false;
         cb_ctx.m_Set             = 0;
         cb_ctx.m_Binding         = 0;
+        cb_ctx.m_Capacity        = 0;
 
         dmGraphics::IterateProgramResourceBindings(program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, LightBufferBindingCallback, &cb_ctx);
 
         *out_has_light_buffer = cb_ctx.m_HasLightBuffer;
+        *out_capacity         = cb_ctx.m_Capacity;
         if (cb_ctx.m_HasLightBuffer)
         {
             *out_set     = cb_ctx.m_Set;

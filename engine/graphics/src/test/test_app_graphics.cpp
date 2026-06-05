@@ -546,11 +546,11 @@ struct UniformBufferTest : ITest
 
         dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
 
-        dmGraphics::UniformBufferLayout ubo_layout;
-        dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types), &ubo_layout);
+        dmGraphics::UniformBufferLayout ubo_layout = dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types));
+        uint32_t ubo_size = dmGraphics::GetUniformBufferTypeSize(0, types, DM_ARRAY_SIZE(types));
 
-        uint8_t* ubo_data = new uint8_t[ubo_layout.m_Size];
-        memset(ubo_data, 0, ubo_layout.m_Size);
+        uint8_t* ubo_data = new uint8_t[ubo_size];
+        memset(ubo_data, 0, ubo_size);
 
         // Write test data
         uint32_t lights_offset = light_data_members[0].m_Offset;
@@ -623,8 +623,8 @@ struct UniformBufferTest : ITest
             WriteFloats(ubo_data, light3_intensity, &intensity, 1);
         }
 
-        m_UBO = dmGraphics::NewUniformBuffer(engine->m_GraphicsContext, ubo_layout);
-        dmGraphics::SetUniformBuffer(engine->m_GraphicsContext, m_UBO, 0, ubo_layout.m_Size, (const void*) ubo_data);
+        m_UBO = dmGraphics::NewUniformBuffer(engine->m_GraphicsContext, ubo_layout, ubo_size);
+        dmGraphics::SetUniformBuffer(engine->m_GraphicsContext, m_UBO, 0, ubo_size, (const void*) ubo_data);
 
         // Bound once, should be bound to all shaders that use set=1, binding=0
         dmGraphics::EnableUniformBuffer(engine->m_GraphicsContext, m_UBO, 1, 0);
