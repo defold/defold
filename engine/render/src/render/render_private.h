@@ -335,6 +335,7 @@ namespace dmRender
         dmArray<LightSTD140>                   m_LightBufferScratch;
         dmArray<LightSTD140>                   m_LightBufferUploadScratch;
         dmGraphics::HUniformBuffer             m_LightUniformBuffer;
+        dmVMath::Vector3                       m_AmbientLight;
 
         HFontMap                    m_SystemFontMap;
         Matrix4                     m_View;
@@ -351,10 +352,10 @@ namespace dmRender
 
         uint32_t                    m_LightBufferDirtyStart;
         uint32_t                    m_LightBufferDirtyEnd;
+        uint32_t                    m_LightBufferInfoWriteStart;
         uint32_t                    m_LightBufferDataWriteStart;
-        uint32_t                    m_LightBufferLastWrittenCount;
         uint16_t                    m_MaxLightCount;
-        uint16_t                    m_LightBufferDirtyCount         : 1;
+        uint16_t                    m_LightBufferDirtyInfo          : 1;
         uint16_t                    m_OutOfResources                : 1;
         uint16_t                    m_StencilBufferCleared          : 1;
         uint16_t                    m_MultiBufferingRequired        : 1;

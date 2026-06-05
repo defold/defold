@@ -155,8 +155,14 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testAmbientLightBuilderTags() throws Exception {
+        assertLightTags("/light/test.ambient_light", LIGHT_SOURCE, "ambient_light");
+    }
+
+    @Test
     public void testLightBuilderColor() throws Exception {
         assertBuiltLightColor("/light/test.directional_light", LIGHT_SOURCE, 0.25, 0.5, 0.75);
+        assertBuiltLightColor("/light/test.ambient_light", LIGHT_SOURCE, 0.25, 0.5, 0.75);
         assertBuiltLightColor("/light/test.point_light", POINT_LIGHT_SOURCE, 1.0, 0.5, 0.25);
         assertBuiltLightColor("/light/test.spot_light", SPOT_LIGHT_SOURCE, 0.2, 0.8, 0.1);
     }
@@ -189,7 +195,7 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testLightBuildersUseSourceSpecificOutputExtensions() throws Exception {
-        for (String ext : new String[] {"point_light", "directional_light", "spot_light"}) {
+        for (String ext : new String[] {"point_light", "directional_light", "spot_light", "ambient_light"}) {
             String source = ext.equals("spot_light") ? SPOT_LIGHT_SOURCE : ext.equals("point_light") ? POINT_LIGHT_SOURCE : LIGHT_SOURCE;
             String path = "/light/test." + ext;
 
@@ -267,6 +273,26 @@ public class LightBuilderTest extends AbstractProtoBuilderTest {
                 "  }\n" +
                 "}\n";
         assertCompileFailure("/light/test.directional_light", source, "missing required field 'intensity'");
+    }
+
+    @Test
+    public void testAmbientLightBuilderRequiresIntensity() throws Exception {
+        String source =
+                "data {\n" +
+                "  struct {\n" +
+                "    fields {\n" +
+                "      key: \"color\"\n" +
+                "      value {\n" +
+                "        list {\n" +
+                "          values { number: 1.0 }\n" +
+                "          values { number: 1.0 }\n" +
+                "          values { number: 1.0 }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}\n";
+        assertCompileFailure("/light/test.ambient_light", source, "missing required field 'intensity'");
     }
 
     @Test

@@ -447,11 +447,12 @@
            :camera camera
            :viewport viewport)))
 
-(defn- pass->render-args-with-preview-lights [^Region viewport ^Camera camera passes preview-lights]
+(defn- pass->render-args-with-preview-lights [^Region viewport ^Camera camera passes preview-lights preview-ambient-light]
   (into {}
         (map (fn [pass]
                [pass (assoc (pass-render-args viewport camera pass)
-                       :preview-lights preview-lights)]))
+                       :preview-lights preview-lights
+                       :preview-ambient-light preview-ambient-light)]))
         passes))
 
 (defn- scene-render-data->preview-lights [scene-render-data camera]
@@ -518,11 +519,14 @@
   (when-some [{:keys [camera clear-color display-width display-height render-width render-height]} (make-camera-inset-render-data scene-render-data)]
     (when camera-inset-drawable
       (let [camera-inset-viewport (types/->Region 0 render-width 0 render-height)
+            preview-light-data (:preview-light-data scene-render-data)
             preview-lights (scene-render-data->preview-lights scene-render-data camera)
+            preview-ambient-light (:ambient-light preview-light-data)
             camera-inset-pass->render-args (pass->render-args-with-preview-lights camera-inset-viewport
                                                                                   camera
                                                                                   camera-inset-passes
-                                                                                  preview-lights)
+                                                                                  preview-lights
+                                                                                  preview-ambient-light)
             scene-renderables (make-camera-inset-renderables scene-render-data camera)
             camera-inset-frame (gl/with-drawable-as-current camera-inset-drawable
                                  (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
@@ -877,8 +881,10 @@
   light data for material shaders. Preview light data is collected as the scene
   is flattened."
   [^Region viewport camera scene-render-data]
-  (let [preview-lights (scene-render-data->preview-lights scene-render-data camera)]
-    (pass->render-args-with-preview-lights viewport camera pass/all-passes preview-lights)))
+  (let [preview-light-data (:preview-light-data scene-render-data)
+        preview-lights (scene-render-data->preview-lights scene-render-data camera)
+        preview-ambient-light (:ambient-light preview-light-data)]
+    (pass->render-args-with-preview-lights viewport camera pass/all-passes preview-lights preview-ambient-light)))
 
 (g/defnk produce-renderables-aabb+picking-node-id [scene-render-data]
   (let [renderables-by-pass (:renderables scene-render-data)]

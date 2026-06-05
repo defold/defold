@@ -21,7 +21,7 @@ namespace dmRender
     static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
 
     static void CommitLightInstance(HRenderContext render_context, const LightInstance* instance, dmVMath::Point3 position, dmVMath::Vector3 direction, float scale);
-    static void CommitLightCount(HRenderContext render_context);
+    static void CommitLightInfo(HRenderContext render_context);
     static void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light);
     static bool LightSTD140Equals(const LightSTD140& a, const LightSTD140& b);
     static bool EnsureLightUniformBuffer(HRenderContext render_context);
@@ -90,13 +90,39 @@ namespace dmRender
         return render_context->m_LightPrototypes.Get(light_prototype);
     }
 
+    LightType GetLightType(HRenderContext render_context, HLightPrototype light_prototype)
+    {
+        LightPrototype* prototype = render_context->m_LightPrototypes.Get(light_prototype);
+        return prototype ? prototype->m_Type : LIGHT_TYPE_DIRECTIONAL;
+    }
+
+    dmVMath::Vector4 GetLightColor(HRenderContext render_context, HLightPrototype light_prototype)
+    {
+        LightPrototype* prototype = render_context->m_LightPrototypes.Get(light_prototype);
+        return prototype ? prototype->m_Color : dmVMath::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+    }
+
+    float GetLightIntensity(HRenderContext render_context, HLightPrototype light_prototype)
+    {
+        LightPrototype* prototype = render_context->m_LightPrototypes.Get(light_prototype);
+        return prototype ? prototype->m_Intensity : 0.0f;
+    }
+
     ////////////////////////////////
     // Light instance
     ////////////////////////////////
 
     HLightInstance NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype)
     {
-        if (!render_context->m_LightPrototypes.Get(light_prototype))
+        LightPrototype* prototype = render_context->m_LightPrototypes.Get(light_prototype);
+        if (!prototype)
+        {
+            return 0;
+        }
+
+        // Ambient lights are folded into light_info.xyz and do not allocate
+        // entries in the per-light buffer.
+        if (prototype->m_Type == LIGHT_TYPE_AMBIENT)
         {
             return 0;
         }
@@ -123,7 +149,7 @@ namespace dmRender
         }
 
         CommitLightInstance(render_context, light_instance, dmVMath::Point3(0.0f, 0.0f, 0.0f), GetLightForwardDirection(), 1.0f);
-        CommitLightCount(render_context);
+        CommitLightInfo(render_context);
 
         return light_instance->m_Version << 16 | light_buffer_index;
     }
@@ -140,7 +166,7 @@ namespace dmRender
             }
             render_context->m_RenderLightsIndices.Push(light_instance->m_LightBufferIndex);
             light_instance->m_LightPrototype = 0;
-            CommitLightCount(render_context);
+            CommitLightInfo(render_context);
         }
     }
 
@@ -190,7 +216,7 @@ namespace dmRender
         };
         uniform LightBuffer
         {
-            vec4  lights_count;   // x: number of active lights
+            vec4  light_info;     // xyz: accumulated ambient color, w: number of active lights
             Light lights[MAX_LIGHTS];
         };
         */
@@ -204,9 +230,9 @@ namespace dmRender
         memset(light_members, 0, sizeof(light_members));
         memset(light_types, 0, sizeof(light_types));
 
-        // lights_count (vec4)
-        light_buffer_members[0].m_Name                 = (char*)"lights_count";
-        light_buffer_members[0].m_NameHash             = dmHashString64("lights_count");
+        // light_info (vec4)
+        light_buffer_members[0].m_Name                 = (char*)"light_info";
+        light_buffer_members[0].m_NameHash             = dmHashString64("light_info");
         light_buffer_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
         light_buffer_members[0].m_Type.m_UseTypeIndex  = 0;
         light_buffer_members[0].m_ElementCount         = 1;
@@ -259,6 +285,7 @@ namespace dmRender
         dmGraphics::GetUniformBufferLayout(0, light_types, DM_ARRAY_SIZE(light_types), &layout);
 
         render_context->m_LightUniformBuffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, layout);
+        render_context->m_LightBufferInfoWriteStart = light_buffer_members[0].m_Offset;
         render_context->m_LightBufferDataWriteStart = light_buffer_members[1].m_Offset;
     }
 
@@ -274,6 +301,9 @@ namespace dmRender
 
         switch (prototype->m_Type)
         {
+        case LIGHT_TYPE_AMBIENT:
+            assert(false && "Ambient lights are accumulated in light_info.xyz and should not be written as light instances");
+            break;
         case LIGHT_TYPE_DIRECTIONAL:
             direction = world_direction;
             break;
@@ -327,9 +357,9 @@ namespace dmRender
         render_context->m_LightBufferDirtyEnd = dmMath::Max(render_context->m_LightBufferDirtyEnd, (uint32_t) (instance->m_LightBufferIndex + 1));
     }
 
-    static inline void CommitLightCount(HRenderContext render_context)
+    static inline void CommitLightInfo(HRenderContext render_context)
     {
-        render_context->m_LightBufferDirtyCount = 1;
+        render_context->m_LightBufferDirtyInfo = 1;
     }
 
     static uint32_t CompactLightBufferScratch(HRenderContext render_context)
@@ -364,22 +394,20 @@ namespace dmRender
     {
         uint32_t active_light_count = CompactLightBufferScratch(render_context);
 
-        // The light count has changed, we need to write that separately
-        if (render_context->m_LightBufferDirtyCount)
+        if (render_context->m_LightBufferDirtyInfo)
         {
-            // ... but only if it is actually different from last write.
-            if (active_light_count != render_context->m_LightBufferLastWrittenCount)
-            {
-                dmVMath::Vector4 count((float) active_light_count, 0.0f, 0.0f, 0.0f);
-                dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, 0, sizeof(count), &count);
-            }
-            render_context->m_LightBufferLastWrittenCount = active_light_count;
+            dmVMath::Vector4 info(render_context->m_AmbientLight, (float) active_light_count);
+            dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
+                                         render_context->m_LightUniformBuffer,
+                                         render_context->m_LightBufferInfoWriteStart,
+                                         sizeof(info),
+                                         &info);
         }
 
         // Write compacted light data from the scratch buffer. The shader loops
-        // over [0..lights_count), while light buffer indices may be reused.
+        // over [0..light_info.w), while light buffer indices may be reused.
         bool light_data_dirty = render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart;
-        if (active_light_count > 0 && (light_data_dirty || render_context->m_LightBufferDirtyCount))
+        if (active_light_count > 0 && (light_data_dirty || render_context->m_LightBufferDirtyInfo))
         {
             uint32_t write_size = active_light_count * sizeof(LightSTD140);
             dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
@@ -392,12 +420,12 @@ namespace dmRender
         // Reset all dirty flags
         render_context->m_LightBufferDirtyStart = render_context->m_LightBufferScratch.Size();
         render_context->m_LightBufferDirtyEnd   = 0;
-        render_context->m_LightBufferDirtyCount = 0;
+        render_context->m_LightBufferDirtyInfo  = 0;
     }
 
     static inline bool IsLightBufferDirty(HRenderContext render_context)
     {
-        return render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart || render_context->m_LightBufferDirtyCount;
+        return render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart || render_context->m_LightBufferDirtyInfo;
     }
 
     static bool EnsureLightUniformBuffer(HRenderContext render_context)
@@ -416,8 +444,19 @@ namespace dmRender
         // The GPU buffer is created lazily, so it needs a full initial upload.
         render_context->m_LightBufferDirtyStart = 0;
         render_context->m_LightBufferDirtyEnd   = render_context->m_LightBufferScratch.Size();
-        render_context->m_LightBufferDirtyCount = 1;
+        render_context->m_LightBufferDirtyInfo  = 1;
         return true;
+    }
+
+    void SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color)
+    {
+        if (render_context->m_AmbientLight.getX() != color.getX() ||
+            render_context->m_AmbientLight.getY() != color.getY() ||
+            render_context->m_AmbientLight.getZ() != color.getZ())
+        {
+            render_context->m_AmbientLight = color;
+            CommitLightInfo(render_context);
+        }
     }
 
     void SetLightBufferCount(HRenderContext render_context, uint32_t max_lights)
@@ -434,9 +473,10 @@ namespace dmRender
         render_context->m_MaxLightCount               = (uint16_t) max_lights;
         render_context->m_LightBufferDirtyStart       = 0;
         render_context->m_LightBufferDirtyEnd         = 0;
-        render_context->m_LightBufferDirtyCount       = 0;
+        render_context->m_LightBufferDirtyInfo        = 0;
+        render_context->m_LightBufferInfoWriteStart   = 0;
         render_context->m_LightBufferDataWriteStart   = 0;
-        render_context->m_LightBufferLastWrittenCount = 0;
+        render_context->m_AmbientLight                = dmVMath::Vector3(0.0f, 0.0f, 0.0f);
 
         if (render_context->m_RenderLightsIndices.Capacity() < max_lights)
         {

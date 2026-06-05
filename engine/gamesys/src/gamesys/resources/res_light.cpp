@@ -121,6 +121,10 @@ namespace dmGameSystem
             {
                 type = dmRender::LIGHT_TYPE_SPOT;
             }
+            else if (strcmp(tag, "ambient_light") == 0)
+            {
+                type = dmRender::LIGHT_TYPE_AMBIENT;
+            }
         }
 
         params.m_Type = type;
@@ -149,6 +153,10 @@ namespace dmGameSystem
         if (type == dmRender::LIGHT_TYPE_DIRECTIONAL)
         {
             // Direction is derived from game object rotation applied to (0, 0, -1).
+        }
+        else if (type == dmRender::LIGHT_TYPE_AMBIENT)
+        {
+            // Ambient light has no transform-dependent data.
         }
         else if (type == dmRender::LIGHT_TYPE_POINT)
         {

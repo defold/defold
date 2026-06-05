@@ -85,6 +85,7 @@
 (def ^:private icon-omni-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-omni-gpu-texture "icons/scene/light_omni.png"))
 (def ^:private icon-spot-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-spot-gpu-texture "icons/scene/light_spot.png"))
 (def ^:private icon-sun-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-sun-gpu-texture "icons/scene/light_sun.png"))
+(def ^:private icon-ambient-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-ambient-gpu-texture "icons/scene/light_ambient.png"))
 
 (defn- clamp [v low high]
   (-> (double v)
@@ -484,7 +485,8 @@
   (case light-type
     :point @icon-omni-gpu-texture-delay
     :directional @icon-sun-gpu-texture-delay
-    :spot @icon-spot-gpu-texture-delay))
+    :spot @icon-spot-gpu-texture-delay
+    :ambient @icon-ambient-gpu-texture-delay))
 
 (defn- make-light-scene [node-id light-type color intensity range inner-cone-angle outer-cone-angle]
   (let [gizmo-tags #{:light :outline}
@@ -508,6 +510,12 @@
          :outer-cone-angle outer-cone-angle}]
 
     (case light-type
+      :ambient
+      (let [aabb (geom/mirrored-point->aabb (Point3d. 1.5 1.5 1.5))]
+        {:node-id node-id
+         :aabb aabb
+         :renderable (assoc-in icon-renderable [:user-data :editor-preview-light] preview-light)})
+
       :point
       (let [r (max (double range) 0.01)
             aabb (geom/mirrored-point->aabb (Point3d. r r r))]
@@ -562,6 +570,9 @@
 (defn- make-directional-light-scene [node-id color intensity]
   (make-light-scene node-id :directional color intensity 0.0 0.0 0.0))
 
+(defn- make-ambient-light-scene [node-id color intensity]
+  (make-light-scene node-id :ambient color intensity 0.0 0.0 0.0))
+
 (defn- make-point-light-scene [node-id color intensity range]
   (make-light-scene node-id :point color intensity range 0.0 0.0))
 
@@ -569,13 +580,13 @@
   (make-light-scene node-id :spot color intensity range inner-cone-angle outer-cone-angle))
 
 ;; -----------------------------------------------------------------------------
-;; DirectionalLightNode
+;; AmbientLightNode
 ;; -----------------------------------------------------------------------------
 
 (defn- validate-intensity [node-id intensity]
   (validation/prop-error :fatal node-id :intensity validation/prop-negative? intensity intensity-message))
 
-(g/defnode DirectionalLightNode
+(g/defnode AmbientLightNode
   (inherits data/DataResourceNode)
 
   (property color types/Color (default [1.0 1.0 1.0])
@@ -591,29 +602,50 @@
 
   (output scene g/Any :cached
           (g/fnk [_node-id color intensity]
-            (make-directional-light-scene _node-id color intensity)))
+            (make-ambient-light-scene _node-id color intensity)))
 
-  (output directional-light-data g/Any :cached
+  (output ambient-light-data g/Any :cached
           (g/fnk [color intensity]
             {"color" color
              "intensity" intensity}))
 
-  (output directional-light-build-errors g/Any :cached
+  (output ambient-light-build-errors g/Any :cached
           (g/fnk [_node-id intensity]
             (g/package-errors
               _node-id
               (validate-intensity _node-id intensity))))
 
-  (output data g/Any (gu/passthrough directional-light-data))
-  (output own-build-errors g/Any (gu/passthrough directional-light-build-errors))
-  (output rt-tags g/Any (g/constantly ["light" "directional_light"])))
+  (output data g/Any (gu/passthrough ambient-light-data))
+  (output own-build-errors g/Any (gu/passthrough ambient-light-build-errors))
+  (output rt-tags g/Any (g/constantly ["light" "ambient_light"])))
 
-(defn load-directional-light [_project self _resource data-desc]
+(defn load-ambient-light [_project self _resource data-desc]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (g/set-properties self
       :color (coll/resize (get data "color" [1.0 1.0 1.0]) 3 1.0)
       :intensity (get data "intensity"))))
+
+;; -----------------------------------------------------------------------------
+;; DirectionalLightNode
+;; -----------------------------------------------------------------------------
+
+(g/defnode DirectionalLightNode
+  (inherits AmbientLightNode)
+
+  (output scene g/Any :cached
+          (g/fnk [_node-id color intensity]
+            (make-directional-light-scene _node-id color intensity)))
+
+  (output directional-light-data g/Any (gu/passthrough ambient-light-data))
+  (output directional-light-build-errors g/Any (gu/passthrough ambient-light-build-errors))
+
+  (output data g/Any (gu/passthrough directional-light-data))
+  (output own-build-errors g/Any (gu/passthrough directional-light-build-errors))
+  (output rt-tags g/Any (g/constantly ["light" "directional_light"])))
+
+(defn load-directional-light [project self resource data-desc]
+  (load-ambient-light project self resource data-desc))
 
 ;; -----------------------------------------------------------------------------
 ;; PointLightNode
@@ -769,7 +801,11 @@
          {:ext "spot_light"
           :node-type SpotLightNode
           :load-fn load-spot-light
-          :label (localization/message "resource.type.spot-light")}]]
+          :label (localization/message "resource.type.spot-light")}
+         {:ext "ambient_light"
+          :node-type AmbientLightNode
+          :load-fn load-ambient-light
+          :label (localization/message "resource.type.ambient-light")}]]
 
     (for [type-args args-per-type]
       (let [build-ext (str (:ext type-args) ".lightc")

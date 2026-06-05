@@ -53,6 +53,7 @@ namespace dmGameSystem
     struct LightWorld
     {
         dmArray<LightComponent*> m_Components;
+        uint32_t                 m_MaxComponentInstances;
     };
 
     static dmGameObject::CreateResult CompLightNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -61,8 +62,56 @@ namespace dmGameSystem
         LightWorld* world = new LightWorld;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxLightCount);
         world->m_Components.SetCapacity(comp_count);
+        world->m_MaxComponentInstances = params.m_MaxComponentInstances;
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    static dmRender::LightType LightType(LightContext* context, LightResource* light_resource)
+    {
+        return dmRender::GetLightType(context->m_RenderContext, GetLightPrototype(light_resource));
+    }
+
+    static dmVMath::Vector3 AmbientContribution(LightContext* context, LightResource* light_resource)
+    {
+        dmRender::HLightPrototype prototype = GetLightPrototype(light_resource);
+        if (dmRender::GetLightType(context->m_RenderContext, prototype) != dmRender::LIGHT_TYPE_AMBIENT)
+        {
+            return dmVMath::Vector3(0.0f, 0.0f, 0.0f);
+        }
+
+        dmVMath::Vector4 color = dmRender::GetLightColor(context->m_RenderContext, prototype);
+        return dmVMath::Vector3(color.getX(), color.getY(), color.getZ()) * dmRender::GetLightIntensity(context->m_RenderContext, prototype);
+    }
+
+    static bool CreateRenderLightInstance(LightContext* context, LightComponent* light)
+    {
+        light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, GetLightPrototype(light->m_LightResource));
+        if (light->m_LightInstance == 0)
+        {
+            ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, (int) context->m_MaxLightCount);
+            return false;
+        }
+        return true;
+    }
+
+    static bool EnsureComponentCapacity(LightWorld* world, bool is_ambient)
+    {
+        if (!world->m_Components.Full())
+        {
+            return true;
+        }
+
+        if (!is_ambient || world->m_Components.Capacity() >= world->m_MaxComponentInstances)
+        {
+            return false;
+        }
+
+        // Ambient lights can grow the component array up to the normal max
+        // component instance limit because they do not consume render light slots.
+        uint32_t remaining = world->m_MaxComponentInstances - world->m_Components.Capacity();
+        world->m_Components.OffsetCapacity((int32_t) dmMath::Min(16U, remaining));
+        return true;
     }
 
     static dmGameObject::CreateResult CompLightDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
@@ -75,10 +124,19 @@ namespace dmGameSystem
     {
         LightWorld* world = (LightWorld*) params.m_World;
         LightContext* context = (LightContext*)params.m_Context;
+        LightResource* light_resource = (LightResource*) params.m_Resource;
+        bool is_ambient = LightType(context, light_resource) == dmRender::LIGHT_TYPE_AMBIENT;
 
-        if (world->m_Components.Full())
+        if (!EnsureComponentCapacity(world, is_ambient))
         {
-            ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, world->m_Components.Capacity());
+            if (is_ambient)
+            {
+                ShowFullBufferError("Light", world->m_Components.Capacity());
+            }
+            else
+            {
+                ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, (int) context->m_MaxLightCount);
+            }
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -86,11 +144,10 @@ namespace dmGameSystem
         memset(light, 0, sizeof(LightComponent));
 
         light->m_Instance      = params.m_Instance;
-        light->m_LightResource = (LightResource*) params.m_Resource;
-        light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, GetLightPrototype(light->m_LightResource));
-        if (light->m_LightInstance == 0)
+        light->m_LightResource = light_resource;
+
+        if (!is_ambient && !CreateRenderLightInstance(context, light))
         {
-            ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, (int) context->m_MaxLightCount);
             delete light;
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
@@ -117,7 +174,10 @@ namespace dmGameSystem
             {
                 world->m_Components.EraseSwap(i);
 
-                dmRender::DeleteLightInstance(context->m_RenderContext, light->m_LightInstance);
+                if (light->m_LightInstance)
+                {
+                    dmRender::DeleteLightInstance(context->m_RenderContext, light->m_LightInstance);
+                }
 
                 delete light;
                 return dmGameObject::CREATE_RESULT_OK;
@@ -139,10 +199,30 @@ namespace dmGameSystem
         LightContext* context = (LightContext*)params.m_Context;
 
         uint32_t num_components = world->m_Components.Size();
+        dmVMath::Vector3 ambient_light(0.0f, 0.0f, 0.0f);
         for (uint32_t i = 0; i < num_components; ++i)
         {
             LightComponent* light = world->m_Components[i];
             if (!light->m_AddedToUpdate)
+            {
+                continue;
+            }
+
+            bool is_ambient = LightType(context, light->m_LightResource) == dmRender::LIGHT_TYPE_AMBIENT;
+            if (is_ambient)
+            {
+                if (light->m_LightInstance)
+                {
+                    // The resource may have been reloaded from a buffered light type
+                    // to ambient. Ambient lights are accumulated instead of instanced.
+                    dmRender::DeleteLightInstance(context->m_RenderContext, light->m_LightInstance);
+                    light->m_LightInstance = 0;
+                }
+                ambient_light += AmbientContribution(context, light->m_LightResource);
+                continue;
+            }
+
+            if (light->m_LightInstance == 0 && !CreateRenderLightInstance(context, light))
             {
                 continue;
             }
@@ -157,6 +237,7 @@ namespace dmGameSystem
 
             dmRender::SetLightInstance(context->m_RenderContext, light->m_LightInstance, position, rotation, scale);
         }
+        dmRender::SetAmbientLight(context->m_RenderContext, ambient_light);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

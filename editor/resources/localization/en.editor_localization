@@ -1507,6 +1507,7 @@ resource.type.light = Light
 resource.type.point-light = Point Light
 resource.type.directional-light = Directional Light
 resource.type.spot-light = Spot Light
+resource.type.ambient-light = Ambient Light
 resource.type.lua = Lua Module
 resource.type.manifest = Manifest
 resource.type.markdown = Markdown

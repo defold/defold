@@ -40,6 +40,9 @@
     (light/preview-light-data-from-renderables (get renderables-by-pass pass/transparent []))
     camera))
 
+(defn- preview-light-data-from-scene [renderables-by-pass]
+  (light/preview-light-data-from-renderables (get renderables-by-pass pass/transparent [])))
+
 (deftest renderable->std140-point-red-test
   (let [m (light/renderable->std140-light
             {:world-translation (Vector3d. 3.0 4.0 5.0)
@@ -68,6 +71,42 @@
         pl (packed-lights-from-scene {pass/transparent [r]} (test-camera))]
     (is (= 1 (count pl)))
     (is (< (Math/abs (- 1.0 (.x ^Vector4d (:color (first pl))))) 1e-6))))
+
+(deftest ambient-lights-are-accumulated-outside-packed-preview-lights-test
+  (let [ambient-a {:node-id-path [:ambient :a]
+                   :world-translation (Vector3d. 0.0 0.0 0.0)
+                   :world-transform (identity-m4)
+                   :user-data {:editor-preview-light {:light-type :ambient
+                                                      :color [0.5 0.25 0.125 1.0]
+                                                      :intensity 2.0
+                                                      :range 0.0
+                                                      :inner-cone-angle 0.0
+                                                      :outer-cone-angle 0.0}}}
+        ambient-b {:node-id-path [:ambient :b]
+                   :world-translation (Vector3d. 0.0 0.0 0.0)
+                   :world-transform (identity-m4)
+                   :user-data {:editor-preview-light {:light-type :ambient
+                                                      :color [0.25 0.5 1.0 1.0]
+                                                      :intensity 3.0
+                                                      :range 0.0
+                                                      :inner-cone-angle 0.0
+                                                      :outer-cone-angle 0.0}}}
+        point {:node-id-path [:point]
+               :world-translation (Vector3d. 0.0 0.0 0.0)
+               :world-transform (identity-m4)
+               :user-data {:editor-preview-light {:light-type :point
+                                                  :color [1.0 1.0 1.0 1.0]
+                                                  :intensity 1.0
+                                                  :range 10.0
+                                                  :inner-cone-angle 0.0
+                                                  :outer-cone-angle 45.0}}}
+        preview-light-data (preview-light-data-from-scene {pass/transparent [ambient-a ambient-b point]})
+        ^Vector3d ambient-light (:ambient-light preview-light-data)
+        packed-lights (light/packed-lights-from-preview-light-data preview-light-data (test-camera))]
+    (is (= 1 (count packed-lights)))
+    (is (< (Math/abs (- 1.75 (.x ambient-light))) 1e-6))
+    (is (< (Math/abs (- 2.0 (.y ambient-light))) 1e-6))
+    (is (< (Math/abs (- 3.25 (.z ambient-light))) 1e-6))))
 
 (deftest packed-lights-from-scene-ignores-non-transparent-passes-test
   (let [r {:node-id-path [:a :b]
@@ -183,14 +222,17 @@
   (let [camera (camera/make-camera)
         viewport (types/->Region 0 100 0 100)
         preview-lights [{:position (Vector4d. 0.0 0.0 0.0 1.0)}]
+        preview-ambient-light (Vector3d. 0.25 0.5 1.0)
         pass->render-args (#'scene/pass->render-args-with-preview-lights
                             viewport
                             camera
                             [pass/background pass/opaque pass/transparent]
-                            preview-lights)]
+                            preview-lights
+                            preview-ambient-light)]
     (is (= preview-lights (:preview-lights (get pass->render-args pass/background))))
     (is (= preview-lights (:preview-lights (get pass->render-args pass/opaque))))
-    (is (= preview-lights (:preview-lights (get pass->render-args pass/transparent))))))
+    (is (= preview-lights (:preview-lights (get pass->render-args pass/transparent))))
+    (is (= preview-ambient-light (:preview-ambient-light (get pass->render-args pass/background))))))
 
 (deftest bind-preview-lights-for-shader-skips-shaders-without-preview-light-uniforms-test
   (let [request-object-call-count (atom 0)
@@ -210,7 +252,7 @@
         test-shader (shader/make-shader-lifecycle ::preview-lights-count-only shader-request-data [] {})]
     (with-redefs [scene-cache/request-object! (fn [& _]
                                                 {:program 7
-                                                 :uniform-infos {"lights_count" {:location 3}
+                                                 :uniform-infos {"light_info" {:location 3}
                                                                  "lights[0].position" {:location 4 :array-size 8}}})
                   gl/gl-current-program (fn ^long [_gl] 7)
                   shader/set-uniform-at-index (fn [_gl program location value]
@@ -237,7 +279,7 @@
         preview-lights (vec (repeat 4 preview-light))]
     (with-redefs [scene-cache/request-object! (fn [& _]
                                                 {:program 7
-                                                 :uniform-infos {"lights_count" {:location 3}
+                                                 :uniform-infos {"light_info" {:location 3}
                                                                  "lights[0].position" {:location 10 :array-size 2}
                                                                  "lights[0].color" {:location 11 :array-size 2}
                                                                  "lights[0].direction_range" {:location 12 :array-size 2}
@@ -256,5 +298,8 @@
       (is (= 7 program))
       (is (= 3 location))
       (is (instance? Vector4d count-value))
-      (is (= 2.0 (.x count-value)))
+      (is (zero? (.x count-value)))
+      (is (zero? (.y count-value)))
+      (is (zero? (.z count-value)))
+      (is (= 2.0 (.w count-value)))
       (is (= #{10 11 12 13 14 15 16 17} updated-locations)))))

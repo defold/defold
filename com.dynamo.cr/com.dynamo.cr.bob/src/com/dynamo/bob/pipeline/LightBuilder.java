@@ -31,7 +31,7 @@ import com.dynamo.proto.DdfStruct.Struct;
 import com.dynamo.proto.DdfStruct.Value;
 
 @ProtoParams(srcClass = Data.class, messageClass = Data.class)
-@BuilderParams(name="Light", inExts={".point_light", ".directional_light", ".spot_light"}, outExt=".lightc")
+@BuilderParams(name="Light", inExts={".point_light", ".directional_light", ".spot_light", ".ambient_light"}, outExt=".lightc")
 public class LightBuilder extends ProtoBuilder<Data.Builder> {
 
     private static final double MAX_LIGHT_CONE_ANGLE_DEGREES = 180.0;
@@ -45,6 +45,7 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
         ResourceUtil.registerMapping(".point_light", ".point_light" + LIGHTC_EXT);
         ResourceUtil.registerMapping(".directional_light", ".directional_light" + LIGHTC_EXT);
         ResourceUtil.registerMapping(".spot_light", ".spot_light" + LIGHTC_EXT);
+        ResourceUtil.registerMapping(".ambient_light", ".ambient_light" + LIGHTC_EXT);
     }
 
     private static Value getRequiredFieldValue(IResource resource, Struct struct, String fieldName) throws CompileExceptionError {
@@ -103,6 +104,7 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
 
         switch (lightTypeTag) {
             case "directional_light":
+            case "ambient_light":
                 return;
             case "point_light":
             {
@@ -144,6 +146,8 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
                 return "directional_light";
             case "spot_light":
                 return "spot_light";
+            case "ambient_light":
+                return "ambient_light";
             default:
                 throw new IllegalArgumentException("Unsupported light resource extension: " + ext);
         }

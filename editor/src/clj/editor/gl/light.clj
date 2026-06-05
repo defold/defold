@@ -114,18 +114,38 @@
 (defn- renderable->preview-light-entry [renderable]
   {:node-id-path (vec (:node-id-path renderable))
    :world-translation (:world-translation renderable math/zero-v3)
+   :light-data (get-in renderable [:user-data :editor-preview-light])
    :light-type (get-in renderable [:user-data :editor-preview-light :light-type])
    :packed-light (renderable->std140-light renderable)})
 
 (defn- directional-preview-light-entry? [preview-light-entry]
   (= :directional (:light-type preview-light-entry)))
 
+(defn- ambient-preview-light-entry? [preview-light-entry]
+  (= :ambient (:light-type preview-light-entry)))
+
+(defn- preview-light-entry->ambient-light
+  [preview-light-entry]
+  (let [light-data (:light-data preview-light-entry)
+        light-color (:color light-data)
+        light-intensity (double (:intensity light-data))]
+    (Vector3d. (* (double (nth light-color 0 1.0)) light-intensity)
+               (* (double (nth light-color 1 1.0)) light-intensity)
+               (* (double (nth light-color 2 1.0)) light-intensity))))
+
+(defn- add-ambient-light
+  [^Vector3d a ^Vector3d b]
+  (Vector3d. (+ (.x a) (.x b))
+             (+ (.y a) (.y b))
+             (+ (.z a) (.z b))))
+
 (defn preview-light-data-from-renderables
   "Prepares the camera-independent parts of scene preview light packing."
   [renderables]
   (let [preview-renderables (filterv preview-light-renderable? renderables)]
     (if (coll/empty? preview-renderables)
-      {:directional-light-entries []
+      {:ambient-light math/zero-v3
+       :directional-light-entries []
        :local-light-entries []
        :local-light-budget default-max-preview-lights}
       (let [deduped-preview-renderables
@@ -135,8 +155,17 @@
             preview-light-entries
             (mapv renderable->preview-light-entry deduped-preview-renderables)
 
+            [ambient-light-entries non-ambient-light-entries]
+            (coll/separate-by ambient-preview-light-entry? preview-light-entries)
+
+            ambient-light
+            (transduce (map preview-light-entry->ambient-light)
+                       (completing add-ambient-light)
+                       math/zero-v3
+                       ambient-light-entries)
+
             [directional-light-entries local-light-entries]
-            (coll/separate-by directional-preview-light-entry? preview-light-entries)
+            (coll/separate-by directional-preview-light-entry? non-ambient-light-entries)
 
             directional-light-entries
             (subvec directional-light-entries
@@ -145,7 +174,8 @@
                          default-max-preview-lights))
 
             local-light-budget (- default-max-preview-lights (count directional-light-entries))]
-        {:directional-light-entries directional-light-entries
+        {:ambient-light ambient-light
+         :directional-light-entries directional-light-entries
          :local-light-entries local-light-entries
          :local-light-budget local-light-budget}))))
 
@@ -175,11 +205,12 @@
                           :direction-range "direction_range"
                           :params "params")))
 
-(def ^:private lights-count-uniform-name "lights_count")
+(def ^:private light-info-uniform-name "light_info")
 
 (defn bind-preview-lights-for-shader! [^GL2 gl shader-lifecycle render-args]
   (when (shader/uses-preview-light-buffer? shader-lifecycle)
     (let [packed-lights (or (:preview-lights render-args) [])
+          ^Vector3d ambient-light (or (:preview-ambient-light render-args) math/zero-v3)
           shader-light-capacity (shader/preview-light-capacity shader-lifecycle)]
       (when-let [{:keys [^int program uniform-infos]}
                  (scene-cache/request-object! ::shader/shader
@@ -189,9 +220,9 @@
         (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
           (let [lights (take shader-light-capacity packed-lights)
                 light-count (count lights)
-                count-v4 (Vector4d. (double light-count) 0.0 0.0 0.0)]
-            (when-some [uniform-info (uniform-infos lights-count-uniform-name)]
-              (shader/set-uniform-at-index gl program (:location uniform-info) count-v4))
+                light-info (Vector4d. (.x ambient-light) (.y ambient-light) (.z ambient-light) (double light-count))]
+            (when-some [uniform-info (uniform-infos light-info-uniform-name)]
+              (shader/set-uniform-at-index gl program (:location uniform-info) light-info))
 
             (when (pos? light-count)
               (doseq [^long i (range light-count)

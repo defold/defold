@@ -129,6 +129,7 @@ namespace dmRender
         LIGHT_TYPE_DIRECTIONAL = 0,
         LIGHT_TYPE_POINT       = 1,
         LIGHT_TYPE_SPOT        = 2,
+        LIGHT_TYPE_AMBIENT     = 3,
     };
 
     // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
@@ -493,9 +494,13 @@ namespace dmRender
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
     void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
     void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
+    LightType       GetLightType(HRenderContext render_context, HLightPrototype light_prototype);
+    dmVMath::Vector4 GetLightColor(HRenderContext render_context, HLightPrototype light_prototype);
+    float           GetLightIntensity(HRenderContext render_context, HLightPrototype light_prototype);
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
+    void            SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)

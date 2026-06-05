@@ -502,6 +502,22 @@ TEST_F(ResourceTest, LightResourcePrototype)
     dmResource::Release(m_Factory, (void*)res);
 
     /////////////////////////////////
+    // Test ambient light
+    /////////////////////////////////
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_ambient_light.lightc", (void**)&res));
+    ASSERT_NE((void*)0, res);
+
+    light_prototype = dmGameSystem::GetLightPrototype(res);
+    ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
+    proto = dmRender::GetLightPrototype(m_RenderContext, light_prototype);
+    ASSERT_NE((void*)0, proto);
+    ASSERT_EQ(dmRender::LIGHT_TYPE_AMBIENT, proto->m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(0.1f, 0.2f, 0.3f, 1.0f), proto->m_Color);
+    ASSERT_NEAR(5.0f, proto->m_Intensity, EPSILON);
+
+    dmResource::Release(m_Factory, (void*)res);
+
+    /////////////////////////////////
     // Test spot light
     /////////////////////////////////
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_spot_light.lightc", (void**)&res));
@@ -537,9 +553,11 @@ TEST_F(ResourceTest, LightComponentUpdatesLightBuffer)
     const Point3 pos_dir(10.0f, 11.0f, 12.0f);
     const Point3 pos_spot(-1.0f, 2.0f, -3.0f);
 
+    dmGameObject::HInstance go_ambient = Spawn(m_Factory, m_Collection, "/light/valid_ambient_light.goc", dmHashString64("/light_ambient"), 0, Point3(0.0f, 0.0f, 0.0f), rot_id, Vector3(1, 1, 1));
     dmGameObject::HInstance go_point = Spawn(m_Factory, m_Collection, "/light/valid_point_light.goc", dmHashString64("/light_point"), 0, pos_point, rot_id, Vector3(1, 1, 1));
     dmGameObject::HInstance go_dir = Spawn(m_Factory, m_Collection, "/light/valid_directional_light.goc", dmHashString64("/light_dir"), 0, pos_dir, rot_id, Vector3(1, 1, 1));
     dmGameObject::HInstance go_spot = Spawn(m_Factory, m_Collection, "/light/valid_spot_light.goc", dmHashString64("/light_spot"), 0, pos_spot, rot_id, Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go_ambient);
     ASSERT_NE((dmGameObject::HInstance)0, go_point);
     ASSERT_NE((dmGameObject::HInstance)0, go_dir);
     ASSERT_NE((dmGameObject::HInstance)0, go_spot);
@@ -547,6 +565,7 @@ TEST_F(ResourceTest, LightComponentUpdatesLightBuffer)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_EQ(3u, render_ctx->m_LightBufferScratch.Size());
+    ASSERT_VEC3(Vector3(0.5f, 1.0f, 1.5f), render_ctx->m_AmbientLight);
 
     // Creation order (point, directional, spot) matches CompLightWorld component order and light buffer indices 0..2
     const dmRender::LightSTD140& L_point = render_ctx->m_LightBufferScratch[0];
@@ -574,6 +593,31 @@ TEST_F(ResourceTest, LightComponentUpdatesLightBuffer)
     ASSERT_VEC3(pos_point_moved, render_ctx->m_LightBufferScratch[0].m_Position);
     ASSERT_VEC3(pos_dir, render_ctx->m_LightBufferScratch[1].m_Position);
     ASSERT_VEC3(pos_spot, render_ctx->m_LightBufferScratch[2].m_Position);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ResourceTest, AmbientLightsDoNotUseLightBufferSlots)
+{
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    ASSERT_NE((void*)0, render_ctx);
+    ASSERT_GT(render_ctx->m_MaxLightCount, 0u);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    const uint32_t ambient_count = render_ctx->m_MaxLightCount + 1;
+    for (uint32_t i = 0; i < ambient_count; ++i)
+    {
+        char id_buf[32];
+        dmSnPrintf(id_buf, sizeof(id_buf), "/ambient%u", i);
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/light/valid_ambient_light.goc", dmHashString64(id_buf), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+        ASSERT_NE((dmGameObject::HInstance)0, go);
+    }
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(0u, render_ctx->m_LightBufferScratch.Size());
+    ASSERT_VEC3(Vector3(0.5f * ambient_count, 1.0f * ambient_count, 1.5f * ambient_count), render_ctx->m_AmbientLight);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -6216,7 +6260,8 @@ INSTANTIATE_TEST_CASE_P(Data, ResourceFailTest, jc_test_values_in(invalid_data_r
 const char* valid_light_resources[] = {
     "/light/valid_point.lightc",
     "/light/valid_directional_light.lightc",
-    "/light/valid_spot_light.lightc"
+    "/light/valid_spot_light.lightc",
+    "/light/valid_ambient_light.lightc"
 };
 INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resources));
 
@@ -6224,14 +6269,16 @@ ResourceFailParams invalid_light_resources[] =
 {
     {"/light/valid_point.lightc", "/light/invalid_point_missing_range.lightc"},
     {"/light/valid_directional_light.lightc", "/light/invalid_directional_missing_intensity.lightc"},
-    {"/light/valid_spot_light.lightc", "/light/invalid_spot_missing_outer_cone_angle.lightc"}
+    {"/light/valid_spot_light.lightc", "/light/invalid_spot_missing_outer_cone_angle.lightc"},
+    {"/light/valid_ambient_light.lightc", "/light/invalid_ambient_missing_intensity.lightc"}
 };
 INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, jc_test_values_in(invalid_light_resources));
 
 const char* valid_light_gos[] = {
     "/light/valid_point_light.goc",
     "/light/valid_directional_light.goc",
-    "/light/valid_spot_light.goc"
+    "/light/valid_spot_light.goc",
+    "/light/valid_ambient_light.goc"
 };
 INSTANTIATE_TEST_CASE_P(Light, ComponentTest, jc_test_values_in(valid_light_gos));
 
@@ -8641,6 +8688,9 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUbo)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
+    dmGameObject::HInstance ambient_go = Spawn(m_Factory, m_Collection, "/light/valid_ambient_light.goc", dmHashString64("/ubo_ambient"), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, ambient_go);
+
     Point3 positions[10];
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -8675,9 +8725,9 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUbo)
     ASSERT_NE((void*)0, ubo);
     ASSERT_NE((void*)0, ubo->m_Buffer);
 
-    float count_written = 0.0f;
-    memcpy(&count_written, ubo->m_Buffer, sizeof(float));
-    ASSERT_NEAR(10.0f, count_written, EPSILON);
+    Vector4 light_info_written;
+    memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
+    ASSERT_VEC4(Vector4(0.5f, 1.0f, 1.5f, 10.0f), light_info_written);
 
     const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
     const uint32_t light_data_bytes  = 10u * (uint32_t) sizeof(dmRender::LightSTD140);
@@ -8731,9 +8781,9 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUboAfterDelete)
     ASSERT_NE((void*)0, ubo);
     ASSERT_NE((void*)0, ubo->m_Buffer);
 
-    float count_written = 0.0f;
-    memcpy(&count_written, ubo->m_Buffer, sizeof(float));
-    ASSERT_NEAR(2.0f, count_written, EPSILON);
+    Vector4 light_info_written;
+    memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
+    ASSERT_VEC4(Vector4(0.0f, 0.0f, 0.0f, 2.0f), light_info_written);
 
     const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
     dmRender::LightSTD140 uploaded_lights[2];
@@ -8802,9 +8852,9 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUboCompute)
     ASSERT_NE((void*)0, ubo);
     ASSERT_NE((void*)0, ubo->m_Buffer);
 
-    float count_written = 0.0f;
-    memcpy(&count_written, ubo->m_Buffer, sizeof(float));
-    ASSERT_NEAR(10.0f, count_written, EPSILON);
+    Vector4 light_info_written;
+    memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
+    ASSERT_VEC4(Vector4(0.0f, 0.0f, 0.0f, 10.0f), light_info_written);
 
     const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
     const uint32_t light_data_bytes  = 10u * (uint32_t) sizeof(dmRender::LightSTD140);
