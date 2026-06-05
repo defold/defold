@@ -70,6 +70,7 @@ _CMAKE_FEATURE_LIST_OPTIONS = {
 }
 
 JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
+MINIMUM_PYTHON_VERSION = (3, 12)
 
 class build_private(object):
     _target_platform = None
@@ -1088,9 +1089,16 @@ class Configuration(object):
             sys.exit(1)
         return path
 
-    def check_python(self):
-        if sys.version_info.major != 3:
-            self.fatal("The build scripts requires Python 3!")
+    def _get_python_version(self):
+        return ".".join([str(v) for v in sys.version_info[:3]])
+
+    def check_python(self, print_check = False):
+        python_version = self._get_python_version()
+        required_version = ".".join([str(v) for v in MINIMUM_PYTHON_VERSION])
+        if sys.version_info[:2] < MINIMUM_PYTHON_VERSION:
+            self.fatal("The build scripts require Python %s+! Found Python %s: %s" % (required_version, python_version, sys.executable))
+        if print_check:
+            self._log("Found Python: %s (%s)" % (sys.executable, python_version))
 
     def has_sdk(self, sdkfolder, target_platform):
         return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
@@ -1129,6 +1137,8 @@ class Configuration(object):
         return message
 
     def check_sdk(self):
+        self.check_python(print_check = True)
+
         sdkfolder = join(self.ext, 'SDKs')
 
         self.sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, True)
