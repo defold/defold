@@ -67,7 +67,6 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
 
   file(GLOB_RECURSE _folder_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GS_TEST_ROOT}/${_folder}/*")
   list(FILTER _folder_sources EXCLUDE REGEX "/build/")
-  list(FILTER _folder_sources EXCLUDE REGEX "\\.prebuilt_")
   list(FILTER _folder_sources EXCLUDE REGEX "\\.DS_Store$")
 
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
