@@ -766,36 +766,39 @@
   (let [{:keys [context command bindings binding-source]} row
         key (mouse-binding-key row)
         registered (mapv :binding (mouse-binding/registered-command-bindings context command))
-        inherited? (= :inherited binding-source)]
+        inherited? (= :inherited binding-source)
+        remove-items (when-not inherited?
+                       (into []
+                             (keep-indexed
+                               (fn [idx binding]
+                                 (when binding
+                                   {:fx/type fx.menu-item/lifecycle
+                                    :text (str "Remove " (mouse-binding/binding-display-text binding))
+                                    :on-action (fn [_]
+                                                 (update-mouse-bindings
+                                                   (fn [current-map]
+                                                     (let [override (get-in current-map key {})
+                                                           current-bindings (or (:bindings override) registered)
+                                                           new-bindings (into [] (keep-indexed #(when (not= %1 idx) %2)) current-bindings)
+                                                           new-override (if (= new-bindings registered)
+                                                                          (dissoc override :bindings)
+                                                                          (assoc override :bindings new-bindings))]
+                                                       (if (and (nil? (:bindings new-override)) (empty? (:sub-commands new-override)))
+                                                         (util/dissoc-in current-map key)
+                                                         (assoc-in current-map key new-override))))))})))
+                             bindings))]
     (vec
       (e/cons
         {:fx/type fx.menu-item/lifecycle
          :text "Add Mouse Binding"
          :on-action (fn [^ActionEvent e]
                       (show-mouse-binding-dialog! swap-state row nil
-                                                        (.getOwnerWindow (.getParentPopup ^MenuItem (.getSource e)))))}
+                                                  (.getOwnerWindow (.getParentPopup ^MenuItem (.getSource e)))))}
         (e/concat
-          (when-not inherited?
-            (into [] (keep-indexed (fn [idx binding]
-                                     (when binding
-                                     {:fx/type fx.menu-item/lifecycle
-                                      :text (str "Remove " (mouse-binding/binding-display-text binding))
-                                      :on-action (fn [_]
-                                                   (update-mouse-bindings
-                                                     (fn [current-map]
-                                                       (let [override (get-in current-map key {})
-                                                             current-bindings (or (:bindings override) registered)
-                                                             new-bindings (into [] (keep-indexed #(when (not= %1 idx) %2)) current-bindings)
-                                                             new-override (if (= new-bindings registered)
-                                                                            (dissoc override :bindings)
-                                                                            (assoc override :bindings new-bindings))]
-                                                         (if (and (nil? (:bindings new-override)) (empty? (:sub-commands new-override)))
-                                                           (util/dissoc-in current-map key)
-                                                           (assoc-in current-map key new-override))))))})))
-                 bindings)
+          remove-items
           [{:fx/type fx.menu-item/lifecycle
             :text "Reset to Defaults"
-            :on-action (fn [_] (update-mouse-bindings util/dissoc-in key))}]))))))
+            :on-action (fn [_] (update-mouse-bindings util/dissoc-in key))}])))))
 
 (defn- mouse-sub-binding-context-menu-items [swap-state update-mouse-bindings row]
   (let [{:keys [context command sub-cmd]} row
