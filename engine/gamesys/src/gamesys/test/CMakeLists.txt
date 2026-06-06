@@ -88,7 +88,8 @@ if(NOT EXISTS "${_GS_BOB_LIGHT}")
   endif()
 endif()
 
-set(_GS_BOB_CLASSPATH_LIST "${_GS_BOB_LIGHT}")
+file(GLOB _GS_BOB_PLUGIN_JARS CONFIGURE_DEPENDS "${DEFOLD_SDK_ROOT}/share/java/plugins/*.jar")
+set(_GS_BOB_CLASSPATH_LIST "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS})
 set(_GS_BUILTINS_ZIP "${DEFOLD_SDK_ROOT}/share/builtins.zip")
 if(EXISTS "${_GS_BUILTINS_ZIP}")
   list(APPEND _GS_BOB_CLASSPATH_LIST "${_GS_BUILTINS_ZIP}")
@@ -151,6 +152,7 @@ add_custom_command(
   VERBATIM)
 
 set(gamesys_content_outputs)
+set(_GS_PREVIOUS_CONTENT_STAMP)
 foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   set(_inputs_file "${GS_TEST_ROOT}/${_folder}/build.inputs")
   if(NOT EXISTS "${_inputs_file}")
@@ -192,7 +194,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
       --output "build/${_folder}"
       --build-input-file "${_GS_BOB_STAGE_ROOT}/${_folder}/build.inputs"
       --build-input-file "${_GS_BOB_STAGE_ROOT}/common_build.inputs"
-      --use-vanilla-lua
+      --use-uncompressed-lua-source
       --debug-output-spirv true
       --platform "${TARGET_PLATFORM}"
       ${_settings_args}
@@ -203,11 +205,12 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     ${_prebuilt_copy_commands}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
-    DEPENDS "${_GS_BOB_STAGE_STAMP}" "${_GS_BOB_LIGHT}" "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES} ${_prebuilt_sources}
+    DEPENDS "${_GS_BOB_STAGE_STAMP}" ${_GS_PREVIOUS_CONTENT_STAMP} "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES} ${_prebuilt_sources}
     WORKING_DIRECTORY "${_GS_BOB_STAGE_ROOT}"
     COMMENT "Building gamesys test data folder ${_folder}"
     VERBATIM)
   list(APPEND gamesys_content_outputs "${_stamp}")
+  set(_GS_PREVIOUS_CONTENT_STAMP "${_stamp}")
 endforeach()
 
 # ---------------------------------------------------------------------------

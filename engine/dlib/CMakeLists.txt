@@ -62,101 +62,19 @@ function(dlib_target_os out_var)
   set(${out_var} "${_target_os}" PARENT_SCOPE)
 endfunction()
 
-function(dlib_platform_tags out_var)
-  dlib_target_os(_target_os)
-  set(_tags "${_target_os}")
-  if(_target_os STREQUAL "nx64")
-    list(APPEND _tags switch nintendo)
-  elseif(_target_os STREQUAL "ps4" OR _target_os STREQUAL "ps5")
-    list(APPEND _tags playstation sony)
-  elseif(_target_os STREQUAL "xbone")
-    list(APPEND _tags xbox microsoft win32)
-  endif()
-
-  if(_target_os STREQUAL "macos" OR _target_os STREQUAL "ios")
-    list(APPEND _tags darwin apple)
-  endif()
-
-  set(${out_var} "${_tags}" PARENT_SCOPE)
-endfunction()
-
-function(dlib_fallback_tags out_var)
-  dlib_target_os(_target_os)
-  set(_tags)
-  if(_target_os MATCHES "^(android|ios|linux|macos|web)$")
-    list(APPEND _tags posix)
-  endif()
-  list(APPEND _tags default)
-  set(${out_var} "${_tags}" PARENT_SCOPE)
-endfunction()
-
 function(dlib_select_feature out_selected out_all feature_base)
   set(options)
   set(oneValueArgs)
   set(multiValueArgs EXTRA_TAGS PREFERRED_TAGS)
   cmake_parse_arguments(DFEAT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  file(GLOB _all CONFIGURE_DEPENDS
-       "${DLIB_SRC_DIR}/${feature_base}.cpp"
-       "${DLIB_SRC_DIR}/${feature_base}.c"
-       "${DLIB_SRC_DIR}/${feature_base}.cc"
-       "${DLIB_SRC_DIR}/${feature_base}.cxx"
-       "${DLIB_SRC_DIR}/${feature_base}.mm"
-       "${DLIB_SRC_DIR}/${feature_base}.m"
-       "${DLIB_SRC_DIR}/${feature_base}_*.cpp"
-       "${DLIB_SRC_DIR}/${feature_base}_*.c"
-       "${DLIB_SRC_DIR}/${feature_base}_*.cc"
-       "${DLIB_SRC_DIR}/${feature_base}_*.cxx"
-       "${DLIB_SRC_DIR}/${feature_base}_*.mm"
-       "${DLIB_SRC_DIR}/${feature_base}_*.m")
-
-  set(_selected)
-  foreach(_ext IN ITEMS cpp c cc cxx mm m)
-    if(EXISTS "${DLIB_SRC_DIR}/${feature_base}.${_ext}")
-      dlib_append_unique(_selected "${DLIB_SRC_DIR}/${feature_base}.${_ext}")
-    endif()
-  endforeach()
-
-  set(_tag_files)
-  foreach(_tag IN LISTS DFEAT_PREFERRED_TAGS)
-    foreach(_ext IN ITEMS cpp c cc cxx mm m)
-      if(EXISTS "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-        dlib_append_unique(_tag_files "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-      endif()
-    endforeach()
-  endforeach()
-
-  if(NOT _tag_files)
-    dlib_platform_tags(_platform_tags)
-    set(_candidate_tags ${_platform_tags} ${DFEAT_EXTRA_TAGS})
-    foreach(_tag IN LISTS _candidate_tags)
-      foreach(_ext IN ITEMS cpp c cc cxx mm m)
-        if(EXISTS "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-          dlib_append_unique(_tag_files "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-        endif()
-      endforeach()
-    endforeach()
-  endif()
-
-  if(NOT _tag_files)
-    dlib_fallback_tags(_fallback_tags)
-    foreach(_tag IN LISTS _fallback_tags)
-      foreach(_ext IN ITEMS cpp c cc cxx mm m)
-        if(EXISTS "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-          dlib_append_unique(_tag_files "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-        endif()
-      endforeach()
-    endforeach()
-  endif()
-
-  dlib_append_unique(_selected ${_tag_files})
-  if(NOT _all)
-    message(FATAL_ERROR "Could not find any source files for feature ${feature_base}")
-  endif()
-  if(NOT _selected)
-    message(FATAL_ERROR "Could not find selected source files for feature ${feature_base} on platform ${TARGET_PLATFORM}")
-  endif()
-
+  defold_select_feature_sources(_selected _all
+    BASE_DIR "${DLIB_SRC_DIR}"
+    FEATURE "${feature_base}"
+    PLATFORM "${TARGET_PLATFORM}"
+    PRIVATE_ROOT "${DEFOLD_PRIVATE_REPO_ROOT}"
+    EXTRA_TAGS ${DFEAT_EXTRA_TAGS}
+    PREFERRED_TAGS ${DFEAT_PREFERRED_TAGS})
   set(${out_selected} "${_selected}" PARENT_SCOPE)
   set(${out_all} "${_all}" PARENT_SCOPE)
 endfunction()
@@ -247,7 +165,7 @@ foreach(_feature IN ITEMS
   elseif(_feature STREQUAL "dlib/sslsocket")
     if(DLIB_USE_MBEDTLS AND DLIB_TARGET_OS MATCHES "^(macos|ios)$")
       set(_preferred_tags mbedtls)
-    elseif(DLIB_TARGET_OS MATCHES "^(android|linux|win32)$")
+    elseif(DLIB_TARGET_OS MATCHES "^(android|linux|win32|xbone)$")
       set(_extra_tags mbedtls)
     endif()
   elseif(_feature STREQUAL "dlib/sys")

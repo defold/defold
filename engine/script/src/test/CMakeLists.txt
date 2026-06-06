@@ -47,6 +47,9 @@ defold_add_library(test_script STATIC
 target_include_directories(test_script PUBLIC
   "${SCRIPT_TEST_ROOT}"
   "${SCRIPT_SRC_DIR}")
+if(DEFINED DEFOLD_PLATFORM_TEST_DEFINES)
+  target_compile_definitions(test_script PRIVATE ${DEFOLD_PLATFORM_TEST_DEFINES})
+endif()
 defold_target_link_libraries(test_script "${TARGET_PLATFORM}" dlib script)
 defold_target_link_lua(test_script "${TARGET_PLATFORM}" SCOPE PUBLIC)
 

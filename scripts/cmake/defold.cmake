@@ -66,6 +66,8 @@ function(_defold_set_opt_flag cfg optflag debugflag)
       if(NOT "${debugflag}" STREQUAL "")
         string(REGEX REPLACE "-g([0-9]?)" "" _flags "${_flags}")
       endif()
+      string(REGEX REPLACE "(^| )/O[0-9a-zA-Z]+( |$)" " " _flags "${_flags}")
+      string(REGEX REPLACE "(^| )/Z[7iI]( |$)" " " _flags "${_flags}")
       string(REGEX REPLACE "  +" " " _flags "${_flags}")
       string(STRIP "${_flags}" _flags)
       set(_final_flags "")
@@ -104,15 +106,28 @@ function(_defold_set_opt_flag cfg optflag debugflag)
   endforeach()
 endfunction()
 
-set(_DEFOLD_RELWITHDEBINFO_OPT "-O2")
-if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
-  set(_DEFOLD_RELWITHDEBINFO_OPT "-O3")
+set(_DEFOLD_MSVC_STYLE_FLAGS OFF)
+if(TARGET_PLATFORM MATCHES "(win32|xbone)$")
+  set(_DEFOLD_MSVC_STYLE_FLAGS ON)
 endif()
 
-_defold_set_opt_flag(Debug "-O0" "-g")
-_defold_set_opt_flag(Release "-O2" "-g")
-_defold_set_opt_flag(RelWithDebInfo "${_DEFOLD_RELWITHDEBINFO_OPT}" "-g")
-_defold_set_opt_flag(MinSizeRel "-Os" "-g")
+if(_DEFOLD_MSVC_STYLE_FLAGS)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "Use static MSVC runtime (/MT)" FORCE)
+  _defold_set_opt_flag(Debug "/Od" "")
+  _defold_set_opt_flag(Release "/O2" "")
+  _defold_set_opt_flag(RelWithDebInfo "/O2" "")
+  _defold_set_opt_flag(MinSizeRel "/O1" "")
+else()
+  set(_DEFOLD_RELWITHDEBINFO_OPT "-O2")
+  if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+    set(_DEFOLD_RELWITHDEBINFO_OPT "-O3")
+  endif()
+
+  _defold_set_opt_flag(Debug "-O0" "-g")
+  _defold_set_opt_flag(Release "-O2" "-g")
+  _defold_set_opt_flag(RelWithDebInfo "${_DEFOLD_RELWITHDEBINFO_OPT}" "-g")
+  _defold_set_opt_flag(MinSizeRel "-Os" "-g")
+endif()
 
 # Prime Release-like flag variables before CMake enables the toolchains so
 # /DNDEBUG or -DNDEBUG never sneak into optimised builds. We update both the
@@ -185,6 +200,13 @@ include(features)
 # platform specific includes, lib paths, defines etc...
 include(platform)
 
+defold_get_private_repo_root(DEFOLD_PRIVATE_REPO_ROOT "${TARGET_PLATFORM}")
+if(DEFOLD_PRIVATE_REPO_ROOT)
+  set(DEFOLD_BUILD_HOME "${DEFOLD_PRIVATE_REPO_ROOT}" CACHE PATH "Root for generated build directories for ${TARGET_PLATFORM}" FORCE)
+else()
+  set(DEFOLD_BUILD_HOME "${DEFOLD_HOME}" CACHE PATH "Root for generated build directories" FORCE)
+endif()
+
 if(CMAKE_CONFIGURATION_TYPES)
   set(_DEFOLD_BUILD_TYPE_DISPLAY "multi-config")
 else()
@@ -192,6 +214,7 @@ else()
 endif()
 message(STATUS "Defold CMake settings: CMAKE_GENERATOR=${CMAKE_GENERATOR}, TARGET_PLATFORM=${TARGET_PLATFORM}, CMAKE_BUILD_TYPE=${_DEFOLD_BUILD_TYPE_DISPLAY}, BUILD_TESTS=${BUILD_TESTS}")
 unset(_DEFOLD_BUILD_TYPE_DISPLAY)
+defold_log("DEFOLD_BUILD_HOME: ${DEFOLD_BUILD_HOME}")
 
 # Prefer colored diagnostics from compilers that support it
 set(CMAKE_COLOR_DIAGNOSTICS ON)
@@ -202,11 +225,18 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
 
 # Common paths
 set(DEFOLD_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/include")
-set(DEFOLD_EXT_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include")
-set(DEFOLD_EXT_PLATFORM_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include/${TARGET_PLATFORM}")
+set(DEFOLD_PUBLIC_EXT_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include")
+set(DEFOLD_PUBLIC_EXT_PLATFORM_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include/${TARGET_PLATFORM}")
+set(DEFOLD_EXT_INCLUDE_DIR "${DEFOLD_PUBLIC_EXT_INCLUDE_DIR}")
+set(DEFOLD_EXT_PLATFORM_INCLUDE_DIR "${DEFOLD_PUBLIC_EXT_PLATFORM_INCLUDE_DIR}")
 set(DEFOLD_DMSDK_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/sdk/include")
 
 file(GLOB _DEFOLD_ENGINE_SOURCE_ROOTS CONFIGURE_DEPENDS "${DEFOLD_HOME}/engine/*/src")
+if(DEFOLD_PRIVATE_REPO_ROOT)
+  file(GLOB _DEFOLD_PRIVATE_ENGINE_SOURCE_ROOTS CONFIGURE_DEPENDS "${DEFOLD_PRIVATE_REPO_ROOT}/engine/*/src")
+  # Keep public roots first so stale private copies do not shadow shared APIs.
+  list(APPEND _DEFOLD_ENGINE_SOURCE_ROOTS ${_DEFOLD_PRIVATE_ENGINE_SOURCE_ROOTS})
+endif()
 set(DEFOLD_ENGINE_SOURCE_INCLUDE_DIRS)
 foreach(_DEFOLD_ENGINE_SOURCE_ROOT IN LISTS _DEFOLD_ENGINE_SOURCE_ROOTS)
   if(IS_DIRECTORY "${_DEFOLD_ENGINE_SOURCE_ROOT}")
@@ -216,10 +246,20 @@ endforeach()
 list(REMOVE_DUPLICATES DEFOLD_ENGINE_SOURCE_INCLUDE_DIRS)
 
 file(GLOB _DEFOLD_DMSDK_DIRS CONFIGURE_DEPENDS "${DEFOLD_HOME}/engine/*/src/dmsdk")
+if(DEFOLD_PRIVATE_REPO_ROOT)
+  file(GLOB _DEFOLD_PRIVATE_DMSDK_DIRS CONFIGURE_DEPENDS "${DEFOLD_PRIVATE_REPO_ROOT}/engine/*/src/dmsdk")
+  list(PREPEND _DEFOLD_DMSDK_DIRS ${_DEFOLD_PRIVATE_DMSDK_DIRS})
+endif()
 
 file(GLOB _DEFOLD_PROTO_SOURCE_ROOTS CONFIGURE_DEPENDS
   "${DEFOLD_HOME}/engine/*/src"
   "${DEFOLD_HOME}/engine/*/proto")
+if(DEFOLD_PRIVATE_REPO_ROOT)
+  file(GLOB _DEFOLD_PRIVATE_PROTO_SOURCE_ROOTS CONFIGURE_DEPENDS
+    "${DEFOLD_PRIVATE_REPO_ROOT}/engine/*/src"
+    "${DEFOLD_PRIVATE_REPO_ROOT}/engine/*/proto")
+  list(PREPEND _DEFOLD_PROTO_SOURCE_ROOTS ${_DEFOLD_PRIVATE_PROTO_SOURCE_ROOTS})
+endif()
 set(DEFOLD_PROTO_SOURCE_INCLUDE_DIRS)
 foreach(_DEFOLD_PROTO_SOURCE_ROOT IN LISTS _DEFOLD_PROTO_SOURCE_ROOTS)
   if(IS_DIRECTORY "${_DEFOLD_PROTO_SOURCE_ROOT}")
@@ -229,7 +269,8 @@ endforeach()
 list(REMOVE_DUPLICATES DEFOLD_PROTO_SOURCE_INCLUDE_DIRS)
 
 set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
-set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
+set(DEFOLD_PUBLIC_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
+set(DEFOLD_EXT_LIB_DIR "${DEFOLD_PUBLIC_EXT_LIB_DIR}")
 
 set(_DEFOLD_ENGINE_LIBS
   testmain
@@ -265,19 +306,23 @@ set(_DEFOLD_ENGINE_LIBS
   sdk)
 foreach(_DEFOLD_ENGINE_LIB IN LISTS _DEFOLD_ENGINE_LIBS)
   string(TOUPPER "${_DEFOLD_ENGINE_LIB}" _DEFOLD_ENGINE_LIB_UPPER)
-  set("DEFOLD_${_DEFOLD_ENGINE_LIB_UPPER}_BINARY_DIR" "${DEFOLD_HOME}/engine/${_DEFOLD_ENGINE_LIB}/build/${TARGET_PLATFORM}" CACHE INTERNAL "Binary directory for engine/${_DEFOLD_ENGINE_LIB}")
+  set("DEFOLD_${_DEFOLD_ENGINE_LIB_UPPER}_BINARY_DIR" "${DEFOLD_BUILD_HOME}/engine/${_DEFOLD_ENGINE_LIB}/build/${TARGET_PLATFORM}" CACHE INTERNAL "Binary directory for engine/${_DEFOLD_ENGINE_LIB}")
 endforeach()
 unset(_DEFOLD_ENGINE_LIB)
 unset(_DEFOLD_ENGINE_LIB_UPPER)
 unset(_DEFOLD_ENGINE_LIBS)
 
 # For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
-set(_DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
-set(_DEFOLD_PLATFORM_LIB_DIRS     "${DEFOLD_LIB_DIR}" "${DEFOLD_EXT_LIB_DIR}")
+set(_DEFOLD_PLATFORM_INCLUDE_DIRS)
+set(_DEFOLD_PLATFORM_LIB_DIRS)
+list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
+list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_LIB_DIR}" "${DEFOLD_EXT_LIB_DIR}")
 if(TARGET_PLATFORM STREQUAL "x86-win32")
   list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_SDK_ROOT}/ext/include/win32")
   list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_SDK_ROOT}/lib/win32" "${DEFOLD_SDK_ROOT}/ext/lib/win32")
 endif()
+list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_INCLUDE_DIRS)
+list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_LIB_DIRS)
 
 if(NOT EXISTS "${DEFOLD_SDK_ROOT}")
   message(FATAL_ERROR "Missing folder ${DEFOLD_SDK_ROOT}")
