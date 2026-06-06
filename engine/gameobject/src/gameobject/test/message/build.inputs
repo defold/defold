@@ -1,0 +1,17 @@
+component_broadcast_message.go
+component_broadcast_message.script
+component_message.go
+component_message.script
+test_inf_ping_pong.go
+test_inf_ping_pong_a.script
+test_inf_ping_pong_b.script
+test_no_onmessage.go
+test_no_onmessage.script
+test_onmessage.go
+test_onmessage.script
+test_ping_pong.go
+test_ping_pong_a.script
+test_ping_pong_b.script
+test_table.go
+test_tablereceiver.script
+test_tablesender.script
