@@ -1,4 +1,4 @@
-#include <script/test_script.h>
+#include <test_script.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 

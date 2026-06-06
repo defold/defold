@@ -30,6 +30,7 @@
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.http-server :as ext.http-server]
+            [editor.editor-extensions.image :as ext.image]
             [editor.editor-extensions.localization :as ext.localization]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
@@ -1037,6 +1038,7 @@
                                   "editor_sha1" (system/defold-editor-sha1)}
                         "http" {"request" ext-http-request
                                 "server" (ext.http-server/env workspace project-path web-server)}
+                        "image" (ext.image/env project-path)
                         "json" {"decode" ext-json-decode
                                 "encode" ext-json-encode}
                         "io" {"tmpfile" nil}

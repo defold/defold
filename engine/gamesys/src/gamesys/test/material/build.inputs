@@ -23,3 +23,11 @@
 /material/uniform_buffers.material
 /material/valid.material
 /material/world_vertexspace.material
+/light/valid_ambient_light.go
+/light/valid_point_light.go
+/shader/light_buffer.compute
+/sprite/texture_transform_sprite.go
+/sprite/texture_transform_multi.go
+/model/texture_transform_model.go
+/tile/valid_tilegrid.go
+/tile/valid2.tileset

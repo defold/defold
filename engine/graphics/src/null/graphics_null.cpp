@@ -539,7 +539,8 @@ namespace dmGraphics
         ib->m_Buffer = new char[size];
         ib->m_Copy = 0x0;
         ib->m_Size = size;
-        memcpy(ib->m_Buffer, data, size);
+        if (size > 0 && data != 0x0)
+            memcpy(ib->m_Buffer, data, size);
         return (uintptr_t)ib;
     }
 
@@ -555,6 +556,8 @@ namespace dmGraphics
 
     static void NullSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        if (!buffer)
+            return;
         IndexBuffer* ib = (IndexBuffer*)buffer;
         assert(ib->m_Copy == 0x0);
         delete [] ib->m_Buffer;

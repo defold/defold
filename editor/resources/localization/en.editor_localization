@@ -1213,6 +1213,7 @@ property.collision-object.event-contact.tooltip = If disabled, filters out any c
 property.collision-object.event-trigger = Generate Trigger Events
 property.collision-object.event-trigger.tooltip = If disabled, filters out any trigger events involving this collision object
 property.collision-object.group = Group
+property.collision-object.group.tilemap.tooltip = This property is not used when Collision Shape is a tilemap. Collision groups are defined in the tilemap's tile source.
 property.collision-object.mask = Mask
 property.collision-object.shape.diameter = Diameter
 property.collision-object.shape.dimensions = Dimensions
