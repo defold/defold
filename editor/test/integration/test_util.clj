@@ -1759,6 +1759,9 @@
 (defmethod edit-resource-node "point_light" [resource-node-id]
   (edit-light-resource-node resource-node-id))
 
+(defmethod edit-resource-node "ambient_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
 (defmethod edit-resource-node "directional_light" [resource-node-id]
   (edit-light-resource-node resource-node-id))
 
