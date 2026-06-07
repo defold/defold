@@ -7,8 +7,8 @@ cmake_minimum_required(VERSION 4.0)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/scripts/cmake")
 include(defold)
 
-# we rename this project in build.py when we generate the solution
-project(defold_libraries LANGUAGES ${DEFOLD_LANGUAGE_LIST})
+set(DEFOLD_SOLUTION_NAME "defold_libraries" CACHE STRING "Name used for generated IDE solutions")
+project(${DEFOLD_SOLUTION_NAME} LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
 # Load full Defold CMake (platform flags, interface target, etc.)
 include("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/defold.cmake")
@@ -94,7 +94,7 @@ endif()
 
 message(STATUS "Defold engine libs: ${DEFOLD_SELECTED_ENGINE_LIBS}")
 foreach(_DEFOLD_ENGINE_LIB IN LISTS DEFOLD_SELECTED_ENGINE_LIBS)
-  set(_DEFOLD_ENGINE_LIB_BINARY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/engine/${_DEFOLD_ENGINE_LIB}/build/${TARGET_PLATFORM}")
+  set(_DEFOLD_ENGINE_LIB_BINARY_DIR "${DEFOLD_BUILD_HOME}/engine/${_DEFOLD_ENGINE_LIB}/build/${TARGET_PLATFORM}")
   string(TOUPPER "${_DEFOLD_ENGINE_LIB}" _DEFOLD_ENGINE_LIB_UPPER)
   set("DEFOLD_${_DEFOLD_ENGINE_LIB_UPPER}_BINARY_DIR" "${_DEFOLD_ENGINE_LIB_BINARY_DIR}" CACHE INTERNAL "Binary directory for engine/${_DEFOLD_ENGINE_LIB}")
   add_subdirectory("engine/${_DEFOLD_ENGINE_LIB}" "${_DEFOLD_ENGINE_LIB_BINARY_DIR}")
@@ -104,7 +104,7 @@ unset(_DEFOLD_ENGINE_LIB_BINARY_DIR)
 unset(_DEFOLD_ENGINE_LIB_UPPER)
 
 if(DEFOLD_ENGINE_LIB_SET STREQUAL "all" OR DEFOLD_ENGINE_LIB_SET STREQUAL "target")
-  add_subdirectory("share/extender" "${CMAKE_CURRENT_SOURCE_DIR}/share/extender/build/${TARGET_PLATFORM}")
+  add_subdirectory("share/extender" "${DEFOLD_BUILD_HOME}/share/extender/build/${TARGET_PLATFORM}")
 endif()
 
 set(_DEFOLD_BOB_LIGHT_DEPENDS
@@ -185,6 +185,7 @@ unset(_DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS)
 unset(_DEFOLD_BOB_LIGHT_LIB)
 
 defold_xcode_organize_project()
+defold_finalize_sequential_run_tests()
 
 # ===================== CMake package export =====================
 # Export defold_sdk so external projects can find_package(Defold)

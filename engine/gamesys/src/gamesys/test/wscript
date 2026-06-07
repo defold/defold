@@ -67,7 +67,7 @@ def _build_test_data(task):
            '--output', os.path.join(generator.output_root, generator.test_data_folder),
            '--build-input-file', generator.inputs_file.abspath(),
            '--build-input-file', generator.common_inputs_file.abspath(),
-           '--use-vanilla-lua',
+           '--use-uncompressed-lua-source',
            '--debug-output-spirv', 'true',
            '--platform', generator.bld.env['PLATFORM']]
 

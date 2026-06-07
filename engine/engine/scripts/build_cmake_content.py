@@ -104,7 +104,7 @@ def stage_raw_archive_inputs(stage_root, build_root):
     return raw_paths
 
 
-def rebuild_builtin_fonts(args, stage_root, build_root, bob_light):
+def rebuild_builtin_fonts(args, stage_root, build_root, bob_classpath):
     for source in sorted((stage_root / "builtins").rglob("*.font")):
         rel_path = source.relative_to(stage_root).with_suffix(".fontc")
         output = build_root / rel_path
@@ -112,7 +112,7 @@ def rebuild_builtin_fonts(args, stage_root, build_root, bob_light):
         run([
             args.java,
             "-cp",
-            str(bob_light),
+            bob_classpath,
             "com.dynamo.bob.font.Fontc",
             str(source),
             str(output),
@@ -148,6 +148,7 @@ def build_builtins(args):
     output_root = Path(args.output_root).resolve()
     stamp = Path(args.stamp).resolve()
     bob_light = Path(args.bob_light).resolve()
+    bob_classpath = args.bob_classpath or str(bob_light)
 
     copytree(source_root, work_root)
     output_root.mkdir(parents=True, exist_ok=True)
@@ -158,7 +159,7 @@ def build_builtins(args):
     java_cmd = [
         args.java,
         "-cp",
-        str(bob_light),
+        bob_classpath,
         "com.dynamo.bob.Bob",
         "--root",
         ".",
@@ -167,7 +168,7 @@ def build_builtins(args):
         "--platform",
         args.platform,
         "--variant=debug",
-        "--use-vanilla-lua",
+        "--use-uncompressed-lua-source",
         "--build-input-file",
         build_inputs.name,
         "clean",
@@ -176,7 +177,7 @@ def build_builtins(args):
     run(java_cmd, work_root)
 
     build_root = work_root / "build/default"
-    rebuild_builtin_fonts(args, work_root, build_root, bob_light)
+    rebuild_builtin_fonts(args, work_root, build_root, bob_classpath)
     remove_root_generated_font_outputs(build_root)
     stage_raw_archive_inputs(work_root, build_root)
 
@@ -188,7 +189,7 @@ def build_builtins(args):
     archive_cmd = [
         args.java,
         "-cp",
-        str(bob_light),
+        bob_classpath,
         "com.dynamo.bob.archive.ArchiveBuilder",
         str(build_root),
         str(archive_output),
@@ -230,6 +231,7 @@ def main():
     builtins.add_argument("--output-root", required=True)
     builtins.add_argument("--stamp", required=True)
     builtins.add_argument("--bob-light", required=True)
+    builtins.add_argument("--bob-classpath")
     builtins.add_argument("--platform", required=True)
     builtins.add_argument("--java", required=True)
     builtins.set_defaults(func=build_builtins)
