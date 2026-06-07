@@ -115,6 +115,10 @@ extern uint32_t MUSIC_ADPCM_WAV_SIZE;
 extern unsigned char AMBIENCE_ADPCM_WAV[];
 extern uint32_t AMBIENCE_ADPCM_WAV_SIZE;
 
+#if defined(DM_PLATFORM_MACOS)
+extern "C" int dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart();
+#endif
+
 struct TestParams
 {
     typedef dmSound::SoundDataType SoundDataType;
@@ -2361,6 +2365,20 @@ static int PlaySound(const char* path, dmSound::SoundDataType type)
     dmMemory::AlignedFree(sound_data);
     return 0;
 }
+
+#if defined(DM_PLATFORM_MACOS)
+TEST(SoundAVAudio, ReconfigureHandlesEngineStoppedAfterRestart)
+{
+    // The Objective-C++ helper fakes the AVAudio runtime so this exercises the
+    // backend reconfigure path without depending on host audio components.
+    int result = dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart();
+    if (result == 0)
+    {
+        SKIP();
+    }
+    ASSERT_EQ(1, result);
+}
+#endif
 
 TEST(SoundSdk, HighSpeedPlaybackCompletes)
 {
