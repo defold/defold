@@ -2155,7 +2155,7 @@ class Configuration(object):
         if not os.path.isdir(engine_root):
             return True
 
-        stale_config_dir = '/build/%s/%s/' % (platform, build_type) if build_type else None
+        stale_config_dirs = ['/build/%s/%s/' % (platform, config) for config in ('Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel')]
         for lib in os.listdir(engine_root):
             install_script = join(engine_root, lib, 'build', platform, 'cmake_install.cmake')
             if not os.path.exists(install_script):
@@ -2166,7 +2166,8 @@ class Configuration(object):
             except OSError:
                 continue
 
-            if stale_config_dir and stale_config_dir in content:
+            stale_config_dir = next((path for path in stale_config_dirs if path in content), None)
+            if stale_config_dir:
                 self._log('CMake generated install mismatch for %s: stale multi-config output path found' % install_script)
                 return False
             if build_tests == 'OFF' and '/src/test/cmake_install.cmake' in content:
