@@ -129,7 +129,8 @@ add_custom_command(
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest"
     "${ENGINE_BUILTINS_STAMP}"
-  COMMAND "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
+  COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+    "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
     --source-root "${ENGINE_CONTENT_DIR}"
     --work-root "${ENGINE_BUILTINS_WORK_ROOT}"
     --output-root "${ENGINE_BUILTINS_OUTPUT_DIR}"
@@ -154,7 +155,7 @@ set(ENGINE_DEBUG_SPC "${CMAKE_CURRENT_BINARY_DIR}/content/materials/debug.spc")
 add_custom_command(
   OUTPUT "${ENGINE_DEBUG_SPC}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/content/materials"
-  COMMAND "${Java_JAVA_EXECUTABLE}" -cp "${ENGINE_BOB_CLASSPATH}"
+  COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${ENGINE_BOB_CLASSPATH}"
     com.dynamo.bob.pipeline.ShaderProgramBuilder
     "${ENGINE_CONTENT_DIR}/materials/debug.fp"
     "${ENGINE_CONTENT_DIR}/materials/debug.vp"

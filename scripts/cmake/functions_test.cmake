@@ -184,7 +184,7 @@ function(defold_finalize_sequential_run_tests)
     return()
   endif()
 
-  if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+  if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-xbone")
     return()
   endif()
 
@@ -458,6 +458,42 @@ function(defold_register_test_target target_name)
           USES_TERMINAL
           COMMAND_EXPAND_LISTS
           COMMENT "Running ${target_name} on Android device")
+      elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
+        _defold_find_python(_python)
+        set(_runner "")
+        if(DEFOLD_XBONE_PRIVATE_REPO_ROOT)
+          set(_runner_candidate "${DEFOLD_XBONE_PRIVATE_REPO_ROOT}/scripts/build_xbone.py")
+          if(EXISTS "${_runner_candidate}")
+            set(_runner "${_runner_candidate}")
+          endif()
+        endif()
+        set(_run_dir "${_RUN_DIR_NORM}")
+        if(NOT _run_dir)
+          set(_run_dir "${CMAKE_CURRENT_BINARY_DIR}")
+        endif()
+        set(_config_args "")
+        if(_TEST_CONFIGFILE)
+          list(APPEND _config_args --config "${_TEST_CONFIGFILE}")
+        endif()
+        if(_runner)
+          add_custom_target(${_run_target}
+            COMMAND "${_python}" "${_runner}" run-test
+              --cwd "${_run_dir}"
+              --program "$<TARGET_FILE:${target_name}>"
+              --private-repo-root "${DEFOLD_XBONE_PRIVATE_REPO_ROOT}"
+              ${_config_args}
+            DEPENDS ${target_name}
+            USES_TERMINAL
+            COMMAND_EXPAND_LISTS
+            COMMENT "Running ${target_name} on Xbox console")
+        else()
+          message(WARNING "defold_register_test_target: Xbox test runner not found for '${target_name}'. The run target will fail until the private Xbox build_xbone.py hook is available.")
+          add_custom_target(${_run_target}
+            COMMAND ${CMAKE_COMMAND} -E false
+            DEPENDS ${target_name}
+            USES_TERMINAL
+            COMMENT "Xbox test runner missing for ${target_name}")
+        endif()
       elseif(_RUN_DIR_NORM)
         add_custom_target(${_run_target}
           COMMAND ${_run_env} ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
@@ -473,7 +509,7 @@ function(defold_register_test_target target_name)
       endif()
     endif()
     set(_sequential_dep ${target_name})
-    if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-xbone")
       set(_prepare_target "prepare_${target_name}")
       if(NOT TARGET ${_prepare_target})
         add_custom_target(${_prepare_target} DEPENDS ${target_name})
@@ -481,7 +517,7 @@ function(defold_register_test_target target_name)
       set(_sequential_dep ${_prepare_target})
     endif()
 
-    if(NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    if(NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-xbone")
       set(_sequential_command ${_run_env})
       if(_RUN_DIR_NORM)
         list(APPEND _sequential_command ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe})

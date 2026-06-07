@@ -113,6 +113,10 @@ class build_private(object):
     def get_tag_suffix(cls):
         return cls._call(None, 'get_tag_suffix', '')
 
+    @classmethod
+    def can_run_tests(cls, platform, log_fn, env, device):
+        return cls._call(platform, 'can_run_tests', False, log_fn, env, device, get_platform_root(platform))
+
 assert(hasattr(build_private, 'get_target_platforms'))
 assert(hasattr(build_private, 'get_install_host_packages'))
 assert(hasattr(build_private, 'get_install_target_packages'))
@@ -1809,6 +1813,14 @@ class Configuration(object):
                 supported_tests['x86_64-linux'].extend(android_tests)
                 supported_tests['x86_64-win32'].extend(android_tests)
 
+        if self.target_platform == 'x86_64-xbone':
+            can_run_xbone_tests = build_private.can_run_tests(self.target_platform, self._log, self._form_env(), self.test_device)
+            if self.test_device and not can_run_xbone_tests:
+                self.fatal("Requested Xbox test console '%s' is not available" % self.test_device)
+
+            if can_run_xbone_tests:
+                supported_tests['x86_64-win32'].append('x86_64-xbone')
+
         can_run_platform = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
         if not can_run_platform:
             return False
@@ -2168,11 +2180,8 @@ class Configuration(object):
         builddir = self._cmake_top_build_dir(platform)
 
         build_type = self._find_cmake_build_type(self.waf_options)
-        can_run_tests = self._can_run_tests()
-        build_tests = (not skip_tests) and can_run_tests and '--skip-build-tests' not in self.waf_options
-        # Xbox target tests cannot run on the host. Until the target runner is
-        # ported to CMake, keep them out of the host-driven CMake build.
-        supports_tests = build_tests and platform != 'x86_64-xbone'
+        build_tests = (not skip_tests) and '--skip-build-tests' not in self.waf_options and self._can_run_tests()
+        supports_tests = build_tests
 
         # Keep CMake build directories persistent so repeated builds can be
         # handled by Ninja's dependency graph instead of forcing a rebuild.
@@ -2335,12 +2344,12 @@ class Configuration(object):
         host = self.host
         target_platform = self.target_platform
         with_waf = self._build_engine_with_waf()
-        cmake_incremental = not with_waf
-        cmd = self._build_engine_cmd_waf(**self._get_build_flags(), incremental = self.incremental or cmake_incremental)
-        args = cmd.split()
         if with_waf:
+            cmd = self._build_engine_cmd_waf(**self._get_build_flags(), incremental = self.incremental)
+            args = cmd.split()
             self._log('Building engine libs with Waf fallback (--with-waf)')
         else:
+            args = []
             self._log('Building engine libs with top-level CMake (incremental by default)')
 
         # Make sure we build these for the host platform for the toolchain (bob light)
@@ -3555,8 +3564,10 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
-        if self.test_device:
+        if self.test_device and 'android' in self.target_platform:
             env['ANDROID_SERIAL'] = self.test_device
+        elif self.test_device and self.target_platform == 'x86_64-xbone':
+            env['XBOX_CONSOLE'] = self.test_device
 
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')

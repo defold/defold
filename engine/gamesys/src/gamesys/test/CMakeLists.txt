@@ -186,8 +186,10 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     OUTPUT "${_stamp}"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}/build/${_folder}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_bob_root}"
-    COMMAND "${CMAKE_COMMAND}" -E env "DM_BOB_ROOTFOLDER=${_bob_root}" "${Java_JAVA_EXECUTABLE}"
-      --enable-native-access=ALL-UNNAMED
+    COMMAND "${CMAKE_COMMAND}" -E env
+      "DM_BOB_ROOTFOLDER=${_bob_root}"
+      "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+      "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST}
       -cp "${_GS_BOB_CLASSPATH}"
       com.dynamo.bob.Bob
       --root "${_GS_BOB_STAGE_ROOT}"

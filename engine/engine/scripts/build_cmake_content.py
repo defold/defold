@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,16 @@ RAW_ARCHIVE_FILES = {
 
 def run(args, cwd):
     subprocess.check_call(args, cwd=str(cwd))
+
+
+def java_command(java, main_class, classpath, *args):
+    command = [java]
+    runtime_flags = os.environ.get("DM_JAVA_RUNTIME_FLAGS", "")
+    if runtime_flags:
+        command.extend(shlex.split(runtime_flags))
+    command.extend(["-cp", classpath, main_class])
+    command.extend(args)
+    return command
 
 
 def copytree(src, dst):
@@ -109,16 +120,15 @@ def rebuild_builtin_fonts(args, stage_root, build_root, bob_classpath):
         rel_path = source.relative_to(stage_root).with_suffix(".fontc")
         output = build_root / rel_path
         output.parent.mkdir(parents=True, exist_ok=True)
-        run([
+        run(java_command(
             args.java,
-            "-cp",
-            bob_classpath,
             "com.dynamo.bob.font.Fontc",
+            bob_classpath,
             str(source),
             str(output),
             str(stage_root),
             "false",
-        ], stage_root)
+        ), stage_root)
 
 
 def remove_root_generated_font_outputs(build_root):
@@ -156,11 +166,10 @@ def build_builtins(args):
     build_inputs = work_root / "builtins-build.inputs"
     write_build_inputs(work_root, build_inputs)
 
-    java_cmd = [
+    java_cmd = java_command(
         args.java,
-        "-cp",
-        bob_classpath,
         "com.dynamo.bob.Bob",
+        bob_classpath,
         "--root",
         ".",
         "--settings",
@@ -173,7 +182,7 @@ def build_builtins(args):
         build_inputs.name,
         "clean",
         "build",
-    ]
+    )
     run(java_cmd, work_root)
 
     build_root = work_root / "build/default"
@@ -186,16 +195,16 @@ def build_builtins(args):
         raise RuntimeError("No builtin archive inputs were produced")
 
     archive_output = output_root / "builtins"
-    archive_cmd = [
+    archive_cmd = java_command(
         args.java,
-        "-cp",
-        bob_classpath,
         "com.dynamo.bob.archive.ArchiveBuilder",
+        bob_classpath,
         str(build_root),
         str(archive_output),
         "-m",
         "-c",
-    ] + [str(path) for path in archive_inputs]
+        *[str(path) for path in archive_inputs],
+    )
     run(archive_cmd, work_root)
 
     for suffix in (".arci", ".arcd", ".dmanifest"):
