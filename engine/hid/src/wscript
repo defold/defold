@@ -12,34 +12,61 @@ def configure(conf):
 def build(bld):
     build_util = create_build_utility(bld.env)
 
-    platform_folder  = 'native'
+    platform_folder  = ''
     platform_defines = []
-    platform_drivers = []
+    platform_sources = []
+    platform_includes = ['.', 'external']
+    glfw_platform_sources = [
+        'glfw/keyboard_glfw.cpp',
+        'glfw/mouse_glfw.cpp',
+        'glfw/touch_glfw.cpp',
+    ]
+    null_input_sources = [
+        'null/keyboard_null.cpp',
+        'null/mouse_null.cpp',
+        'null/touch_null.cpp',
+    ]
 
     target_os = build_util.get_target_os()
 
     if target_os in ('macos','ios'):
-        platform_drivers = ['darwin/gamepad_darwin.mm']
-    elif target_os in ('nx64','ps4','ps5','xbone'):
+        platform_sources = ['gamepad.cpp'] + glfw_platform_sources + ['apple/gamepad_apple.mm']
+        platform_includes.extend(['apple', 'glfw'])
+    elif target_os == 'win32':
+        platform_sources = ['gamepad.cpp'] + glfw_platform_sources + ['win32/gamepad_win32.cpp',
+                                                                       'win32/gamepad_win32_switch.cpp']
+        platform_includes.extend(['glfw', 'win32'])
+        winsdk_hid_lib = 'hid.lib'
+        for libpath in bld.env.get('LIBPATH', []):
+            candidate = os.path.join(libpath, 'hid.lib')
+            if os.path.exists(candidate):
+                winsdk_hid_lib = candidate
+        bld.env.append_value('LINKFLAGS', [winsdk_hid_lib, 'setupapi.lib'])
+    elif target_os == 'xbone':
+        platform_sources = ['gamepad.cpp'] + null_input_sources + ['win32/gamepad_win32.cpp']
+        platform_includes.extend(['null', 'win32'])
+    elif target_os in ('nx64','ps4','ps5'):
         platform_folder = target_os
+        platform_includes = [platform_folder, '.', 'external']
+        platform_sources = ['%s/**/*.cpp' % platform_folder]
     else:
-        platform_drivers = ['%s/hid_gamepad_driver_glfw.cpp' % platform_folder]
+        platform_sources = ['gamepad.cpp'] + glfw_platform_sources + ['glfw/gamepad_glfw.cpp']
+        platform_includes.append('glfw')
 
     hid = bld.stlib(features = 'cxx',
-                    includes = [platform_folder,'.','external'],
+                    includes = platform_includes,
                     target   = 'hid',
                     defines  = platform_defines,
-                    source   = bld.path.ant_glob(['hid.cpp', 'hid_guid.cpp', '%s/**/*.cpp' % platform_folder] + platform_drivers))
-
-    # On macOS, we want to use a more modern gamepad "driver" than glfw
-    if target_os in ('macos','ios'):
-        hid.source = [x for x in hid.source if not 'glfw' in x.name]
+                    source   = bld.path.ant_glob(['hid.cpp', 'hid_common.cpp', 'gamepad_guid.cpp'] + platform_sources))
 
     hid_null = bld.stlib(features = 'cxx',
-                         includes = [platform_folder, '.', 'null', 'external'],
+                         includes = ['.', 'null', 'external'],
                          proto_gen_py = True,
                          target = 'hid_null',
-                         source = bld.path.ant_glob(['hid.cpp', 'hid_guid.cpp', 'hid_null.cpp']))
+                         source = bld.path.ant_glob(['hid_common.cpp',
+                                                     'gamepad.cpp',
+                                                     'gamepad_guid.cpp',
+                                                     'null/hid_null.cpp']))
 
     bld.add_group()
     bld.recurse('test')

@@ -21,6 +21,17 @@ set(HID_NULL_DEPENDENCIES
     dlib
     platform_null)
 set(HID_PRIVATE_SRC_DIR "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
+set(HID_PLATFORM_INCLUDE_DIRS)
+set(HID_GLFW_PLATFORM_SOURCES
+    "${HID_SRC_DIR}/glfw/keyboard_glfw.cpp"
+    "${HID_SRC_DIR}/glfw/mouse_glfw.cpp"
+    "${HID_SRC_DIR}/glfw/touch_glfw.cpp"
+)
+set(HID_NULL_INPUT_SOURCES
+    "${HID_SRC_DIR}/null/keyboard_null.cpp"
+    "${HID_SRC_DIR}/null/mouse_null.cpp"
+    "${HID_SRC_DIR}/null/touch_null.cpp"
+)
 file(GLOB_RECURSE HID_DMSDK_HEADERS CONFIGURE_DEPENDS
     "${HID_SRC_DIR}/dmsdk/*.h"
     "${HID_SRC_DIR}/dmsdk/*.hpp")
@@ -29,16 +40,32 @@ set(HID_PRIVATE_DMSDK_HEADERS)
 # hid (native backend)
 set(hid_SOURCES
     "${HID_SRC_DIR}/hid.cpp"
-    "${HID_SRC_DIR}/hid_guid.cpp"
+    "${HID_SRC_DIR}/hid_common.cpp"
+    "${HID_SRC_DIR}/gamepad_guid.cpp"
 )
 
 if(TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos|arm64-ios|x86_64-ios")
     list(APPEND hid_SOURCES
-        "${HID_SRC_DIR}/native/hid_native.cpp"
-        "${HID_SRC_DIR}/darwin/gamepad_darwin.mm"
+        "${HID_SRC_DIR}/gamepad.cpp"
+        ${HID_GLFW_PLATFORM_SOURCES}
+        "${HID_SRC_DIR}/apple/gamepad_apple.mm"
     )
+    list(APPEND HID_PLATFORM_INCLUDE_DIRS "${HID_SRC_DIR}/apple" "${HID_SRC_DIR}/glfw")
     set(WITH_VULKAN OFF)
     set(WITH_OPENGL ON)
+elseif(TARGET_PLATFORM MATCHES "x86_64-win32|win32")
+    list(APPEND hid_SOURCES
+        "${HID_SRC_DIR}/gamepad.cpp"
+        ${HID_GLFW_PLATFORM_SOURCES}
+        "${HID_SRC_DIR}/win32/gamepad_win32.cpp"
+        "${HID_SRC_DIR}/win32/gamepad_win32_switch.cpp")
+    list(APPEND HID_PLATFORM_INCLUDE_DIRS "${HID_SRC_DIR}/glfw" "${HID_SRC_DIR}/win32")
+elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
+    list(APPEND hid_SOURCES
+        "${HID_SRC_DIR}/gamepad.cpp"
+        ${HID_NULL_INPUT_SOURCES}
+        "${HID_SRC_DIR}/win32/gamepad_win32.cpp")
+    list(APPEND HID_PLATFORM_INCLUDE_DIRS "${HID_SRC_DIR}/null" "${HID_SRC_DIR}/win32")
 elseif(DEFOLD_IS_PRIVATE_VENDOR)
     if(NOT HID_PRIVATE_SRC_DIR)
         message(FATAL_ERROR "Private HID platform requires DEFOLD_PLATFORM_HID_SOURCE_DIR")
@@ -48,12 +75,13 @@ elseif(DEFOLD_IS_PRIVATE_VENDOR)
         "${HID_PRIVATE_SRC_DIR}/${TARGET_PLATFORM_OS}/*.cpp"
         "${HID_PRIVATE_SRC_DIR}/${TARGET_PLATFORM_OS}/*.mm")
     list(APPEND hid_SOURCES ${_hid_vendor_sources})
+    list(APPEND HID_PLATFORM_INCLUDE_DIRS "${HID_PRIVATE_SRC_DIR}/${TARGET_PLATFORM_OS}")
 else()
-    file(GLOB _hid_native_sources
-        "${HID_SRC_DIR}/native/*.c"
-        "${HID_SRC_DIR}/native/*.cpp"
-        "${HID_SRC_DIR}/native/*.mm")
-    list(APPEND hid_SOURCES ${_hid_native_sources})
+    list(APPEND hid_SOURCES
+        "${HID_SRC_DIR}/gamepad.cpp"
+        ${HID_GLFW_PLATFORM_SOURCES}
+        "${HID_SRC_DIR}/glfw/gamepad_glfw.cpp")
+    list(APPEND HID_PLATFORM_INCLUDE_DIRS "${HID_SRC_DIR}/glfw")
 endif()
 
 defold_add_library(hid STATIC ${hid_SOURCES})
@@ -61,13 +89,21 @@ target_compile_definitions(hid PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
     target_link_libraries(hid PUBLIC "-framework GameController")
 endif()
+if(TARGET_PLATFORM MATCHES "x86_64-win32|win32")
+    target_link_libraries(hid PUBLIC setupapi.lib)
+    if(DEFOLD_WINSDK_LIB_UM_DIR)
+        target_link_libraries(hid PUBLIC "${DEFOLD_WINSDK_LIB_UM_DIR}/hid.lib")
+    else()
+        target_link_options(hid PUBLIC "/DEFAULTLIB:hid.lib")
+    endif()
+endif()
 defold_target_link_libraries(hid "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_DEPENDENCIES})
 
 target_include_directories(hid PUBLIC
     "${HID_SRC_DIR}"
-    "${HID_SRC_DIR}/native"
     "${HID_SRC_DIR}/external"
     "${HID_SRC_DIR}/default/src"
+    ${HID_PLATFORM_INCLUDE_DIRS}
 ) # match Waf include layout for hid sources
 
 if(HID_PRIVATE_SRC_DIR)
@@ -91,13 +127,13 @@ if(HID_PRIVATE_SRC_DIR)
 endif()
 
 defold_add_library(hid_null STATIC
-    "${HID_SRC_DIR}/hid.cpp"
-    "${HID_SRC_DIR}/hid_guid.cpp"
-    "${HID_SRC_DIR}/hid_null.cpp"
+    "${HID_SRC_DIR}/hid_common.cpp"
+    "${HID_SRC_DIR}/gamepad.cpp"
+    "${HID_SRC_DIR}/gamepad_guid.cpp"
+    "${HID_SRC_DIR}/null/hid_null.cpp"
 )
 target_include_directories(hid_null PUBLIC
     "${HID_SRC_DIR}"
-    "${HID_SRC_DIR}/native"
     "${HID_SRC_DIR}/null"
     "${HID_SRC_DIR}/external"
     "${HID_SRC_DIR}/default/src"
@@ -110,7 +146,6 @@ if(HID_PRIVATE_SRC_DIR)
     target_compile_definitions(hid_null PUBLIC DM_HID_USE_VENDOR_NATIVE_DEFINES)
     target_include_directories(hid_null PUBLIC
         "${HID_PRIVATE_SRC_DIR}"
-        "${HID_PRIVATE_SRC_DIR}/native"
         "${HID_PRIVATE_SRC_DIR}/null"
         "${HID_PRIVATE_SRC_DIR}/external"
         "${HID_PRIVATE_SRC_DIR}/default/src"

@@ -93,6 +93,7 @@ excluded_files = [
     "engine/dlib/src/remotery/lib/RemoteryMetal.mm",
     "engine/hid/src/external/glfw/mappings.h",
     "engine/hid/src/external/sdl/joystick/usb_ids.h",
+    "engine/hid/src/win32/gamepad_win32_switch.cpp",
 ]
 
 excluded_paths = [

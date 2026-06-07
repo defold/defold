@@ -40,7 +40,6 @@
 #include "../external/sdl/joystick/usb_ids.h"
 
 #include "hid_private.h"
-#include "hid_native_private.h"
 
 #define _GLFW_COCOA 1
 #define _glfwDefaultMappings dmHIDAppleGamepadDefaultMappings
@@ -158,7 +157,7 @@ struct AppleGamepadDevice
     uint8_t                                 : 1;
 };
 
-struct AppleGamepadDriver : GamepadDriver
+struct AppleGamepadContext
 {
     HContext                    m_HidContext;
     dmArray<AppleGamepadDevice> m_Devices;
@@ -171,9 +170,10 @@ struct AppleGamepadDriver : GamepadDriver
     bool                        m_ObserversInstalled;
 };
 
-static void GetGamepadDeviceNameInternal(HContext context, AppleGamepadDriver* driver, int gamepad_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
-static bool GetGamepadDeviceGuidInternal(HContext context, AppleGamepadDriver* driver, int gamepad_id, GamepadGuid* guid);
+static void GetGamepadDeviceNameInternal(HContext context, AppleGamepadContext* driver, int gamepad_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
+static bool GetGamepadDeviceGuidInternal(HContext context, AppleGamepadContext* driver, int gamepad_id, GamepadGuid* guid);
 static void CreateAppleGameControllerGUID(GCController* controller, const char* fallback_name, uint16_t bus, GamepadGuid* guid);
+static AppleGamepadContext* g_AppleGamepadContext = 0;
 
 // Controller-family predicates used to normalize Apple's product categories into
 // stable vendor/product pairs for GUID generation and legacy remapping.
@@ -640,7 +640,7 @@ static CFMutableDictionaryRef CreateMatchingDictionary(long usage_page, long usa
 // On macOS, attempts to build the controller GUID from the backing IOHID
 // device. The match must be unique; otherwise the caller falls back to the
 // GameController-profile-based GUID path.
-static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controller, const char* fallback_name, GamepadGuid* guid)
+static bool CreateGamePadGuid(AppleGamepadContext* driver, GCController* controller, const char* fallback_name, GamepadGuid* guid)
 {
     (void) fallback_name;
 
@@ -715,7 +715,7 @@ static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controll
     return found_guid;
 }
 #else
-static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controller, const char* fallback_name, GamepadGuid* guid)
+static bool CreateGamePadGuid(AppleGamepadContext* driver, GCController* controller, const char* fallback_name, GamepadGuid* guid)
 {
     (void) driver;
     CreateAppleGameControllerGUID(controller, fallback_name, SDL_HARDWARE_BUS_BLUETOOTH, guid);
@@ -1338,7 +1338,7 @@ static void GetSemanticState(AppleGamepadDevice* apple_device, GCController* con
 
 // Writes the modern SDL-style packet layout directly from the extended gamepad
 // profile.
-static void AppleGamepadDriverUpdateSDL(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
+static void AppleGamepadContextUpdateSDL(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
 {
     // Keep the raw packet order aligned with SDL's gamepad axis order:
     // leftx, lefty, rightx, righty, lefttrigger, righttrigger.
@@ -1393,7 +1393,7 @@ static void AppleGamepadDriverUpdateSDL(AppleGamepadDevice* apple_device, GCCont
 
 // Builds a GLFW/legacy-style packet using the default semantic remap when no
 // explicit SDL database mapping exists.
-static void AppleGamepadDriverUpdateLegacyFallback(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
+static void AppleGamepadContextUpdateLegacyFallback(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
 {
     float semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT] = {};
     bool semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT] = {};
@@ -1430,7 +1430,7 @@ static void AppleGamepadDriverUpdateLegacyFallback(AppleGamepadDevice* apple_dev
 
 // Builds a GLFW/legacy-style packet using the parsed SDL database mapping for
 // the device GUID.
-static void AppleGamepadDriverUpdateLegacyMapped(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
+static void AppleGamepadContextUpdateLegacyMapped(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
 {
     float axis_values[MAX_GAMEPAD_AXIS_COUNT] = {};
     bool axis_written[MAX_GAMEPAD_AXIS_COUNT] = {};
@@ -1450,12 +1450,12 @@ static void AppleGamepadDriverUpdateLegacyMapped(AppleGamepadDevice* apple_devic
 }
 
 // Selects the legacy packet builder and then applies controller-family fixups.
-static void AppleGamepadDriverUpdateGlfw(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
+static void AppleGamepadContextUpdateGlfw(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
 {
     if (apple_device->m_HasLegacyMapping)
-        AppleGamepadDriverUpdateLegacyMapped(apple_device, controller, extended_gamepad, packet);
+        AppleGamepadContextUpdateLegacyMapped(apple_device, controller, extended_gamepad, packet);
     else
-        AppleGamepadDriverUpdateLegacyFallback(apple_device, controller, extended_gamepad, packet);
+        AppleGamepadContextUpdateLegacyFallback(apple_device, controller, extended_gamepad, packet);
 
     PostProcessLegacyPacket(apple_device, controller, packet);
 }
@@ -1562,7 +1562,7 @@ static void CreateAppleGameControllerGUID(GCController* controller, const char* 
 }
 
 // Driver-local lookup helpers for devices and their owning Gamepad handles.
-static AppleGamepadDevice* GetAppleGamepadDevice(AppleGamepadDriver* driver, int gamepad_id)
+static AppleGamepadDevice* GetAppleGamepadDevice(AppleGamepadContext* driver, int gamepad_id)
 {
     for (int i = 0; i < driver->m_Devices.Size(); ++i)
     {
@@ -1573,7 +1573,7 @@ static AppleGamepadDevice* GetAppleGamepadDevice(AppleGamepadDriver* driver, int
     return 0;
 }
 
-static AppleGamepadDevice* GetAppleGamepadDevice(AppleGamepadDriver* driver, GCController* controller)
+static AppleGamepadDevice* GetAppleGamepadDevice(AppleGamepadContext* driver, GCController* controller)
 {
     for (int i = 0; i < driver->m_Devices.Size(); ++i)
     {
@@ -1584,14 +1584,14 @@ static AppleGamepadDevice* GetAppleGamepadDevice(AppleGamepadDriver* driver, GCC
     return 0;
 }
 
-static Gamepad* GetGamepad(AppleGamepadDriver* driver, int gamepad_id)
+static Gamepad* GetGamepad(AppleGamepadContext* driver, int gamepad_id)
 {
     AppleGamepadDevice* device = GetAppleGamepadDevice(driver, gamepad_id);
     return device ? device->m_Gamepad : 0;
 }
 
 // Maps an engine gamepad handle back to the AppleGamepadDevice metadata entry.
-static int UnpackGamepad(AppleGamepadDriver* driver, Gamepad* gamepad, AppleGamepadDevice** gamepad_device_out)
+static int UnpackGamepad(AppleGamepadContext* driver, Gamepad* gamepad, AppleGamepadDevice** gamepad_device_out)
 {
     for (int i = 0; i < driver->m_Devices.Size(); ++i)
     {
@@ -1607,7 +1607,7 @@ static int UnpackGamepad(AppleGamepadDriver* driver, Gamepad* gamepad, AppleGame
 }
 
 // Allocates the lowest free logical gamepad slot.
-static int AllocateGamepadId(AppleGamepadDriver* driver)
+static int AllocateGamepadId(AppleGamepadContext* driver)
 {
     for (int gamepad_id = 0; gamepad_id < MAX_GAMEPAD_COUNT; ++gamepad_id)
     {
@@ -1620,13 +1620,13 @@ static int AllocateGamepadId(AppleGamepadDriver* driver)
 
 // Creates the engine-side gamepad object and associated Apple metadata on first
 // sight of a GCController.
-static Gamepad* EnsureAllocatedGamepad(AppleGamepadDriver* driver, int gamepad_id, GCController* controller)
+static Gamepad* EnsureAllocatedGamepad(AppleGamepadContext* driver, int gamepad_id, GCController* controller)
 {
     Gamepad* gp = GetGamepad(driver, gamepad_id);
     if (gp != 0)
         return gp;
 
-    gp = CreateGamepad(driver->m_HidContext, driver);
+    gp = CreateGamepad(driver->m_HidContext);
     if (gp == 0)
         return 0;
 
@@ -1677,7 +1677,7 @@ static Gamepad* EnsureAllocatedGamepad(AppleGamepadDriver* driver, int gamepad_i
 }
 
 // Tears down one connected gamepad and releases Objective-C ownership.
-static void RemoveGamepad(AppleGamepadDriver* driver, int gamepad_id)
+static void RemoveGamepad(AppleGamepadContext* driver, int gamepad_id)
 {
     for (int i = 0; i < driver->m_Devices.Size(); ++i)
     {
@@ -1700,7 +1700,7 @@ static void RemoveGamepad(AppleGamepadDriver* driver, int gamepad_id)
 
 // Notification handlers keep the engine device table in sync with the
 // GameController connection set.
-static void AppleGamepadControllerConnected(AppleGamepadDriver* driver, GCController* controller)
+static void AppleGamepadControllerConnected(AppleGamepadContext* driver, GCController* controller)
 {
     if (driver == 0 || GetAppleGamepadDevice(driver, controller) != 0)
     {
@@ -1716,7 +1716,7 @@ static void AppleGamepadControllerConnected(AppleGamepadDriver* driver, GCContro
     EnsureAllocatedGamepad(driver, gamepad_id, controller);
 }
 
-static void AppleGamepadControllerDisconnected(AppleGamepadDriver* driver, GCController* controller)
+static void AppleGamepadControllerDisconnected(AppleGamepadContext* driver, GCController* controller)
 {
     if (driver == 0)
     {
@@ -1732,12 +1732,18 @@ static void AppleGamepadControllerDisconnected(AppleGamepadDriver* driver, GCCon
 
 // Per-frame driver update that converts the live GameController state into the
 // requested packet layout for the engine.
-static void AppleGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
+void GamepadUpdate(HContext context, Gamepad* gamepad)
 {
     (void) context;
 
+    AppleGamepadContext* driver = g_AppleGamepadContext;
+    if (driver == 0)
+    {
+        return;
+    }
+
     AppleGamepadDevice* apple_device = 0;
-    int id = UnpackGamepad((AppleGamepadDriver*) driver, gamepad, &apple_device);
+    int id = UnpackGamepad(driver, gamepad, &apple_device);
     assert(id != -1);
 
     GamepadPacket& packet = gamepad->m_Packet;
@@ -1772,13 +1778,13 @@ static void AppleGamepadDriverUpdate(HContext context, GamepadDriver* driver, Ga
     }
 
     if (apple_device->m_PacketLayout == APPLE_GAMEPAD_PACKET_LAYOUT_GLFW)
-        AppleGamepadDriverUpdateGlfw(apple_device, controller, extended_gamepad, packet);
+        AppleGamepadContextUpdateGlfw(apple_device, controller, extended_gamepad, packet);
     else
-        AppleGamepadDriverUpdateSDL(apple_device, controller, extended_gamepad, packet);
+        AppleGamepadContextUpdateSDL(apple_device, controller, extended_gamepad, packet);
 }
 
 // Registers GameController connect/disconnect observers once per driver.
-static void InstallObservers(AppleGamepadDriver* driver)
+static void InstallObservers(AppleGamepadContext* driver)
 {
     if (driver->m_ConnectObserver != nil || driver->m_DisconnectObserver != nil)
     {
@@ -1803,7 +1809,7 @@ static void InstallObservers(AppleGamepadDriver* driver)
 }
 
 // Removes any previously installed GameController observers.
-static void RemoveObservers(AppleGamepadDriver* driver)
+static void RemoveObservers(AppleGamepadContext* driver)
 {
     NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
 
@@ -1824,11 +1830,16 @@ static void RemoveObservers(AppleGamepadDriver* driver)
 
 // Polls the current controller list and installs observers so new connections
 // arrive through notifications after the first scan.
-static void AppleGamepadDriverDetectDevices(HContext context, GamepadDriver* _driver)
+void GamepadDetectDevices(HContext context)
 {
     (void) context;
 
-    AppleGamepadDriver* driver = (AppleGamepadDriver*) _driver;
+    AppleGamepadContext* driver = g_AppleGamepadContext;
+    if (driver == 0)
+    {
+        return;
+    }
+
     if (!driver->m_ObserversInstalled)
     {
         InstallObservers(driver);
@@ -1844,9 +1855,8 @@ static void AppleGamepadDriverDetectDevices(HContext context, GamepadDriver* _dr
     }
 }
 
-// Internal accessors for the device name and GUID exported through the driver
-// vtable.
-static void GetGamepadDeviceNameInternal(HContext context, AppleGamepadDriver* driver, int gamepad_id, char name[MAX_GAMEPAD_NAME_LENGTH])
+// Internal accessors for the device name and GUID exported through the backend API.
+static void GetGamepadDeviceNameInternal(HContext context, AppleGamepadContext* driver, int gamepad_id, char name[MAX_GAMEPAD_NAME_LENGTH])
 {
     (void) context;
 
@@ -1861,14 +1871,20 @@ static void GetGamepadDeviceNameInternal(HContext context, AppleGamepadDriver* d
     }
 }
 
-static void AppleGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
+void GamepadGetDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
 {
-    AppleGamepadDriver* apple_driver = (AppleGamepadDriver*) driver;
+    AppleGamepadContext* apple_driver = g_AppleGamepadContext;
+    if (apple_driver == 0)
+    {
+        dmStrlCpy(name, "_", MAX_GAMEPAD_NAME_LENGTH);
+        return;
+    }
+
     uint32_t gamepad_index = UnpackGamepad(apple_driver, gamepad, 0);
     GetGamepadDeviceNameInternal(context, apple_driver, gamepad_index, name);
 }
 
-static bool GetGamepadDeviceGuidInternal(HContext context, AppleGamepadDriver* driver, int gamepad_id, GamepadGuid* guid)
+static bool GetGamepadDeviceGuidInternal(HContext context, AppleGamepadContext* driver, int gamepad_id, GamepadGuid* guid)
 {
     (void) context;
 
@@ -1882,16 +1898,21 @@ static bool GetGamepadDeviceGuidInternal(HContext context, AppleGamepadDriver* d
     return false;
 }
 
-static bool AppleGamepadDriverGetGamepadDeviceGuid(HContext context, GamepadDriver* driver, HGamepad gamepad, GamepadGuid* guid)
+bool GamepadGetDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid)
 {
-    AppleGamepadDriver* apple_driver = (AppleGamepadDriver*) driver;
+    AppleGamepadContext* apple_driver = g_AppleGamepadContext;
+    if (apple_driver == 0)
+    {
+        return false;
+    }
+
     uint32_t gamepad_index = UnpackGamepad(apple_driver, gamepad, 0);
     return GetGamepadDeviceGuidInternal(context, apple_driver, gamepad_index, guid);
 }
 
-// Initializes the Apple driver and, on macOS, the HID manager used for
+// Initializes the Apple backend and, on macOS, the HID manager used for
 // building stable USB-style GUIDs.
-static bool AppleGamepadDriverInitialize(HContext context, GamepadDriver* driver)
+bool GamepadInitialize(HContext context)
 {
     if (!dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
     {
@@ -1903,9 +1924,20 @@ static bool AppleGamepadDriverInitialize(HContext context, GamepadDriver* driver
         return false;
     }
 
+    assert(g_AppleGamepadContext == 0);
+    AppleGamepadContext* apple_driver = new AppleGamepadContext();
+    apple_driver->m_ConnectObserver = nil;
+    apple_driver->m_DisconnectObserver = nil;
+    apple_driver->m_ObserversInstalled = false;
+#if TARGET_OS_OSX
+    apple_driver->m_HidManager = 0;
+    apple_driver->m_RunLoop = 0;
+#endif
+    apple_driver->m_HidContext = context;
+    g_AppleGamepadContext = apple_driver;
+
     // We do this in order to be able to create our GUID's on macOS
 #if TARGET_OS_OSX
-    AppleGamepadDriver* apple_driver = (AppleGamepadDriver*) driver;
     apple_driver->m_RunLoop = CFRunLoopGetMain();
     apple_driver->m_HidManager = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
     if (apple_driver->m_HidManager != 0)
@@ -1943,17 +1975,20 @@ static bool AppleGamepadDriverInitialize(HContext context, GamepadDriver* driver
         }
     }
 #else
-    (void) driver;
 #endif
     return true;
 }
 
 // Releases all device state, observers, and the macOS HID manager.
-static void AppleGamepadDriverDestroy(HContext context, GamepadDriver* _driver)
+void GamepadFinalize(HContext context)
 {
     (void) context;
 
-    AppleGamepadDriver* driver = (AppleGamepadDriver*) _driver;
+    AppleGamepadContext* driver = g_AppleGamepadContext;
+    if (driver == 0)
+    {
+        return;
+    }
 
     while (driver->m_Devices.Size() > 0)
     {
@@ -1973,30 +2008,7 @@ static void AppleGamepadDriverDestroy(HContext context, GamepadDriver* _driver)
 #endif
 
     delete driver;
-}
-
-// Creates and wires up the GameController-backed gamepad driver instance.
-GamepadDriver* CreateGamepadDriverApple(HContext context)
-{
-    AppleGamepadDriver* driver = new AppleGamepadDriver();
-
-    driver->m_Initialize           = AppleGamepadDriverInitialize;
-    driver->m_Destroy              = AppleGamepadDriverDestroy;
-    driver->m_Update               = AppleGamepadDriverUpdate;
-    driver->m_DetectDevices        = AppleGamepadDriverDetectDevices;
-    driver->m_GetGamepadDeviceName = AppleGamepadDriverGetGamepadDeviceName;
-    driver->m_GetGamepadDeviceGuid = AppleGamepadDriverGetGamepadDeviceGuid;
-
-    driver->m_ConnectObserver = nil;
-    driver->m_DisconnectObserver = nil;
-    driver->m_ObserversInstalled = false;
-#if TARGET_OS_OSX
-    driver->m_HidManager = 0;
-    driver->m_RunLoop = 0;
-#endif
-    driver->m_HidContext = context;
-
-    return driver;
+    g_AppleGamepadContext = 0;
 }
 
 } // namespace dmHID

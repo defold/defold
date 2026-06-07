@@ -22,8 +22,6 @@
 
 namespace dmHID
 {
-    typedef uint8_t HGamepadDriver;
-
     struct GamepadIdentity
     {
         uint16_t m_Vendor;
@@ -39,12 +37,13 @@ namespace dmHID
     struct Gamepad
     {
         GamepadPacket  m_Packet;
-        HGamepadDriver m_Driver;
         uint8_t        m_AxisCount:7;
         uint8_t        m_LayoutLegacy:1;     // If true, use the legacy layout scheme
         uint8_t        m_ButtonCount;
         uint8_t        m_HatCount    : 7;
         uint8_t        m_Connected   : 1;
+        uint8_t        m_Allocated   : 1;
+        uint8_t                      : 7;
     };
 
     struct Keyboard
@@ -100,6 +99,30 @@ namespace dmHID
     // TODO: start using the dmUser namespace
     // TODO: How to represent user id from/to C/Lua
     //      I.e. convert from uint32_t to platform type
+
+    bool KeyboardInitialize(HContext context);
+    void KeyboardFinalize(HContext context);
+    void KeyboardUpdate(HContext context);
+    void KeyboardReset(HContext context);
+
+    bool MouseInitialize(HContext context);
+    void MouseFinalize(HContext context);
+    void MouseUpdate(HContext context);
+
+    bool TouchInitialize(HContext context);
+    void TouchFinalize(HContext context);
+    void TouchUpdate(HContext context);
+
+    bool GamepadInitialize(HContext context);
+    void GamepadFinalize(HContext context);
+    void GamepadDetectDevices(HContext context);
+    void GamepadUpdate(HContext context, Gamepad* gamepad);
+    void GamepadGetDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH]);
+    bool GamepadGetDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid);
+
+    Gamepad* CreateGamepad(HContext context);
+    void ReleaseGamepad(HContext context, Gamepad* gamepad);
+    void SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status);
 
     bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* user_id);
     int  GetKeyValue(Key key);
