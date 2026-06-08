@@ -379,32 +379,61 @@ static void CreateGLSurface()
 
 void glfwAndroidFlushEvents()
 {
-    spinlock_lock(&g_EventLock);
-
     int app_commands[MAX_APP_COMMANDS];
-    int num_app_commands = 0;
-    num_app_commands = g_NumAppCommands;
-    memcpy(app_commands, g_AppCommands, num_app_commands * sizeof(int));
-    g_NumAppCommands = 0;
-
     static struct InputEvent* flush_input_events = 0;
     static int flush_input_events_capacity = 0;
-    int num_input_events = g_NumAppInputEvents;
-    if (num_input_events > flush_input_events_capacity)
-    {
-        flush_input_events_capacity = num_input_events;
-        flush_input_events = realloc(flush_input_events, num_input_events * sizeof(struct InputEvent));
-    }
-
     struct InputEvent* input_events = 0;
-    if (num_input_events > 0)
-    {
-        memcpy(flush_input_events, g_AppInputEvents, num_input_events * sizeof(struct InputEvent));
-        input_events = flush_input_events;
-    }
-    g_NumAppInputEvents = 0;
 
-    spinlock_unlock(&g_EventLock);
+    int num_app_commands = 0;
+    int num_input_events = 0;
+    int events_copied = 0;
+    while (!events_copied)
+    {
+        spinlock_lock(&g_EventLock);
+
+        num_app_commands = g_NumAppCommands;
+        num_input_events = g_NumAppInputEvents;
+        if (num_input_events <= flush_input_events_capacity)
+        {
+            memcpy(app_commands, g_AppCommands, num_app_commands * sizeof(int));
+            g_NumAppCommands = 0;
+
+            if (num_input_events > 0)
+            {
+                memcpy(flush_input_events, g_AppInputEvents, num_input_events * sizeof(struct InputEvent));
+                input_events = flush_input_events;
+            }
+            g_NumAppInputEvents = 0;
+            events_copied = 1;
+        }
+
+        spinlock_unlock(&g_EventLock);
+
+        if (!events_copied)
+        {
+            int new_flush_input_events_capacity = flush_input_events_capacity > 0 ? flush_input_events_capacity : APP_INPUT_EVENTS_SIZE_INCREASE_STEP;
+            while (new_flush_input_events_capacity < num_input_events)
+            {
+                new_flush_input_events_capacity *= 2;
+            }
+
+            // Grow the local copy buffer outside g_EventLock. The queues are not drained
+            // until the next locked pass can snapshot commands and input events together.
+            struct InputEvent* new_flush_input_events = (struct InputEvent*) realloc(flush_input_events, new_flush_input_events_capacity * sizeof(struct InputEvent));
+            if (new_flush_input_events == 0)
+            {
+                LOGE("glfwAndroidFlushEvents: failed to allocate %d input events", new_flush_input_events_capacity);
+                num_app_commands = 0;
+                num_input_events = 0;
+                events_copied = 1;
+            }
+            else
+            {
+                flush_input_events = new_flush_input_events;
+                flush_input_events_capacity = new_flush_input_events_capacity;
+            }
+        }
+    }
 
     for (int i = 0; i < num_app_commands; ++i)
     {
