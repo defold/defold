@@ -21,10 +21,11 @@
 
 #include "../sound.h"
 
+#import <TargetConditionals.h>
 #import <AVFoundation/AVFoundation.h>
 #import <objc/runtime.h>
 
-#if defined(DM_PLATFORM_MACOS)
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
 
 namespace dmSound
 {
@@ -47,6 +48,9 @@ namespace
         bool                        m_Started;
         dmMutex::HMutex             m_Mutex;
         id                          m_EngineConfigObserver;
+#if TARGET_OS_IPHONE
+        id                          m_SessionRouteObserver;
+#endif
         bool                        m_PendingReconfigure;
     };
 
@@ -291,4 +295,4 @@ extern "C" int dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart()
     }
 }
 
-#endif // defined(DM_PLATFORM_MACOS)
+#endif // defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)

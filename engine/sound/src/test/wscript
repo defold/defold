@@ -177,7 +177,7 @@ def build(bld):
         print("Skipping sound test since current version throws an error with ASan")
 
     test_sound_sources = ['test_sound.cpp']
-    if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos'):
+    if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios'):
         test_sound_sources.append('test_sound_avaudio.mm')
 
     test = bld.program(features = 'cxx embed test'.split() + extra_features,
