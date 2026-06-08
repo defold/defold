@@ -514,7 +514,7 @@ file(GLOB_RECURSE ENGINE_DMSDK_HEADERS CONFIGURE_DEPENDS
 defold_add_sdk_headers_target(engine_public_sdk_headers
   DESTINATION include/engine
   SOURCE_ROOT "${ENGINE_SRC_DIR}"
-  FILES "${ENGINE_SRC_DIR}/engine.h"
+  FILES "${ENGINE_SRC_DIR}/engine.h" "${ENGINE_DDF_H}"
   DEPENDS engine)
 defold_add_sdk_headers_target(engine_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk
@@ -539,9 +539,12 @@ list(APPEND ENGINE_SDK_HEADER_TARGETS
 add_custom_target(engine_sdk_headers
   DEPENDS ${ENGINE_SDK_HEADER_TARGETS})
 
-install(FILES "${ENGINE_SRC_DIR}/engine.h" DESTINATION include/engine)
+install(FILES "${ENGINE_SRC_DIR}/engine.h" "${ENGINE_DDF_H}" DESTINATION include/engine)
 install(FILES "${ENGINE_PROTO_DIR}/engine/engine_ddf.proto" DESTINATION share/proto/engine)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/proto/engine/engine_ddf_pb2.py" DESTINATION lib/python/engine)
+if(TARGET_PLATFORM MATCHES "win32")
+  install(FILES "${ENGINE_SRC_DIR}/defold.ico" "${ENGINE_SRC_DIR}/engine.rc" DESTINATION lib/${TARGET_PLATFORM})
+endif()
 install(FILES "${ENGINE_ROOT}/scripts/dmengine_memprofile.sh"
   DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
