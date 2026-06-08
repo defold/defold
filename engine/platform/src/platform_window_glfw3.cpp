@@ -27,6 +27,16 @@
 
 namespace dmPlatform
 {
+    struct WindowModeParams
+    {
+        GLFWmonitor* m_Monitor;
+        int          m_Width;
+        int          m_Height;
+        int          m_X;
+        int          m_Y;
+        bool         m_WindowedFullscreen;
+    };
+
     // Gamepad callbacks are shared across all windows, so we need a
     // shared struct to store 'global' data
     static struct PlatformContext
@@ -192,16 +202,6 @@ namespace dmPlatform
     {
         return 0;
     }
-
-    struct WindowModeParams
-    {
-        GLFWmonitor* m_Monitor;
-        int          m_Width;
-        int          m_Height;
-        int          m_X;
-        int          m_Y;
-        bool         m_WindowedFullscreen;
-    };
 
     static WindowModeParams GetWindowModeParams(const WindowCreateParams& params)
     {
