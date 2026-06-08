@@ -514,14 +514,18 @@ file(GLOB_RECURSE ENGINE_DMSDK_HEADERS CONFIGURE_DEPENDS
 defold_add_sdk_headers_target(engine_public_sdk_headers
   DESTINATION include/engine
   SOURCE_ROOT "${ENGINE_SRC_DIR}"
-  FILES "${ENGINE_SRC_DIR}/engine.h" "${ENGINE_DDF_H}"
+  FILES "${ENGINE_SRC_DIR}/engine.h"
+  DEPENDS engine)
+defold_add_sdk_headers_target(engine_ddf_sdk_headers
+  DESTINATION include/engine
+  FILES "${ENGINE_DDF_H}"
   DEPENDS engine)
 defold_add_sdk_headers_target(engine_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk
   SOURCE_ROOT "${ENGINE_ROOT}/src/dmsdk"
   FILES ${ENGINE_DMSDK_HEADERS}
   DEPENDS engine)
-set(ENGINE_SDK_HEADER_TARGETS engine_public_sdk_headers engine_dmsdk_sdk_headers)
+set(ENGINE_SDK_HEADER_TARGETS engine_public_sdk_headers engine_ddf_sdk_headers engine_dmsdk_sdk_headers)
 list(APPEND ENGINE_SDK_HEADER_TARGETS
   crashext_sdk_headers
   extension_sdk_headers
@@ -542,7 +546,7 @@ add_custom_target(engine_sdk_headers
 install(FILES "${ENGINE_SRC_DIR}/engine.h" "${ENGINE_DDF_H}" DESTINATION include/engine)
 install(FILES "${ENGINE_PROTO_DIR}/engine/engine_ddf.proto" DESTINATION share/proto/engine)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/proto/engine/engine_ddf_pb2.py" DESTINATION lib/python/engine)
-if(TARGET_PLATFORM MATCHES "win32")
+if(TARGET_PLATFORM MATCHES "win32$")
   install(FILES "${ENGINE_SRC_DIR}/defold.ico" "${ENGINE_SRC_DIR}/engine.rc" DESTINATION lib/${TARGET_PLATFORM})
 endif()
 install(FILES "${ENGINE_ROOT}/scripts/dmengine_memprofile.sh"
