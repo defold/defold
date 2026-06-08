@@ -45,11 +45,11 @@
   (let [{:keys [attribute-transform ^long location]} attribute-info]
     (case attribute-transform
       (:attribute-transform-none)
-      (attribute/make-attribute-buffer-binding attribute-buffer-lifecycle location)
+      (attribute/make-attribute-buffer-binding attribute-buffer-lifecycle 0 location)
 
       (:attribute-transform-normal :attribute-transform-world)
       (-> (make-transformed-attribute-buffer scene-node-id attribute-buffer-lifecycle attribute-transform)
-          (attribute/make-attribute-buffer-binding location)))))
+          (attribute/make-attribute-buffer-binding 0 location)))))
 
 (defn- make-attribute-value-binding
   [attribute-bytes attribute-info]

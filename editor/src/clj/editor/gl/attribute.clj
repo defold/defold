@@ -19,7 +19,7 @@
             [editor.graphics.types :as graphics.types]
             [editor.math :as math]
             [editor.scene-cache :as scene-cache]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.ensure :as ensure]
             [util.fn :as fn])
@@ -386,18 +386,16 @@
   ^AttributeBufferData [^BufferData buffer-data usage]
   (ensure/argument buffer-data gl.types/gl-compatible-buffer-data?)
   (ensure/argument usage graphics.types/usage?)
-  (if (instance? FloatBuffer (.-data buffer-data))
-    (->AttributeBufferData buffer-data usage)
-    (throw (IllegalArgumentException. "buffer-data must use a FloatBuffer"))))
+  (->AttributeBufferData buffer-data usage))
 
 (defonce/record AttributeBufferLifecycle
   [request-id
    ^AttributeBufferData attribute-buffer-data
-   ^ElementType element-type]
+   element-types]
 
   graphics.types/ElementBuffer
   (buffer-data [_this] (.-buffer-data attribute-buffer-data))
-  (element-type [_this] element-type)
+  (element-types [_this] element-types)
 
   gl.types/GLBinding
   (bind! [_this gl _render-args]
@@ -411,55 +409,114 @@
 (defn make-attribute-buffer
   "Creates an attribute buffer from the provided data. The returned object is a
   GLBinding and an ElementBuffer."
-  ^AttributeBufferLifecycle [request-id ^BufferData buffer-data vector-type usage]
+  ^AttributeBufferLifecycle [request-id ^BufferData buffer-data element-types usage]
   (ensure/argument request-id graphics.types/request-id?)
-  (let [element-type (graphics.types/make-element-type vector-type :type-float false)
-        attribute-buffer-data (make-attribute-buffer-data buffer-data usage)]
-    (->AttributeBufferLifecycle request-id attribute-buffer-data element-type)))
+  (ensure/argument element-types graphics.types/element-types? "%s must be a non-empty vector of ElementType values")
+  (let [attribute-buffer-data (make-attribute-buffer-data buffer-data usage)
+        ^BufferData checked-buffer-data (.-buffer-data attribute-buffer-data)
+        vertex-byte-size (graphics.types/element-types-byte-size element-types)
+        data-byte-size (buffers/total-byte-size (.-data checked-buffer-data))]
+    (if (zero? (rem data-byte-size vertex-byte-size))
+      (->AttributeBufferLifecycle request-id attribute-buffer-data element-types)
+      (throw
+        (ex-info
+          "buffer-data byte size must be divisible by the element-types byte size"
+          {:buffer-data buffer-data
+           :data-byte-size data-byte-size
+           :element-types element-types
+           :vertex-byte-size vertex-byte-size})))))
+
+(defn update-attribute-buffer
+  "Applies the supplied update-data-fn to the internal java.nio.Buffer of the
+  BufferData inside the AttributeBufferLifecycle and returns a new
+  AttributeBufferLifecycle that wraps the returned java.nio.Buffer. The
+  update-data-fn may either return a new Buffer instance or the original input
+  Buffer to signal that it was modified in-place. In either case, the returned
+  Buffer must have been flipped. It is the callers responsibility to ensure the
+  internal buffer can safely be modified in-place. Beware that a new
+  AttributeBufferLifecycle instance will be returned in either case, and you
+  must always use the returned AttributeBufferLifecycle instance to ensure the
+  changes are picked up by the GL objects in the scene-cache."
+  (^AttributeBufferLifecycle [^AttributeBufferLifecycle attribute-buffer-lifecycle update-data-fn]
+   (update attribute-buffer-lifecycle :attribute-buffer-data update :buffer-data buffers/update-buffer-data update-data-fn))
+  (^AttributeBufferLifecycle [^AttributeBufferLifecycle attribute-buffer-lifecycle update-data-fn & args]
+   (apply update attribute-buffer-lifecycle :attribute-buffer-data update :buffer-data buffers/update-buffer-data update-data-fn args)))
 
 (defonce/record AttributeBufferBinding
   [attribute-buffer-lifecycle
-   ^int base-location]
+   ^int base-location
+   ^int attribute-count
+   ^int component-count
+   ^int item-gl-type
+   ^boolean normalize
+   ^int vertex-byte-size
+   byte-offsets]
 
   gl.types/GLBinding
   (bind! [_this gl render-args]
-    (let [element-type (graphics.types/element-type attribute-buffer-lifecycle)
-          vector-type (.-vector-type element-type)
-          data-type (.-data-type element-type)
-          normalize (.-normalize element-type)
-          component-count (graphics.types/vector-type-component-count vector-type)
-          item-gl-type (gl.types/data-type-gl-type data-type)
-          item-byte-size (graphics.types/data-type-byte-size data-type)
-          vertex-byte-size (* component-count item-byte-size)
-          row-column-count (graphics.types/vector-type-row-column-count vector-type)]
-      (gl/with-gl-bindings gl render-args [attribute-buffer-lifecycle]
-        (if (neg? row-column-count)
-          (do
-            (gl/gl-enable-vertex-attrib-array gl base-location)
-            (gl/gl-vertex-attrib-pointer gl base-location component-count item-gl-type normalize vertex-byte-size 0))
-          (loop [column-index 0]
-            (when (< column-index row-column-count)
-              (let [location (+ base-location column-index)
-                    byte-offset (* column-index row-column-count item-byte-size)]
-                (gl/gl-enable-vertex-attrib-array gl location)
-                (gl/gl-vertex-attrib-pointer gl location row-column-count item-gl-type normalize vertex-byte-size byte-offset)
-                (recur (inc column-index)))))))))
+    (gl/with-gl-bindings gl render-args [attribute-buffer-lifecycle]
+      (loop [attribute-index 0]
+        (when (< attribute-index attribute-count)
+          (let [location (+ base-location attribute-index)
+                byte-offset (long (byte-offsets attribute-index))]
+            (gl/gl-enable-vertex-attrib-array gl location)
+            (gl/gl-vertex-attrib-pointer gl location component-count item-gl-type normalize vertex-byte-size byte-offset)
+            (recur (inc attribute-index)))))))
 
   (unbind! [_this gl _render-args]
-    (let [element-type (graphics.types/element-type attribute-buffer-lifecycle)
-          vector-type (.-vector-type element-type)
-          attribute-count (graphics.types/vector-type-attribute-count vector-type)]
-      (gl/disable-vertex-attrib-arrays! gl base-location attribute-count))))
+    (gl/disable-vertex-attrib-arrays! gl base-location attribute-count)))
 
 (defn make-attribute-buffer-binding
   "Returns a GLBinding that binds a shader attribute location to an attribute
   buffer. An attribute buffer can be created using the `make-attribute-buffer`
   or `make-transformed-attribute-buffer` functions."
-  ^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]
+  ^AttributeBufferBinding [attribute-buffer-lifecycle ^long attribute-index ^long base-location]
   (ensure/argument-satisfies attribute-buffer-lifecycle graphics.types/ElementBuffer)
   (ensure/argument-satisfies attribute-buffer-lifecycle gl.types/GLBinding)
+  (ensure/argument attribute-index nat-int? "%s must be a non-negative integer")
   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
-  (->AttributeBufferBinding attribute-buffer-lifecycle base-location))
+  (let [element-types (graphics.types/element-types attribute-buffer-lifecycle)]
+    (if (< attribute-index (count element-types))
+      (let [element-type ^ElementType (element-types attribute-index)
+            vector-type (.-vector-type element-type)
+            data-type (.-data-type element-type)
+            normalize (.-normalize element-type)
+            row-column-count (graphics.types/vector-type-row-column-count vector-type)
+            item-byte-size (graphics.types/data-type-byte-size data-type)
+            item-gl-type (gl.types/data-type-gl-type data-type)
+            attribute-count (graphics.types/vector-type-attribute-count vector-type)
+            vertex-byte-size (graphics.types/element-types-byte-size element-types)
+
+            component-count
+            (if (neg? row-column-count)
+              (graphics.types/vector-type-component-count vector-type)
+              row-column-count)
+
+            attribute-byte-offset
+            (long
+              (coll/reduce-> element-types 0
+                (take attribute-index)
+                (map graphics.types/element-type-byte-size)
+                +))
+
+            byte-offsets
+            (if (neg? row-column-count)
+              (vector-of :int attribute-byte-offset)
+              (loop [column-index 0
+                     byte-offsets (vector-of :int)]
+                (if (= column-index row-column-count)
+                  byte-offsets
+                  (recur (inc column-index)
+                         (conj byte-offsets
+                               (+ attribute-byte-offset
+                                  (* column-index row-column-count item-byte-size)))))))]
+
+        (->AttributeBufferBinding attribute-buffer-lifecycle base-location attribute-count component-count item-gl-type normalize vertex-byte-size byte-offsets))
+      (throw
+        (ex-info
+          "attribute-index out of bounds"
+          {:attribute-index attribute-index
+           :element-types element-types})))))
 
 (defn- update-attribute-buffer!
   [^GL2 gl ^long gl-buffer ^AttributeBufferData attribute-buffer-data]
@@ -509,7 +566,7 @@
 
   graphics.types/ElementBuffer
   (buffer-data [_this] untransformed-buffer-data)
-  (element-type [_this] transformed-attribute-buffer-element-type)
+  (element-types [_this] [transformed-attribute-buffer-element-type])
 
   gl.types/GLBinding
   (bind! [_this gl render-args]
@@ -659,7 +716,7 @@
 
   graphics.types/ElementBuffer
   (buffer-data [_this] (.-buffer-data index-buffer-data))
-  (element-type [_this] element-type)
+  (element-types [_this] [element-type])
 
   gl.types/GLBinding
   (bind! [_this gl _render-args]
@@ -686,6 +743,13 @@
         element-type (graphics.types/make-element-type :vector-type-scalar data-type false)
         index-buffer-data (->IndexBufferData buffer-data usage)]
     (->IndexBufferLifecycle request-id index-buffer-data element-type)))
+
+(defn index-buffer-gl-type
+  ^long [index-buffer]
+  (-> index-buffer
+      graphics.types/element-types
+      first
+      gl.types/element-type-gl-type))
 
 (defn- update-index-buffer!
   [^GL2 gl ^long gl-buffer ^IndexBufferData index-buffer-data]

@@ -23,7 +23,6 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.types :as gl.types]
             [editor.graphics :as graphics]
             [editor.graphics.types :as graphics.types]
             [editor.localization :as localization]
@@ -106,8 +105,9 @@
        (let [float-buffer (make-attribute-float-buffer input-floats input-component-count output-component-count output-component-fill)
              buffer-data (buffers/make-buffer-data float-buffer)
              request-id (assoc mesh-request-id :pb-field input-floats-pb-field)
-             vector-type (graphics.types/component-count-vector-type output-component-count false)]
-         (attribute/make-attribute-buffer request-id buffer-data vector-type :static))
+             vector-type (graphics.types/component-count-vector-type output-component-count false)
+             element-type (graphics.types/make-element-type vector-type :type-float false)]
+         (attribute/make-attribute-buffer request-id buffer-data [element-type] :static))
 
        :else
        (g/error-fatal
@@ -234,7 +234,7 @@
   (let [renderable (first renderables)
         {:keys [attribute-bindings coordinate-space-info index-buffer material-data shader textures]} (:user-data renderable)
         render-args (math/rederive-render-transforms render-args coordinate-space-info)
-        index-type (gl.types/element-buffer-gl-type index-buffer)
+        index-type (attribute/index-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)]
     (gl/with-gl-bindings gl render-args [shader attribute-bindings index-buffer]
       (doseq [[name t] textures]
@@ -256,7 +256,7 @@
   ;; TODO(instancing): We should use instanced rendering and put the picking-id as a per-instance attribute.
   (let [{:keys [picking-id user-data]} (first renderables)
         {:keys [index-buffer textures]} user-data
-        index-type (gl.types/element-buffer-gl-type index-buffer)
+        index-type (attribute/index-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)
         picking-id-float-array (scene-picking/picking-id->float-array picking-id)
 

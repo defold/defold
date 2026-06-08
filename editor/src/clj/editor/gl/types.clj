@@ -110,10 +110,6 @@
   ^long [^ElementType element-type]
   (data-type-gl-type (.-data-type element-type)))
 
-(defn element-buffer-gl-type
-  ^long [element-buffer]
-  (-> element-buffer graphics.types/element-type element-type-gl-type))
-
 (defn usage-gl-usage
   ^long [usage]
   (case usage

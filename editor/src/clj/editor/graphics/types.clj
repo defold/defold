@@ -40,7 +40,7 @@
 
 (defonce/protocol ElementBuffer
   (^BufferData buffer-data [this] "Returns the BufferData that contains the elements of this buffer.")
-  (^ElementType element-type [this] "Returns the ElementType of elements in this buffer."))
+  (element-types [this] "Returns a vector of ElementTypes for the elements in this buffer."))
 
 (defonce/protocol ValueBinding
   (with-value [this new-value] "Return a new instance with the value replaced."))
@@ -462,21 +462,34 @@
 (definline element-type? [value]
   `(instance? ElementType ~value))
 
+(defn element-types? [value]
+  (and (vector? value)
+       (pos? (count value))
+       (coll/every? element-type? value)))
+
 (definline element-buffer? [value]
   `(satisfies? ElementBuffer ~value))
+
+(defn element-type-byte-size
+  ^long [^ElementType element-type]
+  (* (data-type-byte-size (.-data-type element-type))
+     (vector-type-component-count (.-vector-type element-type))))
+
+(defn element-types-byte-size
+  ^long [element-types]
+  (transduce (map element-type-byte-size) + 0 element-types))
 
 (defn element-count
   ^long [element-buffer]
   (if (nil? element-buffer)
     0
     (let [buffer-data (buffer-data element-buffer)
-          item-count (count buffer-data)]
-      (if (zero? item-count)
+          data (.-data buffer-data)
+          total-byte-size (editor.buffers/total-byte-size data)]
+      (if (zero? total-byte-size)
         0
-        (let [element-type (element-type element-buffer)
-              vector-type (.-vector-type element-type)
-              component-count (vector-type-component-count vector-type)]
-          (quot item-count component-count))))))
+        (quot total-byte-size
+              (element-types-byte-size (element-types element-buffer)))))))
 
 (defn- make-element-type-raw
   ^ElementType [vector-type data-type normalize]

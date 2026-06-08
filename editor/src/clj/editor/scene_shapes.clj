@@ -386,7 +386,7 @@
       (if index-buffer
         (gl/gl-draw-elements gl
                              primitive-type
-                             (gl.types/element-buffer-gl-type index-buffer)
+                             (attribute/index-buffer-gl-type index-buffer)
                              0
                              (graphics.types/element-count index-buffer))
         (gl/gl-draw-arrays gl primitive-type 0 point-count))
