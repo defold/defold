@@ -168,6 +168,10 @@ def build_builtins(args):
         args.platform,
         "--variant=debug",
         "--use-vanilla-lua",
+    ]
+    for shader_output in args.shader_output:
+        java_cmd.append("--debug-output-%s=true" % shader_output)
+    java_cmd += [
         "--build-input-file",
         build_inputs.name,
         "clean",
@@ -231,6 +235,7 @@ def main():
     builtins.add_argument("--stamp", required=True)
     builtins.add_argument("--bob-light", required=True)
     builtins.add_argument("--platform", required=True)
+    builtins.add_argument("--shader-output", action="append", default=[])
     builtins.add_argument("--java", required=True)
     builtins.set_defaults(func=build_builtins)
 
