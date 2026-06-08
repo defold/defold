@@ -12,7 +12,7 @@ uniform Light
     vec4 color;
     vec4 direction_range;
     vec4 params;
-} lights[MAX_LIGHTS];
+} lights[MAX_LIGHT_COUNT];
 
 uniform LightBuffer
 {
@@ -29,8 +29,9 @@ struct Light
 
 uniform LightBuffer
 {
-    vec4  light_info;     // xyz: ambient light, w: number of active lights
-    Light lights[MAX_LIGHTS];
+    // xyz: ambient light, w: number of active lights
+    vec4  light_info;
+    Light lights[MAX_LIGHT_COUNT];
 };
 #endif
 
@@ -44,10 +45,9 @@ vec3 world_to_view_dir(vec3 d)
     return normalize((var_view * vec4(d, 0.0)).xyz);
 }
 
-vec3 calculate_light(int index, vec3 normal, vec3 view_position)
+vec3 diffuse_lambert(int index, vec3 normal, vec3 view_position)
 {
     int type = int(lights[index].params.x);
-
     if (type == LIGHT_DIRECTIONAL)
     {
         vec3 L = -world_to_view_dir(lights[index].direction_range.xyz);
@@ -77,6 +77,24 @@ vec3 calculate_light(int index, vec3 normal, vec3 view_position)
     }
 
     return vec3(0.0);
+}
+
+vec3 diffuse_lambert(vec3 view_normal, vec3 view_position)
+{
+    // Apply accumulated ambient light as base.
+    vec3 total_light = light_info.xyz;
+    int light_count = int(light_info.w);
+
+    for (int i = 0; i < MAX_LIGHT_COUNT; ++i)
+    {
+        if (i >= light_count)
+        {
+            break;
+        }
+        total_light += diffuse_lambert(i, view_normal, view_position);
+    }
+
+    return total_light;
 }
 
 #endif
