@@ -15,6 +15,8 @@
 #include "render.h"
 #include "render_private.h"
 
+#include <dlib/log.h>
+
 namespace dmRender
 {
     static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
@@ -25,6 +27,43 @@ namespace dmRender
     static void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light);
     static bool LightSTD140Equals(const LightSTD140& a, const LightSTD140& b);
     static bool EnsureLightUniformBuffer(HRenderContext render_context);
+
+    static const char* LightTypeToStr(LightType type)
+    {
+        switch (type)
+        {
+            case LIGHT_TYPE_DIRECTIONAL: return "directional";
+            case LIGHT_TYPE_POINT:       return "point";
+            case LIGHT_TYPE_SPOT:        return "spot";
+            case LIGHT_TYPE_AMBIENT:     return "ambient";
+            default:                     return "<unknown>";
+        }
+    }
+
+    static void DebugLogLightPoolState(const char* label, HRenderContext render_context)
+    {
+        if (!render_context)
+        {
+            dmLogError("TEMP LIGHT %s render_context=<null>", label);
+            return;
+        }
+
+        dmLogInfo("TEMP LIGHT %s render_context=%p max=%u pool_size=%u pool_capacity=%u pool_remaining=%u render_lights_size=%u render_lights_capacity=%u scratch_size=%u scratch_capacity=%u upload_size=%u upload_capacity=%u prototypes_capacity=%u light_ubo=%p",
+                  label,
+                  (void*) render_context,
+                  (uint32_t) render_context->m_MaxLightCount,
+                  (uint32_t) render_context->m_RenderLightsIndices.Size(),
+                  (uint32_t) render_context->m_RenderLightsIndices.Capacity(),
+                  (uint32_t) render_context->m_RenderLightsIndices.Remaining(),
+                  render_context->m_RenderLights.Size(),
+                  render_context->m_RenderLights.Capacity(),
+                  render_context->m_LightBufferScratch.Size(),
+                  render_context->m_LightBufferScratch.Capacity(),
+                  render_context->m_LightBufferUploadScratch.Size(),
+                  render_context->m_LightBufferUploadScratch.Capacity(),
+                  render_context->m_LightPrototypes.Capacity(),
+                  (void*) render_context->m_LightUniformBuffer);
+    }
 
     static inline dmVMath::Vector3 GetLightForwardDirection()
     {
@@ -55,6 +94,17 @@ namespace dmRender
         LightPrototype* lp = new LightPrototype;
         HLightPrototype handle = render_context->m_LightPrototypes.Put(lp);
         SetLightPrototype(render_context, handle, params);
+        dmLogInfo("TEMP LIGHT NewLightPrototype render_context=%p prototype=%u type=%s intensity=%.3f range=%.3f color=(%.3f, %.3f, %.3f, %.3f) prototypes_capacity=%u",
+                  (void*) render_context,
+                  (uint32_t) handle,
+                  LightTypeToStr(params.m_Type),
+                  params.m_Intensity,
+                  params.m_Range,
+                  params.m_Color.getX(),
+                  params.m_Color.getY(),
+                  params.m_Color.getZ(),
+                  params.m_Color.getW(),
+                  render_context->m_LightPrototypes.Capacity());
         return handle;
     }
 
@@ -80,8 +130,18 @@ namespace dmRender
         LightPrototype* lp = render_context->m_LightPrototypes.Get(light_prototype);
         if (lp)
         {
+            dmLogInfo("TEMP LIGHT DeleteLightPrototype render_context=%p prototype=%u type=%s",
+                      (void*) render_context,
+                      (uint32_t) light_prototype,
+                      LightTypeToStr(lp->m_Type));
             render_context->m_LightPrototypes.Release(light_prototype);
             delete lp;
+        }
+        else
+        {
+            dmLogError("TEMP LIGHT DeleteLightPrototype invalid render_context=%p prototype=%u",
+                       (void*) render_context,
+                       (uint32_t) light_prototype);
         }
     }
 
@@ -114,9 +174,18 @@ namespace dmRender
 
     HLightInstance NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype)
     {
+        dmLogInfo("TEMP LIGHT NewLightInstance begin render_context=%p prototype=%u",
+                  (void*) render_context,
+                  (uint32_t) light_prototype);
+        DebugLogLightPoolState("NewLightInstance pool before", render_context);
+
         LightPrototype* prototype = render_context->m_LightPrototypes.Get(light_prototype);
         if (!prototype)
         {
+            dmLogError("TEMP LIGHT NewLightInstance failed invalid_prototype render_context=%p prototype=%u prototypes_capacity=%u",
+                       (void*) render_context,
+                       (uint32_t) light_prototype,
+                       render_context->m_LightPrototypes.Capacity());
             return 0;
         }
 
@@ -124,12 +193,23 @@ namespace dmRender
         // entries in the per-light buffer.
         if (prototype->m_Type == LIGHT_TYPE_AMBIENT)
         {
+            dmLogInfo("TEMP LIGHT NewLightInstance skipped ambient render_context=%p prototype=%u",
+                      (void*) render_context,
+                      (uint32_t) light_prototype);
             return 0;
         }
 
         // Reached max count.
         if (render_context->m_RenderLightsIndices.Size() >= render_context->m_MaxLightCount || render_context->m_RenderLightsIndices.Remaining() == 0)
         {
+            dmLogError("TEMP LIGHT NewLightInstance failed pool_full render_context=%p prototype=%u type=%s max=%u pool_size=%u pool_capacity=%u pool_remaining=%u",
+                       (void*) render_context,
+                       (uint32_t) light_prototype,
+                       LightTypeToStr(prototype->m_Type),
+                       (uint32_t) render_context->m_MaxLightCount,
+                       (uint32_t) render_context->m_RenderLightsIndices.Size(),
+                       (uint32_t) render_context->m_RenderLightsIndices.Capacity(),
+                       (uint32_t) render_context->m_RenderLightsIndices.Remaining());
             return 0;
         }
 
@@ -151,7 +231,16 @@ namespace dmRender
         CommitLightInstance(render_context, light_instance, dmVMath::Point3(0.0f, 0.0f, 0.0f), GetLightForwardDirection(), 1.0f);
         CommitLightInfo(render_context);
 
-        return light_instance->m_Version << 16 | light_buffer_index;
+        HLightInstance handle = light_instance->m_Version << 16 | light_buffer_index;
+        dmLogInfo("TEMP LIGHT NewLightInstance success render_context=%p prototype=%u type=%s index=%u version=%u handle=%u",
+                  (void*) render_context,
+                  (uint32_t) light_prototype,
+                  LightTypeToStr(prototype->m_Type),
+                  (uint32_t) light_buffer_index,
+                  (uint32_t) light_instance->m_Version,
+                  (uint32_t) handle);
+        DebugLogLightPoolState("NewLightInstance pool after", render_context);
+        return handle;
     }
 
     void DeleteLightInstance(HRenderContext render_context, HLightInstance instance)
@@ -162,11 +251,32 @@ namespace dmRender
         {
             if (light_instance->m_LightPrototype == 0 || light_instance->m_Version != (instance >> 16))
             {
+                dmLogError("TEMP LIGHT DeleteLightInstance ignored invalid render_context=%p instance=%u index=%u stored_prototype=%u stored_version=%u handle_version=%u",
+                           (void*) render_context,
+                           (uint32_t) instance,
+                           (uint32_t) light_buffer_index,
+                           (uint32_t) light_instance->m_LightPrototype,
+                           (uint32_t) light_instance->m_Version,
+                           (uint32_t) (instance >> 16));
                 return;
             }
+            dmLogInfo("TEMP LIGHT DeleteLightInstance render_context=%p instance=%u index=%u prototype=%u",
+                      (void*) render_context,
+                      (uint32_t) instance,
+                      (uint32_t) light_buffer_index,
+                      (uint32_t) light_instance->m_LightPrototype);
             render_context->m_RenderLightsIndices.Push(light_instance->m_LightBufferIndex);
             light_instance->m_LightPrototype = 0;
             CommitLightInfo(render_context);
+            DebugLogLightPoolState("DeleteLightInstance pool after", render_context);
+        }
+        else
+        {
+            dmLogError("TEMP LIGHT DeleteLightInstance ignored out_of_range render_context=%p instance=%u index=%u render_lights_size=%u",
+                       (void*) render_context,
+                       (uint32_t) instance,
+                       (uint32_t) light_buffer_index,
+                       render_context->m_RenderLights.Size());
         }
     }
 
@@ -484,6 +594,11 @@ namespace dmRender
         assert(render_context);
         assert(render_context->m_RenderLightsIndices.Size() == 0);
 
+        dmLogInfo("TEMP LIGHT SetLightBufferCount begin render_context=%p requested_max=%u",
+                  (void*) render_context,
+                  max_lights);
+        DebugLogLightPoolState("SetLightBufferCount before", render_context);
+
         if (render_context->m_LightUniformBuffer)
         {
             dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
@@ -522,6 +637,8 @@ namespace dmRender
         render_context->m_LightBufferScratch.SetSize(0);
         render_context->m_LightBufferUploadScratch.SetSize(0);
         render_context->m_LightBufferUploadScratch.SetCapacity(0);
+
+        DebugLogLightPoolState("SetLightBufferCount after", render_context);
     }
 
     void FinalizeLightData(HRenderContext render_context)

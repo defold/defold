@@ -56,6 +56,18 @@ namespace dmGameSystem
         uint32_t                 m_MaxComponentInstances;
     };
 
+    static const char* LightTypeToStr(dmRender::LightType type)
+    {
+        switch (type)
+        {
+            case dmRender::LIGHT_TYPE_DIRECTIONAL: return "directional";
+            case dmRender::LIGHT_TYPE_POINT:       return "point";
+            case dmRender::LIGHT_TYPE_SPOT:        return "spot";
+            case dmRender::LIGHT_TYPE_AMBIENT:     return "ambient";
+            default:                               return "<unknown>";
+        }
+    }
+
     static dmGameObject::CreateResult CompLightNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         LightContext* context = (LightContext*) params.m_Context;
@@ -64,6 +76,13 @@ namespace dmGameSystem
         world->m_Components.SetCapacity(comp_count);
         world->m_MaxComponentInstances = params.m_MaxComponentInstances;
         *params.m_World = world;
+        dmLogInfo("TEMP LIGHT CompLightNewWorld context=%p render_context=%p max_light_count=%u max_component_instances=%u world=%p component_capacity=%u",
+                  (void*) context,
+                  (void*) context->m_RenderContext,
+                  context->m_MaxLightCount,
+                  params.m_MaxComponentInstances,
+                  (void*) world,
+                  world->m_Components.Capacity());
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -86,12 +105,34 @@ namespace dmGameSystem
 
     static bool CreateRenderLightInstance(LightContext* context, LightComponent* light)
     {
-        light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, GetLightPrototype(light->m_LightResource));
+        dmRender::HLightPrototype prototype = GetLightPrototype(light->m_LightResource);
+        dmLogInfo("TEMP LIGHT CreateRenderLightInstance begin context=%p render_context=%p component=%p resource=%p prototype=%u max_light_count=%u",
+                  (void*) context,
+                  (void*) context->m_RenderContext,
+                  (void*) light,
+                  (void*) light->m_LightResource,
+                  (uint32_t) prototype,
+                  context->m_MaxLightCount);
+        light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, prototype);
         if (light->m_LightInstance == 0)
         {
+            dmLogError("TEMP LIGHT CreateRenderLightInstance failed context=%p render_context=%p component=%p resource=%p prototype=%u max_light_count=%u",
+                       (void*) context,
+                       (void*) context->m_RenderContext,
+                       (void*) light,
+                       (void*) light->m_LightResource,
+                       (uint32_t) prototype,
+                       context->m_MaxLightCount);
             ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, (int) context->m_MaxLightCount);
             return false;
         }
+        dmLogInfo("TEMP LIGHT CreateRenderLightInstance success context=%p render_context=%p component=%p resource=%p prototype=%u instance=%u",
+                  (void*) context,
+                  (void*) context->m_RenderContext,
+                  (void*) light,
+                  (void*) light->m_LightResource,
+                  (uint32_t) prototype,
+                  (uint32_t) light->m_LightInstance);
         return true;
     }
 
@@ -125,10 +166,31 @@ namespace dmGameSystem
         LightWorld* world = (LightWorld*) params.m_World;
         LightContext* context = (LightContext*)params.m_Context;
         LightResource* light_resource = (LightResource*) params.m_Resource;
-        bool is_ambient = LightType(context, light_resource) == dmRender::LIGHT_TYPE_AMBIENT;
+        dmRender::HLightPrototype prototype = GetLightPrototype(light_resource);
+        dmRender::LightType light_type = LightType(context, light_resource);
+        bool is_ambient = light_type == dmRender::LIGHT_TYPE_AMBIENT;
+
+        dmLogInfo("TEMP LIGHT CompLightCreate begin context=%p render_context=%p world=%p world_size=%u world_capacity=%u resource=%p prototype=%u type=%s instance=%p user_data=%p",
+                  (void*) context,
+                  (void*) context->m_RenderContext,
+                  (void*) world,
+                  world->m_Components.Size(),
+                  world->m_Components.Capacity(),
+                  (void*) light_resource,
+                  (uint32_t) prototype,
+                  LightTypeToStr(light_type),
+                  (void*) params.m_Instance,
+                  (void*) params.m_UserData);
 
         if (!EnsureComponentCapacity(world, is_ambient))
         {
+            dmLogError("TEMP LIGHT CompLightCreate capacity failed world=%p world_size=%u world_capacity=%u max_component_instances=%u type=%s max_light_count=%u",
+                       (void*) world,
+                       world->m_Components.Size(),
+                       world->m_Components.Capacity(),
+                       world->m_MaxComponentInstances,
+                       LightTypeToStr(light_type),
+                       context->m_MaxLightCount);
             if (is_ambient)
             {
                 ShowFullBufferError("Light", world->m_Components.Capacity());
@@ -154,6 +216,16 @@ namespace dmGameSystem
 
         world->m_Components.Push(light);
         *params.m_UserData = (uintptr_t) light;
+        dmLogInfo("TEMP LIGHT CompLightCreate success context=%p render_context=%p world=%p world_size=%u component=%p light_instance=%u resource=%p prototype=%u type=%s",
+                  (void*) context,
+                  (void*) context->m_RenderContext,
+                  (void*) world,
+                  world->m_Components.Size(),
+                  (void*) light,
+                  (uint32_t) light->m_LightInstance,
+                  (void*) light->m_LightResource,
+                  (uint32_t) prototype,
+                  LightTypeToStr(light_type));
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -176,6 +248,13 @@ namespace dmGameSystem
 
                 if (light->m_LightInstance)
                 {
+                    dmLogInfo("TEMP LIGHT CompLightDestroy delete render instance context=%p render_context=%p component=%p resource=%p prototype=%u light_instance=%u",
+                              (void*) context,
+                              (void*) context->m_RenderContext,
+                              (void*) light,
+                              (void*) light->m_LightResource,
+                              (uint32_t) GetLightPrototype(light->m_LightResource),
+                              (uint32_t) light->m_LightInstance);
                     dmRender::DeleteLightInstance(context->m_RenderContext, light->m_LightInstance);
                 }
 
@@ -224,6 +303,12 @@ namespace dmGameSystem
 
             if (light->m_LightInstance == 0 && !CreateRenderLightInstance(context, light))
             {
+                dmLogError("TEMP LIGHT CompLightLateUpdate retry allocation failed context=%p render_context=%p component=%p resource=%p prototype=%u",
+                           (void*) context,
+                           (void*) context->m_RenderContext,
+                           (void*) light,
+                           (void*) light->m_LightResource,
+                           (uint32_t) GetLightPrototype(light->m_LightResource));
                 continue;
             }
 
@@ -248,6 +333,13 @@ namespace dmGameSystem
         light_context->m_Factory = ctx->m_Factory;
         light_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
         light_context->m_MaxLightCount = (uint32_t) dmMath::Max(0, dmConfigFile::GetInt(ctx->m_Config, LIGHT_MAX_COUNT_KEY, 64));
+
+        dmLogInfo("TEMP LIGHT CompLightTypeCreate context=%p context_registry=%p render_context=%p factory=%p max_light_count=%u",
+                  (void*) light_context,
+                  (void*) context_registry,
+                  (void*) light_context->m_RenderContext,
+                  (void*) light_context->m_Factory,
+                  light_context->m_MaxLightCount);
 
         dmRender::SetLightBufferCount(light_context->m_RenderContext, light_context->m_MaxLightCount);
 
@@ -274,6 +366,10 @@ namespace dmGameSystem
             return dmGameObject::RESULT_OK;
         }
 
+        dmLogInfo("TEMP LIGHT CompLightTypeDestroy context=%p render_context=%p max_light_count=%u",
+                  (void*) light_context,
+                  (void*) light_context->m_RenderContext,
+                  light_context->m_MaxLightCount);
         delete light_context;
         return dmGameObject::RESULT_OK;
     }
