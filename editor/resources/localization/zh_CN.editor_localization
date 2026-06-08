@@ -336,6 +336,10 @@ dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}
 
 # Fetch libraries notification
 
+notification.fetch-libraries.changed = 项目依赖项已更改。您想现在获取库吗？
+notification.fetch-libraries.action.fetch = 获取库
+notification.fetch-libraries.action.open-game-project = 打开 game.project
+notification.fetch-libraries.problem.failed-http-request = 获取 (HTTP\:{status}) 失败
 notification.fetch-libraries.problem.http-connect-timeout = 获取失败(连接超时)
 
 # Editor scripts notification

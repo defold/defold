@@ -108,6 +108,7 @@ namespace dmRender
         uint8_t                                     m_HasSkinnedAttributes : 1;
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
         uint8_t                                     m_HasMorphTargetsSampler : 1;
+        uint8_t                                     m_HasMorphTargetWeightsAttribute : 1;
     };
 
     struct ComputeProgram

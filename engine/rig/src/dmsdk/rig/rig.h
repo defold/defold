@@ -186,6 +186,8 @@ namespace dmRig
         const float** tangents,
         const float** colors,
         const float** texture_transform_2d,
+        const float** morph_target_weights,
+        dmGraphics::VertexAttribute::VectorType morph_target_weights_vector_type,
         const float** uv_channels,
         uint32_t uv_channels_count);
 

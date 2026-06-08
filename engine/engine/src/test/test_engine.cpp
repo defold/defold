@@ -30,7 +30,9 @@
 
 extern "C" void dmExportedSymbols();
 
+#ifndef CONTENT_ROOT
 #define CONTENT_ROOT "src/test/build/default"
+#endif
 #define MAKE_PATH(_VAR, _NAME)  dmTestUtil::MakeHostPathf(_VAR, sizeof(_VAR), "%s%s", CONTENT_ROOT, _NAME)
 
 typedef void (*PreRun)(dmEngine::HEngine engine, void* context);
@@ -327,7 +329,10 @@ TEST_F(EngineTest, HttpPost)
 TEST_F(EngineTest, Reboot)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    char project_config[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    dmSnPrintf(project_config, sizeof(project_config), "--config=test.project=%s", project_path);
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", "--config=dmengine.unload_builtins=0", project_config, project_path};
     ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 

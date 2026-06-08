@@ -355,6 +355,8 @@ notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
 # Editor scripts notification
 
+notification.reload-editor-scripts = Os scripts do editor mudaram. Deseja recarregá-los agora?
+notification.reload-editor-scripts.action.reload = Recarregar Scripts do Editor
 
 # Open custom editor notifications
 
@@ -731,6 +733,7 @@ progress.updating-dependencies = Atualizando dependências…
 progress.syncing-resources = Sincronizando recursos…
 progress.loading-project = Carregando projeto…
 progress.loading-external-changes = Carregando mudanças externas…
+progress.editor-scripts-reloaded = Scripts do editor recarregados em {time}
 progress.writing-files = Gravando arquivos…
 progress.caching-save-results = Salvando resultados em cache…
 progress.reading-timestamps = Lendo timestamps…
@@ -1210,6 +1213,7 @@ property.collision-object.event-contact.tooltip = Se desativado, filtra quaisque
 property.collision-object.event-trigger = Gerar Eventos de Gatilho
 property.collision-object.event-trigger.tooltip = Se desativado, filtra quaisquer eventos de gatilho envolvendo este objeto de colisão
 property.collision-object.group = Grupo
+property.collision-object.group.tilemap.tooltip = Esta propriedade não é usada quando a Forma de Colisão é um tilemap. Grupos de colisão são definidos no tile source do tilemap.
 property.collision-object.mask = Máscara
 property.collision-object.shape.diameter = Diâmetro
 property.collision-object.shape.dimensions = Dimensões

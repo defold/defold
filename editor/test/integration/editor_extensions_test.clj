@@ -874,6 +874,7 @@ editor.ui.image({image = 'foo', width = -1}) => -1 is not positive
 editor.ui.dialog({title = 'Dialog title', width = false}) => false is not a number
 editor.ui.dialog({title = 'Dialog title', height = -1}) => -1 is not positive
 editor.ui.dialog({title = 'Dialog title', resizable = 1}) => 1 is not a boolean
+editor.ui.tab({}) => {} must have the \"text\" key
 ")
 
 (deftest ui-test
@@ -1455,6 +1456,28 @@ openapi route has 200 => true
                                 :web-server server)
         (run-edit-menu-test-command!)
         (expect-script-output expected-http-server-test-output out)))))
+
+(def ^:private expected-image-test-output
+  "size image: 32,32
+top-left: 255,0,0,255
+top-right: 0,255,0,255
+bottom-left: 0,0,255,255
+bottom-right: 255,255,255,128
+pixels: count=1024 checksum=620288
+load_file missing: Image file does not exist: assets/missing.png
+load_file unsupported: Unsupported image file: assets/not_image.txt
+pixel x low: Pixel coordinate out of bounds: 0, 1
+pixel x high: Pixel coordinate out of bounds: 33, 1
+pixel y low: Pixel coordinate out of bounds: 1, 0
+pixel y high: Pixel coordinate out of bounds: 1, 33
+")
+
+(deftest image-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/image_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-image-test-output out))))
 
 (deftest eval-route-test
   (test-util/with-loaded-project

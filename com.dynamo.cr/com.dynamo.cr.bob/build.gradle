@@ -28,7 +28,7 @@ apply from: '../com.dynamo.cr.bob/basic.gradle'
 
 allprojects {
     tasks.withType(Jar) {
-        exclude('tmp/**')
+        exclude('tmp/**', 'reports/**')
         includeEmptyDirs = false
         if (project.hasProperty('keep-bob-uncompressed')) {
             entryCompression = ZipEntryCompression.STORED
@@ -134,6 +134,8 @@ sourceSets {
     }
 }
 
+def bobLightDependencyJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
+def bobGitRevision = "git -C ${project.bobDir} log --pretty=%H -n1".execute().text.trim()
 def privateBobPluginModules = []
 def targetPlatform = (project.findProperty('target-platform') ?: System.getenv('DYNAMO_TARGET_PLATFORM') ?: '').toString()
 def platformsConfigFile = file("${project.bobDir}/../../.defold-platforms")
@@ -170,19 +172,25 @@ def privateBobPluginClassPath = privateBobPluginModules.collect { "plugins/${it.
 def privateBobPluginJarTasks = []
 
 task copyDependencies {
+    inputs.file("${project.bobDir}/engine_version_generator.py")
+    inputs.file("../../VERSION")
+    inputs.property("gitRevision", bobGitRevision)
+    inputs.files(bobLightDependencyJars.collect { "${project.dynamoHome}/share/java/${it}" })
+    outputs.file("${project.bobDir}/src/com/dynamo/bob/archive/EngineVersion.java")
+    outputs.files(bobLightDependencyJars.collect { "${project.bobDir}/lib/${it}" })
+
     doLast {
         services.get(org.gradle.process.ExecOperations).exec {
             workingDir project.bobDir
             commandLine project.python, "${project.bobDir}/engine_version_generator.py"
         }
-        def includeJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
         copy {
             from fileTree("${project.dynamoHome}/share/java") {
-                include includeJars
+                include bobLightDependencyJars
             }
             into "${project.bobDir}/lib"
         }
-        includeJars.each { jar ->
+        bobLightDependencyJars.each { jar ->
             if (!file("${project.bobDir}/lib/$jar").exists()) {
                 throw new RuntimeException("$jar is missing")
             }
@@ -190,7 +198,7 @@ task copyDependencies {
     }
 }
 
-task compileGenerated(type: JavaCompile, dependsOn: execProtoTasks) {
+task compileGenerated(type: JavaCompile, dependsOn: [execProtoTasks, copyDependencies]) {
     mkdir project.classesDir
     source = fileTree("${project.bobDir}/generated")
     destinationDirectory = project.classesDir
@@ -265,7 +273,38 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
     outputs.file("${project.bobDir}/lib/luajit-share.zip")
 }
 
-task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
+def bobLightResourceRoot = file("${project.bobDir}/src")
+def bobLightResourceFiles = fileTree(bobLightResourceRoot) {
+    exclude '**/*.java'
+}
+
+task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
+    inputs.files(bobLightResourceFiles)
+    inputs.dir("${project.dynamoHome}/ext/bin")
+    inputs.dir("${project.dynamoHome}/ext/share/luajit")
+    inputs.files(fileTree("../../packages") {
+        include "luajit-2.1.0-3e223cb-*.tar.gz"
+    })
+    inputs.files(fileTree("${project.dynamoHome}/lib") {
+        include '**/*texc_shared*',
+                '**/*modelc_shared*',
+                '**/*shaderc_shared*'
+        exclude '**/*dSYM.zip'
+    })
+    inputs.file("${project.dynamoHome}/ext/share/java/bundletool-all.jar").optional()
+    outputs.dirs(
+            "${project.bobDir}/libexec",
+            "${project.bobDir}/lib/x86_64-macos",
+            "${project.bobDir}/lib/arm64-macos",
+            "${project.bobDir}/lib/x86_64-linux",
+            "${project.bobDir}/lib/arm64-linux",
+            "${project.bobDir}/lib/win32",
+            "${project.bobDir}/lib/x86_64-win32"
+    )
+    outputs.files(bobLightResourceFiles.collect { resource ->
+        file("${project.classesDir}/${bobLightResourceRoot.toPath().relativize(resource.toPath()).toString()}")
+    })
+
     doLast {
         def bundletoolJar = file("${project.dynamoHome}/ext/share/java/bundletool-all.jar")
         if (bundletoolJar.exists()) {
@@ -313,9 +352,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
         }
 
         copy {
-            from fileTree("${project.bobDir}/src") {
-                exclude '**/*.java'
-            }
+            from bobLightResourceFiles
             into project.classesDir
         }
 
@@ -367,7 +404,7 @@ task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
     }
 }
 
-task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, createLuaJitShareZip]) {
+task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLibsLightJar, createLuaJitShareZip]) {
     dependsOn privateBobPluginJarTasks
 
     archiveFileName = 'bob-light.jar'
@@ -410,10 +447,6 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
 }
 
 task distBobLight(dependsOn: ['compileBobLight', 'createBobLightJar']) {
-    doLast {
-        mkdir "${project.bobDir}/dist"
-        mkdir "${project.bobDir}/tmp"
-    }
 }
 
 task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGenerated]) {
@@ -538,7 +571,7 @@ def addParallelArchiveEntry = { ParallelScatterZipCreator creator, Set<String> s
     creator.addArchiveEntry(entry, { openStream.call() } as InputStreamSupplier)
 }
 
-task createBobJar(dependsOn: [createExternalLibsBuiltinsJar, createLuaJitShareZip]) {
+task createBobJar(dependsOn: [compileBobLight, createExternalLibsBuiltinsJar, createLuaJitShareZip]) {
     dependsOn privateBobPluginJarTasks
 
     def outputFile = file("${project.bobDir}/dist/bob.jar")
@@ -650,9 +683,26 @@ task distBob(dependsOn: ['compile', 'createBobJar']) {
 
 task installBobLight(dependsOn: 'distBobLight') {
     doLast {
-        copy {
-            from "${project.bobDir}/dist/bob-light.jar"
-            into "${project.dynamoHome}/share/java"
+        def sourceFile = file("${project.bobDir}/dist/bob-light.jar")
+        def destinationDir = file("${project.dynamoHome}/share/java")
+        def destinationFile = file("${destinationDir}/bob-light.jar")
+        def temporaryFile = file("${destinationDir}/bob-light.jar.${System.nanoTime()}.tmp")
+
+        if (!sourceFile.exists()) {
+            throw new RuntimeException("File '${sourceFile}' does not exist")
+        }
+
+        destinationDir.mkdirs()
+        java.nio.file.Files.copy(sourceFile.toPath(), temporaryFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        try {
+            java.nio.file.Files.move(temporaryFile.toPath(), destinationFile.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            java.nio.file.Files.move(temporaryFile.toPath(), destinationFile.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            temporaryFile.delete()
         }
     }
 }
