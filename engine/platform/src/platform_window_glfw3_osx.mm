@@ -75,4 +75,23 @@ namespace dmPlatform
             [ns_window setLevel:NSNormalWindowLevel];
         }
     }
+
+    void SetWindowedSizeFromSettingsNative(HWindow window, int32_t width, int32_t height)
+    {
+        glfwSetWindowSize(window->m_Window, width, height);
+    }
+
+    void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params)
+    {
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        glfwGetMonitorPos(monitor, &mode_params->m_X, &mode_params->m_Y);
+        mode_params->m_Width              = mode->width;
+        mode_params->m_Height             = mode->height;
+        mode_params->m_WindowedFullscreen = true;
+    }
+
+    bool CanSetOpenGLCoreProfileHintNative(bool)
+    {
+        return true;
+    }
 }

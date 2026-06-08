@@ -27,16 +27,6 @@
 
 namespace dmPlatform
 {
-    struct WindowModeParams
-    {
-        GLFWmonitor* m_Monitor;
-        int          m_Width;
-        int          m_Height;
-        int          m_X;
-        int          m_Y;
-        bool         m_WindowedFullscreen;
-    };
-
     // Gamepad callbacks are shared across all windows, so we need a
     // shared struct to store 'global' data
     static struct PlatformContext
@@ -79,12 +69,10 @@ namespace dmPlatform
     static void OnWindowFocus(GLFWwindow* glfw_window, int focus)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-    #ifdef __MACH__
         if (window->m_FullscreenWindowed)
         {
             SetWindowedFullscreenFocusNative(window, focus != 0);
         }
-    #endif
         if (window->m_FocusCallback != 0x0)
         {
             window->m_FocusCallback(window->m_FocusCallbackUserData, focus);
@@ -232,21 +220,7 @@ namespace dmPlatform
         glfwWindowHint(GLFW_GREEN_BITS,   mode->greenBits);
         glfwWindowHint(GLFW_BLUE_BITS,    mode->blueBits);
         glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
-
-    #ifdef __MACH__
-        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
-        glfwGetMonitorPos(monitor, &mode_params.m_X, &mode_params.m_Y);
-        mode_params.m_Width              = mode->width;
-        mode_params.m_Height             = mode->height;
-        mode_params.m_WindowedFullscreen = true;
-        return mode_params;
-    #endif
-
-        glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
-
-        mode_params.m_Monitor = monitor;
-        mode_params.m_Width   = mode->width;
-        mode_params.m_Height  = mode->height;
+        SetFullscreenWindowModeParamsNative(monitor, mode, &mode_params);
         return mode_params;
     }
 
@@ -282,14 +256,7 @@ namespace dmPlatform
 
             if (params.m_OpenGLUseCoreProfileHint)
             {
-                bool can_set_profile_and_fc = true;
-
-            #ifdef _WIN32
-                // Not supported on windows when requesting the default OpenGL version (which will equate to the highest available)
-                can_set_profile_and_fc = !use_highest_version;
-            #endif
-
-                if (can_set_profile_and_fc)
+                if (CanSetOpenGLCoreProfileHintNative(use_highest_version))
                 {
                     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
                     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -390,20 +357,15 @@ namespace dmPlatform
 
             const bool windowed = glfwGetWindowMonitor(window->m_Window) == NULL && !window->m_FullscreenWindowed;
 
-        #ifdef __MACH__
             if (window->m_FullscreenWindowed)
             {
                 SetWindowedFullscreenFocusNative(window, true);
             }
-        #endif
 
-        #ifdef __MACH__
             if (windowed)
             {
-                // Set size from settings
-                glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
+                SetWindowedSizeFromSettingsNative(window, params.m_Width, params.m_Height);
             }
-        #endif
 
             glfwGetWindowContentScale(window->m_Window, &window->m_XScale, &window->m_YScale);
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
