@@ -469,6 +469,7 @@ install(DIRECTORY "${DLIB_SRC_DIR}/basis/transcoder/" DESTINATION ext/include/ba
 install(FILES "${DLIB_SRC_DIR}/python/dlib/__init__.py" DESTINATION lib/python/dlib)
 install(FILES "${DLIB_CORE_DIR}/memprofile.py" DESTINATION lib/python)
 install(PROGRAMS "${DLIB_ROOT}/bin/memprofile.sh" DESTINATION bin)
+install(DIRECTORY "${DLIB_SRC_DIR}/cs/dmsdk/" DESTINATION sdk/cs/dmsdk FILES_MATCHING PATTERN "*.cs")
 if(TARGET_PLATFORM MATCHES "web$")
   defold_install_js_library("${DLIB_CORE_DIR}/js/library_sys.js")
 endif()
