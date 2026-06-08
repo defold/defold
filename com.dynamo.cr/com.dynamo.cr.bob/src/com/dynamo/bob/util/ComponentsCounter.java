@@ -316,6 +316,12 @@ public class ComponentsCounter {
         return name.equals("modelc") || name.equals("spinemodelc") || name.equals("rivemodelc");
     }
 
+    private static String getComponentTypeName(String inputTypeName) {
+        String outputExt = ResourceUtil.getOutputExt("." + inputTypeName);
+        int extIndex = outputExt.lastIndexOf('.');
+        return extIndex == -1 ? outputExt : outputExt.substring(extIndex + 1);
+    }
+
     public static void copyDataToBuilder(Storage storage, Project project, CollectionDesc.Builder builder) {
         //Do not copy values for collections with dynamic factories
         if (storage.isDynamic()) {
@@ -327,8 +333,12 @@ public class ComponentsCounter {
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
             // different input component names may have the same output name
             // for example wav and sound both are soundc
-            String name = ResourceUtil.getOutputExt("." + entry.getKey()).substring(1);
+            String name = getComponentTypeName(entry.getKey());
             Integer value = entry.getValue();
+            if (entry.getKey().contains("light") || name.equals("lightc")) {
+                System.out.printf("TEMP LIGHT ComponentsCounter.copyDataToBuilder input_type=%s output_ext=%s runtime_type=%s count=%d%n",
+                        entry.getKey(), ResourceUtil.getOutputExt("." + entry.getKey()), name, value);
+            }
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);
                 if (mergedValue.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
@@ -348,6 +358,10 @@ public class ComponentsCounter {
         for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
             componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
+            if (entry.getKey().contains("light") || entry.getKey().equals("lightc")) {
+                System.out.printf("TEMP LIGHT ComponentsCounter.copyDataToBuilder component_type=%s max_count=%d hash=%d%n",
+                        entry.getKey(), entry.getValue(), MurmurHash.hash64(entry.getKey()));
+            }
             builder.addComponentTypes(componentTypeDesc);
         }
     }
