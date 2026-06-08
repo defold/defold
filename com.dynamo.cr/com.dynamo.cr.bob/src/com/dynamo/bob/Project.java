@@ -420,6 +420,11 @@ public class Project {
                     }
                 }
                 TimeProfiler.stop();
+            } catch (ClassNotFoundException e) {
+                TimeProfiler.stop();
+                if (!className.contains("$")) {
+                    throw new RuntimeException(e);
+                }
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -1367,18 +1372,40 @@ public class Project {
      *  Options from the `game.project` file that may affect build outputs.
      */
     private static class GameProjectBuildOption {
+        private enum ValueType {
+            BOOLEAN,
+            INTEGER
+        }
+
         public String inputOption, outputOption, propertyCategory, propertyKey;
-        /**
-         * @param inputOption        Option that may be used with Bob.
-         * @param outputOption       How the option will be saved in project options using project.setOption() for future use.
-         * @param propertyCategory   Category in the `game.project` file.
-         * @param propertyKey        Key in the `game.project` file.
-         */
-        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey) {
+        private ValueType valueType;
+
+        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, ValueType valueType) {
             this.inputOption = inputOption;
             this.outputOption = outputOption;
             this.propertyCategory = propertyCategory;
             this.propertyKey = propertyKey;
+            this.valueType = valueType;
+        }
+
+        public String getValue(Project project) {
+            if (valueType == ValueType.BOOLEAN) {
+                boolean fromProjectProperties = project.getProjectProperties().getBooleanValue(propertyCategory, propertyKey, false);
+                if (project.hasOption(inputOption)) {
+                    boolean fromProjectOptions = project.option(inputOption, "false").equals("true");
+                    return Boolean.toString(fromProjectProperties || fromProjectOptions);
+                } else {
+                    return Boolean.toString(fromProjectProperties);
+                }
+            } else if (valueType == ValueType.INTEGER) {
+                if (project.hasOption(inputOption)) {
+                    return project.option(inputOption, "0");
+                }
+                int value = project.getProjectProperties().getIntValue(propertyCategory, propertyKey, 0);
+                return Integer.toString(value);
+            } else {
+                throw new IllegalArgumentException(String.format("Unknown game.project build option value type: %s", valueType));
+            }
         }
     }
 
@@ -1507,22 +1534,24 @@ public class Project {
     public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
         TimeProfiler.start("configurePreBuildProjectOptions");
         List<GameProjectBuildOption> options = new ArrayList<>();
-        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader", "output_spirv"));
-        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader", "output_hlsl"));
-        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader", "output_wgsl"));
-        options.add(new GameProjectBuildOption("debug-output-msl", "output-msl", "shader", "output_msl"));
-        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader", "output_glsl"));
-        options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader", "output_glsl_es100"));
-        options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader", "output_glsl_es300"));
-        options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader", "output_glsl120"));
-        options.add(new GameProjectBuildOption("output-glsl330", "output-glsl330", "shader", "output_glsl330"));
-        options.add(new GameProjectBuildOption("output-glsl430", "output-glsl430", "shader", "output_glsl430"));
-        options.add(new GameProjectBuildOption("exclude-gles-sm100", "exclude-gles-sm100", "shader", "exclude_gles_sm100"));
+        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader", "output_spirv", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader", "output_hlsl", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader", "output_wgsl", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("debug-output-msl", "output-msl", "shader", "output_msl", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader", "output_glsl", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader", "output_glsl_es100", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader", "output_glsl_es300", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader", "output_glsl120", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsl330", "output-glsl330", "shader", "output_glsl330", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsl430", "output-glsl430", "shader", "output_glsl430", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("exclude-gles-sm100", "exclude-gles-sm100", "shader", "exclude_gles_sm100", GameProjectBuildOption.ValueType.BOOLEAN));
 
-        options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound", "stream_enabled"));
-        options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model", "split_meshes"));
-        options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus", "disabled"));
-        options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font", "runtime_generation"));
+        options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound", "stream_enabled", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model", "split_meshes", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("model-max-morph-target-texture-width", "model-max-morph-target-texture-width", "model", "max_morph_target_texture_width", GameProjectBuildOption.ValueType.INTEGER));
+        options.add(new GameProjectBuildOption("model-max-morph-target-texture-height", "model-max-morph-target-texture-height", "model", "max_morph_target_texture_height", GameProjectBuildOption.ValueType.INTEGER));
+        options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus", "disabled", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font", "runtime_generation", GameProjectBuildOption.ValueType.BOOLEAN));
 
         Platform currentPlatform = getPlatform();
         final List<Platform> architectures = Platform.getArchitecturesFromString(this.option("architectures", ""), currentPlatform);
@@ -1538,13 +1567,7 @@ public class Project {
         this.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, getShaderAdaptersOption(currentPlatform, platformsSettings));
 
         for(GameProjectBuildOption option:options) {
-            boolean fromProjectProperties = this.getProjectProperties().getBooleanValue(option.propertyCategory, option.propertyKey, false);
-            if (this.hasOption(option.inputOption)) {
-                boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");
-                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties || fromProjectOptions));
-            } else {
-                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties));
-            }
+            this.setOption(option.outputOption, option.getValue(this));
         }
 
         boolean isPhysics2D = this.getProjectProperties().getStringValue("physics", "type", "2D").equals("2D");

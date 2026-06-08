@@ -58,7 +58,8 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
 
         // The material should depend on the finally built shader resource file
         // that is a combination of one or more shader modules
-        IResource shaderResourceOut = getShaderProgram(computeBuilder);
+        IResource shaderResource = getShaderProgram(computeBuilder);
+        IResource shaderResourceOut = shaderResource.disableMinifyPath().changeExt(ShaderProgramBuilderBundle.EXT_OUT);
 
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
         modules.addModule(computeBuilder.getComputeProgram());

@@ -28,9 +28,24 @@
 #include <d3d12shader.h>
 #endif
 
+#ifndef DM_SHADERC_TEST_DATA_DIR
+#define DM_SHADERC_TEST_DATA_DIR "./build/src/test/data"
+#endif
+
 static void* ReadFile(const char* path, uint32_t* file_size)
 {
     FILE* file = fopen(path, "rb");
+    char resolved_path[512];
+    resolved_path[0] = 0;
+    if (!file)
+    {
+        const char* filename = strrchr(path, '/');
+        if (filename)
+        {
+            dmSnPrintf(resolved_path, sizeof(resolved_path), "%s/%s", DM_SHADERC_TEST_DATA_DIR, filename + 1);
+            file = fopen(resolved_path, "rb");
+        }
+    }
     if (!file)
     {
         printf("Failed to load %s\n", path);
@@ -611,8 +626,15 @@ TEST(Shaderc, HLSLMergeRootSignatures)
     ASSERT_GT(fs_res->m_HLSLRootSignature.Size(), 0u);
 
     dmShaderc::ShaderCompileResult arr[2];
-    arr[0] = *vs_res;
-    arr[1] = *fs_res;
+    uint32_t vs_root_signature_size = vs_res->m_HLSLRootSignature.Size();
+    arr[0].m_HLSLRootSignature.SetCapacity(vs_root_signature_size);
+    arr[0].m_HLSLRootSignature.SetSize(vs_root_signature_size);
+    memcpy(arr[0].m_HLSLRootSignature.Begin(), vs_res->m_HLSLRootSignature.Begin(), vs_root_signature_size);
+
+    uint32_t fs_root_signature_size = fs_res->m_HLSLRootSignature.Size();
+    arr[1].m_HLSLRootSignature.SetCapacity(fs_root_signature_size);
+    arr[1].m_HLSLRootSignature.SetSize(fs_root_signature_size);
+    memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_res->m_HLSLRootSignature.Begin(), fs_root_signature_size);
 
     dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
     ASSERT_NE((void*)0, merged);

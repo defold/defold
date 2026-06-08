@@ -353,6 +353,11 @@ notification.fetch-libraries.problem.install-failed = failed to install
 notification.fetch-libraries.problem.unknown = unknown problem — {problem}
 notification.fetch-libraries.dependency-problem = {uri}: {problem}
 
+# Editor scripts notification
+
+notification.reload-editor-scripts = Editor scripts have changed. Do you want to reload them now?
+notification.reload-editor-scripts.action.reload = Reload Editor Scripts
+
 # Open custom editor notifications
 
 notification.open-custom-editor-failed.error = Could not run external editor "{editor}".\n\nUnderlying error from the OS:\n{error}
@@ -728,6 +733,7 @@ progress.updating-dependencies = Updating dependencies…
 progress.syncing-resources = Syncing resources…
 progress.loading-project = Loading project…
 progress.loading-external-changes = Loading external changes…
+progress.editor-scripts-reloaded = Reloaded editor scripts at {time}
 progress.writing-files = Writing files…
 progress.caching-save-results = Caching save results…
 progress.reading-timestamps = Reading timestamps…
@@ -1207,6 +1213,7 @@ property.collision-object.event-contact.tooltip = If disabled, filters out any c
 property.collision-object.event-trigger = Generate Trigger Events
 property.collision-object.event-trigger.tooltip = If disabled, filters out any trigger events involving this collision object
 property.collision-object.group = Group
+property.collision-object.group.tilemap.tooltip = This property is not used when Collision Shape is a tilemap. Collision groups are defined in the tilemap's tile source.
 property.collision-object.mask = Mask
 property.collision-object.shape.diameter = Diameter
 property.collision-object.shape.dimensions = Dimensions

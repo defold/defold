@@ -1287,7 +1287,7 @@
 (defn build-output-infos [project proj-path]
   (let [resource-node (project/get-resource-node project proj-path)]
     (assert (some? resource-node) (format "Resource node not found for: '%s'" proj-path))
-    (test-util/build-node! resource-node)
+    (test-util/build-node! resource-node nil)
     (let [build-resource (test-util/node-build-resource resource-node)
           build-output-path (resource/proj-path build-resource)
           workspace (resource/workspace build-resource)]

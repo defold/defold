@@ -111,9 +111,15 @@ public class ShaderCompilers {
 
     public static class CommonShaderCompiler implements IShaderCompiler {
         private final Platform platform;
+        private final ShaderCompilePipeline.Options baseOptions;
 
         public CommonShaderCompiler(Platform platform) {
+            this(platform, null);
+        }
+
+        public CommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
             this.platform = platform;
+            this.baseOptions = baseOptions;
         }
 
         private void addGlslLanguages(Set<ShaderDesc.Language> shaderLanguages, boolean isComputeType) {
@@ -185,34 +191,40 @@ public class ShaderCompilers {
                 throw new CompileExceptionError("Can't match compute with graphics modules");
         }
 
+        private static boolean shaderLanguageRequiresSplitTextureSamplers(ShaderDesc.Language shaderLanguage) {
+            return shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
+        }
+
         public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions compileOptions) throws IOException, CompileExceptionError {
 
             // We need this for e.g. Win32 when creating the root signature bindings, to get a deterministic order.
             shaderModules.sort(Comparator.comparingInt(m -> m.type.getNumber()));
-
-            boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
-
-            ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
-            opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
-            opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
-            opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
-
-            for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
-                boolean isHLSL = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
-
-                opts.splitTextureSamplers |= isHLSL || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
-            }
-
-            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
-            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
-
             validateModules(shaderModules);
 
+            boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
             Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, compileOptions);
             assert shaderLanguages != null;
 
             // Used for tests, merge in potentially unsupported languages here.
             shaderLanguages.addAll(compileOptions.forceIncludeShaderLanguages);
+
+            ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
+            if (this.baseOptions != null) {
+                opts.externalToolPath = this.baseOptions.externalToolPath;
+                opts.externalToolArgs = this.baseOptions.externalToolArgs;
+            }
+            opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
+            opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
+            opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                opts.splitTextureSamplers |= shaderLanguageRequiresSplitTextureSamplers(shaderLanguage);
+            }
+
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
 
             HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
             Shaderc.HLSLRootSignature hlslRootSignature = null;
@@ -278,6 +290,10 @@ public class ShaderCompilers {
             return null;
         }
         return new CommonShaderCompiler(platform);
+    }
+
+    public static IShaderCompiler GetCommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
+        return new CommonShaderCompiler(platform, baseOptions);
     }
 
     public static ArrayList<ShaderDesc.Language> GetSupportedOpenGLVersionsForPlatform(Platform platform) {

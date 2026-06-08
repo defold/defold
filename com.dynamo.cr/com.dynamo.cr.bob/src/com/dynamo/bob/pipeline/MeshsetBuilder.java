@@ -28,14 +28,48 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.TextureUtil;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
 
-@BuilderParams(name="Meshset", inExts={".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes"})
+@BuilderParams(name="Meshset", inExts={".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {
+        "model-split-large-meshes",
+        "model-max-morph-target-texture-width",
+        "model-max-morph-target-texture-height"})
 public class MeshsetBuilder extends Builder  {
+    /**
+     * Bridges ModelUtil's resource-agnostic model loading with Bob's task output
+     * layout. ModelUtil packs morph target textures while building meshes, and
+     * this collector allocates the corresponding task output and returns the
+     * resource path that should be stored in the meshset.
+     */
+    private static class MeshSetMorphTargetTextureCollector extends ModelUtil.MorphTargetTextureCollector {
+        private final Project project;
+        private final Task task;
+        private final ArrayList<IResource> outputs = new ArrayList<>();
+
+        public MeshSetMorphTargetTextureCollector(Project project, Task task) {
+            this.project = project;
+            this.task = task;
+        }
+
+        public ArrayList<IResource> getOutputs() {
+            return outputs;
+        }
+
+        @Override
+        protected String getMorphTargetTextureResourcePath(int index, ModelUtil.PackedMorphTargetTexture texture) {
+            // The first three task outputs are meshsetc, skeletonc and animationsetc.
+            int outputIndex = 3 + index;
+            IResource output = task.output(outputIndex);
+            outputs.add(output);
+            return BuilderUtil.getRelativePath(project, output);
+        }
+    }
+
     public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
         Project project;
@@ -69,6 +103,23 @@ public class MeshsetBuilder extends Builder  {
             .addOutput(input.changeExt(params.outExt()))
             .addOutput(input.changeExt(".skeletonc"))
             .addOutput(input.changeExt("_generated_0.animationsetc"));
+
+        Modelimporter.Scene scene = null;
+        try {
+            scene = ModelUtil.loadScene(input.getContent(), input.getPath(), new Modelimporter.Options(), new ResourceDataResolver(this.project));
+
+            boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
+            if (split_meshes) {
+                ModelUtil.splitMeshes(scene);
+            }
+
+            int morphTargetTextureCount = ModelUtil.getNumMorphTargetTextures(scene);
+            for (int i = 0; i < morphTargetTextureCount; ++i) {
+                taskBuilder.addOutput(input.changeExt(String.format("_morph_%d.texturec", i)));
+            }
+        } catch (IOException e) {
+            // Defer import and validation errors to build(), where existing glTF diagnostics are reported.
+        }
         return taskBuilder.build();
     }
 
@@ -97,6 +148,7 @@ public class MeshsetBuilder extends Builder  {
         // MeshSet
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
+            MeshSetMorphTargetTextureCollector morphTextureCollector = new MeshSetMorphTargetTextureCollector(project, task);
 
             boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
             if (split_meshes) {
@@ -104,7 +156,7 @@ public class MeshsetBuilder extends Builder  {
             }
 
             try {
-                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH);
+                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH, morphTextureCollector);
             } catch (LoaderException e) {
                 throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
             }
@@ -113,6 +165,12 @@ public class MeshsetBuilder extends Builder  {
             meshSetBuilder.build().writeTo(out);
             out.close();
             task.output(0).setContent(out.toByteArray());
+
+            ArrayList<ModelUtil.CollectedMorphTargetTexture> morphTargetTextures = morphTextureCollector.getTextures();
+            ArrayList<IResource> morphTargetTextureOutputs = morphTextureCollector.getOutputs();
+            for (int i = 0; i < morphTargetTextures.size(); ++i) {
+                TextureUtil.writeGenerateResultToResource(morphTargetTextures.get(i).texture.toGenerateResult(), morphTargetTextureOutputs.get(i));
+            }
         }
 
         // Skeleton

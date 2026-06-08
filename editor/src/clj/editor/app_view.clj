@@ -84,7 +84,6 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
-            [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -104,6 +103,8 @@
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
+           [java.time LocalTime]
+           [java.time.format DateTimeFormatter]
            [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener ObservableValue]
@@ -2098,6 +2099,29 @@
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
+(defn- make-reload-editor-scripts-notification-updater [project]
+  (let [last-reload-needed (volatile! nil)]
+    (fn update-reload-editor-scripts-notification! [evaluation-context]
+      (let [workspace (project/workspace project evaluation-context)
+            reload-needed (extensions/reload-needed? project evaluation-context)]
+        (when (not= @last-reload-needed reload-needed)
+          (vreset! last-reload-needed reload-needed)
+          (let [notifications (workspace/notifications workspace evaluation-context)
+                notification-id ::editor-scripts-changed]
+            (g/transact
+              (if reload-needed
+                (notifications/show
+                  notifications
+                  {:id notification-id
+                   :type :info
+                   :message (localization/message "notification.reload-editor-scripts")
+                   :actions [{:message (localization/message "notification.reload-editor-scripts.action.reload")
+                              :on-action #(ui/execute-command
+                                            (ui/contexts (ui/main-scene) true)
+                                            :project.reload-editor-scripts
+                                            nil)}]})
+                (notifications/close notifications notification-id)))))))))
+
 (defn- refresh-menus-and-toolbars! [app-view ^Scene scene evaluation-context]
   (ui/user-data! scene :keymap (g/node-value app-view :keymap evaluation-context))
   (ui/refresh scene evaluation-context))
@@ -2224,6 +2248,7 @@
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
 
       (let [prev-localization-bundle (volatile! nil)
+            reload-editor-scripts-notification-updater (make-reload-editor-scripts-notification-updater project)
             refresh-timer (ui/->timer
                             "refresh-app-view"
                             (fn [_animation-timer _elapsed dt]
@@ -2242,6 +2267,7 @@
                                           (localization/set-bundle! localization ::project localization-bundle)))
                                       (refresh-menus-and-toolbars! app-view app-scene evaluation-context)
                                       (refresh-views! app-view evaluation-context)
+                                      (reload-editor-scripts-notification-updater evaluation-context)
                                       (refresh-app-title! stage project evaluation-context)))
                                   ;; Scene views are always refreshed, since they may play animations.
                                   ;; This performs graph mutations, so needs to manage its own evaluation-contexts.
@@ -3140,6 +3166,8 @@
       (when-let [handler+context (handler/active command [_context] false)]
         (handler/run handler+context)))))
 
+(declare ^:private fetch-libraries)
+
 (defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs localization web-server]
   (extensions/reload!
     project kind
@@ -3181,6 +3209,8 @@
                             (catch Throwable e (error-reporting/report-exception! e)))
                           (future/complete! f nil))
                         f))
+    :fetch-libraries! (fn fetch-libraries! []
+                        (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server))
     :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
                    (let [f (future/make)]
                      (fx/on-fx-thread
@@ -3214,24 +3244,29 @@
                                                   (.close out)))))
                      f))
     :web-server web-server)
+  (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
   (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
   (let [library-uris (project/project-dependencies project)]
-    (future
-      (error-reporting/catch-all!
+    (future/io
+      (try
         (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
           (let [lib-results (library/fetch! (workspace/project-directory workspace) library-uris render-fetch-progress!)
                 render-install-progress! (make-render-task-progress :resource-sync)]
             (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
-            (ui/run-later
-              (workspace/set-project-dependencies! workspace lib-results)
-              (disk/async-reload!
-                render-install-progress! workspace [] changes-view
-                (fn [success]
-                  (when success
-                    (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                    (project/update-fetch-libraries-notification! project)))))))))))
+            (ui/run-now (workspace/set-project-dependencies! workspace lib-results))
+            (if-not (let [reload-completed (promise)]
+                      (disk/async-reload! render-install-progress! workspace [] changes-view reload-completed)
+                      @reload-completed)
+              [lib-results false]
+              (ui/run-now
+                (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
+                (project/update-fetch-libraries-notification! project)
+                [lib-results true]))))
+        (catch Throwable error
+          (error-reporting/report-exception! error)
+          (throw error))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))
@@ -3249,10 +3284,24 @@
   (run [app-view workspace project changes-view build-errors-view prefs localization web-server]
     (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server)))
 
+(def ^:private editor-scripts-reloaded-time-formatter
+  (DateTimeFormatter/ofPattern "HH:mm:ss"))
+
 (handler/defhandler :project.reload-editor-scripts :global
   (enabled? [] (disk-availability/available?))
   (run [app-view project workspace changes-view build-errors-view prefs localization web-server]
-    (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)))
+    (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
+    (let [reloaded-progress (progress/make
+                              (localization/message "progress.editor-scripts-reloaded"
+                                                    {"time" (.format (LocalTime/now) editor-scripts-reloaded-time-formatter)}))]
+      (render-main-task-progress! reloaded-progress)
+      (ui/->future 5.0
+                   #(update-app-task-state!
+                      (fn [state]
+                        (if-not (= reloaded-progress (-> state :progress :main))
+                          state
+                          (set-task-progress-state state :main progress/done))))))
+    nil))
 
 (defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs localization project failure-notification]
   (let [workspace (project/workspace project)

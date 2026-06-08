@@ -123,6 +123,99 @@ function(_defold_find_python out_var)
   set(${out_var} "${_python}" PARENT_SCOPE)
 endfunction()
 
+function(_defold_cmake_quote out_var value)
+  string(REPLACE "\\" "\\\\" _quoted "${value}")
+  string(REPLACE "\"" "\\\"" _quoted "${_quoted}")
+  set(${out_var} "\"${_quoted}\"" PARENT_SCOPE)
+endfunction()
+
+function(_defold_xcode_quote_args out_var)
+  set(_quoted_args)
+  foreach(_arg IN LISTS ARGN)
+    _defold_cmake_quote(_quoted_arg "${_arg}")
+    string(APPEND _quoted_args " ${_quoted_arg}")
+  endforeach()
+  set(${out_var} "${_quoted_args}" PARENT_SCOPE)
+endfunction()
+
+function(defold_xcode_register_sequential_test_command command_name)
+  set(options)
+  set(oneValueArgs)
+  set(multiValueArgs COMMAND DEPENDS)
+  cmake_parse_arguments(DXRT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  if(NOT DXRT_COMMAND)
+    message(FATAL_ERROR "defold_xcode_register_sequential_test_command: COMMAND is required")
+  endif()
+
+  _defold_cmake_quote(_quoted_name "${command_name}")
+  _defold_xcode_quote_args(_quoted_command ${DXRT_COMMAND})
+  set_property(GLOBAL APPEND_STRING PROPERTY DEFOLD_XCODE_RUN_TEST_SCRIPT_CONTENT
+    "_defold_run_test(${_quoted_name}${_quoted_command})\n")
+  if(DXRT_DEPENDS)
+    set_property(GLOBAL APPEND PROPERTY DEFOLD_XCODE_RUN_TEST_TARGETS ${DXRT_DEPENDS})
+  endif()
+endfunction()
+
+function(_defold_xcode_register_sequential_run_test target_name run_dir run_exe)
+  set(_run_args ${ARGN})
+  set(_command_args
+    "${CMAKE_COMMAND}" "-E" "env"
+    "DEFOLD_HOME=${DEFOLD_HOME}"
+    "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+    "PYTHONPATH=${_test_pythonpath_env}")
+  if(run_dir)
+    list(APPEND _command_args "${CMAKE_COMMAND}" "-E" "chdir" "${run_dir}" "${run_exe}")
+  else()
+    list(APPEND _command_args "${run_exe}")
+  endif()
+  list(APPEND _command_args ${_run_args})
+
+  defold_xcode_register_sequential_test_command(${target_name}
+    COMMAND ${_command_args}
+    DEPENDS prepare_${target_name})
+endfunction()
+
+function(defold_finalize_xcode_run_tests)
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode" OR TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    return()
+  endif()
+
+  get_property(_run_test_targets GLOBAL PROPERTY DEFOLD_XCODE_RUN_TEST_TARGETS)
+  if(NOT _run_test_targets)
+    return()
+  endif()
+  list(REMOVE_DUPLICATES _run_test_targets)
+  list(SORT _run_test_targets)
+
+  _defold_find_python(_python)
+  _defold_cmake_quote(_quoted_python "${_python}")
+  _defold_cmake_quote(_quoted_interactive_runner "${DEFOLD_HOME}/scripts/cmake/run_interactive.py")
+
+  get_property(_run_test_script_content GLOBAL PROPERTY DEFOLD_XCODE_RUN_TEST_SCRIPT_CONTENT)
+  set(_run_test_script_preamble [=[
+function(_defold_run_test test_name)
+  message(STATUS "Running ${test_name}")
+  execute_process(
+    COMMAND @DEFOLD_XCODE_TEST_PYTHON@ @DEFOLD_XCODE_TEST_RUNNER@ ${ARGN}
+    RESULT_VARIABLE _result)
+  if(NOT _result EQUAL 0)
+    message(FATAL_ERROR "${test_name} failed with exit code ${_result}")
+  endif()
+endfunction()
+
+]=])
+  string(REPLACE "@DEFOLD_XCODE_TEST_PYTHON@" "${_quoted_python}" _run_test_script_preamble "${_run_test_script_preamble}")
+  string(REPLACE "@DEFOLD_XCODE_TEST_RUNNER@" "${_quoted_interactive_runner}" _run_test_script_preamble "${_run_test_script_preamble}")
+  set(_run_test_script "${CMAKE_BINARY_DIR}/defold_run_tests_$<CONFIG>.cmake")
+  file(GENERATE OUTPUT "${_run_test_script}" CONTENT "${_run_test_script_preamble}${_run_test_script_content}")
+
+  add_custom_target(run_tests
+    COMMAND "${CMAKE_COMMAND}" -P "${_run_test_script}"
+    DEPENDS ${_run_test_targets}
+    USES_TERMINAL
+    COMMENT "Running Defold tests")
+endfunction()
+
 function(_defold_build_stage_file_args out_var)
   set(_stage_args "")
   set(_stage_list ${ARGN})
@@ -199,6 +292,9 @@ function(defold_register_test_target target_name)
   if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
     target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=1)
   endif()
+  if(DEFINED DEFOLD_PLATFORM_TEST_DEFINES)
+    target_compile_definitions(${target_name} PRIVATE ${DEFOLD_PLATFORM_TEST_DEFINES})
+  endif()
 
   # Keep tests out of the default 'all' build. They are built via build_tests
   # or when directly requested. This mirrors typical Waf behavior.
@@ -259,6 +355,16 @@ function(defold_register_test_target target_name)
     get_filename_component(_RUN_DIR_NORM "${_RUN_DIR_NORM}" REALPATH)
   endif()
 
+  if(CMAKE_GENERATOR STREQUAL "Xcode")
+    set(_xcode_test_metadata "${CMAKE_BINARY_DIR}/defold_xcode_test_schemes.tsv")
+    get_property(_xcode_test_metadata_initialized GLOBAL PROPERTY DEFOLD_XCODE_TEST_METADATA_INITIALIZED)
+    if(NOT _xcode_test_metadata_initialized)
+      file(WRITE "${_xcode_test_metadata}" "")
+      set_property(GLOBAL PROPERTY DEFOLD_XCODE_TEST_METADATA_INITIALIZED TRUE)
+    endif()
+    file(APPEND "${_xcode_test_metadata}" "${target_name}\t${_RUN_DIR_NORM}\n")
+  endif()
+
   if(_RUN_TEST)
     set(_run_target "run_${target_name}")
     if(NOT TARGET ${_run_target})
@@ -278,6 +384,24 @@ function(defold_register_test_target target_name)
       endif()
       set(_run_exe "$<TARGET_FILE:${target_name}>")
       set(_run_args "")
+      if(NOT DEFINED DEFOLD_HOME)
+        get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+      endif()
+      set(_test_pythonpath_entries
+        "${DEFOLD_SDK_ROOT}/lib/python"
+        "${DEFOLD_HOME}/build_tools"
+        "${DEFOLD_SDK_ROOT}/ext/lib/python")
+      if(DEFINED ENV{PYTHONPATH} AND NOT "$ENV{PYTHONPATH}" STREQUAL "")
+        file(TO_CMAKE_PATH "$ENV{PYTHONPATH}" _test_existing_pythonpath)
+        list(APPEND _test_pythonpath_entries ${_test_existing_pythonpath})
+      endif()
+      cmake_path(CONVERT "${_test_pythonpath_entries}" TO_NATIVE_PATH_LIST _test_pythonpath)
+      string(REPLACE ";" "\\;" _test_pythonpath_env "${_test_pythonpath}")
+      set(_run_env
+        "${CMAKE_COMMAND}" "-E" "env"
+        "DEFOLD_HOME=${DEFOLD_HOME}"
+        "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+        "PYTHONPATH=${_test_pythonpath_env}")
       if(TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
         _defold_find_wasm_runner(_wasm_runner)
         if(NOT _wasm_runner)
@@ -310,26 +434,36 @@ function(defold_register_test_target target_name)
           COMMENT "Running ${target_name} on Android device")
       elseif(_RUN_DIR_NORM)
         add_custom_target(${_run_target}
-          COMMAND ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
+          COMMAND ${_run_env} ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
           USES_TERMINAL
           COMMENT "Running ${target_name} in ${_RUN_DIR_NORM}")
       else()
         add_custom_target(${_run_target}
-          COMMAND ${_run_exe} ${_run_args}
+          COMMAND ${_run_env} ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
           USES_TERMINAL
           COMMENT "Running ${target_name}")
       endif()
     endif()
+    if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+      set(_prepare_target "prepare_${target_name}")
+      if(NOT TARGET ${_prepare_target})
+        add_custom_target(${_prepare_target} DEPENDS ${target_name})
+      endif()
+    endif()
 
-    if(NOT TARGET run_tests)
-      add_custom_target(run_tests)
+    if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+      _defold_xcode_register_sequential_run_test(${target_name} "${_RUN_DIR_NORM}" "${_run_exe}" ${_run_args})
+    else()
+      if(NOT TARGET run_tests)
+        add_custom_target(run_tests)
+      endif()
     endif()
     if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
       _defold_register_android_batch_target(_android_stop_target ${target_name} "${_RUN_DIR_NORM}" "${_TEST_CONFIGFILE}" ${DEFOLD_TEST_STAGE_FILES})
       add_dependencies(run_tests ${_android_stop_target})
-    else()
+    elseif(NOT CMAKE_GENERATOR STREQUAL "Xcode")
       add_dependencies(run_tests ${_run_target})
     endif()
   endif()

@@ -267,7 +267,8 @@
                                :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.312"]
-                                              [org.openjfx/javafx-web "25"]]}
+                                              [org.openjfx/javafx-web "25"]]
+                               :repl-options {:nrepl-middleware [vlaaad.reveal.nrepl/middleware]}}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
                              :jvm-opts [~(str "-javaagent:" (pathname (local-maven-jar-file "com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")))

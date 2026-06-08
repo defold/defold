@@ -22,6 +22,7 @@
 // Extension in a separate library. See comment in test_sdk_lib.cpp
 extern int g_TestAppInitCount;
 extern int g_TestAppEventCount;
+extern "C" void dmExportedSymbols();
 
 TEST(testSdk, Basic)
 {
@@ -46,6 +47,7 @@ TEST(testSdk, Basic)
 
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
