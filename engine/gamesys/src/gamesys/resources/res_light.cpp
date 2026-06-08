@@ -16,7 +16,6 @@
 
 #include <ddf/ddf.h>
 #include <dlib/log.h>
-#include <dlib/math.h>
 #include <render/render.h>
 
 namespace dmGameSystem
@@ -37,18 +36,6 @@ namespace dmGameSystem
     dmRender::HLightPrototype GetLightPrototype(LightResource* res)
     {
         return res ? res->m_LightPrototype : (dmRender::HLightPrototype)0;
-    }
-
-    static const char* LightTypeToStr(dmRender::LightType type)
-    {
-        switch (type)
-        {
-            case dmRender::LIGHT_TYPE_DIRECTIONAL: return "directional";
-            case dmRender::LIGHT_TYPE_POINT:       return "point";
-            case dmRender::LIGHT_TYPE_SPOT:        return "spot";
-            case dmRender::LIGHT_TYPE_AMBIENT:     return "ambient";
-            default:                               return "<unknown>";
-        }
     }
 
     static const char* ParseResultToStr(LightParseResult res)
@@ -218,21 +205,6 @@ namespace dmGameSystem
         LightResource* resource = new LightResource();
         resource->m_LightPrototype = dmRender::NewLightPrototype(render_context, prototype_params);
 
-        dmLogInfo("TEMP LIGHT ResLightCreate resource=%p render_context=%p prototype=%u type=%s color=(%.3f, %.3f, %.3f, %.3f) intensity=%.3f range=%.3f inner=%.3f outer=%.3f tags=%u",
-                  (void*) params->m_Resource,
-                  (void*) render_context,
-                  (uint32_t) resource->m_LightPrototype,
-                  LightTypeToStr(prototype_params.m_Type),
-                  prototype_params.m_Color.getX(),
-                  prototype_params.m_Color.getY(),
-                  prototype_params.m_Color.getZ(),
-                  prototype_params.m_Color.getW(),
-                  prototype_params.m_Intensity,
-                  prototype_params.m_Range,
-                  prototype_params.m_InnerConeAngle,
-                  prototype_params.m_OuterConeAngle,
-                  ddf->m_Tags.m_Count);
-
         dmResource::SetResource(params->m_Resource, resource);
         dmResource::SetResourceSize(params->m_Resource, params->m_BufferSize);
 
@@ -246,10 +218,6 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         if (!light_resource)
             return dmResource::RESULT_OK;
-        dmLogInfo("TEMP LIGHT ResLightDestroy resource=%p render_context=%p prototype=%u",
-                  (void*) params->m_Resource,
-                  (void*) render_context,
-                  (uint32_t) light_resource->m_LightPrototype);
         dmRender::DeleteLightPrototype(render_context, light_resource->m_LightPrototype);
         delete light_resource;
         return dmResource::RESULT_OK;
@@ -279,14 +247,6 @@ namespace dmGameSystem
         // re-link all pointers in the light components to use the new pointer.
         dmRender::SetLightPrototype(render_context, light_resource->m_LightPrototype, light_params);
 
-        dmLogInfo("TEMP LIGHT ResLightRecreate resource=%p render_context=%p prototype=%u type=%s intensity=%.3f range=%.3f",
-                  (void*) params->m_Resource,
-                  (void*) render_context,
-                  (uint32_t) light_resource->m_LightPrototype,
-                  LightTypeToStr(light_params.m_Type),
-                  light_params.m_Intensity,
-                  light_params.m_Range);
-
         dmDDF::FreeMessage(ddf);
 
         return dmResource::RESULT_OK;
@@ -296,10 +256,6 @@ namespace dmGameSystem
     {
         // Same pattern as fontc: engine.cpp maps extension hash -> shared context (see m_ResourceTypeContexts).
         void* render_context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
-        dmLogInfo("TEMP LIGHT RegisterResourceType_Light type=%p name_hash=%llu render_context=%p",
-                  (void*) type,
-                  (unsigned long long) ResourceTypeGetNameHash(type),
-                  render_context);
         if (render_context == 0)
         {
             dmLogError("Missing resource context for 'lightc' when registering resource type 'lightc' (add lightc to resource type contexts, e.g. next to fontc)");

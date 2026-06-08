@@ -335,10 +335,6 @@ public class ComponentsCounter {
             // for example wav and sound both are soundc
             String name = getComponentTypeName(entry.getKey());
             Integer value = entry.getValue();
-            if (entry.getKey().contains("light") || name.equals("lightc")) {
-                System.out.printf("TEMP LIGHT ComponentsCounter.copyDataToBuilder input_type=%s output_ext=%s runtime_type=%s count=%d%n",
-                        entry.getKey(), ResourceUtil.getOutputExt("." + entry.getKey()), name, value);
-            }
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);
                 if (mergedValue.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
@@ -358,10 +354,6 @@ public class ComponentsCounter {
         for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
             componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
-            if (entry.getKey().contains("light") || entry.getKey().equals("lightc")) {
-                System.out.printf("TEMP LIGHT ComponentsCounter.copyDataToBuilder component_type=%s max_count=%d hash=%d%n",
-                        entry.getKey(), entry.getValue(), MurmurHash.hash64(entry.getKey()));
-            }
             builder.addComponentTypes(componentTypeDesc);
         }
     }
