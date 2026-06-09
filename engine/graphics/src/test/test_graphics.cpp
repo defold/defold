@@ -244,11 +244,11 @@ TEST_F(dmGraphicsTest, VertexBuffer)
 
     // Smaller size
     dmGraphics::SetVertexBufferData(vertex_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(1u, vb->m_Size);
+    ASSERT_EQ(1u, vb->m_Base.m_Size);
 
     // Bigger size
     dmGraphics::SetVertexBufferData(vertex_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(4u, vb->m_Size);
+    ASSERT_EQ(4u, vb->m_Base.m_Size);
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, 4));
 
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
@@ -284,11 +284,11 @@ TEST_F(dmGraphicsTest, IndexBuffer)
 
     // Smaller size
     dmGraphics::SetIndexBufferData(index_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(1u, ib->m_Size);
+    ASSERT_EQ(1u, ib->m_Base.m_Size);
 
     // Bigger size
     dmGraphics::SetIndexBufferData(index_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(4u, ib->m_Size);
+    ASSERT_EQ(4u, ib->m_Base.m_Size);
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, 4));
 
     dmGraphics::DeleteIndexBuffer(index_buffer);

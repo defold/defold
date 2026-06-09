@@ -760,7 +760,7 @@ namespace dmGraphics
             return res;
         }
 
-        bufferOut->m_Base.m_Size = (size_t) vk_buffer_memory_req.size;
+        bufferOut->m_Base.m_Size = (uint32_t) vk_buffer_memory_req.size;
         bufferOut->m_Destroyed   = 0;
 
         return VK_SUCCESS;
@@ -912,7 +912,7 @@ bail:
             goto bail;
         }
 
-        device_buffer.m_Base.m_Size = vk_memory_req.size;
+        device_buffer.m_Base.m_Size = (uint32_t) vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
