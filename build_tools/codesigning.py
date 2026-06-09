@@ -13,6 +13,7 @@
 # specific language governing permissions and limitations under the License.
 
 import os
+import optparse
 import run
 import sys
 import shutil
@@ -133,3 +134,35 @@ def sign_files_in_zip(platform, options, zip_file):
 
         shutil.move(tmp_zip, zip_file)
 
+
+def _main():
+    parser = optparse.OptionParser()
+    parser.add_option('--platform', dest='platform', help='Target platform')
+    parser.add_option('--file', dest='file', help='File to sign')
+    parser.add_option('--codesigning-identity', dest='codesigning_identity',
+                      default='Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
+                      help='Codesigning identity for macOS')
+    parser.add_option('--gcloud-projectid', dest='gcloud_projectid',
+                      help='Google Cloud project id where key ring is stored')
+    parser.add_option('--gcloud-location', dest='gcloud_location',
+                      help='Google Cloud region where key ring is located')
+    parser.add_option('--gcloud-keyringname', dest='gcloud_keyringname',
+                      help='Google Cloud key ring name')
+    parser.add_option('--gcloud-keyname', dest='gcloud_keyname',
+                      help='Google Cloud key name')
+    parser.add_option('--gcloud-certfile', dest='gcloud_certfile',
+                      help='Google Cloud certificate chain file')
+    parser.add_option('--gcloud-keyfile', dest='gcloud_keyfile',
+                      help='Google Cloud service account key file')
+
+    options, _args = parser.parse_args()
+    if not options.platform:
+        parser.error('--platform is required')
+    if not options.file:
+        parser.error('--file is required')
+
+    sign_file(options.platform, options, options.file)
+
+
+if __name__ == '__main__':
+    _main()

@@ -2079,7 +2079,15 @@ class Configuration(object):
             f'-DDEFOLD_ENGINE_LIB_SET={lib_set}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
-            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}'
+            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}',
+            f'-DDEFOLD_SKIP_CODESIGN:BOOL={"ON" if self.skip_codesign else "OFF"}',
+            f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
+            f'-DDEFOLD_GCLOUD_PROJECTID:STRING={self.gcloud_projectid or ""}',
+            f'-DDEFOLD_GCLOUD_LOCATION:STRING={self.gcloud_location or ""}',
+            f'-DDEFOLD_GCLOUD_KEYRINGNAME:STRING={self.gcloud_keyringname or ""}',
+            f'-DDEFOLD_GCLOUD_KEYNAME:STRING={self.gcloud_keyname or ""}',
+            f'-DDEFOLD_GCLOUD_CERTFILE:STRING={self.gcloud_certfile or ""}',
+            f'-DDEFOLD_GCLOUD_KEYFILE:STRING={self.gcloud_keyfile or ""}'
         ]
         cmake_configure_args += self._cmake_feature_defines()
         cmake_configure_state = self._cmake_configure_state(builddir, cmake_configure_args)
@@ -2278,7 +2286,7 @@ class Configuration(object):
         for p in glob(join(self.dynamo_home, 'share', 'java', 'plugins', '*.jar')):
             self.upload_to_archive(p, '%s/plugins/%s' % (full_archive_path, basename(p)))
 
-    def copy_local_bob_artefacts(self, sign = False):
+    def copy_local_bob_artefacts(self):
         texc_name = format_lib('texc_shared', self.host)
         modelc_name = format_lib('modelc_shared', self.host)
         shaderc_name = format_lib('shaderc_shared', self.host)
@@ -2361,8 +2369,6 @@ class Configuration(object):
                     dst_path = join(cwd, dst)
                     self._mkdirs(os.path.dirname(dst_path))
                     self._copy(src_path, dst_path)
-                if not self.skip_codesign:
-                    codesigning.sign_file(self.target_platform, self, dst_path)
             if m:
                 add_missing(type, m)
         if missing:
