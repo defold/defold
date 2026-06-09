@@ -1541,20 +1541,6 @@ static uint32_t WebGPUGetDisplayDpi(HContext context)
     return 0;
 }
 
-static uint32_t WebGPUGetWidth(HContext _context)
-{
-    TRACE_CALL;
-    WebGPUContext* context = (WebGPUContext*)_context;
-    return context->m_OriginalWidth;
-}
-
-static uint32_t WebGPUGetHeight(HContext _context)
-{
-    TRACE_CALL;
-    WebGPUContext* context = (WebGPUContext*)_context;
-    return context->m_OriginalHeight;
-}
-
 static void WebGPUSetWindowSize(HContext _context, uint32_t width, uint32_t height)
 {
     TRACE_CALL;
@@ -1578,14 +1564,6 @@ static void WebGPUResizeWindow(HContext _context, uint32_t width, uint32_t heigh
         dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         WebGPUConfigure(context, width, height);
     }
-}
-
-static void WebGPUGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-{
-    TRACE_CALL;
-    WebGPUContext* context = (WebGPUContext*)_context;
-    out_min_filter         = context->m_BaseContext.m_DefaultTextureMinFilter;
-    out_mag_filter         = context->m_BaseContext.m_DefaultTextureMagFilter;
 }
 
 static void WebGPUCreateCommandEncoder(WebGPUContext* context)
@@ -3187,12 +3165,6 @@ static void WebGPUSetSampler(HContext _context, HUniformLocation location, int32
     }
 }
 
-static bool WebGPUIsTextureFormatSupported(HContext context, TextureFormat format)
-{
-    TRACE_CALL;
-    return (((WebGPUContext*)context)->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
-}
-
 static uint32_t WebGPUGetMaxTextureSize(HContext context)
 {
     TRACE_CALL;
@@ -3651,35 +3623,11 @@ static const char* WebGPUGetSupportedExtension(HContext context, uint32_t index)
     return "";
 }
 
-static uint8_t WebGPUGetTexturePageCount(HTexture _texture)
-{
-    TRACE_CALL;
-    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, _texture);
-    return texture ? texture->m_Base.m_PageCount : 0;
-}
-
 static bool WebGPUIsContextFeatureSupported(HContext _context, ContextFeature feature)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
     return (context->m_ContextFeatures & (1 << feature)) != 0;
-}
-
-static bool WebGPUIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-{
-    TRACE_CALL;
-    assert(_context);
-    if (asset_handle == 0)
-    {
-        return false;
-    }
-    WebGPUContext* context = (WebGPUContext*)_context;
-    AssetType type         = GetAssetType(asset_handle);
-    if (type == ASSET_TYPE_TEXTURE)
-        return GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-    if (type == ASSET_TYPE_RENDER_TARGET)
-        return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-    return false;
 }
 
 void WebGPUCleanupRenderPipelineCache(WebGPUContext* context, const uint64_t* key, WGPURenderPipeline* value)

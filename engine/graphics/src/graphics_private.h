@@ -190,6 +190,29 @@ namespace dmGraphics
         uint32_t                           m_PrintDeviceInfo     : 1;
     };
 
+    static inline void SetContextTextureFormatSupported(GraphicsContext* context, TextureFormat format)
+    {
+        context->m_TextureFormatSupport |= 1ULL << format;
+    }
+
+    static inline void SetContextASTCTextureFormatsSupported(GraphicsContext* context)
+    {
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_5X4);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_5X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_6X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_6X6);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_8X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_8X6);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_8X8);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X6);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X8);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X10);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_12X10);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_12X12);
+    }
+
     struct ProgramResourceBindingsInfo
     {
         uint32_t m_UniformBufferCount;

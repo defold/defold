@@ -259,18 +259,6 @@ namespace dmGraphics
         return 0;
     }
 
-    static uint32_t NullGetWidth(HContext _context)
-    {
-        NullContext* context = (NullContext*) _context;
-        return context->m_BaseContext.m_Width;
-    }
-
-    static uint32_t NullGetHeight(HContext _context)
-    {
-        NullContext* context = (NullContext*) _context;
-        return context->m_BaseContext.m_Height;
-    }
-
     static void NullSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
@@ -303,13 +291,6 @@ namespace dmGraphics
         {
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
-    }
-
-    static void NullGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {
-        NullContext* context = (NullContext*) _context;
-        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void NullClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -1452,11 +1433,6 @@ namespace dmGraphics
         }
     }
 
-    static bool NullIsTextureFormatSupported(HContext context, TextureFormat format)
-    {
-        return (((NullContext*) context)->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
-    }
-
     static uint32_t NullGetMaxTextureSize(HContext context)
     {
         return 1024;
@@ -1971,39 +1947,10 @@ namespace dmGraphics
         return "";
     }
 
-    static uint8_t NullGetTexturePageCount(HTexture texture)
-    {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-        NullTexture* tex = GetAssetFromContainer<NullTexture>(g_NullContext->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_Base.m_PageCount : 0;
-    }
-
     static bool NullIsContextFeatureSupported(HContext _context, ContextFeature feature)
     {
         NullContext* context = (NullContext*) _context;
         return (context->m_ContextFeatures & (1 << feature)) != 0;
-    }
-
-    static bool NullIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-    {
-        assert(_context);
-        if (asset_handle == 0)
-        {
-            return false;
-        }
-        NullContext* context = (NullContext*) _context;
-        AssetType type       = GetAssetType(asset_handle);
-        if (type == ASSET_TYPE_TEXTURE)
-        {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-            return GetAssetFromContainer<NullTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        return false;
     }
 
     static void NullInvalidateGraphicsHandles(HContext context) { }

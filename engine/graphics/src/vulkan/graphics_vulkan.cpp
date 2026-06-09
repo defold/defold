@@ -1157,6 +1157,7 @@ namespace dmGraphics
         {
             context->m_ASTCSupport = 1;
             context->m_ASTCArrayTextureSupport = 1;
+            SetContextASTCTextureFormatsSupported(&context->m_BaseContext);
         }
 
         TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
@@ -1634,13 +1635,6 @@ bail:
     static void VulkanFinalize()
     {
         NativeExit();
-    }
-
-    static void VulkanGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void VulkanBeginFrame(HContext _context)
@@ -4449,12 +4443,6 @@ bail:
         CHECK_VK_ERROR(res);
     }
 
-    static bool VulkanIsTextureFormatSupported(HContext _context, TextureFormat format)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
-    }
-
     static VulkanTexture* VulkanNewTextureInternal(const TextureCreationParams& params)
     {
         VulkanTexture* tex = new VulkanTexture;
@@ -5250,13 +5238,6 @@ bail:
         return size_total + sizeof(VulkanTexture);
     }
 
-    static uint8_t VulkanGetTexturePageCount(HTexture texture)
-    {
-        DM_MUTEX_SCOPED_LOCK(g_VulkanContext->m_BaseContext.m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_Base.m_PageCount : 0;
-    }
-
     static HandleResult VulkanGetTextureHandle(HTexture texture, void** out_handle)
     {
         assert(0 && "GetTextureHandle is not implemented on Vulkan.");
@@ -5377,16 +5358,6 @@ bail:
         return ((VulkanContext*) context)->m_BaseContext.m_Window;
     }
 
-    static uint32_t VulkanGetWidth(HContext context)
-    {
-        return ((VulkanContext*) context)->m_BaseContext.m_Width;
-    }
-
-    static uint32_t VulkanGetHeight(HContext context)
-    {
-        return ((VulkanContext*) context)->m_BaseContext.m_Height;
-    }
-
     static uint32_t VulkanGetDisplayDpi(HContext context)
     {
         return 0;
@@ -5408,28 +5379,6 @@ bail:
     static bool VulkanIsContextFeatureSupported(HContext _context, ContextFeature feature)
     {
         return true;
-    }
-
-    static bool VulkanIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-    {
-        if (asset_handle == 0)
-        {
-            return false;
-        }
-
-        VulkanContext* context = (VulkanContext*) _context;
-        AssetType type         = GetAssetType(asset_handle);
-
-        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        if (type == ASSET_TYPE_TEXTURE)
-        {
-            return GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        return false;
     }
 
     static void VulkanInvalidateGraphicsHandles(HContext context)

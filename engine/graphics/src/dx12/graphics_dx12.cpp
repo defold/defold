@@ -768,18 +768,6 @@ namespace dmGraphics
         return 0;
     }
 
-    static uint32_t DX12GetWidth(HContext _context)
-    {
-        DX12Context* context = (DX12Context*) _context;
-        return context->m_BaseContext.m_Width;
-    }
-
-    static uint32_t DX12GetHeight(HContext _context)
-    {
-        DX12Context* context = (DX12Context*) _context;
-        return context->m_BaseContext.m_Height;
-    }
-
     static void DX12SetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
@@ -798,13 +786,6 @@ namespace dmGraphics
         {
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
-    }
-
-    static void DX12GetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {
-        DX12Context* context = (DX12Context*) _context;
-        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void DX12Clear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -3126,12 +3107,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         dmLogOnceError("%s: Not implemented", __FUNCTION__);
     }
 
-    static bool DX12IsTextureFormatSupported(HContext _context, TextureFormat format)
-    {
-        DX12Context* context = (DX12Context*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
-    }
-
     static uint32_t DX12GetMaxTextureSize(HContext context)
     {
         return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION; //=16384
@@ -3604,15 +3579,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         return true;
     }
 
-    static uint8_t DX12GetTexturePageCount(HTexture texture)
-    {
-        // TODO: mutex is missed?
-        // ScopedLock lock(g_DX12Context->m_AssetHandleContainerMutex);
-        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_Base.m_PageCount : 0;
-
-    }
-
     static uint32_t DX12GetNumSupportedExtensions(HContext context)
     {
         return 0;
@@ -3626,26 +3592,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static bool DX12IsContextFeatureSupported(HContext context, ContextFeature feature)
     {
         return true;
-    }
-
-    static bool DX12IsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-    {
-        assert(_context);
-        if (asset_handle == 0)
-        {
-            return false;
-        }
-        DX12Context* context = (DX12Context*) _context;
-        AssetType type       = GetAssetType(asset_handle);
-        if (type == ASSET_TYPE_TEXTURE)
-        {
-            return GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        return false;
     }
 
     static void DX12InvalidateGraphicsHandles(HContext context)

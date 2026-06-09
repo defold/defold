@@ -55,12 +55,9 @@ namespace dmGraphics
     typedef void (*CloseWindowFn)(HContext context);
     typedef HWindow (*GetWindowFn)(HContext context);
     typedef uint32_t (*GetDisplayDpiFn)(HContext context);
-    typedef uint32_t (*GetWidthFn)(HContext context);
-    typedef uint32_t (*GetHeightFn)(HContext context);
     typedef PipelineState (*GetPipelineStateFn)(HContext context);
     typedef void (*SetWindowSizeFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*ResizeWindowFn)(HContext context, uint32_t width, uint32_t height);
-    typedef void (*GetDefaultTextureFiltersFn)(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
     typedef void (*BeginFrameFn)(HContext context);
     typedef void (*FlipFn)(HContext context);
     typedef void (*ClearFn)(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
@@ -121,7 +118,6 @@ namespace dmGraphics
     typedef void (*DeleteRenderTargetFn)(HContext context, HRenderTarget render_target);
     typedef void (*SetRenderTargetFn)(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
     typedef void (*SetRenderTargetSizeFn)(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height);
-    typedef bool (*IsTextureFormatSupportedFn)(HContext context, TextureFormat format);
     typedef HTexture (*NewTextureFn)(HContext context, const TextureCreationParams& params);
     typedef void (*DeleteTextureFn)(HContext context, HTexture t);
     typedef void (*SetTextureFn)(HContext context, HTexture texture, const TextureParams& params);
@@ -137,9 +133,7 @@ namespace dmGraphics
     typedef bool (*IsExtensionSupportedFn)(HContext context, const char* extension);
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
-    typedef uint8_t (*GetTexturePageCountFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
-    typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
     typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
     typedef void (*GetViewportFn)(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height);
     typedef HUniformBuffer (*NewUniformBufferFn)(HContext context, const UniformBufferLayout& layout);
@@ -156,11 +150,8 @@ namespace dmGraphics
         CloseWindowFn m_CloseWindow;
         GetWindowFn m_GetWindow;
         GetDisplayDpiFn m_GetDisplayDpi;
-        GetWidthFn m_GetWidth;
-        GetHeightFn m_GetHeight;
         SetWindowSizeFn m_SetWindowSize;
         ResizeWindowFn m_ResizeWindow;
-        GetDefaultTextureFiltersFn m_GetDefaultTextureFilters;
         BeginFrameFn m_BeginFrame;
         FlipFn m_Flip;
         ClearFn m_Clear;
@@ -220,7 +211,6 @@ namespace dmGraphics
         DeleteRenderTargetFn m_DeleteRenderTarget;
         SetRenderTargetFn m_SetRenderTarget;
         SetRenderTargetSizeFn m_SetRenderTargetSize;
-        IsTextureFormatSupportedFn m_IsTextureFormatSupported;
         NewTextureFn m_NewTexture;
         DeleteTextureFn m_DeleteTexture;
         SetTextureFn m_SetTexture;
@@ -236,10 +226,8 @@ namespace dmGraphics
         IsExtensionSupportedFn m_IsExtensionSupported;
         GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
         GetSupportedExtensionFn m_GetSupportedExtension;
-        GetTexturePageCountFn m_GetTexturePageCount;
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
-        IsAssetHandleValidFn m_IsAssetHandleValid;
         InvalidateGraphicsHandlesFn m_InvalidateGraphicsHandles;
         GetViewportFn m_GetViewport;
         NewUniformBufferFn m_NewUniformBuffer;
@@ -258,11 +246,8 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CloseWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayDpi); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWidth); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetHeight); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetWindowSize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ResizeWindow); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDefaultTextureFilters); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, BeginFrame); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Flip); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Clear); \
@@ -321,7 +306,6 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteRenderTarget); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetRenderTarget); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetRenderTargetSize); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsTextureFormatSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTexture); \
@@ -338,10 +322,8 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsExtensionSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumSupportedExtensions); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetSupportedExtension); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTexturePageCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetViewport); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewUniformBuffer); \
