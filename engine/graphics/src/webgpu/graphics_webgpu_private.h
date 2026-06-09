@@ -36,6 +36,8 @@ namespace dmGraphics
 
     struct WebGPUBuffer
     {
+        Buffer                     m_Base = {};
+
 #if defined(DM_GRAPHICS_WEBGPU2)
         WebGPUBuffer(WGPUBufferUsage usage) : m_Usage(usage) { }
         const WGPUBufferUsage m_Usage; // uint32_t
@@ -45,8 +47,6 @@ namespace dmGraphics
 #endif
 
         WGPUBuffer                 m_Buffer = NULL;
-
-        Buffer                     m_Base = {};
         size_t                     m_Used = 0;
         size_t                     m_LastRenderPass = 0;
     };
