@@ -212,10 +212,11 @@ namespace dmPlatform
 
     void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params)
     {
-        glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
-        mode_params->m_Monitor = monitor;
-        mode_params->m_Width   = mode->width;
-        mode_params->m_Height  = mode->height;
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        glfwGetMonitorPos(monitor, &mode_params->m_X, &mode_params->m_Y);
+        mode_params->m_Width              = mode->width;
+        mode_params->m_Height             = mode->height;
+        mode_params->m_WindowedFullscreen = true;
     }
 
     bool CanSetOpenGLCoreProfileHintNative(bool use_highest_version)
