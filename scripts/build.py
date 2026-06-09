@@ -409,6 +409,15 @@ BOB_TOOL_PLATFORMS = [
     'x86_64-win32'
 ]
 
+# SDKs that include host-side protoc/native-extension pipeline tools.
+SDK_PIPELINE_TOOL_PLATFORMS = (
+    'x86_64-macos',
+    'arm64-macos',
+    'x86_64-linux',
+    'arm64-linux',
+    'x86_64-win32'
+)
+
 BOB_TOOL_PACKAGE_PREFIXES = (
     'aapt2-',
     'apkc-',
@@ -1464,7 +1473,7 @@ class Configuration(object):
                 basename = os.path.basename(path)
                 root, _ = os.path.splitext(basename)
                 shared_name = root[3:] if root.startswith('lib') else root
-                if shared_name.endswith('_shared') and not (shared_name == 'dlib_shared' and platform in ['x86_64-linux', 'arm64-linux']):
+                if shared_name.endswith('_shared') and not (shared_name == 'dlib_shared' and platform in SDK_PIPELINE_TOOL_PLATFORMS):
                     return False
                 return True
 
@@ -1564,7 +1573,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # pipeline tools
-            if platform in ('x86_64-macos','arm64-macos','x86_64-linux','arm64-linux','x86_64-win32'): # needed for the linux build server
+            if platform in SDK_PIPELINE_TOOL_PLATFORMS:
                 # protoc
                 protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
                 ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')
