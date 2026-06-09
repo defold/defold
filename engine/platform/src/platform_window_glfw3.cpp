@@ -357,7 +357,7 @@ namespace dmPlatform
 
             const bool windowed = glfwGetWindowMonitor(window->m_Window) == NULL && !window->m_FullscreenWindowed;
 
-            if (window->m_FullscreenWindowed)
+            if (!params.m_Hidden && window->m_FullscreenWindowed)
             {
                 SetWindowedFullscreenFocusNative(window, true);
             }
