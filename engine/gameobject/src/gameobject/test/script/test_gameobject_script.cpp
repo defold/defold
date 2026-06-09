@@ -682,3 +682,169 @@ TEST_F(ScriptTest, TestExists)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 }
+
+static void RunWorldToLocalPositionTest(
+    ScriptTest* t,
+    const Matrix4& target_world,
+    const Vector3& world_input,
+    const Vector3& expected_local)
+{
+    lua_State* L = dmScript::GetLuaState(t->m_ScriptContext);
+
+    dmScript::PushVector3(L, world_input);
+    lua_setglobal(L, "WORLD_POS_INPUT");
+    lua_pushnumber(L, expected_local.getX()); lua_setglobal(L, "EXPECTED_X");
+    lua_pushnumber(L, expected_local.getY()); lua_setglobal(L, "EXPECTED_Y");
+    lua_pushnumber(L, expected_local.getZ()); lua_setglobal(L, "EXPECTED_Z");
+
+    dmGameObject::HInstance tester = dmGameObject::New(t->m_Collection, "/world_to_local_pos.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, tester);
+
+    dmGameObject::HInstance target = dmGameObject::New(t->m_Collection, "/null.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, target);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(t->m_Collection, target, "target"));
+
+    ASSERT_TRUE(dmGameObject::Init(t->m_Collection));
+
+    t->m_Collection->m_Collection->m_WorldTransforms[target->m_Index] = target_world;
+
+    ASSERT_TRUE(dmGameObject::Update(t->m_Collection, &t->m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(t->m_Collection));
+    dmGameObject::Delete(t->m_Collection, tester, false);
+    dmGameObject::Delete(t->m_Collection, target, false);
+}
+
+// World point coincides with the target origin: local result must be (0,0,0).
+TEST_F(ScriptTest, WorldToLocalPosition_PointAtTargetOrigin)
+{
+    Vector3 target_pos(10.0f, 5.0f, -3.0f);
+    RunWorldToLocalPositionTest(this,
+        Matrix4::translation(target_pos),
+        target_pos,         // world_input == target world origin
+        Vector3(0, 0, 0));  // expected local
+}
+
+// World point offset from target along X: local result must reflect that pure offset.
+TEST_F(ScriptTest, WorldToLocalPosition_OffsetAlongX)
+{
+    Vector3 target_pos(10.0f, 0.0f, 0.0f);
+    Vector3 world_input(25.0f, 0.0f, 0.0f);
+    RunWorldToLocalPositionTest(this,
+        Matrix4::translation(target_pos),
+        world_input,
+        Vector3(15.0f, 0.0f, 0.0f)); // 25 - 10 = 15 in local X
+}
+
+static void RunWorldToLocalTransformTest(
+    ScriptTest* t,
+    const Matrix4& target_world,
+    const Matrix4& world_input,
+    const Vector3& expected_local_translation)
+{
+    lua_State* L = dmScript::GetLuaState(t->m_ScriptContext);
+
+    dmScript::PushMatrix4(L, world_input);
+    lua_setglobal(L, "WORLD_TRANSFORM_INPUT");
+    lua_pushnumber(L, expected_local_translation.getX()); lua_setglobal(L, "EXPECTED_TX");
+    lua_pushnumber(L, expected_local_translation.getY()); lua_setglobal(L, "EXPECTED_TY");
+    lua_pushnumber(L, expected_local_translation.getZ()); lua_setglobal(L, "EXPECTED_TZ");
+
+    dmGameObject::HInstance tester = dmGameObject::New(t->m_Collection, "/world_to_local_transform.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, tester);
+
+    dmGameObject::HInstance target = dmGameObject::New(t->m_Collection, "/null.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, target);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(t->m_Collection, target, "target"));
+
+    ASSERT_TRUE(dmGameObject::Init(t->m_Collection));
+
+    t->m_Collection->m_Collection->m_WorldTransforms[target->m_Index] = target_world;
+
+    ASSERT_TRUE(dmGameObject::Update(t->m_Collection, &t->m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(t->m_Collection));
+    dmGameObject::Delete(t->m_Collection, tester, false);
+    dmGameObject::Delete(t->m_Collection, target, false);
+}
+
+// Input transform at same position as target: local translation must be (0,0,0).
+TEST_F(ScriptTest, WorldToLocalTransform_IdentityRelativeTransform)
+{
+    Vector3 pos(10.0f, 5.0f, -3.0f);
+    RunWorldToLocalTransformTest(this,
+        Matrix4::translation(pos),
+        Matrix4::translation(pos),
+        Vector3(0.0f, 0.0f, 0.0f));
+}
+
+// Input transform offset from target along X: local translation must reflect that offset.
+TEST_F(ScriptTest, WorldToLocalTransform_OffsetAlongX)
+{
+    Vector3 target_pos(10.0f, 0.0f, 0.0f);
+    Vector3 input_pos(25.0f, 0.0f, 0.0f);
+    RunWorldToLocalTransformTest(this,
+        Matrix4::translation(target_pos),
+        Matrix4::translation(input_pos),
+        Vector3(15.0f, 0.0f, 0.0f)); // 25 - 10 = 15 in local X
+}
+
+// --- Tests derived from forum report ---
+// https://forum.defold.com/t/trouble-with-go-world-to-local-position-seems-to-be-adding-positions-together/80333
+//
+// The old broken implementation multiplied world_transform * go_transform (forward),
+// which effectively *added* positions instead of subtracting them.
+// e.g. click at (268.5, 264.5), object at (250, 250) → got (518.5, 514.5) instead of (18.5, 14.5).
+
+// Reproduces the exact numbers from the first forum reporter.
+// Object at (250, 250), click at (268.5, 264.5) → local offset must be (18.5, 14.5), not the sum (518.5, 514.5).
+TEST_F(ScriptTest, WorldToLocalPosition_ForumReport_ClickOffset)
+{
+    RunWorldToLocalPositionTest(this,
+        Matrix4::translation(Vector3(250.0f, 250.0f, 0.0f)),
+        Vector3(268.5f, 264.5f, 0.0f),
+        Vector3(18.5f, 14.5f, 0.0f));
+}
+
+// Reproduces the second reporter's case: object's own world position → local must be (0,0,0), not (2,0,0).
+TEST_F(ScriptTest, WorldToLocalPosition_ForumReport_OwnPositionIsZero)
+{
+    Vector3 obj_world_pos(2.0f, 0.0f, 0.0f);
+    RunWorldToLocalPositionTest(this,
+        Matrix4::translation(obj_world_pos),
+        obj_world_pos,
+        Vector3(0.0f, 0.0f, 0.0f));
+}
+
+// Verifies that a 45-degree rotation is correctly accounted for in the inverse.
+// Object at (10,10) rotated 45 deg CCW around Z.
+// World point that corresponds to local (3,4) computed as: world = T + R * local.
+TEST_F(ScriptTest, WorldToLocalPosition_ForumReport_45DegRotation)
+{
+    Matrix4 rot = Matrix4::rotationZ(M_PI * 0.25f);
+    Matrix4 target_world = Matrix4::translation(Vector3(10.0f, 10.0f, 0.0f)) * rot;
+
+    // world = (10,10) + R(45) * (3,4): verified numerically as (9.2929, 14.9497)
+    RunWorldToLocalPositionTest(this,
+        target_world,
+        Vector3(9.292893f, 14.949747f, 0.0f),
+        Vector3(3.0f, 4.0f, 0.0f));
+}
+
+// Verifies that a 90-degree rotation is correctly accounted for in the inverse.
+// Object at (10,10) rotated 90 deg around Z. World point directly above object in world space
+// maps to a point along local X after inverse-rotating.
+TEST_F(ScriptTest, WorldToLocalPosition_ForumReport_WithRotation)
+{
+    // 90 deg CCW around Z: local X -> world Y, local Y -> -world X
+    Matrix4 rot = Matrix4::rotationZ(M_PI * 0.5f);
+    Matrix4 target_world = Matrix4::translation(Vector3(10.0f, 10.0f, 0.0f)) * rot;
+
+    // A point 5 units along world Y from the object origin.
+    // R(90 CCW) maps local X -> world Y, so inverse maps world Y -> local X: result is +5 on local X.
+    Vector3 world_input(10.0f, 15.0f, 0.0f);
+    RunWorldToLocalPositionTest(this,
+        target_world,
+        world_input,
+        Vector3(5.0f, 0.0f, 0.0f));
+}
