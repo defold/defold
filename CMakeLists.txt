@@ -23,6 +23,7 @@ endif()
 get_filename_component(_DEFOLD_JAVA_BIN_DIR "${Java_JAVA_EXECUTABLE}" DIRECTORY)
 get_filename_component(DEFOLD_JAVA_HOME "${_DEFOLD_JAVA_BIN_DIR}/.." ABSOLUTE)
 unset(_DEFOLD_JAVA_BIN_DIR)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 option(DEFOLD_SKIP_BOB_LIGHT "Use an existing bob-light.jar instead of building it" OFF)
 if(NOT DEFOLD_SKIP_BOB_LIGHT)
@@ -173,7 +174,7 @@ if(NOT DEFOLD_SKIP_BOB_LIGHT)
       "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
       "JAVA_HOME=${DEFOLD_JAVA_HOME}"
       "GRADLE_OPTS=-Dorg.gradle.parallel=true --sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED"
-      "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed "-Ptarget-platform=${TARGET_PLATFORM}" installBobLight
+      "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed "-Ptarget-platform=${TARGET_PLATFORM}" "-Ppython=${Python3_EXECUTABLE}" installBobLight
     WORKING_DIRECTORY "${DEFOLD_BOB_DIR}"
     DEPENDS ${_DEFOLD_BOB_LIGHT_DEPENDS}
     COMMENT "Building bob-light.jar"
